@@ -11,6 +11,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,9 +36,14 @@ public class ReferenceController {
             @RequestParam(required = false) String concentration,
             @RequestParam(required = false) String ritual,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        List<String> schoolList = splitFilter(school);
+        List<String> sourceList = splitFilter(source);
         return spellRepository.searchSpells(
                 name != null && name.isBlank() ? null : name,
-                level, school, source, className, subclass,
+                level,
+                schoolList.size(), schoolList.isEmpty() ? List.of("") : schoolList,
+                sourceList.size(), sourceList.isEmpty() ? List.of("") : sourceList,
+                className, subclass,
                 concentration, ritual, pageable);
     }
 
@@ -87,9 +93,15 @@ public class ReferenceController {
             @RequestParam(required = false) String rarity,
             @RequestParam(required = false) String source,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        List<String> typeList = splitFilter(type);
+        List<String> rarityList = splitFilter(rarity);
+        List<String> sourceList = splitFilter(source);
         return itemRepository.searchItems(
                 name != null && name.isBlank() ? null : name,
-                type, rarity, source, pageable);
+                typeList.size(), typeList.isEmpty() ? List.of("") : typeList,
+                rarityList.size(), rarityList.isEmpty() ? List.of("") : rarityList,
+                sourceList.size(), sourceList.isEmpty() ? List.of("") : sourceList,
+                pageable);
     }
 
     @GetMapping("/items/{id}")
@@ -112,6 +124,11 @@ public class ReferenceController {
     @GetMapping("/items/filters/sources")
     public List<String> getItemSources() {
         return itemRepository.findDistinctSources();
+    }
+
+    private List<String> splitFilter(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return Arrays.asList(value.split(","));
     }
 
     @GetMapping("/quickref")

@@ -13,20 +13,23 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
 
     @Query(value = "SELECT * FROM items i WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(i.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR i.type IN (SELECT unnest(string_to_array(CAST(:type AS TEXT), ',')))) AND " +
-           "(CAST(:rarity AS TEXT) IS NULL OR i.rarity IN (SELECT unnest(string_to_array(CAST(:rarity AS TEXT), ',')))) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR i.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
+           "(:typeCount = 0 OR i.type IN (:typeList)) AND " +
+           "(:rarityCount = 0 OR i.rarity IN (:rarityList)) AND " +
+           "(:sourceCount = 0 OR i.source IN (:sourceList))",
            countQuery = "SELECT COUNT(*) FROM items i WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(i.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR i.type IN (SELECT unnest(string_to_array(CAST(:type AS TEXT), ',')))) AND " +
-           "(CAST(:rarity AS TEXT) IS NULL OR i.rarity IN (SELECT unnest(string_to_array(CAST(:rarity AS TEXT), ',')))) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR i.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
+           "(:typeCount = 0 OR i.type IN (:typeList)) AND " +
+           "(:rarityCount = 0 OR i.rarity IN (:rarityList)) AND " +
+           "(:sourceCount = 0 OR i.source IN (:sourceList))",
            nativeQuery = true)
     Page<Item> searchItems(
             @Param("name") String name,
-            @Param("type") String type,
-            @Param("rarity") String rarity,
-            @Param("source") String source,
+            @Param("typeCount") int typeCount,
+            @Param("typeList") List<String> typeList,
+            @Param("rarityCount") int rarityCount,
+            @Param("rarityList") List<String> rarityList,
+            @Param("sourceCount") int sourceCount,
+            @Param("sourceList") List<String> sourceList,
             Pageable pageable);
 
     @Query("SELECT DISTINCT i.type FROM Item i WHERE i.type IS NOT NULL ORDER BY i.type")

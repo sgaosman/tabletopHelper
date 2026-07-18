@@ -6,26 +6,30 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface MonsterRepository extends JpaRepository<Monster, UUID> {
 
     @Query(value = "SELECT * FROM monsters m WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(m.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR LOWER(m.type) IN (SELECT LOWER(unnest(string_to_array(CAST(:type AS TEXT), ','))))) AND " +
-           "(CAST(:cr AS TEXT) IS NULL OR m.challenge_rating IN (SELECT unnest(string_to_array(CAST(:cr AS TEXT), ',')))) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR m.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
+           "(:typeCount = 0 OR LOWER(m.type) IN (:typeList)) AND " +
+           "(:crCount = 0 OR m.challenge_rating IN (:crList)) AND " +
+           "(:sourceCount = 0 OR m.source IN (:sourceList))",
            countQuery = "SELECT COUNT(*) FROM monsters m WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(m.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR LOWER(m.type) IN (SELECT LOWER(unnest(string_to_array(CAST(:type AS TEXT), ','))))) AND " +
-           "(CAST(:cr AS TEXT) IS NULL OR m.challenge_rating IN (SELECT unnest(string_to_array(CAST(:cr AS TEXT), ',')))) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR m.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
+           "(:typeCount = 0 OR LOWER(m.type) IN (:typeList)) AND " +
+           "(:crCount = 0 OR m.challenge_rating IN (:crList)) AND " +
+           "(:sourceCount = 0 OR m.source IN (:sourceList))",
            nativeQuery = true)
     Page<Monster> searchMonsters(
             @Param("name") String name,
-            @Param("type") String type,
-            @Param("cr") String cr,
-            @Param("source") String source,
+            @Param("typeCount") int typeCount,
+            @Param("typeList") List<String> typeList,
+            @Param("crCount") int crCount,
+            @Param("crList") List<String> crList,
+            @Param("sourceCount") int sourceCount,
+            @Param("sourceList") List<String> sourceList,
             Pageable pageable);
 
     @Query("SELECT DISTINCT m.source FROM Monster m ORDER BY m.source")
