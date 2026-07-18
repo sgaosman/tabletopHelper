@@ -168,7 +168,7 @@ questkeeper/
 │   │   ├── character/            # Player character CRUD
 │   │   ├── monster/              # (Milestone 3)
 │   │   ├── reference/            # Spells, conditions, items (Milestone 3)
-│   │   ├── encounter/            # (Milestone 4)
+│   │   ├── encounter/            # Encounter CRUD, participants, WebSocket controller
 │   │   ├── combat/               # (Milestone 5)
 │   │   └── seeder/               # 5e.tools data import (Milestone 3)
 │   └── src/main/resources/

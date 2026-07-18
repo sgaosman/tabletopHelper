@@ -12,14 +12,14 @@ public interface MonsterRepository extends JpaRepository<Monster, UUID> {
 
     @Query(value = "SELECT * FROM monsters m WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(m.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR LOWER(m.type) LIKE LOWER('%' || CAST(:type AS TEXT) || '%')) AND " +
-           "(CAST(:cr AS TEXT) IS NULL OR m.challenge_rating = CAST(:cr AS TEXT)) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR m.source = CAST(:source AS TEXT))",
+           "(CAST(:type AS TEXT) IS NULL OR LOWER(m.type) IN (SELECT LOWER(unnest(string_to_array(CAST(:type AS TEXT), ','))))) AND " +
+           "(CAST(:cr AS TEXT) IS NULL OR m.challenge_rating IN (SELECT unnest(string_to_array(CAST(:cr AS TEXT), ',')))) AND " +
+           "(CAST(:source AS TEXT) IS NULL OR m.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
            countQuery = "SELECT COUNT(*) FROM monsters m WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(m.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR LOWER(m.type) LIKE LOWER('%' || CAST(:type AS TEXT) || '%')) AND " +
-           "(CAST(:cr AS TEXT) IS NULL OR m.challenge_rating = CAST(:cr AS TEXT)) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR m.source = CAST(:source AS TEXT))",
+           "(CAST(:type AS TEXT) IS NULL OR LOWER(m.type) IN (SELECT LOWER(unnest(string_to_array(CAST(:type AS TEXT), ','))))) AND " +
+           "(CAST(:cr AS TEXT) IS NULL OR m.challenge_rating IN (SELECT unnest(string_to_array(CAST(:cr AS TEXT), ',')))) AND " +
+           "(CAST(:source AS TEXT) IS NULL OR m.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
            nativeQuery = true)
     Page<Monster> searchMonsters(
             @Param("name") String name,

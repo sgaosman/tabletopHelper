@@ -210,6 +210,8 @@ Search and filter monsters. Paginated.
 
 **Query params:** `name`, `type`, `cr`, `source`, `page`, `size`, `sort`
 
+All filter params (`type`, `cr`, `source`) accept comma-separated values for multiselect (e.g., `type=Dragon,Undead`).
+
 **Response (200):** Spring Page of Monster objects (name, type, challengeRating, hitPoints, armourClass, speed, stats, traits, actions, etc.). JSONB fields (speed, traits, actions, etc.) are returned as raw JSON via `@JsonRawValue`.
 
 ### GET /monsters/{id}
@@ -227,6 +229,8 @@ Return distinct filter values for dropdowns.
 Search and filter spells. Paginated.
 
 **Query params:** `name`, `level`, `school`, `source`, `className`, `subclass`, `concentration`, `ritual`, `page`, `size`, `sort`
+
+Filter params `school` and `source` accept comma-separated values for multiselect (e.g., `school=Evocation,Necromancy`). `className` accepts a single value (subclass filter requires exactly one class).
 
 When `subclass` is provided, results include both base class spells and subclass-specific spells.
 
@@ -249,6 +253,8 @@ Return subclass entries for a given class (e.g., `Cleric (Knowledge)` for classN
 Search and filter items. Paginated.
 
 **Query params:** `name`, `type`, `rarity`, `source`, `page`, `size`, `sort`
+
+Filter params `type`, `rarity`, and `source` accept comma-separated values for multiselect (e.g., `type=Weapon,Armor`).
 
 ### GET /reference/items/{id}
 
@@ -273,6 +279,160 @@ Get a single condition by ID.
 ### GET /reference/quickref
 
 Return the full quick reference data from `bookref-quick.json`. Response is a JSON array of 5 chapter objects, each containing an `entries` array of sections with nested content (text, tables, lists, insets, etc.) using 5e.tools markup format.
+
+## Encounters
+
+All endpoints require authentication. The authenticated user must be the DM of the encounter's campaign (except `GET /encounters/join/{code}`).
+
+After every mutation, the updated encounter state is broadcast via WebSocket to `/topic/encounter/{id}/state`.
+
+### POST /encounters
+
+Create a new encounter in PREPARING status.
+
+**Request:**
+```json
+{
+  "campaignId": "uuid",
+  "name": "Goblin Ambush",
+  "description": "Optional description"
+}
+```
+
+**Response (200):** Full encounter object with empty participants list.
+
+### GET /encounters/campaign/{campaignId}
+
+List all encounters for a campaign, ordered by creation date (newest first).
+
+**Response (200):** Array of encounter objects.
+
+### GET /encounters/{id}
+
+Get a single encounter with all participants.
+
+**Response (200):** Full encounter object.
+
+### DELETE /encounters/{id}
+
+Delete an encounter. Only works in PREPARING status.
+
+### POST /encounters/{id}/participants
+
+Add a participant (monster or player character).
+
+**Request:**
+```json
+{
+  "participantType": "MONSTER",
+  "monsterId": "uuid",
+  "displayName": "Goblin",
+  "quantity": 3
+}
+```
+
+For `PLAYER` type, provide `characterId` instead of `monsterId`. HP, AC, and initiative modifier are auto-populated from the monster or character entity.
+
+When `quantity` > 1, participants are named sequentially ("Goblin 1", "Goblin 2", "Goblin 3"), continuing from any existing participants with the same base name.
+
+**Response (200):** Full encounter object with updated participants.
+
+### DELETE /encounters/{id}/participants/{participantId}
+
+Remove a participant from the encounter.
+
+**Response (200):** Full encounter object.
+
+### POST /encounters/{id}/initiatives
+
+Set initiative values for specific participants.
+
+**Request:**
+```json
+{
+  "initiatives": [
+    { "participantId": "uuid", "initiative": 18 },
+    { "participantId": "uuid", "initiative": 12 }
+  ]
+}
+```
+
+**Response (200):** Full encounter object with updated initiatives and sort order.
+
+### POST /encounters/{id}/initiatives/roll
+
+Roll initiative (1d20 + modifier) for all participants. Updates sort order.
+
+**Response (200):** Full encounter object.
+
+### POST /encounters/{id}/start
+
+Transition from PREPARING to ACTIVE. Requires all participants to have initiative set. Generates a session code and marks the first participant (by initiative order) as current turn.
+
+**Response (200):** Full encounter object with session code.
+
+### POST /encounters/{id}/pause
+
+Transition from ACTIVE to PAUSED.
+
+### POST /encounters/{id}/resume
+
+Transition from PAUSED to ACTIVE.
+
+### POST /encounters/{id}/end
+
+Transition to COMPLETED.
+
+### GET /encounters/join/{sessionCode}
+
+Look up an encounter by session code. Used by players to join a live encounter. Does not require campaign membership.
+
+**Response (200):** Full encounter object.
+
+**Errors:**
+- `400` — Encounter not found
+
+### Encounter Response Shape
+
+```json
+{
+  "id": "uuid",
+  "campaignId": "uuid",
+  "campaignName": "Curse of Strahd",
+  "name": "Goblin Ambush",
+  "description": "...",
+  "status": "ACTIVE",
+  "currentTurnIndex": 2,
+  "roundNumber": 1,
+  "sessionCode": "X43EWPQ2",
+  "participants": [
+    {
+      "id": "uuid",
+      "participantType": "PLAYER",
+      "characterId": "uuid",
+      "monsterId": null,
+      "displayName": "Aragorn",
+      "initiative": 18,
+      "initiativeModifier": 3,
+      "sortOrder": 0,
+      "hpMax": 52,
+      "hpCurrent": 52,
+      "hpTemp": 0,
+      "armourClass": 18,
+      "activeConditions": null,
+      "concentrationSpell": null,
+      "isVisibleToPlayers": true,
+      "isAlive": true,
+      "isCurrentTurn": true,
+      "controlledByUserId": "uuid",
+      "deathSaveSuccesses": 0,
+      "deathSaveFailures": 0,
+      "notes": null
+    }
+  ],
+  "createdAt": "2026-07-18T10:00:00Z"
+}
+```
 
 ## Error Response Format
 

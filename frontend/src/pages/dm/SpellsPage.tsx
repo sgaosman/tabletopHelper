@@ -4,6 +4,7 @@ import { ArrowLeft, Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X
 import { searchSpells, getSpellSchools, getSpellSources, getSpellClasses, getSpellSubclasses } from '../../api/referenceApi';
 import type { Spell } from '../../types/reference';
 import SpellCard from '../../components/reference/SpellCard';
+import MultiSelect from '../../components/common/MultiSelect';
 import { sourceName } from '../../utils/sourceNames';
 
 const COLUMNS: { label: string; field: string; hideClass?: string }[] = [
@@ -22,9 +23,9 @@ export default function SpellsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState<number | ''>('');
-  const [schoolFilter, setSchoolFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
-  const [classFilter, setClassFilter] = useState('');
+  const [schoolFilter, setSchoolFilter] = useState<string[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<string[]>([]);
+  const [classFilter, setClassFilter] = useState<string[]>([]);
   const [subclassFilter, setSubclassFilter] = useState('');
   const [concFilter, setConcFilter] = useState('');
   const [ritualFilter, setRitualFilter] = useState('');
@@ -45,23 +46,23 @@ export default function SpellsPage() {
   }, []);
 
   useEffect(() => {
-    if (classFilter) {
-      getSpellSubclasses(classFilter).then(setSubclasses);
+    if (classFilter.length === 1) {
+      getSpellSubclasses(classFilter[0]).then(setSubclasses);
     } else {
       setSubclasses([]);
       setSubclassFilter('');
     }
   }, [classFilter]);
 
-  const hasFilters = search || levelFilter !== '' || schoolFilter || sourceFilter ||
-    classFilter || subclassFilter || concFilter || ritualFilter;
+  const hasFilters = search || levelFilter !== '' || schoolFilter.length > 0 || sourceFilter.length > 0 ||
+    classFilter.length > 0 || subclassFilter || concFilter || ritualFilter;
 
   const clearFilters = () => {
     setSearch('');
     setLevelFilter('');
-    setSchoolFilter('');
-    setSourceFilter('');
-    setClassFilter('');
+    setSchoolFilter([]);
+    setSourceFilter([]);
+    setClassFilter([]);
     setSubclassFilter('');
     setConcFilter('');
     setRitualFilter('');
@@ -74,10 +75,10 @@ export default function SpellsPage() {
       const result = await searchSpells({
         name: search || undefined,
         level: levelFilter === '' ? undefined : levelFilter,
-        school: schoolFilter || undefined,
-        source: sourceFilter || undefined,
-        className: classFilter || undefined,
-        subclass: subclassFilter || undefined,
+        school: schoolFilter.length ? schoolFilter.join(',') : undefined,
+        source: sourceFilter.length ? sourceFilter.join(',') : undefined,
+        className: classFilter.length === 1 ? classFilter[0] : undefined,
+        subclass: classFilter.length === 1 ? (subclassFilter || undefined) : undefined,
         concentration: concFilter || undefined,
         ritual: ritualFilter || undefined,
         page,
@@ -137,22 +138,26 @@ export default function SpellsPage() {
           <option value="0">Cantrip</option>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => <option key={l} value={l}>Level {l}</option>)}
         </select>
-        <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">
-          <option value="">All Schools</option>
-          {schools.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setSubclassFilter(''); }}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">
-          <option value="">All Classes</option>
-          {classes.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        {classFilter && subclasses.length > 0 && (
+        <MultiSelect
+          options={schools}
+          selected={schoolFilter}
+          onChange={setSchoolFilter}
+          placeholder="All Schools"
+          accentColor="indigo"
+        />
+        <MultiSelect
+          options={classes}
+          selected={classFilter}
+          onChange={(v) => { setClassFilter(v); setSubclassFilter(''); }}
+          placeholder="All Classes"
+          accentColor="indigo"
+        />
+        {classFilter.length === 1 && subclasses.length > 0 && (
           <select value={subclassFilter} onChange={(e) => setSubclassFilter(e.target.value)}
             className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">
-            <option value="">All {classFilter} Subclasses</option>
+            <option value="">All {classFilter[0]} Subclasses</option>
             {subclasses.map(sc => (
-              <option key={sc} value={sc}>{sc.replace(`${classFilter} (`, '').replace(/\)$/, '')}</option>
+              <option key={sc} value={sc}>{sc.replace(`${classFilter[0]} (`, '').replace(/\)$/, '')}</option>
             ))}
           </select>
         )}
@@ -168,11 +173,14 @@ export default function SpellsPage() {
           <option value="true">Ritual Only</option>
           <option value="false">Non-Ritual Only</option>
         </select>
-        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">
-          <option value="">All Sources</option>
-          {sources.map(s => <option key={s} value={s}>{sourceName(s)}</option>)}
-        </select>
+        <MultiSelect
+          options={sources}
+          selected={sourceFilter}
+          onChange={setSourceFilter}
+          placeholder="All Sources"
+          renderLabel={(s) => sourceName(s)}
+          accentColor="indigo"
+        />
       </div>
 
       <div className="flex items-center justify-between mb-4">

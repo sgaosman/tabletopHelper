@@ -239,6 +239,52 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 
 **Count:** 15 conditions
 
+## Encounter Tables (Milestone 4)
+
+### encounters
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | |
+| campaign_id | UUID | FK → campaigns, NOT NULL | |
+| name | VARCHAR(200) | NOT NULL | |
+| description | TEXT | | |
+| status | VARCHAR | NOT NULL, DEFAULT 'PREPARING' | PREPARING, ACTIVE, PAUSED, COMPLETED |
+| current_turn_index | INTEGER | DEFAULT 0 | Index into sorted participants |
+| round_number | INTEGER | DEFAULT 1 | |
+| session_code | VARCHAR(8) | UNIQUE, NULLABLE | Generated on start, same charset as invite codes |
+| created_at | TIMESTAMPTZ | | |
+| updated_at | TIMESTAMPTZ | | |
+
+### encounter_participants
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | |
+| encounter_id | UUID | FK → encounters, NOT NULL | |
+| participant_type | VARCHAR | NOT NULL | PLAYER, MONSTER, COMPANION |
+| character_id | UUID | FK → player_characters, NULLABLE | Set for PLAYER type |
+| monster_id | UUID | FK → monsters, NULLABLE | Set for MONSTER type |
+| display_name | VARCHAR(200) | NOT NULL | e.g. "Goblin 2" |
+| initiative | INTEGER | NULLABLE | Set before encounter starts |
+| initiative_modifier | INTEGER | DEFAULT 0 | Auto-populated from entity |
+| sort_order | INTEGER | DEFAULT 0 | Based on initiative desc |
+| hp_max | INTEGER | NOT NULL | |
+| hp_current | INTEGER | NOT NULL | |
+| hp_temp | INTEGER | DEFAULT 0 | |
+| armour_class | INTEGER | NOT NULL | |
+| active_conditions | JSONB | | Array of condition strings |
+| concentration_spell | VARCHAR(200) | | |
+| is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
+| is_alive | BOOLEAN | DEFAULT TRUE | |
+| is_current_turn | BOOLEAN | DEFAULT FALSE | |
+| controlled_by_user_id | UUID | FK → users, NULLABLE | For PLAYER, set to character owner |
+| death_save_successes | INTEGER | DEFAULT 0 | |
+| death_save_failures | INTEGER | DEFAULT 0 | |
+| notes | TEXT | | DM-only notes |
+| created_at | TIMESTAMPTZ | | |
+| updated_at | TIMESTAMPTZ | | |
+
 ## Querying the Database Directly
 
 ```bash

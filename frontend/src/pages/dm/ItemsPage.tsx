@@ -4,6 +4,7 @@ import { ArrowLeft, Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X
 import { searchItems, getItemTypes, getItemRarities, getItemSources } from '../../api/referenceApi';
 import type { Item } from '../../types/reference';
 import ItemCard from '../../components/reference/ItemCard';
+import MultiSelect from '../../components/common/MultiSelect';
 import { sourceName } from '../../utils/sourceNames';
 
 const RARITY_COLORS: Record<string, string> = {
@@ -29,9 +30,9 @@ export default function ItemsPage() {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [rarityFilter, setRarityFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [rarityFilter, setRarityFilter] = useState<string[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -52,9 +53,9 @@ export default function ItemsPage() {
     try {
       const result = await searchItems({
         name: search || undefined,
-        type: typeFilter || undefined,
-        rarity: rarityFilter || undefined,
-        source: sourceFilter || undefined,
+        type: typeFilter.length ? typeFilter.join(',') : undefined,
+        rarity: rarityFilter.length ? rarityFilter.join(',') : undefined,
+        source: sourceFilter.length ? sourceFilter.join(',') : undefined,
         page,
         size: 20,
         sort: `${sortField},${sortDir}`,
@@ -70,12 +71,12 @@ export default function ItemsPage() {
   useEffect(() => { loadItems(); }, [loadItems]);
   useEffect(() => { setPage(0); }, [search, typeFilter, rarityFilter, sourceFilter]);
 
-  const hasFilters = search || typeFilter || rarityFilter || sourceFilter;
+  const hasFilters = search || typeFilter.length > 0 || rarityFilter.length > 0 || sourceFilter.length > 0;
   const clearFilters = () => {
     setSearch('');
-    setTypeFilter('');
-    setRarityFilter('');
-    setSourceFilter('');
+    setTypeFilter([]);
+    setRarityFilter([]);
+    setSourceFilter([]);
     setPage(0);
   };
 
@@ -113,21 +114,28 @@ export default function ItemsPage() {
             value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none" />
         </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none">
-          <option value="">All Types</option>
-          {types.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select value={rarityFilter} onChange={(e) => setRarityFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none">
-          <option value="">All Rarities</option>
-          {rarities.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-emerald-500 focus:outline-none">
-          <option value="">All Sources</option>
-          {sources.map(s => <option key={s} value={s}>{sourceName(s)}</option>)}
-        </select>
+        <MultiSelect
+          options={types}
+          selected={typeFilter}
+          onChange={setTypeFilter}
+          placeholder="All Types"
+          accentColor="emerald"
+        />
+        <MultiSelect
+          options={rarities}
+          selected={rarityFilter}
+          onChange={setRarityFilter}
+          placeholder="All Rarities"
+          accentColor="emerald"
+        />
+        <MultiSelect
+          options={sources}
+          selected={sourceFilter}
+          onChange={setSourceFilter}
+          placeholder="All Sources"
+          renderLabel={(s) => sourceName(s)}
+          accentColor="emerald"
+        />
       </div>
 
       <div className="flex items-center justify-between mb-4">

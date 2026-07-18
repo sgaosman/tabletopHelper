@@ -136,7 +136,40 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Rationale:** 5e.tools item data is inconsistent — some items use type codes with source suffixes (`RD|DMG`), some have no type but have `typeAlt`, some have only boolean flags, and a handful (MTG crossover items) have no type metadata at all. The cascade ensures all 1,723 items get a correct type with zero NULLs.
 
-## D013: Static Quick Reference from bookref-quick.json
+## D013: Multiselect Filters via Comma-Separated SQL Parameters
+
+**Date:** 2026-07-18
+**Status:** Accepted
+
+**Decision:** Implement multiselect filters by accepting comma-separated values in existing string query parameters and splitting them in native SQL using PostgreSQL's `string_to_array` + `unnest` for IN clause matching.
+
+**Rationale:** This approach requires no controller or service changes — the existing `@RequestParam String type` signatures remain unchanged. A single value like `"Dragon"` works identically to before, while `"Dragon,Undead"` is split into an IN clause. The SQL pattern `IN (SELECT unnest(string_to_array(CAST(:param AS TEXT), ',')))` handles both cases.
+
+**Trade-offs:** Commas in filter values would break parsing (none exist in current D&D 5e data). The `string_to_array`/`unnest` pattern is PostgreSQL-specific but the project is committed to PostgreSQL. Slightly more complex SQL than simple equality checks.
+
+**Alternatives considered:** Spring `@RequestParam List<String>` — would require changing all controller signatures and service methods. Separate filter parameters per selection — excessive API complexity.
+
+## D014: Encounter Session Code Reuses Campaign Invite Code Pattern
+
+**Date:** 2026-07-18
+**Status:** Accepted
+
+**Decision:** Generate encounter session codes using the same `SecureRandom` + `CODE_CHARS` pattern as campaign invite codes (8-character alphanumeric, excluding ambiguous characters 0/O/1/I/L).
+
+**Rationale:** Consistency across the application. Players are already familiar with entering 8-character codes from campaign invites. The character set avoids confusion when reading codes aloud at the table.
+
+## D015: WebSocket Auth via STOMP CONNECT Header (Not Query Param)
+
+**Date:** 2026-07-18
+**Status:** Accepted
+
+**Decision:** Pass the JWT as a native header (`Authorization: Bearer <token>`) in the STOMP CONNECT frame rather than as a URL query parameter on the WebSocket upgrade request.
+
+**Rationale:** Query parameters appear in server access logs, browser history, and potentially proxy logs — exposing the JWT. STOMP native headers are transmitted inside the WebSocket frame after the upgrade, keeping the token out of HTTP-visible surfaces. The `WebSocketAuthInterceptor` extracts the token from either the `Authorization` header or a `token` native header for flexibility.
+
+**Trade-offs:** Slightly more complex client-side setup (must configure `connectHeaders` on the STOMP client). SockJS fallback transports may expose headers differently, but Spring's ChannelInterceptor operates at the STOMP layer regardless of transport.
+
+## D016: Static Quick Reference from bookref-quick.json
 
 **Date:** 2026-07-18
 **Status:** Accepted

@@ -14,8 +14,8 @@ public interface SpellRepository extends JpaRepository<Spell, UUID> {
     @Query(value = "SELECT * FROM spells s WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(s.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
            "(CAST(:level AS INTEGER) IS NULL OR s.level = CAST(:level AS INTEGER)) AND " +
-           "(CAST(:school AS TEXT) IS NULL OR s.school = CAST(:school AS TEXT)) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR s.source = CAST(:source AS TEXT)) AND " +
+           "(CAST(:school AS TEXT) IS NULL OR s.school IN (SELECT unnest(string_to_array(CAST(:school AS TEXT), ',')))) AND " +
+           "(CAST(:source AS TEXT) IS NULL OR s.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ',')))) AND " +
            "(CAST(:className AS TEXT) IS NULL OR " +
            "  s.classes::jsonb @> to_jsonb(CAST(:className AS TEXT)) OR " +
            "  (CAST(:subclass AS TEXT) IS NOT NULL AND s.classes::jsonb @> to_jsonb(CAST(:subclass AS TEXT)))) AND " +
@@ -24,8 +24,8 @@ public interface SpellRepository extends JpaRepository<Spell, UUID> {
            countQuery = "SELECT COUNT(*) FROM spells s WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(s.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
            "(CAST(:level AS INTEGER) IS NULL OR s.level = CAST(:level AS INTEGER)) AND " +
-           "(CAST(:school AS TEXT) IS NULL OR s.school = CAST(:school AS TEXT)) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR s.source = CAST(:source AS TEXT)) AND " +
+           "(CAST(:school AS TEXT) IS NULL OR s.school IN (SELECT unnest(string_to_array(CAST(:school AS TEXT), ',')))) AND " +
+           "(CAST(:source AS TEXT) IS NULL OR s.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ',')))) AND " +
            "(CAST(:className AS TEXT) IS NULL OR " +
            "  s.classes::jsonb @> to_jsonb(CAST(:className AS TEXT)) OR " +
            "  (CAST(:subclass AS TEXT) IS NOT NULL AND s.classes::jsonb @> to_jsonb(CAST(:subclass AS TEXT)))) AND " +

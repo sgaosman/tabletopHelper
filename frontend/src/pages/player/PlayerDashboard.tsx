@@ -5,7 +5,7 @@ import { campaignApi } from '../../api/campaignApi';
 import { characterApi } from '../../api/characterApi';
 import type { Campaign } from '../../types/campaign';
 import type { PlayerCharacter } from '../../types/character';
-import { Plus, Users, ScrollText, Zap } from 'lucide-react';
+import { Plus, Users, ScrollText, Zap, Swords } from 'lucide-react';
 
 export default function PlayerDashboard() {
   const { user, logout } = useAuth();
@@ -78,6 +78,20 @@ export default function PlayerDashboard() {
             <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors">Join</button>
           </form>
           {joinError && <p className="text-red-400 text-sm mt-2">{joinError}</p>}
+        </section>
+
+        {/* Join Encounter */}
+        <section>
+          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Swords className="w-5 h-5 text-orange-400" /> Encounters
+          </h2>
+          <button
+            onClick={() => navigate('/player/encounter/join')}
+            className="px-4 py-3 bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-lg text-left transition-colors w-full max-w-xs"
+          >
+            <p className="text-white font-medium">Join Encounter</p>
+            <p className="text-gray-400 text-xs mt-0.5">Enter a session code from your DM</p>
+          </button>
         </section>
 
         {/* My Campaigns */}

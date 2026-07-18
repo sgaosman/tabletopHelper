@@ -12,6 +12,10 @@ import BestiaryPage from './pages/dm/BestiaryPage';
 import SpellsPage from './pages/dm/SpellsPage';
 import ItemsPage from './pages/dm/ItemsPage';
 import ConditionsPage from './pages/dm/ConditionsPage';
+import EncounterBuilderPage from './pages/dm/EncounterBuilderPage';
+import EncounterSessionPage from './pages/dm/EncounterSessionPage';
+import JoinEncounterPage from './pages/player/JoinEncounterPage';
+import PlayerEncounterSessionPage from './pages/player/EncounterSessionPage';
 import PlaceholderPage from './components/common/PlaceholderPage';
 import QuickReferencePage from './pages/QuickReferencePage';
 
@@ -39,12 +43,15 @@ export default function App() {
       <Route path="/dm/spells" element={<ProtectedRoute><SpellsPage /></ProtectedRoute>} />
       <Route path="/dm/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
       <Route path="/dm/conditions" element={<ProtectedRoute><ConditionsPage /></ProtectedRoute>} />
-      <Route path="/dm/encounters" element={<ProtectedRoute><PlaceholderPage title="Encounters" milestone={4} description="Build encounters, add monsters and players, then run live combat." /></ProtectedRoute>} />
+      <Route path="/dm/encounters" element={<ProtectedRoute><EncounterBuilderPage /></ProtectedRoute>} />
+      <Route path="/dm/encounter/:encounterId/session" element={<ProtectedRoute><EncounterSessionPage /></ProtectedRoute>} />
       <Route path="/dm/quickref" element={<ProtectedRoute><QuickReferencePage /></ProtectedRoute>} />
 
       <Route path="/player" element={<ProtectedRoute><PlayerDashboard /></ProtectedRoute>} />
       <Route path="/player/quickref" element={<ProtectedRoute><QuickReferencePage /></ProtectedRoute>} />
       <Route path="/player/characters/:characterId" element={<ProtectedRoute><CharacterSheetPage /></ProtectedRoute>} />
+      <Route path="/player/encounter/join" element={<ProtectedRoute><JoinEncounterPage /></ProtectedRoute>} />
+      <Route path="/player/encounter/:encounterId/session" element={<ProtectedRoute><PlayerEncounterSessionPage /></ProtectedRoute>} />
 
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />

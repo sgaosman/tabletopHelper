@@ -10,10 +10,13 @@ Real-time combat communication uses STOMP (Simple Text Oriented Messaging Protoc
 ## Connection
 
 ```
-Client → ws://localhost:8080/ws?token=<JWT>
+Client → ws://localhost:8080/ws (SockJS)
+STOMP CONNECT headers: { Authorization: "Bearer <JWT>" }
 ```
 
-The WebSocket endpoint is `/ws`. The JWT is passed as a query parameter. A `ChannelInterceptor` on the server validates it during the STOMP CONNECT frame and associates the session with the authenticated user.
+The WebSocket endpoint is `/ws` with SockJS fallback. The JWT is passed as a native header (`Authorization`) in the STOMP CONNECT frame — not as a query parameter. `WebSocketAuthInterceptor` (a `ChannelInterceptor`) intercepts CONNECT commands, extracts the token, validates it via `JwtTokenProvider`, and sets a `UsernamePasswordAuthenticationToken` as the session's user principal.
+
+The frontend uses `@stomp/stompjs` Client with a SockJS factory (`new SockJS('/ws')`) and passes the token in `connectHeaders`.
 
 ## STOMP Destinations
 
@@ -105,4 +108,18 @@ If a client disconnects and reconnects, it re-subscribes to the topic and immedi
 
 ## Implementation Status
 
-WebSocket infrastructure is planned for **Milestone 4**. The current implementation uses REST polling (10-second interval on the campaign detail page) as a temporary bridge. The full STOMP implementation will be added when the encounter system is built.
+WebSocket infrastructure is **implemented** as of Milestone 4.
+
+**Backend:**
+- `WebSocketConfig.java` — `@EnableWebSocketMessageBroker`, registers STOMP endpoint at `/ws` with SockJS, simple broker on `/topic` and `/queue`, app prefix `/app`, user prefix `/user`
+- `WebSocketAuthInterceptor.java` — `ChannelInterceptor` validating JWT on CONNECT frames
+- `EncounterWebSocketController.java` — `@MessageMapping("/encounter/{id}/join")` broadcasts current state
+- `EncounterController.java` — injects `SimpMessagingTemplate`, calls `broadcastState()` after every REST mutation
+
+**Frontend:**
+- `useWebSocket.ts` — STOMP client hook with auto-reconnect (5s delay), subscribes to state topic and error queue
+- `EncounterContext.tsx` — wraps useWebSocket, manages encounter state via useReducer, fetches initial state via REST
+
+**Remaining (Milestone 5):** Combat action message mappings (`/attack`, `/spell`, `/damage`, `/heal`, `/condition/*`, `/deathsave`, `/turn/*`), combat log broadcasts, and action result messages.
+
+**Note:** Campaign detail page still uses 10-second REST polling, which is fine for its use case (see [[decisions-log#D008]]).

@@ -4,6 +4,7 @@ import { ArrowLeft, Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X
 import { searchMonsters, getMonsterTypes, getMonsterChallengeRatings, getMonsterSources } from '../../api/monsterApi';
 import type { Monster } from '../../types/monster';
 import MonsterStatBlock from '../../components/monster/MonsterStatBlock';
+import MultiSelect from '../../components/common/MultiSelect';
 import { sourceName } from '../../utils/sourceNames';
 
 const COLUMNS: { label: string; field: string; hideClass?: string }[] = [
@@ -21,9 +22,9 @@ export default function BestiaryPage() {
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [crFilter, setCrFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [crFilter, setCrFilter] = useState<string[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -44,9 +45,9 @@ export default function BestiaryPage() {
     try {
       const result = await searchMonsters({
         name: search || undefined,
-        type: typeFilter || undefined,
-        cr: crFilter || undefined,
-        source: sourceFilter || undefined,
+        type: typeFilter.length ? typeFilter.join(',') : undefined,
+        cr: crFilter.length ? crFilter.join(',') : undefined,
+        source: sourceFilter.length ? sourceFilter.join(',') : undefined,
         page,
         size: 20,
         sort: `${sortField},${sortDir}`,
@@ -62,12 +63,12 @@ export default function BestiaryPage() {
   useEffect(() => { loadMonsters(); }, [loadMonsters]);
   useEffect(() => { setPage(0); }, [search, typeFilter, crFilter, sourceFilter]);
 
-  const hasFilters = search || typeFilter || crFilter || sourceFilter;
+  const hasFilters = search || typeFilter.length > 0 || crFilter.length > 0 || sourceFilter.length > 0;
   const clearFilters = () => {
     setSearch('');
-    setTypeFilter('');
-    setCrFilter('');
-    setSourceFilter('');
+    setTypeFilter([]);
+    setCrFilter([]);
+    setSourceFilter([]);
     setPage(0);
   };
 
@@ -105,21 +106,29 @@ export default function BestiaryPage() {
             value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-red-500 focus:outline-none" />
         </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-red-500 focus:outline-none">
-          <option value="">All Types</option>
-          {types.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select value={crFilter} onChange={(e) => setCrFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-red-500 focus:outline-none">
-          <option value="">All CRs</option>
-          {crs.map(c => <option key={c} value={c}>CR {c}</option>)}
-        </select>
-        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-red-500 focus:outline-none">
-          <option value="">All Sources</option>
-          {sources.map(s => <option key={s} value={s}>{sourceName(s)}</option>)}
-        </select>
+        <MultiSelect
+          options={types}
+          selected={typeFilter}
+          onChange={setTypeFilter}
+          placeholder="All Types"
+          accentColor="red"
+        />
+        <MultiSelect
+          options={crs}
+          selected={crFilter}
+          onChange={setCrFilter}
+          placeholder="All CRs"
+          renderLabel={(c) => `CR ${c}`}
+          accentColor="red"
+        />
+        <MultiSelect
+          options={sources}
+          selected={sourceFilter}
+          onChange={setSourceFilter}
+          placeholder="All Sources"
+          renderLabel={(s) => sourceName(s)}
+          accentColor="red"
+        />
       </div>
 
       <div className="flex items-center justify-between mb-4">

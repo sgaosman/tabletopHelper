@@ -13,14 +13,14 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
 
     @Query(value = "SELECT * FROM items i WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(i.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR i.type = CAST(:type AS TEXT)) AND " +
-           "(CAST(:rarity AS TEXT) IS NULL OR i.rarity = CAST(:rarity AS TEXT)) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR i.source = CAST(:source AS TEXT))",
+           "(CAST(:type AS TEXT) IS NULL OR i.type IN (SELECT unnest(string_to_array(CAST(:type AS TEXT), ',')))) AND " +
+           "(CAST(:rarity AS TEXT) IS NULL OR i.rarity IN (SELECT unnest(string_to_array(CAST(:rarity AS TEXT), ',')))) AND " +
+           "(CAST(:source AS TEXT) IS NULL OR i.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
            countQuery = "SELECT COUNT(*) FROM items i WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(i.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:type AS TEXT) IS NULL OR i.type = CAST(:type AS TEXT)) AND " +
-           "(CAST(:rarity AS TEXT) IS NULL OR i.rarity = CAST(:rarity AS TEXT)) AND " +
-           "(CAST(:source AS TEXT) IS NULL OR i.source = CAST(:source AS TEXT))",
+           "(CAST(:type AS TEXT) IS NULL OR i.type IN (SELECT unnest(string_to_array(CAST(:type AS TEXT), ',')))) AND " +
+           "(CAST(:rarity AS TEXT) IS NULL OR i.rarity IN (SELECT unnest(string_to_array(CAST(:rarity AS TEXT), ',')))) AND " +
+           "(CAST(:source AS TEXT) IS NULL OR i.source IN (SELECT unnest(string_to_array(CAST(:source AS TEXT), ','))))",
            nativeQuery = true)
     Page<Item> searchItems(
             @Param("name") String name,

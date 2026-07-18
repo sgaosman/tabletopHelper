@@ -7,7 +7,7 @@
 | 1 | Project Setup & Authentication | Complete | Auth, JWT, login/register UI |
 | 2 | Campaign Management & Character Sheets | Complete | Campaigns, invite codes, character CRUD |
 | 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
-| 4 | Encounter Builder & WebSocket Setup | Not started | |
+| 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
 | 5 | Combat Engine | Not started | Core feature |
 | 6 | Polish, Mobile & Deployment | Not started | |
 
@@ -39,15 +39,36 @@
 
 **Goal:** DM can create encounters, add monsters and PCs, and WebSocket connections work.
 
-**Tasks:**
-- [ ] Encounter and EncounterParticipant entities
-- [ ] EncounterService and EncounterController
-- [ ] WebSocketConfig with STOMP endpoints and SockJS fallback
-- [ ] WebSocket authentication via ChannelInterceptor (JWT on CONNECT)
-- [ ] EncounterBuilderPage — select campaign, create encounter, add monsters/PCs
-- [ ] useWebSocket hook — STOMP connection lifecycle, subscriptions, reconnection
-- [ ] EncounterContext — live encounter state from WebSocket messages
-- [ ] Basic EncounterSessionPage (DM and Player views)
+**Backend tasks:**
+- [x] Encounter and EncounterParticipant entities with full schema (status, initiative, HP, AC, conditions, death saves, concentration)
+- [x] EncounterRepository and EncounterParticipantRepository
+- [x] EncounterService — full CRUD, participant management, initiative rolling, encounter lifecycle (PREPARING → ACTIVE → PAUSED → COMPLETED)
+- [x] EncounterController — REST endpoints at `/api/encounters/**` with WebSocket broadcast after every mutation
+- [x] WebSocketConfig with STOMP over SockJS at `/ws`, message broker on `/topic` and `/queue`
+- [x] WebSocketAuthInterceptor — JWT validation on STOMP CONNECT frames via Authorization header
+- [x] EncounterWebSocketController — join handler with state broadcast
+- [x] Session code generation (same pattern as campaign invite codes)
+- [x] Monster auto-populate (HP, AC, dex mod for initiative) with quantity naming ("Goblin 1", "Goblin 2")
+- [x] Player character auto-populate from character sheet (HP, AC, initiative bonus)
+
+**Frontend tasks:**
+- [x] TypeScript interfaces for Encounter, EncounterParticipant, all request/response types
+- [x] encounterApi — REST client for all encounter endpoints
+- [x] useWebSocket hook — STOMP connection lifecycle, JWT auth, subscriptions, auto-reconnect (5s delay)
+- [x] EncounterContext — live encounter state from WebSocket + REST fallback
+- [x] EncounterBuilderPage — campaign selector, encounter list with status badges, create form, add PCs from campaign, search/add monsters with quantity, roll initiative, start encounter
+- [x] EncounterSessionPage (DM) — initiative order, HP/AC/conditions display, pause/resume/end controls, session code copy, WebSocket connection status
+- [x] EncounterSessionPage (Player) — read-only view with own character highlighted, "it's your turn" notification, visibility filtering
+- [x] JoinEncounterPage — session code entry for players
+- [x] PlayerDashboard — "Join Encounter" section added
+- [x] Routes wired: `/dm/encounters`, `/dm/encounter/:id/session`, `/player/encounter/join`, `/player/encounter/:id/session`
+
+**Multiselect filters (shipped alongside M4):**
+- [x] MultiSelect reusable component with checkboxes, search, dark theme
+- [x] Backend SQL queries updated to accept comma-separated values via `string_to_array`/`unnest`
+- [x] ItemsPage — type, rarity, source converted to multiselect
+- [x] BestiaryPage — type, CR, source converted to multiselect
+- [x] SpellsPage — school, class, source converted to multiselect (subclass hidden when >1 class selected)
 
 ## Milestone 5: Combat Engine
 
