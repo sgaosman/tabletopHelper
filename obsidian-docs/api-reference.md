@@ -458,6 +458,140 @@ Look up an encounter by session code. Used by players to join a live encounter. 
 }
 ```
 
+## Combat
+
+All combat endpoints are under `/api/encounters/{encounterId}/combat`. The encounter must be in ACTIVE or PAUSED status. After every mutation, the updated encounter state is broadcast via WebSocket.
+
+### POST /encounters/{id}/combat/damage
+
+Apply damage to a participant. Temp HP absorbs damage first. Dropping to 0 HP kills monsters outright; players enter the dying state (death saves reset). Automatically triggers a concentration check if the target is concentrating.
+
+**Request:**
+```json
+{
+  "targetId": "uuid",
+  "amount": 15,
+  "damageType": "fire"
+}
+```
+
+**Query params:** `actorId` (optional) — the participant dealing damage (for combat log attribution).
+
+**Response (200):** Full encounter object.
+
+### POST /encounters/{id}/combat/heal
+
+Heal a participant. Capped at max HP. Healing a dying player (0 HP) revives them and resets death saves.
+
+**Request:**
+```json
+{
+  "targetId": "uuid",
+  "amount": 8
+}
+```
+
+**Query params:** `actorId` (optional).
+
+**Response (200):** Full encounter object.
+
+### POST /encounters/{id}/combat/hp
+
+Directly set a participant's current HP and/or temp HP (DM override). Updates alive/dying status automatically.
+
+**Request:**
+```json
+{
+  "targetId": "uuid",
+  "hpCurrent": 25,
+  "hpTemp": 5
+}
+```
+
+**Response (200):** Full encounter object.
+
+### POST /encounters/{id}/combat/condition/add
+
+Add a condition to a participant. Condition names are stored lowercase. Duplicates are ignored.
+
+**Request:**
+```json
+{
+  "targetId": "uuid",
+  "condition": "poisoned"
+}
+```
+
+### POST /encounters/{id}/combat/condition/remove
+
+Remove a condition from a participant.
+
+**Request:** Same shape as add.
+
+### POST /encounters/{id}/combat/death-save
+
+Roll a death saving throw for a dying player character. Server rolls 1d20:
+- Natural 20: regain 1 HP, revive
+- Natural 1: 2 failures
+- 10+: 1 success (3 successes = stabilized)
+- 2-9: 1 failure (3 failures = death)
+
+**Request:**
+```json
+{
+  "participantId": "uuid"
+}
+```
+
+### POST /encounters/{id}/combat/concentration
+
+Set or clear a participant's concentration spell. Setting a new spell while already concentrating logs the loss of the previous spell.
+
+**Request:**
+```json
+{
+  "participantId": "uuid",
+  "spellName": "Bless"
+}
+```
+
+Pass `spellName: null` to clear concentration.
+
+### POST /encounters/{id}/combat/turn/next
+
+Advance to the next participant in initiative order. Increments round number when wrapping to the top.
+
+### POST /encounters/{id}/combat/turn/previous
+
+Go back to the previous participant. Decrements round number when wrapping (minimum round 1).
+
+### GET /encounters/{id}/combat/log
+
+Get the full combat log for the encounter, ordered chronologically.
+
+**Response (200):**
+```json
+[
+  {
+    "id": "uuid",
+    "roundNumber": 1,
+    "actorId": "uuid",
+    "actorName": "Goblin 1",
+    "targetId": "uuid",
+    "targetName": "Aragorn",
+    "actionType": "DAMAGE",
+    "description": "Goblin 1 deals 7 damage to Aragorn (piercing)",
+    "rollValue": null,
+    "rollTotal": null,
+    "damageDealt": 7,
+    "healingDone": null,
+    "createdAt": "2026-07-18T10:05:00Z"
+  }
+]
+```
+
+**Action types:** `ATTACK`, `DAMAGE`, `HEAL`, `CONDITION_ADD`, `CONDITION_REMOVE`, `DEATH_SAVE`, `CONCENTRATION_CHECK`, `CONCENTRATION_LOST`, `TURN_ADVANCE`, `TURN_BACK`, `STABILIZE`, `KILL`, `REVIVE`
+
 ## Error Response Format
 
 All errors return a consistent format:

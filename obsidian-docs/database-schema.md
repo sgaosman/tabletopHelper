@@ -285,6 +285,29 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
 
+## Combat Tables (Milestone 5)
+
+### combat_logs
+
+Append-only log of every combat action in an encounter. One row per action.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | |
+| encounter_id | UUID | FK → encounters, NOT NULL | |
+| round_number | INTEGER | | Round when action occurred |
+| actor_id | UUID | | Participant who performed the action (null for system actions) |
+| actor_name | VARCHAR(200) | | Display name snapshot at time of action |
+| target_id | UUID | | Participant affected |
+| target_name | VARCHAR(200) | | Display name snapshot at time of action |
+| action_type | VARCHAR(30) | NOT NULL | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE |
+| description | TEXT | NOT NULL | Human-readable action description |
+| roll_value | INTEGER | | Raw d20 roll (before modifiers) |
+| roll_total | INTEGER | | Roll + modifiers |
+| damage_dealt | INTEGER | | Actual damage applied |
+| healing_done | INTEGER | | Actual healing applied |
+| created_at | TIMESTAMPTZ | | |
+
 ## Querying the Database Directly
 
 ```bash

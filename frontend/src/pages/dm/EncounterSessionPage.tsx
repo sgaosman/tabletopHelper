@@ -1,9 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
 import { encounterApi } from '../../api/encounterApi';
+import { combatApi } from '../../api/combatApi';
 import type { EncounterParticipant } from '../../types/encounter';
-import { ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff, ChevronRight, ChevronLeft, Heart, Shield, Skull } from 'lucide-react';
-import { useState } from 'react';
+import type { CombatLogEntry } from '../../types/combat';
+import {
+  ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
+  ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
+  Plus, Minus, X, ScrollText, Zap
+} from 'lucide-react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 
 const CONDITION_COLORS: Record<string, string> = {
   blinded: 'bg-gray-700 text-gray-300',
@@ -22,10 +28,277 @@ const CONDITION_COLORS: Record<string, string> = {
   unconscious: 'bg-red-900/60 text-red-300',
 };
 
+const ALL_CONDITIONS = Object.keys(CONDITION_COLORS);
+
+const DAMAGE_TYPES = [
+  'bludgeoning', 'piercing', 'slashing', 'acid', 'cold', 'fire',
+  'force', 'lightning', 'necrotic', 'poison', 'psychic', 'radiant', 'thunder',
+];
+
+type ActionMode = 'damage' | 'heal' | 'condition' | 'concentration' | null;
+
+function HpBar({ participant }: { participant: EncounterParticipant }) {
+  const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
+  const tempPct = participant.hpMax > 0 ? ((participant.hpTemp || 0) / participant.hpMax) * 100 : 0;
+
+  let barColor = 'bg-green-500';
+  if (pct <= 25) barColor = 'bg-red-500';
+  else if (pct <= 50) barColor = 'bg-yellow-500';
+
+  return (
+    <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden flex">
+      <div className={`${barColor} h-full transition-all duration-300`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      {tempPct > 0 && (
+        <div className="bg-cyan-500 h-full transition-all duration-300" style={{ width: `${Math.min(tempPct, 100 - pct)}%` }} />
+      )}
+    </div>
+  );
+}
+
+function DeathSaves({ participant, encounterId, onUpdate }: { participant: EncounterParticipant; encounterId: string; onUpdate: () => void }) {
+  const [rolling, setRolling] = useState(false);
+
+  async function handleRoll() {
+    setRolling(true);
+    try {
+      await combatApi.rollDeathSave(encounterId, participant.id);
+      onUpdate();
+    } finally {
+      setRolling(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3 mt-1">
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-gray-400">Saves:</span>
+        {[0, 1, 2].map(i => (
+          <div key={`s${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveSuccesses ? 'bg-green-500 border-green-400' : 'border-gray-600'}`} />
+        ))}
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-gray-400">Fails:</span>
+        {[0, 1, 2].map(i => (
+          <div key={`f${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveFailures ? 'bg-red-500 border-red-400' : 'border-gray-600'}`} />
+        ))}
+      </div>
+      <button
+        onClick={handleRoll}
+        disabled={rolling}
+        className="px-2 py-0.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded disabled:opacity-50"
+      >
+        {rolling ? '...' : 'Roll'}
+      </button>
+    </div>
+  );
+}
+
+function ActionPanel({
+  encounterId,
+  selectedTarget,
+  actionMode,
+  setActionMode,
+  onUpdate,
+}: {
+  encounterId: string;
+  selectedTarget: EncounterParticipant | null;
+  actionMode: ActionMode;
+  setActionMode: (mode: ActionMode) => void;
+  onUpdate: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [damageType, setDamageType] = useState('');
+  const [condition, setCondition] = useState('');
+  const [spellName, setSpellName] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedTarget || loading) return;
+    setLoading(true);
+
+    try {
+      if (actionMode === 'damage' && amount) {
+        await combatApi.applyDamage(encounterId, selectedTarget.id, parseInt(amount), damageType || undefined);
+      } else if (actionMode === 'heal' && amount) {
+        await combatApi.applyHealing(encounterId, selectedTarget.id, parseInt(amount));
+      } else if (actionMode === 'condition' && condition) {
+        await combatApi.addCondition(encounterId, selectedTarget.id, condition);
+      } else if (actionMode === 'concentration') {
+        await combatApi.setConcentration(encounterId, selectedTarget.id, spellName || null);
+      }
+      onUpdate();
+      setAmount('');
+      setDamageType('');
+      setCondition('');
+      setSpellName('');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!selectedTarget || !actionMode) return null;
+
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-300">
+          {actionMode === 'damage' && <><Swords className="w-4 h-4 inline mr-1 text-red-400" />Damage {selectedTarget.displayName}</>}
+          {actionMode === 'heal' && <><Heart className="w-4 h-4 inline mr-1 text-green-400" />Heal {selectedTarget.displayName}</>}
+          {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-yellow-400" />Add Condition to {selectedTarget.displayName}</>}
+          {actionMode === 'concentration' && <><Zap className="w-4 h-4 inline mr-1 text-purple-400" />Concentration for {selectedTarget.displayName}</>}
+        </h3>
+        <button onClick={() => setActionMode(null)} className="text-gray-500 hover:text-gray-300">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex items-end gap-3">
+        {(actionMode === 'damage' || actionMode === 'heal') && (
+          <>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Amount</label>
+              <input
+                type="number"
+                min="0"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoFocus
+              />
+            </div>
+            {actionMode === 'damage' && (
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">Type</label>
+                <select
+                  value={damageType}
+                  onChange={e => setDamageType(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">—</option>
+                  {DAMAGE_TYPES.map(dt => (
+                    <option key={dt} value={dt}>{dt}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </>
+        )}
+
+        {actionMode === 'condition' && (
+          <div className="flex-1">
+            <label className="block text-xs text-gray-400 mb-1">Condition</label>
+            <select
+              value={condition}
+              onChange={e => setCondition(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              autoFocus
+            >
+              <option value="">Select condition...</option>
+              {ALL_CONDITIONS.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {actionMode === 'concentration' && (
+          <div className="flex-1">
+            <label className="block text-xs text-gray-400 mb-1">Spell Name (blank to clear)</label>
+            <input
+              type="text"
+              value={spellName}
+              onChange={e => setSpellName(e.target.value)}
+              placeholder="e.g. Bless, Hold Person"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              autoFocus
+            />
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white text-sm rounded-lg"
+        >
+          {loading ? '...' : 'Apply'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function CombatLogPanel({ encounterId }: { encounterId: string }) {
+  const [logs, setLogs] = useState<CombatLogEntry[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
+    const interval = setInterval(() => {
+      combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [encounterId]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  function getLogColor(actionType: string) {
+    switch (actionType) {
+      case 'DAMAGE': case 'KILL': return 'text-red-400';
+      case 'HEAL': case 'REVIVE': return 'text-green-400';
+      case 'CONDITION_ADD': return 'text-yellow-400';
+      case 'CONDITION_REMOVE': return 'text-blue-400';
+      case 'DEATH_SAVE': return 'text-orange-400';
+      case 'STABILIZE': return 'text-green-300';
+      case 'CONCENTRATION_CHECK': return 'text-purple-400';
+      case 'CONCENTRATION_LOST': return 'text-purple-300';
+      case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-gray-500';
+      default: return 'text-gray-400';
+    }
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/50"
+      >
+        <div className="flex items-center gap-2">
+          <ScrollText className="w-4 h-4 text-gray-400" />
+          <span className="text-sm font-semibold text-gray-300">Combat Log</span>
+          <span className="text-xs text-gray-500">({logs.length} entries)</span>
+        </div>
+        <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      </button>
+      {expanded && (
+        <div ref={scrollRef} className="max-h-64 overflow-y-auto border-t border-gray-800 px-4 py-2 space-y-1">
+          {logs.length === 0 ? (
+            <p className="text-gray-500 text-xs py-2">No actions yet</p>
+          ) : (
+            logs.map(log => (
+              <div key={log.id} className="flex items-start gap-2 text-xs">
+                <span className="text-gray-600 font-mono shrink-0">R{log.roundNumber}</span>
+                <span className={getLogColor(log.actionType)}>{log.description}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DmSessionView() {
   const { encounter, isConnected, error, refreshEncounter } = useEncounter();
   const navigate = useNavigate();
   const [copiedCode, setCopiedCode] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const [actionMode, setActionMode] = useState<ActionMode>(null);
 
   if (!encounter) {
     return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-gray-400">Loading encounter...</p></div>;
@@ -52,15 +325,32 @@ function DmSessionView() {
 
   async function handleEnd() {
     if (!encounter) return;
+    if (!window.confirm('End this encounter? This cannot be undone.')) return;
     await encounterApi.end(encounter.id);
     refreshEncounter();
   }
 
-  function getHpColor(p: EncounterParticipant) {
-    const pct = p.hpMax > 0 ? p.hpCurrent / p.hpMax : 0;
-    if (pct > 0.5) return 'text-green-400';
-    if (pct > 0.25) return 'text-yellow-400';
-    return 'text-red-400';
+  async function handleNextTurn() {
+    if (!encounter) return;
+    await combatApi.advanceTurn(encounter.id);
+    refreshEncounter();
+  }
+
+  async function handlePrevTurn() {
+    if (!encounter) return;
+    await combatApi.previousTurn(encounter.id);
+    refreshEncounter();
+  }
+
+  async function handleRemoveCondition(participantId: string, condition: string) {
+    if (!encounter) return;
+    await combatApi.removeCondition(encounter.id, participantId, condition);
+    refreshEncounter();
+  }
+
+  function selectTarget(participantId: string, mode: ActionMode) {
+    setSelectedTargetId(participantId);
+    setActionMode(mode);
   }
 
   function parseConditions(p: EncounterParticipant): string[] {
@@ -72,14 +362,16 @@ function DmSessionView() {
     }
   }
 
-  const sorted = [...encounter.participants].sort((a, b) => (b.initiative ?? 0) - (a.initiative ?? 0));
+  const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+  const selectedTarget = sorted.find(p => p.id === selectedTargetId) ?? null;
+  const isActive = encounter.status === 'ACTIVE';
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4">
-        <div className="flex items-center justify-between max-w-5xl mx-auto">
-          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Back to Builder
+      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-3">
+        <div className="flex items-center justify-between">
+          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm">
+            <ArrowLeft className="w-4 h-4" /> Builder
           </button>
           <div className="flex items-center gap-4">
             {encounter.sessionCode && (
@@ -99,18 +391,28 @@ function DmSessionView() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-6">
+      <main className="px-6 py-4">
         {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
-        {/* Encounter info bar */}
-        <div className="flex items-center justify-between mb-6">
+        {/* Encounter info + controls bar */}
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">{encounter.name}</h1>
+            <h1 className="text-xl font-bold text-white">{encounter.name}</h1>
             <p className="text-gray-400 text-sm">
-              Round {encounter.roundNumber} &middot; {encounter.participants.length} participants
+              Round {encounter.roundNumber} &middot; {encounter.participants.filter(p => p.isAlive).length}/{encounter.participants.length} alive
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isActive && (
+              <>
+                <button onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm" title="Previous turn">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium">
+                  Next Turn <ChevronRight className="w-4 h-4" />
+                </button>
+              </>
+            )}
             {encounter.status === 'ACTIVE' && (
               <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg text-sm">
                 <Pause className="w-4 h-4" /> Pause
@@ -122,89 +424,149 @@ function DmSessionView() {
               </button>
             )}
             {(encounter.status === 'ACTIVE' || encounter.status === 'PAUSED') && (
-              <button onClick={handleEnd} className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm">
+              <button onClick={handleEnd} className="flex items-center gap-1.5 px-3 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm">
                 <Flag className="w-4 h-4" /> End
               </button>
             )}
             {encounter.status === 'COMPLETED' && (
-              <span className="px-3 py-2 bg-gray-800 text-gray-400 rounded-lg text-sm">Encounter Complete</span>
+              <span className="px-3 py-2 bg-gray-800 text-gray-400 rounded-lg text-sm">Complete</span>
             )}
           </div>
         </div>
 
-        {/* Initiative order */}
-        <div className="space-y-2">
+        {/* Action panel */}
+        <ActionPanel
+          encounterId={encounter.id}
+          selectedTarget={selectedTarget}
+          actionMode={actionMode}
+          setActionMode={setActionMode}
+          onUpdate={refreshEncounter}
+        />
+
+        {/* Participant list */}
+        <div className="space-y-2 mb-4">
           {sorted.map((p: EncounterParticipant) => {
             const conditions = parseConditions(p);
+            const isSelected = p.id === selectedTargetId;
+
             return (
               <div
                 key={p.id}
-                className={`flex items-center gap-4 bg-gray-900 border rounded-lg px-4 py-3 transition-all ${
-                  p.isCurrentTurn ? 'border-orange-500 ring-1 ring-orange-500/30' : 'border-gray-800'
-                } ${!p.isAlive ? 'opacity-50' : ''}`}
+                className={`bg-gray-900 border rounded-lg px-4 py-3 transition-all ${
+                  p.isCurrentTurn ? 'border-orange-500 ring-1 ring-orange-500/30' :
+                  isSelected ? 'border-indigo-500 ring-1 ring-indigo-500/30' :
+                  'border-gray-800'
+                } ${!p.isAlive ? 'opacity-60' : ''}`}
               >
-                {/* Turn indicator */}
-                <div className="w-6 flex-shrink-0">
-                  {p.isCurrentTurn && <ChevronRight className="w-5 h-5 text-orange-400" />}
-                </div>
-
-                {/* Initiative */}
-                <div className="w-10 text-center">
-                  <span className="text-white font-bold text-lg">{p.initiative ?? '—'}</span>
-                </div>
-
-                {/* Name + type */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-white font-semibold ${!p.isAlive ? 'line-through' : ''}`}>{p.displayName}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                      p.participantType === 'PLAYER' ? 'bg-blue-900/50 text-blue-400' : 'bg-red-900/50 text-red-400'
-                    }`}>
-                      {p.participantType}
-                    </span>
-                    {!p.isAlive && <Skull className="w-4 h-4 text-red-400" />}
+                <div className="flex items-center gap-3">
+                  {/* Turn indicator */}
+                  <div className="w-5 flex-shrink-0">
+                    {p.isCurrentTurn && <ChevronRight className="w-5 h-5 text-orange-400" />}
                   </div>
-                  {conditions.length > 0 && (
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {conditions.map(c => (
-                        <span key={c} className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c] || 'bg-gray-700 text-gray-300'}`}>
-                          {c}
-                        </span>
-                      ))}
+
+                  {/* Initiative */}
+                  <div className="w-9 text-center flex-shrink-0">
+                    <span className="text-white font-bold text-lg">{p.initiative ?? '—'}</span>
+                  </div>
+
+                  {/* Name + info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-white font-semibold ${!p.isAlive ? 'line-through' : ''}`}>{p.displayName}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                        p.participantType === 'PLAYER' ? 'bg-blue-900/50 text-blue-400' : 'bg-red-900/50 text-red-400'
+                      }`}>
+                        {p.participantType}
+                      </span>
+                      {!p.isAlive && <Skull className="w-4 h-4 text-red-400" />}
+                    </div>
+
+                    {/* Conditions */}
+                    {conditions.length > 0 && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {conditions.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => handleRemoveCondition(p.id, c)}
+                            className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c] || 'bg-gray-700 text-gray-300'} hover:opacity-75 cursor-pointer`}
+                            title={`Click to remove ${c}`}
+                          >
+                            {c} <X className="w-2.5 h-2.5 inline" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Concentration */}
+                    {p.concentrationSpell && (
+                      <p className="text-purple-400 text-xs mt-0.5">
+                        Concentrating: {p.concentrationSpell}
+                      </p>
+                    )}
+
+                    {/* Death saves for downed players */}
+                    {!p.isAlive && p.participantType === 'PLAYER' && p.deathSaveFailures < 3 && (
+                      <DeathSaves participant={p} encounterId={encounter.id} onUpdate={refreshEncounter} />
+                    )}
+                  </div>
+
+                  {/* HP bar + values */}
+                  <div className="w-36 flex-shrink-0">
+                    <div className="flex items-center justify-end gap-1.5 mb-1">
+                      <Heart className={`w-3.5 h-3.5 ${p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.5 ? 'text-green-400' : p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.25 ? 'text-yellow-400' : 'text-red-400'}`} />
+                      <span className="font-mono text-sm text-white">{p.hpCurrent}/{p.hpMax}</span>
+                      {(p.hpTemp || 0) > 0 && <span className="text-cyan-400 text-xs font-mono">+{p.hpTemp}</span>}
+                    </div>
+                    <HpBar participant={p} />
+                  </div>
+
+                  {/* AC */}
+                  <div className="flex items-center gap-1 w-12 justify-end flex-shrink-0">
+                    <Shield className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-300 font-mono text-sm">{p.armourClass}</span>
+                  </div>
+
+                  {/* Quick action buttons */}
+                  {(isActive || encounter.status === 'PAUSED') && p.isAlive && (
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                      <button
+                        onClick={() => selectTarget(p.id, 'damage')}
+                        className="p-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded"
+                        title="Deal damage"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => selectTarget(p.id, 'heal')}
+                        className="p-1.5 bg-green-900/30 hover:bg-green-900/60 text-green-400 rounded"
+                        title="Heal"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => selectTarget(p.id, 'condition')}
+                        className="p-1.5 bg-yellow-900/30 hover:bg-yellow-900/60 text-yellow-400 rounded"
+                        title="Add condition"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => selectTarget(p.id, 'concentration')}
+                        className="p-1.5 bg-purple-900/30 hover:bg-purple-900/60 text-purple-400 rounded"
+                        title="Set concentration"
+                      >
+                        <Swords className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
-                  {p.concentrationSpell && (
-                    <p className="text-purple-400 text-xs mt-0.5">Concentrating: {p.concentrationSpell}</p>
-                  )}
                 </div>
-
-                {/* HP */}
-                <div className="flex items-center gap-1.5 w-24 justify-end">
-                  <Heart className={`w-4 h-4 ${getHpColor(p)}`} />
-                  <span className={`font-mono text-sm ${getHpColor(p)}`}>
-                    {p.hpCurrent}/{p.hpMax}
-                  </span>
-                  {p.hpTemp > 0 && <span className="text-cyan-400 text-xs">+{p.hpTemp}</span>}
-                </div>
-
-                {/* AC */}
-                <div className="flex items-center gap-1 w-12 justify-end">
-                  <Shield className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-300 font-mono text-sm">{p.armourClass}</span>
-                </div>
-
-                {/* Death saves */}
-                {!p.isAlive && p.participantType === 'PLAYER' && (
-                  <div className="w-20 text-right">
-                    <span className="text-green-400 text-xs">{p.deathSaveSuccesses}/3</span>
-                    <span className="text-gray-500 text-xs mx-1">|</span>
-                    <span className="text-red-400 text-xs">{p.deathSaveFailures}/3</span>
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
+
+        {/* Combat log */}
+        <CombatLogPanel encounterId={encounter.id} />
       </main>
     </div>
   );

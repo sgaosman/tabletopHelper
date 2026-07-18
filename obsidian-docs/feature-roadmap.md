@@ -8,7 +8,7 @@
 | 2 | Campaign Management & Character Sheets | Complete | Campaigns, invite codes, character CRUD |
 | 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
 | 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
-| 5 | Combat Engine | Not started | Core feature |
+| 5 | Combat Engine | In progress | Core combat mechanics done; attack rolls, spell slots, condition durations deferred |
 | 6 | Polish, Mobile & Deployment | Not started | |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
@@ -76,21 +76,43 @@
 
 **Goal:** Full real-time combat with all core D&D 5e mechanics.
 
-**Tasks:**
-- [ ] CombatService — processAttack, processSpellCast, processHeal, applyDamage, applyCondition, removeCondition, processDeathSave, advanceTurn, checkConcentration
-- [ ] CombatWebSocketController with @MessageMapping handlers
-- [ ] DiceRoller utility (server-side randomness)
-- [ ] Attack flow — roll → compare AC → apply damage → broadcast
-- [ ] Spell flow — save-based and attack-based, spell slot deduction, concentration
-- [ ] Healing flow
-- [ ] Condition application/removal with duration tracking
-- [ ] Death saving throws
-- [ ] Concentration checks on damage
-- [ ] Temporary HP (damage reduces temp first, doesn't stack)
-- [ ] Turn management (advance/back, start-of-turn effects)
-- [ ] CombatLog entity — human-readable action log
-- [ ] Frontend: ActionPanel, InitiativeTracker, ParticipantPanel, CombatLog, HpBar, ConditionBadges, DiceRoller
-- [ ] Permission enforcement — players control own characters only, DM controls monsters + overrides
+**Backend tasks:**
+- [x] CombatService — applyDamage, applyHealing, setHp, addCondition, removeCondition, rollDeathSave, setConcentration, advanceTurn, previousTurn, checkConcentration (auto on damage), getCombatLog
+- [x] CombatController — REST endpoints at `/api/encounters/{id}/combat/*` with WebSocket broadcast after every mutation
+- [x] CombatLog entity + CombatLogRepository — append-only action log with round, actor, target, action type, description, roll values, damage/healing amounts
+- [x] CombatActionType enum — ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE
+- [x] Damage flow — temp HP absorbs first, drop to 0 kills monsters/puts players in dying state, auto concentration check
+- [x] Healing flow — capped at max HP, revives dying players, resets death saves
+- [x] Death saving throws — d20 server roll, nat 20 revives with 1 HP, nat 1 = 2 failures, 10+ success, <10 failure, 3 of either = stabilize/death
+- [x] Concentration checks — auto-triggered on damage, CON save vs DC max(10, damage/2), uses creature's CON modifier
+- [x] Temporary HP — damage reduces temp HP first before current HP
+- [x] Turn management — advance/back with round counter auto-increment/decrement
+- [x] Permission enforcement — DM can do everything, players can only act on their own controlled participants
+- [x] Direct HP override (setHp) — DM can set exact HP/temp HP values
+
+**Frontend tasks:**
+- [x] combatApi.ts — REST client for all 10 combat endpoints
+- [x] CombatLogEntry type
+- [x] DM EncounterSessionPage — full rewrite with combat controls:
+  - [x] ActionPanel — damage (with damage type), heal, add condition (dropdown), set concentration forms
+  - [x] HpBar component — visual HP bar with temp HP overlay, color transitions (green > yellow > red)
+  - [x] ConditionBadges — clickable to remove, color-coded per condition type
+  - [x] DeathSaves — visual circles (3 success / 3 failure) with roll button for dying players
+  - [x] CombatLog — collapsible log panel with color-coded entries, auto-scroll, 3s polling
+  - [x] Turn controls — Next Turn / Previous Turn buttons
+  - [x] Quick action buttons on each participant row (damage, heal, condition, concentration)
+  - [x] Confirmation dialog on ending encounter
+- [x] Player EncounterSessionPage — updated with:
+  - [x] HpBar for own character
+  - [x] Death save roll button when own character is dying
+  - [x] Combat log panel (read-only)
+  - [x] Condition display with color coding
+
+**Not yet implemented (deferred):**
+- [ ] Attack roll flow (d20 vs AC → auto damage on hit) — currently DM enters damage directly
+- [ ] Spell slot tracking and deduction
+- [ ] Condition duration tracking (auto-removal after N rounds)
+- [ ] Start-of-turn effects
 
 ## Milestone 6: Polish, Mobile & Deployment
 
