@@ -10,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -61,6 +62,22 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.addParticipant(encounterId, request, userId);
+        broadcastState(response);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{encounterId}/participants/{participantId}/name")
+    public ResponseEntity<EncounterResponse> renameParticipant(
+            @PathVariable UUID encounterId,
+            @PathVariable UUID participantId,
+            @RequestBody Map<String, String> body,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        String newName = body.get("displayName");
+        if (newName == null || newName.isBlank()) {
+            throw new IllegalArgumentException("displayName is required");
+        }
+        EncounterResponse response = encounterService.renameParticipant(encounterId, participantId, newName, userId);
         broadcastState(response);
         return ResponseEntity.ok(response);
     }

@@ -218,6 +218,16 @@ All filter params (`type`, `cr`, `source`) accept comma-separated values for mul
 
 Get a single monster by ID.
 
+### GET /monsters/search
+
+Fuzzy search monsters by name. Uses PostgreSQL `pg_trgm` extension with `word_similarity()` for typo-tolerant matching, combined with ILIKE for exact substring matches. Results ranked: exact prefix > substring > fuzzy similarity (threshold 0.4).
+
+**Query params:** `name` (required), `maxResults` (default 10, max 20)
+
+**Example:** `/monsters/search?name=gobln` returns Goblin, Goblin Boss, etc.
+
+**Response (200):** Array of Monster objects (not paginated).
+
 ### GET /monsters/filters/types, /monsters/filters/challenge-ratings, /monsters/filters/sources
 
 Return distinct filter values for dropdowns.
@@ -334,6 +344,22 @@ For `PLAYER` type, provide `characterId` instead of `monsterId`. HP, AC, and ini
 When `quantity` > 1, participants are named sequentially ("Goblin 1", "Goblin 2", "Goblin 3"), continuing from any existing participants with the same base name.
 
 **Response (200):** Full encounter object with updated participants.
+
+### PATCH /encounters/{id}/participants/{participantId}/name
+
+Rename a participant. Updates the `displayName` while preserving the underlying `monsterId` foreign key so the system still knows what creature the participant is.
+
+**Request:**
+```json
+{
+  "displayName": "Bob the Goblin"
+}
+```
+
+**Response (200):** Full encounter object.
+
+**Errors:**
+- `400` — displayName is required / blank
 
 ### DELETE /encounters/{id}/participants/{participantId}
 

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { campaignApi } from '../../api/campaignApi';
 import { characterApi } from '../../api/characterApi';
 import { encounterApi } from '../../api/encounterApi';
-import { searchMonsters } from '../../api/monsterApi';
+import { fuzzySearchMonsters } from '../../api/monsterApi';
 import type { Campaign } from '../../types/campaign';
 import type { PlayerCharacter } from '../../types/character';
 import type { Monster } from '../../types/monster';
@@ -39,6 +39,10 @@ export default function EncounterBuilderPage() {
   const [searchingMonsters, setSearchingMonsters] = useState(false);
 
   const [copiedCode, setCopiedCode] = useState(false);
+  const [editingInitiative, setEditingInitiative] = useState<Record<string, string>>({});
+  const [editingName, setEditingName] = useState<Record<string, string>>({});
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     campaignApi.getAll().then(res => {
@@ -58,6 +62,25 @@ export default function EncounterBuilderPage() {
 
   useEffect(() => { loadEncounters(); }, [loadEncounters]);
 
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!monsterSearch.trim()) {
+      setMonsterResults([]);
+      setSearchingMonsters(false);
+      return;
+    }
+    setSearchingMonsters(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await fuzzySearchMonsters(monsterSearch.trim(), 10);
+        setMonsterResults(results);
+      } finally {
+        setSearchingMonsters(false);
+      }
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [monsterSearch]);
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     const res = await encounterApi.create({
@@ -70,17 +93,6 @@ export default function EncounterBuilderPage() {
     setShowCreateForm(false);
     setSelectedEncounter(res.data);
     loadEncounters();
-  }
-
-  async function handleSearchMonsters() {
-    if (!monsterSearch.trim()) return;
-    setSearchingMonsters(true);
-    try {
-      const result = await searchMonsters({ name: monsterSearch, size: 10 });
-      setMonsterResults(result.content);
-    } finally {
-      setSearchingMonsters(false);
-    }
   }
 
   async function handleAddMonster(monster: Monster) {
@@ -118,6 +130,27 @@ export default function EncounterBuilderPage() {
     if (!selectedEncounter) return;
     const res = await encounterApi.rollInitiatives(selectedEncounter.id);
     setSelectedEncounter(res.data);
+    setEditingInitiative({});
+    loadEncounters();
+  }
+
+  async function handleSetInitiative(participantId: string, value: string) {
+    if (!selectedEncounter) return;
+    const parsed = parseInt(value);
+    if (isNaN(parsed)) return;
+    const res = await encounterApi.setInitiatives(selectedEncounter.id, {
+      initiatives: [{ participantId, initiative: parsed }],
+    });
+    setSelectedEncounter(res.data);
+    setEditingInitiative(prev => { const next = { ...prev }; delete next[participantId]; return next; });
+    loadEncounters();
+  }
+
+  async function handleRenameParticipant(participantId: string, newName: string) {
+    if (!selectedEncounter || !newName.trim()) return;
+    const res = await encounterApi.renameParticipant(selectedEncounter.id, participantId, newName.trim());
+    setSelectedEncounter(res.data);
+    setEditingName(prev => { const next = { ...prev }; delete next[participantId]; return next; });
     loadEncounters();
   }
 
@@ -162,7 +195,7 @@ export default function EncounterBuilderPage() {
         </button>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="px-6 py-8">
         <h1 className="text-3xl font-bold text-white mb-6">Encounters</h1>
 
         {/* Campaign selector */}
@@ -328,27 +361,21 @@ export default function EncounterBuilderPage() {
                             <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
                               <Swords className="w-4 h-4 text-red-400" /> Add Monsters
                             </h3>
-                            <div className="flex gap-2 mb-3">
-                              <div className="relative flex-1">
-                                <Search className="absolute left-3 top-2 text-gray-400" size={16} />
-                                <input
-                                  type="text"
-                                  value={monsterSearch}
-                                  onChange={e => setMonsterSearch(e.target.value)}
-                                  onKeyDown={e => e.key === 'Enter' && handleSearchMonsters()}
-                                  placeholder="Search monsters..."
-                                  className="w-full pl-9 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                                />
-                              </div>
-                              <button
-                                onClick={handleSearchMonsters}
-                                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm"
-                              >
-                                Search
-                              </button>
+                            <div className="relative mb-3">
+                              <Search className="absolute left-3 top-2 text-gray-400" size={16} />
+                              <input
+                                type="text"
+                                value={monsterSearch}
+                                onChange={e => setMonsterSearch(e.target.value)}
+                                placeholder="Search monsters (fuzzy)..."
+                                className="w-full pl-9 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                              />
                             </div>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
                               {searchingMonsters && <p className="text-gray-400 text-sm">Searching...</p>}
+                              {!searchingMonsters && monsterSearch.trim() && monsterResults.length === 0 && (
+                                <p className="text-gray-500 text-sm">No monsters found.</p>
+                              )}
                               {monsterResults.map(m => (
                                 <div key={m.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
                                   <div>
@@ -396,7 +423,7 @@ export default function EncounterBuilderPage() {
                               <Play className="w-4 h-4" /> Start Encounter
                             </button>
                             {!allHaveInitiative && hasParticipants && (
-                              <span className="text-yellow-400 text-xs">Roll initiative before starting</span>
+                              <span className="text-yellow-400 text-xs">Set initiative for all participants before starting</span>
                             )}
                           </div>
                         )}
@@ -419,14 +446,34 @@ export default function EncounterBuilderPage() {
                                 <th className="px-4 py-3">Type</th>
                                 <th className="px-4 py-3">HP</th>
                                 <th className="px-4 py-3">AC</th>
-                                <th className="px-4 py-3">Init</th>
+                                <th className="px-4 py-3">Initiative</th>
                                 {selectedEncounter.status === 'PREPARING' && <th className="px-4 py-3"></th>}
                               </tr>
                             </thead>
                             <tbody>
                               {selectedEncounter.participants.map((p: EncounterParticipant) => (
                                 <tr key={p.id} className="border-b border-gray-700/50">
-                                  <td className="px-4 py-3 text-white font-medium">{p.displayName}</td>
+                                  <td className="px-4 py-3">
+                                    {selectedEncounter.status === 'PREPARING' ? (
+                                      <input
+                                        type="text"
+                                        value={editingName[p.id] ?? p.displayName}
+                                        onChange={e => setEditingName(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                        onBlur={e => {
+                                          const val = e.target.value.trim();
+                                          if (val && val !== p.displayName) {
+                                            handleRenameParticipant(p.id, val);
+                                          } else {
+                                            setEditingName(prev => { const next = { ...prev }; delete next[p.id]; return next; });
+                                          }
+                                        }}
+                                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                        className="bg-transparent text-white font-medium border-b border-transparent hover:border-gray-600 focus:border-purple-500 focus:outline-none px-0 py-0 w-full"
+                                      />
+                                    ) : (
+                                      <span className="text-white font-medium">{p.displayName}</span>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-3">
                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                       p.participantType === 'PLAYER'
@@ -438,11 +485,43 @@ export default function EncounterBuilderPage() {
                                   </td>
                                   <td className="px-4 py-3 text-gray-300">{p.hpCurrent}/{p.hpMax}</td>
                                   <td className="px-4 py-3 text-gray-300">{p.armourClass}</td>
-                                  <td className="px-4 py-3 text-gray-300">
-                                    {p.initiative != null ? p.initiative : <span className="text-gray-600">—</span>}
-                                    {p.initiativeModifier != null && (
-                                      <span className="text-gray-500 text-xs ml-1">
-                                        ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
+                                  <td className="px-4 py-3">
+                                    {selectedEncounter.status === 'PREPARING' ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="number"
+                                          value={editingInitiative[p.id] ?? (p.initiative != null ? String(p.initiative) : '')}
+                                          onChange={e => setEditingInitiative(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                          onBlur={e => {
+                                            const val = e.target.value;
+                                            if (val && !isNaN(parseInt(val))) {
+                                              handleSetInitiative(p.id, val);
+                                            } else {
+                                              setEditingInitiative(prev => { const next = { ...prev }; delete next[p.id]; return next; });
+                                            }
+                                          }}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') {
+                                              (e.target as HTMLInputElement).blur();
+                                            }
+                                          }}
+                                          placeholder="—"
+                                          className="w-16 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder-gray-600"
+                                        />
+                                        {p.initiativeModifier != null && (
+                                          <span className="text-gray-500 text-xs whitespace-nowrap">
+                                            ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-300">
+                                        {p.initiative != null ? p.initiative : <span className="text-gray-600">—</span>}
+                                        {p.initiativeModifier != null && (
+                                          <span className="text-gray-500 text-xs ml-1">
+                                            ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
+                                          </span>
+                                        )}
                                       </span>
                                     )}
                                   </td>

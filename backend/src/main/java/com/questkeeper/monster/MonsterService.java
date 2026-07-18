@@ -34,6 +34,11 @@ public class MonsterService {
         return Arrays.asList(value.split(","));
     }
 
+    public List<Monster> fuzzySearchByName(String name, int maxResults) {
+        if (name == null || name.isBlank()) return List.of();
+        return monsterRepository.fuzzySearchByName(name.trim(), maxResults);
+    }
+
     public Monster getMonster(UUID id) {
         return monsterRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Monster not found"));

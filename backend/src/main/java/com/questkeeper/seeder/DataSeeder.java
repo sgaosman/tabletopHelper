@@ -3,6 +3,7 @@ package com.questkeeper.seeder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -14,11 +15,17 @@ public class DataSeeder implements CommandLineRunner {
     private final SpellSeeder spellSeeder;
     private final ConditionSeeder conditionSeeder;
     private final ItemSeeder itemSeeder;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     public void run(String... args) {
         log.info("=== Starting 5e data seeding ===");
         long start = System.currentTimeMillis();
+
+        jdbcTemplate.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm");
+        jdbcTemplate.execute("CREATE EXTENSION IF NOT EXISTS fuzzystrmatch");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_monsters_name_trgm ON monsters USING gin (LOWER(name) gin_trgm_ops)");
+        log.info("PostgreSQL extensions and indexes ensured");
 
         try {
             conditionSeeder.seed();

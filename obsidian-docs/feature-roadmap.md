@@ -50,13 +50,15 @@
 - [x] Session code generation (same pattern as campaign invite codes)
 - [x] Monster auto-populate (HP, AC, dex mod for initiative) with quantity naming ("Goblin 1", "Goblin 2")
 - [x] Player character auto-populate from character sheet (HP, AC, initiative bonus)
+- [x] Fuzzy monster search endpoint (`GET /monsters/search`) using `pg_trgm` with `word_similarity()`, threshold 0.4, gin index on `LOWER(name)`
+- [x] Participant rename endpoint (`PATCH /encounters/{id}/participants/{participantId}/name`) — updates displayName while preserving monsterId FK
 
 **Frontend tasks:**
 - [x] TypeScript interfaces for Encounter, EncounterParticipant, all request/response types
 - [x] encounterApi — REST client for all encounter endpoints
 - [x] useWebSocket hook — STOMP connection lifecycle, JWT auth, subscriptions, auto-reconnect (5s delay)
 - [x] EncounterContext — live encounter state from WebSocket + REST fallback
-- [x] EncounterBuilderPage — campaign selector, encounter list with status badges, create form, add PCs from campaign, search/add monsters with quantity, roll initiative, start encounter
+- [x] EncounterBuilderPage — full-width layout, campaign selector, encounter list with status badges, create form, add PCs from campaign, real-time fuzzy monster search (debounced 300ms) with quantity, inline manual initiative input per participant (blur/Enter to save), inline participant rename (preserves monsterId FK), roll-all initiative, start encounter
 - [x] EncounterSessionPage (DM) — initiative order, HP/AC/conditions display, pause/resume/end controls, session code copy, WebSocket connection status
 - [x] EncounterSessionPage (Player) — read-only view with own character highlighted, "it's your turn" notification, visibility filtering
 - [x] JoinEncounterPage — session code entry for players

@@ -27,6 +27,13 @@ public class MonsterController {
         return monsterService.searchMonsters(name, type, cr, source, pageable);
     }
 
+    @GetMapping("/search")
+    public List<Monster> fuzzySearch(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "10") int maxResults) {
+        return monsterService.fuzzySearchByName(name, Math.min(maxResults, 20));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Monster> getMonster(@PathVariable UUID id) {
         return ResponseEntity.ok(monsterService.getMonster(id));

@@ -26,6 +26,10 @@ export const encounterApi = {
     return api.delete<Encounter>(`/encounters/${encounterId}/participants/${participantId}`);
   },
 
+  renameParticipant(encounterId: string, participantId: string, displayName: string) {
+    return api.patch<Encounter>(`/encounters/${encounterId}/participants/${participantId}/name`, { displayName });
+  },
+
   setInitiatives(encounterId: string, data: BulkInitiativeRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/initiatives`, data);
   },
