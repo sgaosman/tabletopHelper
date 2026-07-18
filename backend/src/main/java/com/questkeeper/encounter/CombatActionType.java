@@ -13,5 +13,7 @@ public enum CombatActionType {
     TURN_BACK,
     STABILIZE,
     KILL,
-    REVIVE
+    REVIVE,
+    SPELL_SLOT_USE,
+    SPELL_SLOT_RESTORE
 }

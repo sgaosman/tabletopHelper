@@ -1,3 +1,16 @@
+export interface ConditionEntry {
+  name: string;
+  duration: number | null;
+  appliedRound: number;
+}
+
+export interface SpellSlotLevel {
+  max: number;
+  remaining: number;
+}
+
+export type SpellSlots = Record<string, SpellSlotLevel>;
+
 export type EncounterStatus = 'PREPARING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 export type ParticipantType = 'PLAYER' | 'MONSTER' | 'COMPANION';
 
@@ -16,6 +29,7 @@ export interface EncounterParticipant {
   armourClass: number;
   activeConditions?: string;
   concentrationSpell?: string;
+  spellSlotsCurrent?: string;
   isVisibleToPlayers: boolean;
   isAlive: boolean;
   isCurrentTurn: boolean;

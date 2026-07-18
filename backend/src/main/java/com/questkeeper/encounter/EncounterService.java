@@ -94,6 +94,7 @@ public class EncounterService {
                 .hpCurrent(character.getHpCurrent())
                 .armourClass(character.getArmourClass())
                 .controlledByUserId(character.getUser().getId())
+                .spellSlotsCurrent(character.getSpellSlots())
                 .build();
 
         encounter.getParticipants().add(participant);
@@ -318,6 +319,7 @@ public class EncounterService {
                         .armourClass(p.getArmourClass())
                         .activeConditions(p.getActiveConditions())
                         .concentrationSpell(p.getConcentrationSpell())
+                        .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
                         .isAlive(p.getIsAlive())
                         .isCurrentTurn(p.getIsCurrentTurn())

@@ -7,13 +7,18 @@ import lombok.Data;
 import java.util.UUID;
 
 @Data
-public class ConditionRequest {
+public class AttackRollRequest {
 
     @NotNull
     private UUID targetId;
 
-    @NotBlank
-    private String condition;
+    @NotNull
+    private Integer attackBonus;
 
-    private Integer duration;
+    @NotBlank
+    private String damageDice;
+
+    private String damageType;
+
+    private Boolean advantage;
 }

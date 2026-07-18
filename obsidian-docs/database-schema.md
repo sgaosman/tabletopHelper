@@ -273,8 +273,9 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | hp_current | INTEGER | NOT NULL | |
 | hp_temp | INTEGER | DEFAULT 0 | |
 | armour_class | INTEGER | NOT NULL | |
-| active_conditions | JSONB | | Array of condition strings |
+| active_conditions | JSONB | | Array of condition objects: `[{"name":"blinded","duration":3,"appliedRound":1}]`. Duration null = indefinite. Legacy string arrays are auto-migrated on read. |
 | concentration_spell | VARCHAR(200) | | |
+| spell_slots_current | JSONB | | Copied from character on encounter join. Format: `{"1":{"max":4,"remaining":3},...}` |
 | is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
 | is_alive | BOOLEAN | DEFAULT TRUE | |
 | is_current_turn | BOOLEAN | DEFAULT FALSE | |
@@ -300,7 +301,7 @@ Append-only log of every combat action in an encounter. One row per action.
 | actor_name | VARCHAR(200) | | Display name snapshot at time of action |
 | target_id | UUID | | Participant affected |
 | target_name | VARCHAR(200) | | Display name snapshot at time of action |
-| action_type | VARCHAR(30) | NOT NULL | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE |
+| action_type | VARCHAR(30) | NOT NULL | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE, SPELL_SLOT_USE, SPELL_SLOT_RESTORE |
 | description | TEXT | NOT NULL | Human-readable action description |
 | roll_value | INTEGER | | Raw d20 roll (before modifiers) |
 | roll_total | INTEGER | | Roll + modifiers |

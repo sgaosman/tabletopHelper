@@ -19,6 +19,18 @@ public class CombatController {
     private final CombatService combatService;
     private final SimpMessagingTemplate messagingTemplate;
 
+    @PostMapping("/attack")
+    public ResponseEntity<EncounterResponse> rollAttack(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody AttackRollRequest request,
+            @RequestParam(required = false) UUID actorId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = combatService.rollAttack(encounterId, request, actorId, userId);
+        broadcastState(response);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/damage")
     public ResponseEntity<EncounterResponse> applyDamage(
             @PathVariable UUID encounterId,
@@ -94,6 +106,28 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.setConcentration(encounterId, request, userId);
+        broadcastState(response);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/spell-slot/use")
+    public ResponseEntity<EncounterResponse> useSpellSlot(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody SpellSlotRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = combatService.useSpellSlot(encounterId, request, userId);
+        broadcastState(response);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/spell-slot/restore")
+    public ResponseEntity<EncounterResponse> restoreSpellSlot(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody SpellSlotRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = combatService.restoreSpellSlot(encounterId, request, userId);
         broadcastState(response);
         return ResponseEntity.ok(response);
     }

@@ -2,12 +2,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
 import { encounterApi } from '../../api/encounterApi';
 import { combatApi } from '../../api/combatApi';
-import type { EncounterParticipant } from '../../types/encounter';
+import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
 import type { CombatLogEntry } from '../../types/combat';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
   ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
-  Plus, Minus, X, ScrollText, Zap
+  Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 
@@ -35,7 +35,7 @@ const DAMAGE_TYPES = [
   'force', 'lightning', 'necrotic', 'poison', 'psychic', 'radiant', 'thunder',
 ];
 
-type ActionMode = 'damage' | 'heal' | 'condition' | 'concentration' | null;
+type ActionMode = 'attack' | 'damage' | 'heal' | 'condition' | 'concentration' | null;
 
 function HpBar({ participant }: { participant: EncounterParticipant }) {
   const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
@@ -93,6 +93,63 @@ function DeathSaves({ participant, encounterId, onUpdate }: { participant: Encou
   );
 }
 
+function SpellSlotDisplay({ participant, encounterId, onUpdate }: { participant: EncounterParticipant; encounterId: string; onUpdate: () => void }) {
+  const slots = parseSpellSlots(participant);
+  if (!slots) return null;
+
+  const levels = Object.keys(slots).sort((a, b) => parseInt(a) - parseInt(b));
+  if (levels.length === 0) return null;
+
+  async function handleUse(level: number) {
+    await combatApi.useSpellSlot(encounterId, participant.id, level);
+    onUpdate();
+  }
+
+  async function handleRestore(level: number) {
+    await combatApi.restoreSpellSlot(encounterId, participant.id, level);
+    onUpdate();
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-1 flex-wrap">
+      <Sparkles className="w-3 h-3 text-indigo-400" />
+      {levels.map(lvl => {
+        const s = slots[lvl];
+        return (
+          <div key={lvl} className="flex items-center gap-0.5">
+            <span className="text-xs text-gray-500">{lvl}:</span>
+            <div className="flex gap-0.5">
+              {Array.from({ length: s.max }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => i < s.remaining ? handleUse(parseInt(lvl)) : handleRestore(parseInt(lvl))}
+                  className={`w-2.5 h-2.5 rounded-full border transition-colors ${
+                    i < s.remaining
+                      ? 'bg-indigo-500 border-indigo-400 hover:bg-indigo-700'
+                      : 'border-gray-600 hover:border-indigo-500'
+                  }`}
+                  title={i < s.remaining ? `Use level ${lvl} slot` : `Restore level ${lvl} slot`}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function parseSpellSlots(p: EncounterParticipant): SpellSlots | null {
+  if (!p.spellSlotsCurrent) return null;
+  try {
+    const parsed = JSON.parse(p.spellSlotsCurrent);
+    if (Object.keys(parsed).length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 function ActionPanel({
   encounterId,
   selectedTarget,
@@ -110,6 +167,10 @@ function ActionPanel({
   const [damageType, setDamageType] = useState('');
   const [condition, setCondition] = useState('');
   const [spellName, setSpellName] = useState('');
+  const [attackBonus, setAttackBonus] = useState('');
+  const [damageDice, setDamageDice] = useState('');
+  const [advantage, setAdvantage] = useState<boolean | null>(null);
+  const [conditionDuration, setConditionDuration] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
@@ -118,12 +179,14 @@ function ActionPanel({
     setLoading(true);
 
     try {
-      if (actionMode === 'damage' && amount) {
+      if (actionMode === 'attack' && attackBonus !== '' && damageDice) {
+        await combatApi.rollAttack(encounterId, selectedTarget.id, parseInt(attackBonus), damageDice, damageType || undefined, advantage);
+      } else if (actionMode === 'damage' && amount) {
         await combatApi.applyDamage(encounterId, selectedTarget.id, parseInt(amount), damageType || undefined);
       } else if (actionMode === 'heal' && amount) {
         await combatApi.applyHealing(encounterId, selectedTarget.id, parseInt(amount));
       } else if (actionMode === 'condition' && condition) {
-        await combatApi.addCondition(encounterId, selectedTarget.id, condition);
+        await combatApi.addCondition(encounterId, selectedTarget.id, condition, conditionDuration ? parseInt(conditionDuration) : undefined);
       } else if (actionMode === 'concentration') {
         await combatApi.setConcentration(encounterId, selectedTarget.id, spellName || null);
       }
@@ -132,6 +195,10 @@ function ActionPanel({
       setDamageType('');
       setCondition('');
       setSpellName('');
+      setAttackBonus('');
+      setDamageDice('');
+      setAdvantage(null);
+      setConditionDuration('');
     } finally {
       setLoading(false);
     }
@@ -143,6 +210,7 @@ function ActionPanel({
     <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-300">
+          {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-orange-400" />Attack {selectedTarget.displayName} (AC {selectedTarget.armourClass})</>}
           {actionMode === 'damage' && <><Swords className="w-4 h-4 inline mr-1 text-red-400" />Damage {selectedTarget.displayName}</>}
           {actionMode === 'heal' && <><Heart className="w-4 h-4 inline mr-1 text-green-400" />Heal {selectedTarget.displayName}</>}
           {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-yellow-400" />Add Condition to {selectedTarget.displayName}</>}
@@ -153,7 +221,63 @@ function ActionPanel({
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex items-end gap-3">
+      <form onSubmit={handleSubmit} className="flex items-end gap-3 flex-wrap">
+        {actionMode === 'attack' && (
+          <>
+            <div className="w-24">
+              <label className="block text-xs text-gray-400 mb-1">Attack +</label>
+              <input
+                type="number"
+                value={attackBonus}
+                onChange={e => setAttackBonus(e.target.value)}
+                placeholder="+5"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoFocus
+              />
+            </div>
+            <div className="w-28">
+              <label className="block text-xs text-gray-400 mb-1">Damage Dice</label>
+              <input
+                type="text"
+                value={damageDice}
+                onChange={e => setDamageDice(e.target.value)}
+                placeholder="1d8+3"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="w-32">
+              <label className="block text-xs text-gray-400 mb-1">Damage Type</label>
+              <select
+                value={damageType}
+                onChange={e => setDamageType(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">—</option>
+                {DAMAGE_TYPES.map(dt => (
+                  <option key={dt} value={dt}>{dt}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-36">
+              <label className="block text-xs text-gray-400 mb-1">Roll Type</label>
+              <div className="flex gap-1">
+                <button type="button" onClick={() => setAdvantage(advantage === false ? null : false)}
+                  className={`px-2 py-2 rounded text-xs font-medium ${advantage === false ? 'bg-red-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                  Disadv
+                </button>
+                <button type="button" onClick={() => setAdvantage(null)}
+                  className={`px-2 py-2 rounded text-xs font-medium ${advantage === null ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                  Normal
+                </button>
+                <button type="button" onClick={() => setAdvantage(advantage === true ? null : true)}
+                  className={`px-2 py-2 rounded text-xs font-medium ${advantage === true ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                  Adv
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
         {(actionMode === 'damage' || actionMode === 'heal') && (
           <>
             <div className="flex-1">
@@ -186,20 +310,33 @@ function ActionPanel({
         )}
 
         {actionMode === 'condition' && (
-          <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">Condition</label>
-            <select
-              value={condition}
-              onChange={e => setCondition(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              autoFocus
-            >
-              <option value="">Select condition...</option>
-              {ALL_CONDITIONS.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+          <>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Condition</label>
+              <select
+                value={condition}
+                onChange={e => setCondition(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoFocus
+              >
+                <option value="">Select condition...</option>
+                {ALL_CONDITIONS.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-28">
+              <label className="block text-xs text-gray-400 mb-1">Duration (rounds)</label>
+              <input
+                type="number"
+                min="1"
+                value={conditionDuration}
+                onChange={e => setConditionDuration(e.target.value)}
+                placeholder="∞"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </>
         )}
 
         {actionMode === 'concentration' && (
@@ -249,6 +386,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
 
   function getLogColor(actionType: string) {
     switch (actionType) {
+      case 'ATTACK': return 'text-orange-400';
       case 'DAMAGE': case 'KILL': return 'text-red-400';
       case 'HEAL': case 'REVIVE': return 'text-green-400';
       case 'CONDITION_ADD': return 'text-yellow-400';
@@ -257,6 +395,8 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
       case 'STABILIZE': return 'text-green-300';
       case 'CONCENTRATION_CHECK': return 'text-purple-400';
       case 'CONCENTRATION_LOST': return 'text-purple-300';
+      case 'SPELL_SLOT_USE': return 'text-indigo-400';
+      case 'SPELL_SLOT_RESTORE': return 'text-indigo-300';
       case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-gray-500';
       default: return 'text-gray-400';
     }
@@ -353,10 +493,14 @@ function DmSessionView() {
     setActionMode(mode);
   }
 
-  function parseConditions(p: EncounterParticipant): string[] {
+  function parseConditions(p: EncounterParticipant): ConditionEntry[] {
     if (!p.activeConditions) return [];
     try {
-      return JSON.parse(p.activeConditions);
+      const parsed = JSON.parse(p.activeConditions);
+      if (parsed.length > 0 && typeof parsed[0] === 'string') {
+        return parsed.map((name: string) => ({ name, duration: null, appliedRound: 1 }));
+      }
+      return parsed;
     } catch {
       return [];
     }
@@ -484,16 +628,19 @@ function DmSessionView() {
                     {/* Conditions */}
                     {conditions.length > 0 && (
                       <div className="flex gap-1 mt-1 flex-wrap">
-                        {conditions.map(c => (
-                          <button
-                            key={c}
-                            onClick={() => handleRemoveCondition(p.id, c)}
-                            className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c] || 'bg-gray-700 text-gray-300'} hover:opacity-75 cursor-pointer`}
-                            title={`Click to remove ${c}`}
-                          >
-                            {c} <X className="w-2.5 h-2.5 inline" />
-                          </button>
-                        ))}
+                        {conditions.map(c => {
+                          const remaining = c.duration != null ? Math.max(0, c.duration - (encounter.roundNumber - c.appliedRound)) : null;
+                          return (
+                            <button
+                              key={c.name}
+                              onClick={() => handleRemoveCondition(p.id, c.name)}
+                              className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c.name] || 'bg-gray-700 text-gray-300'} hover:opacity-75 cursor-pointer`}
+                              title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}`}
+                            >
+                              {c.name}{remaining != null ? ` (${remaining})` : ''} <X className="w-2.5 h-2.5 inline" />
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -507,6 +654,11 @@ function DmSessionView() {
                     {/* Death saves for downed players */}
                     {!p.isAlive && p.participantType === 'PLAYER' && p.deathSaveFailures < 3 && (
                       <DeathSaves participant={p} encounterId={encounter.id} onUpdate={refreshEncounter} />
+                    )}
+
+                    {/* Spell slots */}
+                    {p.isAlive && p.spellSlotsCurrent && (
+                      <SpellSlotDisplay participant={p} encounterId={encounter.id} onUpdate={refreshEncounter} />
                     )}
                   </div>
 
@@ -529,6 +681,13 @@ function DmSessionView() {
                   {/* Quick action buttons */}
                   {(isActive || encounter.status === 'PAUSED') && p.isAlive && (
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                      <button
+                        onClick={() => selectTarget(p.id, 'attack')}
+                        className="p-1.5 bg-orange-900/30 hover:bg-orange-900/60 text-orange-400 rounded"
+                        title="Attack roll"
+                      >
+                        <Crosshair className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => selectTarget(p.id, 'damage')}
                         className="p-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded"

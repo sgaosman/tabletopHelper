@@ -445,6 +445,7 @@ Look up an encounter by session code. Used by players to join a live encounter. 
       "armourClass": 18,
       "activeConditions": null,
       "concentrationSpell": null,
+      "spellSlotsCurrent": "{\"1\":{\"max\":4,\"remaining\":3},\"2\":{\"max\":3,\"remaining\":3}}",
       "isVisibleToPlayers": true,
       "isAlive": true,
       "isCurrentTurn": true,
@@ -461,6 +462,30 @@ Look up an encounter by session code. Used by players to join a live encounter. 
 ## Combat
 
 All combat endpoints are under `/api/encounters/{encounterId}/combat`. The encounter must be in ACTIVE or PAUSED status. After every mutation, the updated encounter state is broadcast via WebSocket.
+
+### POST /encounters/{id}/combat/attack
+
+Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice and applies damage. Supports advantage/disadvantage. Natural 20 doubles damage dice (critical hit); natural 1 auto-misses.
+
+**Request:**
+```json
+{
+  "targetId": "uuid",
+  "attackBonus": 5,
+  "damageDice": "1d8+3",
+  "damageType": "slashing",
+  "advantage": null
+}
+```
+
+- `attackBonus`: total attack modifier (e.g. +5)
+- `damageDice`: dice expression in NdS+M format (e.g. "2d6+3", "1d8+4")
+- `damageType`: optional damage type string
+- `advantage`: `true` = advantage (roll 2d20, take higher), `false` = disadvantage (take lower), `null` = normal
+
+**Query params:** `actorId` (optional) — the attacking participant.
+
+**Response (200):** Full encounter object. Two combat log entries are created: one ATTACK (hit/miss) and one DAMAGE (if hit).
 
 ### POST /encounters/{id}/combat/damage
 
@@ -512,15 +537,20 @@ Directly set a participant's current HP and/or temp HP (DM override). Updates al
 
 ### POST /encounters/{id}/combat/condition/add
 
-Add a condition to a participant. Condition names are stored lowercase. Duplicates are ignored.
+Add a condition to a participant. Condition names are stored lowercase. Duplicates are ignored. Conditions with a duration are automatically removed at the start of the affected creature's turn after the specified number of rounds.
 
 **Request:**
 ```json
 {
   "targetId": "uuid",
-  "condition": "poisoned"
+  "condition": "poisoned",
+  "duration": 3
 }
 ```
+
+- `duration`: optional, number of rounds. `null` = indefinite (must be manually removed).
+
+Active conditions are now stored as objects: `[{"name":"poisoned","duration":3,"appliedRound":1}]`. Legacy string arrays are handled transparently.
 
 ### POST /encounters/{id}/combat/condition/remove
 
@@ -557,9 +587,33 @@ Set or clear a participant's concentration spell. Setting a new spell while alre
 
 Pass `spellName: null` to clear concentration.
 
+### POST /encounters/{id}/combat/spell-slot/use
+
+Use a spell slot. Decrements the remaining count for the specified level. Players can use their own slots; DM can use anyone's.
+
+**Request:**
+```json
+{
+  "participantId": "uuid",
+  "slotLevel": 3
+}
+```
+
+**Errors:**
+- `400` — No remaining slots at that level
+
+### POST /encounters/{id}/combat/spell-slot/restore
+
+Restore a spell slot (DM only). Increments the remaining count.
+
+**Request:** Same shape as use.
+
+**Errors:**
+- `400` — Already at maximum
+
 ### POST /encounters/{id}/combat/turn/next
 
-Advance to the next participant in initiative order. Increments round number when wrapping to the top.
+Advance to the next participant in initiative order. Increments round number when wrapping to the top. Automatically removes expired conditions on the participant whose turn is starting (conditions with a `duration` that has elapsed).
 
 ### POST /encounters/{id}/combat/turn/previous
 
@@ -590,7 +644,7 @@ Get the full combat log for the encounter, ordered chronologically.
 ]
 ```
 
-**Action types:** `ATTACK`, `DAMAGE`, `HEAL`, `CONDITION_ADD`, `CONDITION_REMOVE`, `DEATH_SAVE`, `CONCENTRATION_CHECK`, `CONCENTRATION_LOST`, `TURN_ADVANCE`, `TURN_BACK`, `STABILIZE`, `KILL`, `REVIVE`
+**Action types:** `ATTACK`, `DAMAGE`, `HEAL`, `CONDITION_ADD`, `CONDITION_REMOVE`, `DEATH_SAVE`, `CONCENTRATION_CHECK`, `CONCENTRATION_LOST`, `TURN_ADVANCE`, `TURN_BACK`, `STABILIZE`, `KILL`, `REVIVE`, `SPELL_SLOT_USE`, `SPELL_SLOT_RESTORE`
 
 ## Error Response Format
 

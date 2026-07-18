@@ -8,7 +8,7 @@
 | 2 | Campaign Management & Character Sheets | Complete | Campaigns, invite codes, character CRUD |
 | 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
 | 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
-| 5 | Combat Engine | In progress | Core combat mechanics done; attack rolls, spell slots, condition durations deferred |
+| 5 | Combat Engine | Complete | Full combat: damage, healing, conditions (with duration tracking), death saves, concentration, attack rolls, spell slot tracking, turn-based auto-expiry |
 | 6 | Polish, Mobile & Deployment | Not started | |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
@@ -108,11 +108,11 @@
   - [x] Combat log panel (read-only)
   - [x] Condition display with color coding
 
-**Not yet implemented (deferred):**
-- [ ] Attack roll flow (d20 vs AC → auto damage on hit) — currently DM enters damage directly
-- [ ] Spell slot tracking and deduction
-- [ ] Condition duration tracking (auto-removal after N rounds)
-- [ ] Start-of-turn effects
+**Completed (previously deferred):**
+- [x] Attack roll flow (d20 vs AC → auto damage on hit, advantage/disadvantage, critical hits, dice parser)
+- [x] Spell slot tracking and deduction (copied from character on encounter join, use/restore endpoints, bubble UI)
+- [x] Condition duration tracking (auto-removal after N rounds at start of creature's turn)
+- [x] Start-of-turn effects (condition expiry check integrated into advanceTurn)
 
 ## Milestone 6: Polish, Mobile & Deployment
 

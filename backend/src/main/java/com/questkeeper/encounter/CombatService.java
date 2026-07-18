@@ -21,6 +21,125 @@ public class CombatService {
     private final ObjectMapper objectMapper;
 
     @Transactional
+    public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDmOrController(encounter, userId, actorParticipantId);
+
+        EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
+        EncounterParticipant target = findParticipant(encounter, request.getTargetId());
+
+        if (!target.getIsAlive()) {
+            throw new IllegalArgumentException("Target is already dead");
+        }
+
+        int roll1 = ThreadLocalRandom.current().nextInt(1, 21);
+        int roll2 = ThreadLocalRandom.current().nextInt(1, 21);
+        int attackRoll;
+        String rollDesc;
+
+        if (Boolean.TRUE.equals(request.getAdvantage())) {
+            attackRoll = Math.max(roll1, roll2);
+            rollDesc = "2d20(" + roll1 + "," + roll2 + ") advantage → " + attackRoll;
+        } else if (Boolean.FALSE.equals(request.getAdvantage())) {
+            attackRoll = Math.min(roll1, roll2);
+            rollDesc = "2d20(" + roll1 + "," + roll2 + ") disadvantage → " + attackRoll;
+        } else {
+            attackRoll = roll1;
+            rollDesc = "d20(" + attackRoll + ")";
+        }
+
+        int total = attackRoll + request.getAttackBonus();
+        String actorName = actor != null ? actor.getDisplayName() : "DM";
+        boolean isNat20 = attackRoll == 20;
+        boolean isNat1 = attackRoll == 1;
+
+        if (isNat1) {
+            String desc = actorName + " attacks " + target.getDisplayName()
+                    + ": " + rollDesc + " + " + request.getAttackBonus() + " = " + total
+                    + " — Natural 1! Miss!";
+            logAction(encounter, actor, target, CombatActionType.ATTACK, desc, attackRoll, total, null, null);
+            return encounterService.toResponse(encounterRepository.save(encounter));
+        }
+
+        boolean hits = isNat20 || total >= target.getArmourClass();
+
+        if (!hits) {
+            String desc = actorName + " attacks " + target.getDisplayName()
+                    + ": " + rollDesc + " + " + request.getAttackBonus() + " = " + total
+                    + " vs AC " + target.getArmourClass() + " — Miss!";
+            logAction(encounter, actor, target, CombatActionType.ATTACK, desc, attackRoll, total, null, null);
+            return encounterService.toResponse(encounterRepository.save(encounter));
+        }
+
+        DiceRoller.RollResult damageRoll = isNat20
+                ? DiceRoller.rollCritical(request.getDamageDice())
+                : DiceRoller.roll(request.getDamageDice());
+
+        String critLabel = isNat20 ? " CRITICAL HIT!" : "";
+        String attackDesc = actorName + " attacks " + target.getDisplayName()
+                + ": " + rollDesc + " + " + request.getAttackBonus() + " = " + total
+                + " vs AC " + target.getArmourClass() + " — Hit!" + critLabel;
+        logAction(encounter, actor, target, CombatActionType.ATTACK, attackDesc, attackRoll, total, null, null);
+
+        int damage = damageRoll.total();
+        int actualDamage = 0;
+
+        int tempHp = target.getHpTemp() != null ? target.getHpTemp() : 0;
+        int remainingDamage = damage;
+        if (tempHp > 0) {
+            if (remainingDamage <= tempHp) {
+                target.setHpTemp(tempHp - remainingDamage);
+                actualDamage = remainingDamage;
+                remainingDamage = 0;
+            } else {
+                remainingDamage -= tempHp;
+                actualDamage = tempHp;
+                target.setHpTemp(0);
+            }
+        }
+
+        if (remainingDamage > 0) {
+            int newHp = Math.max(0, target.getHpCurrent() - remainingDamage);
+            actualDamage += (target.getHpCurrent() - newHp);
+            target.setHpCurrent(newHp);
+
+            if (newHp == 0) {
+                if (target.getParticipantType() == ParticipantType.PLAYER) {
+                    target.setIsAlive(false);
+                    target.setDeathSaveSuccesses(0);
+                    target.setDeathSaveFailures(0);
+                } else {
+                    target.setIsAlive(false);
+                }
+            }
+        }
+
+        String damageDesc = actorName + " deals " + actualDamage
+                + (isNat20 ? " critical" : "") + " damage to " + target.getDisplayName()
+                + " (" + damageRoll.diceCount() + "d" + damageRoll.diceSides()
+                + (damageRoll.modifier() > 0 ? "+" + damageRoll.modifier() : "")
+                + " = " + damage + ")"
+                + (request.getDamageType() != null ? " [" + request.getDamageType() + "]" : "");
+        logAction(encounter, actor, target, CombatActionType.DAMAGE, damageDesc, null, null, actualDamage, null);
+
+        if (target.getHpCurrent() == 0) {
+            if (target.getParticipantType() == ParticipantType.PLAYER) {
+                logAction(encounter, actor, target, CombatActionType.KILL,
+                        target.getDisplayName() + " drops to 0 HP and is dying", null, null, null, null);
+            } else {
+                logAction(encounter, actor, target, CombatActionType.KILL,
+                        target.getDisplayName() + " is killed", null, null, null, null);
+            }
+        }
+
+        if (target.getConcentrationSpell() != null && actualDamage > 0 && target.getIsAlive()) {
+            checkConcentration(encounter, target, actualDamage);
+        }
+
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    @Transactional
     public EncounterResponse applyDamage(UUID encounterId, DamageRequest request, UUID actorParticipantId, UUID userId) {
         Encounter encounter = loadActiveEncounter(encounterId);
         verifyDmOrController(encounter, userId, actorParticipantId);
@@ -150,15 +269,16 @@ public class CombatService {
         verifyDm(encounter, userId);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
-        List<String> conditions = parseConditions(target);
+        List<ConditionEntry> conditions = parseConditionEntries(target);
         String condition = request.getCondition().toLowerCase().trim();
 
-        if (!conditions.contains(condition)) {
-            conditions.add(condition);
-            target.setActiveConditions(serializeConditions(conditions));
+        if (conditions.stream().noneMatch(c -> c.name.equals(condition))) {
+            conditions.add(new ConditionEntry(condition, request.getDuration(), encounter.getRoundNumber()));
+            target.setActiveConditions(serializeConditionEntries(conditions));
 
-            logAction(encounter, null, target, CombatActionType.CONDITION_ADD,
-                    target.getDisplayName() + " gains condition: " + condition, null, null, null, null);
+            String desc = target.getDisplayName() + " gains condition: " + condition
+                    + (request.getDuration() != null ? " (" + request.getDuration() + " rounds)" : "");
+            logAction(encounter, null, target, CombatActionType.CONDITION_ADD, desc, null, null, null, null);
         }
 
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -170,11 +290,12 @@ public class CombatService {
         verifyDm(encounter, userId);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
-        List<String> conditions = parseConditions(target);
+        List<ConditionEntry> conditions = parseConditionEntries(target);
         String condition = request.getCondition().toLowerCase().trim();
 
-        if (conditions.remove(condition)) {
-            target.setActiveConditions(conditions.isEmpty() ? null : serializeConditions(conditions));
+        boolean removed = conditions.removeIf(c -> c.name.equals(condition));
+        if (removed) {
+            target.setActiveConditions(conditions.isEmpty() ? null : serializeConditionEntries(conditions));
 
             logAction(encounter, null, target, CombatActionType.CONDITION_REMOVE,
                     target.getDisplayName() + " loses condition: " + condition, null, null, null, null);
@@ -261,6 +382,62 @@ public class CombatService {
     }
 
     @Transactional
+    public EncounterResponse useSpellSlot(UUID encounterId, SpellSlotRequest request, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDmOrController(encounter, userId, request.getParticipantId());
+
+        EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
+        Map<String, Map<String, Integer>> slots = parseSpellSlots(participant);
+
+        String level = String.valueOf(request.getSlotLevel());
+        Map<String, Integer> slot = slots.get(level);
+        if (slot == null || slot.getOrDefault("remaining", 0) <= 0) {
+            throw new IllegalArgumentException("No level " + level + " spell slots remaining");
+        }
+
+        slot.put("remaining", slot.get("remaining") - 1);
+        participant.setSpellSlotsCurrent(serializeSpellSlots(slots));
+
+        logAction(encounter, null, participant, CombatActionType.SPELL_SLOT_USE,
+                participant.getDisplayName() + " uses a level " + level + " spell slot ("
+                        + slot.get("remaining") + "/" + slot.get("max") + " remaining)",
+                null, null, null, null);
+
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    @Transactional
+    public EncounterResponse restoreSpellSlot(UUID encounterId, SpellSlotRequest request, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDm(encounter, userId);
+
+        EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
+        Map<String, Map<String, Integer>> slots = parseSpellSlots(participant);
+
+        String level = String.valueOf(request.getSlotLevel());
+        Map<String, Integer> slot = slots.get(level);
+        if (slot == null) {
+            throw new IllegalArgumentException("Participant has no level " + level + " spell slots");
+        }
+
+        int remaining = slot.getOrDefault("remaining", 0);
+        int max = slot.getOrDefault("max", 0);
+        if (remaining >= max) {
+            throw new IllegalArgumentException("Level " + level + " spell slots already at maximum");
+        }
+
+        slot.put("remaining", remaining + 1);
+        participant.setSpellSlotsCurrent(serializeSpellSlots(slots));
+
+        logAction(encounter, null, participant, CombatActionType.SPELL_SLOT_RESTORE,
+                participant.getDisplayName() + " restores a level " + level + " spell slot ("
+                        + slot.get("remaining") + "/" + max + " remaining)",
+                null, null, null, null);
+
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    @Transactional
     public EncounterResponse advanceTurn(UUID encounterId, UUID userId) {
         Encounter encounter = loadActiveEncounter(encounterId);
         verifyDm(encounter, userId);
@@ -288,6 +465,8 @@ public class CombatService {
 
         EncounterParticipant next = sorted.get(nextIndex);
         next.setIsCurrentTurn(true);
+
+        expireConditions(encounter, next);
 
         logAction(encounter, null, next, CombatActionType.TURN_ADVANCE,
                 "Turn passes to " + next.getDisplayName() + " (Round " + encounter.getRoundNumber() + ")",
@@ -440,20 +619,85 @@ public class CombatService {
         throw new IllegalArgumentException("You do not have permission to perform this action");
     }
 
-    private List<String> parseConditions(EncounterParticipant participant) {
-        if (participant.getActiveConditions() == null) return new ArrayList<>();
-        try {
-            return new ArrayList<>(objectMapper.readValue(participant.getActiveConditions(), new TypeReference<List<String>>() {}));
-        } catch (JsonProcessingException e) {
-            return new ArrayList<>();
+    private void expireConditions(Encounter encounter, EncounterParticipant participant) {
+        List<ConditionEntry> conditions = parseConditionEntries(participant);
+        if (conditions.isEmpty()) return;
+
+        List<ConditionEntry> expired = new ArrayList<>();
+        List<ConditionEntry> remaining = new ArrayList<>();
+
+        for (ConditionEntry c : conditions) {
+            if (c.duration != null && (encounter.getRoundNumber() - c.appliedRound) >= c.duration) {
+                expired.add(c);
+            } else {
+                remaining.add(c);
+            }
+        }
+
+        if (!expired.isEmpty()) {
+            participant.setActiveConditions(remaining.isEmpty() ? null : serializeConditionEntries(remaining));
+            for (ConditionEntry c : expired) {
+                logAction(encounter, null, participant, CombatActionType.CONDITION_REMOVE,
+                        c.name + " expires on " + participant.getDisplayName(), null, null, null, null);
+            }
         }
     }
 
-    private String serializeConditions(List<String> conditions) {
+    private List<ConditionEntry> parseConditionEntries(EncounterParticipant participant) {
+        if (participant.getActiveConditions() == null) return new ArrayList<>();
+        try {
+            return new ArrayList<>(objectMapper.readValue(participant.getActiveConditions(),
+                    new TypeReference<List<ConditionEntry>>() {}));
+        } catch (JsonProcessingException e) {
+            try {
+                List<String> legacy = objectMapper.readValue(participant.getActiveConditions(),
+                        new TypeReference<List<String>>() {});
+                return new ArrayList<>(legacy.stream()
+                        .map(name -> new ConditionEntry(name, null, 1))
+                        .toList());
+            } catch (JsonProcessingException e2) {
+                return new ArrayList<>();
+            }
+        }
+    }
+
+    private String serializeConditionEntries(List<ConditionEntry> conditions) {
         try {
             return objectMapper.writeValueAsString(conditions);
         } catch (JsonProcessingException e) {
             return "[]";
+        }
+    }
+
+    private Map<String, Map<String, Integer>> parseSpellSlots(EncounterParticipant participant) {
+        if (participant.getSpellSlotsCurrent() == null) return new LinkedHashMap<>();
+        try {
+            return objectMapper.readValue(participant.getSpellSlotsCurrent(),
+                    new TypeReference<LinkedHashMap<String, Map<String, Integer>>>() {});
+        } catch (JsonProcessingException e) {
+            return new LinkedHashMap<>();
+        }
+    }
+
+    private String serializeSpellSlots(Map<String, Map<String, Integer>> slots) {
+        try {
+            return objectMapper.writeValueAsString(slots);
+        } catch (JsonProcessingException e) {
+            return "{}";
+        }
+    }
+
+    static class ConditionEntry {
+        public String name;
+        public Integer duration;
+        public int appliedRound;
+
+        public ConditionEntry() {}
+
+        public ConditionEntry(String name, Integer duration, int appliedRound) {
+            this.name = name;
+            this.duration = duration;
+            this.appliedRound = appliedRound;
         }
     }
 }

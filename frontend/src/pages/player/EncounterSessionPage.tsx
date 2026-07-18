@@ -2,11 +2,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
 import { useAuth } from '../../context/AuthContext';
 import { combatApi } from '../../api/combatApi';
-import type { EncounterParticipant } from '../../types/encounter';
+import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
 import type { CombatLogEntry } from '../../types/combat';
 import {
   ArrowLeft, Wifi, WifiOff, Heart, Shield, Skull,
-  ChevronRight, ScrollText
+  ChevronRight, ScrollText, Sparkles
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
@@ -83,6 +83,65 @@ function DeathSaves({ participant, encounterId, onUpdate }: { participant: Encou
   );
 }
 
+function parseSpellSlots(p: EncounterParticipant): SpellSlots | null {
+  if (!p.spellSlotsCurrent) return null;
+  try {
+    const parsed = JSON.parse(p.spellSlotsCurrent);
+    if (Object.keys(parsed).length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function PlayerSpellSlots({ participant, encounterId, onUpdate }: { participant: EncounterParticipant; encounterId: string; onUpdate: () => void }) {
+  const slots = parseSpellSlots(participant);
+  if (!slots) return null;
+
+  const levels = Object.keys(slots).sort((a, b) => parseInt(a) - parseInt(b));
+  if (levels.length === 0) return null;
+
+  async function handleUse(level: number) {
+    await combatApi.useSpellSlot(encounterId, participant.id, level);
+    onUpdate();
+  }
+
+  return (
+    <div className="bg-gray-900 border border-indigo-900/50 rounded-lg p-4 mb-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles className="w-4 h-4 text-indigo-400" />
+        <span className="text-sm font-semibold text-gray-300">Spell Slots</span>
+      </div>
+      <div className="flex items-center gap-4 flex-wrap">
+        {levels.map(lvl => {
+          const s = slots[lvl];
+          return (
+            <div key={lvl} className="flex items-center gap-1">
+              <span className="text-xs text-gray-400 w-6">Lv{lvl}</span>
+              <div className="flex gap-1">
+                {Array.from({ length: s.max }).map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => i < s.remaining ? handleUse(parseInt(lvl)) : undefined}
+                    disabled={i >= s.remaining}
+                    className={`w-3.5 h-3.5 rounded-full border transition-colors ${
+                      i < s.remaining
+                        ? 'bg-indigo-500 border-indigo-400 hover:bg-indigo-700 cursor-pointer'
+                        : 'border-gray-600 cursor-default'
+                    }`}
+                    title={i < s.remaining ? `Use level ${lvl} slot` : `Used`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-gray-500">{s.remaining}/{s.max}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CombatLogPanel({ encounterId }: { encounterId: string }) {
   const [logs, setLogs] = useState<CombatLogEntry[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -104,10 +163,13 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
 
   function getLogColor(actionType: string) {
     switch (actionType) {
+      case 'ATTACK': return 'text-orange-400';
       case 'DAMAGE': case 'KILL': return 'text-red-400';
       case 'HEAL': case 'REVIVE': return 'text-green-400';
       case 'DEATH_SAVE': return 'text-orange-400';
       case 'STABILIZE': return 'text-green-300';
+      case 'SPELL_SLOT_USE': return 'text-indigo-400';
+      case 'SPELL_SLOT_RESTORE': return 'text-indigo-300';
       case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-gray-500';
       default: return 'text-gray-400';
     }
@@ -152,10 +214,14 @@ function PlayerSessionView() {
     return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-gray-400">Loading encounter...</p></div>;
   }
 
-  function parseConditions(p: EncounterParticipant): string[] {
+  function parseConditions(p: EncounterParticipant): ConditionEntry[] {
     if (!p.activeConditions) return [];
     try {
-      return JSON.parse(p.activeConditions);
+      const parsed = JSON.parse(p.activeConditions);
+      if (parsed.length > 0 && typeof parsed[0] === 'string') {
+        return parsed.map((name: string) => ({ name, duration: null, appliedRound: 1 }));
+      }
+      return parsed;
     } catch {
       return [];
     }
@@ -209,6 +275,11 @@ function PlayerSessionView() {
           </div>
         )}
 
+        {/* Own character spell slots */}
+        {myCharacter && myCharacter.isAlive && myCharacter.spellSlotsCurrent && (
+          <PlayerSpellSlots participant={myCharacter} encounterId={encounter.id} onUpdate={refreshEncounter} />
+        )}
+
         {/* Initiative list */}
         <div className="space-y-2 mb-4">
           {visibleParticipants.map((p: EncounterParticipant) => {
@@ -245,11 +316,14 @@ function PlayerSessionView() {
                     </div>
                     {conditions.length > 0 && (
                       <div className="flex gap-1 mt-1 flex-wrap">
-                        {conditions.map(c => (
-                          <span key={c} className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c] || 'bg-gray-700 text-gray-300'}`}>
-                            {c}
-                          </span>
-                        ))}
+                        {conditions.map(c => {
+                          const remaining = c.duration != null ? Math.max(0, c.duration - (encounter.roundNumber - c.appliedRound)) : null;
+                          return (
+                            <span key={c.name} className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c.name] || 'bg-gray-700 text-gray-300'}`}>
+                              {c.name}{remaining != null ? ` (${remaining})` : ''}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                     {p.concentrationSpell && isOwn && (

@@ -40,6 +40,7 @@ public class EncounterResponse {
         private Integer armourClass;
         private String activeConditions;
         private String concentrationSpell;
+        private String spellSlotsCurrent;
         private Boolean isVisibleToPlayers;
         private Boolean isAlive;
         private Boolean isCurrentTurn;
