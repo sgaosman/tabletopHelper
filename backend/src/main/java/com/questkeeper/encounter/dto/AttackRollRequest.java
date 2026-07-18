@@ -21,4 +21,6 @@ public class AttackRollRequest {
     private String damageType;
 
     private Boolean advantage;
+
+    private Boolean forceCrit;
 }

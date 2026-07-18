@@ -15,10 +15,18 @@ QuestKeeper replaces the scattered collection of PDFs, paper notes, and browser 
 - **Full 5e reference database** — Searchable bestiary (2000+ monsters), spells (500+), items (1000+), and conditions from every 2014-era D&D 5e sourcebook, with multiselect filters and quick rules reference
 - **Encounter builder** — DMs create encounters by adding monsters (with fuzzy search, typo-tolerant) and player characters from their campaign; manual or auto-rolled initiative; participant renaming while preserving monster identity
 - **Live encounter sessions** — Real-time WebSocket sync between DM and players via STOMP over SockJS; session codes for players to join; initiative tracking, turn management, pause/resume/end controls
+- **Combat engine** — Full D&D 5e combat:
+  - Attack rolls (d20 vs AC) with advantage/disadvantage, critical hits (nat 20 doubles dice), force-crit toggle, multi-attack (up to 5 attack rolls at once)
+  - Damage and healing with temp HP absorption, damage types, concentration checks
+  - Unconscious combat rules: attacks auto-hit downed PCs (default advantage), damage causes death save failures (2 on crit), massive damage (>= max HP) instant kills
+  - Death saves, stabilization, revival; resurrection of dead PCs (3 failed saves) with auto-prone
+  - Condition tracking with durations and auto-expiry at start of turn
+  - Concentration tracking with auto-drop on 0 HP and DC-based checks on damage
+  - Spell slot tracking per encounter (copied from character sheet on join)
+  - Combat log with round/turn headers, colour-coded entries, smart scroll (stays in place when reading history, "scroll to bottom" indicator for new messages)
 
 ### Features Coming Soon
 
-- **Combat engine** — Server-side attack resolution, spell casting, damage/healing, condition tracking, death saves, concentration checks, and full turn management
 - **Mobile-responsive encounter screen** — Players use their phones at the table; DMs use a laptop
 
 ### Future Roadmap (Post-Launch)

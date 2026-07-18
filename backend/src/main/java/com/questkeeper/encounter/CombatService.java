@@ -28,8 +28,46 @@ public class CombatService {
         EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
 
-        if (!target.getIsAlive()) {
+        boolean targetDowned = !target.getIsAlive() && target.getParticipantType() == ParticipantType.PLAYER
+                && target.getDeathSaveFailures() < 3;
+        if (!target.getIsAlive() && !targetDowned) {
             throw new IllegalArgumentException("Target is already dead");
+        }
+
+        String actorName = actor != null ? actor.getDisplayName() : "DM";
+        boolean forceCrit = Boolean.TRUE.equals(request.getForceCrit());
+
+        if (targetDowned) {
+            boolean isCrit = forceCrit;
+            DiceRoller.RollResult damageRoll = isCrit
+                    ? DiceRoller.rollCritical(request.getDamageDice())
+                    : DiceRoller.roll(request.getDamageDice());
+            int damage = damageRoll.total();
+
+            if (damage >= target.getHpMax()) {
+                target.setDeathSaveFailures(3);
+                String desc = actorName + " attacks " + target.getDisplayName()
+                        + " (unconscious, auto-hit" + (isCrit ? ", critical" : "") + "): "
+                        + damage + " damage exceeds max HP (" + target.getHpMax() + ") — instant death!";
+                logAction(encounter, actor, target, CombatActionType.KILL, desc, null, null, damage, null);
+                return encounterService.toResponse(encounterRepository.save(encounter));
+            }
+
+            int failsAdded = isCrit ? 2 : 1;
+            int newFails = Math.min(3, target.getDeathSaveFailures() + failsAdded);
+            target.setDeathSaveFailures(newFails);
+
+            String desc = actorName + " attacks " + target.getDisplayName()
+                    + " (unconscious, auto-hit" + (isCrit ? ", critical" : "") + "): "
+                    + damage + " damage — " + failsAdded + " death save failure" + (failsAdded > 1 ? "s" : "") + "!";
+
+            if (newFails >= 3) {
+                logAction(encounter, actor, target, CombatActionType.KILL, desc + " " + target.getDisplayName() + " dies!", null, null, damage, null);
+            } else {
+                logAction(encounter, actor, target, CombatActionType.DAMAGE, desc
+                        + " (" + newFails + "/3 failures)", null, null, damage, null);
+            }
+            return encounterService.toResponse(encounterRepository.save(encounter));
         }
 
         int roll1 = ThreadLocalRandom.current().nextInt(1, 21);
@@ -49,11 +87,11 @@ public class CombatService {
         }
 
         int total = attackRoll + request.getAttackBonus();
-        String actorName = actor != null ? actor.getDisplayName() : "DM";
         boolean isNat20 = attackRoll == 20;
+        boolean isCrit = isNat20 || forceCrit;
         boolean isNat1 = attackRoll == 1;
 
-        if (isNat1) {
+        if (isNat1 && !forceCrit) {
             String desc = actorName + " attacks " + target.getDisplayName()
                     + ": " + rollDesc + " + " + request.getAttackBonus() + " = " + total
                     + " — Natural 1! Miss!";
@@ -61,7 +99,7 @@ public class CombatService {
             return encounterService.toResponse(encounterRepository.save(encounter));
         }
 
-        boolean hits = isNat20 || total >= target.getArmourClass();
+        boolean hits = isCrit || total >= target.getArmourClass();
 
         if (!hits) {
             String desc = actorName + " attacks " + target.getDisplayName()
@@ -71,11 +109,11 @@ public class CombatService {
             return encounterService.toResponse(encounterRepository.save(encounter));
         }
 
-        DiceRoller.RollResult damageRoll = isNat20
+        DiceRoller.RollResult damageRoll = isCrit
                 ? DiceRoller.rollCritical(request.getDamageDice())
                 : DiceRoller.roll(request.getDamageDice());
 
-        String critLabel = isNat20 ? " CRITICAL HIT!" : "";
+        String critLabel = isCrit ? " CRITICAL HIT!" : "";
         String attackDesc = actorName + " attacks " + target.getDisplayName()
                 + ": " + rollDesc + " + " + request.getAttackBonus() + " = " + total
                 + " vs AC " + target.getArmourClass() + " — Hit!" + critLabel;
@@ -104,6 +142,7 @@ public class CombatService {
             target.setHpCurrent(newHp);
 
             if (newHp == 0) {
+                dropConcentrationOnZeroHp(encounter, target);
                 if (target.getParticipantType() == ParticipantType.PLAYER) {
                     target.setIsAlive(false);
                     target.setDeathSaveSuccesses(0);
@@ -145,11 +184,36 @@ public class CombatService {
         verifyDmOrController(encounter, userId, actorParticipantId);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
-        if (!target.getIsAlive()) {
+        boolean targetDowned = !target.getIsAlive() && target.getParticipantType() == ParticipantType.PLAYER
+                && target.getDeathSaveFailures() < 3;
+        if (!target.getIsAlive() && !targetDowned) {
             throw new IllegalArgumentException("Target is already dead");
         }
 
         EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
+        String actorDesc = actor != null ? actor.getDisplayName() : "DM";
+
+        if (targetDowned) {
+            int amount = request.getAmount();
+            if (amount >= target.getHpMax()) {
+                target.setDeathSaveFailures(3);
+                String desc = actorDesc + " deals " + amount + " damage to " + target.getDisplayName()
+                        + " (unconscious) — exceeds max HP (" + target.getHpMax() + "), instant death!";
+                logAction(encounter, actor, target, CombatActionType.KILL, desc, null, null, amount, null);
+            } else {
+                int newFails = Math.min(3, target.getDeathSaveFailures() + 1);
+                target.setDeathSaveFailures(newFails);
+                String desc = actorDesc + " deals " + amount + " damage to " + target.getDisplayName()
+                        + " (unconscious) — 1 death save failure! (" + newFails + "/3)";
+                if (newFails >= 3) {
+                    logAction(encounter, actor, target, CombatActionType.KILL,
+                            desc + " " + target.getDisplayName() + " dies!", null, null, amount, null);
+                } else {
+                    logAction(encounter, actor, target, CombatActionType.DAMAGE, desc, null, null, amount, null);
+                }
+            }
+            return encounterService.toResponse(encounterRepository.save(encounter));
+        }
 
         int amount = request.getAmount();
         int actualDamage = 0;
@@ -173,6 +237,7 @@ public class CombatService {
             target.setHpCurrent(newHp);
 
             if (newHp == 0) {
+                dropConcentrationOnZeroHp(encounter, target);
                 if (target.getParticipantType() == ParticipantType.PLAYER) {
                     target.setIsAlive(false);
                     target.setDeathSaveSuccesses(0);
@@ -188,8 +253,7 @@ public class CombatService {
         }
 
         if (target.getIsAlive() || actualDamage > 0) {
-            String damageDesc = (actor != null ? actor.getDisplayName() : "DM")
-                    + " deals " + actualDamage + " damage to " + target.getDisplayName()
+            String damageDesc = actorDesc + " deals " + actualDamage + " damage to " + target.getDisplayName()
                     + (request.getDamageType() != null ? " (" + request.getDamageType() + ")" : "");
             logAction(encounter, actor, target, CombatActionType.DAMAGE, damageDesc, null, null, actualDamage, null);
         }
@@ -210,6 +274,7 @@ public class CombatService {
         EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
 
         boolean wasDown = !target.getIsAlive();
+        boolean wasDead = wasDown && target.getDeathSaveFailures() >= 3;
         int oldHp = target.getHpCurrent();
         int newHp = Math.min(target.getHpMax(), oldHp + request.getAmount());
         int actualHealing = newHp - oldHp;
@@ -220,8 +285,18 @@ public class CombatService {
             target.setIsAlive(true);
             target.setDeathSaveSuccesses(0);
             target.setDeathSaveFailures(0);
-            logAction(encounter, actor, target, CombatActionType.REVIVE,
-                    target.getDisplayName() + " is revived with " + actualHealing + " HP", null, null, null, actualHealing);
+
+            List<ConditionEntry> conditions = parseConditionEntries(target);
+            conditions.removeIf(c -> c.name.equals("unconscious"));
+            if (conditions.stream().noneMatch(c -> c.name.equals("prone"))) {
+                conditions.add(new ConditionEntry("prone", null, encounter.getRoundNumber()));
+            }
+            target.setActiveConditions(serializeConditionEntries(conditions));
+
+            String reviveDesc = wasDead
+                    ? target.getDisplayName() + " is resurrected with " + actualHealing + " HP (prone)"
+                    : target.getDisplayName() + " is revived with " + actualHealing + " HP (prone)";
+            logAction(encounter, actor, target, CombatActionType.REVIVE, reviveDesc, null, null, null, actualHealing);
         }
 
         String healDesc = (actor != null ? actor.getDisplayName() : "DM")
@@ -247,6 +322,7 @@ public class CombatService {
         }
 
         if (newHp == 0 && target.getIsAlive()) {
+            dropConcentrationOnZeroHp(encounter, target);
             if (target.getParticipantType() == ParticipantType.PLAYER) {
                 target.setIsAlive(false);
                 target.setDeathSaveSuccesses(0);
@@ -533,6 +609,7 @@ public class CombatService {
                         .rollTotal(log.getRollTotal())
                         .damageDealt(log.getDamageDealt())
                         .healingDone(log.getHealingDone())
+                        .turnParticipantName(log.getTurnParticipantName())
                         .createdAt(log.getCreatedAt())
                         .build())
                 .toList();
@@ -564,9 +641,28 @@ public class CombatService {
         }
     }
 
+    private void dropConcentrationOnZeroHp(Encounter encounter, EncounterParticipant participant) {
+        if (participant.getConcentrationSpell() != null) {
+            String spell = participant.getConcentrationSpell();
+            participant.setConcentrationSpell(null);
+            logAction(encounter, null, participant, CombatActionType.CONCENTRATION_LOST,
+                    participant.getDisplayName() + " drops to 0 HP — loses concentration on " + spell,
+                    null, null, null, null);
+        }
+    }
+
     private void logAction(Encounter encounter, EncounterParticipant actor, EncounterParticipant target,
                            CombatActionType actionType, String description,
                            Integer rollValue, Integer rollTotal, Integer damageDealt, Integer healingDone) {
+        String turnName = null;
+        List<EncounterParticipant> sorted = encounter.getParticipants().stream()
+                .sorted((a, b) -> (a.getSortOrder() != null ? a.getSortOrder() : 999) - (b.getSortOrder() != null ? b.getSortOrder() : 999))
+                .toList();
+        int turnIdx = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
+        if (!sorted.isEmpty() && turnIdx < sorted.size()) {
+            turnName = sorted.get(turnIdx).getDisplayName();
+        }
+
         CombatLog log = CombatLog.builder()
                 .encounter(encounter)
                 .roundNumber(encounter.getRoundNumber())
@@ -574,6 +670,7 @@ public class CombatService {
                 .actorName(actor != null ? actor.getDisplayName() : null)
                 .targetId(target != null ? target.getId() : null)
                 .targetName(target != null ? target.getDisplayName() : null)
+                .turnParticipantName(turnName)
                 .actionType(actionType)
                 .description(description)
                 .rollValue(rollValue)

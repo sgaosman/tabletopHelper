@@ -22,5 +22,6 @@ public class CombatLogResponse {
     private Integer rollTotal;
     private Integer damageDealt;
     private Integer healingDone;
+    private String turnParticipantName;
     private Instant createdAt;
 }

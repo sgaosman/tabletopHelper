@@ -58,6 +58,9 @@ public class CombatLog {
     @Column(name = "healing_done")
     private Integer healingDone;
 
+    @Column(name = "turn_participant_name", length = 200)
+    private String turnParticipantName;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

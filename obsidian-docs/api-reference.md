@@ -465,7 +465,9 @@ All combat endpoints are under `/api/encounters/{encounterId}/combat`. The encou
 
 ### POST /encounters/{id}/combat/attack
 
-Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice and applies damage. Supports advantage/disadvantage. Natural 20 doubles damage dice (critical hit); natural 1 auto-misses.
+Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice and applies damage. Supports advantage/disadvantage. Natural 20 doubles damage dice (critical hit); natural 1 auto-misses (unless forceCrit is true).
+
+**Attacking unconscious/downed targets:** Attacks against dying player characters (0 HP, < 3 death save failures) auto-hit without rolling a d20. Damage causes 1 death save failure (2 on critical hit). If damage >= target's max HP, the target dies instantly (massive damage). Advantage defaults on in the frontend UI for unconscious targets.
 
 **Request:**
 ```json
@@ -474,7 +476,8 @@ Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice a
   "attackBonus": 5,
   "damageDice": "1d8+3",
   "damageType": "slashing",
-  "advantage": null
+  "advantage": null,
+  "forceCrit": false
 }
 ```
 
@@ -482,6 +485,7 @@ Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice a
 - `damageDice`: dice expression in NdS+M format (e.g. "2d6+3", "1d8+4")
 - `damageType`: optional damage type string
 - `advantage`: `true` = advantage (roll 2d20, take higher), `false` = disadvantage (take lower), `null` = normal
+- `forceCrit`: `true` = treat as critical hit regardless of roll (doubles damage dice, overrides nat 1). Used for melee attacks against unconscious targets within 5 feet (PHB Unconscious condition).
 
 **Query params:** `actorId` (optional) — the attacking participant.
 
@@ -489,7 +493,9 @@ Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice a
 
 ### POST /encounters/{id}/combat/damage
 
-Apply damage to a participant. Temp HP absorbs damage first. Dropping to 0 HP kills monsters outright; players enter the dying state (death saves reset). Automatically triggers a concentration check if the target is concentrating.
+Apply damage to a participant. Temp HP absorbs damage first. Dropping to 0 HP kills monsters outright; players enter the dying state (death saves reset, concentration dropped). Automatically triggers a concentration check if the target is concentrating.
+
+**Damaging unconscious/downed targets:** Damage against dying player characters (0 HP, < 3 death save failures) causes 1 death save failure. If damage >= target's max HP, the target dies instantly (massive damage, PHB pg.197).
 
 **Request:**
 ```json
@@ -506,7 +512,7 @@ Apply damage to a participant. Temp HP absorbs damage first. Dropping to 0 HP ki
 
 ### POST /encounters/{id}/combat/heal
 
-Heal a participant. Capped at max HP. Healing a dying player (0 HP) revives them and resets death saves.
+Heal a participant. Capped at max HP. Healing a dying player (0 HP) revives them, resets death saves, removes the Unconscious condition, and auto-applies Prone. Also works on dead players (3 death save failures) for resurrection effects like Revivify — same mechanics apply.
 
 **Request:**
 ```json
@@ -639,6 +645,7 @@ Get the full combat log for the encounter, ordered chronologically.
     "rollTotal": null,
     "damageDealt": 7,
     "healingDone": null,
+    "turnParticipantName": "Goblin 1",
     "createdAt": "2026-07-18T10:05:00Z"
   }
 ]
