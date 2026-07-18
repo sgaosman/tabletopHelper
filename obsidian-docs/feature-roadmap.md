@@ -65,10 +65,10 @@
 
 **Multiselect filters (shipped alongside M4):**
 - [x] MultiSelect reusable component with checkboxes, search, dark theme
-- [x] Backend SQL queries updated to accept comma-separated values via `string_to_array`/`unnest`
+- [x] Backend: comma-separated params split in Java, passed as Collection to Spring Data JPA `IN (:list)` clauses
 - [x] ItemsPage — type, rarity, source converted to multiselect
 - [x] BestiaryPage — type, CR, source converted to multiselect
-- [x] SpellsPage — school, class, source converted to multiselect (subclass hidden when >1 class selected)
+- [x] SpellsPage — all filters multiselect: level, school, class, subclass, source. Subclass aggregates across all selected classes. Class + subclass combined into single OR query against jsonb classes array
 
 ## Milestone 5: Combat Engine
 

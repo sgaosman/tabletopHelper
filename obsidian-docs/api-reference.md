@@ -230,9 +230,7 @@ Search and filter spells. Paginated.
 
 **Query params:** `name`, `level`, `school`, `source`, `className`, `subclass`, `concentration`, `ritual`, `page`, `size`, `sort`
 
-Filter params `school` and `source` accept comma-separated values for multiselect (e.g., `school=Evocation,Necromancy`). `className` accepts a single value (subclass filter requires exactly one class).
-
-When `subclass` is provided, results include both base class spells and subclass-specific spells.
+All filter params except `concentration` and `ritual` accept comma-separated values for multiselect. `level` accepts comma-separated integers (e.g., `level=0,1,3`). `className` and `subclass` both accept comma-separated values (e.g., `className=Wizard,Cleric&subclass=Cleric%20(Knowledge)`); they are combined into a single list and matched with OR logic against the spell's jsonb `classes` array.
 
 ### GET /reference/spells/{id}
 
