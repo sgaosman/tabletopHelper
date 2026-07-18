@@ -197,3 +197,30 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Decision:** Add `<script>globalThis.global = globalThis;</script>` to `index.html` before the app module script.
 
 **Rationale:** `sockjs-client` references the Node.js `global` variable. Vite 8's Rolldown bundler does not auto-shim Node.js globals (Vite's previous esbuild-based optimizer did). Without the polyfill, the app crashes with `ReferenceError: global is not defined` on page load.
+
+## D019: PostgreSQL pg_trgm for Fuzzy Monster Search
+
+**Date:** 2026-07-18
+**Status:** Accepted
+
+**Decision:** Use PostgreSQL's `pg_trgm` extension with `word_similarity()` for fuzzy monster name search in the encounter builder, combined with ILIKE for exact substring matches.
+
+**Rationale:** DMs need to quickly find monsters while building encounters, and exact-match search fails with typos ("gobln", "beholdr"). `pg_trgm` provides trigram-based similarity scoring directly in PostgreSQL with no external dependencies. Combined ranking (exact prefix → substring → fuzzy similarity at threshold 0.4) gives intuitive results. The `gin_trgm_ops` index on `LOWER(name)` ensures fast lookups even against the full SRD monster table (~2000 entries).
+
+**Trade-offs:** Requires PostgreSQL extensions (`pg_trgm`, `fuzzystrmatch`) created at startup via `DataSeeder`. The threshold of 0.4 was chosen to allow single-character typos while avoiding false positives — "aaara" does not match "Aarakocra" but "aara" does.
+
+**Alternatives considered:**
+- Elasticsearch — overkill for ~2000 monsters, adds operational complexity
+- Levenshtein distance — less flexible than trigram similarity for partial matches and prefix typos
+- Client-side fuzzy search (Fuse.js) — would require loading all monsters to the client
+
+## D020: Participant displayName Rename with Preserved Monster Identity
+
+**Date:** 2026-07-18
+**Status:** Accepted
+
+**Decision:** Allow DMs to rename encounter participants via `PATCH /encounters/{id}/participants/{participantId}/name`, updating the `displayName` field while preserving the `monsterId` foreign key.
+
+**Rationale:** DMs often want to give meaningful names to enemies ("Jeff the Direwolf", "Bob the Goblin") rather than generic labels. The `displayName` is the user-facing label, while `monsterId` remains the FK to the monster entity. This means renames never break monster stat lookups, CR calculations, or any system that relies on knowing what creature the participant actually is.
+
+**Trade-offs:** None significant. The `displayName` was already a separate field from the monster's canonical name since initial encounter design.

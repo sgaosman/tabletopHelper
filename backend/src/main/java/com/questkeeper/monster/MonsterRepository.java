@@ -32,6 +32,19 @@ public interface MonsterRepository extends JpaRepository<Monster, UUID> {
             @Param("sourceList") List<String> sourceList,
             Pageable pageable);
 
+    @Query(value = "SELECT * FROM monsters m WHERE " +
+           "LOWER(m.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%') " +
+           "OR word_similarity(LOWER(CAST(:name AS TEXT)), LOWER(m.name)) > 0.4 " +
+           "ORDER BY " +
+           "CASE WHEN LOWER(m.name) LIKE LOWER(CAST(:name AS TEXT)) || '%' THEN 0 " +
+           "     WHEN LOWER(m.name) LIKE '%' || LOWER(CAST(:name AS TEXT)) || '%' THEN 1 " +
+           "     ELSE 2 END, " +
+           "word_similarity(LOWER(CAST(:name AS TEXT)), LOWER(m.name)) DESC, " +
+           "m.name ASC " +
+           "LIMIT :maxResults",
+           nativeQuery = true)
+    List<Monster> fuzzySearchByName(@Param("name") String name, @Param("maxResults") int maxResults);
+
     @Query("SELECT DISTINCT m.source FROM Monster m ORDER BY m.source")
     java.util.List<String> findDistinctSources();
 

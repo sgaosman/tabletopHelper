@@ -7,6 +7,11 @@ export const searchMonsters = async (params: MonsterSearchParams): Promise<PageR
   return response.data;
 };
 
+export const fuzzySearchMonsters = async (name: string, maxResults = 10): Promise<Monster[]> => {
+  const response = await api.get('/monsters/search', { params: { name, maxResults } });
+  return response.data;
+};
+
 export const getMonster = async (id: string): Promise<Monster> => {
   const response = await api.get(`/monsters/${id}`);
   return response.data;

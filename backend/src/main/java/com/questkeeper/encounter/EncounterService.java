@@ -131,6 +131,20 @@ public class EncounterService {
     }
 
     @Transactional
+    public EncounterResponse renameParticipant(UUID encounterId, UUID participantId, String newName, UUID userId) {
+        Encounter encounter = loadEncounter(encounterId);
+        verifyDmOwnership(encounter.getCampaign(), userId);
+
+        encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Participant not found"))
+                .setDisplayName(newName.trim());
+
+        return toResponse(encounterRepository.save(encounter));
+    }
+
+    @Transactional
     public EncounterResponse removeParticipant(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
         verifyDmOwnership(encounter.getCampaign(), userId);
