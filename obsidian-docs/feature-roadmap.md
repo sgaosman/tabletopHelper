@@ -9,7 +9,18 @@
 | 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
 | 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
 | 5 | Combat Engine | Complete | Full combat: damage, healing, conditions (with duration tracking), death saves, concentration, attack rolls, spell slot tracking, turn-based auto-expiry |
-| 6 | Polish, Mobile & Deployment | Not started | |
+| 6 | Polish, Mobile & Deployment | Deferred | Will be done after M13 when combat UI has stabilised |
+| 7 | Data Gathering & Spell Effect Schema | Not started | No code — produces data files and analysis docs for human review |
+| 8 | Spell Effect Data Population & Review Cycle | Not started | Validate and finalise all 294 spell definitions |
+| 9 | Character Builder Overhaul | Not started | Race/class/subclass from reference data, ability score methods, new sheet tabs (Spells tab blocked by M7/M8) |
+| 10 | Spell Resolver Engine & Encounter Spellcasting | Not started | Cast Spell action, auto-resolution, source-tracked conditions, component checks, optimistic locking |
+| 11 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
+| 12 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
+| 13 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
+| 14 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
+| 15 | Short/Long Rest System | Not started | Hit dice spending, HP recovery, spell slot recovery, feature/charge recovery per rest type |
+| 16 | Class Feature Automation | Not started | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
+| 17 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 
@@ -124,7 +135,9 @@
 - [x] Player encounter session page: attack panel, condition/concentration controls, improved combat log
 - [x] Per-row clone button for multi-attack (copies all filled values)
 
-## Milestone 6: Polish, Mobile & Deployment
+## Milestone 6: Polish, Mobile & Deployment (DEFERRED)
+
+**Status:** Deferred — will be done after M13 when combat UI has stabilised. The encounter session UI will be substantially rebuilt by M10–M12, making early polish work throwaway.
 
 **Tasks:**
 - [ ] Mobile-responsive encounter screens
@@ -136,10 +149,271 @@
 - [ ] Deploy to Hetzner VPS or Railway
 - [ ] End-to-end testing with real devices
 
+## Milestone 7: Data Gathering & Spell Effect Schema
+
+**Goal:** Produce structured data definitions for the spell resolver, combat automation, character builder, and monster action systems. No implementation code — output is JSON data files and analysis documents for human review.
+
+**Sub-tasks:**
+- [ ] **Task 1: Spell Effect Definitions (Levels 0–3)** — Structured JSON definition for every spell at levels 0–3 (~294 spells). Each spell classified into a pattern category (ATTACK_DAMAGE, SAVE_DAMAGE, SAVE_CONDITION, HEAL, BUFF_NO_ROLL, etc.) with delivery method, targeting, effects array, upcast scaling, cantrip scaling, and `requiresManualResolution` flag for complex spells.
+  - Output: `backend/src/main/resources/data/spell-effects/spell-effect-definitions.json`
+  - Review: `docs/spell-effect-review.md`
+- [ ] **Task 2: Class Feature Analysis (Levels 1–5)** — Every class and subclass feature at levels 1–5, categorised as COMBAT_ACTIVE, COMBAT_PASSIVE, COMBAT_MODIFIER, RESOURCE, FLAVOUR, or SPELLCASTING. Includes uses, recharge period, and combat notes.
+  - Output: `docs/class-feature-analysis.md`
+- [ ] **Task 3: Race Trait Analysis** — Every racial trait categorised as STAT_BONUS, COMBAT_ACTIVE, COMBAT_PASSIVE, PROFICIENCY, MOVEMENT, SENSE, RESISTANCE, or FLAVOUR.
+  - Output: `docs/race-trait-analysis.md`
+- [ ] **Task 4: Item Effect Analysis** — Combat-relevant items (potions, wands, staves, scrolls) with structured effect definitions. ~50–80 items.
+  - Output: `backend/src/main/resources/data/item-effects/item-effect-definitions.json`
+  - Review: `docs/item-effect-review.md`
+- [ ] **Task 5: Monster Action Structured Data** — Structured action templates for ~1,300–1,600 monsters: all CR 0–10 (~1,200–1,500), all legendary/lair monsters at any CR (~60–80 additional), and CR 11–15 as secondary priority if time permits (~200–300 additional). Parses attack bonuses, damage dice, save DCs, conditions, recharge, legendary action costs, spellcasting blocks from raw 5e.tools JSON.
+  - Output: `backend/src/main/resources/data/monster-actions/monster-action-definitions.json`
+  - Review: `docs/monster-action-review.md`
+- [ ] **Task 6: Validation Summary** — Cross-check all definitions against 5e.tools metadata, report data quality issues and recommended review priorities.
+  - Output: `docs/data-gathering-summary.md`
+
+**Critical rules:** No implementation code. No modifications to existing source code, entities, database schema, or database data. Flag uncertainty with "REVIEW:" notes. Be conservative about automation — mark complex spells as manual resolution.
+
+## Milestone 8: Spell Effect Data Population & Review Cycle
+
+**Goal:** Human review and finalisation of all 294 spell effect definitions from M7.
+
+**Tasks:**
+- [ ] Human reviews `docs/spell-effect-review.md` and flags corrections
+- [ ] Corrections applied to `spell-effect-definitions.json`
+- [ ] Re-run validation checks (cross-reference 5e.tools metadata, verify all cantrips have scaling, verify delivery methods match raw data)
+- [ ] Final sign-off on all spell definitions
+- [ ] Human reviews `docs/class-feature-analysis.md`, `docs/race-trait-analysis.md`, `docs/item-effect-review.md`, `docs/monster-action-review.md`
+- [ ] Corrections applied to all data files
+- [ ] All data files approved for use in subsequent milestones
+
+## Milestone 9: Character Builder Overhaul
+
+**Goal:** Replace free-text character creation with guided selection from seeded reference data. New character sheet with six tabs: Stats, Actions, Spells, Inventory, Features, Journal.
+
+**Note:** The Spells tab and spell preparation/known management UI are blocked by M7/M8 completion. Build M9 with a placeholder Spells tab; wire it once spell data review is complete. All other parts of M9 can proceed in parallel with M7/M8.
+
+**Backend tasks:**
+- [ ] Seed `Race` entity from 5e.tools `races.json` (191 races with size, speed, ASI, proficiencies, features, creature type)
+- [ ] Seed `CharacterClass` entity from 5e.tools `class-*.json` files (hit dice, proficiencies, features per level, spell list type: prepared/known/spellbook)
+- [ ] Seed `Subclass` entity with subclass features, domain/oath/circle spells
+- [ ] Seed `Background` entity with proficiencies, equipment, features
+- [ ] Seed `Feat` entity with prerequisites and effects
+- [ ] Delete existing test characters (all current `player_characters` are test data — see [[decisions-log#D035]])
+- [ ] Character creation API: race → class → ability scores → background → derived stats auto-calculated
+- [ ] Ability score methods: manual entry, standard array, point buy, 4d6 drop lowest (server-side roll)
+- [ ] Tasha's ability score reassignment (move racial ASI to different abilities)
+- [ ] Multiclass support: add 2nd–5th class following PHB multiclassing rules
+- [ ] Auto-calculate derived stats: proficiency bonus, ability modifiers, saving throw bonuses, skill bonuses, spell save DC, spell attack bonus, initiative bonus, HP
+- [ ] HP calculation: first level (max hit die + CON mod), higher levels (average, set, or roll per class rules)
+- [ ] Equipment and currency management endpoints
+- [ ] Attunement tracking (max 3 items)
+
+**Frontend tasks:**
+- [ ] Character creation wizard: race selector (with ASI preview and Tasha's reassignment) → class selector (with hit die and proficiency preview) → subclass selector (if level ≥ 3) → ability scores (method selector + inputs) → background → alignment → campaign assignment
+- [ ] New character sheet tabs:
+  - [ ] **Stats** — HP (current/max), ability scores + modifiers, speed, AC, darkvision, proficiency bonus, initiative bonus, hit dice (remaining/total), spell slots (used/remaining), saving throw bonuses + proficiencies, skill bonuses + proficiencies, weapon/armor/tool/language proficiencies
+  - [ ] **Actions** — attack actions with equipped weapons (extra attack reminder), class actions (Channel Divinity, Second Wind), feat actions, race actions
+  - [ ] **Spells** (blocked by M7/M8) — spell slots display, spells listed by class in separate boxes, burger menu per class box to change prepared/known spells via modal, save/cancel on modal
+  - [ ] **Inventory** — currency (gp, sp, cp, pp), all items (from class/background + added), equipped items, attuned items (indicator), "+" button to add items from reference database
+  - [ ] **Features** — class features, race features, background features, other features (text descriptions for reference)
+  - [ ] **Journal** — character image (with upload), alignment, physical description, personality traits, ideals, bonds, flaws, notes
+
+## Milestone 10: Spell Resolver Engine & Encounter Spellcasting
+
+**Goal:** "Cast Spell" combat action with fully automated resolution for ~85% of level 0–3 spells.
+
+**Backend tasks:**
+- [ ] Enrich `Spell` entity with missing columns from 5e.tools data: `conditionInflict`, `spellAttack`, `scalingLevelDice`, `areaTags`, `miscTags`, `affectsCreatureType`
+- [ ] Add `effectTemplate` JSONB column to `Spell` entity, populated from M7/M8 spell definitions
+- [ ] Update seeder to extract currently-ignored 5e.tools fields
+- [ ] Re-seed spells with enriched data (migration strategy for existing data)
+- [ ] `SpellResolverEngine` — interprets effect templates server-side:
+  - Validate: caster has slot, spell is prepared, components satisfied (costly material check against inventory)
+  - Deduct spell slot (cantrips: no deduction)
+  - Calculate upcast scaling (damage dice, target count)
+  - For SPELL_ATTACK: roll d20 + spell attack bonus vs each target's AC
+  - For SAVING_THROW: each target rolls save vs caster's spell save DC (half-on-save handling)
+  - For AUTO_HIT: effects apply automatically
+  - Apply damage through existing damage pipeline (respects temp HP, death saves, etc.)
+  - Apply conditions with source tracking (sourceSpellName, sourceParticipantId, sourceRequiresConcentration) — see [[decisions-log#D032]]
+  - Set concentration (auto-drop previous concentration)
+  - Log everything to combat log with detailed entries
+  - Broadcast via WebSocket
+- [ ] `CastSpellRequest` DTO: spellId, slotLevel, targetParticipantIds, actorParticipantId
+- [ ] `POST /api/encounters/{id}/combat/cast-spell` endpoint
+- [ ] Verbal component check: if caster has Silence effect, block spells with verbal components
+- [ ] Cantrip scaling: use character level, not class level
+- [ ] Concentration drop cascade: when concentration drops or caster dies, auto-remove all conditions from all targets with matching sourceSpellName + sourceParticipantId
+- [ ] `@Version` optimistic locking on `Encounter` and `EncounterParticipant` entities — see [[decisions-log#D034]]
+- [ ] 409 Conflict response on `OptimisticLockException`, client retries after next WebSocket broadcast
+- [ ] Spell test harness: unit tests for each pattern category with representative spells
+
+**Frontend tasks:**
+- [ ] "Cast Spell" button in player encounter panel (on their turn)
+- [ ] Spell selection modal: list prepared spells, show components/concentration/casting time
+- [ ] Slot level selector (for upcasting): shows available slots, highlights minimum level
+- [ ] Target selector: validates target count for the spell, adjusts with upcast if targetCountUpcastScaling
+- [ ] Auto-resolution result display in combat log (attack rolls, save results, damage dealt, conditions applied)
+- [ ] Condition indicators showing source spell (e.g., "Restrained (Entangle)")
+- [ ] DM spell casting for monsters with spellcasting stat blocks
+- [ ] `requiresManualResolution` spells: deduct slot, log cast, show prompt for DM to resolve manually
+
+## Milestone 11: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions
+
+**Goal:** DM can click monster stat block actions and have them auto-resolve against targets.
+
+**Backend tasks:**
+- [ ] Parse monster stat block actions from M7 structured data (~1,300–1,600 monsters) into `MonsterActionTemplate` entities
+- [ ] `MonsterActionResolverEngine` — interprets action templates (same effect engine as spells)
+- [ ] `POST /api/encounters/{id}/combat/monster-action` endpoint: monsterParticipantId, actionName, targetParticipantIds
+- [ ] Legendary action pool tracking: `legendaryActionsRemaining` field on `EncounterParticipant`, resets at start of monster's turn, decremented on use
+- [ ] Legendary resistance tracking: `legendaryResistancesRemaining` field, DM can use to auto-succeed a failed save (inline override)
+- [ ] Lair actions: auto-prompt at initiative count 20 (losing ties), DM selects from available lair actions
+- [ ] Recharge mechanics: track which actions are available, roll recharge at start of monster's turn
+- [ ] Multiattack: execute multiple actions in sequence from a single button press
+- [ ] Monster spellcasting: extract spell lists and slots from stat block, use same SpellResolverEngine
+
+**Frontend tasks:**
+- [ ] DM monster action panel: list all actions from stat block with one-click resolve
+- [ ] Legendary action buttons (with remaining count display, cost per action)
+- [ ] Legendary resistance inline button: when a monster fails a save, show "Use Legendary Resistance?" prompt with remaining count
+- [ ] Lair action prompt at initiative 20
+- [ ] Recharge indicator on actions (available / needs recharge)
+- [ ] Monster spellcasting panel (separate from action panel, shows available spells and slots — slots visible to DM only)
+- [ ] Attack source selector: when DM attacks, optionally select which creature is doing the attack for clearer combat log entries
+
+## Milestone 12: Enhanced Action Economy
+
+**Goal:** Full D&D 5e action economy tracking with reactions, bonus actions, and non-attack actions.
+
+**Backend tasks:**
+- [ ] Action economy tracking per turn: action used, bonus action used, reaction used (reset on turn start)
+- [ ] Reaction system: `POST /api/encounters/{id}/combat/reaction` — usable on any turn, consumes reaction
+  - Opportunity attacks
+  - Shield (reaction spell)
+  - Counterspell (reaction spell with ability check for higher level)
+  - Other reaction spells
+- [ ] Bonus action tracking: enforce one per turn
+- [ ] Bonus-action-spell rule (PHB 202): if a bonus action spell is cast, any other spell cast that turn must be a cantrip with casting time of 1 action
+- [ ] Standard non-attack actions: Dodge, Help, Hide, Dash — log to combat log, apply relevant effects
+  - Dodge: advantage on DEX saves, attacks against you have disadvantage (track as a condition-like state, expires at start of next turn)
+  - Help: grant advantage on next attack or ability check against a target
+  - Hide: contested Stealth check (log result, DM adjudicates)
+  - Dash: double movement (informational log entry)
+- [ ] Item use in combat:
+  - `POST /api/encounters/{id}/combat/use-item` endpoint
+  - Charge tracking and deduction
+  - Attunement check (if item requires attunement, verify character is attuned)
+  - Effect resolution through the same effect engine
+  - Consumable items: removed from inventory on use
+- [ ] Free object interaction: freetext logging for minor actions (drawing a weapon, opening a door)
+
+**Frontend tasks:**
+- [ ] Reaction prompt: when an event triggers a possible reaction (e.g., creature leaves reach), inline combat log prompt with available reactions
+- [ ] Reaction counter display per participant
+- [ ] Bonus action modal: show available bonus actions (bonus action spells, class abilities like Cunning Action)
+- [ ] Standard action buttons: Dodge, Help, Hide, Dash in a burger menu
+- [ ] Item use modal: list equipped/attuned items with charges, select item → resolve effect
+- [ ] Free object interaction: freetext input logged to combat log
+- [ ] Action economy indicators: visual display of action/bonus action/reaction availability per turn
+
+## Milestone 13: Undo System
+
+**Goal:** DM can undo any combat action, fully restoring prior state.
+
+**Backend tasks:**
+- [ ] Add `stateSnapshot` JSONB column to `CombatLog` entity — stores before-state of every affected participant (HP, conditions, concentration, death saves, spell slots, legendary actions/resistances remaining)
+- [ ] Capture snapshot before every combat action (damage, healing, spell cast, condition add/remove, monster action, item use)
+- [ ] Cascading effects (e.g., concentration drop → condition removal on multiple targets) captured in the outermost action's snapshot — see [[decisions-log#D037]]
+- [ ] `POST /api/encounters/{id}/combat/undo` endpoint (DM-only): restores all participant states from the most recent log entry's snapshot, deletes the log entry
+- [ ] Support multi-step undo (undo the last N actions)
+- [ ] Undo clears any conditions, buffs, or effects that were applied by the undone action
+
+**Frontend tasks:**
+- [ ] DM-only "Undo Last Action" button in encounter session
+- [ ] Confirmation dialog showing what will be undone
+- [ ] Combat log entry removal on undo (with visual feedback)
+
+## Milestone 14: Persistent Spell Effects as Companion Participants
+
+**Goal:** Spells like Spiritual Weapon, Flaming Sphere, and summoned creatures appear as sub-cards beneath the caster in the initiative order.
+
+**Backend tasks:**
+- [ ] New `ParticipantType`: `COMPANION`
+- [ ] `summonedByParticipantId` FK on `EncounterParticipant` linking companion to caster
+- [ ] Auto-create companion participant when a SUMMON spell is cast
+- [ ] Auto-remove companion when concentration drops or duration ends
+- [ ] Companion actions resolve through the same effect engine
+- [ ] Companion initiative: acts on caster's turn (or specific initiative as defined by spell)
+
+**Frontend tasks:**
+- [ ] Sub-card UI: companion participants rendered as indented cards beneath their caster
+- [ ] Companion action buttons (e.g., Spiritual Weapon attack, Flaming Sphere ram)
+- [ ] Visual link between companion and caster (concentration indicator)
+
+## Milestone 15: Short/Long Rest System
+
+**Goal:** Implement rest mechanics for resource recovery between encounters.
+
+**Backend tasks:**
+- [ ] `POST /api/characters/{id}/short-rest` — hit dice spending for HP recovery, feature/charge recovery (per short rest resources)
+- [ ] `POST /api/characters/{id}/long-rest` — full HP recovery, hit dice recovery (half total, rounded down), all spell slot recovery, all feature/charge recovery (per long rest resources)
+- [ ] Warlock Pact Magic: spell slots recover on short rest
+- [ ] Resource tracking: charges and uses for class features, racial abilities, magic items
+
+**Frontend tasks:**
+- [ ] Short rest modal: hit dice spending interface (select number of hit dice to spend, show HP recovery preview, confirm)
+- [ ] Long rest button with summary of what recovers
+- [ ] Resource counters on character sheet (used/total for each tracked resource)
+
+## Milestone 16: Class Feature Automation
+
+**Goal:** Automate common class features used in combat encounters.
+
+**Backend tasks:**
+- [ ] Feature action endpoints: `POST /api/encounters/{id}/combat/use-feature`
+- [ ] Fighter: Second Wind (bonus action heal), Action Surge (extra action)
+- [ ] Cleric: Channel Divinity (class + subclass options), Turn Undead
+- [ ] Rogue: Cunning Action (bonus action Dash/Disengage/Hide), Sneak Attack (extra damage, once per turn)
+- [ ] Paladin: Divine Smite (extra damage on hit, uses spell slot), Lay on Hands (healing pool)
+- [ ] Bard: Bardic Inspiration (bonus action, give ally a die to add to roll)
+- [ ] Barbarian: Rage (bonus action, resistance to physical damage, extra melee damage)
+- [ ] Monk: Ki Points, Flurry of Blows, Patient Defense, Step of the Wind
+- [ ] Druid: Wild Shape (stat block swap)
+- [ ] Wizard: Arcane Recovery (recover spell slots on short rest)
+- [ ] Use/recharge tracking per feature
+
+**Frontend tasks:**
+- [ ] Feature buttons in encounter action panel (context-aware: show on correct turn, check uses remaining)
+- [ ] Feature resource counters (Ki points, Bardic Inspiration uses, Channel Divinity uses, etc.)
+- [ ] Divine Smite prompt on hit (choose spell slot level for extra damage)
+
+## Milestone 17: Sorcerer Metamagic
+
+**Goal:** Implement Sorcerer-specific metamagic options with Sorcery Point tracking.
+
+**Backend tasks:**
+- [ ] Sorcery Point tracking (pool size = sorcerer level)
+- [ ] Metamagic options:
+  - Twinned Spell: spend sorcery points = spell level to target a second creature
+  - Quickened Spell: spend 2 points to cast as bonus action instead of action
+  - Subtle Spell: spend 1 point to cast without verbal/somatic components
+  - Heightened Spell: spend 3 points to give one target disadvantage on save
+  - Other metamagic options as needed
+- [ ] Font of Magic: convert sorcery points ↔ spell slots
+- [ ] Validation: correct sorcery point cost, eligible spells for each metamagic
+
+**Frontend tasks:**
+- [ ] Metamagic toggle buttons when casting a spell (show eligible options)
+- [ ] Sorcery Point counter on character sheet and in encounter panel
+- [ ] Font of Magic UI: convert points to slots or slots to points
+
+---
+
+**Parallelism note:** M7 (data gathering) and the non-spell parts of M9 (character builder) can run in parallel — they have no dependencies on each other. M9's Spells tab is blocked by M7/M8 completion. M10 depends on M7/M8 (spell data) and M9 (character with spell lists). M11 depends on M7 (monster action data). M12 and M13 depend on M10/M11. M14–M17 depend on M10 being complete.
 
 ## Future Features (Post Month 1)
 
-These are documented for future reference and explicitly **not in scope** for the initial build.
+These are documented for future reference and explicitly **not in scope** for the current build.
 
 - Homebrew monster creator with CR calculator
 - Homebrew item creator
@@ -147,7 +421,6 @@ These are documented for future reference and explicitly **not in scope** for th
 - Campaign notes (markdown editor, Obsidian-style linking)
 - Filtered bestiary for players (DM assigns creature knowledge per player)
 - Character import (D&D Beyond JSON export, etc.)
-- Companion/minion management in encounters (familiars, summoned creatures)
 - Non-combat encounter support (skill challenges, social encounters)
 - Multi-system support (Pathfinder 2e, Lancer, Shadowrun rule modules)
 - Map/grid integration (simple grid overlay for tactical movement)
@@ -157,5 +430,5 @@ These are documented for future reference and explicitly **not in scope** for th
 
 ## Planned UX Improvements
 
-- **Character creation constraints** — Replace free-text inputs with dropdowns for race, class, subclass (populated from seeded 5e data). Offer point buy, standard array, and 4d6-drop-lowest for ability scores. Auto-calculate derived stats like proficiency bonus from level. See [[risk-register#R003]] for details.
+- ~~**Character creation constraints**~~ — **Covered by M9.** Race/class/subclass dropdowns, ability score methods, derived stat auto-calculation. See [[feature-roadmap#Milestone 9: Character Builder Overhaul]].
 - ~~**Graceful stale token handling**~~ — **Done.** Axios interceptor now catches 401 and 403, silently refreshes using the refresh token, queues concurrent requests, and redirects to login only when the refresh token is also expired. See [[decisions-log#D017]].

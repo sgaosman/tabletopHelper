@@ -1,0 +1,2855 @@
+[
+  {
+    "itemName": "Potion of Healing",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "healingDice": "2d4+2",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Greater Healing",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "healingDice": "4d4+4",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Superior Healing",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "healingDice": "8d4+8",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Supreme Healing",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "healingDice": "10d4+20",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Speed",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain the effect of the Haste spell for 1 minute (no concentration required). Grants +2 AC, advantage on DEX saves, additional action each turn (Attack one weapon attack only, Dash, Disengage, Hide, Use an Object), doubled speed.",
+        "spellReference": "haste",
+        "durationRounds": 10,
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "No concentration required unlike the spell. When effect ends, creature cannot move or take actions until after its next turn (lethargy)."
+  },
+  {
+    "itemName": "Potion of Heroism",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "TEMP_HP",
+        "tempHpFlat": 10,
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "BUFF",
+        "description": "Under the effect of Bless spell (no concentration required). Add 1d4 to attack rolls and saving throws for 1 hour.",
+        "spellReference": "bless",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Grants 10 temp HP and Bless effect (1d4 to attacks and saves) for 1 hour, no concentration."
+  },
+  {
+    "itemName": "Potion of Invulnerability",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to all damage for 1 minute.",
+        "durationRounds": 10,
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Flying",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain a flying speed equal to walking speed and can hover for 1 hour. Fall if airborne when effect ends.",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Invisibility",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "invisible",
+        "durationText": "1 hour",
+        "targetType": "SELF",
+        "description": "Become invisible for 1 hour. Equipment carried is also invisible. Ends early if you attack or cast a spell."
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Effect ends early if the creature attacks or casts a spell."
+  },
+  {
+    "itemName": "Potion of Fire Breath",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "4d6",
+        "damageType": "fire",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 13,
+        "halfOnSave": true,
+        "range": 30,
+        "targetType": "SINGLE_TARGET",
+        "usesGranted": 3,
+        "description": "Exhale fire at a target within 30 feet (bonus action to use). Three uses or 1 hour, whichever comes first."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "After drinking (action), uses bonus action to exhale fire. Grants 3 uses within 1 hour."
+  },
+  {
+    "itemName": "Potion of Growth",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain the Enlarge effect of Enlarge/Reduce for 1d4 hours (no concentration). Advantage on STR checks and saves, +1d4 to weapon damage.",
+        "spellReference": "enlarge/reduce",
+        "durationText": "1d4 hours",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "No concentration required."
+  },
+  {
+    "itemName": "Potion of Diminution",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain the Reduce effect of Enlarge/Reduce for 1d4 hours (no concentration). Disadvantage on STR checks and saves, -1d4 from weapon damage.",
+        "spellReference": "enlarge/reduce",
+        "durationText": "1d4 hours",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "No concentration required. Could be used offensively if administered to an unwilling creature."
+  },
+  {
+    "itemName": "Potion of Poison",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "3d6",
+        "damageType": "poison",
+        "targetType": "SELF",
+        "description": "Take 3d6 poison damage immediately."
+      },
+      {
+        "effectType": "CONDITION",
+        "condition": "poisoned",
+        "saveAbility": "CON",
+        "saveDC": 13,
+        "durationText": "until damage reduces to 0",
+        "description": "DC 13 CON save or become poisoned. While poisoned, take 3d6 poison damage at start of each turn. Save at end of each turn; success reduces damage by 1d6. Poison ends when damage reaches 0."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
+    "requiresManualResolution": true,
+    "notes": "Disguised as a healing potion. Complex damage reduction mechanic each turn."
+  },
+  {
+    "itemName": "Potion of Maximum Power",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "First damage-dealing spell of 4th level or lower cast within 1 minute uses maximum dice values instead of rolling.",
+        "durationText": "1 minute or first qualifying spell",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Applies to the first damage-dealing spell of 4th level or lower within 1 minute."
+  },
+  {
+    "itemName": "Potion of Advantage",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain advantage on one ability check, attack roll, or saving throw of your choice within the next hour.",
+        "durationText": "1 hour or first use",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Player chooses when to apply the advantage within the 1-hour window."
+  },
+  {
+    "itemName": "Potion of Vitality",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "description": "Removes all exhaustion, cures all diseases and poisons. For 24 hours, regain maximum HP for any Hit Die spent.",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": "Primarily used out of combat for Hit Die recovery. Exhaustion removal is combat-relevant."
+  },
+  {
+    "itemName": "Potion of Gaseous Form",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain the effect of Gaseous Form for 1 hour (no concentration). Transform into a misty cloud. Fly speed 10 ft, resistance to nonmagical damage, advantage on STR/DEX/CON saves, can pass through small holes. Cannot attack or cast spells.",
+        "spellReference": "gaseous form",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Can end effect early as a bonus action. No concentration required."
+  },
+  {
+    "itemName": "Potion of Acid Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to acid damage for 1 hour.",
+        "resistanceType": "acid",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Cold Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to cold damage for 1 hour.",
+        "resistanceType": "cold",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Fire Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to fire damage for 1 hour.",
+        "resistanceType": "fire",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Force Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to force damage for 1 hour.",
+        "resistanceType": "force",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Lightning Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to lightning damage for 1 hour.",
+        "resistanceType": "lightning",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Necrotic Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to necrotic damage for 1 hour.",
+        "resistanceType": "necrotic",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Poison Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to poison damage for 1 hour.",
+        "resistanceType": "poison",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Psychic Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to psychic damage for 1 hour.",
+        "resistanceType": "psychic",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Radiant Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to radiant damage for 1 hour.",
+        "resistanceType": "radiant",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Thunder Resistance",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to thunder damage for 1 hour.",
+        "resistanceType": "thunder",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Hill Giant Strength",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Strength score becomes 21 for 1 hour. No effect if Strength is already 21 or higher.",
+        "abilityScoreSet": {
+          "ability": "STR",
+          "value": 21
+        },
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Frost Giant Strength",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Strength score becomes 23 for 1 hour. No effect if Strength is already 23 or higher.",
+        "abilityScoreSet": {
+          "ability": "STR",
+          "value": 23
+        },
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Same Strength value as Potion of Stone Giant Strength."
+  },
+  {
+    "itemName": "Potion of Stone Giant Strength",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Strength score becomes 23 for 1 hour. No effect if Strength is already 23 or higher.",
+        "abilityScoreSet": {
+          "ability": "STR",
+          "value": 23
+        },
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Same Strength value as Potion of Frost Giant Strength."
+  },
+  {
+    "itemName": "Potion of Fire Giant Strength",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Strength score becomes 25 for 1 hour. No effect if Strength is already 25 or higher.",
+        "abilityScoreSet": {
+          "ability": "STR",
+          "value": 25
+        },
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Cloud Giant Strength",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Strength score becomes 27 for 1 hour. No effect if Strength is already 27 or higher.",
+        "abilityScoreSet": {
+          "ability": "STR",
+          "value": 27
+        },
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Potion of Storm Giant Strength",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Strength score becomes 29 for 1 hour. No effect if Strength is already 29 or higher.",
+        "abilityScoreSet": {
+          "ability": "STR",
+          "value": 29
+        },
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Elixir of Health",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "description": "Cures any disease. Removes blinded, deafened, paralyzed, and poisoned conditions.",
+        "conditionsRemoved": [
+          "blinded",
+          "deafened",
+          "paralyzed",
+          "poisoned"
+        ],
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": "Does not restore HP; removes conditions and diseases only."
+  },
+  {
+    "itemName": "Oil of Sharpness",
+    "itemType": "Oil",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "SPECIAL",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Coated weapon or up to 5 pieces of ammunition gain +3 bonus to attack and damage rolls for 1 hour. Takes 1 minute to apply.",
+        "bonusToAttack": 3,
+        "bonusToDamage": 3,
+        "durationText": "1 hour",
+        "targetType": "ITEM"
+      }
+    ],
+    "patternCategory": "BUFF_NO_ROLL",
+    "requiresManualResolution": false,
+    "notes": "Requires 1 minute to apply. Only works on slashing or piercing weapons/ammunition."
+  },
+  {
+    "itemName": "Oil of Etherealness",
+    "itemType": "Oil",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "SPECIAL",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain the effect of Etherealness spell for 1 hour. Enter the Ethereal Plane. Takes 10 minutes to apply.",
+        "spellReference": "etherealness",
+        "durationText": "1 hour",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": true,
+    "notes": "Takes 10 minutes to apply, so cannot be used during combat. Included because the effect is combat-relevant if pre-applied. REVIEW: borderline inclusion."
+  },
+  {
+    "itemName": "Wand of Fireballs",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "fireball",
+        "baseCostCharges": 1,
+        "baseSpellLevel": 3,
+        "additionalChargesForUpcast": true,
+        "damageDice": "8d6",
+        "damageType": "fire",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "halfOnSave": true,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 20,
+        "range": 150
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "1 charge = 3rd-level Fireball (8d6). Each additional charge increases spell level by 1 (+1d6 damage per charge). Risk of destruction on d20 roll of 1 when last charge expended."
+  },
+  {
+    "itemName": "Wand of Magic Missiles",
+    "itemType": "Wand",
+    "requiresAttunement": false,
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "magic missile",
+        "baseCostCharges": 1,
+        "baseSpellLevel": 1,
+        "additionalChargesForUpcast": true,
+        "damageDice": "3x(1d4+1)",
+        "damageType": "force",
+        "deliveryMethod": "AUTO_HIT",
+        "targetType": "MULTI_TARGET",
+        "range": 120,
+        "description": "3 darts at 1st level, each dealing 1d4+1 force damage. Each additional charge adds 1 dart."
+      }
+    ],
+    "patternCategory": "AUTO_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "1 charge = 1st-level Magic Missile (3 darts). Each additional charge adds 1 dart. Each dart can target a different creature."
+  },
+  {
+    "itemName": "Wand of Lightning Bolts",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "lightning bolt",
+        "baseCostCharges": 1,
+        "baseSpellLevel": 3,
+        "additionalChargesForUpcast": true,
+        "damageDice": "8d6",
+        "damageType": "lightning",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "halfOnSave": true,
+        "targetType": "AOE_LINE",
+        "aoeSize": 100,
+        "aoeWidth": 5
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "1 charge = 3rd-level Lightning Bolt (8d6). Each additional charge increases spell level by 1 (+1d6 damage per charge). 100-foot line, 5 feet wide."
+  },
+  {
+    "itemName": "Wand of Web",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "spellReference": "web",
+        "costCharges": 1,
+        "condition": "restrained",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "targetType": "AOE_CUBE",
+        "aoeSize": 20,
+        "range": 60,
+        "description": "Casts Web spell. Creatures in area must save or be restrained. Can repeat save each turn."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": true,
+    "notes": "Requires concentration equivalent tracking. Web fills 20-foot cube, difficult terrain, creatures entering or starting turn must save vs restrained."
+  },
+  {
+    "itemName": "Wand of Binding",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "spellReference": "hold person",
+        "costCharges": 2,
+        "condition": "paralyzed",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": 17,
+        "targetType": "SINGLE_TARGET",
+        "description": "Casts Hold Person (2 charges) or Hold Monster (5 charges). Target paralyzed, save each turn."
+      },
+      {
+        "effectType": "BUFF",
+        "description": "Can use reaction to expend 1 charge for advantage on saves vs paralysis or restraint, or advantage on checks to escape grapple.",
+        "costCharges": 1,
+        "activationAction": "REACTION",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "Hold Person costs 2 charges, Hold Monster costs 5 charges. Both use DC 17 WIS save. Also has defensive reaction use (1 charge)."
+  },
+  {
+    "itemName": "Wand of Fear",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "spellReference": "command",
+        "costCharges": 1,
+        "condition": "frightened",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": 15,
+        "targetType": "SINGLE_TARGET",
+        "description": "Expend 1 charge: Command (flee or grovel), DC 15 WIS save."
+      },
+      {
+        "effectType": "CONDITION",
+        "costCharges": 2,
+        "condition": "frightened",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": 15,
+        "targetType": "AOE_CONE",
+        "aoeSize": 60,
+        "durationRounds": 10,
+        "description": "Expend 2 charges: 60-foot cone, DC 15 WIS save or frightened for 1 minute. Must spend turns moving away. Repeat save each turn."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "Two modes: Command (1 charge, single target) and Cone of Fear (2 charges, 60-foot cone)."
+  },
+  {
+    "itemName": "Wand of Paralysis",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "costCharges": 1,
+        "condition": "paralyzed",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "durationRounds": 10,
+        "targetType": "SINGLE_TARGET",
+        "range": 60,
+        "description": "Blue ray, DC 15 CON save or paralyzed for 1 minute. Target can repeat save at end of each turn."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": null
+  },
+  {
+    "itemName": "Wand of Polymorph",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "spellReference": "polymorph",
+        "costCharges": 1,
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": 15,
+        "targetType": "SINGLE_TARGET",
+        "description": "Casts Polymorph. DC 15 WIS save or target transforms into a beast form."
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "Polymorph is inherently complex. DM must select beast form, track new HP pool, and handle reversion."
+  },
+  {
+    "itemName": "Wand of Entangle",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "spellReference": "entangle",
+        "costCharges": 1,
+        "condition": "restrained",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "STR",
+        "saveDC": 13,
+        "targetType": "AOE_SQUARE",
+        "aoeSize": 20,
+        "range": 90,
+        "durationRounds": 10,
+        "description": "Casts Entangle. 20-foot square of grasping weeds. STR save or restrained. Can repeat save each turn."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "Lower DC (13) than most wands. Area becomes difficult terrain."
+  },
+  {
+    "itemName": "Wand of Wonder",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1_dust",
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "costCharges": 1,
+        "targetType": "SINGLE_TARGET",
+        "range": 120,
+        "description": "Roll d100 and consult table for random effect. Possible effects include: Slow, Faerie Fire, Gust of Wind, Detect Thoughts, Stinking Cloud, Lightning Bolt (5d6), Enlarge/Reduce, Darkness, grass growth, gem rain, Fireball (5d6), invisibility, leaves growth, geyser, and many more."
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "Completely random effects via d100 table. Cannot be automated. DC 15 for any spells with saves."
+  },
+  {
+    "itemName": "Staff of Fire",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a druid, sorcerer, warlock, or wizard",
+    "charges": 10,
+    "rechargeRate": "dawn_1d6+4",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to fire damage while holding staff.",
+        "passive": true,
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "burning hands",
+        "costCharges": 1,
+        "damageDice": "3d6",
+        "damageType": "fire",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": "CASTER",
+        "halfOnSave": true,
+        "targetType": "AOE_CONE",
+        "aoeSize": 15,
+        "description": "Burning Hands (1 charge)",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 1,
+        "baseCostCharges": 1
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "fireball",
+        "costCharges": 3,
+        "damageDice": "8d6",
+        "damageType": "fire",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": "CASTER",
+        "halfOnSave": true,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 20,
+        "range": 150,
+        "description": "Fireball (3 charges)",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 3,
+        "baseCostCharges": 3
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "wall of fire",
+        "costCharges": 4,
+        "description": "Wall of Fire (4 charges). Creates wall of fire, uses caster's spell save DC."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Uses wielder's spell save DC. Also provides passive fire resistance."
+  },
+  {
+    "itemName": "Staff of Frost",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a druid, sorcerer, warlock, or wizard",
+    "charges": 10,
+    "rechargeRate": "dawn_1d6+4",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to cold damage while holding staff.",
+        "passive": true,
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "fog cloud",
+        "costCharges": 1,
+        "description": "Fog Cloud (1 charge). Creates heavily obscured fog sphere.",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 1,
+        "baseCostCharges": 1
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "ice storm",
+        "costCharges": 4,
+        "damageDice": "2d8+4d6",
+        "damageType": "bludgeoning+cold",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": "CASTER",
+        "halfOnSave": true,
+        "targetType": "AOE_CYLINDER",
+        "aoeSize": 20,
+        "description": "Ice Storm (4 charges). 2d8 bludgeoning + 4d6 cold.",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 4,
+        "baseCostCharges": 4
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "cone of cold",
+        "costCharges": 5,
+        "damageDice": "8d8",
+        "damageType": "cold",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": "CASTER",
+        "halfOnSave": true,
+        "targetType": "AOE_CONE",
+        "aoeSize": 60,
+        "description": "Cone of Cold (5 charges). 8d8 cold damage, 60-foot cone.",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 5,
+        "baseCostCharges": 5
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "wall of ice",
+        "costCharges": 4,
+        "description": "Wall of Ice (4 charges). Creates wall of ice, uses caster's spell save DC.",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 6,
+        "baseCostCharges": 4
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Uses wielder's spell save DC. Also provides passive cold resistance."
+  },
+  {
+    "itemName": "Staff of Healing",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a bard, cleric, or druid",
+    "charges": 10,
+    "rechargeRate": "dawn_1d6+4",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1_vanish",
+    "effects": [
+      {
+        "effectType": "HEAL",
+        "spellReference": "cure wounds",
+        "costCharges": "1 per spell level (up to 4th)",
+        "healingDice": "1d8+MOD per charge",
+        "targetType": "SINGLE_TARGET",
+        "description": "Cure Wounds (1 charge per spell level, up to 4th). Uses caster's spellcasting ability modifier."
+      },
+      {
+        "effectType": "HEAL",
+        "spellReference": "lesser restoration",
+        "costCharges": 2,
+        "description": "Lesser Restoration (2 charges). Removes one disease or condition: blinded, deafened, paralyzed, or poisoned.",
+        "targetType": "SINGLE_TARGET"
+      },
+      {
+        "effectType": "HEAL",
+        "spellReference": "mass cure wounds",
+        "costCharges": 5,
+        "healingDice": "3d8+MOD",
+        "targetType": "MULTI_TARGET",
+        "targetCount": 6,
+        "range": 60,
+        "description": "Mass Cure Wounds (5 charges). Heal up to 6 creatures within 30 feet of a point within 60 feet."
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": "Uses wielder's spellcasting ability modifier and spell save DC."
+  },
+  {
+    "itemName": "Staff of Striking",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "charges": 10,
+    "rechargeRate": "dawn_1d6+4",
+    "activationAction": "SPECIAL",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1_nonmagical",
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "costCharges": "1-3",
+        "damageDicePerCharge": "1d6",
+        "damageType": "force",
+        "description": "On melee hit, expend up to 3 charges for 1d6 force damage per charge. Also functions as +3 magic quarterstaff."
+      }
+    ],
+    "patternCategory": "ATTACK_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Triggered on melee hit (not a separate action). +3 bonus to attack and damage rolls as a magic quarterstaff."
+  },
+  {
+    "itemName": "Staff of Power",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a sorcerer, warlock, or wizard",
+    "charges": 20,
+    "rechargeRate": "dawn_2d8+4",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1_loses_properties",
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "+2 bonus to AC, saving throws, and spell attack rolls while holding.",
+        "passive": true,
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "DAMAGE",
+        "costCharges": 1,
+        "damageDice": "1d6",
+        "damageType": "force",
+        "description": "Power Strike: On melee hit, expend 1 charge for extra 1d6 force damage."
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "cone of cold",
+        "costCharges": 5,
+        "damageDice": "8d8",
+        "damageType": "cold",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": "CASTER",
+        "halfOnSave": true,
+        "targetType": "AOE_CONE",
+        "aoeSize": 60,
+        "description": "Cone of Cold (5 charges)",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 5,
+        "baseCostCharges": 5
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "fireball",
+        "costCharges": 5,
+        "damageDice": "10d6",
+        "damageType": "fire",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": "CASTER",
+        "halfOnSave": true,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 20,
+        "description": "Fireball at 5th level (5 charges)",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 5,
+        "baseCostCharges": 5
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "lightning bolt",
+        "costCharges": 5,
+        "damageDice": "10d6",
+        "damageType": "lightning",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": "CASTER",
+        "halfOnSave": true,
+        "targetType": "AOE_LINE",
+        "aoeSize": 100,
+        "description": "Lightning Bolt at 5th level (5 charges)",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 5,
+        "baseCostCharges": 5
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "magic missile",
+        "costCharges": 1,
+        "damageDice": "3x(1d4+1)",
+        "damageType": "force",
+        "deliveryMethod": "AUTO_HIT",
+        "description": "Magic Missile (1 charge)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "ray of enfeeblement",
+        "costCharges": 1,
+        "description": "Ray of Enfeeblement (1 charge)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "globe of invulnerability",
+        "costCharges": 6,
+        "description": "Globe of Invulnerability (6 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "hold monster",
+        "costCharges": 5,
+        "description": "Hold Monster (5 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "wall of force",
+        "costCharges": 5,
+        "description": "Wall of Force (5 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "description": "Retributive Strike: Break the staff as an action. Releases remaining magic as 30-foot sphere explosion. 16 x remaining charges force damage, DEX save for half (DC = 2 x remaining charges, minimum 17). 50% chance to teleport to random plane instead of taking damage.",
+        "activationAction": "ACTION",
+        "destroysItem": true
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "+2 magic quarterstaff with many spell options. Uses wielder's spell save DC and spell attack bonus. Retributive Strike is a last-resort option that destroys the staff."
+  },
+  {
+    "itemName": "Staff of the Magi",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a sorcerer, warlock, or wizard",
+    "charges": 50,
+    "rechargeRate": "dawn_4d6+2",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_20_regain",
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Advantage on saving throws against spells. +2 bonus to spell attack rolls. Can absorb spells targeting only you as reaction, gaining charges equal to spell level.",
+        "passive": true,
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "fireball",
+        "costCharges": 7,
+        "damageDice": "12d6",
+        "damageType": "fire",
+        "description": "Fireball at 7th level (7 charges)",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 7,
+        "baseCostCharges": 7
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "lightning bolt",
+        "costCharges": 7,
+        "damageDice": "12d6",
+        "damageType": "lightning",
+        "description": "Lightning Bolt at 7th level (7 charges)",
+        "additionalChargesForUpcast": true,
+        "baseSpellLevel": 7,
+        "baseCostCharges": 7
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "conjure elemental",
+        "costCharges": 7,
+        "description": "Conjure Elemental (7 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "plane shift",
+        "costCharges": 7,
+        "description": "Plane Shift (7 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "telekinesis",
+        "costCharges": 5,
+        "description": "Telekinesis (5 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "dispel magic",
+        "costCharges": 3,
+        "description": "Dispel Magic (3 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "passwall",
+        "costCharges": 5,
+        "description": "Passwall (5 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "ice storm",
+        "costCharges": 4,
+        "description": "Ice Storm (4 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "wall of fire",
+        "costCharges": 4,
+        "description": "Wall of Fire (4 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "web",
+        "costCharges": 2,
+        "description": "Web (2 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "flaming sphere",
+        "costCharges": 2,
+        "description": "Flaming Sphere (2 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "knock",
+        "costCharges": 2,
+        "description": "Knock (2 charges)"
+      },
+      {
+        "effectType": "OTHER",
+        "description": "Retributive Strike: Same as Staff of Power but with up to 50 charges of force damage potential.",
+        "destroysItem": true
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "Legendary artifact. +2 magic quarterstaff. Also casts Arcane Lock, Detect Magic, Enlarge/Reduce, Light, Mage Hand, Protection from Evil and Good at no charge cost. Uses wielder's spell save DC. Spell Absorption as reaction. Retributive Strike option."
+  },
+  {
+    "itemName": "Staff of Swarming Insects",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a bard, cleric, druid, sorcerer, warlock, or wizard",
+    "charges": 10,
+    "rechargeRate": "dawn_1d6+4",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1_swarm",
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "spellReference": "giant insect",
+        "costCharges": 4,
+        "description": "Giant Insect (4 charges). Transform insects into giant versions."
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "insect plague",
+        "costCharges": 5,
+        "description": "Insect Plague (5 charges). 20-foot sphere, 4d10 piercing damage, CON save for half.",
+        "damageDice": "4d10",
+        "damageType": "piercing",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": "CASTER",
+        "halfOnSave": true
+      },
+      {
+        "effectType": "OTHER",
+        "costCharges": 1,
+        "description": "Insect Cloud (1 charge). 30-foot radius swarm of harmless insects for 10 minutes. Heavily obscures area for all except user."
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "Uses wielder's spell save DC. Giant Insect and Insect Plague are concentration spells. Insect Cloud is heavily obscuring."
+  },
+  {
+    "itemName": "Staff of Thunder and Lightning",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "description": "Lightning: On melee hit, deal extra 2d6 lightning damage. Once per dawn.",
+        "damageDice": "2d6",
+        "damageType": "lightning",
+        "usesPerDay": 1,
+        "targetType": "SINGLE_TARGET"
+      },
+      {
+        "effectType": "CONDITION",
+        "description": "Thunder: On melee hit, DC 17 CON save or stunned until end of your next turn. Once per dawn.",
+        "condition": "stunned",
+        "saveAbility": "CON",
+        "saveDC": 17,
+        "usesPerDay": 1,
+        "targetType": "SINGLE_TARGET"
+      },
+      {
+        "effectType": "DAMAGE",
+        "description": "Lightning Strike (action): 5-foot wide, 120-foot line. DC 17 DEX save, 9d6 lightning damage, half on save. Once per dawn.",
+        "damageDice": "9d6",
+        "damageType": "lightning",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 17,
+        "halfOnSave": true,
+        "targetType": "AOE_LINE",
+        "aoeSize": 120,
+        "usesPerDay": 1
+      },
+      {
+        "effectType": "DAMAGE",
+        "description": "Thunderclap (action): Each creature within 60 feet, DC 17 CON save or stunned until end of your next turn. Also 2d6 thunder damage on failed save. Once per dawn.",
+        "damageDice": "2d6",
+        "damageType": "thunder",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": 17,
+        "halfOnSave": false,
+        "condition": "stunned",
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 60,
+        "usesPerDay": 1
+      },
+      {
+        "effectType": "OTHER",
+        "description": "Thunder and Lightning (action): Use both Lightning Strike and Thunderclap simultaneously without expending their individual daily uses. Once per dawn.",
+        "usesPerDay": 1
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "+2 magic quarterstaff. Five different abilities, each usable once per dawn. The combined Thunder and Lightning option does not expend the individual uses. REVIEW: complex tracking of five separate daily uses."
+  },
+  {
+    "itemName": "Staff of Withering",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a cleric, druid, or warlock",
+    "charges": 3,
+    "rechargeRate": "dawn_1d3",
+    "activationAction": "SPECIAL",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "costCharges": 1,
+        "damageDice": "2d10",
+        "damageType": "necrotic",
+        "description": "On melee hit, expend 1 charge to deal extra 2d10 necrotic damage."
+      },
+      {
+        "effectType": "DEBUFF",
+        "description": "Target must succeed on DC 15 CON save or have disadvantage on STR and CON ability checks and saving throws for 1 hour.",
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "durationText": "1 hour"
+      }
+    ],
+    "patternCategory": "ATTACK_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Triggered on melee hit (not a separate action). Functions as a magic quarterstaff."
+  },
+  {
+    "itemName": "Staff of the Python",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a cleric, druid, or warlock",
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "description": "Transform staff into a giant constrictor snake under your control. Acts on its own initiative. Bonus action to revert. If snake dies, staff is destroyed. If reverted before death, regains all HP.",
+        "summonedCreature": "giant constrictor snake",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "Requires DM to run the giant constrictor snake stat block. Staff is destroyed if snake reaches 0 HP."
+  },
+  {
+    "itemName": "Staff of the Adder",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a cleric, druid, or warlock",
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "BONUS_ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "1d6",
+        "damageType": "piercing",
+        "description": "Melee attack with snake head (reach 5 ft, proficiency bonus applies). On hit: 1d6 piercing damage plus DC 15 CON save or 3d6 poison damage."
+      },
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "3d6",
+        "damageType": "poison",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "halfOnSave": false,
+        "description": "Poison damage on failed CON save after hit."
+      }
+    ],
+    "patternCategory": "ATTACK_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Bonus action to animate for 1 minute, bonus action to revert. Snake head has AC 15 and 20 HP; if destroyed, staff is destroyed. Melee attack uses proficiency bonus."
+  },
+  {
+    "itemName": "Staff of Defense",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "charges": 10,
+    "rechargeRate": "dawn_1d6+4",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1",
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "+1 bonus to AC while holding.",
+        "passive": true,
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "BUFF",
+        "spellReference": "mage armor",
+        "costCharges": 1,
+        "description": "Mage Armor (1 charge). AC becomes 13 + DEX modifier for 8 hours.",
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "BUFF",
+        "spellReference": "shield",
+        "costCharges": 2,
+        "activationAction": "REACTION",
+        "description": "Shield (2 charges). +5 AC until start of next turn, including against triggering attack.",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Must be on class spell list to use. Shield is cast as a reaction. No material components needed."
+  },
+  {
+    "itemName": "Spell Scroll (Cantrip)",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Cast the cantrip written on the scroll without material components. Must be on your class spell list. Save DC 13, attack bonus +5.",
+        "saveDC": 13,
+        "attackBonus": 5
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "The specific spell varies per scroll. System should prompt DM to specify which spell. Casting time equals the spell's normal casting time."
+  },
+  {
+    "itemName": "Spell Scroll (1st Level)",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Cast a 1st-level spell from the scroll without material components. Must be on your class spell list. DC 11 ability check if above your casting level. Save DC 13, attack bonus +5.",
+        "saveDC": 13,
+        "attackBonus": 5,
+        "abilityCheckDC": 11
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "The specific spell varies per scroll. If spell is above caster's level, DC 11 spellcasting ability check required."
+  },
+  {
+    "itemName": "Spell Scroll (2nd Level)",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Cast a 2nd-level spell from the scroll without material components. Must be on your class spell list. DC 12 ability check if above your casting level. Save DC 13, attack bonus +5.",
+        "saveDC": 13,
+        "attackBonus": 5,
+        "abilityCheckDC": 12
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "The specific spell varies per scroll. If spell is above caster's level, DC 12 spellcasting ability check required."
+  },
+  {
+    "itemName": "Spell Scroll (3rd Level)",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Cast a 3rd-level spell from the scroll without material components. Must be on your class spell list. DC 13 ability check if above your casting level. Save DC 15, attack bonus +7.",
+        "saveDC": 15,
+        "attackBonus": 7,
+        "abilityCheckDC": 13
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "The specific spell varies per scroll. If spell is above caster's level, DC 13 spellcasting ability check required. Higher save DC and attack bonus than lower-level scrolls."
+  },
+  {
+    "itemName": "Scroll of Protection from Aberrations",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents aberrations from entering or affecting anything within for 5 minutes. Creature can force entry with DC 15 CHA check. Moves with you.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "aberrations"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Any creature type can force entry with a DC 15 Charisma check."
+  },
+  {
+    "itemName": "Scroll of Protection from Beasts",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents beasts from entering or affecting anything within for 5 minutes.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "beasts"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Creature can force entry with DC 15 CHA check."
+  },
+  {
+    "itemName": "Scroll of Protection from Celestials",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents celestials from entering or affecting anything within for 5 minutes.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "celestials"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Creature can force entry with DC 15 CHA check."
+  },
+  {
+    "itemName": "Scroll of Protection from Elementals",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents elementals from entering or affecting anything within for 5 minutes.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "elementals"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Creature can force entry with DC 15 CHA check."
+  },
+  {
+    "itemName": "Scroll of Protection from Fey",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents fey from entering or affecting anything within for 5 minutes.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "fey"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Creature can force entry with DC 15 CHA check."
+  },
+  {
+    "itemName": "Scroll of Protection from Fiends",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents fiends from entering or affecting anything within for 5 minutes.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "fiends"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Creature can force entry with DC 15 CHA check."
+  },
+  {
+    "itemName": "Scroll of Protection from Plants",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents plants from entering or affecting anything within for 5 minutes.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "plants"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Creature can force entry with DC 15 CHA check."
+  },
+  {
+    "itemName": "Scroll of Protection from Undead",
+    "itemType": "Scroll",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "5-foot radius, 10-foot high invisible barrier cylinder prevents undead from entering or affecting anything within for 5 minutes.",
+        "durationRounds": 50,
+        "targetType": "SELF_EMANATION",
+        "protectedAgainst": "undead"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "5-minute duration. Creature can force entry with DC 15 CHA check."
+  },
+  {
+    "itemName": "Necklace of Fireballs",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "fireball",
+        "damageDice": "8d6",
+        "damageType": "fire",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "halfOnSave": true,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 20,
+        "range": 60,
+        "description": "Detach a bead and throw up to 60 feet. Detonates as 3rd-level Fireball. Can throw multiple beads at once; each extra bead increases spell level by 1."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Contains 1d6+3 beads when found. Each bead is consumed. Throwing multiple beads in one action upcasts the Fireball (+1 level per extra bead, +1d6 damage per level)."
+  },
+  {
+    "itemName": "Javelin of Lightning",
+    "itemType": "Weapon",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "4d6",
+        "damageType": "lightning",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 13,
+        "halfOnSave": true,
+        "targetType": "AOE_LINE",
+        "aoeSize": 120,
+        "aoeWidth": 5,
+        "description": "When hurled with command word, transforms into 5-foot wide, 120-foot line of lightning. Creatures in line (except you and target): DC 13 DEX save, 4d6 lightning damage, half on save. Target takes normal javelin damage plus 4d6 lightning damage."
+      }
+    ],
+    "patternCategory": "ATTACK_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Property usable once per dawn. Can still be used as a magic javelin between uses. Target also takes normal javelin attack damage (1d6+STR piercing)."
+  },
+  {
+    "itemName": "Horn of Blasting",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "5d6",
+        "damageType": "thunder",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "halfOnSave": true,
+        "targetType": "AOE_CONE",
+        "aoeSize": 30,
+        "description": "30-foot cone, DC 15 CON save, 5d6 thunder damage (half on save). Creatures deafened for 1 minute on failed save. Glass/crystal objects take 10d6 thunder damage."
+      },
+      {
+        "effectType": "CONDITION",
+        "condition": "deafened",
+        "durationRounds": 10,
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "description": "Deafened for 1 minute on failed save."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "20% chance of exploding on each use (10d6 fire damage to blower, horn destroyed). No limit on uses otherwise."
+  },
+  {
+    "itemName": "Bead of Force",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "5d4",
+        "damageType": "force",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "halfOnSave": true,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 10,
+        "range": 60,
+        "description": "Throw up to 60 feet. 10-foot radius explosion, DC 15 DEX save, 5d4 force damage (half on save). A sphere of transparent force encloses the area for 1 minute."
+      },
+      {
+        "effectType": "OTHER",
+        "description": "After explosion, a sphere of force (as Otiluke's Resilient Sphere) encloses the area for 1 minute. Only breathable air can pass through. Enclosed creature can push sphere at half speed."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": true,
+    "notes": "Typically found in groups of 1d4+4. The force sphere enclosure is complex to track. REVIEW: sphere interaction needs manual DM management."
+  },
+  {
+    "itemName": "Iron Bands of Bilarro",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "restrained",
+        "deliveryMethod": "ATTACK_ROLL",
+        "targetType": "SINGLE_TARGET",
+        "range": 60,
+        "description": "Ranged attack (DEX mod + proficiency). On hit, target is restrained until released (bonus action). DC 20 STR check to break free (if failed, no further attempts). Huge or smaller creatures only."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "Usable once per dawn. Item destroyed if STR check succeeds. If STR check fails, no further attempts possible by that creature."
+  },
+  {
+    "itemName": "Dust of Disappearance",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "invisible",
+        "durationText": "2d4 minutes",
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 10,
+        "description": "You and each creature and object within 10 feet become invisible for 2d4 minutes. Attacking or casting a spell ends the effect for that creature only."
+      }
+    ],
+    "patternCategory": "BUFF_NO_ROLL",
+    "requiresManualResolution": false,
+    "notes": "Affects all creatures within 10 feet, not just the user. Each creature's invisibility ends independently if they attack or cast a spell."
+  },
+  {
+    "itemName": "Dust of Sneezing and Choking",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "incapacitated",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 30,
+        "description": "Each breathing creature within 30 feet: DC 15 CON save or incapacitated and suffocating. Can repeat save each turn. On 3 consecutive failed saves, takes 2d10 bludgeoning damage per failed save."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": true,
+    "notes": "Appears to be Dust of Disappearance. Suffocation mechanic is complex: creature suffocates until it succeeds on a save. If it fails 3 saves in a row, it takes 2d10 bludgeoning damage per failed save thereafter."
+  },
+  {
+    "itemName": "Cape of the Mountebank",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "spellReference": "dimension door",
+        "description": "Cast Dimension Door. Teleport up to 500 feet to a location you can visualize. Can bring one willing creature of your size or smaller. Smoke clouds at departure and arrival points (lightly obscured, dissipate at end of next turn).",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "UTILITY",
+    "requiresManualResolution": false,
+    "notes": "Usable once per dawn. Leaves smoke clouds that lightly obscure. Combat-relevant for tactical repositioning."
+  },
+  {
+    "itemName": "Ring of the Ram",
+    "itemType": "Ring",
+    "requiresAttunement": true,
+    "charges": 3,
+    "rechargeRate": "dawn_1d3",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "deliveryMethod": "SPELL_ATTACK",
+        "damageDicePerCharge": "2d10",
+        "damageType": "force",
+        "targetType": "SINGLE_TARGET",
+        "range": 60,
+        "description": "Expend 1 to 3 charges. Ranged spell attack. On hit, deals 2d10 force damage per charge expended. Can also push the target 5 feet per charge."
+      }
+    ],
+    "patternCategory": "ATTACK_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Can also be used to break unattended objects (STR check with +5 per charge). 1-3 charges per use, damage and push scale linearly."
+  },
+  {
+    "itemName": "Pearl of Power",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a spellcaster",
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Regain one expended spell slot of 3rd level or lower. If the expended slot was 4th level or higher, the new slot is 3rd level.",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "UTILITY",
+    "requiresManualResolution": false,
+    "notes": "Usable once per dawn. Does not need to be used during combat but is combat-relevant for spell slot recovery."
+  },
+  {
+    "itemName": "Dagger of Venom",
+    "itemType": "Weapon",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "2d10",
+        "damageType": "poison",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "halfOnSave": false,
+        "description": "Use action to coat blade with poison (1 minute or until hit). On hit: DC 15 CON save or 2d10 poison damage and poisoned for 1 minute."
+      },
+      {
+        "effectType": "CONDITION",
+        "condition": "poisoned",
+        "durationRounds": 10,
+        "saveAbility": "CON",
+        "saveDC": 15,
+        "description": "Poisoned for 1 minute on failed CON save."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "+1 magic weapon. Poison coating is activated as an action (separate from the attack), usable once per dawn. Poison lasts 1 minute or until next hit."
+  },
+  {
+    "itemName": "Mace of Terror",
+    "itemType": "Weapon",
+    "requiresAttunement": true,
+    "charges": 3,
+    "rechargeRate": "dawn_1d3",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "frightened",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": 15,
+        "durationRounds": 10,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 30,
+        "description": "Expend 1 charge. Each creature of your choice within 30 feet: DC 15 WIS save or frightened for 1 minute. Must spend turns moving away. Repeat save at end of each turn if no line of sight to you."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "Also functions as a magic mace for melee attacks."
+  },
+  {
+    "itemName": "Pipes of Haunting",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": 3,
+    "rechargeRate": "dawn_1d3",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "condition": "frightened",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": 15,
+        "durationRounds": 10,
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 30,
+        "description": "Play pipes and expend 1 charge. Each creature within 30 feet that hears: DC 15 WIS save or frightened for 1 minute. Can repeat save at end of each turn. Success grants immunity for 24 hours."
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "Requires proficiency with wind instruments. Creatures that succeed on save are immune for 24 hours."
+  },
+  {
+    "itemName": "Rod of Retribution",
+    "itemType": "Rod",
+    "requiresAttunement": true,
+    "charges": 3,
+    "rechargeRate": "dawn_all",
+    "activationAction": "REACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "2d10",
+        "damageType": "lightning",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 13,
+        "halfOnSave": true,
+        "targetType": "SINGLE_TARGET",
+        "range": 60,
+        "description": "When a creature you can see within 60 feet damages you, use reaction and expend 1 charge. Target: DC 13 DEX save, 2d10 lightning damage (half on save)."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Reaction-based, triggered when you take damage. All charges regain at dawn."
+  },
+  {
+    "itemName": "Bottled Breath",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "spellReference": "gust of wind",
+        "description": "Exhale: gain the effect of Gust of Wind spell (60-foot line of strong wind, creatures in line must save or be pushed). OR Hold: don't need to breathe for 1 hour.",
+        "targetType": "AOE_LINE"
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "Two mutually exclusive modes on use. If exhaled, casts Gust of Wind. If held, 1 hour of no breathing needed. Player must choose at time of use."
+  },
+  {
+    "itemName": "Helm of Brilliance",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": true,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "While wearing: resistance to fire damage. Undead within 30 feet have disadvantage on attack rolls against you. Dim light in 30-foot radius (sunlight). Can use action to activate gems for various effects.",
+        "passive": true,
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "fireball",
+        "description": "Remove 1 fire opal: Cast Fireball (DC 18). Limited by number of fire opals remaining (3d10 when found).",
+        "damageDice": "8d6",
+        "damageType": "fire",
+        "saveDC": 18,
+        "costGem": "fire opal"
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "prismatic spray",
+        "description": "Remove 1 diamond: Cast Prismatic Spray (DC 18). Limited by number of diamonds remaining (1d10 when found).",
+        "saveDC": 18,
+        "costGem": "diamond"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "daylight",
+        "description": "Remove 1 opal: Cast Daylight. Limited by number of opals remaining (4d10 when found).",
+        "costGem": "opal"
+      },
+      {
+        "effectType": "OTHER",
+        "spellReference": "wall of fire",
+        "description": "Remove 1 ruby: Cast Wall of Fire (DC 18). Limited by number of rubies remaining (2d10 when found).",
+        "saveDC": 18,
+        "costGem": "ruby"
+      }
+    ],
+    "patternCategory": "COMPLEX",
+    "requiresManualResolution": true,
+    "notes": "Gem counts determined randomly when found. Risk: on d20 roll of 1 when taking fire damage from failed spell save, remaining gems explode (various damage per gem type within 60 feet, DEX DC 17 for half). Loses magic when all gems removed."
+  },
+  {
+    "itemName": "Gem of Brightness",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": 50,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "OTHER",
+        "description": "Three command words: (1) shed bright light 30 ft + dim 30 ft, no charge; (2) fire brilliant beam at creature within 60 ft, DC 15 CON save or blinded for 1 minute (1 charge); (3) flare of light 30 ft cone, each creature DC 15 CON save or blinded for 1 minute (5 charges).",
+        "saveDC": 15,
+        "saveAbility": "CON"
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "50 charges total, non-recharging. Becomes a nonmagical jewel (50 gp) when charges exhausted. The blinding beam (1 charge) and flare (5 charges) are the combat-relevant modes."
+  },
+  {
+    "itemName": "Bag of Tricks, Gray",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "description": "Pull fuzzy object and throw up to 20 feet. Transforms into a random creature (d8: weasel, giant rat, badger, boar, panther, giant badger, dire wolf, giant elk). Creature is friendly, acts on your turn, commanded with bonus action. Vanishes at dawn or 0 HP. Three uses per dawn.",
+        "usesPerDay": 3,
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "Random creature from table. DM must run creature stat block. Three pulls per dawn."
+  },
+  {
+    "itemName": "Bag of Tricks, Rust",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "description": "Pull fuzzy object and throw up to 20 feet. Transforms into a random creature (d8: rat, owl, mastiff, goat, giant goat, giant boar, lion, giant elk). Creature is friendly, acts on your turn, commanded with bonus action. Vanishes at dawn or 0 HP. Three uses per dawn.",
+        "usesPerDay": 3,
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "Random creature from table. DM must run creature stat block. Three pulls per dawn."
+  },
+  {
+    "itemName": "Bag of Tricks, Tan",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "description": "Pull fuzzy object and throw up to 20 feet. Transforms into a random creature (d8: jackal, ape, baboon, axe beak, black bear, giant weasel, giant hyena, tiger). Creature is friendly, acts on your turn, commanded with bonus action. Vanishes at dawn or 0 HP. Three uses per dawn.",
+        "usesPerDay": 3,
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "Random creature from table. DM must run creature stat block. Three pulls per dawn."
+  },
+  {
+    "itemName": "Elemental Gem, Blue Sapphire",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "spellReference": "conjure elemental",
+        "summonedCreature": "air elemental",
+        "description": "Break the gem to summon an air elemental, as if casting Conjure Elemental. Gem's magic is lost.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "DM must run elemental stat block. Elemental obeys commands but may become hostile if concentration-like control is lost."
+  },
+  {
+    "itemName": "Elemental Gem, Emerald",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "spellReference": "conjure elemental",
+        "summonedCreature": "water elemental",
+        "description": "Break the gem to summon a water elemental, as if casting Conjure Elemental. Gem's magic is lost.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "DM must run elemental stat block."
+  },
+  {
+    "itemName": "Elemental Gem, Red Corundum",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "spellReference": "conjure elemental",
+        "summonedCreature": "fire elemental",
+        "description": "Break the gem to summon a fire elemental, as if casting Conjure Elemental. Gem's magic is lost.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "DM must run elemental stat block."
+  },
+  {
+    "itemName": "Elemental Gem, Yellow Diamond",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "spellReference": "conjure elemental",
+        "summonedCreature": "earth elemental",
+        "description": "Break the gem to summon an earth elemental, as if casting Conjure Elemental. Gem's magic is lost.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "DM must run elemental stat block."
+  },
+  {
+    "itemName": "Horn of Valhalla, Silver",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "summonedCreature": "berserker",
+        "summonedCount": "2d4+2",
+        "durationText": "1 hour or until 0 HP",
+        "description": "Blow horn to summon 2d4+2 berserker warrior spirits within 60 feet. Friendly and follow commands. Last 1 hour or until 0 HP.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "No proficiency requirement for silver horn. Usable once per 7 days. DM must run berserker stat blocks."
+  },
+  {
+    "itemName": "Horn of Valhalla, Brass",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "summonedCreature": "berserker",
+        "summonedCount": "3d4+3",
+        "durationText": "1 hour or until 0 HP",
+        "description": "Blow horn to summon 3d4+3 berserker warrior spirits within 60 feet. Friendly and follow commands. Last 1 hour or until 0 HP.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "Requires proficiency with all simple weapons. If used without meeting requirement, summoned berserkers attack you. Usable once per 7 days."
+  },
+  {
+    "itemName": "Horn of Valhalla, Bronze",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "summonedCreature": "berserker",
+        "summonedCount": "4d4+4",
+        "durationText": "1 hour or until 0 HP",
+        "description": "Blow horn to summon 4d4+4 berserker warrior spirits within 60 feet. Friendly and follow commands. Last 1 hour or until 0 HP.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "Requires proficiency with medium armor. If used without meeting requirement, summoned berserkers attack you. Usable once per 7 days."
+  },
+  {
+    "itemName": "Horn of Valhalla, Iron",
+    "itemType": "Wondrous Item",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "SUMMON",
+        "summonedCreature": "berserker",
+        "summonedCount": "5d4+5",
+        "durationText": "1 hour or until 0 HP",
+        "description": "Blow horn to summon 5d4+5 berserker warrior spirits within 60 feet. Friendly and follow commands. Last 1 hour or until 0 HP.",
+        "targetType": "POINT"
+      }
+    ],
+    "patternCategory": "SUMMON",
+    "requiresManualResolution": true,
+    "notes": "Requires proficiency with all martial weapons. If used without meeting requirement, summoned berserkers attack you. Usable once per 7 days."
+  },
+  {
+    "itemName": "Devotee's Censer",
+    "itemType": "Weapon",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a cleric or paladin",
+    "charges": null,
+    "rechargeRate": "dawn_all",
+    "activationAction": "BONUS_ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "damageDice": "1d8",
+        "damageType": "radiant",
+        "description": "Extra 1d8 radiant damage on hit with this magic flail (passive, always active).",
+        "passive": true
+      },
+      {
+        "effectType": "HEAL",
+        "healingDice": "1d4",
+        "durationRounds": 10,
+        "description": "Bonus action to create incense cloud (10-foot radius) for 1 minute. At start of each of your turns, you and creatures in the incense regain 1d4 HP.",
+        "targetType": "AOE_SPHERE",
+        "aoeSize": 10,
+        "usesPerDay": 1
+      }
+    ],
+    "patternCategory": "HEAL",
+    "requiresManualResolution": false,
+    "notes": "Magic flail. Also counts as a holy symbol. Healing aura is once per dawn."
+  },
+  {
+    "itemName": "Wand of Winter",
+    "itemType": "Wand",
+    "requiresAttunement": true,
+    "charges": 7,
+    "rechargeRate": "dawn_1d6+1",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_20_melt",
+    "effects": [
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "ray of frost",
+        "costCharges": 0,
+        "damageDice": "1d8",
+        "damageType": "cold",
+        "deliveryMethod": "SPELL_ATTACK",
+        "attackBonus": 5,
+        "targetType": "SINGLE_TARGET",
+        "description": "Ray of Frost (no charges). Can spend 1 charge to cast at 5th level (2d8 cold damage). Attack bonus +5."
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "sleet storm",
+        "costCharges": 3,
+        "deliveryMethod": "SAVING_THROW",
+        "saveDC": 15,
+        "description": "Sleet Storm (3 charges). DC 15. Heavily obscured area, difficult terrain, concentration checks, prone on failed DEX save."
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "ice storm",
+        "costCharges": 4,
+        "damageDice": "2d8+4d6",
+        "damageType": "bludgeoning+cold",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "saveDC": 15,
+        "halfOnSave": true,
+        "description": "Ice Storm (4 charges). DC 15. 2d8 bludgeoning + 4d6 cold damage in 20-foot radius."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Unusual: destroyed on d20 roll of 20 (not 1) when last charge expended. Can cast Ray of Frost without charges. No components required for any spell."
+  },
+  {
+    "itemName": "Staff of Charming",
+    "itemType": "Staff",
+    "requiresAttunement": true,
+    "attunementRequirement": "by a bard, cleric, druid, sorcerer, warlock, or wizard",
+    "charges": 10,
+    "rechargeRate": "dawn_1d8+2",
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "destroyedOnLastCharge": "d20_roll_1_nonmagical",
+    "effects": [
+      {
+        "effectType": "CONDITION",
+        "spellReference": "charm person",
+        "costCharges": 1,
+        "condition": "charmed",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": "CASTER",
+        "description": "Charm Person (1 charge)"
+      },
+      {
+        "effectType": "CONDITION",
+        "spellReference": "command",
+        "costCharges": 1,
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "WIS",
+        "saveDC": "CASTER",
+        "description": "Command (1 charge)"
+      },
+      {
+        "effectType": "BUFF",
+        "description": "If you fail a save vs enchantment targeting only you, turn it into a success (once per dawn). If you succeed on such a save, can use reaction + 1 charge to turn the spell back on its caster.",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SAVE_CONDITION",
+    "requiresManualResolution": false,
+    "notes": "Uses wielder's spell save DC. Also casts Comprehend Languages (1 charge, non-combat). Also functions as a magic quarterstaff. Spell reflection is a powerful defensive feature."
+  },
+  {
+    "itemName": "Potion of Giant Size",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Become Huge for 24 hours (if Medium or smaller). Strength becomes 25 (if not already higher). HP maximum doubled (current HP doubled). Melee attack reach increases by 5 feet. Weapon damage dice tripled.",
+        "durationText": "24 hours",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": true,
+    "notes": "Legendary rarity. HP doubling and weapon dice tripling are complex to track. When effect ends, HP above normal maximum become temp HP. REVIEW: significant stat modifications require careful tracking."
+  },
+  {
+    "itemName": "Potion of Possibility",
+    "itemType": "Potion",
+    "requiresAttunement": false,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": true,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Gain 2 Fragments of Possibility (last 8 hours). When making an attack, ability check, or saving throw, expend a fragment to roll an additional d20 and choose which to use. Can also expend when attacked to roll d20 and choose between yours and attacker's roll.",
+        "durationText": "8 hours",
+        "targetType": "SELF"
+      }
+    ],
+    "patternCategory": "SELF_BUFF",
+    "requiresManualResolution": false,
+    "notes": "Similar to Lucky feat. Two uses over 8 hours. Cannot gain additional Fragments while you have any from this potion."
+  },
+  {
+    "itemName": "Blast Scepter",
+    "itemType": "Rod",
+    "requiresAttunement": true,
+    "charges": null,
+    "rechargeRate": null,
+    "activationAction": "ACTION",
+    "consumedOnUse": false,
+    "effects": [
+      {
+        "effectType": "BUFF",
+        "description": "Resistance to fire and lightning damage while attuned.",
+        "passive": true,
+        "targetType": "SELF"
+      },
+      {
+        "effectType": "DAMAGE",
+        "spellReference": "thunderwave",
+        "damageDice": "5d8",
+        "damageType": "thunder",
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "saveDC": 16,
+        "halfOnSave": true,
+        "targetType": "AOE_CUBE",
+        "aoeSize": 15,
+        "description": "Cast Thunderwave as 4th level (DC 16, 5d8 thunder damage) without expending a spell slot. No limit on uses."
+      }
+    ],
+    "patternCategory": "SAVE_DAMAGE",
+    "requiresManualResolution": false,
+    "notes": "Can be used as arcane focus. Unlimited uses of 4th-level Thunderwave. Also pushes creatures 10 feet on failed save."
+  }
+]
