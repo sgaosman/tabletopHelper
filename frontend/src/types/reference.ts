@@ -45,7 +45,7 @@ export interface Item {
 
 export interface SpellSearchParams {
   name?: string;
-  level?: number;
+  level?: number | string;
   school?: string;
   source?: string;
   className?: string;

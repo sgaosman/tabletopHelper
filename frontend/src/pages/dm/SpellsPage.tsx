@@ -22,11 +22,11 @@ export default function SpellsPage() {
   const [selectedSpell, setSelectedSpell] = useState<Spell | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [levelFilter, setLevelFilter] = useState<number | ''>('');
+  const [levelFilter, setLevelFilter] = useState<string[]>([]);
   const [schoolFilter, setSchoolFilter] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [classFilter, setClassFilter] = useState<string[]>([]);
-  const [subclassFilter, setSubclassFilter] = useState('');
+  const [subclassFilter, setSubclassFilter] = useState<string[]>([]);
   const [concFilter, setConcFilter] = useState('');
   const [ritualFilter, setRitualFilter] = useState('');
   const [page, setPage] = useState(0);
@@ -46,24 +46,25 @@ export default function SpellsPage() {
   }, []);
 
   useEffect(() => {
-    if (classFilter.length === 1) {
-      getSpellSubclasses(classFilter[0]).then(setSubclasses);
+    if (classFilter.length > 0) {
+      Promise.all(classFilter.map(c => getSpellSubclasses(c)))
+        .then(results => setSubclasses(results.flat()));
     } else {
       setSubclasses([]);
-      setSubclassFilter('');
+      setSubclassFilter([]);
     }
   }, [classFilter]);
 
-  const hasFilters = search || levelFilter !== '' || schoolFilter.length > 0 || sourceFilter.length > 0 ||
-    classFilter.length > 0 || subclassFilter || concFilter || ritualFilter;
+  const hasFilters = search || levelFilter.length > 0 || schoolFilter.length > 0 || sourceFilter.length > 0 ||
+    classFilter.length > 0 || subclassFilter.length > 0 || concFilter || ritualFilter;
 
   const clearFilters = () => {
     setSearch('');
-    setLevelFilter('');
+    setLevelFilter([]);
     setSchoolFilter([]);
     setSourceFilter([]);
     setClassFilter([]);
-    setSubclassFilter('');
+    setSubclassFilter([]);
     setConcFilter('');
     setRitualFilter('');
     setPage(0);
@@ -74,11 +75,11 @@ export default function SpellsPage() {
     try {
       const result = await searchSpells({
         name: search || undefined,
-        level: levelFilter === '' ? undefined : levelFilter,
+        level: levelFilter.length ? levelFilter.join(',') : undefined,
         school: schoolFilter.length ? schoolFilter.join(',') : undefined,
         source: sourceFilter.length ? sourceFilter.join(',') : undefined,
-        className: classFilter.length === 1 ? classFilter[0] : undefined,
-        subclass: classFilter.length === 1 ? (subclassFilter || undefined) : undefined,
+        className: classFilter.length ? classFilter.join(',') : undefined,
+        subclass: subclassFilter.length ? subclassFilter.join(',') : undefined,
         concentration: concFilter || undefined,
         ritual: ritualFilter || undefined,
         page,
@@ -132,12 +133,14 @@ export default function SpellsPage() {
             value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none" />
         </div>
-        <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value === '' ? '' : parseInt(e.target.value))}
-          className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">
-          <option value="">All Levels</option>
-          <option value="0">Cantrip</option>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => <option key={l} value={l}>Level {l}</option>)}
-        </select>
+        <MultiSelect
+          options={['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']}
+          selected={levelFilter}
+          onChange={setLevelFilter}
+          placeholder="All Levels"
+          renderLabel={(l) => l === '0' ? 'Cantrip' : `Level ${l}`}
+          accentColor="indigo"
+        />
         <MultiSelect
           options={schools}
           selected={schoolFilter}
@@ -148,18 +151,19 @@ export default function SpellsPage() {
         <MultiSelect
           options={classes}
           selected={classFilter}
-          onChange={(v) => { setClassFilter(v); setSubclassFilter(''); }}
+          onChange={(v) => { setClassFilter(v); setSubclassFilter(prev => prev.filter(s => v.some(c => s.startsWith(c + ' (')))); }}
           placeholder="All Classes"
           accentColor="indigo"
         />
-        {classFilter.length === 1 && subclasses.length > 0 && (
-          <select value={subclassFilter} onChange={(e) => setSubclassFilter(e.target.value)}
-            className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">
-            <option value="">All {classFilter[0]} Subclasses</option>
-            {subclasses.map(sc => (
-              <option key={sc} value={sc}>{sc.replace(`${classFilter[0]} (`, '').replace(/\)$/, '')}</option>
-            ))}
-          </select>
+        {classFilter.length > 0 && subclasses.length > 0 && (
+          <MultiSelect
+            options={subclasses}
+            selected={subclassFilter}
+            onChange={setSubclassFilter}
+            placeholder="All Subclasses"
+            renderLabel={(sc) => sc.replace(/^.+ \(/, '').replace(/\)$/, '')}
+            accentColor="indigo"
+          />
         )}
         <select value={concFilter} onChange={(e) => setConcFilter(e.target.value)}
           className="px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none">

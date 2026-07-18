@@ -13,34 +13,31 @@ public interface SpellRepository extends JpaRepository<Spell, UUID> {
 
     @Query(value = "SELECT * FROM spells s WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(s.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:level AS INTEGER) IS NULL OR s.level = CAST(:level AS INTEGER)) AND " +
+           "(:levelCount = 0 OR s.level IN (:levelList)) AND " +
            "(:schoolCount = 0 OR s.school IN (:schoolList)) AND " +
            "(:sourceCount = 0 OR s.source IN (:sourceList)) AND " +
-           "(CAST(:className AS TEXT) IS NULL OR " +
-           "  s.classes::jsonb @> to_jsonb(CAST(:className AS TEXT)) OR " +
-           "  (CAST(:subclass AS TEXT) IS NOT NULL AND s.classes::jsonb @> to_jsonb(CAST(:subclass AS TEXT)))) AND " +
+           "(:classCount = 0 OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(s.classes) AS c WHERE c IN (:classList))) AND " +
            "(CAST(:conc AS TEXT) IS NULL OR s.concentration = CAST(CAST(:conc AS TEXT) AS BOOLEAN)) AND " +
            "(CAST(:ritual AS TEXT) IS NULL OR s.ritual = CAST(CAST(:ritual AS TEXT) AS BOOLEAN))",
            countQuery = "SELECT COUNT(*) FROM spells s WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(s.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +
-           "(CAST(:level AS INTEGER) IS NULL OR s.level = CAST(:level AS INTEGER)) AND " +
+           "(:levelCount = 0 OR s.level IN (:levelList)) AND " +
            "(:schoolCount = 0 OR s.school IN (:schoolList)) AND " +
            "(:sourceCount = 0 OR s.source IN (:sourceList)) AND " +
-           "(CAST(:className AS TEXT) IS NULL OR " +
-           "  s.classes::jsonb @> to_jsonb(CAST(:className AS TEXT)) OR " +
-           "  (CAST(:subclass AS TEXT) IS NOT NULL AND s.classes::jsonb @> to_jsonb(CAST(:subclass AS TEXT)))) AND " +
+           "(:classCount = 0 OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(s.classes) AS c WHERE c IN (:classList))) AND " +
            "(CAST(:conc AS TEXT) IS NULL OR s.concentration = CAST(CAST(:conc AS TEXT) AS BOOLEAN)) AND " +
            "(CAST(:ritual AS TEXT) IS NULL OR s.ritual = CAST(CAST(:ritual AS TEXT) AS BOOLEAN))",
            nativeQuery = true)
     Page<Spell> searchSpells(
             @Param("name") String name,
-            @Param("level") Integer level,
+            @Param("levelCount") int levelCount,
+            @Param("levelList") List<Integer> levelList,
             @Param("schoolCount") int schoolCount,
             @Param("schoolList") List<String> schoolList,
             @Param("sourceCount") int sourceCount,
             @Param("sourceList") List<String> sourceList,
-            @Param("className") String className,
-            @Param("subclass") String subclass,
+            @Param("classCount") int classCount,
+            @Param("classList") List<String> classList,
             @Param("conc") String concentration,
             @Param("ritual") String ritual,
             Pageable pageable);

@@ -11,6 +11,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +29,7 @@ public class ReferenceController {
     @GetMapping("/spells")
     public Page<Spell> searchSpells(
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) Integer level,
+            @RequestParam(required = false) String level,
             @RequestParam(required = false) String school,
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String className,
@@ -36,14 +37,20 @@ public class ReferenceController {
             @RequestParam(required = false) String concentration,
             @RequestParam(required = false) String ritual,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
+        List<Integer> levelList = (level != null && !level.isBlank())
+                ? Arrays.stream(level.split(",")).map(Integer::parseInt).toList()
+                : List.of();
         List<String> schoolList = splitFilter(school);
         List<String> sourceList = splitFilter(source);
+        List<String> classList = new ArrayList<>();
+        if (className != null && !className.isBlank()) classList.addAll(Arrays.asList(className.split(",")));
+        if (subclass != null && !subclass.isBlank()) classList.addAll(Arrays.asList(subclass.split(",")));
         return spellRepository.searchSpells(
                 name != null && name.isBlank() ? null : name,
-                level,
+                levelList.size(), levelList.isEmpty() ? List.of(-1) : levelList,
                 schoolList.size(), schoolList.isEmpty() ? List.of("") : schoolList,
                 sourceList.size(), sourceList.isEmpty() ? List.of("") : sourceList,
-                className, subclass,
+                classList.size(), classList.isEmpty() ? List.of("") : classList,
                 concentration, ritual, pageable);
     }
 
