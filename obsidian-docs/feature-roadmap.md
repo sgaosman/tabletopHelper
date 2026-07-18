@@ -120,6 +120,9 @@
 - [x] Resurrection: dead PCs (3 failed saves) can be healed back, auto-applies Prone, clears Unconscious
 - [x] Combat log improvements: turn participant tracking per entry, round/turn section headers, smart scroll with "new messages" indicator
 - [x] Damage and condition buttons available for downed PCs
+- [x] Player combat permissions: self-manage conditions/concentration, attack on own turn
+- [x] Player encounter session page: attack panel, condition/concentration controls, improved combat log
+- [x] Per-row clone button for multi-attack (copies all filled values)
 
 ## Milestone 6: Polish, Mobile & Deployment
 
@@ -132,6 +135,7 @@
 - [ ] Nginx configuration (reverse proxy + SSL)
 - [ ] Deploy to Hetzner VPS or Railway
 - [ ] End-to-end testing with real devices
+
 
 ## Future Features (Post Month 1)
 

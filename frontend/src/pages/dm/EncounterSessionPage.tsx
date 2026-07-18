@@ -177,8 +177,13 @@ function ActionPanel({
 
   function addAttackRow() {
     if (attacks.length >= 5) return;
-    const last = attacks[attacks.length - 1];
-    setAttacks(prev => [...prev, { attackBonus: last.attackBonus, damageDice: last.damageDice, damageType: last.damageType, advantage: last.advantage, forceCrit: last.forceCrit }]);
+    setAttacks(prev => [...prev, { attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false }]);
+  }
+
+  function cloneAttackRow(index: number) {
+    if (attacks.length >= 5) return;
+    const source = attacks[index];
+    setAttacks(prev => [...prev.slice(0, index + 1), { ...source }, ...prev.slice(index + 1)]);
   }
 
   function removeAttackRow(index: number) {
@@ -268,7 +273,7 @@ function ActionPanel({
                     <select
                       value={atk.damageType}
                       onChange={e => updateAttack(i, 'damageType', e.target.value)}
-                      className="w-full px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full h-[38px] px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">—</option>
                       {DAMAGE_TYPES.map(dt => (
@@ -300,12 +305,20 @@ function ActionPanel({
                       Crit
                     </button>
                   </div>
-                  {attacks.length > 1 && (
-                    <button type="button" onClick={() => removeAttackRow(i)}
-                      className="p-2 text-gray-500 hover:text-red-400">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
+                  <div className="flex gap-1">
+                    {attacks.length < 5 && (
+                      <button type="button" onClick={() => cloneAttackRow(i)}
+                        className="p-2 text-gray-500 hover:text-green-400" title="Clone this attack">
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    )}
+                    {attacks.length > 1 && (
+                      <button type="button" onClick={() => removeAttackRow(i)}
+                        className="p-2 text-gray-500 hover:text-red-400" title="Remove this attack">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {attacks.length < 5 && (

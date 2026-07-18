@@ -23,7 +23,7 @@ public class CombatService {
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId, UUID userId) {
         Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrController(encounter, userId, actorParticipantId);
+        verifyDmOrControllerOnTurn(encounter, userId, actorParticipantId);
 
         EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
@@ -342,7 +342,7 @@ public class CombatService {
     @Transactional
     public EncounterResponse addCondition(UUID encounterId, ConditionRequest request, UUID userId) {
         Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        verifyDmOrTargetOwner(encounter, userId, request.getTargetId());
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
         List<ConditionEntry> conditions = parseConditionEntries(target);
@@ -363,7 +363,7 @@ public class CombatService {
     @Transactional
     public EncounterResponse removeCondition(UUID encounterId, ConditionRequest request, UUID userId) {
         Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        verifyDmOrTargetOwner(encounter, userId, request.getTargetId());
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
         List<ConditionEntry> conditions = parseConditionEntries(target);
@@ -710,6 +710,39 @@ public class CombatService {
         if (participantId != null) {
             EncounterParticipant actor = findParticipant(encounter, participantId);
             if (userId.equals(actor.getControlledByUserId())) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException("You do not have permission to perform this action");
+    }
+
+    private void verifyDmOrControllerOnTurn(Encounter encounter, UUID userId, UUID participantId) {
+        if (encounter.getCampaign().getDm().getId().equals(userId)) {
+            return;
+        }
+        if (participantId != null) {
+            EncounterParticipant actor = findParticipant(encounter, participantId);
+            if (userId.equals(actor.getControlledByUserId())) {
+                List<EncounterParticipant> sorted = encounter.getParticipants().stream()
+                        .sorted((a, b) -> (a.getSortOrder() != null ? a.getSortOrder() : 999) - (b.getSortOrder() != null ? b.getSortOrder() : 999))
+                        .toList();
+                int turnIdx = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
+                if (turnIdx < sorted.size() && sorted.get(turnIdx).getId().equals(participantId)) {
+                    return;
+                }
+                throw new IllegalArgumentException("You can only attack on your turn");
+            }
+        }
+        throw new IllegalArgumentException("You do not have permission to perform this action");
+    }
+
+    private void verifyDmOrTargetOwner(Encounter encounter, UUID userId, UUID targetId) {
+        if (encounter.getCampaign().getDm().getId().equals(userId)) {
+            return;
+        }
+        if (targetId != null) {
+            EncounterParticipant target = findParticipant(encounter, targetId);
+            if (userId.equals(target.getControlledByUserId())) {
                 return;
             }
         }
