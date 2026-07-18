@@ -137,7 +137,25 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Resolution:** Use `import type { ... }` for all type-only imports. Applied to `AuthContext.tsx` and `authApi.ts`.
 
-### R-RESOLVED-002: Character Creation UUID Parse Error
+### R-RESOLVED-002: Stale JWT Causes Blank Pages
+
+**Category:** UX / Security
+**Resolved:** 2026-07-18
+
+**Problem:** When a user's 1-hour access token expired, all API calls returned 403. The Axios interceptor only caught 401 responses, so expired tokens were not refreshed — pages showed blank or empty results with no feedback. Users had to manually log out and back in.
+
+**Resolution:** Extended the Axios response interceptor to catch both 401 and 403, with a `hadToken` guard so only requests that actually carried a Bearer token trigger the refresh flow. Concurrent requests are queued during refresh. If the refresh token is also expired, localStorage is cleared and the user is redirected to login.
+
+### R-RESOLVED-003: sockjs-client `global` Crash on Vite 8
+
+**Category:** Tooling
+**Resolved:** 2026-07-18
+
+**Problem:** `sockjs-client` references the Node.js `global` variable. After a Vite dependency cache rebuild, Rolldown no longer auto-shimmed it (esbuild did). The app crashed on load with `ReferenceError: global is not defined`.
+
+**Resolution:** Added `<script>globalThis.global = globalThis;</script>` to `index.html` before the app script.
+
+### R-RESOLVED-004: Character Creation UUID Parse Error
 
 **Category:** Bug
 **Resolved:** 2026-07-17

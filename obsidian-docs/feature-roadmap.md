@@ -123,4 +123,4 @@ These are documented for future reference and explicitly **not in scope** for th
 ## Planned UX Improvements
 
 - **Character creation constraints** — Replace free-text inputs with dropdowns for race, class, subclass (populated from seeded 5e data). Offer point buy, standard array, and 4d6-drop-lowest for ability scores. Auto-calculate derived stats like proficiency bonus from level. See [[risk-register#R003]] for details.
-- **Graceful stale token handling** — Improve the Axios 403 interceptor to detect "token present but rejected" and redirect to login instead of showing a generic error. Extremely low priority — only affects dev restarts or sessions idle for 7+ days. See [[risk-register#R005]].
+- ~~**Graceful stale token handling**~~ — **Done.** Axios interceptor now catches 401 and 403, silently refreshes using the refresh token, queues concurrent requests, and redirects to login only when the refresh token is also expired. See [[decisions-log#D017]].

@@ -44,15 +44,29 @@ docker compose up -d db    # Fresh database
 
 ### Blank page (no errors visible)
 
-**Cause:** Usually a JavaScript runtime error that prevents React from rendering. Most common cause: importing TypeScript interfaces with `import { ... }` instead of `import type { ... }`. Vite 8's Rolldown bundler strips type-only exports.
+**Cause:** Usually a JavaScript runtime error that prevents React from rendering. Two known causes:
 
-**Fix:** Check the browser console (F12 → Console). If you see `MISSING_EXPORT` errors, change the imports:
+1. **Type-only imports without `type` keyword:** Importing TypeScript types with `import { ... }` instead of `import type { ... }`. Vite 8's Rolldown bundler treats these as runtime values, which resolve to `undefined` and crash React.
+
+2. **`global is not defined` from sockjs-client:** The `sockjs-client` library references Node.js's `global` variable. Vite 8's Rolldown bundler doesn't auto-shim this (esbuild did). The polyfill `globalThis.global = globalThis` in `index.html` fixes it.
+
+**Fix:** Check the browser console (F12 → Console).
+
+For `MISSING_EXPORT` or undefined component errors:
 ```typescript
 // Bad — fails with Vite 8 / Rolldown
 import { MyInterface } from '../types/foo';
+import { useState, FormEvent } from 'react';
 
 // Good
 import type { MyInterface } from '../types/foo';
+import { useState, type FormEvent } from 'react';
+```
+
+For `Uncaught ReferenceError: global is not defined`:
+Add before the app script in `index.html`:
+```html
+<script>globalThis.global = globalThis;</script>
 ```
 
 ### API calls return 403
