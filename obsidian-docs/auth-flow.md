@@ -2,7 +2,7 @@
 
 ## Overview
 
-QuestKeeper uses stateless JWT authentication. Passwords are hashed with BCrypt. Access tokens expire after 1 hour; refresh tokens after 7 days. Tokens are signed with HS512.
+TabletopHelper uses stateless JWT authentication. Passwords are hashed with BCrypt. Access tokens expire after 1 hour; refresh tokens after 7 days. Tokens are signed with HS512.
 
 ## Token Lifecycle
 

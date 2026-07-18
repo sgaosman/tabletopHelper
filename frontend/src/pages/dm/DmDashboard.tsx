@@ -19,7 +19,7 @@ export default function DmDashboard() {
     <div className="min-h-screen bg-gray-950">
       <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">QuestKeeper</h1>
+          <h1 className="text-xl font-bold text-white">TabletopHelper</h1>
           <p className="text-sm text-gray-400">Dungeon Master — {user?.displayName}</p>
         </div>
         <div className="flex items-center gap-4">

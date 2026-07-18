@@ -13,13 +13,13 @@
 
 ```bash
 # Clone the repository
-git clone <repo-url> questkeeper && cd questkeeper
+git clone <repo-url> tabletophelper && cd tabletophelper
 
 # Start PostgreSQL
 docker compose up -d db
 
 # Verify database is running
-docker exec questkeeper-db psql -U questkeeper -d questkeeper -c "SELECT 1"
+docker exec tabletophelper-db psql -U tabletophelper -d tabletophelper -c "SELECT 1"
 
 # Start the backend
 cd backend
@@ -38,7 +38,7 @@ npm run dev
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8080/api |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
-| PostgreSQL | localhost:5432 (user: questkeeper, pass: questkeeper, db: questkeeper) |
+| PostgreSQL | localhost:5432 (user: tabletophelper, pass: tabletophelper, db: tabletophelper) |
 
 ## Daily Workflow
 
@@ -59,7 +59,7 @@ The frontend Vite dev server proxies `/api` and `/ws` requests to the backend on
 
 ```bash
 # Connect to psql
-docker exec -it questkeeper-db psql -U questkeeper -d questkeeper
+docker exec -it tabletophelper-db psql -U tabletophelper -d tabletophelper
 
 # List tables
 \dt
@@ -82,9 +82,9 @@ Hibernate `ddl-auto: update` creates and alters tables automatically when entiti
 | Variable | Default (Dev) | Required (Prod) | Description |
 |----------|--------------|-----------------|-------------|
 | `JWT_SECRET` | Hardcoded dev fallback | Yes | 64+ byte secret for HS512 JWT signing |
-| `DATABASE_URL` | `jdbc:postgresql://localhost:5432/questkeeper` | Yes | PostgreSQL JDBC URL |
-| `DATABASE_USERNAME` | `questkeeper` | Yes | |
-| `DATABASE_PASSWORD` | `questkeeper` | Yes | |
+| `DATABASE_URL` | `jdbc:postgresql://localhost:5432/tabletophelper` | Yes | PostgreSQL JDBC URL |
+| `DATABASE_USERNAME` | `tabletophelper` | Yes | |
+| `DATABASE_PASSWORD` | `tabletophelper` | Yes | |
 
 ## Troubleshooting
 

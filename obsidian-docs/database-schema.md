@@ -314,7 +314,7 @@ Append-only log of every combat action in an encounter. One row per action.
 
 ```bash
 # Connect to psql
-docker exec -it questkeeper-db psql -U questkeeper -d questkeeper
+docker exec -it tabletophelper-db psql -U tabletophelper -d tabletophelper
 
 # List all tables
 \dt

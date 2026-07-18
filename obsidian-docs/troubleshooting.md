@@ -27,7 +27,7 @@ Connection to localhost:5432 refused
 ```bash
 docker compose up -d db
 # Wait a few seconds for PostgreSQL to initialise
-docker exec questkeeper-db pg_isready
+docker exec tabletophelper-db pg_isready
 ```
 
 ### Hibernate schema errors after entity changes
@@ -105,10 +105,10 @@ If direct works but proxy doesn't, check `vite.config.ts` proxy configuration.
 
 ```bash
 # List all tables
-docker exec questkeeper-db psql -U questkeeper -d questkeeper -c "\dt"
+docker exec tabletophelper-db psql -U tabletophelper -d tabletophelper -c "\dt"
 
 # Count rows in each table
-docker exec questkeeper-db psql -U questkeeper -d questkeeper -c "
+docker exec tabletophelper-db psql -U tabletophelper -d tabletophelper -c "
   SELECT 'users' AS tbl, COUNT(*) FROM users
   UNION ALL SELECT 'campaigns', COUNT(*) FROM campaigns
   UNION ALL SELECT 'campaign_members', COUNT(*) FROM campaign_members
@@ -116,19 +116,19 @@ docker exec questkeeper-db psql -U questkeeper -d questkeeper -c "
 "
 
 # View a specific user
-docker exec questkeeper-db psql -U questkeeper -d questkeeper -c "SELECT id, username, email, display_name FROM users;"
+docker exec tabletophelper-db psql -U tabletophelper -d tabletophelper -c "SELECT id, username, email, display_name FROM users;"
 ```
 
 ### Data survives container restarts
 
-PostgreSQL data is stored in a Docker named volume (`questkeeper-data`), not in the container filesystem. Stopping, restarting, or even removing the container preserves data. Only `docker compose down -v` (the `-v` flag) deletes volumes.
+PostgreSQL data is stored in a Docker named volume (`tabletophelper-data`), not in the container filesystem. Stopping, restarting, or even removing the container preserves data. Only `docker compose down -v` (the `-v` flag) deletes volumes.
 
 ```bash
 # Check the volume exists
-docker volume ls | grep questkeeper
+docker volume ls | grep tabletophelper
 
 # Inspect it
-docker volume inspect dmscreen_questkeeper-data
+docker volume inspect dmscreen_tabletophelper-data
 ```
 
 ### Reset everything
@@ -160,7 +160,7 @@ docker compose up -d db    # Fresh database, empty tables
 
 **Fix:** Use a different username/email, or check existing users:
 ```bash
-docker exec questkeeper-db psql -U questkeeper -d questkeeper -c "SELECT username, email FROM users;"
+docker exec tabletophelper-db psql -U tabletophelper -d tabletophelper -c "SELECT username, email FROM users;"
 ```
 
 ### Gradle build fails with "Could not resolve dependencies"

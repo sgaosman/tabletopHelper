@@ -2,7 +2,7 @@
 
 ## System Overview
 
-QuestKeeper is a standard three-tier web application: a React SPA frontend, a Spring Boot backend, and a PostgreSQL database. Real-time combat communication uses WebSockets (STOMP over SockJS) layered on top of the HTTP backend.
+TabletopHelper is a standard three-tier web application: a React SPA frontend, a Spring Boot backend, and a PostgreSQL database. Real-time combat communication uses WebSockets (STOMP over SockJS) layered on top of the HTTP backend.
 
 The system is designed for a single DM and up to 8 players — roughly 9 concurrent users. This constraint eliminates the need for horizontal scaling, message queues, load balancers, or Redis pub/sub. A single Spring Boot instance on a modest VPS handles all traffic trivially.
 
@@ -155,12 +155,12 @@ DM Client          Backend              Player Clients
 ## Project Structure
 
 ```
-questkeeper/
+tabletophelper/
 ├── backend/
 │   ├── build.gradle.kts          # Dependencies and build config
 │   ├── settings.gradle.kts
-│   ├── src/main/java/com/questkeeper/
-│   │   ├── QuestKeeperApplication.java
+│   ├── src/main/java/com/tabletophelper/
+│   │   ├── TabletopHelperApplication.java
 │   │   ├── config/               # Security, CORS, JWT filter, WebSocket config
 │   │   ├── auth/                 # Login, register, refresh, JWT provider
 │   │   ├── user/                 # User entity and repository

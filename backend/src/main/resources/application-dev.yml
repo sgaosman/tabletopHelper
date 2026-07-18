@@ -12,5 +12,5 @@ spring:
 
 logging:
   level:
-    com.questkeeper: DEBUG
+    com.tabletophelper: DEBUG
     org.hibernate.SQL: DEBUG
