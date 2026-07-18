@@ -8,16 +8,17 @@ QuestKeeper replaces the scattered collection of PDFs, paper notes, and browser 
 
 ### Features Available Now
 
-- **User accounts** — Register, log in, and choose between DM and Player roles each session
+- **User accounts** — Register, log in, choose between DM and Player roles each session; silent JWT token refresh keeps sessions alive
 - **Campaign management** — DMs create campaigns and share an invite code; players join with the code
 - **Character sheets** — Players create and edit characters with full D&D 5e stats (ability scores, HP, AC, combat stats, personality traits, notes)
 - **DM campaign view** — DMs see all members and characters in their campaigns, auto-refreshing every 10 seconds
+- **Full 5e reference database** — Searchable bestiary (2000+ monsters), spells (500+), items (1000+), and conditions from every 2014-era D&D 5e sourcebook, with multiselect filters and quick rules reference
+- **Encounter builder** — DMs create encounters by adding monsters (with fuzzy search, typo-tolerant) and player characters from their campaign; manual or auto-rolled initiative; participant renaming while preserving monster identity
+- **Live encounter sessions** — Real-time WebSocket sync between DM and players via STOMP over SockJS; session codes for players to join; initiative tracking, turn management, pause/resume/end controls
 
 ### Features Coming Soon
 
-- **Full 5e reference database** — Searchable bestiary, spells, items, and conditions from every 2014-era D&D 5e sourcebook (2000+ monsters, 500+ spells, 1000+ items)
-- **Encounter builder** — DMs create encounters by adding monsters from the bestiary and player characters from their campaign
-- **Live combat engine** — Real-time encounter sessions with server-side dice rolling, attack resolution, spell casting, damage/healing, condition tracking, death saves, concentration checks, and turn management
+- **Combat engine** — Server-side attack resolution, spell casting, damage/healing, condition tracking, death saves, concentration checks, and full turn management
 - **Mobile-responsive encounter screen** — Players use their phones at the table; DMs use a laptop
 
 ### Future Roadmap (Post-Launch)
@@ -34,7 +35,7 @@ QuestKeeper replaces the scattered collection of PDFs, paper notes, and browser 
 | Layer | Technology |
 |-------|-----------|
 | Backend | Java 21, Spring Boot 3, Gradle (Kotlin DSL) |
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4 |
 | Database | PostgreSQL 16 (Docker) |
 | Real-time | WebSocket with STOMP over SockJS |
 | Auth | JWT (access + refresh tokens) |
