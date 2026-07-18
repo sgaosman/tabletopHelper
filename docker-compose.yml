@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: questkeeper-db
+    environment:
+      POSTGRES_DB: questkeeper
+      POSTGRES_USER: questkeeper
+      POSTGRES_PASSWORD: questkeeper
+    ports:
+      - "5432:5432"
+    volumes:
+      - questkeeper-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  questkeeper-data:

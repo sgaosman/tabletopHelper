@@ -1,0 +1,215 @@
+package com.questkeeper.character;
+
+import com.questkeeper.campaign.Campaign;
+import com.questkeeper.campaign.CampaignMemberRepository;
+import com.questkeeper.campaign.CampaignRepository;
+import com.questkeeper.character.dto.CharacterCreateRequest;
+import com.questkeeper.character.dto.CharacterResponse;
+import com.questkeeper.character.dto.CharacterUpdateRequest;
+import com.questkeeper.user.User;
+import com.questkeeper.user.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class CharacterService {
+
+    private final CharacterRepository characterRepository;
+    private final UserRepository userRepository;
+    private final CampaignRepository campaignRepository;
+    private final CampaignMemberRepository campaignMemberRepository;
+
+    @Transactional
+    public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Campaign campaign = null;
+        if (request.getCampaignId() != null) {
+            campaign = campaignRepository.findById(request.getCampaignId())
+                    .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
+        }
+
+        PlayerCharacter character = PlayerCharacter.builder()
+                .user(user)
+                .campaign(campaign)
+                .name(request.getName())
+                .race(request.getRace())
+                .characterClass(request.getCharacterClass())
+                .subclass(request.getSubclass())
+                .level(request.getLevel() != null ? request.getLevel() : 1)
+                .background(request.getBackground())
+                .alignment(request.getAlignment())
+                .strength(request.getStrength())
+                .dexterity(request.getDexterity())
+                .constitution(request.getConstitution())
+                .intelligence(request.getIntelligence())
+                .wisdom(request.getWisdom())
+                .charisma(request.getCharisma())
+                .hpMax(request.getHpMax())
+                .hpCurrent(request.getHpMax())
+                .armourClass(request.getArmourClass() != null ? request.getArmourClass() : 10)
+                .initiativeBonus(request.getInitiativeBonus() != null ? request.getInitiativeBonus() : 0)
+                .speed(request.getSpeed() != null ? request.getSpeed() : 30)
+                .proficiencyBonus(request.getProficiencyBonus() != null ? request.getProficiencyBonus() : 2)
+                .build();
+
+        character = characterRepository.save(character);
+        return toResponse(character);
+    }
+
+    @Transactional
+    public CharacterResponse updateCharacter(UUID characterId, CharacterUpdateRequest request, UUID userId) {
+        PlayerCharacter character = characterRepository.findById(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
+
+        if (!character.getUser().getId().equals(userId)) {
+            throw new IllegalArgumentException("You do not own this character");
+        }
+
+        if (request.getName() != null) character.setName(request.getName());
+        if (request.getRace() != null) character.setRace(request.getRace());
+        if (request.getCharacterClass() != null) character.setCharacterClass(request.getCharacterClass());
+        if (request.getSubclass() != null) character.setSubclass(request.getSubclass());
+        if (request.getLevel() != null) character.setLevel(request.getLevel());
+        if (request.getExperiencePoints() != null) character.setExperiencePoints(request.getExperiencePoints());
+        if (request.getBackground() != null) character.setBackground(request.getBackground());
+        if (request.getAlignment() != null) character.setAlignment(request.getAlignment());
+
+        if (request.getStrength() != null) character.setStrength(request.getStrength());
+        if (request.getDexterity() != null) character.setDexterity(request.getDexterity());
+        if (request.getConstitution() != null) character.setConstitution(request.getConstitution());
+        if (request.getIntelligence() != null) character.setIntelligence(request.getIntelligence());
+        if (request.getWisdom() != null) character.setWisdom(request.getWisdom());
+        if (request.getCharisma() != null) character.setCharisma(request.getCharisma());
+
+        if (request.getHpMax() != null) character.setHpMax(request.getHpMax());
+        if (request.getHpCurrent() != null) character.setHpCurrent(request.getHpCurrent());
+        if (request.getHpTemp() != null) character.setHpTemp(request.getHpTemp());
+        if (request.getHitDiceTotal() != null) character.setHitDiceTotal(request.getHitDiceTotal());
+        if (request.getHitDiceRemaining() != null) character.setHitDiceRemaining(request.getHitDiceRemaining());
+        if (request.getArmourClass() != null) character.setArmourClass(request.getArmourClass());
+        if (request.getInitiativeBonus() != null) character.setInitiativeBonus(request.getInitiativeBonus());
+        if (request.getSpeed() != null) character.setSpeed(request.getSpeed());
+        if (request.getProficiencyBonus() != null) character.setProficiencyBonus(request.getProficiencyBonus());
+
+        if (request.getSavingThrowProficiencies() != null) character.setSavingThrowProficiencies(request.getSavingThrowProficiencies());
+        if (request.getSkillProficiencies() != null) character.setSkillProficiencies(request.getSkillProficiencies());
+        if (request.getSkillExpertises() != null) character.setSkillExpertises(request.getSkillExpertises());
+        if (request.getDamageResistances() != null) character.setDamageResistances(request.getDamageResistances());
+        if (request.getDamageImmunities() != null) character.setDamageImmunities(request.getDamageImmunities());
+        if (request.getConditionImmunities() != null) character.setConditionImmunities(request.getConditionImmunities());
+
+        if (request.getFeatures() != null) character.setFeatures(request.getFeatures());
+        if (request.getSpellsKnown() != null) character.setSpellsKnown(request.getSpellsKnown());
+        if (request.getSpellSlots() != null) character.setSpellSlots(request.getSpellSlots());
+        if (request.getSpellSaveDc() != null) character.setSpellSaveDc(request.getSpellSaveDc());
+        if (request.getSpellAttackBonus() != null) character.setSpellAttackBonus(request.getSpellAttackBonus());
+        if (request.getSpellcastingAbility() != null) character.setSpellcastingAbility(request.getSpellcastingAbility());
+
+        if (request.getEquipment() != null) character.setEquipment(request.getEquipment());
+        if (request.getCurrency() != null) character.setCurrency(request.getCurrency());
+
+        if (request.getPersonalityTraits() != null) character.setPersonalityTraits(request.getPersonalityTraits());
+        if (request.getIdeals() != null) character.setIdeals(request.getIdeals());
+        if (request.getBonds() != null) character.setBonds(request.getBonds());
+        if (request.getFlaws() != null) character.setFlaws(request.getFlaws());
+        if (request.getNotes() != null) character.setNotes(request.getNotes());
+        if (request.getPortraitUrl() != null) character.setPortraitUrl(request.getPortraitUrl());
+
+        if (request.getCampaignId() != null) {
+            Campaign campaign = campaignRepository.findById(request.getCampaignId())
+                    .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
+            character.setCampaign(campaign);
+        }
+
+        character = characterRepository.save(character);
+        return toResponse(character);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CharacterResponse> getMyCharacters(UUID userId) {
+        return characterRepository.findByUserIdAndIsActiveTrue(userId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CharacterResponse> getCharactersInCampaign(UUID campaignId, UUID userId) {
+        if (!campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, userId)) {
+            throw new IllegalArgumentException("You are not a member of this campaign");
+        }
+        return characterRepository.findByCampaignIdAndIsActiveTrue(campaignId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public CharacterResponse getCharacter(UUID characterId) {
+        PlayerCharacter character = characterRepository.findById(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
+        return toResponse(character);
+    }
+
+    private CharacterResponse toResponse(PlayerCharacter c) {
+        return CharacterResponse.builder()
+                .id(c.getId())
+                .userId(c.getUser().getId())
+                .ownerDisplayName(c.getUser().getDisplayName())
+                .campaignId(c.getCampaign() != null ? c.getCampaign().getId() : null)
+                .name(c.getName())
+                .race(c.getRace())
+                .characterClass(c.getCharacterClass())
+                .subclass(c.getSubclass())
+                .level(c.getLevel())
+                .experiencePoints(c.getExperiencePoints())
+                .background(c.getBackground())
+                .alignment(c.getAlignment())
+                .strength(c.getStrength())
+                .dexterity(c.getDexterity())
+                .constitution(c.getConstitution())
+                .intelligence(c.getIntelligence())
+                .wisdom(c.getWisdom())
+                .charisma(c.getCharisma())
+                .hpMax(c.getHpMax())
+                .hpCurrent(c.getHpCurrent())
+                .hpTemp(c.getHpTemp())
+                .hitDiceTotal(c.getHitDiceTotal())
+                .hitDiceRemaining(c.getHitDiceRemaining())
+                .armourClass(c.getArmourClass())
+                .initiativeBonus(c.getInitiativeBonus())
+                .speed(c.getSpeed())
+                .proficiencyBonus(c.getProficiencyBonus())
+                .savingThrowProficiencies(c.getSavingThrowProficiencies())
+                .skillProficiencies(c.getSkillProficiencies())
+                .skillExpertises(c.getSkillExpertises())
+                .damageResistances(c.getDamageResistances())
+                .damageImmunities(c.getDamageImmunities())
+                .conditionImmunities(c.getConditionImmunities())
+                .features(c.getFeatures())
+                .spellsKnown(c.getSpellsKnown())
+                .spellSlots(c.getSpellSlots())
+                .spellSaveDc(c.getSpellSaveDc())
+                .spellAttackBonus(c.getSpellAttackBonus())
+                .spellcastingAbility(c.getSpellcastingAbility())
+                .equipment(c.getEquipment())
+                .currency(c.getCurrency())
+                .personalityTraits(c.getPersonalityTraits())
+                .ideals(c.getIdeals())
+                .bonds(c.getBonds())
+                .flaws(c.getFlaws())
+                .notes(c.getNotes())
+                .deathSaveSuccesses(c.getDeathSaveSuccesses())
+                .deathSaveFailures(c.getDeathSaveFailures())
+                .portraitUrl(c.getPortraitUrl())
+                .isActive(c.getIsActive())
+                .createdAt(c.getCreatedAt())
+                .updatedAt(c.getUpdatedAt())
+                .build();
+    }
+}

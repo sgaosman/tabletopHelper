@@ -1,0 +1,105 @@
+# Feature Roadmap
+
+## Milestone Status
+
+| # | Milestone | Status | Notes |
+|---|-----------|--------|-------|
+| 1 | Project Setup & Authentication | Complete | Auth, JWT, login/register UI |
+| 2 | Campaign Management & Character Sheets | Complete | Campaigns, invite codes, character CRUD |
+| 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
+| 4 | Encounter Builder & WebSocket Setup | Not started | |
+| 5 | Combat Engine | Not started | Core feature |
+| 6 | Polish, Mobile & Deployment | Not started | |
+
+## Milestone 3: 5e.tools Data Import & Reference Browsing
+
+**Goal:** The full bestiary, spells, conditions, and items from all 2014-era D&D 5e sourcebooks are browsable.
+
+**Backend tasks:**
+- [x] Create Monster, Spell, Condition, Item entities and repositories
+- [x] Download 2014 5e.tools data (from `5etools-mirror-2` GitHub repo, 2014 branch)
+- [x] Verify data is 2014 edition only (no `XPHB`, `XMM`, `XDMG` source codes)
+- [x] Create `FiveEToolsMarkupParser` utility (converts `{@atk mw}`, `{@hit 5}`, etc. to clean text)
+- [x] Create `DataSeeder` CommandLineRunner with per-entity-type seeders
+- [x] Handle 5e.tools JSON format quirks (`ac` as int or array, `cr` as string or object, type codes with `|SOURCE` suffix, nested `choose` type patterns, `innate` spell collections)
+- [x] Create paginated, searchable, filterable endpoints for monsters, spells, items, conditions
+- [x] Quick reference endpoint serving `bookref-quick.json` data
+
+**Frontend tasks:**
+- [x] BestiaryPage — searchable list with filters for name, type, CR, source; full source names; clear filters button
+- [x] SpellsPage — searchable list with filters for name, level, school, class/subclass, concentration, ritual, source; full source names; clear filters button
+- [x] ConditionsPage — full-width accordion with bold-highlighted key terms, exhaustion level table
+- [x] ItemsPage — searchable list with filters for name, type, rarity, source; full source names; clear filters button
+- [x] MonsterStatBlock, SpellCard, ItemCard components
+- [x] QuickReferencePage — 5 chapters (Character Creation, Equipment, Playing the Game, Combat, Movement) with left sidebar index, accordion sections, table/list/inset rendering, 5e.tools markup parsing
+- [x] Sticky navigation bars on all pages
+- [x] Source abbreviation-to-full-name mapping (130+ sources)
+
+## Milestone 4: Encounter Builder & WebSocket Setup
+
+**Goal:** DM can create encounters, add monsters and PCs, and WebSocket connections work.
+
+**Tasks:**
+- [ ] Encounter and EncounterParticipant entities
+- [ ] EncounterService and EncounterController
+- [ ] WebSocketConfig with STOMP endpoints and SockJS fallback
+- [ ] WebSocket authentication via ChannelInterceptor (JWT on CONNECT)
+- [ ] EncounterBuilderPage — select campaign, create encounter, add monsters/PCs
+- [ ] useWebSocket hook — STOMP connection lifecycle, subscriptions, reconnection
+- [ ] EncounterContext — live encounter state from WebSocket messages
+- [ ] Basic EncounterSessionPage (DM and Player views)
+
+## Milestone 5: Combat Engine
+
+**Goal:** Full real-time combat with all core D&D 5e mechanics.
+
+**Tasks:**
+- [ ] CombatService — processAttack, processSpellCast, processHeal, applyDamage, applyCondition, removeCondition, processDeathSave, advanceTurn, checkConcentration
+- [ ] CombatWebSocketController with @MessageMapping handlers
+- [ ] DiceRoller utility (server-side randomness)
+- [ ] Attack flow — roll → compare AC → apply damage → broadcast
+- [ ] Spell flow — save-based and attack-based, spell slot deduction, concentration
+- [ ] Healing flow
+- [ ] Condition application/removal with duration tracking
+- [ ] Death saving throws
+- [ ] Concentration checks on damage
+- [ ] Temporary HP (damage reduces temp first, doesn't stack)
+- [ ] Turn management (advance/back, start-of-turn effects)
+- [ ] CombatLog entity — human-readable action log
+- [ ] Frontend: ActionPanel, InitiativeTracker, ParticipantPanel, CombatLog, HpBar, ConditionBadges, DiceRoller
+- [ ] Permission enforcement — players control own characters only, DM controls monsters + overrides
+
+## Milestone 6: Polish, Mobile & Deployment
+
+**Tasks:**
+- [ ] Mobile-responsive encounter screens
+- [ ] Error handling — toast notifications, WebSocket disconnect/reconnect
+- [ ] Loading states for all async operations
+- [ ] Dockerfiles (backend + frontend)
+- [ ] docker-compose.prod.yml
+- [ ] Nginx configuration (reverse proxy + SSL)
+- [ ] Deploy to Hetzner VPS or Railway
+- [ ] End-to-end testing with real devices
+
+## Future Features (Post Month 1)
+
+These are documented for future reference and explicitly **not in scope** for the initial build.
+
+- Homebrew monster creator with CR calculator
+- Homebrew item creator
+- Loot generator (random tables from DMG)
+- Campaign notes (markdown editor, Obsidian-style linking)
+- Filtered bestiary for players (DM assigns creature knowledge per player)
+- Character import (D&D Beyond JSON export, etc.)
+- Companion/minion management in encounters (familiars, summoned creatures)
+- Non-combat encounter support (skill challenges, social encounters)
+- Multi-system support (Pathfinder 2e, Lancer, Shadowrun rule modules)
+- Map/grid integration (simple grid overlay for tactical movement)
+- Ambient sound/music integration
+- Dice rolling animations (3D dice)
+- Session history (view past encounters and combat logs)
+
+## Planned UX Improvements
+
+- **Character creation constraints** — Replace free-text inputs with dropdowns for race, class, subclass (populated from seeded 5e data). Offer point buy, standard array, and 4d6-drop-lowest for ability scores. Auto-calculate derived stats like proficiency bonus from level. See [[risk-register#R003]] for details.
+- **Graceful stale token handling** — Improve the Axios 403 interceptor to detect "token present but rejected" and redirect to login instead of showing a generic error. Extremely low priority — only affects dev restarts or sessions idle for 7+ days. See [[risk-register#R005]].
