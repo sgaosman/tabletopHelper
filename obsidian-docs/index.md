@@ -1,6 +1,6 @@
-# QuestKeeper — Internal Documentation
+# TabletopHelper — Internal Documentation
 
-This is the internal documentation hub for QuestKeeper. It's written in Markdown and structured for use with Obsidian, but readable anywhere.
+This is the internal documentation hub for TabletopHelper. It's written in Markdown and structured for use with Obsidian, but readable anywhere.
 
 ## Contents
 

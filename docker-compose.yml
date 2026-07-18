@@ -1,16 +1,16 @@
 services:
   db:
     image: postgres:16
-    container_name: questkeeper-db
+    container_name: tabletophelper-db
     environment:
-      POSTGRES_DB: questkeeper
-      POSTGRES_USER: questkeeper
-      POSTGRES_PASSWORD: questkeeper
+      POSTGRES_DB: tabletophelper
+      POSTGRES_USER: tabletophelper
+      POSTGRES_PASSWORD: tabletophelper
     ports:
       - "5432:5432"
     volumes:
-      - questkeeper-data:/var/lib/postgresql/data
+      - tabletophelper-data:/var/lib/postgresql/data
     restart: unless-stopped
 
 volumes:
-  questkeeper-data:
+  tabletophelper-data:

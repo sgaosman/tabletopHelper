@@ -12,4 +12,4 @@ spring:
 
 logging:
   level:
-    com.questkeeper: INFO
+    com.tabletophelper: INFO

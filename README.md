@@ -1,10 +1,10 @@
-# QuestKeeper
+# TabletopHelper
 
-A web application for running tabletop RPG sessions, starting with D&D 5th Edition (2014). QuestKeeper combines a comprehensive rules reference database, player character tracking, and a real-time encounter engine into a single tool designed for one DM and up to 8 players.
+A web application for running tabletop RPG sessions, starting with D&D 5th Edition (2014). TabletopHelper combines a comprehensive rules reference database, player character tracking, and a real-time encounter engine into a single tool designed for one DM and up to 8 players.
 
 ## What It Does
 
-QuestKeeper replaces the scattered collection of PDFs, paper notes, and browser tabs that most D&D groups use to run combat. The DM and players connect to a shared encounter session where initiative, HP, conditions, attacks, spells, and death saves are all tracked in real time across every device at the table.
+TabletopHelper replaces the scattered collection of PDFs, paper notes, and browser tabs that most D&D groups use to run combat. The DM and players connect to a shared encounter session where initiative, HP, conditions, attacks, spells, and death saves are all tracked in real time across every device at the table.
 
 ### Features Available Now
 

@@ -86,18 +86,18 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: questkeeper
+      POSTGRES_DB: tabletophelper
       POSTGRES_USER: ${DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
-      - questkeeper-data:/var/lib/postgresql/data
+      - tabletophelper-data:/var/lib/postgresql/data
     restart: unless-stopped
 
   backend:
     build: ./backend
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DATABASE_URL: jdbc:postgresql://db:5432/questkeeper
+      DATABASE_URL: jdbc:postgresql://db:5432/tabletophelper
       DATABASE_USERNAME: ${DATABASE_USERNAME}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
@@ -115,7 +115,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  questkeeper-data:
+  tabletophelper-data:
 ```
 
 ## SSL Setup (Let's Encrypt)
@@ -171,11 +171,11 @@ server {
 
 ```bash
 # Manual database backup
-docker exec questkeeper-db pg_dump -U questkeeper questkeeper > backup_$(date +%Y%m%d).sql
+docker exec tabletophelper-db pg_dump -U tabletophelper tabletophelper > backup_$(date +%Y%m%d).sql
 
 # Restore from backup
-cat backup_20260717.sql | docker exec -i questkeeper-db psql -U questkeeper questkeeper
+cat backup_20260717.sql | docker exec -i tabletophelper-db psql -U tabletophelper tabletophelper
 
 # Automated daily backup (add to crontab)
-0 3 * * * docker exec questkeeper-db pg_dump -U questkeeper questkeeper | gzip > /backups/questkeeper_$(date +\%Y\%m\%d).sql.gz
+0 3 * * * docker exec tabletophelper-db pg_dump -U tabletophelper tabletophelper | gzip > /backups/tabletophelper_$(date +\%Y\%m\%d).sql.gz
 ```

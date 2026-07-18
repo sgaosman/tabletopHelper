@@ -1,7 +1,7 @@
 # Race Trait Analysis - D&D 5e
 
 Comprehensive analysis of all racial traits from the 5e.tools dataset,
-categorised for combat automation in QuestKeeper VTT.
+categorised for combat automation in TabletopHelper VTT.
 
 Total race entries analysed: **134** (including reprints across sources)
 Total traits catalogued: **749**
