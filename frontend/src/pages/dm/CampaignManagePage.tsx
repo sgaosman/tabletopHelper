@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Copy, Users, Check } from 'lucide-react';
 import { campaignApi } from '../../api/campaignApi';

@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { encounterApi } from '../../api/encounterApi';
 import { ArrowLeft, Swords } from 'lucide-react';
