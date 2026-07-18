@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/questkeeper
-    username: questkeeper
-    password: questkeeper
+    url: jdbc:postgresql://localhost:5432/tabletophelper
+    username: tabletophelper
+    password: tabletophelper
     driver-class-name: org.postgresql.Driver
 
   jpa:
