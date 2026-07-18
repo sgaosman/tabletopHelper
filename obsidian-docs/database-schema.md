@@ -307,6 +307,7 @@ Append-only log of every combat action in an encounter. One row per action.
 | roll_total | INTEGER | | Roll + modifiers |
 | damage_dealt | INTEGER | | Actual damage applied |
 | healing_done | INTEGER | | Actual healing applied |
+| turn_participant_name | VARCHAR(200) | | Display name of the participant whose turn it was when the action occurred |
 | created_at | TIMESTAMPTZ | | |
 
 ## Querying the Database Directly

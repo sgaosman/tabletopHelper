@@ -3,9 +3,9 @@ import type { Encounter } from '../types/encounter';
 import type { CombatLogEntry } from '../types/combat';
 
 export const combatApi = {
-  rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, actorId?: string) {
+  rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, forceCrit?: boolean, actorId?: string) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/attack`,
-      { targetId, attackBonus, damageDice, damageType, advantage: advantage ?? undefined },
+      { targetId, attackBonus, damageDice, damageType, advantage: advantage ?? undefined, forceCrit: forceCrit || undefined },
       { params: actorId ? { actorId } : undefined },
     );
   },

@@ -11,5 +11,6 @@ export interface CombatLogEntry {
   rollTotal?: number;
   damageDealt?: number;
   healingDone?: number;
+  turnParticipantName?: string;
   createdAt: string;
 }

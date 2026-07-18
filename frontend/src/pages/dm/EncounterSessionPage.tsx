@@ -167,11 +167,24 @@ function ActionPanel({
   const [damageType, setDamageType] = useState('');
   const [condition, setCondition] = useState('');
   const [spellName, setSpellName] = useState('');
-  const [attackBonus, setAttackBonus] = useState('');
-  const [damageDice, setDamageDice] = useState('');
-  const [advantage, setAdvantage] = useState<boolean | null>(null);
+  const [attacks, setAttacks] = useState([{ attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false }]);
   const [conditionDuration, setConditionDuration] = useState('');
   const [loading, setLoading] = useState(false);
+
+  function updateAttack(index: number, field: string, value: string | boolean | null) {
+    setAttacks(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
+  }
+
+  function addAttackRow() {
+    if (attacks.length >= 5) return;
+    const last = attacks[attacks.length - 1];
+    setAttacks(prev => [...prev, { attackBonus: last.attackBonus, damageDice: last.damageDice, damageType: last.damageType, advantage: last.advantage, forceCrit: last.forceCrit }]);
+  }
+
+  function removeAttackRow(index: number) {
+    if (attacks.length <= 1) return;
+    setAttacks(prev => prev.filter((_, i) => i !== index));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -179,8 +192,12 @@ function ActionPanel({
     setLoading(true);
 
     try {
-      if (actionMode === 'attack' && attackBonus !== '' && damageDice) {
-        await combatApi.rollAttack(encounterId, selectedTarget.id, parseInt(attackBonus), damageDice, damageType || undefined, advantage);
+      if (actionMode === 'attack') {
+        for (const atk of attacks) {
+          if (atk.attackBonus !== '' && atk.damageDice) {
+            await combatApi.rollAttack(encounterId, selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined);
+          }
+        }
       } else if (actionMode === 'damage' && amount) {
         await combatApi.applyDamage(encounterId, selectedTarget.id, parseInt(amount), damageType || undefined);
       } else if (actionMode === 'heal' && amount) {
@@ -195,9 +212,7 @@ function ActionPanel({
       setDamageType('');
       setCondition('');
       setSpellName('');
-      setAttackBonus('');
-      setDamageDice('');
-      setAdvantage(null);
+      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false }]);
       setConditionDuration('');
     } finally {
       setLoading(false);
@@ -221,145 +236,183 @@ function ActionPanel({
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex items-end gap-3 flex-wrap">
+      <form onSubmit={handleSubmit}>
         {actionMode === 'attack' && (
-          <>
-            <div className="w-24">
-              <label className="block text-xs text-gray-400 mb-1">Attack +</label>
-              <input
-                type="number"
-                value={attackBonus}
-                onChange={e => setAttackBonus(e.target.value)}
-                placeholder="+5"
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                autoFocus
-              />
+          <div className="flex gap-3">
+            <div className="flex-1 space-y-2">
+              {attacks.map((atk, i) => (
+                <div key={i} className="flex items-end gap-2">
+                  <div className="w-20">
+                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Attack +</label>}
+                    <input
+                      type="number"
+                      value={atk.attackBonus}
+                      onChange={e => updateAttack(i, 'attackBonus', e.target.value)}
+                      placeholder="+5"
+                      className="w-full px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      autoFocus={i === 0}
+                    />
+                  </div>
+                  <div className="w-24">
+                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Damage</label>}
+                    <input
+                      type="text"
+                      value={atk.damageDice}
+                      onChange={e => updateAttack(i, 'damageDice', e.target.value)}
+                      placeholder="1d8+3"
+                      className="w-full px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="w-28">
+                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Type</label>}
+                    <select
+                      value={atk.damageType}
+                      onChange={e => updateAttack(i, 'damageType', e.target.value)}
+                      className="w-full px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">—</option>
+                      {DAMAGE_TYPES.map(dt => (
+                        <option key={dt} value={dt}>{dt}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Roll</label>}
+                    <div className="flex gap-1">
+                      <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === false ? null : false)}
+                        className={`px-2 py-2 rounded text-xs font-medium ${atk.advantage === false ? 'bg-red-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                        Dis
+                      </button>
+                      <button type="button" onClick={() => updateAttack(i, 'advantage', null)}
+                        className={`px-2 py-2 rounded text-xs font-medium ${atk.advantage === null ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                        Norm
+                      </button>
+                      <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === true ? null : true)}
+                        className={`px-2 py-2 rounded text-xs font-medium ${atk.advantage === true ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                        Adv
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">&nbsp;</label>}
+                    <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
+                      className={`px-2 py-2 rounded text-xs font-medium ${atk.forceCrit ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                      Crit
+                    </button>
+                  </div>
+                  {attacks.length > 1 && (
+                    <button type="button" onClick={() => removeAttackRow(i)}
+                      className="p-2 text-gray-500 hover:text-red-400">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {attacks.length < 5 && (
+                <button type="button" onClick={addAttackRow}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-400 py-1">
+                  <Plus className="w-3 h-3" /> Add attack
+                </button>
+              )}
             </div>
-            <div className="w-28">
-              <label className="block text-xs text-gray-400 mb-1">Damage Dice</label>
-              <input
-                type="text"
-                value={damageDice}
-                onChange={e => setDamageDice(e.target.value)}
-                placeholder="1d8+3"
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="w-32">
-              <label className="block text-xs text-gray-400 mb-1">Damage Type</label>
-              <select
-                value={damageType}
-                onChange={e => setDamageType(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white text-sm rounded-lg whitespace-nowrap"
               >
-                <option value="">—</option>
-                {DAMAGE_TYPES.map(dt => (
-                  <option key={dt} value={dt}>{dt}</option>
-                ))}
-              </select>
+                {loading ? '...' : `Roll ${attacks.length > 1 ? `${attacks.length} ` : ''}Attack${attacks.length > 1 ? 's' : ''}`}
+              </button>
             </div>
-            <div className="w-36">
-              <label className="block text-xs text-gray-400 mb-1">Roll Type</label>
-              <div className="flex gap-1">
-                <button type="button" onClick={() => setAdvantage(advantage === false ? null : false)}
-                  className={`px-2 py-2 rounded text-xs font-medium ${advantage === false ? 'bg-red-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
-                  Disadv
-                </button>
-                <button type="button" onClick={() => setAdvantage(null)}
-                  className={`px-2 py-2 rounded text-xs font-medium ${advantage === null ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
-                  Normal
-                </button>
-                <button type="button" onClick={() => setAdvantage(advantage === true ? null : true)}
-                  className={`px-2 py-2 rounded text-xs font-medium ${advantage === true ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
-                  Adv
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {(actionMode === 'damage' || actionMode === 'heal') && (
-          <>
-            <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Amount</label>
-              <input
-                type="number"
-                min="0"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                autoFocus
-              />
-            </div>
-            {actionMode === 'damage' && (
-              <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">Type</label>
-                <select
-                  value={damageType}
-                  onChange={e => setDamageType(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">—</option>
-                  {DAMAGE_TYPES.map(dt => (
-                    <option key={dt} value={dt}>{dt}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </>
-        )}
-
-        {actionMode === 'condition' && (
-          <>
-            <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Condition</label>
-              <select
-                value={condition}
-                onChange={e => setCondition(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                autoFocus
-              >
-                <option value="">Select condition...</option>
-                {ALL_CONDITIONS.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div className="w-28">
-              <label className="block text-xs text-gray-400 mb-1">Duration (rounds)</label>
-              <input
-                type="number"
-                min="1"
-                value={conditionDuration}
-                onChange={e => setConditionDuration(e.target.value)}
-                placeholder="∞"
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </>
-        )}
-
-        {actionMode === 'concentration' && (
-          <div className="flex-1">
-            <label className="block text-xs text-gray-400 mb-1">Spell Name (blank to clear)</label>
-            <input
-              type="text"
-              value={spellName}
-              onChange={e => setSpellName(e.target.value)}
-              placeholder="e.g. Bless, Hold Person"
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              autoFocus
-            />
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white text-sm rounded-lg"
-        >
-          {loading ? '...' : 'Apply'}
-        </button>
+        {actionMode !== 'attack' && (
+          <div className="flex items-end gap-3">
+            {(actionMode === 'damage' || actionMode === 'heal') && (
+              <>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-400 mb-1">Amount</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                  />
+                </div>
+                {actionMode === 'damage' && (
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-400 mb-1">Type</label>
+                    <select
+                      value={damageType}
+                      onChange={e => setDamageType(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">—</option>
+                      {DAMAGE_TYPES.map(dt => (
+                        <option key={dt} value={dt}>{dt}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+
+            {actionMode === 'condition' && (
+              <>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-400 mb-1">Condition</label>
+                  <select
+                    value={condition}
+                    onChange={e => setCondition(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                  >
+                    <option value="">Select condition...</option>
+                    {ALL_CONDITIONS.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-28">
+                  <label className="block text-xs text-gray-400 mb-1">Duration (rounds)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={conditionDuration}
+                    onChange={e => setConditionDuration(e.target.value)}
+                    placeholder="∞"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </>
+            )}
+
+            {actionMode === 'concentration' && (
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">Spell Name (blank to clear)</label>
+                <input
+                  type="text"
+                  value={spellName}
+                  onChange={e => setSpellName(e.target.value)}
+                  placeholder="e.g. Bless, Hold Person"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white text-sm rounded-lg"
+            >
+              {loading ? '...' : 'Apply'}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -369,6 +422,9 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
   const [logs, setLogs] = useState<CombatLogEntry[]>([]);
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newCount, setNewCount] = useState(0);
+  const prevLogCount = useRef(0);
 
   useEffect(() => {
     combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
@@ -378,11 +434,38 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
     return () => clearInterval(interval);
   }, [encounterId]);
 
+  const isAtBottomRef = useRef(true);
+  useEffect(() => { isAtBottomRef.current = isAtBottom; }, [isAtBottom]);
+
   useEffect(() => {
+    const added = logs.length - prevLogCount.current;
+    if (prevLogCount.current === 0 && logs.length > 0) {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    } else if (added > 0) {
+      if (isAtBottomRef.current && scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      } else {
+        setNewCount(prev => prev + added);
+      }
+    }
+    prevLogCount.current = logs.length;
+  }, [logs]);
+
+  function handleScroll() {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 30;
+    setIsAtBottom(atBottom);
+    if (atBottom) setNewCount(0);
+  }
+
+  function scrollToBottom() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      setIsAtBottom(true);
+      setNewCount(0);
     }
-  }, [logs]);
+  }
 
   function getLogColor(actionType: string) {
     switch (actionType) {
@@ -416,16 +499,53 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
         <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`} />
       </button>
       {expanded && (
-        <div ref={scrollRef} className="max-h-64 overflow-y-auto border-t border-gray-800 px-4 py-2 space-y-1">
-          {logs.length === 0 ? (
-            <p className="text-gray-500 text-xs py-2">No actions yet</p>
-          ) : (
-            logs.map(log => (
-              <div key={log.id} className="flex items-start gap-2 text-xs">
-                <span className="text-gray-600 font-mono shrink-0">R{log.roundNumber}</span>
-                <span className={getLogColor(log.actionType)}>{log.description}</span>
-              </div>
-            ))
+        <div className="relative">
+          <div ref={scrollRef} onScroll={handleScroll} className="max-h-64 overflow-y-auto border-t border-gray-800 px-4 py-2 space-y-1">
+            {logs.length === 0 ? (
+              <p className="text-gray-500 text-xs py-2">No actions yet</p>
+            ) : (
+              logs.map((log, idx) => {
+                const prevLog = idx > 0 ? logs[idx - 1] : null;
+                const isTurnChange = log.actionType === 'TURN_ADVANCE' || log.actionType === 'TURN_BACK';
+                const showRoundHeader = !prevLog || prevLog.roundNumber !== log.roundNumber;
+                const turnName = isTurnChange ? log.targetName : log.turnParticipantName;
+                const prevTurnName = prevLog
+                  ? (prevLog.actionType === 'TURN_ADVANCE' || prevLog.actionType === 'TURN_BACK' ? prevLog.targetName : prevLog.turnParticipantName)
+                  : null;
+                const showTurnHeader = turnName && (
+                  !prevLog || prevTurnName !== turnName || showRoundHeader
+                );
+
+                return (
+                  <div key={log.id}>
+                    {showRoundHeader && (
+                      <div className="text-xs font-semibold text-indigo-400 border-b border-gray-800 pb-1 pt-2 mb-1">
+                        Round {log.roundNumber}
+                      </div>
+                    )}
+                    {showTurnHeader && (
+                      <div className="text-xs text-gray-500 font-medium py-0.5 pl-2 border-l-2 border-gray-700 my-1">
+                        Turn: {turnName}
+                      </div>
+                    )}
+                    {!isTurnChange && (
+                      <div className="flex items-start gap-2 text-xs pl-2">
+                        <span className={getLogColor(log.actionType)}>{log.description}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          {!isAtBottom && newCount > 0 && (
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-full shadow-lg"
+            >
+              <ChevronLeft className="w-3 h-3 rotate-[-90deg]" />
+              Scroll to bottom ({newCount} new message{newCount !== 1 ? 's' : ''})
+            </button>
           )}
         </div>
       )}
@@ -491,6 +611,11 @@ function DmSessionView() {
   function selectTarget(participantId: string, mode: ActionMode) {
     setSelectedTargetId(participantId);
     setActionMode(mode);
+    if (mode === 'attack') {
+      const target = encounter.participants.find(p => p.id === participantId);
+      const isDowned = target && !target.isAlive && target.participantType === 'PLAYER';
+      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: isDowned ? true : null, forceCrit: false }]);
+    }
   }
 
   function parseConditions(p: EncounterParticipant): ConditionEntry[] {
@@ -679,15 +804,17 @@ function DmSessionView() {
                   </div>
 
                   {/* Quick action buttons */}
-                  {(isActive || encounter.status === 'PAUSED') && p.isAlive && (
+                  {(isActive || encounter.status === 'PAUSED') && (
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                      <button
-                        onClick={() => selectTarget(p.id, 'attack')}
-                        className="p-1.5 bg-orange-900/30 hover:bg-orange-900/60 text-orange-400 rounded"
-                        title="Attack roll"
-                      >
-                        <Crosshair className="w-3.5 h-3.5" />
-                      </button>
+                      {(p.isAlive || (p.participantType === 'PLAYER' && p.deathSaveFailures < 3)) && (
+                        <button
+                          onClick={() => selectTarget(p.id, 'attack')}
+                          className="p-1.5 bg-orange-900/30 hover:bg-orange-900/60 text-orange-400 rounded"
+                          title="Attack roll"
+                        >
+                          <Crosshair className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => selectTarget(p.id, 'damage')}
                         className="p-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded"
@@ -695,13 +822,15 @@ function DmSessionView() {
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        onClick={() => selectTarget(p.id, 'heal')}
-                        className="p-1.5 bg-green-900/30 hover:bg-green-900/60 text-green-400 rounded"
-                        title="Heal"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
+                      {(p.isAlive || p.participantType === 'PLAYER') && (
+                        <button
+                          onClick={() => selectTarget(p.id, 'heal')}
+                          className="p-1.5 bg-green-900/30 hover:bg-green-900/60 text-green-400 rounded"
+                          title={!p.isAlive && p.deathSaveFailures >= 3 ? "Resurrect" : "Heal"}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => selectTarget(p.id, 'condition')}
                         className="p-1.5 bg-yellow-900/30 hover:bg-yellow-900/60 text-yellow-400 rounded"
@@ -709,13 +838,15 @@ function DmSessionView() {
                       >
                         <Zap className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        onClick={() => selectTarget(p.id, 'concentration')}
-                        className="p-1.5 bg-purple-900/30 hover:bg-purple-900/60 text-purple-400 rounded"
-                        title="Set concentration"
-                      >
-                        <Swords className="w-3.5 h-3.5" />
-                      </button>
+                      {p.isAlive && (
+                        <button
+                          onClick={() => selectTarget(p.id, 'concentration')}
+                          className="p-1.5 bg-purple-900/30 hover:bg-purple-900/60 text-purple-400 rounded"
+                          title="Set concentration"
+                        >
+                          <Swords className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

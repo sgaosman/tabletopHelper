@@ -113,6 +113,13 @@
 - [x] Spell slot tracking and deduction (copied from character on encounter join, use/restore endpoints, bubble UI)
 - [x] Condition duration tracking (auto-removal after N rounds at start of creature's turn)
 - [x] Start-of-turn effects (condition expiry check integrated into advanceTurn)
+- [x] Multi-attack UI (up to 5 attack rows per action, "+" to add, copies previous row values, "Roll N Attacks" button)
+- [x] Force crit toggle on attack rolls (for melee attacks against unconscious targets within 5ft)
+- [x] Unconscious combat rules: auto-hit downed PCs, damage causes death save failures (1 normal, 2 on crit), massive damage instant kill
+- [x] Concentration auto-drops on 0 HP (fixed ordering bug where isAlive was set before the check)
+- [x] Resurrection: dead PCs (3 failed saves) can be healed back, auto-applies Prone, clears Unconscious
+- [x] Combat log improvements: turn participant tracking per entry, round/turn section headers, smart scroll with "new messages" indicator
+- [x] Damage and condition buttons available for downed PCs
 
 ## Milestone 6: Polish, Mobile & Deployment
 
