@@ -319,7 +319,8 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | source | VARCHAR(100) | |
 | character_class_id | UUID | FK → character_classes, NOT NULL |
 | features | JSONB | `@JsonRawValue` — [{level, name, description}] |
-| always_prepared_spells | JSONB | `@JsonRawValue` — {level: [spellName]} |
+| always_prepared_spells | JSONB | `@JsonRawValue` — {level: [spellName]} — spells auto-prepared at class level |
+| expanded_spell_list | JSONB | `@JsonRawValue` — {sN: [spellName]} — spells added to class list for selection |
 | additional_proficiencies | JSONB | `@JsonRawValue` |
 | created_at | TIMESTAMPTZ | |
 
