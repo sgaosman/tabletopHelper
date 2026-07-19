@@ -248,6 +248,10 @@ public class PlayerCharacter {
     @Column(name = "hit_dice_map", columnDefinition = "jsonb")
     private String hitDiceMap;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "level_history", columnDefinition = "jsonb")
+    private String levelHistory;
+
     @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;

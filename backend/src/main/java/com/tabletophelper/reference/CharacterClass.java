@@ -97,6 +97,16 @@ public class CharacterClass {
     @Column(name = "subclass_level")
     private Integer subclassLevel;
 
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "multiclass_requirements", columnDefinition = "jsonb")
+    private String multiclassRequirements;
+
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "multiclass_proficiencies", columnDefinition = "jsonb")
+    private String multiclassProficiencies;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

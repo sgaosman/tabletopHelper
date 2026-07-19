@@ -1,8 +1,6 @@
 package com.tabletophelper.character;
 
-import com.tabletophelper.character.dto.CharacterCreateRequest;
-import com.tabletophelper.character.dto.CharacterResponse;
-import com.tabletophelper.character.dto.CharacterUpdateRequest;
+import com.tabletophelper.character.dto.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -55,6 +53,40 @@ public class CharacterController {
     @GetMapping("/{characterId}")
     public ResponseEntity<CharacterResponse> getCharacter(@PathVariable UUID characterId) {
         return ResponseEntity.ok(characterService.getCharacter(characterId));
+    }
+
+    @PostMapping("/{characterId}/level-up")
+    public ResponseEntity<LevelUpResponse> levelUp(
+            @PathVariable UUID characterId,
+            @RequestBody(required = false) LevelUpRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(characterService.levelUp(characterId, request, userId));
+    }
+
+    @PostMapping("/{characterId}/level-down")
+    public ResponseEntity<CharacterResponse> levelDown(
+            @PathVariable UUID characterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(characterService.levelDown(characterId, userId));
+    }
+
+    @PostMapping("/{characterId}/apply-choices")
+    public ResponseEntity<CharacterResponse> applyChoices(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody ApplyChoicesRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(characterService.applyChoices(characterId, request, userId));
+    }
+
+    @GetMapping("/{characterId}/eligible-classes")
+    public ResponseEntity<List<EligibleClassResponse>> getEligibleClasses(
+            @PathVariable UUID characterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(characterService.getEligibleClasses(characterId, userId));
     }
 
     @DeleteMapping("/{characterId}")

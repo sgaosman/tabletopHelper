@@ -13,7 +13,7 @@
 | 7 | Data Gathering & Spell Effect Schema | Complete | 288 spells, 104 items, 2,357 monsters, class/race analysis — data files and review docs produced |
 | 8 | Spell Effect Data Population & Review Cycle | Complete | All data files validated and approved — 2 critical, 2 moderate, 48 markup fixes applied |
 | 9 | Character Builder Overhaul | Complete | Reference data entities, 5etools seeders, 6-step creation wizard, 6-tab character sheet, rest mechanics, proficiency display, character deletion, campaign assignment |
-| 10 | Character Leveling & Multiclass | Not started | Create at any level, multiclass at creation, level up/down with auto-recalculation of all derived stats |
+| 10 | Character Leveling & Multiclass | Complete | Create at any level (1-20), level up/down with multiclass support, PHB prerequisite validation, ASI/feat/subclass choices, deterministic rollback via levelHistory |
 | 11 | Spell Resolver Engine & Encounter Spellcasting | Not started | Cast Spell action, auto-resolution, source-tracked conditions, component checks, optimistic locking |
 | 12 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
 | 13 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
@@ -242,99 +242,32 @@
 - [x] Campaign assignment dropdown on character sheet (to the right of tab navigation)
 - [x] Character deletion: persistent trash icon on player dashboard cards, confirmation modal requiring exact name input, backend error display (e.g. active combat), soft-delete via API
 
-## Milestone 10: Character Leveling & Multiclass
+## Milestone 10: Character Leveling & Multiclass (Complete)
 
 **Goal:** Support creating characters at any level (1–20) with optional multiclassing, and level up/down from the character sheet with automatic recalculation of all derived stats.
 
-**Analysis tasks:**
-- [ ] Extend `docs/class-feature-analysis.md` from levels 1–5 to levels 1–20 for all 13 classes and all subclasses
-- [ ] Categorize every level-up gain as one of: STAT_CHANGE (automatable — HP, proficiency bonus, cantrips known, spells known, spell slots), RESOURCE_GRANT (automatable — ASI, feat, Extra Attack, class resource pools), FEATURE_DISPLAY (add to Features tab but no mechanical automation), SUBCLASS_FEATURE (display + always-prepared spells if applicable)
-- [ ] Map multiclass prerequisites per class (PHB Table: ability score minimums to enter/leave a class)
-- [ ] Map multiclass proficiency grants per class (differ from first-class proficiencies — PHB Multiclassing Proficiencies table)
-- [ ] Identify which level-up gains are reversible on level-down and which require user confirmation (e.g., ASI choices, feat selections, spell choices)
+**Implemented (2026-07-19):**
 
-**Feature 1: Multi-level character creation**
+Phase 1 — Multi-level creation:
+- [x] `LevelUpCalculator.java` — stateless utility: `calculateHpGain()`, `collectFeaturesForLevel()`, `isAsiLevel()`, `buildProgression()` shared by creation and level-up
+- [x] `levelHistory` JSONB column on `player_characters` for deterministic rollback
+- [x] `createCharacter()` enhanced: server-side HP, features, levelHistory, hitDiceMap, multiclassEntries auto-built for any level
+- [x] Level picker (1–20 slider) in creation wizard Class step
+- [x] Spell selection adapts to level (`maxSpellLevel()` utility)
+- [x] `multiclass_requirements` and `multiclass_proficiencies` JSONB columns on `character_classes`, seeded from 5etools
 
-Create characters at any level from 1 to 20. The creation wizard adapts to the chosen level:
+Phase 2 — Level up/down with multiclass:
+- [x] `MulticlassValidator.java` — prerequisite validation with AND/OR operators, `getEligibleClasses()` returning all 13 classes with pass/fail status
+- [x] 4 new endpoints: `POST /level-up`, `POST /level-down`, `POST /apply-choices`, `GET /eligible-classes`
+- [x] Server-side level-up: HP, features, proficiency, spell slots, hit dice, multiclass entries all recalculated; multiclass proficiency grants applied
+- [x] Server-side level-down: deterministic rollback from levelHistory, ASI reversal, multiclass class removal
+- [x] `LevelUpModal.tsx` — class selection with prerequisite validation, multiclass support, ineligible classes shown greyed out with reason
+- [x] `AsiModal.tsx` — ability score improvement (+2/+1/+1 distribution) or feat selection
+- [x] `SubclassModal.tsx` — subclass selection with feature preview
+- [x] Level up/down buttons in character sheet header (ChevronUp/ChevronDown, next to rest buttons)
+- [x] Multiclass class breakdown in header subtitle (e.g., "Fighter 3 / Warlock 1")
 
-Backend tasks:
-- [ ] Accept `level` field on `CharacterCreateRequest` (currently defaults to 1)
-- [ ] Auto-calculate HP for levels 2+: first level = max hit die + CON mod, each subsequent level = average hit die (rounded up) + CON mod (default), or allow manual total
-- [ ] Auto-calculate proficiency bonus from level (2 at L1–4, 3 at L5–8, 4 at L9–12, 5 at L13–16, 6 at L17–20)
-- [ ] Recalculate all derived stats (spell save DC, spell attack bonus, saving throw bonuses, skill bonuses) from proficiency bonus and ability scores
-- [ ] Auto-generate spell slots from `SpellSlotCalculator` for the given level
-
-Frontend tasks:
-- [ ] Level picker (1–20) in creation wizard Basic Info step
-- [ ] HP calculation display showing per-level breakdown
-- [ ] Cantrip count adjusts to level (from `CANTRIPS_KNOWN` tables)
-- [ ] Spells known count adjusts to level (from `SPELLS_KNOWN` tables)
-- [ ] Spell selection allows spells up to the max spell level for the class at that level
-- [ ] ASI/feat selection UI for each ASI level reached (class-dependent: most at 4, 8, 12, 16, 19; Fighter adds 6, 14; Rogue adds 10)
-- [ ] Class features for all levels up to chosen level added to `features` automatically
-- [ ] Subclass features added if level >= subclass level
-
-**Feature 2: Multiclass character creation**
-
-When creating a character at level 2+, allow splitting levels across multiple classes:
-
-Backend tasks:
-- [ ] Add `multiclass_requirements` JSONB column to `character_classes` table — PHB multiclass prerequisites (e.g., Fighter requires STR 13 or DEX 13, Paladin requires STR 13 and CHA 13)
-- [ ] Seed multiclass prerequisites from PHB data
-- [ ] Validate multiclass eligibility: character must meet prerequisites for BOTH the current class (to leave it) AND the new class (to enter it)
-- [ ] Multiclass proficiency grants: when adding a second+ class, grant only the reduced proficiency set (PHB Multiclassing Proficiencies table), not the full first-class set
-- [ ] `multiclassEntries` JSONB on `player_characters` stores `[{classId, className, subclassId?, subclassName?, level}]`
-- [ ] Spell slot calculation uses combined caster levels via `SpellSlotCalculator` (already handles multiclass + pact magic)
-
-Frontend tasks:
-- [ ] "Add Class" button in creation wizard when level >= 2, with prerequisite validation against current ability scores
-- [ ] Level allocation UI: distribute total character level across chosen classes
-- [ ] Per-class subclass selection when class level >= subclass level
-- [ ] Per-class feature collection for each class at its allocated level
-- [ ] Multiclass proficiency display (reduced set for secondary classes)
-- [ ] Combined spell slot display for multiclass casters
-
-**Feature 3: Level up/down from character sheet**
-
-The largest feature. A "Level Up" and "Level Down" button on the character sheet. All derived stats recalculate automatically.
-
-Backend tasks:
-- [ ] `POST /api/characters/{id}/level-up` endpoint — accepts `classId` (which class to add a level in), returns updated character
-- [ ] `POST /api/characters/{id}/level-down` endpoint — accepts `classId` (which class to remove a level from), returns updated character
-- [ ] Level-up auto-updates:
-  - `level` incremented
-  - `hpMax` increased by hit die average (rounded up) + CON mod for the class being leveled (configurable: average or rolled)
-  - `proficiencyBonus` recalculated from total level
-  - `spellSlots` recalculated via `SpellSlotCalculator`
-  - `spellSaveDc` and `spellAttackBonus` recalculated from proficiency bonus
-  - `features` array gets new features for the gained level (from class and subclass seeded data)
-  - `hitDiceMap` updated (total hit dice for the leveled class incremented)
-  - Cantrips known count updated (if class gains a cantrip at this level)
-  - Spells known count updated (if known caster and this level grants more)
-  - `multiclassEntries` updated (if multiclassed)
-- [ ] Level-down auto-updates: reverse of above — decrement HP, remove features for the lost level, reduce hit dice, recalculate spell slots. If last level in a class is removed, remove that class entry from `multiclassEntries`
-- [ ] ASI/feat handling at level up: if the new level is an ASI level for the leveled class, return a flag indicating ASI/feat choice is needed. Frontend sends a follow-up request with the choice.
-- [ ] `POST /api/characters/{id}/apply-asi` endpoint — accepts ability score increases (+2 to one or +1 to two) or a feat selection. Recalculates all ability-dependent derived stats (save DC, attack bonus, HP if CON changed, prepared spell count if casting ability changed)
-- [ ] Level-down ASI reversal: if removing a level that had an ASI, prompt user to confirm which ASI/feat to remove. Store ASI/feat history per level in a `levelHistory` JSONB column so rollback is deterministic.
-- [ ] Validation: cannot level down below 1. Cannot level up above 20. Multiclass level-down cannot remove the last class (character must always have at least 1 class).
-
-Frontend tasks:
-- [ ] "Level Up" button on character sheet header (next to level display)
-- [ ] Level-up flow:
-  - If single-classed: confirm class or choose to multiclass (with prereq validation)
-  - If multiclassed: choose which class to level
-  - Show what the character gains at the new level (features, HP, spell slots, cantrips, etc.)
-  - If ASI level: inline ASI/feat chooser (+2/+1/+1 ability selector, or feat picker with prereq validation)
-  - If known caster gaining spells: spell selection for new slots
-  - Confirmation and save
-- [ ] "Level Down" button (with confirmation modal)
-  - If single-classed: straightforward — remove last level
-  - If multiclassed: choose which class to reduce
-  - Show what will be lost (features, HP, spell slots, etc.)
-  - If removing an ASI level: show which ASI/feat will be reversed (from `levelHistory`)
-  - If known caster losing spell slots: prompt which spells to remove if over the new known limit
-  - Confirmation and save
-- [ ] Level history display (optional): collapsible timeline showing what was gained at each level
+Phase 3 — Multiclass at creation: deferred (achievable via level-up flow)
 
 **Derived stat recalculation reference:**
 

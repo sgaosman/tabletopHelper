@@ -29,3 +29,30 @@ export function getPreparedCount(className: string, level: number, abilityMod: n
   }
   return Math.max(1, abilityMod + level);
 }
+
+const FULL_CASTER_CLASSES = new Set(['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wizard']);
+const HALF_CASTER_CLASSES = new Set(['Paladin', 'Ranger']);
+const PACT_CASTER_CLASSES = new Set(['Warlock']);
+const ARTIFICER_CLASS = 'Artificer';
+
+export function maxSpellLevel(className: string, level: number): number {
+  if (FULL_CASTER_CLASSES.has(className)) {
+    return Math.min(9, Math.ceil(level / 2));
+  }
+  if (HALF_CASTER_CLASSES.has(className) || className === ARTIFICER_CLASS) {
+    if (level < 2) return 0;
+    return Math.min(5, Math.ceil(level / 4));
+  }
+  if (PACT_CASTER_CLASSES.has(className)) {
+    return Math.min(5, Math.ceil(level / 2));
+  }
+  return 0;
+}
+
+export function proficiencyBonusForLevel(level: number): number {
+  if (level <= 4) return 2;
+  if (level <= 8) return 3;
+  if (level <= 12) return 4;
+  if (level <= 16) return 5;
+  return 6;
+}

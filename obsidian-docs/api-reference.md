@@ -225,6 +225,93 @@ List all active characters assigned to a campaign. User must be a member of the 
 **Errors:**
 - `400` — Not a member of this campaign
 
+### POST /characters/{characterId}/level-up
+
+Level up a character. Supports multiclassing — if classId differs from the character's current class, prerequisite validation runs (must meet both exit prereqs for current class and entry prereqs for the new class, per PHB multiclass rules).
+
+**Request:**
+```json
+{
+  "classId": "uuid"
+}
+```
+
+`classId` is required — specifies which class to take the new level in.
+
+**Response (200):**
+```json
+{
+  "character": { /* full character object */ },
+  "pendingChoices": {
+    "asiAvailable": true,
+    "subclassRequired": false,
+    "newFeatures": ["Extra Attack"],
+    "maxSpellLevel": 0
+  }
+}
+```
+
+If `asiAvailable` is true, the client should prompt for ASI/feat choice via `/apply-choices`. If `subclassRequired` is true, the client should prompt for subclass selection.
+
+**Errors:**
+- `400` — Character at max level (20) / Multiclass prerequisites not met / Class not found
+
+### POST /characters/{characterId}/level-down
+
+Remove the most recent level. Reverses HP, features, ASI choices, hit dice, and multiclass entries from the last `levelHistory` entry. If the removed level was the only level in a secondary class, that class is removed from `multiclassEntries` entirely.
+
+**Response (200):** Full character object.
+
+**Errors:**
+- `400` — Character at minimum level (1)
+
+### POST /characters/{characterId}/apply-choices
+
+Apply pending choices after a level-up (ASI/feat selection, subclass selection).
+
+**Request:**
+```json
+{
+  "asi": {
+    "type": "ability",
+    "increases": [{"ability": "strength", "bonus": 2}]
+  },
+  "subclassId": "uuid"
+}
+```
+
+For `type: "feat"`, provide `featName` and optionally `featAbility` (for half-feats). Both `asi` and `subclassId` are optional — provide whichever choices are pending.
+
+**Response (200):** Full character object with updated ability scores / subclass.
+
+### GET /characters/{characterId}/eligible-classes
+
+List all 13 classes with their multiclass prerequisite status relative to the character's current ability scores. Used by the level-up UI to show which classes the character can multiclass into.
+
+**Response (200):**
+```json
+[
+  {
+    "classId": "uuid",
+    "className": "Fighter",
+    "currentClassLevel": 3,
+    "currentClass": true,
+    "meetsPrerequisites": true,
+    "prerequisiteDescription": "Current class"
+  },
+  {
+    "classId": "uuid",
+    "className": "Wizard",
+    "currentClassLevel": 0,
+    "currentClass": false,
+    "meetsPrerequisites": false,
+    "prerequisiteDescription": "INT 13 (you have 10 ✗)"
+  }
+]
+```
+
+Classes are sorted: current class(es) first, then eligible classes, then ineligible (sorted alphabetically within each group).
+
 ## Monsters
 
 ### GET /monsters

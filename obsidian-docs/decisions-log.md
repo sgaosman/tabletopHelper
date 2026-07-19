@@ -599,3 +599,36 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** When a non-caster like a Fighter takes a spell-granting feat (e.g., Magic Initiate via Astral Drifter background), the character's `spellcastingAbility` field gets set. The Spells tab previously used this field to create a fallback "class spell" box, resulting in an empty "Fighter Spells" section alongside the feat spells. This was confusing — Fighters don't have class spells.
 
 **Trade-offs:** The spellcaster subclass list (Eldritch Knight, Arcane Trickster) is hardcoded. If homebrew spellcaster subclasses are added, the list would need updating. Alternatively, a `isSpellcaster` field on the Subclass entity could be added in the future.
+
+## D052: Level History JSONB for Deterministic Rollback
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** A `level_history` JSONB column on `player_characters` stores a per-level array recording exactly what was gained at each level: HP, features, ASI/feat choices, and which class the level was taken in. Level-down pops the last entry and reverses every change deterministically.
+
+**Rationale:** Without a record of what happened at each level, level-down would need to re-derive all stats from scratch — which is fragile because ASI choices, feat selections, and HP gains are not deterministic. The history also enables multiclass tracking: each entry records which class was leveled, so level-down knows which class to decrement.
+
+**Trade-offs:** The JSONB grows linearly with level (up to 20 entries). This is negligible in practice. The history is append-only during level-up and pop-only during level-down, so consistency is straightforward.
+
+## D053: PHB Multiclass Prerequisites with AND/OR Operators
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** Multiclass prerequisites are stored as structured JSON on `character_classes`: `[{ability, minimum, operator}]`. The `operator` field defaults to AND but supports OR for classes like Fighter (STR 13 OR DEX 13) and Ranger (DEX 13 AND WIS 13). The `MulticlassValidator` utility evaluates these against a character's ability scores, enforcing the PHB rule that characters must meet prerequisites for both their current class (exit) and the new class (entry).
+
+**Rationale:** The 5etools raw data uses a nested structure with explicit OR groups. Normalizing to a flat array with an operator field simplifies both storage and evaluation. The AND/OR split covers all 13 PHB classes.
+
+**Trade-offs:** The flat array with operator field doesn't support deeply nested boolean logic (e.g., (A AND B) OR (C AND D)), but no PHB class requires this complexity.
+
+## D054: Server-Side Leveling with Client Class Selection
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** Level-up is a server-side operation: the client sends only which class to level into, and the server computes all derived stats (HP, features, proficiency bonus, spell slots, hit dice). The server returns a `pendingChoices` object indicating whether the client needs to prompt for ASI or subclass selection.
+
+**Rationale:** Keeping all leveling logic server-side prevents drift between client and server state. The `LevelUpCalculator` utility is shared between character creation (multi-level) and level-up, ensuring consistency. The two-step flow (level-up then apply-choices) keeps each API call focused.
+
+**Trade-offs:** The client cannot preview exact HP gain before confirming, though this is a minor UX gap since HP gain is deterministic (PHB average). The two-step flow adds a round trip for ASI/subclass levels.

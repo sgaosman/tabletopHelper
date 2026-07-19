@@ -176,7 +176,46 @@ export interface PlayerCharacter {
   attunedItems?: string;
   equippedItems?: string;
   hitDiceMap?: string;
+  levelHistory?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LevelUpResponse {
+  character: PlayerCharacter;
+  pendingChoices: PendingChoices;
+}
+
+export interface PendingChoices {
+  asiAvailable: boolean;
+  subclassRequired: boolean;
+  newFeatures: string[];
+  maxSpellLevel: number;
+}
+
+export interface ApplyChoicesRequest {
+  asi?: AsiChoice;
+  subclassId?: string;
+}
+
+export interface AsiChoice {
+  type: 'ability' | 'feat';
+  increases?: AbilityIncrease[];
+  featName?: string;
+  featAbility?: string;
+}
+
+export interface AbilityIncrease {
+  ability: string;
+  bonus: number;
+}
+
+export interface EligibleClassResponse {
+  classId: string;
+  className: string;
+  currentClassLevel: number;
+  currentClass: boolean;
+  meetsPrerequisites: boolean;
+  prerequisiteDescription: string;
 }

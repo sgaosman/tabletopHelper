@@ -1,5 +1,5 @@
 import api from './axiosConfig';
-import type { PlayerCharacter, CharacterCreateRequest, CharacterUpdateRequest } from '../types/character';
+import type { PlayerCharacter, CharacterCreateRequest, CharacterUpdateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse } from '../types/character';
 
 export const characterApi = {
   create(data: CharacterCreateRequest) {
@@ -24,5 +24,21 @@ export const characterApi = {
 
   delete(id: string) {
     return api.delete(`/characters/${id}`);
+  },
+
+  levelUp(id: string, classId?: string) {
+    return api.post<LevelUpResponse>(`/characters/${id}/level-up`, classId ? { classId } : {});
+  },
+
+  levelDown(id: string) {
+    return api.post<PlayerCharacter>(`/characters/${id}/level-down`);
+  },
+
+  applyChoices(id: string, data: ApplyChoicesRequest) {
+    return api.post<PlayerCharacter>(`/characters/${id}/apply-choices`, data);
+  },
+
+  getEligibleClasses(id: string) {
+    return api.get<EligibleClassResponse[]>(`/characters/${id}/eligible-classes`);
   },
 };

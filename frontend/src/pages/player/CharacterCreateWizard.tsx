@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronLeft, Search, X } from 'lucide-rea
 import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats, searchSpells } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
 import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
-import { CANTRIPS_KNOWN, SPELLS_KNOWN } from '../../utils/spellConstants';
+import { CANTRIPS_KNOWN, SPELLS_KNOWN, maxSpellLevel, proficiencyBonusForLevel } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
 
@@ -164,6 +164,7 @@ export default function CharacterCreateWizard() {
   const [selectedClass, setSelectedClass] = useState<CharacterClassRef | null>(null);
   const [subclasses, setSubclasses] = useState<Subclass[]>([]);
   const [selectedSubclass, setSelectedSubclass] = useState<Subclass | null>(null);
+  const [level, setLevel] = useState(1);
 
   const [abilityMethod, setAbilityMethod] = useState<'standard' | 'pointbuy' | 'manual'>('standard');
   const [scores, setScores] = useState<AbilityScores>({ strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 });
@@ -756,7 +757,7 @@ export default function CharacterCreateWizard() {
     let spellSaveDc: number | undefined;
     let spellAttackBonus: number | undefined;
     if (!selectedClass.isSpellcaster && featSpellAbility) {
-      const profBonus = 2;
+      const profBonus = proficiencyBonusForLevel(level);
       const abilityKey = ABILITY_FROM_ABBR[featSpellAbility] as keyof typeof finalScores | undefined;
       const abilityScore = abilityKey ? finalScores[abilityKey] : 10;
       const mod = abilityMod(abilityScore);
@@ -767,6 +768,7 @@ export default function CharacterCreateWizard() {
     try {
       const res = await characterApi.create({
         name: name.trim(),
+        level,
         raceId: selectedRace.id,
         classId: selectedClass.id,
         subclassId: selectedSubclass?.id,
@@ -783,7 +785,7 @@ export default function CharacterCreateWizard() {
         intelligence: finalScores.intelligence,
         wisdom: finalScores.wisdom,
         charisma: finalScores.charisma,
-        hpMax,
+        ...(level === 1 ? { hpMax } : {}),
         speed: speed.walk ?? 30,
         savingThrowProficiencies: JSON.stringify(savingThrows),
         skillProficiencies: allSkills.length > 0 ? JSON.stringify([...new Set(allSkills)]) : undefined,
@@ -797,7 +799,7 @@ export default function CharacterCreateWizard() {
         spellAttackBonus,
         spellsKnown: buildSpellsKnown(),
         features: featFeatures.length > 0 ? JSON.stringify(featFeatures) : undefined,
-        hitDiceMap: JSON.stringify({ [selectedClass.name]: { total: 1, remaining: 1, faces: selectedClass.hitDice } }),
+        hitDiceMap: JSON.stringify({ [selectedClass.name]: { total: level, remaining: level, faces: selectedClass.hitDice } }),
       });
       navigate(`/player/characters/${res.data.id}`);
     } catch (err: any) {
@@ -1034,7 +1036,7 @@ export default function CharacterCreateWizard() {
               })}
             </div>
 
-            {selectedClass && subclasses.length > 0 && selectedClass.subclassLevel <= 1 && (
+            {selectedClass && subclasses.length > 0 && level >= (selectedClass.subclassLevel || 3) && (
               <div className="mt-6">
                 <h3 className="text-lg font-semibold text-white mb-3">Choose a Subclass (Optional)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
@@ -1056,8 +1058,30 @@ export default function CharacterCreateWizard() {
               </div>
             )}
 
-            {selectedClass && subclasses.length > 0 && selectedClass.subclassLevel > 1 && (
+            {selectedClass && subclasses.length > 0 && level < (selectedClass.subclassLevel || 3) && (
               <p className="text-gray-500 text-sm">Subclass available at level {selectedClass.subclassLevel}</p>
+            )}
+
+            {/* Level picker */}
+            {selectedClass && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Level</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min={1}
+                    max={20}
+                    value={level}
+                    onChange={e => setLevel(Number(e.target.value))}
+                    className="flex-1 accent-indigo-500"
+                  />
+                  <span className="text-white font-bold text-lg w-8 text-center">{level}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Proficiency bonus: +{level <= 4 ? 2 : level <= 8 ? 3 : level <= 12 ? 4 : level <= 16 ? 5 : 6}
+                  {level >= (selectedClass?.subclassLevel || 3) && !selectedSubclass && ' • Subclass selection required above'}
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -1367,7 +1391,7 @@ export default function CharacterCreateWizard() {
             {selectedClass?.isSpellcaster && (
               <SpellSelectionStep
                 selectedClass={selectedClass}
-                level={1}
+                level={level}
                 selectedCantrips={selectedCantrips}
                 setSelectedCantrips={setSelectedCantrips}
                 selectedSpells={selectedSpells}
@@ -1406,9 +1430,11 @@ export default function CharacterCreateWizard() {
                 <ReviewField label="Alignment" value={alignment || 'None'} />
                 <ReviewField label="Race" value={selectedRace?.name || '—'} />
                 <ReviewField label="Class" value={selectedClass?.name || '—'} />
+                <ReviewField label="Level" value={String(level)} />
                 {selectedSubclass && <ReviewField label="Subclass" value={selectedSubclass.name} />}
                 <ReviewField label="Background" value={selectedBackground?.name || '—'} />
-                <ReviewField label="Hit Points" value={String((selectedClass?.hitDice || 0) + abilityMod(finalScores.constitution))} />
+                <ReviewField label="Proficiency Bonus" value={`+${proficiencyBonusForLevel(level)}`} />
+                <ReviewField label="Hit Points" value={level === 1 ? String((selectedClass?.hitDice || 0) + abilityMod(finalScores.constitution)) : `Calculated by server for level ${level}`} />
                 <ReviewField label="Speed" value={(() => {
                   const sp = safeJsonParse<Record<string, number | boolean>>(selectedRace?.speed ?? null, { walk: 30 });
                   const w = typeof sp.walk === 'number' ? sp.walk : 30;
@@ -2069,6 +2095,7 @@ function SpellSelectionStep({
     ? (SPELLS_KNOWN[selectedClass.name]?.[level] ?? 0)
     : 0;
   const isPrepared = selectedClass.isPreparedCaster;
+  const maxLevel = maxSpellLevel(selectedClass.name, level);
 
   useEffect(() => {
     if (cantripsAllowed > 0 && cantripResults.length === 0) {
@@ -2076,12 +2103,21 @@ function SpellSelectionStep({
         .then(res => setCantripResults(res.content))
         .catch(() => {});
     }
-    if ((spellsAllowed > 0 || isPrepared) && spellResults.length === 0) {
-      searchSpells({ className: selectedClass.name, level: 1, size: 50 })
-        .then(res => setSpellResults(res.content))
-        .catch(() => {});
-    }
   }, [selectedClass.name]);
+
+  useEffect(() => {
+    if ((spellsAllowed > 0 || isPrepared) && maxLevel > 0) {
+      Promise.all(
+        Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl =>
+          searchSpells({ className: selectedClass.name, level: lvl, size: 50 }).then(r => r.content)
+        )
+      ).then(results => {
+        const all = results.flat();
+        const seen = new Set<string>();
+        setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
+      }).catch(() => {});
+    }
+  }, [selectedClass.name, maxLevel]);
 
   function searchCantrips() {
     const params: Record<string, unknown> = { className: selectedClass.name, level: 0, size: 50 };
@@ -2090,9 +2126,18 @@ function SpellSelectionStep({
   }
 
   function searchSpellsList() {
-    const params: Record<string, unknown> = { className: selectedClass.name, level: 1, size: 50 };
-    if (spellSearch.trim()) params.name = spellSearch.trim();
-    searchSpells(params as any).then(res => setSpellResults(res.content)).catch(() => {});
+    if (maxLevel <= 0) return;
+    Promise.all(
+      Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => {
+        const params: Record<string, unknown> = { className: selectedClass.name, level: lvl, size: 50 };
+        if (spellSearch.trim()) params.name = spellSearch.trim();
+        return searchSpells(params as any).then(r => r.content);
+      })
+    ).then(results => {
+      const all = results.flat();
+      const seen = new Set<string>();
+      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
+    }).catch(() => {});
   }
 
   function toggleCantrip(spell: Spell) {
@@ -2179,7 +2224,7 @@ function SpellSelectionStep({
       {spellsAllowed > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-white font-semibold text-sm">Level 1 Spells</h3>
+            <h3 className="text-white font-semibold text-sm">{maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells'}</h3>
             <span className="text-xs text-gray-400">{selectedSpells.length}/{spellsAllowed} selected</span>
           </div>
 
@@ -2190,7 +2235,7 @@ function SpellSelectionStep({
                 value={spellSearch}
                 onChange={e => setSpellSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && searchSpellsList()}
-                placeholder="Search level 1 spells..."
+                placeholder={maxLevel > 1 ? `Search level 1-${maxLevel} spells...` : "Search level 1 spells..."}
                 className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
               />
             </div>

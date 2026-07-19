@@ -42,7 +42,8 @@ public class CharacterClassSeeder {
 
     public void seed() throws Exception {
         if (classRepository.count() > 0) {
-            log.info("Classes already seeded, skipping");
+            log.info("Classes already seeded, checking for multiclass data update");
+            updateMulticlassData();
             return;
         }
 
@@ -129,6 +130,9 @@ public class CharacterClassSeeder {
             String startingEquipment = node.has("startingEquipment")
                     ? objectMapper.writeValueAsString(node.get("startingEquipment")) : null;
 
+            String multiclassRequirements = parseMulticlassRequirements(node);
+            String multiclassProficiencies = parseMulticlassProficiencies(node);
+
             return CharacterClass.builder()
                     .name(name)
                     .source(source)
@@ -148,6 +152,8 @@ public class CharacterClassSeeder {
                     .features(features)
                     .startingEquipment(startingEquipment)
                     .subclassLevel(SUBCLASS_LEVELS.getOrDefault(name, 3))
+                    .multiclassRequirements(multiclassRequirements)
+                    .multiclassProficiencies(multiclassProficiencies)
                     .build();
         } catch (Exception e) {
             log.warn("Failed to parse class {}: {}", node.path("name").asText("?"), e.getMessage());
@@ -255,6 +261,133 @@ public class CharacterClassSeeder {
             }
 
             return objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void updateMulticlassData() throws Exception {
+        List<CharacterClass> existing = classRepository.findAll();
+        boolean anyUpdated = existing.stream().anyMatch(cc -> cc.getMulticlassRequirements() == null);
+        if (!anyUpdated) return;
+
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource[] resources = resolver.getResources("classpath:data/5etools/class/class-*.json");
+
+        Map<String, JsonNode> classNodeMap = new HashMap<>();
+        for (Resource resource : resources) {
+            String filename = resource.getFilename();
+            if (filename == null || SKIP_FILES.contains(filename) || filename.startsWith("fluff-")) continue;
+            try (InputStream is = resource.getInputStream()) {
+                JsonNode root = objectMapper.readTree(is);
+                JsonNode classArray = root.get("class");
+                if (classArray == null || !classArray.isArray()) continue;
+                for (JsonNode cn : classArray) {
+                    classNodeMap.put(cn.path("name").asText(), cn);
+                }
+            }
+        }
+
+        int updated = 0;
+        for (CharacterClass cc : existing) {
+            if (cc.getMulticlassRequirements() != null) continue;
+            JsonNode node = classNodeMap.get(cc.getName());
+            if (node == null) continue;
+            cc.setMulticlassRequirements(parseMulticlassRequirements(node));
+            cc.setMulticlassProficiencies(parseMulticlassProficiencies(node));
+            updated++;
+        }
+        if (updated > 0) {
+            classRepository.saveAll(existing);
+            log.info("Updated multiclass data for {} classes", updated);
+        }
+    }
+
+    private String parseMulticlassRequirements(JsonNode classNode) {
+        try {
+            JsonNode mc = classNode.path("multiclassing").path("requirements");
+            if (mc.isMissingNode() || mc.isEmpty()) return null;
+
+            ArrayNode result = objectMapper.createArrayNode();
+
+            if (mc.has("or") && mc.get("or").isArray()) {
+                JsonNode orBlock = mc.get("or").get(0);
+                Iterator<String> fields = orBlock.fieldNames();
+                while (fields.hasNext()) {
+                    String ability = fields.next();
+                    ObjectNode req = objectMapper.createObjectNode();
+                    req.put("ability", ability.toUpperCase());
+                    req.put("minimum", orBlock.get(ability).asInt());
+                    req.put("operator", "OR");
+                    result.add(req);
+                }
+            } else {
+                Iterator<String> fields = mc.fieldNames();
+                while (fields.hasNext()) {
+                    String ability = fields.next();
+                    ObjectNode req = objectMapper.createObjectNode();
+                    req.put("ability", ability.toUpperCase());
+                    req.put("minimum", mc.get(ability).asInt());
+                    result.add(req);
+                }
+            }
+
+            return result.isEmpty() ? null : objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String parseMulticlassProficiencies(JsonNode classNode) {
+        try {
+            JsonNode pg = classNode.path("multiclassing").path("proficienciesGained");
+            if (pg.isMissingNode() || pg.isEmpty()) return null;
+
+            ObjectNode result = objectMapper.createObjectNode();
+
+            if (pg.has("armor") && pg.get("armor").isArray()) {
+                ArrayNode armor = objectMapper.createArrayNode();
+                for (JsonNode item : pg.get("armor")) {
+                    if (item.isTextual()) {
+                        armor.add(titleCase(item.asText()));
+                    } else if (item.isObject() && item.has("proficiency")) {
+                        armor.add(titleCase(item.get("proficiency").asText()));
+                    }
+                }
+                if (!armor.isEmpty()) result.set("armor", armor);
+            }
+
+            if (pg.has("weapons") && pg.get("weapons").isArray()) {
+                ArrayNode weapons = objectMapper.createArrayNode();
+                for (JsonNode item : pg.get("weapons")) {
+                    weapons.add(FiveEToolsMarkupParser.parse(titleCase(item.asText())));
+                }
+                if (!weapons.isEmpty()) result.set("weapons", weapons);
+            }
+
+            if (pg.has("tools") && pg.get("tools").isArray()) {
+                ArrayNode tools = objectMapper.createArrayNode();
+                for (JsonNode item : pg.get("tools")) {
+                    tools.add(FiveEToolsMarkupParser.parse(item.asText()));
+                }
+                if (!tools.isEmpty()) result.set("tools", tools);
+            }
+
+            if (pg.has("skills") && pg.get("skills").isArray()) {
+                JsonNode first = pg.get("skills").get(0);
+                if (first != null && first.has("choose")) {
+                    ObjectNode skillChoice = objectMapper.createObjectNode();
+                    skillChoice.put("count", first.get("choose").path("count").asInt(1));
+                    ArrayNode from = objectMapper.createArrayNode();
+                    for (JsonNode s : first.get("choose").path("from")) {
+                        from.add(titleCase(s.asText()));
+                    }
+                    skillChoice.set("from", from);
+                    result.set("skills", skillChoice);
+                }
+            }
+
+            return result.isEmpty() ? null : objectMapper.writeValueAsString(result);
         } catch (Exception e) {
             return null;
         }

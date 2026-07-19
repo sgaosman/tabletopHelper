@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, Lock, Search, X, Plus, Check } from 'lucide-react';
+import { ArrowLeft, Save, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, Lock, Search, X, Plus, Check, ChevronUp, ChevronDown } from 'lucide-react';
 import { characterApi } from '../../api/characterApi';
 import { campaignApi } from '../../api/campaignApi';
 import { searchSpells, getFeats } from '../../api/referenceApi';
 import SpellCard from '../../components/reference/SpellCard';
-import type { PlayerCharacter, CharacterUpdateRequest } from '../../types/character';
+import LevelUpModal from '../../components/character/LevelUpModal';
+import AsiModal from '../../components/character/AsiModal';
+import SubclassModal from '../../components/character/SubclassModal';
+import type { PlayerCharacter, CharacterUpdateRequest, LevelUpResponse } from '../../types/character';
 import type { Campaign } from '../../types/campaign';
 import type { Spell, Feat } from '../../types/reference';
 import { CANTRIPS_KNOWN, SPELLS_KNOWN, getPreparedCount } from '../../utils/spellConstants';
@@ -68,6 +71,12 @@ export default function CharacterSheetPage() {
   const [success, setSuccess] = useState('');
   const [restModal, setRestModal] = useState<'short' | 'long' | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [showLevelUp, setShowLevelUp] = useState(false);
+  const [showAsi, setShowAsi] = useState(false);
+  const [subclassPrompt, setSubclassPrompt] = useState<{ classId: string; className: string } | null>(null);
+  const [levelUpBanner, setLevelUpBanner] = useState<string | null>(null);
+  const [levelDownConfirm, setLevelDownConfirm] = useState(false);
+  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean } | null>(null);
 
   useEffect(() => {
     if (characterId && characterId !== 'new') {
@@ -165,6 +174,65 @@ export default function CharacterSheetPage() {
     setRestModal(null);
   }
 
+  function handleLevelUpComplete(response: LevelUpResponse, leveledClassId: string, leveledClassName: string) {
+    setChar(response.character);
+    setShowLevelUp(false);
+    const { pendingChoices } = response;
+    const pending = { classId: leveledClassId, className: leveledClassName, subclassRequired: pendingChoices.subclassRequired };
+    setPendingLevelClass(pending);
+    if (pendingChoices.asiAvailable) {
+      setShowAsi(true);
+    } else if (pendingChoices.subclassRequired) {
+      setSubclassPrompt({ classId: leveledClassId, className: leveledClassName });
+    } else {
+      setPendingLevelClass(null);
+      showLevelBanner(response);
+    }
+  }
+
+  function handleAsiComplete(updated: PlayerCharacter) {
+    setChar(updated);
+    setShowAsi(false);
+    if (pendingLevelClass?.subclassRequired) {
+      setSubclassPrompt({ classId: pendingLevelClass.classId, className: pendingLevelClass.className });
+    } else {
+      setPendingLevelClass(null);
+      setLevelUpBanner(`Level up to ${updated.level} complete!`);
+      setTimeout(() => setLevelUpBanner(null), 4000);
+    }
+  }
+
+  function handleSubclassComplete(updated: PlayerCharacter) {
+    setChar(updated);
+    setSubclassPrompt(null);
+    setPendingLevelClass(null);
+    setLevelUpBanner(`Level up to ${updated.level} complete!`);
+    setTimeout(() => setLevelUpBanner(null), 4000);
+  }
+
+  function showLevelBanner(response: LevelUpResponse) {
+    const features = response.pendingChoices.newFeatures;
+    const msg = features.length > 0
+      ? `Level ${response.character.level}! New: ${features.join(', ')}`
+      : `Level up to ${response.character.level} complete!`;
+    setLevelUpBanner(msg);
+    setTimeout(() => setLevelUpBanner(null), 4000);
+  }
+
+  async function handleLevelDown() {
+    if (!characterId || !char) return;
+    setLevelDownConfirm(false);
+    setError('');
+    try {
+      const res = await characterApi.levelDown(characterId);
+      setChar(res.data);
+      setSuccess(`Reverted to level ${res.data.level}`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Level down failed');
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-950">
       {/* Header */}
@@ -176,11 +244,34 @@ export default function CharacterSheetPage() {
           <div className="text-center">
             <h1 className="text-white font-bold">{char.name}</h1>
             <p className="text-gray-400 text-xs">
-              Level {char.level} {char.race} {char.characterClass}
-              {char.subclass ? ` (${char.subclass})` : ''}
+              Level {char.level} {char.race}{' '}
+              {(() => {
+                const entries = safeJsonParse<Array<{ className: string; level: number }>>(char.multiclassEntries, []);
+                if (entries.length > 1) {
+                  return entries.map(e => `${e.className} ${e.level}`).join(' / ');
+                }
+                return char.characterClass + (char.subclass ? ` (${char.subclass})` : '');
+              })()}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setLevelDownConfirm(true)}
+              disabled={char.level <= 1}
+              className="p-2 text-red-400 hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Level Down"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowLevelUp(true)}
+              disabled={char.level >= 20}
+              className="p-2 text-green-400 hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Level Up"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </button>
+            <div className="w-px h-5 bg-gray-700 mx-1" />
             <button onClick={() => setRestModal('short')} className="p-2 text-yellow-400 hover:bg-gray-800 rounded-lg transition-colors" title="Short Rest">
               <Moon className="w-4 h-4" />
             </button>
@@ -272,6 +363,72 @@ export default function CharacterSheetPage() {
           <JournalTab char={char} saveField={saveField} />
         )}
       </main>
+
+      {/* Level Up Banner */}
+      {levelUpBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-900/90 border border-green-700 text-green-200 px-6 py-3 rounded-lg shadow-lg text-sm font-medium animate-pulse">
+          {levelUpBanner}
+        </div>
+      )}
+
+      {/* Level Up Modal */}
+      {showLevelUp && (
+        <LevelUpModal
+          character={char}
+          onComplete={handleLevelUpComplete}
+          onClose={() => setShowLevelUp(false)}
+        />
+      )}
+
+      {/* ASI Modal */}
+      {showAsi && (
+        <AsiModal
+          character={char}
+          onComplete={handleAsiComplete}
+          onClose={() => {
+            setShowAsi(false);
+            setPendingLevelClass(null);
+            setLevelUpBanner(`Level up to ${char.level} complete!`);
+            setTimeout(() => setLevelUpBanner(null), 4000);
+          }}
+        />
+      )}
+
+      {/* Subclass Modal */}
+      {subclassPrompt && (
+        <SubclassModal
+          character={char}
+          classId={subclassPrompt.classId}
+          className={subclassPrompt.className}
+          onComplete={handleSubclassComplete}
+          onClose={() => {
+            setSubclassPrompt(null);
+            setPendingLevelClass(null);
+            setLevelUpBanner(`Level up to ${char.level} complete!`);
+            setTimeout(() => setLevelUpBanner(null), 4000);
+          }}
+        />
+      )}
+
+      {/* Level Down Confirmation */}
+      {levelDownConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setLevelDownConfirm(false)}>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-bold text-lg mb-2">Level Down</h3>
+            <p className="text-gray-400 text-sm mb-4">
+              Remove level {char.level}? This will reverse HP, features, and any ASI choices made at that level.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setLevelDownConfirm(false)} className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg text-sm hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleLevelDown} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-500 transition-colors">
+                Remove Level
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rest Modal */}
       {restModal && (

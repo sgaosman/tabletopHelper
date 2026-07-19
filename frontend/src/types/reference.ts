@@ -113,6 +113,8 @@ export interface CharacterClassRef {
   features: string;
   startingEquipment: string;
   subclassLevel: number;
+  multiclassRequirements: string | null;
+  multiclassProficiencies: string | null;
 }
 
 export interface Subclass {

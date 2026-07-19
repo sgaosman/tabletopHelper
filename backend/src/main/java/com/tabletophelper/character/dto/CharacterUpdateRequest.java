@@ -76,4 +76,5 @@ public class CharacterUpdateRequest {
     private String attunedItems;
     private String equippedItems;
     private String hitDiceMap;
+    private String levelHistory;
 }

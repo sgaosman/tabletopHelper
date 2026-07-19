@@ -88,6 +88,7 @@ public class CharacterResponse {
     private String attunedItems;
     private String equippedItems;
     private String hitDiceMap;
+    private String levelHistory;
 
     private Boolean isActive;
     private Instant createdAt;

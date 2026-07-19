@@ -164,6 +164,7 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | attuned_items | JSONB | | Array of attuned item names |
 | equipped_items | JSONB | | Array of equipped item names |
 | hit_dice_map | JSONB | | Per-class hit dice: {className: {total, remaining, faces}} |
+| level_history | JSONB | | Array of per-level entries for deterministic rollback: [{characterLevel, classId, className, classLevel, hpGained, featuresGained, choices}] |
 | is_active | BOOLEAN | DEFAULT TRUE | Soft delete |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
@@ -302,6 +303,8 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | features | JSONB | `@JsonRawValue` — [{level, name, description}] |
 | starting_equipment | JSONB | `@JsonRawValue` |
 | subclass_level | INTEGER | Level at which subclass is chosen |
+| multiclass_requirements | JSONB | PHB multiclass prerequisites: [{ability, minimum, operator}]. operator defaults to AND; OR for classes like Fighter (STR 13 OR DEX 13) |
+| multiclass_proficiencies | JSONB | Proficiencies gained when multiclassing into this class (reduced set vs full class): {armor, weapons, tools, skills} |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 13 classes
