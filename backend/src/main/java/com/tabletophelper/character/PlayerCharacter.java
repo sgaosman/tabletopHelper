@@ -252,6 +252,10 @@ public class PlayerCharacter {
     @Column(name = "level_history", columnDefinition = "jsonb")
     private String levelHistory;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "feat_resources", columnDefinition = "jsonb")
+    private String featResources;
+
     @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;

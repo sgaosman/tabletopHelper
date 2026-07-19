@@ -1,5 +1,5 @@
 import api from './axiosConfig';
-import type { Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat } from '../types/reference';
+import type { Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature } from '../types/reference';
 
 export const searchSpells = async (params: SpellSearchParams): Promise<PageResponse<Spell>> => {
   const response = await api.get('/reference/spells', { params });
@@ -93,5 +93,10 @@ export const getBackgrounds = async (): Promise<Background[]> => {
 
 export const getFeats = async (): Promise<Feat[]> => {
   const response = await api.get('/reference/feats');
+  return response.data;
+};
+
+export const getOptionalFeatures = async (type?: string): Promise<OptionalFeature[]> => {
+  const response = await api.get('/reference/optional-features', { params: type ? { type } : {} });
   return response.data;
 };

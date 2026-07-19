@@ -127,6 +127,7 @@ export default function CharacterSheetPage() {
   const spellSlots = useMemo(() => safeJsonParse<Record<string, { total: number; used: number }>>(char?.spellSlots, {}), [char?.spellSlots]);
   const resistances = useMemo(() => safeJsonParse<string[]>(char?.damageResistances, []), [char?.damageResistances]);
   const hitDiceMap = useMemo(() => safeJsonParse<Record<string, { total: number; remaining: number; faces: number }>>(char?.hitDiceMap, {}), [char?.hitDiceMap]);
+  const featResources = useMemo(() => safeJsonParse<Array<{ featName: string; name: string; maxUses: number; currentUses: number; resetOn: string }>>(char?.featResources, []), [char?.featResources]);
 
   if (!char) {
     return (
@@ -166,11 +167,16 @@ export default function CharacterSheetPage() {
     for (const [lvl, slot] of Object.entries(spellSlots)) {
       resetSlots[lvl] = { ...slot, used: 0 };
     }
+    const resetResources = featResources.map(r =>
+      r.resetOn === 'longRest' ? { ...r, currentUses: r.maxUses } : r
+    );
+
     await saveField({
       hpCurrent: char.hpMax,
       hpTemp: 0,
       hitDiceMap: JSON.stringify(updated),
       spellSlots: Object.keys(resetSlots).length > 0 ? JSON.stringify(resetSlots) : undefined,
+      featResources: resetResources.length > 0 ? JSON.stringify(resetResources) : undefined,
     });
     setRestModal(null);
   }
@@ -306,6 +312,44 @@ export default function CharacterSheetPage() {
             <span className="text-gray-400">Speed <span className="text-white font-medium">{char.speed}ft</span></span>
           </div>
         </div>
+        {/* Feat Resources & Temp HP */}
+        {(featResources.length > 0) && (
+          <div className="flex items-center gap-4 mt-2 flex-wrap">
+            {featResources.map((r, i) => (
+              <div key={i} className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-1">
+                <span className="text-amber-400 text-xs font-medium">{r.name}</span>
+                <div className="flex gap-1">
+                  {Array.from({ length: r.maxUses }).map((_, j) => (
+                    <button key={j}
+                      onClick={() => {
+                        const updated = [...featResources];
+                        const newUses = j < r.currentUses ? j : j + 1;
+                        updated[i] = { ...r, currentUses: newUses };
+                        saveField({ featResources: JSON.stringify(updated) });
+                      }}
+                      className={`w-4 h-4 rounded-full border transition-colors ${
+                        j < r.currentUses
+                          ? 'bg-amber-400 border-amber-400'
+                          : 'bg-transparent border-gray-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-gray-500">{r.currentUses}/{r.maxUses}</span>
+              </div>
+            ))}
+            <button
+              onClick={() => {
+                const amount = prompt('Add temp HP:');
+                if (amount && !isNaN(Number(amount)) && Number(amount) > 0) {
+                  const newTemp = Math.max(char.hpTemp, Number(amount));
+                  saveField({ hpTemp: newTemp });
+                }
+              }}
+              className="text-xs text-cyan-400 hover:text-cyan-300 bg-gray-800 px-2 py-1 rounded-lg transition-colors"
+            >+ Temp HP</button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

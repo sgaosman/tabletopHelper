@@ -31,6 +31,8 @@ public class CharacterService {
     private final SubclassRepository subclassRepository;
     private final BackgroundRepository backgroundRepository;
     private final EncounterParticipantRepository encounterParticipantRepository;
+    private final FeatRepository featRepository;
+    private final FeatEffectResolver featEffectResolver;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -296,6 +298,7 @@ public class CharacterService {
         if (request.getEquippedItems() != null) character.setEquippedItems(request.getEquippedItems());
         if (request.getHitDiceMap() != null) character.setHitDiceMap(request.getHitDiceMap());
         if (request.getLevelHistory() != null) character.setLevelHistory(request.getLevelHistory());
+        if (request.getFeatResources() != null) character.setFeatResources(request.getFeatResources());
 
         if (Boolean.TRUE.equals(request.getClearCampaign())) {
             character.setCampaign(null);
@@ -524,17 +527,23 @@ public class CharacterService {
             for (ApplyChoicesRequest.AbilityIncrease inc : asi.getIncreases()) {
                 applyAbilityIncrease(character, inc.getAbility(), inc.getBonus());
             }
-        } else if ("feat".equals(asi.getType()) && asi.getFeatName() != null) {
-            List<Map<String, Object>> features = parseFeaturesList(character.getFeatures());
-            features.add(Map.of("name", asi.getFeatName(), "description", "Feat", "source", "Feat"));
-            character.setFeatures(objectMapper.writeValueAsString(features));
-
-            if (asi.getFeatAbility() != null && !asi.getFeatAbility().isBlank()) {
-                applyAbilityIncrease(character, asi.getFeatAbility(), 1);
+            recordAsiInHistory(character, asi);
+        } else if ("feat".equals(asi.getType())) {
+            if (asi.getFeatId() != null) {
+                Feat feat = featRepository.findById(asi.getFeatId())
+                        .orElseThrow(() -> new IllegalArgumentException("Feat not found"));
+                FeatEffectResolver.AppliedEffects applied = featEffectResolver.applyFeat(character, feat, asi);
+                recordFeatInHistory(character, asi, feat.getName(), applied);
+            } else if (asi.getFeatName() != null) {
+                List<Map<String, Object>> features = parseFeaturesList(character.getFeatures());
+                features.add(Map.of("name", asi.getFeatName(), "description", "Feat", "source", "Feat"));
+                character.setFeatures(objectMapper.writeValueAsString(features));
+                if (asi.getFeatAbility() != null && !asi.getFeatAbility().isBlank()) {
+                    applyAbilityIncrease(character, asi.getFeatAbility(), 1);
+                }
+                recordAsiInHistory(character, asi);
             }
         }
-
-        recordAsiInHistory(character, asi);
 
         String spellcastingAbility = character.getSpellcastingAbility();
         if (spellcastingAbility != null) {
@@ -580,11 +589,17 @@ public class CharacterService {
                     }
                 }
             } else if ("feat".equals(type)) {
-                String featName = (String) asi.get("featName");
-                if (featName != null) removeFeatureByName(character, featName);
-                String featAbility = (String) asi.get("featAbility");
-                if (featAbility != null && !featAbility.isBlank()) {
-                    applyAbilityIncrease(character, featAbility, -1);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> appliedEffects = (Map<String, Object>) asi.get("appliedEffects");
+                if (appliedEffects != null) {
+                    featEffectResolver.reverseFeatEffects(character, appliedEffects);
+                } else {
+                    String featName = (String) asi.get("featName");
+                    if (featName != null) removeFeatureByName(character, featName);
+                    String featAbility = (String) asi.get("featAbility");
+                    if (featAbility != null && !featAbility.isBlank()) {
+                        applyAbilityIncrease(character, featAbility, -1);
+                    }
                 }
             }
         } catch (Exception ignored) {}
@@ -818,6 +833,54 @@ public class CharacterService {
         } catch (Exception ignored) {}
     }
 
+    private void recordFeatInHistory(PlayerCharacter character, ApplyChoicesRequest.AsiChoice asi,
+                                     String featName, FeatEffectResolver.AppliedEffects applied) {
+        try {
+            List<Map<String, Object>> history = character.getLevelHistory() != null
+                    ? new ArrayList<>(objectMapper.readValue(character.getLevelHistory(),
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {}))
+                    : new ArrayList<>();
+
+            if (!history.isEmpty()) {
+                Map<String, Object> lastEntry = history.get(history.size() - 1);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> choices = lastEntry.get("choices") instanceof Map
+                        ? new LinkedHashMap<>((Map<String, Object>) lastEntry.get("choices"))
+                        : new LinkedHashMap<>();
+
+                Map<String, Object> asiRecord = new LinkedHashMap<>();
+                asiRecord.put("type", "feat");
+                asiRecord.put("featName", featName);
+                asiRecord.put("featId", asi.getFeatId().toString());
+
+                Map<String, Object> appliedRecord = new LinkedHashMap<>();
+                if (!applied.abilityIncreases().isEmpty()) appliedRecord.put("abilityIncreases", applied.abilityIncreases());
+                if (!applied.resistancesAdded().isEmpty()) appliedRecord.put("resistancesAdded", applied.resistancesAdded());
+                if (!applied.armorProficienciesAdded().isEmpty()) appliedRecord.put("armorProficienciesAdded", applied.armorProficienciesAdded());
+                if (!applied.weaponProficienciesAdded().isEmpty()) appliedRecord.put("weaponProficienciesAdded", applied.weaponProficienciesAdded());
+                if (!applied.toolProficienciesAdded().isEmpty()) appliedRecord.put("toolProficienciesAdded", applied.toolProficienciesAdded());
+                if (!applied.skillProficienciesAdded().isEmpty()) appliedRecord.put("skillProficienciesAdded", applied.skillProficienciesAdded());
+                if (!applied.languageProficienciesAdded().isEmpty()) appliedRecord.put("languageProficienciesAdded", applied.languageProficienciesAdded());
+                if (!applied.savingThrowProficienciesAdded().isEmpty()) appliedRecord.put("savingThrowProficienciesAdded", applied.savingThrowProficienciesAdded());
+                if (!applied.expertiseAdded().isEmpty()) appliedRecord.put("expertiseAdded", applied.expertiseAdded());
+                if (applied.speedBonus() != 0) appliedRecord.put("speedBonus", applied.speedBonus());
+                if (applied.initiativeBonus() != 0) appliedRecord.put("initiativeBonus", applied.initiativeBonus());
+                if (applied.hpPerLevel() != 0) appliedRecord.put("hpPerLevel", applied.hpPerLevel());
+                if (applied.passivePerceptionBonus() != 0) appliedRecord.put("passivePerceptionBonus", applied.passivePerceptionBonus());
+                if (applied.passiveInvestigationBonus() != 0) appliedRecord.put("passiveInvestigationBonus", applied.passiveInvestigationBonus());
+                if (applied.resource() != null) appliedRecord.put("resource", applied.resource());
+                if (!applied.spellsAdded().isEmpty()) appliedRecord.put("spellsAdded", applied.spellsAdded());
+                appliedRecord.put("featName", featName);
+
+                asiRecord.put("appliedEffects", appliedRecord);
+
+                choices.put("asi", asiRecord);
+                lastEntry.put("choices", choices);
+                character.setLevelHistory(objectMapper.writeValueAsString(history));
+            }
+        } catch (Exception ignored) {}
+    }
+
     private void applyMulticlassProficiencies(PlayerCharacter character, CharacterClass newClass) {
         if (newClass.getMulticlassProficiencies() == null) return;
         try {
@@ -991,6 +1054,7 @@ public class CharacterService {
                 .equippedItems(c.getEquippedItems())
                 .hitDiceMap(c.getHitDiceMap())
                 .levelHistory(c.getLevelHistory())
+                .featResources(c.getFeatResources())
                 .isActive(c.getIsActive())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())

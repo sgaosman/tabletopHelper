@@ -14,8 +14,22 @@ public class ApplyChoicesRequest {
     public static class AsiChoice {
         private String type;
         private List<AbilityIncrease> increases;
+
+        // Legacy free-text (kept for backwards compatibility)
         private String featName;
+
+        // Feat automation fields
+        private UUID featId;
         private String featAbility;
+        private String resistanceChoice;
+        private List<String> skillProficiencyChoices;
+        private String savingThrowChoice;
+        private List<String> expertiseSkillChoices;
+        private List<String> toolProficiencyChoices;
+        private List<String> languageChoices;
+        private List<String> weaponChoices;
+        private List<UUID> spellIds;
+        private List<UUID> optionalFeatureIds;
     }
 
     @Data

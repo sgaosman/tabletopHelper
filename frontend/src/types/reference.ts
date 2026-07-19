@@ -149,4 +149,14 @@ export interface Feat {
   description: string;
   abilityScoreIncrease: string;
   grantsFeatures: string;
+  effects: string;
+}
+
+export interface OptionalFeature {
+  id: string;
+  name: string;
+  source: string;
+  featureType: string;
+  description: string;
+  prerequisite: string | null;
 }
