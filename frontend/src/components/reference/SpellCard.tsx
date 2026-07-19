@@ -1,4 +1,5 @@
 import type { Spell } from '../../types/reference';
+import FormattedDescription from '../FormattedDescription';
 
 export default function SpellCard({ spell }: { spell: Spell }) {
   const s = spell;
@@ -42,15 +43,12 @@ export default function SpellCard({ spell }: { spell: Spell }) {
         )}
 
         {s.description && (
-          <div className="text-sm whitespace-pre-line leading-relaxed">
-            {s.description}
-          </div>
+          <FormattedDescription text={s.description} className="[&_p]:text-indigo-100 [&_strong]:text-white" />
         )}
 
         {s.higherLevels && (
-          <div className="text-sm border-t border-indigo-800 pt-3">
-            <span className="font-bold text-indigo-300">At Higher Levels.</span>{' '}
-            <span className="whitespace-pre-line">{s.higherLevels}</span>
+          <div className="border-t border-indigo-800 pt-3">
+            <FormattedDescription text={`At Higher Levels. ${s.higherLevels}`} className="[&_p]:text-indigo-100 [&_strong]:text-white" />
           </div>
         )}
 

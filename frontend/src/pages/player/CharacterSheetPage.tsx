@@ -8,6 +8,7 @@ import SpellCard from '../../components/reference/SpellCard';
 import LevelUpModal from '../../components/character/LevelUpModal';
 import AsiModal from '../../components/character/AsiModal';
 import SubclassModal from '../../components/character/SubclassModal';
+import FormattedDescription from '../../components/FormattedDescription';
 import type { PlayerCharacter, CharacterUpdateRequest, LevelUpResponse } from '../../types/character';
 import type { Campaign } from '../../types/campaign';
 import type { Spell, Feat } from '../../types/reference';
@@ -621,7 +622,7 @@ function ActionsTab({ char, features }: {
           {actionFeatures.map((f, i) => (
             <div key={i} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
               <h4 className="text-white font-medium text-sm">{f.name}</h4>
-              <p className="text-gray-400 text-xs mt-1 whitespace-pre-line">{f.description}</p>
+              <FormattedDescription text={f.description} className="mt-2" />
             </div>
           ))}
         </div>
@@ -1656,7 +1657,7 @@ function FeaturesTab({ features, char }: {
               </svg>
             </summary>
             <div className="px-4 pb-3">
-              <p className="text-gray-400 text-sm whitespace-pre-line">{f.description}</p>
+              <FormattedDescription text={f.description} />
             </div>
           </details>
         ))
