@@ -189,7 +189,7 @@
 
 **Goal:** Replace free-text character creation with guided selection from seeded reference data. New character sheet with six tabs: Stats, Actions, Spells, Inventory, Features, Journal.
 
-**Note:** The Spells tab was initially blocked by M7/M8 (data gathering). Now complete: full spell management UI with source-grouped display, preparation/known spell management modals, spell detail view, race/feat spell boxes, and spell selection during character creation. Spell slot calculation is automated via SpellSlotCalculator.
+**Note:** The Spells tab was initially blocked by M7/M8 (data gathering). Now complete: full spell management UI with source-grouped display, preparation/known spell management modals, spell detail view, race/feat spell boxes, and spell selection during character creation. Spell slot calculation is automated via SpellSlotCalculator. Feat spell management added: background feat selection during creation (option picker, ability picker, spell selection), "Add Feat Spells" modal on character sheet for post-creation feat acquisition. Feat `grantsFeatures` (5etools format) parsed by `featSpellParser.ts` into normalized `ParsedFeatOption` structure.
 
 **Backend tasks:**
 - [x] Seed `Race` entity from 5e.tools `races.json` (226 races with size, speed, ASI, proficiencies, features, creature type)
@@ -215,6 +215,9 @@
 - [x] Race `additional_spells` JSONB column — RaceSeeder parses all 8 5etools `additionalSpells` patterns (known, innate, expanded, ability string/choose, multi-option) into normalized format (76/226 races populated)
 - [x] CharacterService auto-calculates spell slots (via SpellSlotCalculator), spellSaveDc, spellAttackBonus at character creation for spellcaster classes
 - [x] Character creation wizard spell selection step: cantrip picker, known spell picker (known casters), prepared caster info notice
+- [x] Background feat detection and configuration during character creation: feat selection (multi-feat backgrounds), option picker, ability picker, feat spell selection in Spells step
+- [x] Feat spell parser (`featSpellParser.ts`): parses 5etools `additionalSpells` format into normalized `ParsedFeatOption` (handles known/innate/daily/choose-filter/choose-from-list/ability patterns)
+- [x] Frontend feat spell management: "Add Feat Spells" modal on character sheet for post-creation feat acquisition, spell-granting feat search, option/ability/spell configuration
 
 **Frontend tasks:**
 - [x] Character creation wizard: race selector (with ASI preview and Tasha's reassignment) → class selector (with hit die and proficiency preview) → subclass selector (if level ≥ 3) → ability scores (method selector + inputs) → background → alignment → campaign assignment
@@ -225,7 +228,7 @@
 - [x] New character sheet tabs:
   - [x] **Stats** — HP (current/max), ability scores + modifiers, speed, AC, darkvision, proficiency bonus, initiative bonus, hit dice (remaining/total), spell slots (used/remaining), saving throw bonuses + proficiencies, skill bonuses + proficiencies (colored bullets for proficiency, stars ★ for expertise), weapon/armor/tool/language proficiencies section
   - [x] **Actions** — attack actions with equipped weapons (extra attack reminder), class actions (Channel Divinity, Second Wind), feat actions, race actions
-  - [x] **Spells** — spell slots display (regular + pact), spells grouped by source (per-class boxes with prepared/known badges, race innate spell box, feat spell box), spell detail modal (SpellCard), "Change Prepared" / "Manage Known" modals with class-filtered search, prepare/unprepare toggles with limit enforcement, always-prepared subclass spells (lock icon)
+  - [x] **Spells** — spell slots display (regular + pact), spells grouped by source (per-class boxes with prepared/known badges, race innate spell box, feat spell box), spell detail modal (SpellCard), "Change Prepared" / "Manage Known" modals with class-filtered search, prepare/unprepare toggles with limit enforcement, always-prepared subclass spells (lock icon), "Add Feat Spells" modal (search spell-granting feats, configure options/ability/spells, save to spellsKnown)
   - [x] **Inventory** — currency (gp, sp, cp, pp), all items (from class/background + added), equipped items, attuned items (indicator), "+" button to add items from reference database
   - [x] **Features** — class features, race features, background features, other features (text descriptions for reference)
   - [x] **Journal** — character image (with upload), alignment, physical description, personality traits, ideals, bonds, flaws, notes

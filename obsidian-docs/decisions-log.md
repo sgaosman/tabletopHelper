@@ -577,3 +577,14 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Previously these fields were passed through from the frontend request without validation or calculation. The frontend had no mechanism to compute them during creation. Server-side calculation ensures correctness and reduces frontend complexity.
 
 **Trade-offs:** Caster type is derived from class name rather than stored as a field on CharacterClass. This works because the 2014 PHB has a fixed, small set of caster classes. If a homebrew class were added, the mapping would need updating.
+
+## D050: Feat Spell Management via grantsFeatures Parsing
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** Parse feat `grantsFeatures` JSON (raw 5etools `additionalSpells` format) on the frontend into a normalized `ParsedFeatOption` structure. The parser (`featSpellParser.ts`) handles all 5etools patterns: fixed known spells, choose-from-class filters, choose-from-list, daily innate spells, fixed/choose ability. During character creation, backgrounds that grant feats show a feat configuration UI in the Background step and spell selection in the Spells step. On the character sheet, an "Add Feat Spells" button opens a modal for post-creation feat spell management.
+
+**Rationale:** The 5etools `additionalSpells` format is already stored verbatim in the `feats.grants_features` JSONB column. Parsing it client-side keeps the backend simple and reuses the same format used for race `additionalSpells`. The normalized `ParsedFeatOption` structure flattens the complex nesting into flat arrays (fixedCantrips, cantripChoice, fixedSpells, spellChoice, ability/abilityChoices) that map directly to UI components.
+
+**Trade-offs:** Parsing happens on every render rather than being pre-processed. The 5etools data format is complex (8+ patterns) which means the parser has many code paths, but each feat only exercises 2-3 of them. Rune Shaper's `daily` array encodes all 14 spells as individual fixed grants rather than a choice — this matches the raw data but may not perfectly reflect the feat's rules text.

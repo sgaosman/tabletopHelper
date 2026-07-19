@@ -40,9 +40,8 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Current state:** Character creation uses guided wizard with seeded reference data. Race/class/subclass/background selected from dropdowns. Ability scores via standard array, point buy, or manual entry. Derived stats auto-calculated. Six-tab character sheet with Stats, Actions, Spells, Inventory, Features, Journal. Proficiency collection from race + class + background. Short/long rest mechanics. Campaign assignment. Character deletion with soft-delete. Spells tab fully functional: source-grouped boxes (per-class, race, feat), spell detail modal, preparation/known spell management modals, auto-calculated spell slots/DC/attack bonus. Spell selection step in creation wizard.
 
 **Remaining gaps:**
-- No feat selection during creation (planned for future iteration)
 - Multiclass spell slot edge cases may need manual override
-- Feat spell management on character sheet is basic (add from sheet, no feat picker yet)
+- Some feats (e.g. Rune Shaper) may have data encoding that doesn't perfectly match rules text
 
 ### R004: Data Seeding Performance
 
@@ -152,8 +151,8 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Current state:** 6-step guided creation wizard with 226 races, 13 classes, 124 subclasses, 101 backgrounds. All ability score methods implemented. Multiclass support with PHB spell slot calculation. Pact Magic handled. Short/long rest mechanics. Background equipment and proficiency rendering with full coverage of 5e.tools data patterns. Campaign assignment and character deletion.
 
 **Remaining risk areas:**
-- Feat selection during creation not yet implemented
 - Some exotic race/background combinations may have edge cases in proficiency data
+- Feat spell data parsing covers 4 spell-granting feats (Magic Initiate, Strixhaven Initiate, Scion of the Outer Planes, Initiate of High Sorcery); additional homebrew feats may need parser updates
 
 ### R012: Monster Action Parsing
 
