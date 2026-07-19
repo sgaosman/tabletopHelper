@@ -19,6 +19,7 @@ public class DataSeeder implements CommandLineRunner {
     private final CharacterClassSeeder characterClassSeeder;
     private final BackgroundSeeder backgroundSeeder;
     private final FeatSeeder featSeeder;
+    private final OptionalFeatureSeeder optionalFeatureSeeder;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
@@ -79,6 +80,12 @@ public class DataSeeder implements CommandLineRunner {
             featSeeder.seed();
         } catch (Exception e) {
             log.error("Failed to seed feats: {}", e.getMessage(), e);
+        }
+
+        try {
+            optionalFeatureSeeder.seed();
+        } catch (Exception e) {
+            log.error("Failed to seed optional features: {}", e.getMessage(), e);
         }
 
         long elapsed = System.currentTimeMillis() - start;

@@ -26,9 +26,17 @@ public class FeatSeeder {
     private final ObjectMapper objectMapper;
 
     public void seed() throws Exception {
-        if (featRepository.count() > 0) {
-            log.info("Feats already seeded, skipping");
-            return;
+        long existingCount = featRepository.count();
+        if (existingCount > 0) {
+            boolean needsEffectsBackfill = featRepository.findAllByOrderByNameAsc().stream()
+                    .anyMatch(f -> f.getEffects() == null);
+            if (needsEffectsBackfill) {
+                log.info("Feats exist but effects column needs backfill, re-seeding...");
+                featRepository.deleteAll();
+            } else {
+                log.info("Feats already seeded, skipping");
+                return;
+            }
         }
 
         ClassPathResource resource = new ClassPathResource("data/5etools/feats.json");
@@ -63,6 +71,7 @@ public class FeatSeeder {
                 .description(flattenEntries(feat.get("entries")))
                 .abilityScoreIncrease(extractAbilityScoreIncrease(feat))
                 .grantsFeatures(extractGrantsFeatures(feat))
+                .effects(extractEffects(feat, name))
                 .build();
     }
 
@@ -203,6 +212,61 @@ public class FeatSeeder {
         JsonNode spells = feat.get("additionalSpells");
         if (spells == null) return null;
         return objectMapper.writeValueAsString(spells);
+    }
+
+    private String extractEffects(JsonNode feat, String name) throws Exception {
+        ObjectNode effects = objectMapper.createObjectNode();
+
+        if (feat.has("resist")) {
+            effects.set("resistances", feat.get("resist"));
+        }
+        if (feat.has("expertise")) {
+            effects.set("expertise", feat.get("expertise"));
+        }
+        if (feat.has("armorProficiencies")) {
+            effects.set("armorProficiencies", feat.get("armorProficiencies"));
+        }
+        if (feat.has("weaponProficiencies")) {
+            effects.set("weaponProficiencies", feat.get("weaponProficiencies"));
+        }
+        if (feat.has("toolProficiencies")) {
+            effects.set("toolProficiencies", feat.get("toolProficiencies"));
+        }
+        if (feat.has("skillProficiencies")) {
+            effects.set("skillProficiencies", feat.get("skillProficiencies"));
+        }
+        if (feat.has("languageProficiencies")) {
+            effects.set("languageProficiencies", feat.get("languageProficiencies"));
+        }
+        if (feat.has("savingThrowProficiencies")) {
+            effects.set("savingThrowProficiencies", feat.get("savingThrowProficiencies"));
+        }
+        if (feat.has("skillToolLanguageProficiencies")) {
+            effects.set("skillToolLanguageProficiencies", feat.get("skillToolLanguageProficiencies"));
+        }
+        if (feat.has("optionalfeatureProgression")) {
+            effects.set("optionalFeatureProgression", feat.get("optionalfeatureProgression"));
+        }
+
+        switch (name) {
+            case "Tough" -> effects.put("hpPerLevel", 2);
+            case "Alert" -> effects.put("initiativeBonus", 5);
+            case "Observant" -> {
+                effects.put("passivePerceptionBonus", 5);
+                effects.put("passiveInvestigationBonus", 5);
+            }
+            case "Mobile" -> effects.put("speedBonus", 10);
+            case "Squat Nimbleness" -> effects.put("speedBonus", 5);
+            case "Lucky" -> {
+                ObjectNode resource = objectMapper.createObjectNode();
+                resource.put("name", "Luck Points");
+                resource.put("maxUses", 3);
+                resource.put("resetOn", "longRest");
+                effects.set("resource", resource);
+            }
+        }
+
+        return effects.isEmpty() ? null : objectMapper.writeValueAsString(effects);
     }
 
     private String flattenEntries(JsonNode entries) {

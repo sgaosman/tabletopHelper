@@ -632,3 +632,25 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Keeping all leveling logic server-side prevents drift between client and server state. The `LevelUpCalculator` utility is shared between character creation (multi-level) and level-up, ensuring consistency. The two-step flow (level-up then apply-choices) keeps each API call focused.
 
 **Trade-offs:** The client cannot preview exact HP gain before confirming, though this is a minor UX gap since HP gain is deterministic (PHB average). The two-step flow adds a round trip for ASI/subclass levels.
+
+## D055: Single JSONB Effects Column for Feat Automation
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** All structured mechanical effects for feats are stored in a single `effects` JSONB column on the `feats` table, rather than 10+ separate columns for each effect type (resistances, proficiencies, speed, etc.). The `FeatEffectResolver` service parses this JSON and applies/reverses effects deterministically.
+
+**Rationale:** A single JSONB column avoids schema proliferation (10+ columns, many nullable) and is easily extensible for new effect types. The 5etools data already provides structured keys (`additionalSpells`, `armorProficiencies`, `resist`, etc.) that map directly to JSON fields. The seeder extracts these from raw 5etools data, with hand-authored templates for stat-modifying feats (Tough, Alert, Observant, Mobile, Lucky, Squat Nimbleness) that have no structured 5etools keys.
+
+**Trade-offs:** The effects JSON is opaque to SQL queries — you cannot query "all feats that grant resistance" without parsing JSON. This is acceptable because feat effects are only consumed by the application layer (FeatEffectResolver), never queried directly in SQL.
+
+## D056: Deterministic Feat Reversal via Applied Effects Record
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** When a feat is applied during level-up, all mechanical changes are recorded in `levelHistory[level].choices.asi.appliedEffects` as a structured object (ability increases, proficiencies added, resistances added, etc.). On level-down, the `FeatEffectResolver.reverseFeatEffects()` method uses this record to precisely undo each change.
+
+**Rationale:** Feats involve player choices (which ability to increase, which skill to get expertise in, which resistance to pick) that cannot be re-derived from the feat definition alone. Storing the exact applied effects ensures reversal is always correct regardless of what the player chose. This extends the `levelHistory` pattern established in M10 (D052).
+
+**Trade-offs:** The levelHistory JSONB grows slightly larger with appliedEffects data. This is negligible — even at level 20 with a feat at every ASI level, the total is under 10KB.

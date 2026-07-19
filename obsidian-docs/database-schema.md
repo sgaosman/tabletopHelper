@@ -164,7 +164,8 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | attuned_items | JSONB | | Array of attuned item names |
 | equipped_items | JSONB | | Array of equipped item names |
 | hit_dice_map | JSONB | | Per-class hit dice: {className: {total, remaining, faces}} |
-| level_history | JSONB | | Array of per-level entries for deterministic rollback: [{characterLevel, classId, className, classLevel, hpGained, featuresGained, choices}] |
+| level_history | JSONB | | Array of per-level entries for deterministic rollback: [{characterLevel, classId, className, classLevel, hpGained, featuresGained, choices}]. ASI choices with `featId` record `appliedEffects` for deterministic feat reversal. |
+| feat_resources | JSONB | | Array of feat-granted limited-use resources: [{featName, name, maxUses, currentUses, resetOn}]. e.g. Lucky's 3 Luck Points per long rest. Reset on long rest handled by frontend. |
 | is_active | BOOLEAN | DEFAULT TRUE | Soft delete |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
@@ -353,9 +354,24 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | description | TEXT | |
 | ability_score_increase | JSONB | `@JsonRawValue` |
 | grants_features | JSONB | `@JsonRawValue` |
+| effects | JSONB | `@JsonRawValue` — structured mechanical effects. Contains any of: `resistances`, `expertise`, `armorProficiencies`, `weaponProficiencies`, `toolProficiencies`, `skillProficiencies`, `languageProficiencies`, `savingThrowProficiencies`, `optionalFeatureProgression`, `speedBonus`, `initiativeBonus`, `hpPerLevel`, `passivePerceptionBonus`, `passiveInvestigationBonus`, `resource` (with `name`, `maxUses`, `resetOn`). 29/108 feats have effects. Hand-authored templates for Tough, Alert, Observant, Mobile, Squat Nimbleness, Lucky. |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 108 feats
+
+### optional_features
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| name | VARCHAR(200) | NOT NULL |
+| source | VARCHAR(100) | |
+| feature_type | VARCHAR(50) | Normalized type: `EldritchInvocation`, `Metamagic`, `BattleManeuver`, `FightingStyle` |
+| description | TEXT | |
+| prerequisite | JSONB | `@JsonRawValue` |
+| created_at | TIMESTAMPTZ | |
+
+**Count:** 114 optional features (54 Eldritch Invocations, 23 Battle Maneuvers, 27 Fighting Styles, 10 Metamagic)
 
 ## Encounter Tables (Milestone 4)
 

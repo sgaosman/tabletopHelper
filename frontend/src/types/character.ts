@@ -177,6 +177,7 @@ export interface PlayerCharacter {
   equippedItems?: string;
   hitDiceMap?: string;
   levelHistory?: string;
+  featResources?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -203,7 +204,25 @@ export interface AsiChoice {
   type: 'ability' | 'feat';
   increases?: AbilityIncrease[];
   featName?: string;
+  featId?: string;
   featAbility?: string;
+  resistanceChoice?: string;
+  skillProficiencyChoices?: string[];
+  savingThrowChoice?: string;
+  expertiseSkillChoices?: string[];
+  toolProficiencyChoices?: string[];
+  languageChoices?: string[];
+  weaponChoices?: string[];
+  spellIds?: string[];
+  optionalFeatureIds?: string[];
+}
+
+export interface FeatResource {
+  featName: string;
+  name: string;
+  maxUses: number;
+  currentUses: number;
+  resetOn: string;
 }
 
 export interface AbilityIncrease {

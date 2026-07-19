@@ -11,13 +11,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "feats")
+@Table(name = "optional_features")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Feat {
+public class OptionalFeature {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -29,28 +29,16 @@ public class Feat {
     @Column(length = 100)
     private String source;
 
-    @JsonRawValue
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private String prerequisite;
+    @Column(name = "feature_type", length = 50, nullable = false)
+    private String featureType;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
     @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "ability_score_increase", columnDefinition = "jsonb")
-    private String abilityScoreIncrease;
-
-    @JsonRawValue
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "grants_features", columnDefinition = "jsonb")
-    private String grantsFeatures;
-
-    @JsonRawValue
-    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String effects;
+    private String prerequisite;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

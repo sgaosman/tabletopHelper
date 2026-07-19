@@ -29,6 +29,7 @@ public class ReferenceController {
     private final SubclassRepository subclassRepository;
     private final BackgroundRepository backgroundRepository;
     private final FeatRepository featRepository;
+    private final OptionalFeatureRepository optionalFeatureRepository;
     private final ObjectMapper objectMapper;
 
     @GetMapping("/spells")
@@ -202,6 +203,15 @@ public class ReferenceController {
         return featRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/optional-features")
+    public List<OptionalFeature> getOptionalFeatures(
+            @RequestParam(required = false) String type) {
+        if (type != null && !type.isBlank()) {
+            return optionalFeatureRepository.findByFeatureTypeOrderByNameAsc(type);
+        }
+        return optionalFeatureRepository.findAll();
     }
 
     @GetMapping("/quickref")

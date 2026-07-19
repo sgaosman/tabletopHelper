@@ -280,7 +280,7 @@ Apply pending choices after a level-up (ASI/feat selection, subclass selection).
 }
 ```
 
-For `type: "feat"`, provide `featName` and optionally `featAbility` (for half-feats). Both `asi` and `subclassId` are optional — provide whichever choices are pending.
+For `type: "feat"`, provide `featId` (UUID) for full feat automation. The server loads the feat's `effects` JSON and auto-applies all mechanical bonuses (ability scores, proficiencies, resistances, expertise, speed, initiative, HP per level, passive stats, resources, spells). Provide choice fields as needed: `featAbility` (half-feat ability), `resistanceChoice`, `skillProficiencyChoices`, `savingThrowChoice`, `expertiseSkillChoices`, `toolProficiencyChoices`, `languageChoices`, `weaponChoices`, `spellIds`, `optionalFeatureIds`. Legacy `featName` (string) path still works for text-only feat recording. Both `asi` and `subclassId` are optional — provide whichever choices are pending. All applied effects are recorded in `levelHistory[].choices.asi.appliedEffects` for deterministic reversal on level-down.
 
 **Response (200):** Full character object with updated ability scores / subclass.
 
@@ -432,11 +432,21 @@ Get a single background by ID.
 
 ### GET /reference/feats
 
-List all 108 feats sorted by name. Includes prerequisites, description, and ability score increases.
+List all 108 feats sorted by name. Includes prerequisites, description, ability score increases, and effects (structured mechanical data for automation).
 
 ### GET /reference/feats/{id}
 
 Get a single feat by ID.
+
+### GET /reference/optional-features
+
+List optional features (Eldritch Invocations, Fighting Styles, Battle Maneuvers, Metamagic).
+
+**Query params:** `type` — filter by normalized type string (`EldritchInvocation`, `Metamagic`, `BattleManeuver`, `FightingStyle`).
+
+**Response (200):** Array of optional feature objects with `id`, `name`, `source`, `featureType`, `description`, `prerequisite`.
+
+**Count:** 114 total (54 EI, 23 BM, 27 FS, 10 MM).
 
 ## Encounters
 

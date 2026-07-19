@@ -23,7 +23,7 @@
 | 17 | Class Feature Automation | Not started | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
 | 18 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 | 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
-| 20 | Feat Automation on Level-Up | Not started | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
+| 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 
@@ -503,19 +503,26 @@ Phase 3 — Multiclass at creation: deferred (achievable via level-up flow)
 **Current state:** `AsiModal` accepts a feat name as free text. The feat's mechanical effects are not applied — the player must manually adjust their sheet. This is error-prone and slow mid-game.
 
 **Tasks:**
-- [ ] Present a preconfigured list of feats from reference data (replace free text input)
-- [ ] **Spells** — feats that grant spells (Magic Initiate, Ritual Caster, Fey Touched, Shadow Touched, etc.) should auto-add the spell(s) to the Spells tab in a dedicated feat section
-- [ ] **Actions / bonus actions / reactions** — feats that grant combat options (Sentinel, Polearm Master, Great Weapon Master, Shield Master, etc.) should auto-add entries to the Actions tab
-- [ ] **Ability score bonuses** — apply fixed bonuses or let the user choose which ability score for half-feats (Resilient, Skill Expert, Athlete, etc.)
-- [ ] **Proficiencies** — add armor, weapon, tool, skill, language, or saving throw proficiencies (Moderately Armored, Weapon Master, Linguist, Skilled, etc.)
-- [ ] **Passive stat modifications** — Tough: +2 HP per level retroactively; Alert: +5 initiative; Observant: +5 passive Perception/Investigation
-- [ ] **Speed changes** — Mobile: +10 speed; Squat Nimbleness: +5 speed
-- [ ] **Damage resistances** — add to resistances list (e.g. Dragon Hide, Infernal Constitution)
-- [ ] **Expertise** — Skill Expert / Prodigy: grant expertise (double proficiency) on a chosen skill
-- [ ] **Resource pools** — Lucky: 3 luck points per long rest; Inspiring Leader: temp HP uses. Requires a trackable resource system similar to spell slots
-- [ ] All effects must be reversible on level-down (recorded in `levelHistory` choices)
+- [x] Present a preconfigured list of feats from reference data (replace free text input) — AsiModal rewritten with searchable feat list, prerequisite filtering, effect summaries
+- [x] **Spells** — feats that grant spells auto-add to character via `spellIds` choice field
+- [x] **Text-only combat feats** — feats like Great Weapon Master, Sentinel, Polearm Master are added to features tab with full description for manual use
+- [x] **Ability score bonuses** — fixed bonuses auto-applied; half-feats present ability choice UI
+- [x] **Proficiencies** — armor, weapon, tool, skill, language, and saving throw proficiencies auto-applied via `FeatEffectResolver`
+- [x] **Passive stat modifications** — Tough: +2 HP per level retroactively; Alert: +5 initiative; Observant: +5 passive Perception/Investigation (hand-authored effect templates)
+- [x] **Speed changes** — Mobile: +10 speed; Squat Nimbleness: +5 speed (hand-authored effect templates)
+- [x] **Damage resistances** — auto-added to damageResistances list (fixed or choose-one)
+- [x] **Expertise** — Skill Expert / Prodigy: grant expertise on chosen proficient skill
+- [x] **Resource pools** — Lucky: 3 luck points per long rest with clickable dot tracker on character sheet; Inspiring Leader: "+ Temp HP" button uses D&D temp HP max() rule
+- [x] **Optional features** — Eldritch Adept, Martial Adept, Metamagic Adept, Fighting Initiate present optional feature picker (114 features seeded)
+- [x] All effects reversible on level-down via `appliedEffects` record in `levelHistory`
 
-**Dependencies:** M10 (character leveling) — extends the existing ASI/feat choice flow. Resource pool tracking (item 10) may require a new general-purpose resource system.
+**Key files:**
+- `FeatEffectResolver.java` — applies and reverses all feat mechanical effects
+- `OptionalFeatureSeeder.java` — seeds 114 optional features from 5etools
+- `AsiModal.tsx` — complete rewrite with feat list, prerequisite check, inline choice forms
+- `featPrerequisites.ts` — prerequisite checking and effects parsing utilities
+
+**Dependencies:** M10 (character leveling) — extends the existing ASI/feat choice flow.
 
 ## Future Features (Post Month 1)
 
