@@ -810,7 +810,9 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
     const n = parseInt(k);
     return isNaN(n) ? 0 : n;
   }));
-  const validLevels = Array.from({ length: maxSpellLevel }, (_, i) => i + 1);
+  const canSwapCantrips = className === 'Wizard' && char.level >= 3;
+  const minSpellLevel = canSwapCantrips ? 0 : 1;
+  const validLevels = Array.from({ length: maxSpellLevel - minSpellLevel + 1 }, (_, i) => i + minSpellLevel);
 
   useEffect(() => {
     doSearch();
@@ -823,11 +825,11 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
       if (searchQuery.trim()) params.name = searchQuery.trim();
       if (selectedLevel !== '') {
         params.level = selectedLevel;
-      } else if (maxSpellLevel > 0) {
+      } else {
         params.level = validLevels.join(',');
       }
       const res = await searchSpells(params as any);
-      setSearchResults(res.content.filter(s => s.level >= 1 && s.level <= maxSpellLevel));
+      setSearchResults(res.content.filter(s => s.level >= minSpellLevel && s.level <= maxSpellLevel));
     } catch { /* ignore */ }
     setSearching(false);
   }
@@ -915,7 +917,7 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
             >
               <option value="">All Levels</option>
               {validLevels.map(l => (
-                <option key={l} value={l}>Level {l}</option>
+                <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
               ))}
             </select>
             <button onClick={doSearch} className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 rounded-md transition-colors">
