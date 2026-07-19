@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, Search } from 'lucide-react';
-import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats } from '../../api/referenceApi';
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, Search, X } from 'lucide-react';
+import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats, searchSpells } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
-import type { Race, CharacterClassRef, Subclass, Background, Feat } from '../../types/reference';
+import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
+import { CANTRIPS_KNOWN, SPELLS_KNOWN } from '../../utils/spellConstants';
 
-const STEPS = ['Basic Info', 'Race', 'Class', 'Ability Scores', 'Background', 'Review'] as const;
+const ALL_STEPS = ['Basic Info', 'Race', 'Class', 'Ability Scores', 'Background', 'Spells', 'Review'] as const;
 
 const ALIGNMENTS = [
   'Lawful Good', 'Neutral Good', 'Chaotic Good',
@@ -175,6 +176,18 @@ export default function CharacterCreateWizard() {
   const [raceChoiceSelections, setRaceChoiceSelections] = useState<Record<string, string[]>>({});
 
   const [bonusAssignments, setBonusAssignments] = useState<Array<{ bonus: number; ability: string | null }>>([]);
+  const [selectedCantrips, setSelectedCantrips] = useState<Spell[]>([]);
+  const [selectedSpells, setSelectedSpells] = useState<Spell[]>([]);
+  const [cantripResults, setCantripResults] = useState<Spell[]>([]);
+  const [spellResults, setSpellResults] = useState<Spell[]>([]);
+  const [spellSearch, setSpellSearch] = useState('');
+  const [cantripSearch, setCantripSearch] = useState('');
+
+  const isSpellcaster = selectedClass?.isSpellcaster ?? false;
+  const steps = useMemo(() =>
+    isSpellcaster ? ALL_STEPS : ALL_STEPS.filter(s => s !== 'Spells'),
+    [isSpellcaster]
+  );
 
   useEffect(() => {
     getRaces().then(res => setRaces(res));
@@ -525,24 +538,59 @@ export default function CharacterCreateWizard() {
     return total;
   }, [scores]);
 
+  const currentStepName = steps[step];
+
   function canAdvance(): boolean {
-    switch (step) {
-      case 0: return name.trim().length > 0;
-      case 1: {
+    switch (currentStepName) {
+      case 'Basic Info': return name.trim().length > 0;
+      case 'Race': {
         if (!selectedRace) return false;
         const bonusesOk = isVanillaHuman || bonusAssignments.length === 0 || bonusAssignments.every(a => a.ability !== null);
         return bonusesOk && raceChoicesComplete;
       }
-      case 2: return selectedClass !== null;
-      case 3:
+      case 'Class': return selectedClass !== null;
+      case 'Ability Scores':
         if (abilityMethod === 'standard') {
           return Object.values(standardAssignments).every(v => v !== null);
         }
         if (abilityMethod === 'pointbuy') return pointBuyTotal <= 27;
         return true;
-      case 4: return selectedBackground !== null && bgChoicesComplete;
+      case 'Background': return selectedBackground !== null && bgChoicesComplete;
+      case 'Spells': return true;
       default: return true;
     }
+  }
+
+  function buildSpellsKnown(): string | undefined {
+    if (!selectedClass?.isSpellcaster) return undefined;
+    const entries: Array<{ name: string; level: number; source: string; prepared?: boolean }> = [];
+    const source = `class:${selectedClass.name}`;
+    for (const s of selectedCantrips) {
+      entries.push({ name: s.name, level: 0, source });
+    }
+    for (const s of selectedSpells) {
+      entries.push({
+        name: s.name, level: s.level, source,
+        prepared: selectedClass.isPreparedCaster ? true : undefined,
+      });
+    }
+    // Add race innate spells
+    if (selectedRace?.additionalSpells) {
+      const raceSpells = safeJsonParse<{
+        fixedSpells?: Array<{ name: string; level: number; atWill?: boolean; usesPerLongRest?: number; unlocksAtLevel?: number }>;
+      }>(selectedRace.additionalSpells, {});
+      const raceSource = `race:${selectedRace.name}`;
+      for (const s of raceSpells.fixedSpells ?? []) {
+        if (!s.unlocksAtLevel || s.unlocksAtLevel <= 1) {
+          entries.push({
+            name: s.name, level: s.level ?? 0, source: raceSource,
+            ...(s.atWill ? { atWill: true } as any : {}),
+            ...(s.usesPerLongRest ? { usesPerLongRest: s.usesPerLongRest } as any : {}),
+          });
+        }
+      }
+    }
+    return entries.length > 0 ? JSON.stringify(entries) : undefined;
   }
 
   async function handleCreate() {
@@ -613,6 +661,7 @@ export default function CharacterCreateWizard() {
         languageProficiencies: allLanguages.length > 0 ? JSON.stringify([...new Set(allLanguages)]) : undefined,
         damageResistances: resistances.length > 0 ? JSON.stringify(resistances) : undefined,
         spellcastingAbility: selectedClass.spellcastingAbility ?? undefined,
+        spellsKnown: buildSpellsKnown(),
         hitDiceMap: JSON.stringify({ [selectedClass.name]: { total: 1, remaining: 1, faces: selectedClass.hitDice } }),
       });
       navigate(`/player/characters/${res.data.id}`);
@@ -638,7 +687,7 @@ export default function CharacterCreateWizard() {
       {/* Step indicator */}
       <div className="max-w-3xl mx-auto px-6 pt-6">
         <div className="flex items-center gap-1">
-          {STEPS.map((label, i) => (
+          {steps.map((label, i) => (
             <div key={label} className="flex-1 flex flex-col items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
                 i < step ? 'bg-green-600 border-green-600 text-white' :
@@ -654,8 +703,8 @@ export default function CharacterCreateWizard() {
       </div>
 
       <main className="max-w-3xl mx-auto px-6 py-8">
-        {/* Step 0: Basic Info */}
-        {step === 0 && (
+        {/* Basic Info */}
+        {currentStepName === 'Basic Info' && (
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-white">Basic Information</h2>
             <div>
@@ -687,8 +736,8 @@ export default function CharacterCreateWizard() {
           </div>
         )}
 
-        {/* Step 1: Race */}
-        {step === 1 && (
+        {/* Race */}
+        {currentStepName === 'Race' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white">Choose a Race</h2>
             <div className="relative max-w-md">
@@ -810,7 +859,7 @@ export default function CharacterCreateWizard() {
         )}
 
         {/* Step 2: Class */}
-        {step === 2 && (
+        {currentStepName === 'Class' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white">Choose a Class</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -826,6 +875,10 @@ export default function CharacterCreateWizard() {
                       } else {
                         setSelectedClass(cls);
                         setSelectedSubclass(null);
+                        setSelectedCantrips([]);
+                        setSelectedSpells([]);
+                        setCantripResults([]);
+                        setSpellResults([]);
                       }
                     }}
                     className={`p-4 rounded-lg border text-left transition-colors ${
@@ -875,7 +928,7 @@ export default function CharacterCreateWizard() {
         )}
 
         {/* Step 3: Ability Scores */}
-        {step === 3 && (
+        {currentStepName === 'Ability Scores' && (
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-white">Ability Scores</h2>
 
@@ -957,7 +1010,7 @@ export default function CharacterCreateWizard() {
         )}
 
         {/* Step 4: Background */}
-        {step === 4 && (
+        {currentStepName === 'Background' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white">Choose a Background</h2>
             <div className="relative max-w-md">
@@ -1062,8 +1115,28 @@ export default function CharacterCreateWizard() {
           </div>
         )}
 
-        {/* Step 5: Review */}
-        {step === 5 && (
+        {/* Spells */}
+        {currentStepName === 'Spells' && selectedClass && (
+          <SpellSelectionStep
+            selectedClass={selectedClass}
+            level={1}
+            selectedCantrips={selectedCantrips}
+            setSelectedCantrips={setSelectedCantrips}
+            selectedSpells={selectedSpells}
+            setSelectedSpells={setSelectedSpells}
+            cantripResults={cantripResults}
+            setCantripResults={setCantripResults}
+            spellResults={spellResults}
+            setSpellResults={setSpellResults}
+            cantripSearch={cantripSearch}
+            setCantripSearch={setCantripSearch}
+            spellSearch={spellSearch}
+            setSpellSearch={setSpellSearch}
+          />
+        )}
+
+        {/* Review */}
+        {currentStepName === 'Review' && (
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-white">Review Your Character</h2>
 
@@ -1159,7 +1232,7 @@ export default function CharacterCreateWizard() {
             <ArrowLeft className="w-4 h-4" /> {step > 0 ? 'Previous' : 'Cancel'}
           </button>
 
-          {step < STEPS.length - 1 ? (
+          {step < steps.length - 1 ? (
             <button
               onClick={() => setStep(step + 1)}
               disabled={!canAdvance()}
@@ -1423,6 +1496,213 @@ function ReviewField({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-gray-500 text-xs">{label}</p>
       <p className="text-white text-sm font-medium">{value}</p>
+    </div>
+  );
+}
+
+function SpellSelectionStep({
+  selectedClass, level,
+  selectedCantrips, setSelectedCantrips,
+  selectedSpells, setSelectedSpells,
+  cantripResults, setCantripResults,
+  spellResults, setSpellResults,
+  cantripSearch, setCantripSearch,
+  spellSearch, setSpellSearch,
+}: {
+  selectedClass: CharacterClassRef;
+  level: number;
+  selectedCantrips: Spell[];
+  setSelectedCantrips: (s: Spell[]) => void;
+  selectedSpells: Spell[];
+  setSelectedSpells: (s: Spell[]) => void;
+  cantripResults: Spell[];
+  setCantripResults: (s: Spell[]) => void;
+  spellResults: Spell[];
+  setSpellResults: (s: Spell[]) => void;
+  cantripSearch: string;
+  setCantripSearch: (s: string) => void;
+  spellSearch: string;
+  setSpellSearch: (s: string) => void;
+}) {
+  const cantripsAllowed = CANTRIPS_KNOWN[selectedClass.name]?.[level] ?? 0;
+  const spellsAllowed = selectedClass.isKnownCaster
+    ? (SPELLS_KNOWN[selectedClass.name]?.[level] ?? 0)
+    : 0;
+  const isPrepared = selectedClass.isPreparedCaster;
+
+  useEffect(() => {
+    if (cantripsAllowed > 0 && cantripResults.length === 0) {
+      searchSpells({ className: selectedClass.name, level: 0, size: 50 })
+        .then(res => setCantripResults(res.content))
+        .catch(() => {});
+    }
+    if ((spellsAllowed > 0 || isPrepared) && spellResults.length === 0) {
+      searchSpells({ className: selectedClass.name, level: 1, size: 50 })
+        .then(res => setSpellResults(res.content))
+        .catch(() => {});
+    }
+  }, [selectedClass.name]);
+
+  function searchCantrips() {
+    const params: Record<string, unknown> = { className: selectedClass.name, level: 0, size: 50 };
+    if (cantripSearch.trim()) params.name = cantripSearch.trim();
+    searchSpells(params as any).then(res => setCantripResults(res.content)).catch(() => {});
+  }
+
+  function searchSpellsList() {
+    const params: Record<string, unknown> = { className: selectedClass.name, level: 1, size: 50 };
+    if (spellSearch.trim()) params.name = spellSearch.trim();
+    searchSpells(params as any).then(res => setSpellResults(res.content)).catch(() => {});
+  }
+
+  function toggleCantrip(spell: Spell) {
+    const exists = selectedCantrips.some(s => s.id === spell.id);
+    if (exists) {
+      setSelectedCantrips(selectedCantrips.filter(s => s.id !== spell.id));
+    } else if (selectedCantrips.length < cantripsAllowed) {
+      setSelectedCantrips([...selectedCantrips, spell]);
+    }
+  }
+
+  function toggleSpell(spell: Spell) {
+    const exists = selectedSpells.some(s => s.id === spell.id);
+    if (exists) {
+      setSelectedSpells(selectedSpells.filter(s => s.id !== spell.id));
+    } else if (spellsAllowed === 0 || selectedSpells.length < spellsAllowed) {
+      setSelectedSpells([...selectedSpells, spell]);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-white">Choose Spells</h2>
+      <p className="text-gray-400 text-sm">
+        Select your starting {selectedClass.name} spells.
+      </p>
+
+      {/* Cantrip selection */}
+      {cantripsAllowed > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">Cantrips</h3>
+            <span className="text-xs text-gray-400">{selectedCantrips.length}/{cantripsAllowed} selected</span>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={cantripSearch}
+                onChange={e => setCantripSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && searchCantrips()}
+                placeholder="Search cantrips..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <button onClick={searchCantrips} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 rounded-md">Search</button>
+          </div>
+
+          {selectedCantrips.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedCantrips.map(s => (
+                <span key={s.id} className="flex items-center gap-1 bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded text-xs">
+                  {s.name}
+                  <button onClick={() => toggleCantrip(s)} className="text-indigo-400 hover:text-white"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {cantripResults.map(spell => {
+              const selected = selectedCantrips.some(s => s.id === spell.id);
+              const disabled = !selected && selectedCantrips.length >= cantripsAllowed;
+              return (
+                <button
+                  key={spell.id}
+                  onClick={() => !disabled && toggleCantrip(spell)}
+                  disabled={disabled}
+                  className={`w-full flex items-center justify-between py-1.5 px-3 rounded-md text-sm transition-colors ${
+                    selected ? 'bg-indigo-900/30 text-indigo-200' : disabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <span>{spell.name}</span>
+                  {selected && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Known spell selection (known casters only at creation) */}
+      {spellsAllowed > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">Level 1 Spells</h3>
+            <span className="text-xs text-gray-400">{selectedSpells.length}/{spellsAllowed} selected</span>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={spellSearch}
+                onChange={e => setSpellSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && searchSpellsList()}
+                placeholder="Search level 1 spells..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <button onClick={searchSpellsList} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 rounded-md">Search</button>
+          </div>
+
+          {selectedSpells.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedSpells.map(s => (
+                <span key={s.id} className="flex items-center gap-1 bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded text-xs">
+                  {s.name}
+                  <button onClick={() => toggleSpell(s)} className="text-indigo-400 hover:text-white"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {spellResults.map(spell => {
+              const selected = selectedSpells.some(s => s.id === spell.id);
+              const disabled = !selected && selectedSpells.length >= spellsAllowed;
+              return (
+                <button
+                  key={spell.id}
+                  onClick={() => !disabled && toggleSpell(spell)}
+                  disabled={disabled}
+                  className={`w-full flex items-center justify-between py-1.5 px-3 rounded-md text-sm transition-colors ${
+                    selected ? 'bg-indigo-900/30 text-indigo-200' : disabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span>{spell.name}</span>
+                    <span className="text-xs text-gray-500">{spell.school}</span>
+                  </div>
+                  {selected && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Prepared caster info */}
+      {isPrepared && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+          <h3 className="text-white font-semibold text-sm mb-2">Prepared Spells</h3>
+          <p className="text-gray-400 text-sm">
+            As a {selectedClass.name}, you prepare spells each day from your class spell list.
+            You can change your prepared spells from the character sheet after creation.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

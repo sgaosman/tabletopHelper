@@ -88,6 +88,7 @@ export interface Race {
   proficiencies: string;
   resistances: string;
   raceChoices: string | null;
+  additionalSpells: string | null;
   baseRaceName: string | null;
   description: string | null;
 }

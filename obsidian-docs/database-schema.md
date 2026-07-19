@@ -271,6 +271,8 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | traits | JSONB | `@JsonRawValue` — [{name, description}] |
 | proficiencies | JSONB | `@JsonRawValue` — {skills, languages, weapons, armor, tools} |
 | resistances | JSONB | `@JsonRawValue` — [string] |
+| race_choices | JSONB | `@JsonRawValue` — structured race choice options |
+| additional_spells | JSONB | `@JsonRawValue` — normalized race spellcasting data: `{ability, abilityChoices, fixedSpells: [{name, level, atWill, unlocksAtLevel, castLevel?, usesPerLongRest?}], spellChoices: [{fromClass, level, count}], expandedList, options?}`. 76/226 races populated. |
 | base_race_name | VARCHAR(200) | Set for subraces (e.g. "Elf") |
 | description | TEXT | |
 | created_at | TIMESTAMPTZ | |

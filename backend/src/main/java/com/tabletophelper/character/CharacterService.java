@@ -15,7 +15,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -31,6 +36,7 @@ public class CharacterService {
     private final SubclassRepository subclassRepository;
     private final BackgroundRepository backgroundRepository;
     private final EncounterParticipantRepository encounterParticipantRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
@@ -81,6 +87,36 @@ public class CharacterService {
         }
         if (speed == null) speed = 30;
 
+        String spellSlots = request.getSpellSlots();
+        Integer spellSaveDc = request.getSpellSaveDc();
+        Integer spellAttackBonus = request.getSpellAttackBonus();
+        String spellcastingAbility = request.getSpellcastingAbility();
+
+        if (classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster()) && spellSlots == null) {
+            spellcastingAbility = classRef.getSpellcastingAbility();
+            String casterType = deriveCasterType(classRef);
+            Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
+            entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
+            Map<String, Integer> slots = SpellSlotCalculator.calculateSlots(entries);
+
+            if (!slots.isEmpty()) {
+                try {
+                    ObjectNode slotsJson = objectMapper.createObjectNode();
+                    for (var slotEntry : slots.entrySet()) {
+                        ObjectNode slotObj = objectMapper.createObjectNode();
+                        slotObj.put("total", slotEntry.getValue());
+                        slotObj.put("used", 0);
+                        slotsJson.set(slotEntry.getKey(), slotObj);
+                    }
+                    spellSlots = objectMapper.writeValueAsString(slotsJson);
+                } catch (Exception ignored) {}
+            }
+
+            int abilityMod = getSpellcastingAbilityMod(spellcastingAbility, request);
+            if (spellSaveDc == null) spellSaveDc = 8 + profBonus + abilityMod;
+            if (spellAttackBonus == null) spellAttackBonus = profBonus + abilityMod;
+        }
+
         PlayerCharacter character = PlayerCharacter.builder()
                 .user(user)
                 .campaign(campaign)
@@ -118,10 +154,10 @@ public class CharacterService {
                 .features(request.getFeatures())
                 .damageResistances(request.getDamageResistances())
                 .spellsKnown(request.getSpellsKnown())
-                .spellSlots(request.getSpellSlots())
-                .spellSaveDc(request.getSpellSaveDc())
-                .spellAttackBonus(request.getSpellAttackBonus())
-                .spellcastingAbility(request.getSpellcastingAbility())
+                .spellSlots(spellSlots)
+                .spellSaveDc(spellSaveDc)
+                .spellAttackBonus(spellAttackBonus)
+                .spellcastingAbility(spellcastingAbility)
                 .equipment(request.getEquipment())
                 .currency(request.getCurrency() != null ? request.getCurrency() : "{\"cp\":0,\"sp\":0,\"ep\":0,\"gp\":0,\"pp\":0}")
                 .hitDiceMap(request.getHitDiceMap())
@@ -377,6 +413,27 @@ public class CharacterService {
         if (level <= 12) return 4;
         if (level <= 16) return 5;
         return 6;
+    }
+
+    private static String deriveCasterType(CharacterClass classRef) {
+        if (Boolean.TRUE.equals(classRef.getIsPactMagic())) return "pact";
+        String name = classRef.getName();
+        if ("Artificer".equals(name)) return "artificer";
+        if ("Paladin".equals(name) || "Ranger".equals(name)) return "half";
+        return "full";
+    }
+
+    private static int getSpellcastingAbilityMod(String ability, CharacterCreateRequest request) {
+        if (ability == null) return 0;
+        return switch (ability.toUpperCase()) {
+            case "STR" -> abilityMod(request.getStrength());
+            case "DEX" -> abilityMod(request.getDexterity());
+            case "CON" -> abilityMod(request.getConstitution());
+            case "INT" -> abilityMod(request.getIntelligence());
+            case "WIS" -> abilityMod(request.getWisdom());
+            case "CHA" -> abilityMod(request.getCharisma());
+            default -> 0;
+        };
     }
 
     private Integer extractWalkSpeed(String speedJson) {

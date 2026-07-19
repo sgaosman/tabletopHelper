@@ -189,7 +189,7 @@
 
 **Goal:** Replace free-text character creation with guided selection from seeded reference data. New character sheet with six tabs: Stats, Actions, Spells, Inventory, Features, Journal.
 
-**Note:** The Spells tab and spell preparation/known management UI are blocked by M7/M8 completion. Build M9 with a placeholder Spells tab; wire it once spell data review is complete. All other parts of M9 can proceed in parallel with M7/M8.
+**Note:** The Spells tab was initially blocked by M7/M8 (data gathering). Now complete: full spell management UI with source-grouped display, preparation/known spell management modals, spell detail view, race/feat spell boxes, and spell selection during character creation. Spell slot calculation is automated via SpellSlotCalculator.
 
 **Backend tasks:**
 - [x] Seed `Race` entity from 5e.tools `races.json` (226 races with size, speed, ASI, proficiencies, features, creature type)
@@ -212,6 +212,9 @@
 - [x] `clearCampaign` boolean on update request for campaign unassignment
 - [x] `EncounterParticipantRepository.existsByCharacter_IdAndEncounter_StatusIn()` for active-combat check
 - [x] BackgroundSeeder recursive `_copy` resolution (depth limit 5) and `{"any": N}` proficiency parsing
+- [x] Race `additional_spells` JSONB column — RaceSeeder parses all 8 5etools `additionalSpells` patterns (known, innate, expanded, ability string/choose, multi-option) into normalized format (76/226 races populated)
+- [x] CharacterService auto-calculates spell slots (via SpellSlotCalculator), spellSaveDc, spellAttackBonus at character creation for spellcaster classes
+- [x] Character creation wizard spell selection step: cantrip picker, known spell picker (known casters), prepared caster info notice
 
 **Frontend tasks:**
 - [x] Character creation wizard: race selector (with ASI preview and Tasha's reassignment) → class selector (with hit die and proficiency preview) → subclass selector (if level ≥ 3) → ability scores (method selector + inputs) → background → alignment → campaign assignment
@@ -222,7 +225,7 @@
 - [x] New character sheet tabs:
   - [x] **Stats** — HP (current/max), ability scores + modifiers, speed, AC, darkvision, proficiency bonus, initiative bonus, hit dice (remaining/total), spell slots (used/remaining), saving throw bonuses + proficiencies, skill bonuses + proficiencies (colored bullets for proficiency, stars ★ for expertise), weapon/armor/tool/language proficiencies section
   - [x] **Actions** — attack actions with equipped weapons (extra attack reminder), class actions (Channel Divinity, Second Wind), feat actions, race actions
-  - [ ] **Spells** (blocked by M7/M8) — spell slots display, spells listed by class in separate boxes, burger menu per class box to change prepared/known spells via modal, save/cancel on modal
+  - [x] **Spells** — spell slots display (regular + pact), spells grouped by source (per-class boxes with prepared/known badges, race innate spell box, feat spell box), spell detail modal (SpellCard), "Change Prepared" / "Manage Known" modals with class-filtered search, prepare/unprepare toggles with limit enforcement, always-prepared subclass spells (lock icon)
   - [x] **Inventory** — currency (gp, sp, cp, pp), all items (from class/background + added), equipped items, attuned items (indicator), "+" button to add items from reference database
   - [x] **Features** — class features, race features, background features, other features (text descriptions for reference)
   - [x] **Journal** — character image (with upload), alignment, physical description, personality traits, ideals, bonds, flaws, notes

@@ -37,12 +37,12 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Likelihood:** Low — core functionality now in place
 **Status:** Largely mitigated (M9 complete)
 
-**Current state:** Character creation uses guided wizard with seeded reference data. Race/class/subclass/background selected from dropdowns. Ability scores via standard array, point buy, or manual entry. Derived stats auto-calculated. Six-tab character sheet with Stats, Actions, Spells (placeholder), Inventory, Features, Journal. Proficiency collection from race + class + background. Short/long rest mechanics. Campaign assignment. Character deletion with soft-delete.
+**Current state:** Character creation uses guided wizard with seeded reference data. Race/class/subclass/background selected from dropdowns. Ability scores via standard array, point buy, or manual entry. Derived stats auto-calculated. Six-tab character sheet with Stats, Actions, Spells, Inventory, Features, Journal. Proficiency collection from race + class + background. Short/long rest mechanics. Campaign assignment. Character deletion with soft-delete. Spells tab fully functional: source-grouped boxes (per-class, race, feat), spell detail modal, preparation/known spell management modals, auto-calculated spell slots/DC/attack bonus. Spell selection step in creation wizard.
 
 **Remaining gaps:**
-- Spells tab blocked by M10 (spell resolver engine)
 - No feat selection during creation (planned for future iteration)
 - Multiclass spell slot edge cases may need manual override
+- Feat spell management on character sheet is basic (add from sheet, no feat picker yet)
 
 ### R004: Data Seeding Performance
 
@@ -152,7 +152,6 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Current state:** 6-step guided creation wizard with 226 races, 13 classes, 124 subclasses, 101 backgrounds. All ability score methods implemented. Multiclass support with PHB spell slot calculation. Pact Magic handled. Short/long rest mechanics. Background equipment and proficiency rendering with full coverage of 5e.tools data patterns. Campaign assignment and character deletion.
 
 **Remaining risk areas:**
-- Spells tab and spell preparation blocked by M10
 - Feat selection during creation not yet implemented
 - Some exotic race/background combinations may have edge cases in proficiency data
 

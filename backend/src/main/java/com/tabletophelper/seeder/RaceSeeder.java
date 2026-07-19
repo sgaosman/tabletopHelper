@@ -142,6 +142,7 @@ public class RaceSeeder {
                     .proficiencies(proficiencies)
                     .resistances(resistances)
                     .raceChoices(resolveRaceChoices(node, parent))
+                    .additionalSpells(extractAdditionalSpells(node, parent))
                     .baseRaceName(parentRaceName)
                     .description(description)
                     .build();
@@ -736,6 +737,309 @@ public class RaceSeeder {
                 }
             }
         }
+    }
+
+    private String extractAdditionalSpells(JsonNode node, JsonNode parent) {
+        try {
+            JsonNode spellsNode = node.get("additionalSpells");
+            if (spellsNode == null && parent != null) spellsNode = parent.get("additionalSpells");
+            if (spellsNode == null || !spellsNode.isArray() || spellsNode.isEmpty()) return null;
+
+            ObjectNode result = objectMapper.createObjectNode();
+
+            // Extract ability
+            String ability = null;
+            ArrayNode abilityChoicesArr = null;
+            for (JsonNode entry : spellsNode) {
+                JsonNode abilityNode = entry.get("ability");
+                if (abilityNode == null) continue;
+                if (abilityNode.isTextual()) {
+                    ability = ABILITY_MAP.getOrDefault(abilityNode.asText(), abilityNode.asText().toUpperCase());
+                } else if (abilityNode.isObject() && abilityNode.has("choose")) {
+                    abilityChoicesArr = objectMapper.createArrayNode();
+                    JsonNode choose = abilityNode.get("choose");
+                    if (choose.isArray()) {
+                        for (JsonNode c : choose) {
+                            if (c.isTextual()) {
+                                abilityChoicesArr.add(ABILITY_MAP.getOrDefault(c.asText(), c.asText().toUpperCase()));
+                            } else if (c.isObject() && c.has("from")) {
+                                for (JsonNode f : c.get("from"))
+                                    abilityChoicesArr.add(ABILITY_MAP.getOrDefault(f.asText(), f.asText().toUpperCase()));
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            if (ability != null) result.put("ability", ability);
+            else result.putNull("ability");
+            if (abilityChoicesArr != null && !abilityChoicesArr.isEmpty()) result.set("abilityChoices", abilityChoicesArr);
+            else result.putNull("abilityChoices");
+
+            ArrayNode fixedSpells = objectMapper.createArrayNode();
+            ArrayNode spellChoices = objectMapper.createArrayNode();
+            ObjectNode expandedList = null;
+
+            boolean multipleOptions = spellsNode.size() > 1 && !spellsNode.get(0).has("expanded");
+
+            if (multipleOptions) {
+                ArrayNode options = objectMapper.createArrayNode();
+                for (JsonNode entry : spellsNode) {
+                    ArrayNode optionSpells = objectMapper.createArrayNode();
+                    collectFixedSpells(entry, optionSpells);
+                    collectSpellChoices(entry, optionSpells);
+                    options.add(optionSpells);
+                }
+                result.set("options", options);
+            } else {
+                for (JsonNode entry : spellsNode) {
+                    collectFixedSpells(entry, fixedSpells);
+                    collectSpellChoices(entry, spellChoices);
+                    ObjectNode expanded = collectExpandedList(entry);
+                    if (expanded != null) expandedList = expanded;
+                }
+            }
+
+            result.set("fixedSpells", fixedSpells);
+            result.set("spellChoices", spellChoices);
+            if (expandedList != null) result.set("expandedList", expandedList);
+            else result.putNull("expandedList");
+
+            if (fixedSpells.isEmpty() && spellChoices.isEmpty() && expandedList == null
+                    && !result.has("options") && ability == null && abilityChoicesArr == null) {
+                return null;
+            }
+
+            return objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            log.warn("Failed to parse additionalSpells: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private void collectFixedSpells(JsonNode entry, ArrayNode fixedSpells) {
+        // "known" block: spells known at certain levels
+        JsonNode known = entry.get("known");
+        if (known != null) {
+            var fieldNames = known.fieldNames();
+            while (fieldNames.hasNext()) {
+                String levelKey = fieldNames.next();
+                int unlocksAt = "_".equals(levelKey) ? 1 : parseIntSafe(levelKey, 1);
+                JsonNode spellsAtLevel = known.get(levelKey);
+
+                if (spellsAtLevel.isArray()) {
+                    for (JsonNode s : spellsAtLevel) {
+                        if (s.isTextual()) {
+                            addFixedSpell(fixedSpells, s.asText(), unlocksAt, true, 0);
+                        }
+                    }
+                } else if (spellsAtLevel.isObject()) {
+                    var innerKeys = spellsAtLevel.fieldNames();
+                    while (innerKeys.hasNext()) {
+                        String innerKey = innerKeys.next();
+                        JsonNode innerArr = spellsAtLevel.get(innerKey);
+                        if (innerArr.isArray()) {
+                            for (JsonNode s : innerArr) {
+                                if (s.isTextual()) {
+                                    addFixedSpell(fixedSpells, s.asText(), unlocksAt, true, 0);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // "innate" block: spells castable innately (often daily)
+        JsonNode innate = entry.get("innate");
+        if (innate != null) {
+            var fieldNames = innate.fieldNames();
+            while (fieldNames.hasNext()) {
+                String levelKey = fieldNames.next();
+                int unlocksAt = "_".equals(levelKey) ? 1 : parseIntSafe(levelKey, 1);
+                JsonNode spellsAtLevel = innate.get(levelKey);
+
+                if (spellsAtLevel.isArray()) {
+                    for (JsonNode s : spellsAtLevel) {
+                        if (s.isTextual()) {
+                            addFixedSpell(fixedSpells, s.asText(), unlocksAt, false, 0);
+                        }
+                    }
+                } else if (spellsAtLevel.isObject()) {
+                    // daily: {"1": [...], "1e": [...]}
+                    JsonNode daily = spellsAtLevel.get("daily");
+                    if (daily != null) {
+                        var dailyKeys = daily.fieldNames();
+                        while (dailyKeys.hasNext()) {
+                            String usesKey = dailyKeys.next();
+                            int uses = parseIntSafe(usesKey.replace("e", ""), 1);
+                            JsonNode dailySpells = daily.get(usesKey);
+                            if (dailySpells.isArray()) {
+                                for (JsonNode s : dailySpells) {
+                                    if (s.isTextual()) {
+                                        addFixedSpell(fixedSpells, s.asText(), unlocksAt, false, uses);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // rest/will not handled (rare) — treat as daily 1
+                    JsonNode rest = spellsAtLevel.get("rest");
+                    if (rest != null) {
+                        var restKeys = rest.fieldNames();
+                        while (restKeys.hasNext()) {
+                            String key = restKeys.next();
+                            JsonNode restSpells = rest.get(key);
+                            if (restSpells.isArray()) {
+                                for (JsonNode s : restSpells) {
+                                    if (s.isTextual()) addFixedSpell(fixedSpells, s.asText(), unlocksAt, false, 1);
+                                }
+                            }
+                        }
+                    }
+                    JsonNode will = spellsAtLevel.get("will");
+                    if (will != null && will.isArray()) {
+                        for (JsonNode s : will) {
+                            if (s.isTextual()) addFixedSpell(fixedSpells, s.asText(), unlocksAt, true, 0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void addFixedSpell(ArrayNode arr, String rawName, int unlocksAt, boolean atWill, int usesPerLongRest) {
+        String name = rawName;
+        int castLevel = 0;
+        int spellLevel = 0;
+
+        // Strip #c (cantrip) and #N (cast at level N) suffixes
+        if (name.contains("#")) {
+            String[] parts = name.split("#", 2);
+            name = parts[0];
+            String suffix = parts[1];
+            if ("c".equals(suffix)) {
+                spellLevel = 0;
+                atWill = true;
+                usesPerLongRest = 0;
+            } else {
+                castLevel = parseIntSafe(suffix, 0);
+            }
+        }
+
+        // Strip |SOURCE suffix
+        if (name.contains("|")) name = name.split("\\|")[0];
+
+        // Title-case
+        name = titleCaseSpell(name);
+
+        ObjectNode spell = objectMapper.createObjectNode();
+        spell.put("name", name);
+        spell.put("level", spellLevel);
+        spell.put("atWill", atWill);
+        spell.put("unlocksAtLevel", unlocksAt);
+        if (castLevel > 0) spell.put("castLevel", castLevel);
+        if (usesPerLongRest > 0) spell.put("usesPerLongRest", usesPerLongRest);
+
+        arr.add(spell);
+    }
+
+    private void collectSpellChoices(JsonNode entry, ArrayNode spellChoices) {
+        // Handle "choose" entries in known block
+        JsonNode known = entry.get("known");
+        if (known != null) {
+            collectChooseFromNode(known, spellChoices);
+        }
+        // Handle "choose" entries in innate block (rare)
+        JsonNode innate = entry.get("innate");
+        if (innate != null) {
+            collectChooseFromNode(innate, spellChoices);
+        }
+    }
+
+    private void collectChooseFromNode(JsonNode block, ArrayNode spellChoices) {
+        var keys = block.fieldNames();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            JsonNode value = block.get(key);
+            if (value.isObject()) {
+                var innerKeys = value.fieldNames();
+                while (innerKeys.hasNext()) {
+                    String ik = innerKeys.next();
+                    JsonNode inner = value.get(ik);
+                    if (inner.isArray()) {
+                        for (JsonNode item : inner) {
+                            parseChooseItem(item, spellChoices);
+                        }
+                    }
+                }
+            } else if (value.isArray()) {
+                for (JsonNode item : value) {
+                    parseChooseItem(item, spellChoices);
+                }
+            }
+        }
+    }
+
+    private void parseChooseItem(JsonNode item, ArrayNode spellChoices) {
+        if (!item.isObject() || !item.has("choose")) return;
+        String filter = item.get("choose").asText("");
+        int count = item.path("count").asInt(1);
+
+        // Parse filter string like "level=0|class=Wizard"
+        ObjectNode choice = objectMapper.createObjectNode();
+        for (String part : filter.split("\\|")) {
+            String[] kv = part.split("=", 2);
+            if (kv.length == 2) {
+                if ("level".equals(kv[0])) choice.put("level", parseIntSafe(kv[1], 0));
+                else if ("class".equals(kv[0])) choice.put("fromClass", titleCaseSpell(kv[1]));
+                else if ("school".equals(kv[0])) choice.put("fromSchools", kv[1]);
+            }
+        }
+        choice.put("count", count);
+        spellChoices.add(choice);
+    }
+
+    private ObjectNode collectExpandedList(JsonNode entry) {
+        JsonNode expanded = entry.get("expanded");
+        if (expanded == null || !expanded.isObject()) return null;
+
+        ObjectNode result = objectMapper.createObjectNode();
+        var keys = expanded.fieldNames();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            JsonNode spells = expanded.get(key);
+            if (spells.isArray()) {
+                ArrayNode cleaned = objectMapper.createArrayNode();
+                for (JsonNode s : spells) {
+                    if (s.isTextual()) {
+                        String name = s.asText();
+                        if (name.contains("|")) name = name.split("\\|")[0];
+                        if (name.contains("#")) name = name.split("#")[0];
+                        cleaned.add(titleCaseSpell(name));
+                    }
+                }
+                result.set(key, cleaned);
+            }
+        }
+        return result.isEmpty() ? null : result;
+    }
+
+    private String titleCaseSpell(String s) {
+        if (s == null || s.isEmpty()) return s;
+        String[] words = s.split(" ");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < words.length; i++) {
+            if (i > 0) sb.append(' ');
+            String w = words[i];
+            if (!w.isEmpty()) sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+        }
+        return sb.toString();
+    }
+
+    private int parseIntSafe(String s, int fallback) {
+        try { return Integer.parseInt(s); }
+        catch (NumberFormatException e) { return fallback; }
     }
 
     private void extractSpellAbilityChoices(JsonNode node, ArrayNode choices) {

@@ -67,6 +67,11 @@ public class Race {
     @Column(name = "race_choices", columnDefinition = "jsonb")
     private String raceChoices;
 
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "additional_spells", columnDefinition = "jsonb")
+    private String additionalSpells;
+
     @Column(name = "base_race_name", length = 200)
     private String baseRaceName;
 

@@ -1,12 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, Save, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, Lock, Search, X, Plus } from 'lucide-react';
 import { characterApi } from '../../api/characterApi';
 import { campaignApi } from '../../api/campaignApi';
+import { searchSpells } from '../../api/referenceApi';
+import SpellCard from '../../components/reference/SpellCard';
 import type { PlayerCharacter, CharacterUpdateRequest } from '../../types/character';
 import type { Campaign } from '../../types/campaign';
+import type { Spell } from '../../types/reference';
+import { CANTRIPS_KNOWN, SPELLS_KNOWN, getPreparedCount } from '../../utils/spellConstants';
 
 const ABILITIES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
+const ABILITY_FROM_ABBR: Record<string, string> = {
+  STR: 'strength', DEX: 'dexterity', CON: 'constitution',
+  INT: 'intelligence', WIS: 'wisdom', CHA: 'charisma',
+};
 const ABILITY_ABBR: Record<string, string> = {
   strength: 'STR', dexterity: 'DEX', constitution: 'CON',
   intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
@@ -103,7 +111,7 @@ export default function CharacterSheetPage() {
   const features = useMemo(() => safeJsonParse<Array<{ name: string; description: string; source?: string }>>(char?.features, []), [char?.features]);
   const equipment = useMemo(() => safeJsonParse<Array<{ name: string; quantity?: number; description?: string }>>(char?.equipment, []), [char?.equipment]);
   const currency = useMemo(() => safeJsonParse<{ cp: number; sp: number; ep: number; gp: number; pp: number }>(char?.currency, { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }), [char?.currency]);
-  const spellsKnown = useMemo(() => safeJsonParse<Array<{ name: string; level: number; prepared?: boolean }>>(char?.spellsKnown, []), [char?.spellsKnown]);
+  const spellsKnown = useMemo(() => safeJsonParse<SpellEntry[]>(char?.spellsKnown, []), [char?.spellsKnown]);
   const spellSlots = useMemo(() => safeJsonParse<Record<string, { total: number; used: number }>>(char?.spellSlots, {}), [char?.spellSlots]);
   const resistances = useMemo(() => safeJsonParse<string[]>(char?.damageResistances, []), [char?.damageResistances]);
   const hitDiceMap = useMemo(() => safeJsonParse<Record<string, { total: number; remaining: number; faces: number }>>(char?.hitDiceMap, {}), [char?.hitDiceMap]);
@@ -465,23 +473,70 @@ function ActionsTab({ char, features }: {
   );
 }
 
+interface SpellEntry {
+  name: string;
+  level: number;
+  source?: string;
+  prepared?: boolean;
+  alwaysPrepared?: boolean;
+  atWill?: boolean;
+  usesPerLongRest?: number;
+  unlocksAtLevel?: number;
+}
+
 function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
   char: PlayerCharacter;
-  spellsKnown: Array<{ name: string; level: number; prepared?: boolean }>;
+  spellsKnown: SpellEntry[];
   spellSlots: Record<string, { total: number; used: number }>;
   saveField: (u: CharacterUpdateRequest) => Promise<void>;
 }) {
-  if (!char.spellcastingAbility) {
+  const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
+  const [loadingSpell, setLoadingSpell] = useState(false);
+  const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known'; className: string } | null>(null);
+
+  const hasSpells = char.spellcastingAbility || spellsKnown.length > 0;
+  if (!hasSpells) {
     return <p className="text-gray-500 text-sm">This character is not a spellcaster.</p>;
   }
 
-  const slotLevels = Object.entries(spellSlots).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
-  const spellsByLevel = new Map<number, typeof spellsKnown>();
-  for (const spell of spellsKnown) {
-    const list = spellsByLevel.get(spell.level) || [];
-    list.push(spell);
-    spellsByLevel.set(spell.level, list);
+  const defaultSource = `class:${char.characterClass || 'Unknown'}`;
+  const taggedSpells: SpellEntry[] = spellsKnown.map(s => ({
+    ...s,
+    source: s.source || defaultSource,
+  }));
+
+  const sourceGroups = new Map<string, SpellEntry[]>();
+  for (const s of taggedSpells) {
+    const key = s.source!;
+    const list = sourceGroups.get(key) || [];
+    list.push(s);
+    sourceGroups.set(key, list);
   }
+
+  const classGroups: Array<{ source: string; className: string; spells: SpellEntry[] }> = [];
+  const raceGroups: Array<{ source: string; raceName: string; spells: SpellEntry[] }> = [];
+  const featGroups: Array<{ source: string; featName: string; spells: SpellEntry[] }> = [];
+
+  for (const [source, spells] of sourceGroups) {
+    if (source.startsWith('class:')) {
+      classGroups.push({ source, className: source.slice(6), spells });
+    } else if (source.startsWith('race:')) {
+      raceGroups.push({ source, raceName: source.slice(5), spells });
+    } else if (source.startsWith('feat:')) {
+      featGroups.push({ source, featName: source.slice(5), spells });
+    }
+  }
+
+  if (classGroups.length === 0 && char.spellcastingAbility) {
+    classGroups.push({ source: defaultSource, className: char.characterClass || 'Unknown', spells: [] });
+  }
+
+  const regularSlots = Object.entries(spellSlots)
+    .filter(([k]) => !k.startsWith('pact_'))
+    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+  const pactSlots = Object.entries(spellSlots)
+    .filter(([k]) => k.startsWith('pact_'))
+    .sort((a, b) => parseInt(a[0].replace('pact_', '')) - parseInt(b[0].replace('pact_', '')));
 
   async function useSlot(level: string) {
     const slot = spellSlots[level];
@@ -490,60 +545,438 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
     await saveField({ spellSlots: JSON.stringify(updated) });
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Spellcasting</h3>
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard label="Ability" value={char.spellcastingAbility} />
-          {char.spellSaveDc && <StatCard label="Save DC" value={String(char.spellSaveDc)} />}
-          {char.spellAttackBonus != null && <StatCard label="Attack Bonus" value={formatMod(char.spellAttackBonus)} />}
-        </div>
-      </div>
+  async function viewSpellDetail(spellName: string) {
+    setLoadingSpell(true);
+    try {
+      const res = await searchSpells({ name: spellName, size: 1 });
+      if (res.content.length > 0) setDetailSpell(res.content[0]);
+    } catch { /* ignore */ }
+    setLoadingSpell(false);
+  }
 
-      {slotLevels.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Spell Slots</h3>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-            {slotLevels.map(([level, slot]) => (
+  async function togglePrepared(spell: SpellEntry) {
+    if (spell.alwaysPrepared || spell.level === 0) return;
+    const updated = taggedSpells.map(s =>
+      s.name === spell.name && s.source === spell.source
+        ? { ...s, prepared: !s.prepared }
+        : s
+    );
+    await saveField({ spellsKnown: JSON.stringify(updated) });
+  }
+
+  function getClassCasterInfo(className: string) {
+    const isPrepared = ['Cleric', 'Druid', 'Paladin', 'Wizard', 'Artificer'].includes(className);
+    const isKnown = ['Bard', 'Ranger', 'Sorcerer', 'Warlock'].includes(className);
+    const isPact = className === 'Warlock';
+    return { isPrepared, isKnown, isPact };
+  }
+
+  function renderSpellRow(spell: SpellEntry, showPrepared: boolean) {
+    return (
+      <button
+        key={`${spell.source}-${spell.name}`}
+        onClick={() => viewSpellDetail(spell.name)}
+        className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-800 transition-colors w-full text-left group"
+      >
+        {showPrepared && spell.level > 0 && (
+          spell.alwaysPrepared ? (
+            <Lock className="w-3 h-3 text-amber-400 flex-shrink-0" />
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); togglePrepared(spell); }}
+              className={`w-3 h-3 rounded-full flex-shrink-0 border ${
+                spell.prepared ? 'bg-green-400 border-green-400' : 'bg-transparent border-gray-600'
+              }`}
+            />
+          )
+        )}
+        <span className="text-white text-sm group-hover:text-indigo-300 transition-colors">{spell.name}</span>
+        {spell.atWill && <span className="text-xs text-emerald-400 ml-auto">At will</span>}
+        {spell.usesPerLongRest && <span className="text-xs text-amber-400 ml-auto">{spell.usesPerLongRest}/long rest</span>}
+        {spell.unlocksAtLevel && spell.unlocksAtLevel > char.level && (
+          <span className="text-xs text-gray-600 ml-auto">Lv {spell.unlocksAtLevel}</span>
+        )}
+      </button>
+    );
+  }
+
+  function renderSlotButtons(slots: Array<[string, { total: number; used: number }]>, label: string) {
+    if (slots.length === 0) return null;
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">{label}</h3>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          {slots.map(([level, slot]) => {
+            const displayLevel = level.startsWith('pact_') ? level.replace('pact_', '') : level;
+            return (
               <button
                 key={level}
                 onClick={() => useSlot(level)}
                 className="bg-gray-800 rounded-lg p-3 text-center hover:bg-gray-700 transition-colors"
               >
-                <p className="text-gray-500 text-xs">Level {level}</p>
+                <p className="text-gray-500 text-xs">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
                 <p className="text-white font-bold">{slot.total - slot.used}/{slot.total}</p>
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(level => {
-        const spells = spellsByLevel.get(level);
-        if (!spells || spells.length === 0) return null;
+  return (
+    <div className="space-y-6">
+      {/* Spellcasting stats */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Spellcasting</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard label="Ability" value={char.spellcastingAbility || '-'} />
+          {char.spellSaveDc && <StatCard label="Save DC" value={String(char.spellSaveDc)} />}
+          {char.spellAttackBonus != null && <StatCard label="Attack Bonus" value={formatMod(char.spellAttackBonus)} />}
+        </div>
+      </div>
+
+      {/* Spell slots */}
+      {renderSlotButtons(regularSlots, 'Spell Slots')}
+      {renderSlotButtons(pactSlots, 'Pact Slots')}
+
+      {/* Class spell boxes */}
+      {classGroups.map(({ className, spells }) => {
+        const info = getClassCasterInfo(className);
+        const cantrips = spells.filter(s => s.level === 0);
+        const leveled = spells.filter(s => s.level > 0);
+        const prepared = leveled.filter(s => s.prepared || s.alwaysPrepared);
+        const abilityMod_ = char.spellcastingAbility
+          ? abilityMod(char[ABILITY_FROM_ABBR[char.spellcastingAbility] as keyof PlayerCharacter] as number || 10)
+          : 0;
+        const prepLimit = info.isPrepared ? getPreparedCount(className, char.level, abilityMod_) : 0;
+        const knownLimit = SPELLS_KNOWN[className]?.[char.level] ?? 0;
+
         return (
-          <div key={level} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">
-              {level === 0 ? 'Cantrips' : `Level ${level} Spells`}
-            </h3>
-            <div className="space-y-1">
-              {spells.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 py-1">
-                  {s.prepared !== undefined && (
-                    <div className={`w-2 h-2 rounded-full ${s.prepared ? 'bg-green-400' : 'bg-gray-700'}`} />
-                  )}
-                  <span className="text-white text-sm">{s.name}</span>
-                </div>
-              ))}
+          <div key={className} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-semibold text-sm">{className} Spells</h3>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                info.isPrepared ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'
+              }`}>
+                {info.isPrepared ? 'Prepared' : 'Known'}
+              </span>
             </div>
+
+            {cantrips.length > 0 && (
+              <div>
+                <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">
+                  Cantrips ({cantrips.length}{CANTRIPS_KNOWN[className] ? `/${CANTRIPS_KNOWN[className][char.level] ?? '?'}` : ''})
+                </h4>
+                <div className="space-y-0.5">{cantrips.map(s => renderSpellRow(s, false))}</div>
+              </div>
+            )}
+
+            {info.isPrepared && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider">
+                    Prepared ({prepared.length}/{prepLimit})
+                  </h4>
+                  <button
+                    onClick={() => setManageModal({ type: 'prepared', className })}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    Change Prepared
+                  </button>
+                </div>
+                {leveled.length > 0 ? (
+                  <div className="space-y-0.5">{leveled.map(s => renderSpellRow(s, true))}</div>
+                ) : (
+                  <p className="text-gray-600 text-xs">No spells prepared.</p>
+                )}
+              </div>
+            )}
+
+            {info.isKnown && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider">
+                    Known Spells ({leveled.length}{knownLimit ? `/${knownLimit}` : ''})
+                  </h4>
+                  <button
+                    onClick={() => setManageModal({ type: 'known', className })}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    Manage Known
+                  </button>
+                </div>
+                {leveled.length > 0 ? (
+                  <div className="space-y-0.5">{leveled.map(s => renderSpellRow(s, false))}</div>
+                ) : (
+                  <p className="text-gray-600 text-xs">No spells known.</p>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
 
-      {spellsKnown.length === 0 && (
-        <p className="text-gray-500 text-sm">No spells known yet.</p>
+      {/* Race spell boxes */}
+      {raceGroups.map(({ raceName, spells }) => (
+        <div key={raceName} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">{raceName} Spells</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-900 text-emerald-300">Innate</span>
+          </div>
+          <div className="space-y-0.5">{spells.map(s => renderSpellRow(s, false))}</div>
+        </div>
+      ))}
+
+      {/* Feat spell boxes */}
+      {featGroups.map(({ featName, spells }) => (
+        <div key={featName} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">{featName}</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900 text-amber-300">Feat</span>
+          </div>
+          <div className="space-y-0.5">{spells.map(s => renderSpellRow(s, false))}</div>
+        </div>
+      ))}
+
+      {taggedSpells.length === 0 && classGroups.every(g => g.spells.length === 0) && (
+        <p className="text-gray-500 text-sm">No spells yet. Use the Change Prepared or Manage Known button to add spells.</p>
       )}
+
+      {/* Spell Detail Modal */}
+      {(detailSpell || loadingSpell) && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => { setDetailSpell(null); setLoadingSpell(false); }}>
+          <div className="max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {loadingSpell ? (
+              <div className="bg-gray-900 rounded-lg p-8 text-center">
+                <p className="text-gray-400">Loading spell...</p>
+              </div>
+            ) : detailSpell ? (
+              <div className="relative">
+                <button onClick={() => setDetailSpell(null)} className="absolute top-2 right-2 z-10 text-gray-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+                <SpellCard spell={detailSpell} />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Manage Spells Modal */}
+      {manageModal && (
+        <ManageSpellsModal
+          char={char}
+          type={manageModal.type}
+          className={manageModal.className}
+          currentSpells={taggedSpells}
+          saveField={saveField}
+          onClose={() => setManageModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ManageSpellsModal({ char, type, className, currentSpells, saveField, onClose }: {
+  char: PlayerCharacter;
+  type: 'prepared' | 'known';
+  className: string;
+  currentSpells: SpellEntry[];
+  saveField: (u: CharacterUpdateRequest) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Spell[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedLevel, setSelectedLevel] = useState<number | ''>('');
+  const [localSpells, setLocalSpells] = useState<SpellEntry[]>(currentSpells);
+  const [saving, setSaving] = useState(false);
+
+  const source = `class:${className}`;
+  const classSpells = localSpells.filter(s => s.source === source);
+  const cantrips = classSpells.filter(s => s.level === 0);
+  const leveled = classSpells.filter(s => s.level > 0);
+  const preparedCount = leveled.filter(s => s.prepared || s.alwaysPrepared).length;
+  const abilityMod_ = char.spellcastingAbility
+    ? abilityMod(char[ABILITY_FROM_ABBR[char.spellcastingAbility] as keyof PlayerCharacter] as number || 10)
+    : 0;
+  const prepLimit = getPreparedCount(className, char.level, abilityMod_);
+  const knownLimit = SPELLS_KNOWN[className]?.[char.level] ?? 0;
+
+  useEffect(() => {
+    doSearch();
+  }, [selectedLevel]);
+
+  async function doSearch() {
+    setSearching(true);
+    try {
+      const params: Record<string, unknown> = { className, size: 50 };
+      if (searchQuery.trim()) params.name = searchQuery.trim();
+      if (selectedLevel !== '') params.level = selectedLevel;
+      const res = await searchSpells(params as any);
+      setSearchResults(res.content);
+    } catch { /* ignore */ }
+    setSearching(false);
+  }
+
+  function isAdded(spell: Spell): boolean {
+    return classSpells.some(s => s.name === spell.name);
+  }
+
+  function isPreparedSpell(spell: Spell): boolean {
+    return classSpells.some(s => s.name === spell.name && (s.prepared || s.alwaysPrepared));
+  }
+
+  function toggleSpell(spell: Spell) {
+    if (type === 'prepared') {
+      const existing = localSpells.find(s => s.name === spell.name && s.source === source);
+      if (existing) {
+        if (existing.alwaysPrepared) return;
+        if (existing.prepared) {
+          setLocalSpells(localSpells.map(s =>
+            s.name === spell.name && s.source === source ? { ...s, prepared: false } : s
+          ));
+        } else {
+          setLocalSpells(localSpells.map(s =>
+            s.name === spell.name && s.source === source ? { ...s, prepared: true } : s
+          ));
+        }
+      } else {
+        setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source, prepared: true }]);
+      }
+    } else {
+      const exists = localSpells.some(s => s.name === spell.name && s.source === source);
+      if (exists) {
+        setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
+      } else {
+        setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source }]);
+      }
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    await saveField({ spellsKnown: JSON.stringify(localSpells) });
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-lg w-full max-w-lg max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <div>
+            <h2 className="text-white font-semibold">
+              {type === 'prepared' ? 'Change Prepared Spells' : 'Manage Known Spells'}
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {type === 'prepared'
+                ? `${preparedCount}/${prepLimit} prepared`
+                : `${leveled.length}${knownLimit ? `/${knownLimit}` : ''} known`}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-4 py-3 border-b border-gray-800 space-y-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && doSearch()}
+                placeholder="Search spells..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <select
+              value={selectedLevel}
+              onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
+              className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+            >
+              <option value="">All Levels</option>
+              {[0,1,2,3,4,5,6,7,8,9].map(l => (
+                <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
+              ))}
+            </select>
+            <button onClick={doSearch} className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 rounded-md transition-colors">
+              Search
+            </button>
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="flex-1 overflow-y-auto px-4 py-2">
+          {searching ? (
+            <p className="text-gray-400 text-sm py-4 text-center">Searching...</p>
+          ) : searchResults.length === 0 ? (
+            <p className="text-gray-500 text-sm py-4 text-center">Search for {className} spells to add them.</p>
+          ) : (
+            <div className="space-y-1">
+              {searchResults.map(spell => {
+                const added = isAdded(spell);
+                const prepared = isPreparedSpell(spell);
+                const isAlwaysPrep = classSpells.some(s => s.name === spell.name && s.alwaysPrepared);
+                return (
+                  <button
+                    key={spell.id}
+                    onClick={() => !isAlwaysPrep && toggleSpell(spell)}
+                    disabled={isAlwaysPrep}
+                    className={`w-full flex items-center justify-between py-2 px-3 rounded-md text-sm transition-colors ${
+                      isAlwaysPrep
+                        ? 'bg-amber-900/20 text-amber-300 cursor-not-allowed'
+                        : (type === 'prepared' ? prepared : added)
+                          ? 'bg-indigo-900/30 text-indigo-200 hover:bg-indigo-900/50'
+                          : 'text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {isAlwaysPrep && <Lock className="w-3 h-3 text-amber-400" />}
+                      <span>{spell.name}</span>
+                      <span className="text-xs text-gray-500">
+                        {spell.level === 0 ? 'Cantrip' : `Lv ${spell.level}`}
+                      </span>
+                    </div>
+                    {type === 'prepared' ? (
+                      isAlwaysPrep ? (
+                        <span className="text-xs text-amber-400">Always</span>
+                      ) : prepared ? (
+                        <span className="text-xs text-green-400">Prepared</span>
+                      ) : added ? (
+                        <span className="text-xs text-gray-500">In list</span>
+                      ) : (
+                        <Plus className="w-4 h-4 text-gray-500" />
+                      )
+                    ) : added ? (
+                      <span className="text-xs text-red-400">Remove</span>
+                    ) : (
+                      <Plus className="w-4 h-4 text-gray-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-800 flex justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-md transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
