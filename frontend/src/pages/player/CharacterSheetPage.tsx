@@ -531,7 +531,12 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
     }
   }
 
-  if (classGroups.length === 0 && char.spellcastingAbility) {
+  const SPELLCASTER_CLASSES = ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Warlock', 'Wizard', 'Artificer'];
+  const SPELLCASTER_SUBCLASSES = ['Eldritch Knight', 'Arcane Trickster'];
+  const isClassCaster = SPELLCASTER_CLASSES.includes(char.characterClass || '')
+    || SPELLCASTER_SUBCLASSES.includes(char.subclass || '');
+
+  if (classGroups.length === 0 && char.spellcastingAbility && isClassCaster) {
     classGroups.push({ source: defaultSource, className: char.characterClass || 'Unknown', spells: [] });
   }
 
