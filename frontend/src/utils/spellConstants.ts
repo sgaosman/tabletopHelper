@@ -17,6 +17,11 @@ export const SPELLS_KNOWN: Record<string, number[]> = {
   Warlock:  [0, 2, 3, 4, 5, 6, 7,  8,  9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
 };
 
+export function wizardSpellbookCount(level: number): number {
+  if (level <= 0) return 0;
+  return 6 + (level - 1) * 2;
+}
+
 // Half-casters that use abilityMod + floor(level/2) for prepared count
 export const HALF_CASTERS = new Set(['Paladin', 'Ranger']);
 

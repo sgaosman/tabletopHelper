@@ -696,7 +696,7 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
 }) {
   const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
   const [loadingSpell, setLoadingSpell] = useState(false);
-  const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known'; className: string } | null>(null);
+  const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook'; className: string } | null>(null);
   const [showAddFeat, setShowAddFeat] = useState(false);
   const [confirmRemoveFeat, setConfirmRemoveFeat] = useState<string | null>(null);
 
@@ -868,15 +868,35 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
         const prepLimit = info.isPrepared ? getPreparedCount(className, char.level, abilityMod_) : 0;
         const knownLimit = SPELLS_KNOWN[className]?.[char.level] ?? 0;
 
+        const isWizard = className === 'Wizard';
+
         return (
           <div key={className} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-white font-semibold text-sm">{className} Spells</h3>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                info.isPrepared ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'
-              }`}>
-                {info.isPrepared ? 'Prepared' : 'Known'}
-              </span>
+              <div className="flex items-center gap-2">
+                {isWizard && (
+                  <>
+                    <button
+                      onClick={() => setManageModal({ type: 'spellbook', className })}
+                      className="text-xs text-green-400 hover:text-green-300 transition-colors"
+                    >
+                      + Spellbook
+                    </button>
+                    <button
+                      onClick={() => setManageModal({ type: 'remove-spellbook', className })}
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      - Spellbook
+                    </button>
+                  </>
+                )}
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  info.isPrepared ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'
+                }`}>
+                  {info.isPrepared ? 'Prepared' : 'Known'}
+                </span>
+              </div>
             </div>
 
             {cantrips.length > 0 && (
@@ -1039,7 +1059,7 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
 
 function ManageSpellsModal({ char, type, className, currentSpells, saveField, onClose }: {
   char: PlayerCharacter;
-  type: 'prepared' | 'known';
+  type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook';
   className: string;
   currentSpells: SpellEntry[];
   saveField: (u: CharacterUpdateRequest) => Promise<void>;
@@ -1063,21 +1083,52 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
   const prepLimit = getPreparedCount(className, char.level, abilityMod_);
   const knownLimit = SPELLS_KNOWN[className]?.[char.level] ?? 0;
 
+  const isWizardPrepared = type === 'prepared' && className === 'Wizard';
+  const isSpellbookMode = type === 'spellbook';
+  const isRemoveSpellbook = type === 'remove-spellbook';
+  const needsApiSearch = !isWizardPrepared && !isRemoveSpellbook;
+
   const slots = safeJsonParse<Record<string, { total: number; used: number }>>(char.spellSlots, {});
-  const maxSpellLevel = Math.max(0, ...Object.keys(slots).map(k => {
+  const maxSlotLevel = Math.max(0, ...Object.keys(slots).map(k => {
     if (k.startsWith('pact_')) return parseInt(k.replace('pact_', ''));
     const n = parseInt(k);
     return isNaN(n) ? 0 : n;
   }));
   const canSwapCantrips = className === 'Wizard' && char.level >= 3;
   const minSpellLevel = canSwapCantrips ? 0 : 1;
-  const validLevels = Array.from({ length: maxSpellLevel - minSpellLevel + 1 }, (_, i) => i + minSpellLevel);
+  const validLevels = Array.from({ length: maxSlotLevel - minSpellLevel + 1 }, (_, i) => i + minSpellLevel);
+
+  const spellbookSpells = useMemo(() => {
+    if (!isWizardPrepared && !isRemoveSpellbook) return [];
+    return classSpells.filter(s => s.level > 0).map(s => ({
+      id: `spellbook-${s.name}`,
+      name: s.name,
+      level: s.level,
+      school: null, castingTime: null, rangeDistance: null, components: null,
+      duration: null, concentration: false, ritual: false, description: null,
+      higherLevels: null, classes: null, damageType: null, damageDice: null,
+      saveAbility: null, source: null,
+    } as Spell));
+  }, [isWizardPrepared, isRemoveSpellbook, classSpells]);
+
+  const filteredSpellbook = useMemo(() => {
+    let list = spellbookSpells;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(s => s.name.toLowerCase().includes(q));
+    }
+    if (selectedLevel !== '') {
+      list = list.filter(s => s.level === selectedLevel);
+    }
+    return list;
+  }, [spellbookSpells, searchQuery, selectedLevel]);
 
   useEffect(() => {
-    doSearch();
+    if (needsApiSearch) doSearch();
   }, [selectedLevel]);
 
   async function doSearch() {
+    if (!needsApiSearch) return;
     setSearching(true);
     try {
       const params: Record<string, unknown> = { className, size: 50 };
@@ -1088,7 +1139,7 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
         params.level = validLevels.join(',');
       }
       const res = await searchSpells(params as any);
-      setSearchResults(res.content.filter(s => s.level >= minSpellLevel && s.level <= maxSpellLevel));
+      setSearchResults(res.content.filter(s => s.level >= minSpellLevel && s.level <= maxSlotLevel));
     } catch { /* ignore */ }
     setSearching(false);
   }
@@ -1102,7 +1153,16 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
   }
 
   function toggleSpell(spell: Spell) {
-    if (type === 'prepared') {
+    if (isSpellbookMode) {
+      const exists = localSpells.some(s => s.name === spell.name && s.source === source);
+      if (exists) {
+        setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
+      } else {
+        setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source, prepared: false }]);
+      }
+    } else if (isRemoveSpellbook) {
+      setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
+    } else if (type === 'prepared') {
       const existing = localSpells.find(s => s.name === spell.name && s.source === source);
       if (existing) {
         if (existing.alwaysPrepared) return;
@@ -1138,20 +1198,32 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
     onClose();
   }
 
+  const displayResults = needsApiSearch ? searchResults : filteredSpellbook;
+  const modalTitle = isSpellbookMode
+    ? 'Add to Spellbook'
+    : isRemoveSpellbook
+      ? 'Remove from Spellbook'
+      : isWizardPrepared
+        ? 'Prepare from Spellbook'
+        : type === 'prepared'
+          ? 'Change Prepared Spells'
+          : 'Manage Known Spells';
+  const modalSubtitle = isSpellbookMode
+    ? `${leveled.length} spells in spellbook`
+    : isRemoveSpellbook
+      ? `${leveled.length} spells in spellbook`
+      : type === 'prepared'
+        ? `${preparedCount}/${prepLimit} prepared`
+        : `${leveled.length}${knownLimit ? `/${knownLimit}` : ''} known`;
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-lg w-full max-w-lg max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
           <div>
-            <h2 className="text-white font-semibold">
-              {type === 'prepared' ? 'Change Prepared Spells' : 'Manage Known Spells'}
-            </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {type === 'prepared'
-                ? `${preparedCount}/${prepLimit} prepared`
-                : `${leveled.length}${knownLimit ? `/${knownLimit}` : ''} known`}
-            </p>
+            <h2 className="text-white font-semibold">{modalTitle}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{modalSubtitle}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
@@ -1164,24 +1236,40 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
               <input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && doSearch()}
-                placeholder="Search spells..."
+                onKeyDown={e => e.key === 'Enter' && needsApiSearch && doSearch()}
+                placeholder={needsApiSearch ? "Search spells..." : "Filter spellbook..."}
                 className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
               />
             </div>
-            <select
-              value={selectedLevel}
-              onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
-              className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-            >
-              <option value="">All Levels</option>
-              {validLevels.map(l => (
-                <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
-              ))}
-            </select>
-            <button onClick={doSearch} className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 rounded-md transition-colors">
-              Search
-            </button>
+            {(isWizardPrepared || isRemoveSpellbook) && (
+              <select
+                value={selectedLevel}
+                onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
+                className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">All Levels</option>
+                {validLevels.filter(l => l > 0).map(l => (
+                  <option key={l} value={l}>Level {l}</option>
+                ))}
+              </select>
+            )}
+            {needsApiSearch && (
+              <>
+                <select
+                  value={selectedLevel}
+                  onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
+                  className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">All Levels</option>
+                  {validLevels.map(l => (
+                    <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
+                  ))}
+                </select>
+                <button onClick={doSearch} className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 rounded-md transition-colors">
+                  Search
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1189,41 +1277,73 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
         <div className="flex-1 overflow-y-auto px-4 py-2">
           {searching ? (
             <p className="text-gray-400 text-sm py-4 text-center">Searching...</p>
-          ) : searchResults.length === 0 ? (
-            <p className="text-gray-500 text-sm py-4 text-center">Search for {className} spells to add them.</p>
+          ) : displayResults.length === 0 ? (
+            <p className="text-gray-500 text-sm py-4 text-center">
+              {needsApiSearch
+                ? `Search for ${className} spells to add them.`
+                : isRemoveSpellbook
+                  ? 'No spells in spellbook.'
+                  : 'No spells in spellbook to prepare.'}
+            </p>
           ) : (
             <div className="space-y-1">
-              {searchResults.map(spell => {
+              {displayResults.map(spell => {
                 const added = isAdded(spell);
                 const prepared = isPreparedSpell(spell);
                 const isAlwaysPrep = classSpells.some(s => s.name === spell.name && s.alwaysPrepared);
-                const atLimit = type === 'prepared'
-                  ? preparedCount >= prepLimit && !prepared
-                  : knownLimit > 0 && leveled.length >= knownLimit && !added;
-                const disabled = isAlwaysPrep || atLimit;
+
+                let disabled = false;
+                if (isSpellbookMode) {
+                  disabled = false;
+                } else if (isRemoveSpellbook) {
+                  disabled = !added;
+                } else if (type === 'prepared') {
+                  disabled = isAlwaysPrep || (preparedCount >= prepLimit && !prepared);
+                } else {
+                  disabled = isAlwaysPrep || (knownLimit > 0 && leveled.length >= knownLimit && !added);
+                }
+
                 return (
                   <button
                     key={spell.id}
                     onClick={() => !disabled && toggleSpell(spell)}
                     disabled={disabled}
                     className={`w-full flex items-center justify-between py-2 px-3 rounded-md text-sm transition-colors ${
-                      isAlwaysPrep
+                      isAlwaysPrep && (type === 'prepared' || isWizardPrepared)
                         ? 'bg-amber-900/20 text-amber-300 cursor-not-allowed'
-                        : atLimit
+                        : disabled
                           ? 'text-gray-600 cursor-not-allowed'
-                          : (type === 'prepared' ? prepared : added)
-                            ? 'bg-indigo-900/30 text-indigo-200 hover:bg-indigo-900/50'
-                            : 'text-gray-300 hover:bg-gray-800'
+                          : isRemoveSpellbook
+                            ? 'text-gray-300 hover:bg-red-900/30'
+                            : isSpellbookMode
+                              ? added
+                                ? 'bg-green-900/30 text-green-200 hover:bg-green-900/50'
+                                : 'text-gray-300 hover:bg-gray-800'
+                              : (type === 'prepared' || isWizardPrepared ? prepared : added)
+                                ? 'bg-indigo-900/30 text-indigo-200 hover:bg-indigo-900/50'
+                                : 'text-gray-300 hover:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      {isAlwaysPrep && <Lock className="w-3 h-3 text-amber-400" />}
+                      {isAlwaysPrep && (type === 'prepared' || isWizardPrepared) && <Lock className="w-3 h-3 text-amber-400" />}
                       <span>{spell.name}</span>
                       <span className="text-xs text-gray-500">
                         {spell.level === 0 ? 'Cantrip' : `Lv ${spell.level}`}
                       </span>
                     </div>
-                    {type === 'prepared' ? (
+                    {isSpellbookMode ? (
+                      added ? (
+                        <span className="text-xs text-green-400">In Spellbook</span>
+                      ) : (
+                        <Plus className="w-4 h-4 text-gray-500" />
+                      )
+                    ) : isRemoveSpellbook ? (
+                      added ? (
+                        <span className="text-xs text-red-400">Remove</span>
+                      ) : (
+                        <span className="text-xs text-gray-600">Removed</span>
+                      )
+                    ) : type === 'prepared' || isWizardPrepared ? (
                       isAlwaysPrep ? (
                         <span className="text-xs text-amber-400">Always</span>
                       ) : prepared ? (

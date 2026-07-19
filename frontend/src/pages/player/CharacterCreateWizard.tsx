@@ -6,7 +6,7 @@ import { characterApi } from '../../api/characterApi';
 import type { PlayerCharacter } from '../../types/character';
 import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
 import AsiModal from '../../components/character/AsiModal';
-import { CANTRIPS_KNOWN, SPELLS_KNOWN, maxSpellLevel, proficiencyBonusForLevel } from '../../utils/spellConstants';
+import { CANTRIPS_KNOWN, SPELLS_KNOWN, maxSpellLevel, proficiencyBonusForLevel, wizardSpellbookCount } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
 
@@ -789,9 +789,10 @@ export default function CharacterCreateWizard() {
         entries.push({ name: s.name, level: 0, source });
       }
       for (const s of selectedSpells) {
+        const isWiz = selectedClass.name === 'Wizard';
         entries.push({
           name: s.name, level: s.level, source,
-          ...(selectedClass.isPreparedCaster ? { prepared: true } : {}),
+          ...(selectedClass.isPreparedCaster && !isWiz ? { prepared: true } : {}),
         });
       }
     }
@@ -805,9 +806,10 @@ export default function CharacterCreateWizard() {
         entries.push({ name: s.name, level: 0, source });
       }
       for (const s of sel.spells) {
+        const isWiz = entry.cls.name === 'Wizard';
         entries.push({
           name: s.name, level: s.level, source,
-          ...(entry.cls.isPreparedCaster ? { prepared: true } : {}),
+          ...(entry.cls.isPreparedCaster && !isWiz ? { prepared: true } : {}),
         });
       }
     }
@@ -2452,9 +2454,12 @@ function MulticlassSpellSelectionStep({
 }) {
   const cls = classEntry.cls;
   const classLevel = classEntry.level;
+  const isWizard = cls.name === 'Wizard';
   const cantripsAllowed = CANTRIPS_KNOWN[cls.name]?.[classLevel] ?? 0;
-  const spellsAllowed = cls.isKnownCaster ? (SPELLS_KNOWN[cls.name]?.[classLevel] ?? 0) : 0;
-  const isPrepared = cls.isPreparedCaster;
+  const spellsAllowed = isWizard
+    ? wizardSpellbookCount(classLevel)
+    : cls.isKnownCaster ? (SPELLS_KNOWN[cls.name]?.[classLevel] ?? 0) : 0;
+  const isPrepared = cls.isPreparedCaster && !isWizard;
   const maxLevel = maxSpellLevel(cls.name, classLevel);
 
   const [cantripResults, setCantripResults] = useState<Spell[]>([]);
@@ -2471,7 +2476,7 @@ function MulticlassSpellSelectionStep({
   }, [cls.name]);
 
   useEffect(() => {
-    if ((spellsAllowed > 0 || isPrepared) && maxLevel > 0) {
+    if ((spellsAllowed > 0 || (isPrepared && !isWizard)) && maxLevel > 0) {
       Promise.all(
         Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl =>
           searchSpells({ className: cls.name, level: lvl, size: 50 }).then(r => r.content)
@@ -2521,7 +2526,9 @@ function MulticlassSpellSelectionStep({
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">{cls.name} Spells</h2>
       <p className="text-gray-400 text-sm">
-        Select your starting {cls.name} spells (class level {classLevel}).
+        {isWizard
+          ? `Select spells for your starting spellbook (${wizardSpellbookCount(classLevel)} spells at class level ${classLevel}).`
+          : `Select your starting ${cls.name} spells (class level ${classLevel}).`}
       </p>
 
       {cantripsAllowed > 0 && (
@@ -2578,7 +2585,11 @@ function MulticlassSpellSelectionStep({
       {spellsAllowed > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-white font-semibold text-sm">{maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells'}</h3>
+            <h3 className="text-white font-semibold text-sm">
+              {isWizard
+                ? (maxLevel > 1 ? `Spellbook (Level 1-${maxLevel})` : 'Spellbook (Level 1)')
+                : (maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells')}
+            </h3>
             <span className="text-xs text-gray-400">{selectedSpells.length}/{spellsAllowed} selected</span>
           </div>
           <div className="flex gap-2">
@@ -2669,10 +2680,13 @@ function SpellSelectionStep({
   title?: string;
 }) {
   const cantripsAllowed = CANTRIPS_KNOWN[selectedClass.name]?.[level] ?? 0;
-  const spellsAllowed = selectedClass.isKnownCaster
+  const isWizard = selectedClass.name === 'Wizard';
+  const spellsAllowed = isWizard
+    ? wizardSpellbookCount(level)
+    : selectedClass.isKnownCaster
     ? (SPELLS_KNOWN[selectedClass.name]?.[level] ?? 0)
     : 0;
-  const isPrepared = selectedClass.isPreparedCaster;
+  const isPrepared = selectedClass.isPreparedCaster && !isWizard;
   const maxLevel = maxSpellLevel(selectedClass.name, level);
 
   useEffect(() => {
@@ -2684,7 +2698,7 @@ function SpellSelectionStep({
   }, [selectedClass.name]);
 
   useEffect(() => {
-    if ((spellsAllowed > 0 || isPrepared) && maxLevel > 0) {
+    if ((spellsAllowed > 0 || (isPrepared && !isWizard)) && maxLevel > 0) {
       Promise.all(
         Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl =>
           searchSpells({ className: selectedClass.name, level: lvl, size: 50 }).then(r => r.content)
@@ -2740,7 +2754,9 @@ function SpellSelectionStep({
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white">{title ?? 'Choose Spells'}</h2>
       <p className="text-gray-400 text-sm">
-        Select your starting {selectedClass.name} spells.
+        {isWizard
+          ? `Select spells for your starting spellbook. You begin with ${wizardSpellbookCount(level)} spells.`
+          : `Select your starting ${selectedClass.name} spells.`}
       </p>
 
       {/* Cantrip selection */}
@@ -2798,11 +2814,15 @@ function SpellSelectionStep({
         </div>
       )}
 
-      {/* Known spell selection (known casters only at creation) */}
+      {/* Known/spellbook spell selection */}
       {spellsAllowed > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-white font-semibold text-sm">{maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells'}</h3>
+            <h3 className="text-white font-semibold text-sm">
+              {isWizard
+                ? (maxLevel > 1 ? `Spellbook (Level 1-${maxLevel})` : 'Spellbook (Level 1)')
+                : (maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells')}
+            </h3>
             <span className="text-xs text-gray-400">{selectedSpells.length}/{spellsAllowed} selected</span>
           </div>
 

@@ -24,6 +24,7 @@
 | 18 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 | 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
 | 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
+| 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 
@@ -530,6 +531,26 @@ Phase 3 — Multiclass at creation:
 - `featPrerequisites.ts` — prerequisite checking and effects parsing utilities
 
 **Dependencies:** M10 (character leveling) — extends the existing ASI/feat choice flow.
+
+## Milestone 21: Wizard Spellbook
+
+**Goal:** Wizards manage a curated spellbook rather than having access to the full class spell list. Spells are added to the spellbook over time (during creation and via the character sheet), and Wizards prepare from their spellbook only.
+
+**Tasks:**
+- [x] `wizardSpellbookCount(level)` utility: `6 + (level - 1) * 2` starting spells
+- [x] Creation wizard: Wizard sees "Spellbook" picker instead of "Prepared Spells" info text; selects starting spellbook spells (unprepared by default)
+- [x] Multiclass creation: same spellbook flow for Wizard as secondary class
+- [x] Character sheet: "+ Spellbook" button searches full Wizard class list, adds spells with `prepared: false`
+- [x] Character sheet: "- Spellbook" button shows current spellbook spells for removal
+- [x] Character sheet: "Change Prepared" for Wizard filters to spellbook spells only (not full class list)
+- [x] Inline prepare/unprepare toggle dots on all spellbook spells
+
+**Key files:**
+- `spellConstants.ts` — `wizardSpellbookCount()` function
+- `CharacterCreateWizard.tsx` — special Wizard handling in `SpellSelectionStep` and `MulticlassSpellSelectionStep`
+- `CharacterSheetPage.tsx` — Wizard spellbook buttons in class spell header, modal modes `'spellbook'` / `'remove-spellbook'` / Wizard-filtered `'prepared'`
+
+**Dependencies:** M9 (character sheet spell tab), M10 (multiclass creation)
 
 ## Future Features (Post Month 1)
 
