@@ -9,18 +9,19 @@
 | 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
 | 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
 | 5 | Combat Engine | Complete | Full combat: damage, healing, conditions (with duration tracking), death saves, concentration, attack rolls, spell slot tracking, turn-based auto-expiry |
-| 6 | Polish, Mobile & Deployment | Deferred | Will be done after M13 when combat UI has stabilised |
+| 6 | Polish, Mobile & Deployment | Deferred | Will be done after M14 when combat UI has stabilised |
 | 7 | Data Gathering & Spell Effect Schema | Complete | 288 spells, 104 items, 2,357 monsters, class/race analysis — data files and review docs produced |
 | 8 | Spell Effect Data Population & Review Cycle | Complete | All data files validated and approved — 2 critical, 2 moderate, 48 markup fixes applied |
 | 9 | Character Builder Overhaul | Complete | Reference data entities, 5etools seeders, 6-step creation wizard, 6-tab character sheet, rest mechanics, proficiency display, character deletion, campaign assignment |
-| 10 | Spell Resolver Engine & Encounter Spellcasting | Not started | Cast Spell action, auto-resolution, source-tracked conditions, component checks, optimistic locking |
-| 11 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
-| 12 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
-| 13 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
-| 14 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
-| 15 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
-| 16 | Class Feature Automation | Not started | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
-| 17 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
+| 10 | Character Leveling & Multiclass | Not started | Create at any level, multiclass at creation, level up/down with auto-recalculation of all derived stats |
+| 11 | Spell Resolver Engine & Encounter Spellcasting | Not started | Cast Spell action, auto-resolution, source-tracked conditions, component checks, optimistic locking |
+| 12 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
+| 13 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
+| 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
+| 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
+| 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
+| 17 | Class Feature Automation | Not started | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
+| 18 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 
@@ -137,7 +138,7 @@
 
 ## Milestone 6: Polish, Mobile & Deployment (DEFERRED)
 
-**Status:** Deferred — will be done after M13 when combat UI has stabilised. The encounter session UI will be substantially rebuilt by M10–M12, making early polish work throwaway.
+**Status:** Deferred — will be done after M14 when combat UI has stabilised. The encounter session UI will be substantially rebuilt by M11–M13, making early polish work throwaway.
 
 **Tasks:**
 - [ ] Mobile-responsive encounter screens
@@ -241,7 +242,117 @@
 - [x] Campaign assignment dropdown on character sheet (to the right of tab navigation)
 - [x] Character deletion: persistent trash icon on player dashboard cards, confirmation modal requiring exact name input, backend error display (e.g. active combat), soft-delete via API
 
-## Milestone 10: Spell Resolver Engine & Encounter Spellcasting
+## Milestone 10: Character Leveling & Multiclass
+
+**Goal:** Support creating characters at any level (1–20) with optional multiclassing, and level up/down from the character sheet with automatic recalculation of all derived stats.
+
+**Analysis tasks:**
+- [ ] Extend `docs/class-feature-analysis.md` from levels 1–5 to levels 1–20 for all 13 classes and all subclasses
+- [ ] Categorize every level-up gain as one of: STAT_CHANGE (automatable — HP, proficiency bonus, cantrips known, spells known, spell slots), RESOURCE_GRANT (automatable — ASI, feat, Extra Attack, class resource pools), FEATURE_DISPLAY (add to Features tab but no mechanical automation), SUBCLASS_FEATURE (display + always-prepared spells if applicable)
+- [ ] Map multiclass prerequisites per class (PHB Table: ability score minimums to enter/leave a class)
+- [ ] Map multiclass proficiency grants per class (differ from first-class proficiencies — PHB Multiclassing Proficiencies table)
+- [ ] Identify which level-up gains are reversible on level-down and which require user confirmation (e.g., ASI choices, feat selections, spell choices)
+
+**Feature 1: Multi-level character creation**
+
+Create characters at any level from 1 to 20. The creation wizard adapts to the chosen level:
+
+Backend tasks:
+- [ ] Accept `level` field on `CharacterCreateRequest` (currently defaults to 1)
+- [ ] Auto-calculate HP for levels 2+: first level = max hit die + CON mod, each subsequent level = average hit die (rounded up) + CON mod (default), or allow manual total
+- [ ] Auto-calculate proficiency bonus from level (2 at L1–4, 3 at L5–8, 4 at L9–12, 5 at L13–16, 6 at L17–20)
+- [ ] Recalculate all derived stats (spell save DC, spell attack bonus, saving throw bonuses, skill bonuses) from proficiency bonus and ability scores
+- [ ] Auto-generate spell slots from `SpellSlotCalculator` for the given level
+
+Frontend tasks:
+- [ ] Level picker (1–20) in creation wizard Basic Info step
+- [ ] HP calculation display showing per-level breakdown
+- [ ] Cantrip count adjusts to level (from `CANTRIPS_KNOWN` tables)
+- [ ] Spells known count adjusts to level (from `SPELLS_KNOWN` tables)
+- [ ] Spell selection allows spells up to the max spell level for the class at that level
+- [ ] ASI/feat selection UI for each ASI level reached (class-dependent: most at 4, 8, 12, 16, 19; Fighter adds 6, 14; Rogue adds 10)
+- [ ] Class features for all levels up to chosen level added to `features` automatically
+- [ ] Subclass features added if level >= subclass level
+
+**Feature 2: Multiclass character creation**
+
+When creating a character at level 2+, allow splitting levels across multiple classes:
+
+Backend tasks:
+- [ ] Add `multiclass_requirements` JSONB column to `character_classes` table — PHB multiclass prerequisites (e.g., Fighter requires STR 13 or DEX 13, Paladin requires STR 13 and CHA 13)
+- [ ] Seed multiclass prerequisites from PHB data
+- [ ] Validate multiclass eligibility: character must meet prerequisites for BOTH the current class (to leave it) AND the new class (to enter it)
+- [ ] Multiclass proficiency grants: when adding a second+ class, grant only the reduced proficiency set (PHB Multiclassing Proficiencies table), not the full first-class set
+- [ ] `multiclassEntries` JSONB on `player_characters` stores `[{classId, className, subclassId?, subclassName?, level}]`
+- [ ] Spell slot calculation uses combined caster levels via `SpellSlotCalculator` (already handles multiclass + pact magic)
+
+Frontend tasks:
+- [ ] "Add Class" button in creation wizard when level >= 2, with prerequisite validation against current ability scores
+- [ ] Level allocation UI: distribute total character level across chosen classes
+- [ ] Per-class subclass selection when class level >= subclass level
+- [ ] Per-class feature collection for each class at its allocated level
+- [ ] Multiclass proficiency display (reduced set for secondary classes)
+- [ ] Combined spell slot display for multiclass casters
+
+**Feature 3: Level up/down from character sheet**
+
+The largest feature. A "Level Up" and "Level Down" button on the character sheet. All derived stats recalculate automatically.
+
+Backend tasks:
+- [ ] `POST /api/characters/{id}/level-up` endpoint — accepts `classId` (which class to add a level in), returns updated character
+- [ ] `POST /api/characters/{id}/level-down` endpoint — accepts `classId` (which class to remove a level from), returns updated character
+- [ ] Level-up auto-updates:
+  - `level` incremented
+  - `hpMax` increased by hit die average (rounded up) + CON mod for the class being leveled (configurable: average or rolled)
+  - `proficiencyBonus` recalculated from total level
+  - `spellSlots` recalculated via `SpellSlotCalculator`
+  - `spellSaveDc` and `spellAttackBonus` recalculated from proficiency bonus
+  - `features` array gets new features for the gained level (from class and subclass seeded data)
+  - `hitDiceMap` updated (total hit dice for the leveled class incremented)
+  - Cantrips known count updated (if class gains a cantrip at this level)
+  - Spells known count updated (if known caster and this level grants more)
+  - `multiclassEntries` updated (if multiclassed)
+- [ ] Level-down auto-updates: reverse of above — decrement HP, remove features for the lost level, reduce hit dice, recalculate spell slots. If last level in a class is removed, remove that class entry from `multiclassEntries`
+- [ ] ASI/feat handling at level up: if the new level is an ASI level for the leveled class, return a flag indicating ASI/feat choice is needed. Frontend sends a follow-up request with the choice.
+- [ ] `POST /api/characters/{id}/apply-asi` endpoint — accepts ability score increases (+2 to one or +1 to two) or a feat selection. Recalculates all ability-dependent derived stats (save DC, attack bonus, HP if CON changed, prepared spell count if casting ability changed)
+- [ ] Level-down ASI reversal: if removing a level that had an ASI, prompt user to confirm which ASI/feat to remove. Store ASI/feat history per level in a `levelHistory` JSONB column so rollback is deterministic.
+- [ ] Validation: cannot level down below 1. Cannot level up above 20. Multiclass level-down cannot remove the last class (character must always have at least 1 class).
+
+Frontend tasks:
+- [ ] "Level Up" button on character sheet header (next to level display)
+- [ ] Level-up flow:
+  - If single-classed: confirm class or choose to multiclass (with prereq validation)
+  - If multiclassed: choose which class to level
+  - Show what the character gains at the new level (features, HP, spell slots, cantrips, etc.)
+  - If ASI level: inline ASI/feat chooser (+2/+1/+1 ability selector, or feat picker with prereq validation)
+  - If known caster gaining spells: spell selection for new slots
+  - Confirmation and save
+- [ ] "Level Down" button (with confirmation modal)
+  - If single-classed: straightforward — remove last level
+  - If multiclassed: choose which class to reduce
+  - Show what will be lost (features, HP, spell slots, etc.)
+  - If removing an ASI level: show which ASI/feat will be reversed (from `levelHistory`)
+  - If known caster losing spell slots: prompt which spells to remove if over the new known limit
+  - Confirmation and save
+- [ ] Level history display (optional): collapsible timeline showing what was gained at each level
+
+**Derived stat recalculation reference:**
+
+| Stat | Recalculation |
+|------|--------------|
+| HP | Sum of: (max hit die + CON mod) for level 1 + (avg hit die + CON mod) per subsequent level per class |
+| Proficiency bonus | (total level - 1) / 4 + 2, floored |
+| Spell slots | `SpellSlotCalculator` with combined caster levels (full = level, half = level/2 floor, artificer = level/2 ceil, pact = separate) |
+| Spell save DC | 8 + proficiency bonus + casting ability mod |
+| Spell attack bonus | proficiency bonus + casting ability mod |
+| Cantrips known | `CANTRIPS_KNOWN[className][classLevel]` |
+| Spells known | `SPELLS_KNOWN[className][classLevel]` (known casters only) |
+| Prepared spell count | ability mod + class level (full casters), ability mod + floor(level/2) (half casters), minimum 1 |
+| Saving throw bonuses | ability mod + (proficiency bonus if proficient) |
+| Skill bonuses | ability mod + (proficiency bonus if proficient) + (proficiency bonus again if expertise) |
+| Hit dice | per-class: {total: class level, remaining: class level, faces: class hit die} |
+
+## Milestone 11: Spell Resolver Engine & Encounter Spellcasting
 
 **Goal:** "Cast Spell" combat action with fully automated resolution for ~85% of level 0–3 spells.
 
@@ -281,7 +392,7 @@
 - [ ] DM spell casting for monsters with spellcasting stat blocks
 - [ ] `requiresManualResolution` spells: deduct slot, log cast, show prompt for DM to resolve manually
 
-## Milestone 11: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions
+## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions
 
 **Goal:** DM can click monster stat block actions and have them auto-resolve against targets.
 
@@ -305,7 +416,7 @@
 - [ ] Monster spellcasting panel (separate from action panel, shows available spells and slots — slots visible to DM only)
 - [ ] Attack source selector: when DM attacks, optionally select which creature is doing the attack for clearer combat log entries
 
-## Milestone 12: Enhanced Action Economy
+## Milestone 13: Enhanced Action Economy
 
 **Goal:** Full D&D 5e action economy tracking with reactions, bonus actions, and non-attack actions.
 
@@ -340,7 +451,7 @@
 - [ ] Free object interaction: freetext input logged to combat log
 - [ ] Action economy indicators: visual display of action/bonus action/reaction availability per turn
 
-## Milestone 13: Undo System
+## Milestone 14: Undo System
 
 **Goal:** DM can undo any combat action, fully restoring prior state.
 
@@ -357,7 +468,7 @@
 - [ ] Confirmation dialog showing what will be undone
 - [ ] Combat log entry removal on undo (with visual feedback)
 
-## Milestone 14: Persistent Spell Effects as Companion Participants
+## Milestone 15: Persistent Spell Effects as Companion Participants
 
 **Goal:** Spells like Spiritual Weapon, Flaming Sphere, and summoned creatures appear as sub-cards beneath the caster in the initiative order.
 
@@ -374,7 +485,7 @@
 - [ ] Companion action buttons (e.g., Spiritual Weapon attack, Flaming Sphere ram)
 - [ ] Visual link between companion and caster (concentration indicator)
 
-## Milestone 15: Short/Long Rest System
+## Milestone 16: Short/Long Rest System
 
 **Goal:** Implement rest mechanics for resource recovery between encounters.
 
@@ -389,7 +500,7 @@
 - [ ] Long rest button with summary of what recovers
 - [ ] Resource counters on character sheet (used/total for each tracked resource)
 
-## Milestone 16: Class Feature Automation
+## Milestone 17: Class Feature Automation
 
 **Goal:** Automate common class features used in combat encounters.
 
@@ -411,7 +522,7 @@
 - [ ] Feature resource counters (Ki points, Bardic Inspiration uses, Channel Divinity uses, etc.)
 - [ ] Divine Smite prompt on hit (choose spell slot level for extra damage)
 
-## Milestone 17: Sorcerer Metamagic
+## Milestone 18: Sorcerer Metamagic
 
 **Goal:** Implement Sorcerer-specific metamagic options with Sorcery Point tracking.
 
@@ -433,7 +544,7 @@
 
 ---
 
-**Parallelism note:** M7 (data gathering) and the non-spell parts of M9 (character builder) can run in parallel — they have no dependencies on each other. M9's Spells tab is blocked by M7/M8 completion. M10 depends on M7/M8 (spell data) and M9 (character with spell lists). M11 depends on M7 (monster action data). M12 and M13 depend on M10/M11. M14–M17 depend on M10 being complete.
+**Parallelism note:** M7 (data gathering) and the non-spell parts of M9 (character builder) can run in parallel — they have no dependencies on each other. M9's Spells tab is blocked by M7/M8 completion. M10 (character leveling) depends on M9 (character builder) and the M7 class feature analysis (levels 1–5, to be extended to 1–20). M11 depends on M7/M8 (spell data) and M9 (character with spell lists). M12 depends on M7 (monster action data). M13 and M14 depend on M11/M12. M15–M18 depend on M11 being complete. M10 and M11 have no dependency on each other and can run in parallel.
 
 ## Future Features (Post Month 1)
 

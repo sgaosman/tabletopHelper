@@ -322,9 +322,9 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Date:** 2026-07-18
 **Status:** Accepted
 
-**Decision:** Defer Milestone 6 (Polish, Mobile & Deployment) until after M13. The encounter session UI will be substantially rebuilt by M10–M12 (encounter spellcasting, monster actions, enhanced action economy), making early polish work throwaway.
+**Decision:** Defer Milestone 6 (Polish, Mobile & Deployment) until after M14. The encounter session UI will be substantially rebuilt by M11–M13 (encounter spellcasting, monster actions, enhanced action economy), making early polish work throwaway.
 
-**Rationale:** Responsive layouts, error toasts, and loading states all depend on the UI surface they wrap. With the combat UI gaining spell casting panels, monster action panels, reaction prompts, and action economy indicators in M10–M12, any mobile layout work done now would need to be redone. Polish once after the UI stabilises, not before.
+**Rationale:** Responsive layouts, error toasts, and loading states all depend on the UI surface they wrap. With the combat UI gaining spell casting panels, monster action panels, reaction prompts, and action economy indicators in M11–M13, any mobile layout work done now would need to be redone. Polish once after the UI stabilises, not before.
 
 ## D030: Declarative Effect Template Architecture
 
@@ -375,7 +375,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Decision:** Add a `@Version` annotated `Long version` field to both `Encounter` and `EncounterParticipant` entities. Hibernate will automatically throw `OptimisticLockException` if two concurrent transactions try to update the same row. The combat controller catches this and returns 409 Conflict, prompting the client to retry after the next WebSocket state broadcast.
 
-**Rationale:** With the introduction of player combat permissions (M5) and encounter spellcasting (M10), multiple users can submit combat actions simultaneously. The current REST-then-broadcast pattern has no explicit locking and could produce race conditions (e.g., two damage applications reading the same HP, both subtracting, resulting in only one being applied). Optimistic locking is cheap insurance — with turn-based combat, actual conflicts will be extremely rare, but the protection should be there.
+**Rationale:** With the introduction of player combat permissions (M5) and encounter spellcasting (M11), multiple users can submit combat actions simultaneously. The current REST-then-broadcast pattern has no explicit locking and could produce race conditions (e.g., two damage applications reading the same HP, both subtracting, resulting in only one being applied). Optimistic locking is cheap insurance — with turn-based combat, actual conflicts will be extremely rare, but the protection should be there.
 
 **Trade-offs:** Adds a version column to two tables. Clients need to handle 409 responses (retry after next WebSocket broadcast). Negligible overhead for robust concurrency protection.
 

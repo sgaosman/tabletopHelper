@@ -137,7 +137,7 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 - "REVIEW:" notes on any definition where the AI is uncertain about a field
 - Cross-validation against 5e.tools structured metadata (conditionInflict, savingThrow, spellAttack, damageInflict)
 - `requiresManualResolution` flag for complex spells — better to fall back to manual DM resolution than automate incorrectly
-- Spell test harness in M10 validates each pattern category with representative spells before going live
+- Spell test harness in M11 validates each pattern category with representative spells before going live
 
 **Risk areas:** Wrong upcast scaling (e.g., extra dice vs extra targets), wrong save type, missed secondary effects (e.g., Guiding Bolt also grants advantage on next attack), incorrect target count, missing half-on-save flag.
 
@@ -159,7 +159,7 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Category:** Data Quality
 **Severity:** Medium — errors in ~1,300–1,600 definitions could produce wrong combat outcomes at scale
 **Likelihood:** Medium — 5e.tools monster action text varies in format; large volume increases error surface
-**Status:** Open (M7/M11)
+**Status:** Open (M7/M12)
 
 **Mitigations:**
 - Scope: all CR 0–10 (~1,200–1,500), all legendary/lair monsters at any CR (~60–80), CR 11–15 as secondary (~200–300). Monsters above CR 15 without legendary features use manual tools.
