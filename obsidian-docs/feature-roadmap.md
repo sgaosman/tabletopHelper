@@ -22,6 +22,8 @@
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
 | 17 | Class Feature Automation | Not started | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
 | 18 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
+| 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
+| 20 | Feat Automation on Level-Up | Not started | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 
@@ -477,7 +479,43 @@ Phase 3 — Multiclass at creation: deferred (achievable via level-up flow)
 
 ---
 
-**Parallelism note:** M7 (data gathering) and the non-spell parts of M9 (character builder) can run in parallel — they have no dependencies on each other. M9's Spells tab is blocked by M7/M8 completion. M10 (character leveling) depends on M9 (character builder) and the M7 class feature analysis (levels 1–5, to be extended to 1–20). M11 depends on M7/M8 (spell data) and M9 (character with spell lists). M12 depends on M7 (monster action data). M13 and M14 depend on M11/M12. M15–M18 depend on M11 being complete. M10 and M11 have no dependency on each other and can run in parallel.
+**Parallelism note:** M7 (data gathering) and the non-spell parts of M9 (character builder) can run in parallel — they have no dependencies on each other. M9's Spells tab is blocked by M7/M8 completion. M10 (character leveling) depends on M9 (character builder) and the M7 class feature analysis (levels 1–5, to be extended to 1–20). M11 depends on M7/M8 (spell data) and M9 (character with spell lists). M12 depends on M7 (monster action data). M13 and M14 depend on M11/M12. M15–M18 depend on M11 being complete. M10 and M11 have no dependency on each other and can run in parallel. M19 (glossary tooltips) has no dependencies and can be done at any time. M20 (feat automation) depends on M10.
+
+## Milestone 19: Glossary Tooltips
+
+**Goal:** Bolded D&D terms in `FormattedDescription` become clickable, opening a lightweight modal/popover with a plain-English definition of the term. Aimed at new players who encounter jargon mid-game.
+
+**Example:** Clicking "prepared spells" shows: *"Prepared Spells: spells you've chosen to have ready for casting. Clerics, Druids, Paladins, and Wizards can change their prepared spells after a long rest."*
+
+**Tasks:**
+- [ ] Build a glossary map (term → definition) covering core D&D 5e jargon: spell save DC, proficiency bonus, prepared spells, spell slots, hit dice, saving throws, advantage/disadvantage, concentration, ritual, cantrip, etc.
+- [ ] Wrap bolded `<strong>` spans in `FormattedDescription.tsx` with an `onClick` handler
+- [ ] Create a `GlossaryModal` or popover component that displays the definition
+- [ ] Definitions should be concise, class-aware where relevant, and written for someone who has never played D&D
+- [ ] Mobile-friendly: popover should work well on touch devices (tap to open, tap outside to close)
+
+**Dependencies:** None — builds on existing `FormattedDescription.tsx` component from M10.
+
+## Milestone 20: Feat Automation on Level-Up
+
+**Goal:** When a player selects a feat during level-up ASI, the system fully automates the feat's mechanical effects instead of just recording a name.
+
+**Current state:** `AsiModal` accepts a feat name as free text. The feat's mechanical effects are not applied — the player must manually adjust their sheet. This is error-prone and slow mid-game.
+
+**Tasks:**
+- [ ] Present a preconfigured list of feats from reference data (replace free text input)
+- [ ] **Spells** — feats that grant spells (Magic Initiate, Ritual Caster, Fey Touched, Shadow Touched, etc.) should auto-add the spell(s) to the Spells tab in a dedicated feat section
+- [ ] **Actions / bonus actions / reactions** — feats that grant combat options (Sentinel, Polearm Master, Great Weapon Master, Shield Master, etc.) should auto-add entries to the Actions tab
+- [ ] **Ability score bonuses** — apply fixed bonuses or let the user choose which ability score for half-feats (Resilient, Skill Expert, Athlete, etc.)
+- [ ] **Proficiencies** — add armor, weapon, tool, skill, language, or saving throw proficiencies (Moderately Armored, Weapon Master, Linguist, Skilled, etc.)
+- [ ] **Passive stat modifications** — Tough: +2 HP per level retroactively; Alert: +5 initiative; Observant: +5 passive Perception/Investigation
+- [ ] **Speed changes** — Mobile: +10 speed; Squat Nimbleness: +5 speed
+- [ ] **Damage resistances** — add to resistances list (e.g. Dragon Hide, Infernal Constitution)
+- [ ] **Expertise** — Skill Expert / Prodigy: grant expertise (double proficiency) on a chosen skill
+- [ ] **Resource pools** — Lucky: 3 luck points per long rest; Inspiring Leader: temp HP uses. Requires a trackable resource system similar to spell slots
+- [ ] All effects must be reversible on level-down (recorded in `levelHistory` choices)
+
+**Dependencies:** M10 (character leveling) — extends the existing ASI/feat choice flow. Resource pool tracking (item 10) may require a new general-purpose resource system.
 
 ## Future Features (Post Month 1)
 
