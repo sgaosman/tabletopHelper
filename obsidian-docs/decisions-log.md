@@ -654,3 +654,25 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Feats involve player choices (which ability to increase, which skill to get expertise in, which resistance to pick) that cannot be re-derived from the feat definition alone. Storing the exact applied effects ensures reversal is always correct regardless of what the player chose. This extends the `levelHistory` pattern established in M10 (D052).
 
 **Trade-offs:** The levelHistory JSONB grows slightly larger with appliedEffects data. This is negligible — even at level 20 with a feat at every ASI level, the total is under 10KB.
+
+## D057: Multiclass Character Creation with Post-Creation ASI Flow
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** Multiclass character creation sends a `multiclassClassEntries` JSON array to the server, which builds the full multi-class progression via `LevelUpCalculator.buildMulticlassProgression()`. ASI choices are applied post-creation by showing `AsiModal` sequentially for each pending ASI level, calling the existing `applyChoices` endpoint.
+
+**Rationale:** Integrating ASI choices into the creation wizard would require a parallel version of `AsiModal` that works without a persisted character (no ID for API calls, no ability to save feats). The post-creation approach reuses the existing `AsiModal` and `applyChoices` endpoint unchanged. The `findNextAsiEntry()` helper ensures each `applyChoices` call records on the correct level history entry by scanning forward for the first ASI-eligible entry without a recorded choice.
+
+**Trade-offs:** The character exists briefly without its ASI bonuses applied. If the user closes the browser during the ASI flow, the character has correct HP and features but missing ASI choices — they can apply them later via the level-up flow. The sequential modal UX is slightly less integrated than an inline wizard step, but avoids significant code duplication.
+
+## D058: ASI History Recording Targets First Unrecorded ASI Level
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** `recordAsiInHistory` and `recordFeatInHistory` find the target level history entry via `findNextAsiEntry()` — scanning forward through the history for the first entry where `LevelUpCalculator.isAsiLevel(className, classLevel)` is true and `choices.asi` is absent — rather than always targeting the last entry.
+
+**Rationale:** The previous approach (always using `history.get(history.size() - 1)`) was correct for the single-ASI level-up flow but incorrect for post-creation ASI application. A level 8 Fighter has ASI at class levels 4, 6, and 8, but the last history entry is level 8 regardless of which ASI is being applied. Forward scanning correctly handles both cases: level-up (only one unrecorded ASI, which is the last entry) and post-creation (multiple unrecorded ASIs, applied in order).
+
+**Trade-offs:** None identified. The forward scan is O(n) where n is character level (max 20), which is negligible.

@@ -40,6 +40,7 @@ export interface CharacterCreateRequest {
   currency?: string;
   hitDiceMap?: string;
   preparedSpells?: string;
+  multiclassClassEntries?: string;
   campaignId?: string;
 }
 

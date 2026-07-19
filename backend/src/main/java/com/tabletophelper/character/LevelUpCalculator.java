@@ -113,6 +113,44 @@ public class LevelUpCalculator {
         return progression;
     }
 
+    public record ClassInput(UUID classId, String className, int classLevel,
+                                int hitDice, String classFeatureJson, String subclassFeatureJson,
+                                String subclassName, int subclassLevel) {}
+
+    public static List<LevelGain> buildMulticlassProgression(List<ClassInput> classInputs, int conMod) {
+        List<LevelGain> progression = new ArrayList<>();
+        int characterLevel = 0;
+
+        for (ClassInput ci : classInputs) {
+            String classIdStr = ci.classId() != null ? ci.classId().toString() : null;
+
+            for (int clsLvl = 1; clsLvl <= ci.classLevel(); clsLvl++) {
+                characterLevel++;
+                boolean isFirstClassLevel = (clsLvl == 1 && ci == classInputs.get(0));
+                int hpGained = isFirstClassLevel
+                        ? ci.hitDice() + conMod
+                        : (ci.hitDice() / 2 + 1) + conMod;
+
+                String scFeatures = (ci.subclassName() != null && clsLvl >= ci.subclassLevel())
+                        ? ci.subclassFeatureJson() : null;
+                String scName = (ci.subclassName() != null && clsLvl >= ci.subclassLevel())
+                        ? ci.subclassName() : null;
+
+                List<FeatureEntry> features = collectFeaturesForLevel(
+                        ci.classFeatureJson(), scFeatures, clsLvl, ci.className(), scName);
+
+                boolean asiAvailable = isAsiLevel(ci.className(), clsLvl);
+                boolean subclassAvail = (clsLvl == ci.subclassLevel());
+
+                progression.add(new LevelGain(
+                        characterLevel, classIdStr, ci.className(), clsLvl,
+                        hpGained, features, asiAvailable, subclassAvail));
+            }
+        }
+
+        return progression;
+    }
+
     public static int totalHp(List<LevelGain> progression) {
         return progression.stream().mapToInt(LevelGain::hpGained).sum();
     }

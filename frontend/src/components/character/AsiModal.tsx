@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { X, Plus, Minus, Search, Check, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { characterApi } from '../../api/characterApi';
-import { getFeats, getOptionalFeatures } from '../../api/referenceApi';
+import { getFeats, getOptionalFeatures, searchSpells } from '../../api/referenceApi';
 import type { PlayerCharacter, ApplyChoicesRequest, AsiChoice } from '../../types/character';
-import type { Feat, OptionalFeature } from '../../types/reference';
+import type { Feat, OptionalFeature, Spell } from '../../types/reference';
 import { checkFeatPrerequisites, parseFeatEffects, parseAbilityScoreIncrease } from '../../utils/featPrerequisites';
 import FormattedDescription from '../FormattedDescription';
 
@@ -22,6 +22,11 @@ const ALL_SKILLS = [
   'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion',
   'Sleight of Hand', 'Stealth', 'Survival',
 ];
+
+const SCHOOL_ABBREV: Record<string, string> = {
+  A: 'Abjuration', C: 'Conjuration', D: 'Divination', E: 'Enchantment',
+  V: 'Evocation', I: 'Illusion', N: 'Necromancy', T: 'Transmutation',
+};
 
 interface Props {
   character: PlayerCharacter;
@@ -53,6 +58,14 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
   const [weaponChoices, setWeaponChoices] = useState<string[]>([]);
   const [optionalFeatures, setOptionalFeatures] = useState<OptionalFeature[]>([]);
   const [selectedOptFeatures, setSelectedOptFeatures] = useState<string[]>([]);
+
+  // Spell picker state
+  const [selectedSpellIds, setSelectedSpellIds] = useState<string[]>([]);
+  const [fixedSpellIds, setFixedSpellIds] = useState<string[]>([]);
+  const [spellSearchResults, setSpellSearchResults] = useState<Spell[]>([]);
+  const [spellSearchQuery, setSpellSearchQuery] = useState('');
+  const [spellSearchLoading, setSpellSearchLoading] = useState(false);
+  const [activeSpellSlot, setActiveSpellSlot] = useState<{ type: 'cantrip' | 'spell'; index: number; filter: SpellFilter } | null>(null);
 
   useEffect(() => {
     if (mode === 'feat' && feats.length === 0) {
@@ -107,6 +120,102 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
     }
   }, [selectedFeat?.id]);
 
+  // Parse feat spell options from grantsFeatures
+  const featSpellOptions = useMemo((): { name: string }[] | null => {
+    if (!selectedFeat?.grantsFeatures) return null;
+    const raw = typeof selectedFeat.grantsFeatures === 'string'
+      ? JSON.parse(selectedFeat.grantsFeatures) : selectedFeat.grantsFeatures;
+    if (!Array.isArray(raw) || raw.length === 0) return null;
+    return raw.map((o: any, i: number) => ({ name: o.name || `Option ${i + 1}` }));
+  }, [selectedFeat?.id]);
+
+  // For feats with multiple options (Magic Initiate has Bard/Cleric/etc.), track which option
+  const [selectedSpellOption, setSelectedSpellOption] = useState<number>(0);
+
+  // Parse spell slots directly from raw grantsFeatures JSON
+  const spellSlots = useMemo(() => {
+    if (!selectedFeat?.grantsFeatures) return { fixed: [] as string[], choices: [] as SpellFilter[] };
+    const raw = typeof selectedFeat.grantsFeatures === 'string'
+      ? JSON.parse(selectedFeat.grantsFeatures) : selectedFeat.grantsFeatures;
+    if (!Array.isArray(raw)) return { fixed: [] as string[], choices: [] as SpellFilter[] };
+    const option = raw[selectedSpellOption] || raw[0];
+    if (!option) return { fixed: [] as string[], choices: [] as SpellFilter[] };
+
+    const fixed: string[] = [];
+    const choices: SpellFilter[] = [];
+
+    // Known cantrips
+    const knownArr = option.known?._;
+    if (Array.isArray(knownArr)) {
+      for (const item of knownArr) {
+        if (typeof item === 'string') {
+          fixed.push(stripSpellRef(item));
+        } else if (item?.choose) {
+          const parsed = parseChooseString(item.choose);
+          const count = item.count || 1;
+          for (let i = 0; i < count; i++) {
+            choices.push({ level: parsed.level ?? 0, classes: parsed.classes || [], schools: parsed.schools || [] });
+          }
+        }
+      }
+    }
+
+    // Innate/daily spells
+    const daily = option.innate?._?.daily || option.innate?._?.rest;
+    if (daily) {
+      for (const spells of Object.values(daily) as any[]) {
+        if (!Array.isArray(spells)) continue;
+        for (const item of spells) {
+          if (typeof item === 'string') {
+            fixed.push(stripSpellRef(item));
+          } else if (item?.choose) {
+            const parsed = parseChooseString(item.choose);
+            const count = item.count || 1;
+            for (let i = 0; i < count; i++) {
+              if (item.choose?.from) {
+                choices.push({ level: -1, classes: [], schools: [], fromList: item.choose.from.map((s: string) => stripSpellRef(s)) });
+              } else {
+                choices.push({ level: parsed.level ?? -1, classes: parsed.classes || [], schools: parsed.schools || [] });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return { fixed, choices };
+  }, [selectedFeat?.id, selectedSpellOption]);
+
+  // Look up fixed spell IDs by name
+  useEffect(() => {
+    if (spellSlots.fixed.length === 0) { setFixedSpellIds([]); return; }
+    const lookups = spellSlots.fixed.map(name =>
+      searchSpells({ name, size: 1 }).then(r => r.content[0]?.id || null)
+    );
+    Promise.all(lookups).then(ids => setFixedSpellIds(ids.filter(Boolean) as string[]));
+  }, [spellSlots.fixed.join(',')]);
+
+  // Search spells for the active choice slot
+  const searchFeatSpells = useCallback(async (query: string, filter: SpellFilter) => {
+    setSpellSearchLoading(true);
+    try {
+      const params: Record<string, string | number> = { size: 50, sort: 'name' };
+      if (query) params.name = query;
+      if (filter.level >= 0) params.level = filter.level;
+      if (filter.classes.length > 0) params.className = filter.classes[0];
+      if (filter.schools.length > 0) params.school = filter.schools.join(',');
+      const result = await searchSpells(params);
+      let spells = result.content;
+      if (filter.fromList) {
+        const nameSet = new Set(filter.fromList.map(n => n.toLowerCase()));
+        spells = spells.filter(s => nameSet.has(s.name.toLowerCase()));
+      }
+      setSpellSearchResults(spells);
+    } finally {
+      setSpellSearchLoading(false);
+    }
+  }, []);
+
   function resetFeatChoices() {
     setAbilityChoice('');
     setResistanceChoice('');
@@ -117,6 +226,12 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
     setLanguageChoices([]);
     setWeaponChoices([]);
     setSelectedOptFeatures([]);
+    setSelectedSpellIds([]);
+    setFixedSpellIds([]);
+    setSpellSearchResults([]);
+    setSpellSearchQuery('');
+    setActiveSpellSlot(null);
+    setSelectedSpellOption(0);
   }
 
   function selectFeat(feat: Feat) {
@@ -139,10 +254,11 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
   }
 
   function needsChoices(): { ability: boolean; resistance: boolean; skill: number; savingThrow: boolean;
-    expertise: number; tool: number; language: number; weapon: number; optFeature: number } {
+    expertise: number; tool: number; language: number; weapon: number; optFeature: number; spellChoices: number } {
     const result = { ability: false, resistance: false, skill: 0, savingThrow: false,
-      expertise: 0, tool: 0, language: 0, weapon: 0, optFeature: 0 };
+      expertise: 0, tool: 0, language: 0, weapon: 0, optFeature: 0, spellChoices: 0 };
     if (selectedAsi?.choose) result.ability = true;
+    result.spellChoices = spellSlots.choices.length;
     if (!selectedEffects) return result;
     const e = selectedEffects;
     if (e.resistances?.some((r: any) => typeof r === 'object' && r.choose)) result.resistance = true;
@@ -196,9 +312,12 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
     if (choices.language > 0 && languageChoices.length < choices.language) return false;
     if (choices.weapon > 0 && weaponChoices.length < choices.weapon) return false;
     if (choices.optFeature > 0 && selectedOptFeatures.length < choices.optFeature) return false;
+    if (choices.spellChoices > 0 && selectedSpellIds.length < choices.spellChoices) return false;
+    if (featSpellOptions && featSpellOptions.length > 1 && selectedSpellOption < 0) return false;
     return true;
   }, [selectedFeat, choices, abilityChoice, resistanceChoice, skillChoices, savingThrowChoice,
-      expertiseChoices, toolChoices, languageChoices, weaponChoices, selectedOptFeatures]);
+      expertiseChoices, toolChoices, languageChoices, weaponChoices, selectedOptFeatures,
+      selectedSpellIds, featSpellOptions, selectedSpellOption]);
 
   const canSubmit = mode === 'ability' ? pointsSpent === 2 : canSubmitFeat;
 
@@ -226,6 +345,8 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
         if (languageChoices.length) asi.languageChoices = languageChoices;
         if (weaponChoices.length) asi.weaponChoices = weaponChoices;
         if (selectedOptFeatures.length) asi.optionalFeatureIds = selectedOptFeatures;
+        const allSpellIds = [...fixedSpellIds, ...selectedSpellIds];
+        if (allSpellIds.length > 0) asi.spellIds = allSpellIds;
         request.asi = asi;
       }
       const res = await characterApi.applyChoices(character.id, request);
@@ -520,6 +641,120 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
                     </div>
                   </ChoiceSection>
                 )}
+                {/* Spell picker for spell-granting feats */}
+                {featSpellOptions && (
+                  <ChoiceSection title="Feat Spells">
+                    {/* Option selector for multi-option feats (e.g. Magic Initiate) */}
+                    {featSpellOptions.length > 1 && (
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-500 mb-1.5">Choose a spell list:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {featSpellOptions.map((opt, i) => (
+                            <button key={i} onClick={() => { setSelectedSpellOption(i); setSelectedSpellIds([]); setActiveSpellSlot(null); }}
+                              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                selectedSpellOption === i ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                              }`}>{opt.name}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fixed spells (auto-included) */}
+                    {spellSlots.fixed.length > 0 && (
+                      <div className="mb-2">
+                        <p className="text-xs text-gray-500 mb-1">Granted automatically:</p>
+                        {spellSlots.fixed.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/60 rounded text-sm text-green-300">
+                            <Check className="w-3.5 h-3.5" /> {s.name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Choosable spell slots */}
+                    {spellSlots.choices.map((filter, i) => {
+                      const selectedSpell = selectedSpellIds[i];
+                      const selectedSpellData = spellSearchResults.find(s => s.id === selectedSpell);
+                      const isActive = activeSpellSlot?.index === i;
+                      const levelLabel = filter.level === 0 ? 'cantrip' : filter.level > 0 ? `level ${filter.level} spell` : 'spell';
+                      const filterDesc = filter.schools.length > 0
+                        ? `${filter.schools.join(' or ')} ${levelLabel}`
+                        : filter.classes.length > 0
+                          ? `${filter.classes.join('/')} ${levelLabel}`
+                          : filter.fromList ? `${levelLabel} from list` : levelLabel;
+
+                      return (
+                        <div key={i} className="mb-2">
+                          <button
+                            onClick={() => {
+                              if (isActive) { setActiveSpellSlot(null); return; }
+                              setActiveSpellSlot({ type: filter.level === 0 ? 'cantrip' : 'spell', index: i, filter });
+                              setSpellSearchQuery('');
+                              searchFeatSpells('', filter);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors border ${
+                              selectedSpell
+                                ? 'border-indigo-600 bg-indigo-900/30 text-white'
+                                : 'border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700'
+                            }`}
+                          >
+                            {selectedSpell && selectedSpellData
+                              ? <span className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> {selectedSpellData.name}</span>
+                              : <span>Choose a {filterDesc}...</span>
+                            }
+                          </button>
+
+                          {isActive && (
+                            <div className="mt-1 border border-gray-700 rounded-lg bg-gray-850 overflow-hidden">
+                              <div className="p-2">
+                                <div className="relative">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                                  <input
+                                    value={spellSearchQuery}
+                                    onChange={e => {
+                                      setSpellSearchQuery(e.target.value);
+                                      searchFeatSpells(e.target.value, filter);
+                                    }}
+                                    placeholder={`Search ${filterDesc}...`}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded pl-8 pr-3 py-1.5 text-white text-xs placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    autoFocus
+                                  />
+                                </div>
+                              </div>
+                              <div className="max-h-40 overflow-y-auto">
+                                {spellSearchLoading ? (
+                                  <p className="text-gray-500 text-xs text-center py-3">Searching...</p>
+                                ) : spellSearchResults.length === 0 ? (
+                                  <p className="text-gray-500 text-xs text-center py-3">No spells found</p>
+                                ) : (
+                                  spellSearchResults.map(spell => (
+                                    <button key={spell.id}
+                                      onClick={() => {
+                                        const updated = [...selectedSpellIds];
+                                        updated[i] = spell.id;
+                                        setSelectedSpellIds(updated);
+                                        setActiveSpellSlot(null);
+                                      }}
+                                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-800 transition-colors ${
+                                        selectedSpell === spell.id ? 'bg-indigo-900/30 text-indigo-300' : 'text-gray-300'
+                                      }`}
+                                    >
+                                      <span className="font-medium">{spell.name}</span>
+                                      <span className="text-gray-500 ml-2">
+                                        {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
+                                        {spell.school ? ` · ${spell.school}` : ''}
+                                      </span>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </ChoiceSection>
+                )}
               </div>
             </>
           )}
@@ -626,6 +861,32 @@ function getResistanceOptions(effects: ReturnType<typeof parseFeatEffects>): str
     }
   }
   return [];
+}
+
+function stripSpellRef(s: string): string {
+  return s.replace(/#c$/, '').replace(/#\d+$/, '').replace(/\|.*$/, '')
+    .split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+interface SpellFilter {
+  level: number; // 0=cantrip, -1=any level (use classes/schools to filter)
+  classes: string[];
+  schools: string[];
+  fromList?: string[];
+}
+
+function parseChooseString(choose: string): Partial<SpellFilter> {
+  const parts = choose.split('|');
+  const result: Partial<SpellFilter> = {};
+  for (const part of parts) {
+    const [key, val] = part.split('=');
+    if (key === 'level') result.level = parseInt(val) || 0;
+    if (key === 'class') result.classes = val.split(';').map(c => c.trim().charAt(0).toUpperCase() + c.trim().slice(1).toLowerCase());
+    if (key === 'school') {
+      result.schools = val.split(';').map(s => SCHOOL_ABBREV[s.trim()] || s.trim()).filter(Boolean);
+    }
+  }
+  return result;
 }
 
 function getSkillOptions(effects: ReturnType<typeof parseFeatEffects>, proficientSkills: string[]): string[] {

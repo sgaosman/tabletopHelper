@@ -1,14 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, Search, X } from 'lucide-react';
 import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats, searchSpells } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
+import type { PlayerCharacter } from '../../types/character';
 import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
+import AsiModal from '../../components/character/AsiModal';
 import { CANTRIPS_KNOWN, SPELLS_KNOWN, maxSpellLevel, proficiencyBonusForLevel } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
 
-const ALL_STEPS = ['Basic Info', 'Race', 'Class', 'Ability Scores', 'Background', 'Spells', 'Review'] as const;
+const ALL_STEPS = ['Basic Info', 'Race', 'Ability Scores', 'Class', 'Background', 'Spells', 'Review'] as const;
 
 const ALIGNMENTS = [
   'Lawful Good', 'Neutral Good', 'Chaotic Good',
@@ -147,6 +149,60 @@ function safeJsonParse<T>(json: unknown, fallback: T): T {
   try { return JSON.parse(json); } catch { return fallback; }
 }
 
+const STANDARD_ASI_LEVELS = new Set([4, 8, 12, 16, 19]);
+const FIGHTER_ASI_LEVELS = new Set([4, 6, 8, 12, 14, 16, 19]);
+const ROGUE_ASI_LEVELS = new Set([4, 8, 10, 12, 16, 19]);
+
+function isAsiLevel(className: string, classLevel: number): boolean {
+  if (className === 'Fighter') return FIGHTER_ASI_LEVELS.has(classLevel);
+  if (className === 'Rogue') return ROGUE_ASI_LEVELS.has(classLevel);
+  return STANDARD_ASI_LEVELS.has(classLevel);
+}
+
+function countAsiLevels(entries: ClassEntry[]): number {
+  let count = 0;
+  for (const entry of entries) {
+    for (let lvl = 1; lvl <= entry.level; lvl++) {
+      if (isAsiLevel(entry.cls.name, lvl)) count++;
+    }
+  }
+  return count;
+}
+
+interface ClassEntry {
+  cls: CharacterClassRef;
+  level: number;
+  subclass: Subclass | null;
+  subclasses: Subclass[];
+}
+
+function checkMulticlassEligibility(
+  cls: CharacterClassRef,
+  scores: AbilityScores
+): { eligible: boolean; reason: string } {
+  if (!cls.multiclassRequirements) return { eligible: true, reason: '' };
+  const reqs = safeJsonParse<Array<{ ability: string; minimum: number; operator?: string }>>(
+    cls.multiclassRequirements, []
+  );
+  if (reqs.length === 0) return { eligible: true, reason: '' };
+
+  const isOr = reqs.some(r => r.operator === 'OR');
+  const results = reqs.map(r => {
+    const abilityKey = ABILITY_FROM_ABBR[r.ability] as keyof AbilityScores | undefined;
+    const score = abilityKey ? scores[abilityKey] : 0;
+    return { ...r, score, met: score >= r.minimum };
+  });
+
+  if (isOr) {
+    const eligible = results.some(r => r.met);
+    const reason = results.map(r => `${r.ability} ${r.score}/${r.minimum}`).join(' or ');
+    return { eligible, reason: `Requires ${reason}` };
+  }
+  const eligible = results.every(r => r.met);
+  const reason = results.map(r => `${r.ability} ${r.score}/${r.minimum}`).join(' and ');
+  return { eligible, reason: `Requires ${reason}` };
+}
+
 export default function CharacterCreateWizard() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -165,6 +221,11 @@ export default function CharacterCreateWizard() {
   const [subclasses, setSubclasses] = useState<Subclass[]>([]);
   const [selectedSubclass, setSelectedSubclass] = useState<Subclass | null>(null);
   const [level, setLevel] = useState(1);
+
+  const [classEntries, setClassEntries] = useState<ClassEntry[]>([]);
+
+  const [createdCharacter, setCreatedCharacter] = useState<PlayerCharacter | null>(null);
+  const [pendingAsiCount, setPendingAsiCount] = useState(0);
 
   const [abilityMethod, setAbilityMethod] = useState<'standard' | 'pointbuy' | 'manual'>('standard');
   const [scores, setScores] = useState<AbilityScores>({ strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 });
@@ -259,7 +320,7 @@ export default function CharacterCreateWizard() {
     return true;
   }, [bgFeatNames, selectedBgFeat, selectedFeatObj, parsedFeatOptions, selectedFeatOptionIdx, selectedFeatOption, selectedFeatAbility]);
 
-  const isSpellcaster = selectedClass?.isSpellcaster ?? false;
+  const isSpellcaster = classEntries.some(e => e.cls.isSpellcaster) || (selectedClass?.isSpellcaster ?? false);
   const showSpellsStep = isSpellcaster || hasFeatSpellChoices;
   const steps = useMemo(() =>
     showSpellsStep ? ALL_STEPS : ALL_STEPS.filter(s => s !== 'Spells'),
@@ -281,6 +342,70 @@ export default function CharacterCreateWizard() {
       setSelectedSubclass(null);
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    if (classEntries.length === 0) return;
+    const currentTotal = classEntries.reduce((s, e) => s + e.level, 0);
+    if (currentTotal === level) return;
+    setClassEntries(prev => {
+      const newPrimaryLevel = prev[0].level + (level - currentTotal);
+      if (newPrimaryLevel >= 1) {
+        return prev.map((e, i) => i === 0 ? { ...e, level: newPrimaryLevel } : e);
+      }
+      let remaining = level;
+      const result: ClassEntry[] = [];
+      for (const entry of prev) {
+        if (remaining <= 0) break;
+        const entryLevel = Math.min(entry.level, remaining);
+        result.push({ ...entry, level: Math.max(1, entryLevel) });
+        remaining -= Math.max(1, entryLevel);
+      }
+      if (result.length > 0) {
+        const total = result.reduce((s, e) => s + e.level, 0);
+        if (total < level) result[0] = { ...result[0], level: result[0].level + (level - total) };
+      }
+      return result;
+    });
+  }, [level]);
+
+  const addMulticlass = useCallback(async (cls: CharacterClassRef) => {
+    const scs = await getSubclasses(cls.id);
+    setClassEntries(prev => {
+      const updated = prev.map((e, i) => i === 0 ? { ...e, level: Math.max(1, e.level - 1) } : e);
+      return [...updated, { cls, level: 1, subclass: null, subclasses: scs }];
+    });
+  }, []);
+
+  const removeMulticlass = useCallback((clsId: string) => {
+    setClassEntries(prev => {
+      const entry = prev.find(e => e.cls.id === clsId);
+      if (!entry || prev[0].cls.id === clsId) return prev;
+      const freedLevels = entry.level;
+      return prev
+        .filter(e => e.cls.id !== clsId)
+        .map((e, i) => i === 0 ? { ...e, level: e.level + freedLevels } : e);
+    });
+  }, []);
+
+  const handleClassLevelChange = useCallback((clsId: string, newLevel: number) => {
+    setClassEntries(prev => {
+      const idx = prev.findIndex(e => e.cls.id === clsId);
+      if (idx < 0) return prev;
+      const otherTotal = prev.reduce((s, e, i) => i === idx ? s : s + e.level, 0);
+      const maxForThis = level - otherTotal;
+      const clamped = Math.max(1, Math.min(newLevel, maxForThis));
+      return prev.map((e, i) => i === idx ? { ...e, level: clamped } : e);
+    });
+  }, [level]);
+
+  const handleEntrySubclass = useCallback((clsId: string, sc: Subclass | null) => {
+    setClassEntries(prev =>
+      prev.map(e => e.cls.id === clsId ? { ...e, subclass: sc } : e)
+    );
+    if (classEntries.length > 0 && classEntries[0].cls.id === clsId) {
+      setSelectedSubclass(sc);
+    }
+  }, [classEntries]);
 
   useEffect(() => {
     if (!selectedRace) { setBonusAssignments([]); return; }
@@ -625,7 +750,17 @@ export default function CharacterCreateWizard() {
         const bonusesOk = isVanillaHuman || bonusAssignments.length === 0 || bonusAssignments.every(a => a.ability !== null);
         return bonusesOk && raceChoicesComplete;
       }
-      case 'Class': return selectedClass !== null;
+      case 'Class': {
+        if (!selectedClass) return false;
+        const totalClassLevels = classEntries.reduce((s, e) => s + e.level, 0);
+        if (totalClassLevels !== level) return false;
+        for (const entry of classEntries) {
+          if (entry.level >= (entry.cls.subclassLevel || 3) && entry.subclasses.length > 0 && !entry.subclass) {
+            return false;
+          }
+        }
+        return true;
+      }
       case 'Ability Scores':
         if (abilityMethod === 'standard') {
           return Object.values(standardAssignments).every(v => v !== null);
@@ -705,6 +840,7 @@ export default function CharacterCreateWizard() {
     const resistances = safeJsonParse<string[]>(selectedRace.resistances, []);
 
     const raceProfs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[]; weapons?: string[] }>(selectedRace.proficiencies, {});
+    const isMulticlass = classEntries.length > 1;
     const classArmor = safeJsonParse<string[]>(selectedClass.armorProficiencies, []);
     const classWeapons = safeJsonParse<string[]>(selectedClass.weaponProficiencies, []);
     const classTools = safeJsonParse<string[]>(selectedClass.toolProficiencies, []);
@@ -765,13 +901,29 @@ export default function CharacterCreateWizard() {
       spellAttackBonus = profBonus + mod;
     }
 
+    const hitDiceMap: Record<string, { total: number; remaining: number; faces: number }> = {};
+    for (const entry of classEntries) {
+      hitDiceMap[entry.cls.name] = { total: entry.level, remaining: entry.level, faces: entry.cls.hitDice };
+    }
+    if (classEntries.length === 0) {
+      hitDiceMap[selectedClass.name] = { total: level, remaining: level, faces: selectedClass.hitDice };
+    }
+
+    const multiclassClassEntries = isMulticlass
+      ? JSON.stringify(classEntries.map(e => ({
+          classId: e.cls.id,
+          subclassId: e.subclass?.id ?? null,
+          level: e.level,
+        })))
+      : undefined;
+
     try {
       const res = await characterApi.create({
         name: name.trim(),
         level,
         raceId: selectedRace.id,
         classId: selectedClass.id,
-        subclassId: selectedSubclass?.id,
+        subclassId: classEntries[0]?.subclass?.id ?? selectedSubclass?.id,
         backgroundId: selectedBackground.id,
         alignment: alignment || undefined,
         abilityScoreMethod: abilityMethod,
@@ -785,7 +937,7 @@ export default function CharacterCreateWizard() {
         intelligence: finalScores.intelligence,
         wisdom: finalScores.wisdom,
         charisma: finalScores.charisma,
-        ...(level === 1 ? { hpMax } : {}),
+        ...(level === 1 && !isMulticlass ? { hpMax } : {}),
         speed: speed.walk ?? 30,
         savingThrowProficiencies: JSON.stringify(savingThrows),
         skillProficiencies: allSkills.length > 0 ? JSON.stringify([...new Set(allSkills)]) : undefined,
@@ -799,13 +951,29 @@ export default function CharacterCreateWizard() {
         spellAttackBonus,
         spellsKnown: buildSpellsKnown(),
         features: featFeatures.length > 0 ? JSON.stringify(featFeatures) : undefined,
-        hitDiceMap: JSON.stringify({ [selectedClass.name]: { total: level, remaining: level, faces: selectedClass.hitDice } }),
+        hitDiceMap: JSON.stringify(hitDiceMap),
+        multiclassClassEntries,
       });
-      navigate(`/player/characters/${res.data.id}`);
+      const asiCount = countAsiLevels(classEntries);
+      if (asiCount > 0) {
+        setCreatedCharacter(res.data);
+        setPendingAsiCount(asiCount);
+      } else {
+        navigate(`/player/characters/${res.data.id}`);
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create character');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function handleAsiComplete(updated: PlayerCharacter) {
+    if (pendingAsiCount <= 1) {
+      navigate(`/player/characters/${updated.id}`);
+    } else {
+      setCreatedCharacter(updated);
+      setPendingAsiCount(prev => prev - 1);
     }
   }
 
@@ -869,6 +1037,24 @@ export default function CharacterCreateWizard() {
                   >{a}</button>
                 ))}
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Starting Level</label>
+              <div className="flex items-center gap-4 max-w-md">
+                <input
+                  type="range"
+                  min={1}
+                  max={20}
+                  value={level}
+                  onChange={e => setLevel(Number(e.target.value))}
+                  className="flex-1 accent-indigo-500"
+                />
+                <span className="text-white font-bold text-lg w-8 text-center">{level}</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Proficiency bonus: +{proficiencyBonusForLevel(level)}
+                {level > 1 && ` · HP, features, and spell slots auto-calculated`}
+              </p>
             </div>
           </div>
         )}
@@ -999,16 +1185,20 @@ export default function CharacterCreateWizard() {
         {currentStepName === 'Class' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-white">Choose a Class</h2>
+            <p className="text-gray-400 text-sm">Select your primary class{level >= 2 ? '. You can optionally multiclass below.' : '.'}</p>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {classes.map(cls => {
                 const saves = safeJsonParse<string[]>(cls.savingThrowProficiencies, []);
+                const isSelected = selectedClass?.id === cls.id;
                 return (
                   <button
                     key={cls.id}
                     onClick={() => {
-                      if (selectedClass?.id === cls.id) {
+                      if (isSelected) {
                         setSelectedClass(null);
                         setSelectedSubclass(null);
+                        setClassEntries([]);
                       } else {
                         setSelectedClass(cls);
                         setSelectedSubclass(null);
@@ -1016,10 +1206,14 @@ export default function CharacterCreateWizard() {
                         setSelectedSpells([]);
                         setCantripResults([]);
                         setSpellResults([]);
+                        getSubclasses(cls.id).then(scs => {
+                          setSubclasses(scs);
+                          setClassEntries([{ cls, level, subclass: null, subclasses: scs }]);
+                        });
                       }
                     }}
                     className={`p-4 rounded-lg border text-left transition-colors ${
-                      selectedClass?.id === cls.id
+                      isSelected
                         ? 'bg-indigo-900/30 border-indigo-500'
                         : 'bg-gray-900 border-gray-800 hover:border-gray-600'
                     }`}
@@ -1036,53 +1230,161 @@ export default function CharacterCreateWizard() {
               })}
             </div>
 
-            {selectedClass && subclasses.length > 0 && level >= (selectedClass.subclassLevel || 3) && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-white mb-3">Choose a Subclass (Optional)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                  {subclasses.map(sc => (
-                    <button
-                      key={sc.id}
-                      onClick={() => setSelectedSubclass(selectedSubclass?.id === sc.id ? null : sc)}
-                      className={`p-3 rounded-lg border text-left transition-colors ${
-                        selectedSubclass?.id === sc.id
-                          ? 'bg-purple-900/30 border-purple-500'
-                          : 'bg-gray-900 border-gray-800 hover:border-gray-600'
-                      }`}
-                    >
-                      <h4 className="text-white text-sm font-medium">{sc.name}</h4>
-                      <p className="text-gray-500 text-xs">{sc.source}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {selectedClass && subclasses.length > 0 && level < (selectedClass.subclassLevel || 3) && (
-              <p className="text-gray-500 text-sm">Subclass available at level {selectedClass.subclassLevel}</p>
-            )}
-
-            {/* Level picker */}
-            {selectedClass && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Level</label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min={1}
-                    max={20}
-                    value={level}
-                    onChange={e => setLevel(Number(e.target.value))}
-                    className="flex-1 accent-indigo-500"
-                  />
-                  <span className="text-white font-bold text-lg w-8 text-center">{level}</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Proficiency bonus: +{level <= 4 ? 2 : level <= 8 ? 3 : level <= 12 ? 4 : level <= 16 ? 5 : 6}
-                  {level >= (selectedClass?.subclassLevel || 3) && !selectedSubclass && ' • Subclass selection required above'}
+            {/* Multiclass section */}
+            {selectedClass && level >= 2 && (
+              <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-white mb-1">Multiclass (Optional)</h3>
+                <p className="text-gray-500 text-xs mb-3">
+                  PHB rule: you must meet the ability score prerequisites for both your current class and the new class.
                 </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {classes.filter(c => c.id !== selectedClass.id).map(cls => {
+                    const entryEligibility = checkMulticlassEligibility(cls, finalScores);
+                    const exitEligibility = checkMulticlassEligibility(selectedClass, finalScores);
+                    const canMulticlass = entryEligibility.eligible && exitEligibility.eligible;
+                    const isAdded = classEntries.some(e => e.cls.id === cls.id);
+                    const remainingLevels = level - classEntries.reduce((s, e) => s + e.level, 0);
+                    const canAddMore = remainingLevels > 0 || isAdded;
+                    const saves = safeJsonParse<string[]>(cls.savingThrowProficiencies, []);
+
+                    return (
+                      <button
+                        key={cls.id}
+                        onClick={() => {
+                          if (isAdded) {
+                            removeMulticlass(cls.id);
+                          } else if (canMulticlass && canAddMore) {
+                            addMulticlass(cls);
+                          }
+                        }}
+                        disabled={!canMulticlass && !isAdded}
+                        className={`p-3 rounded-lg border text-left transition-colors ${
+                          isAdded
+                            ? 'bg-emerald-900/30 border-emerald-500'
+                            : !canMulticlass
+                            ? 'bg-gray-900/50 border-gray-800 opacity-50 cursor-not-allowed'
+                            : 'bg-gray-900 border-gray-800 hover:border-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <h4 className="text-white font-medium text-sm">{cls.name}</h4>
+                          <span className="text-gray-500 text-xs">d{cls.hitDice}</span>
+                        </div>
+                        {saves.length > 0 && <p className="text-cyan-400 text-xs">Saves: {saves.join(', ')}</p>}
+                        {cls.isSpellcaster && <p className="text-purple-400 text-xs">Spellcaster ({cls.spellcastingAbility})</p>}
+                        {!canMulticlass && (
+                          <p className="text-red-400 text-xs mt-1">
+                            {!exitEligibility.eligible ? `Exit: ${exitEligibility.reason}` : entryEligibility.reason}
+                          </p>
+                        )}
+                        {isAdded && <p className="text-emerald-400 text-xs mt-1">Added to multiclass</p>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
+
+            {/* Level allocation sliders */}
+            {classEntries.length > 1 && (
+              <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-white mb-1">Level Allocation</h3>
+                <p className="text-gray-500 text-xs mb-3">
+                  Distribute your {level} character levels across classes.
+                </p>
+                <div className="space-y-3">
+                  {classEntries.map(entry => {
+                    const otherTotal = classEntries.reduce((s, e) => e.cls.id === entry.cls.id ? s : s + e.level, 0);
+                    const maxForThis = level - otherTotal;
+                    return (
+                      <div key={entry.cls.id} className="flex items-center gap-3">
+                        <span className="text-white text-sm font-medium w-24 shrink-0">{entry.cls.name}</span>
+                        <input
+                          type="range"
+                          min={1}
+                          max={Math.max(1, maxForThis)}
+                          value={entry.level}
+                          onChange={e => handleClassLevelChange(entry.cls.id, Number(e.target.value))}
+                          className="flex-1 accent-indigo-500"
+                        />
+                        <span className="text-white font-bold text-sm w-6 text-center">{entry.level}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(() => {
+                  const total = classEntries.reduce((s, e) => s + e.level, 0);
+                  return total !== level && (
+                    <p className="text-red-400 text-xs mt-2">Total levels: {total}/{level} — must equal character level</p>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Per-class subclass selection */}
+            {classEntries.map(entry => {
+              const subclassLvl = entry.cls.subclassLevel || 3;
+              const needsSubclass = entry.level >= subclassLvl && entry.subclasses.length > 0;
+              const belowSubclass = entry.level < subclassLvl && entry.subclasses.length > 0;
+              return (
+                <div key={`sc-${entry.cls.id}`}>
+                  {needsSubclass && (
+                    <div className="mt-4">
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        {classEntries.length > 1 ? `${entry.cls.name} Subclass` : 'Choose a Subclass'}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                        {entry.subclasses.map(sc => (
+                          <button
+                            key={sc.id}
+                            onClick={() => handleEntrySubclass(entry.cls.id, entry.subclass?.id === sc.id ? null : sc)}
+                            className={`p-3 rounded-lg border text-left transition-colors ${
+                              entry.subclass?.id === sc.id
+                                ? 'bg-purple-900/30 border-purple-500'
+                                : 'bg-gray-900 border-gray-800 hover:border-gray-600'
+                            }`}
+                          >
+                            <h4 className="text-white text-sm font-medium">{sc.name}</h4>
+                            <p className="text-gray-500 text-xs">{sc.source}</p>
+                          </button>
+                        ))}
+                      </div>
+                      {!entry.subclass && (
+                        <p className="text-amber-400 text-sm mt-2">Subclass selection required at {entry.cls.name} level {subclassLvl}+</p>
+                      )}
+                    </div>
+                  )}
+                  {belowSubclass && classEntries.length <= 1 && (
+                    <p className="text-gray-500 text-sm mt-2">Subclass available at level {subclassLvl}</p>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* ASI level preview */}
+            {classEntries.length > 0 && (() => {
+              const asiCount = countAsiLevels(classEntries);
+              if (asiCount === 0) return null;
+              const asiDetails = classEntries.flatMap(entry => {
+                const levels: string[] = [];
+                for (let lvl = 1; lvl <= entry.level; lvl++) {
+                  if (isAsiLevel(entry.cls.name, lvl)) {
+                    levels.push(classEntries.length > 1 ? `${entry.cls.name} ${lvl}` : `Level ${lvl}`);
+                  }
+                }
+                return levels;
+              });
+              return (
+                <div className="mt-4 bg-amber-900/20 border border-amber-800/50 rounded-lg p-4">
+                  <h3 className="text-amber-400 font-medium text-sm">
+                    {asiCount} Ability Score Improvement{asiCount > 1 ? 's' : ''}
+                  </h3>
+                  <p className="text-gray-400 text-xs mt-1">
+                    ASI at: {asiDetails.join(', ')}. You'll choose ability increases or feats after creation.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1391,7 +1693,7 @@ export default function CharacterCreateWizard() {
             {selectedClass?.isSpellcaster && (
               <SpellSelectionStep
                 selectedClass={selectedClass}
-                level={level}
+                level={classEntries.length > 0 ? classEntries[0].level : level}
                 selectedCantrips={selectedCantrips}
                 setSelectedCantrips={setSelectedCantrips}
                 selectedSpells={selectedSpells}
@@ -1429,12 +1731,18 @@ export default function CharacterCreateWizard() {
                 <ReviewField label="Name" value={name} />
                 <ReviewField label="Alignment" value={alignment || 'None'} />
                 <ReviewField label="Race" value={selectedRace?.name || '—'} />
-                <ReviewField label="Class" value={selectedClass?.name || '—'} />
+                <ReviewField label="Class" value={
+                  classEntries.length > 1
+                    ? classEntries.map(e => `${e.cls.name} ${e.level}`).join(' / ')
+                    : selectedClass?.name || '—'
+                } />
                 <ReviewField label="Level" value={String(level)} />
-                {selectedSubclass && <ReviewField label="Subclass" value={selectedSubclass.name} />}
+                {classEntries.filter(e => e.subclass).map(e => (
+                  <ReviewField key={e.cls.id} label={classEntries.length > 1 ? `${e.cls.name} Subclass` : 'Subclass'} value={e.subclass!.name} />
+                ))}
                 <ReviewField label="Background" value={selectedBackground?.name || '—'} />
                 <ReviewField label="Proficiency Bonus" value={`+${proficiencyBonusForLevel(level)}`} />
-                <ReviewField label="Hit Points" value={level === 1 ? String((selectedClass?.hitDice || 0) + abilityMod(finalScores.constitution)) : `Calculated by server for level ${level}`} />
+                <ReviewField label="Hit Points" value={level === 1 && classEntries.length <= 1 ? String((selectedClass?.hitDice || 0) + abilityMod(finalScores.constitution)) : `Calculated by server for level ${level}`} />
                 <ReviewField label="Speed" value={(() => {
                   const sp = safeJsonParse<Record<string, number | boolean>>(selectedRace?.speed ?? null, { walk: 30 });
                   const w = typeof sp.walk === 'number' ? sp.walk : 30;
@@ -1564,6 +1872,14 @@ export default function CharacterCreateWizard() {
           )}
         </div>
       </main>
+
+      {createdCharacter && pendingAsiCount > 0 && (
+        <AsiModal
+          character={createdCharacter}
+          onComplete={handleAsiComplete}
+          onClose={() => navigate(`/player/characters/${createdCharacter.id}`)}
+        />
+      )}
     </div>
   );
 }

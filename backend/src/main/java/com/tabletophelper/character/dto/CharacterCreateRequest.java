@@ -76,6 +76,7 @@ public class CharacterCreateRequest {
     private String currency;
     private String hitDiceMap;
     private String preparedSpells;
+    private String multiclassClassEntries;
 
     private UUID campaignId;
 }

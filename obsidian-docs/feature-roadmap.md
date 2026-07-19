@@ -269,7 +269,14 @@ Phase 2 — Level up/down with multiclass:
 - [x] Level up/down buttons in character sheet header (ChevronUp/ChevronDown, next to rest buttons)
 - [x] Multiclass class breakdown in header subtitle (e.g., "Fighter 3 / Warlock 1")
 
-Phase 3 — Multiclass at creation: deferred (achievable via level-up flow)
+Phase 3 — Multiclass at creation:
+- [x] `multiclassClassEntries` field on `CharacterCreateRequest` — JSON array of `{classId, level, subclassId?}` entries
+- [x] `CharacterService.createCharacter()` multiclass branch: iterates class entries, builds `ClassInput` list, calls `buildMulticlassProgression()`, computes combined spell slots, hitDiceMap, hitDiceTotal, characterClassName ("Fighter / Rogue")
+- [x] `LevelUpCalculator.buildMulticlassProgression()` — processes classes sequentially with correct HP (first class level 1 = max hit die)
+- [x] Creation wizard Class step rebuilt: primary class grid, multiclass section with PHB eligibility checking, level allocation sliders, per-class subclass selection, ASI level preview
+- [x] Post-creation ASI flow: character created first, then `AsiModal` shown sequentially for each pending ASI level
+- [x] `findNextAsiEntry()` in `CharacterService` — finds first level history entry where ASI is available but not yet recorded, ensuring correct level targeting for both post-creation and level-up ASI application
+- [x] Frontend `checkMulticlassEligibility()` — validates both exit and entry prerequisites with AND/OR operator support
 
 **Derived stat recalculation reference:**
 
