@@ -251,6 +251,7 @@ export default function CharacterCreateWizard() {
   const [spellResults, setSpellResults] = useState<Spell[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
   const [cantripSearch, setCantripSearch] = useState('');
+  const [mcSpellSelections, setMcSpellSelections] = useState<Record<string, { cantrips: Spell[]; spells: Spell[] }>>({});
 
   const [selectedBgFeat, setSelectedBgFeat] = useState<string | null>(null);
   const [selectedFeatOptionIdx, setSelectedFeatOptionIdx] = useState<number | null>(null);
@@ -385,6 +386,11 @@ export default function CharacterCreateWizard() {
       return prev
         .filter(e => e.cls.id !== clsId)
         .map((e, i) => i === 0 ? { ...e, level: e.level + freedLevels } : e);
+    });
+    setMcSpellSelections(prev => {
+      const next = { ...prev };
+      delete next[clsId];
+      return next;
     });
   }, []);
 
@@ -786,6 +792,22 @@ export default function CharacterCreateWizard() {
         entries.push({
           name: s.name, level: s.level, source,
           ...(selectedClass.isPreparedCaster ? { prepared: true } : {}),
+        });
+      }
+    }
+
+    for (const entry of classEntries.slice(1)) {
+      if (!entry.cls.isSpellcaster) continue;
+      const sel = mcSpellSelections[entry.cls.id];
+      if (!sel) continue;
+      const source = `class:${entry.cls.name}`;
+      for (const s of sel.cantrips) {
+        entries.push({ name: s.name, level: 0, source });
+      }
+      for (const s of sel.spells) {
+        entries.push({
+          name: s.name, level: s.level, source,
+          ...(entry.cls.isPreparedCaster ? { prepared: true } : {}),
         });
       }
     }
@@ -1200,6 +1222,7 @@ export default function CharacterCreateWizard() {
                         setSelectedClass(null);
                         setSelectedSubclass(null);
                         setClassEntries([]);
+                        setMcSpellSelections({});
                       } else {
                         setSelectedClass(cls);
                         setSelectedSubclass(null);
@@ -1207,6 +1230,7 @@ export default function CharacterCreateWizard() {
                         setSelectedSpells([]);
                         setCantripResults([]);
                         setSpellResults([]);
+                        setMcSpellSelections({});
                         getSubclasses(cls.id).then(scs => {
                           setSubclasses(scs);
                           setClassEntries([{ cls, level, subclass: null, subclasses: scs }]);
@@ -1722,8 +1746,25 @@ export default function CharacterCreateWizard() {
                 setCantripSearch={setCantripSearch}
                 spellSearch={spellSearch}
                 setSpellSearch={setSpellSearch}
+                title={classEntries.length > 1 ? `${selectedClass.name} Spells` : undefined}
               />
             )}
+            {classEntries.slice(1).filter(e => e.cls.isSpellcaster).map(entry => (
+              <MulticlassSpellSelectionStep
+                key={entry.cls.id}
+                classEntry={entry}
+                selectedCantrips={mcSpellSelections[entry.cls.id]?.cantrips ?? []}
+                onCantripsChange={cantrips => setMcSpellSelections(prev => ({
+                  ...prev,
+                  [entry.cls.id]: { cantrips, spells: prev[entry.cls.id]?.spells ?? [] },
+                }))}
+                selectedSpells={mcSpellSelections[entry.cls.id]?.spells ?? []}
+                onSpellsChange={spells => setMcSpellSelections(prev => ({
+                  ...prev,
+                  [entry.cls.id]: { cantrips: prev[entry.cls.id]?.cantrips ?? [], spells },
+                }))}
+              />
+            ))}
             {selectedFeatObj && selectedFeatOption && hasFeatSpellChoices && (
               <FeatSpellSelectionStep
                 featName={selectedFeatObj.name}
@@ -2398,6 +2439,209 @@ function FeatSpellSelectionStep({
   );
 }
 
+function MulticlassSpellSelectionStep({
+  classEntry,
+  selectedCantrips, onCantripsChange,
+  selectedSpells, onSpellsChange,
+}: {
+  classEntry: ClassEntry;
+  selectedCantrips: Spell[];
+  onCantripsChange: (cantrips: Spell[]) => void;
+  selectedSpells: Spell[];
+  onSpellsChange: (spells: Spell[]) => void;
+}) {
+  const cls = classEntry.cls;
+  const classLevel = classEntry.level;
+  const cantripsAllowed = CANTRIPS_KNOWN[cls.name]?.[classLevel] ?? 0;
+  const spellsAllowed = cls.isKnownCaster ? (SPELLS_KNOWN[cls.name]?.[classLevel] ?? 0) : 0;
+  const isPrepared = cls.isPreparedCaster;
+  const maxLevel = maxSpellLevel(cls.name, classLevel);
+
+  const [cantripResults, setCantripResults] = useState<Spell[]>([]);
+  const [spellResults, setSpellResults] = useState<Spell[]>([]);
+  const [cantripSearch, setCantripSearch] = useState('');
+  const [spellSearch, setSpellSearch] = useState('');
+
+  useEffect(() => {
+    if (cantripsAllowed > 0) {
+      searchSpells({ className: cls.name, level: 0, size: 50 })
+        .then(res => setCantripResults(res.content))
+        .catch(() => {});
+    }
+  }, [cls.name]);
+
+  useEffect(() => {
+    if ((spellsAllowed > 0 || isPrepared) && maxLevel > 0) {
+      Promise.all(
+        Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl =>
+          searchSpells({ className: cls.name, level: lvl, size: 50 }).then(r => r.content)
+        )
+      ).then(results => {
+        const all = results.flat();
+        const seen = new Set<string>();
+        setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
+      }).catch(() => {});
+    }
+  }, [cls.name, maxLevel]);
+
+  function doSearchCantrips() {
+    const params: Record<string, unknown> = { className: cls.name, level: 0, size: 50 };
+    if (cantripSearch.trim()) params.name = cantripSearch.trim();
+    searchSpells(params as any).then(res => setCantripResults(res.content)).catch(() => {});
+  }
+
+  function doSearchSpells() {
+    if (maxLevel <= 0) return;
+    Promise.all(
+      Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => {
+        const params: Record<string, unknown> = { className: cls.name, level: lvl, size: 50 };
+        if (spellSearch.trim()) params.name = spellSearch.trim();
+        return searchSpells(params as any).then(r => r.content);
+      })
+    ).then(results => {
+      const all = results.flat();
+      const seen = new Set<string>();
+      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
+    }).catch(() => {});
+  }
+
+  function toggleCantrip(spell: Spell) {
+    const exists = selectedCantrips.some(s => s.id === spell.id);
+    if (exists) onCantripsChange(selectedCantrips.filter(s => s.id !== spell.id));
+    else if (selectedCantrips.length < cantripsAllowed) onCantripsChange([...selectedCantrips, spell]);
+  }
+
+  function toggleSpell(spell: Spell) {
+    const exists = selectedSpells.some(s => s.id === spell.id);
+    if (exists) onSpellsChange(selectedSpells.filter(s => s.id !== spell.id));
+    else if (spellsAllowed === 0 || selectedSpells.length < spellsAllowed) onSpellsChange([...selectedSpells, spell]);
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-white">{cls.name} Spells</h2>
+      <p className="text-gray-400 text-sm">
+        Select your starting {cls.name} spells (class level {classLevel}).
+      </p>
+
+      {cantripsAllowed > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">Cantrips</h3>
+            <span className="text-xs text-gray-400">{selectedCantrips.length}/{cantripsAllowed} selected</span>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={cantripSearch}
+                onChange={e => setCantripSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && doSearchCantrips()}
+                placeholder="Search cantrips..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <button onClick={doSearchCantrips} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 rounded-md">Search</button>
+          </div>
+          {selectedCantrips.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedCantrips.map(s => (
+                <span key={s.id} className="flex items-center gap-1 bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded text-xs">
+                  {s.name}
+                  <button onClick={() => toggleCantrip(s)} className="text-indigo-400 hover:text-white"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {cantripResults.map(spell => {
+              const selected = selectedCantrips.some(s => s.id === spell.id);
+              const disabled = !selected && selectedCantrips.length >= cantripsAllowed;
+              return (
+                <button
+                  key={spell.id}
+                  onClick={() => !disabled && toggleCantrip(spell)}
+                  disabled={disabled}
+                  className={`w-full flex items-center justify-between py-1.5 px-3 rounded-md text-sm transition-colors ${
+                    selected ? 'bg-indigo-900/30 text-indigo-200' : disabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <span>{spell.name}</span>
+                  {selected && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {spellsAllowed > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">{maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells'}</h3>
+            <span className="text-xs text-gray-400">{selectedSpells.length}/{spellsAllowed} selected</span>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={spellSearch}
+                onChange={e => setSpellSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && doSearchSpells()}
+                placeholder={maxLevel > 1 ? `Search level 1-${maxLevel} spells...` : "Search level 1 spells..."}
+                className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <button onClick={doSearchSpells} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 rounded-md">Search</button>
+          </div>
+          {selectedSpells.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedSpells.map(s => (
+                <span key={s.id} className="flex items-center gap-1 bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded text-xs">
+                  {s.name}
+                  <button onClick={() => toggleSpell(s)} className="text-indigo-400 hover:text-white"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {spellResults.map(spell => {
+              const selected = selectedSpells.some(s => s.id === spell.id);
+              const disabled = !selected && selectedSpells.length >= spellsAllowed;
+              return (
+                <button
+                  key={spell.id}
+                  onClick={() => !disabled && toggleSpell(spell)}
+                  disabled={disabled}
+                  className={`w-full flex items-center justify-between py-1.5 px-3 rounded-md text-sm transition-colors ${
+                    selected ? 'bg-indigo-900/30 text-indigo-200' : disabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span>{spell.name}</span>
+                    <span className="text-xs text-gray-500">{spell.school}</span>
+                  </div>
+                  {selected && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {isPrepared && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+          <h3 className="text-white font-semibold text-sm mb-2">Prepared Spells</h3>
+          <p className="text-gray-400 text-sm">
+            As a {cls.name}, you prepare spells each day from your class spell list.
+            You can change your prepared spells from the character sheet after creation.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SpellSelectionStep({
   selectedClass, level,
   selectedCantrips, setSelectedCantrips,
@@ -2406,6 +2650,7 @@ function SpellSelectionStep({
   spellResults, setSpellResults,
   cantripSearch, setCantripSearch,
   spellSearch, setSpellSearch,
+  title,
 }: {
   selectedClass: CharacterClassRef;
   level: number;
@@ -2421,6 +2666,7 @@ function SpellSelectionStep({
   setCantripSearch: (s: string) => void;
   spellSearch: string;
   setSpellSearch: (s: string) => void;
+  title?: string;
 }) {
   const cantripsAllowed = CANTRIPS_KNOWN[selectedClass.name]?.[level] ?? 0;
   const spellsAllowed = selectedClass.isKnownCaster
@@ -2492,7 +2738,7 @@ function SpellSelectionStep({
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">Choose Spells</h2>
+      <h2 className="text-xl font-semibold text-white">{title ?? 'Choose Spells'}</h2>
       <p className="text-gray-400 text-sm">
         Select your starting {selectedClass.name} spells.
       </p>
