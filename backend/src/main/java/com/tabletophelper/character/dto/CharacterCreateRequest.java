@@ -61,6 +61,7 @@ public class CharacterCreateRequest {
 
     private String savingThrowProficiencies;
     private String skillProficiencies;
+    private String skillExpertises;
     private String armorProficiencies;
     private String weaponProficiencies;
     private String toolProficiencies;

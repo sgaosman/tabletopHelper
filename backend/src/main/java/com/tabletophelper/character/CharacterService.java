@@ -97,6 +97,15 @@ public class CharacterService {
             }
         }
 
+        if (mcEntries != null) {
+            Set<String> seenClassIds = new HashSet<>();
+            for (Map<String, Object> mce : mcEntries) {
+                String cid = (String) mce.get("classId");
+                if (cid != null && !seenClassIds.add(cid)) {
+                    throw new IllegalArgumentException("Duplicate class in multiclass entries: " + cid);
+                }
+            }
+        }
         boolean isMulticlass = mcEntries != null && mcEntries.size() > 1;
 
         List<LevelUpCalculator.LevelGain> progression;
@@ -151,9 +160,13 @@ public class CharacterService {
                 if (hitDiceTotalBuilder.length() > 0) hitDiceTotalBuilder.append(" + ");
                 hitDiceTotalBuilder.append(mcLevel).append("d").append(mcClassRef.getHitDice());
 
-                if (Boolean.TRUE.equals(mcClassRef.getIsSpellcaster())) {
-                    String casterType = deriveCasterType(mcClassRef);
-                    spellSlotEntries.put(mcClassName, new SpellSlotCalculator.ClassEntry(mcLevel, casterType));
+                boolean isMcClassCaster = Boolean.TRUE.equals(mcClassRef.getIsSpellcaster());
+                boolean isMcThirdCaster = mcSubName != null && THIRD_CASTER_SUBCLASSES.contains(mcSubName) && mcLevel >= 3;
+                if (isMcClassCaster || isMcThirdCaster) {
+                    String casterType = deriveCasterType(mcClassRef, mcSubName);
+                    if (!"none".equals(casterType)) {
+                        spellSlotEntries.put(mcClassName, new SpellSlotCalculator.ClassEntry(mcLevel, casterType));
+                    }
                 }
             }
 
@@ -173,9 +186,14 @@ public class CharacterService {
 
             for (Map<String, Object> mce : mcEntries) {
                 UUID mcCasterId = UUID.fromString((String) mce.get("classId"));
+                String mceSubclassName = (String) mce.get("subclassName");
+                int mceLevel = mce.get("level") instanceof Number n ? n.intValue() : 0;
                 CharacterClass mcCasterRef = characterClassRepository.findById(mcCasterId).orElse(null);
-                if (mcCasterRef != null && Boolean.TRUE.equals(mcCasterRef.getIsSpellcaster()) && spellcastingAbility == null) {
-                    spellcastingAbility = mcCasterRef.getSpellcastingAbility();
+                if (mcCasterRef == null) continue;
+                boolean isClassCaster = Boolean.TRUE.equals(mcCasterRef.getIsSpellcaster());
+                boolean isThirdCaster = mceSubclassName != null && THIRD_CASTER_SUBCLASSES.contains(mceSubclassName) && mceLevel >= 3;
+                if ((isClassCaster || isThirdCaster) && spellcastingAbility == null) {
+                    spellcastingAbility = isClassCaster ? mcCasterRef.getSpellcastingAbility() : "INT";
                     int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
                     spellSaveDc = 8 + profBonus + abilityModVal;
                     spellAttackBonus = profBonus + abilityModVal;
@@ -223,12 +241,18 @@ public class CharacterService {
                 multiclassEntries = null;
             }
 
-            if (classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster()) && spellSlots == null) {
-                spellcastingAbility = classRef.getSpellcastingAbility();
-                String casterType = deriveCasterType(classRef);
-                Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
-                entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
-                spellSlots = buildSpellSlotsJson(entries);
+            boolean isSingleClassCaster = classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster());
+            boolean isSingleThirdCaster = subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName) && level >= 3;
+            if ((isSingleClassCaster || isSingleThirdCaster) && spellSlots == null) {
+                if (spellcastingAbility == null) {
+                    spellcastingAbility = isSingleClassCaster ? classRef.getSpellcastingAbility() : "INT";
+                }
+                String casterType = deriveCasterType(classRef, subclassName);
+                if (!"none".equals(casterType)) {
+                    Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
+                    entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
+                    spellSlots = buildSpellSlotsJson(entries);
+                }
 
                 int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
                 if (spellSaveDc == null) spellSaveDc = 8 + profBonus + abilityModVal;
@@ -274,6 +298,7 @@ public class CharacterService {
                 .proficiencyBonus(request.getProficiencyBonus() != null ? request.getProficiencyBonus() : profBonus)
                 .savingThrowProficiencies(request.getSavingThrowProficiencies())
                 .skillProficiencies(request.getSkillProficiencies())
+                .skillExpertises(request.getSkillExpertises())
                 .armorProficiencies(request.getArmorProficiencies())
                 .weaponProficiencies(request.getWeaponProficiencies())
                 .toolProficiencies(request.getToolProficiencies())
@@ -473,6 +498,8 @@ public class CharacterService {
 
         boolean asiAvailable = LevelUpCalculator.isAsiLevel(levelClass.getName(), newClassLevel);
         boolean subclassRequired = newClassLevel == levelClass.getSubclassLevel() && levelSubclass == null;
+        boolean expertiseAvailable = isExpertiseLevel(levelClass.getName(), newClassLevel);
+        int expertiseSlots = expertiseAvailable ? 2 : 0;
 
         character.setLevel(newCharLevel);
         character.setHpMax(character.getHpMax() + hpGained);
@@ -501,6 +528,8 @@ public class CharacterService {
         LevelUpResponse.PendingChoices choices = LevelUpResponse.PendingChoices.builder()
                 .asiAvailable(asiAvailable)
                 .subclassRequired(subclassRequired)
+                .expertiseAvailable(expertiseAvailable)
+                .expertiseCount(expertiseSlots)
                 .newFeatures(featureNames)
                 .maxSpellLevel(0)
                 .build();
@@ -587,6 +616,16 @@ public class CharacterService {
         try {
             if (request.getAsi() != null) {
                 applyAsi(character, request.getAsi());
+            }
+
+            if (request.getExpertiseSkills() != null && !request.getExpertiseSkills().isEmpty()) {
+                List<String> currentExpertise = character.getSkillExpertises() != null
+                        ? objectMapper.readValue(character.getSkillExpertises(), new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {})
+                        : new ArrayList<>();
+                for (String skill : request.getExpertiseSkills()) {
+                    if (!currentExpertise.contains(skill)) currentExpertise.add(skill);
+                }
+                character.setSkillExpertises(objectMapper.writeValueAsString(currentExpertise));
             }
 
             if (request.getSubclassId() != null) {
@@ -719,11 +758,17 @@ public class CharacterService {
     private void removeFeatures(PlayerCharacter character, List<Map<String, Object>> featuresGained) {
         try {
             List<Map<String, Object>> features = parseFeaturesList(character.getFeatures());
-            Set<String> toRemove = new HashSet<>();
+            Set<String> keysToRemove = new HashSet<>();
             for (Map<String, Object> f : featuresGained) {
-                toRemove.add((String) f.get("name"));
+                String name = (String) f.get("name");
+                String source = (String) f.get("source");
+                keysToRemove.add(name + "|" + source);
             }
-            features.removeIf(f -> toRemove.contains(f.get("name")));
+            features.removeIf(f -> {
+                String name = (String) f.get("name");
+                String source = (String) f.get("source");
+                return keysToRemove.contains(name + "|" + source);
+            });
             character.setFeatures(objectMapper.writeValueAsString(features));
         } catch (Exception ignored) {}
     }
@@ -852,13 +897,19 @@ public class CharacterService {
             for (Map<String, Object> entry : entries) {
                 String classId = (String) entry.get("classId");
                 int classLevel = entry.get("level") instanceof Number n ? n.intValue() : 0;
+                String subclassName = (String) entry.get("subclassName");
                 CharacterClass cc = characterClassRepository.findById(UUID.fromString(classId)).orElse(null);
-                if (cc != null && Boolean.TRUE.equals(cc.getIsSpellcaster())) {
-                    String casterType = deriveCasterType(cc);
-                    slotEntries.put(cc.getName(), new SpellSlotCalculator.ClassEntry(classLevel, casterType));
-                    hasAnyCaster = true;
+                if (cc == null) continue;
+                boolean isClassCaster = Boolean.TRUE.equals(cc.getIsSpellcaster());
+                boolean isThirdCaster = subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName) && classLevel >= 3;
+                if (isClassCaster || isThirdCaster) {
+                    String casterType = deriveCasterType(cc, subclassName);
+                    if (!"none".equals(casterType)) {
+                        slotEntries.put(cc.getName(), new SpellSlotCalculator.ClassEntry(classLevel, casterType));
+                        hasAnyCaster = true;
+                    }
                     if (primaryCastingAbility == null) {
-                        primaryCastingAbility = cc.getSpellcastingAbility();
+                        primaryCastingAbility = isClassCaster ? cc.getSpellcastingAbility() : "INT";
                     }
                 }
             }
@@ -1153,7 +1204,7 @@ public class CharacterService {
                 .spellSaveDc(c.getSpellSaveDc())
                 .spellAttackBonus(c.getSpellAttackBonus())
                 .spellcastingAbility(c.getSpellcastingAbility())
-                .subclassAlwaysPreparedSpells(c.getSubclassRef() != null ? c.getSubclassRef().getAlwaysPreparedSpells() : null)
+                .subclassAlwaysPreparedSpells(buildAllSubclassAlwaysPreparedSpells(c))
                 .equipment(c.getEquipment())
                 .currency(c.getCurrency())
                 .personalityTraits(c.getPersonalityTraits())
@@ -1178,6 +1229,41 @@ public class CharacterService {
                 .build();
     }
 
+    private String buildAllSubclassAlwaysPreparedSpells(PlayerCharacter c) {
+        try {
+            ObjectNode combined = objectMapper.createObjectNode();
+
+            if (c.getSubclassRef() != null && c.getSubclassRef().getAlwaysPreparedSpells() != null) {
+                combined.set(c.getSubclassRef().getName(),
+                        objectMapper.readTree(c.getSubclassRef().getAlwaysPreparedSpells()));
+            }
+
+            if (c.getMulticlassEntries() != null) {
+                List<Map<String, Object>> entries = objectMapper.readValue(c.getMulticlassEntries(),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
+                for (Map<String, Object> entry : entries) {
+                    String subclassId = (String) entry.get("subclassId");
+                    if (subclassId == null) continue;
+                    UUID scId = UUID.fromString(subclassId);
+                    if (c.getSubclassRef() != null && scId.equals(c.getSubclassRef().getId())) continue;
+                    subclassRepository.findById(scId).ifPresent(sc -> {
+                        if (sc.getAlwaysPreparedSpells() != null) {
+                            try {
+                                combined.set(sc.getName(),
+                                        objectMapper.readTree(sc.getAlwaysPreparedSpells()));
+                            } catch (Exception ignored) {}
+                        }
+                    });
+                }
+            }
+
+            return combined.isEmpty() ? null : objectMapper.writeValueAsString(combined);
+        } catch (Exception e) {
+            if (c.getSubclassRef() != null) return c.getSubclassRef().getAlwaysPreparedSpells();
+            return null;
+        }
+    }
+
     String buildSpellSlotsJson(Map<String, SpellSlotCalculator.ClassEntry> entries) {
         Map<String, Integer> slots = SpellSlotCalculator.calculateSlots(entries);
         if (slots.isEmpty()) return null;
@@ -1200,6 +1286,12 @@ public class CharacterService {
         return Math.floorDiv(score - 10, 2);
     }
 
+    static boolean isExpertiseLevel(String className, int classLevel) {
+        if ("Rogue".equals(className)) return classLevel == 1 || classLevel == 6;
+        if ("Bard".equals(className)) return classLevel == 3 || classLevel == 10;
+        return false;
+    }
+
     static int proficiencyBonusForLevel(int level) {
         if (level <= 4) return 2;
         if (level <= 8) return 3;
@@ -1208,12 +1300,20 @@ public class CharacterService {
         return 6;
     }
 
+    private static final Set<String> THIRD_CASTER_SUBCLASSES = Set.of("Eldritch Knight", "Arcane Trickster");
+
     private static String deriveCasterType(CharacterClass classRef) {
+        return deriveCasterType(classRef, null);
+    }
+
+    private static String deriveCasterType(CharacterClass classRef, String subclassName) {
         if (Boolean.TRUE.equals(classRef.getIsPactMagic())) return "pact";
         String name = classRef.getName();
         if ("Artificer".equals(name)) return "artificer";
         if ("Paladin".equals(name) || "Ranger".equals(name)) return "half";
-        return "full";
+        if (!Boolean.TRUE.equals(classRef.getIsSpellcaster()) && subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName)) return "third";
+        if (Boolean.TRUE.equals(classRef.getIsSpellcaster())) return "full";
+        return "none";
     }
 
     static int getAbilityMod(String ability, PlayerCharacter character) {

@@ -8,11 +8,12 @@ import SpellCard from '../../components/reference/SpellCard';
 import LevelUpModal from '../../components/character/LevelUpModal';
 import AsiModal from '../../components/character/AsiModal';
 import SubclassModal from '../../components/character/SubclassModal';
+import ExpertiseModal from '../../components/character/ExpertiseModal';
 import FormattedDescription from '../../components/FormattedDescription';
 import type { PlayerCharacter, CharacterUpdateRequest, LevelUpResponse } from '../../types/character';
 import type { Campaign } from '../../types/campaign';
 import type { Spell, Feat } from '../../types/reference';
-import { CANTRIPS_KNOWN, SPELLS_KNOWN, getPreparedCount } from '../../utils/spellConstants';
+import { CANTRIPS_KNOWN, SPELLS_KNOWN, THIRD_CASTER_CANTRIPS, THIRD_CASTER_SPELLS, THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST, getPreparedCount } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
 
@@ -77,7 +78,8 @@ export default function CharacterSheetPage() {
   const [subclassPrompt, setSubclassPrompt] = useState<{ classId: string; className: string } | null>(null);
   const [levelUpBanner, setLevelUpBanner] = useState<string | null>(null);
   const [levelDownConfirm, setLevelDownConfirm] = useState(false);
-  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean } | null>(null);
+  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean; expertiseAvailable: boolean; expertiseCount: number } | null>(null);
+  const [showExpertise, setShowExpertise] = useState(false);
 
   useEffect(() => {
     if (characterId && characterId !== 'new') {
@@ -185,12 +187,14 @@ export default function CharacterSheetPage() {
     setChar(response.character);
     setShowLevelUp(false);
     const { pendingChoices } = response;
-    const pending = { classId: leveledClassId, className: leveledClassName, subclassRequired: pendingChoices.subclassRequired };
+    const pending = { classId: leveledClassId, className: leveledClassName, subclassRequired: pendingChoices.subclassRequired, expertiseAvailable: pendingChoices.expertiseAvailable, expertiseCount: pendingChoices.expertiseCount };
     setPendingLevelClass(pending);
     if (pendingChoices.asiAvailable) {
       setShowAsi(true);
     } else if (pendingChoices.subclassRequired) {
       setSubclassPrompt({ classId: leveledClassId, className: leveledClassName });
+    } else if (pendingChoices.expertiseAvailable) {
+      setShowExpertise(true);
     } else {
       setPendingLevelClass(null);
       showLevelBanner(response);
@@ -202,6 +206,8 @@ export default function CharacterSheetPage() {
     setShowAsi(false);
     if (pendingLevelClass?.subclassRequired) {
       setSubclassPrompt({ classId: pendingLevelClass.classId, className: pendingLevelClass.className });
+    } else if (pendingLevelClass?.expertiseAvailable) {
+      setShowExpertise(true);
     } else {
       setPendingLevelClass(null);
       setLevelUpBanner(`Level up to ${updated.level} complete!`);
@@ -212,8 +218,24 @@ export default function CharacterSheetPage() {
   function handleSubclassComplete(updated: PlayerCharacter) {
     setChar(updated);
     setSubclassPrompt(null);
+    if (pendingLevelClass?.expertiseAvailable) {
+      setShowExpertise(true);
+    } else {
+      setPendingLevelClass(null);
+      setLevelUpBanner(`Level up to ${updated.level} complete!`);
+      setTimeout(() => setLevelUpBanner(null), 4000);
+    }
+  }
+
+  async function handleExpertiseComplete(skills: string[]) {
+    if (!char) return;
+    try {
+      const res = await characterApi.applyChoices(char.id, { expertiseSkills: skills });
+      setChar(res.data);
+    } catch { /* expertise is best-effort */ }
+    setShowExpertise(false);
     setPendingLevelClass(null);
-    setLevelUpBanner(`Level up to ${updated.level} complete!`);
+    setLevelUpBanner(`Level up to ${char.level} complete!`);
     setTimeout(() => setLevelUpBanner(null), 4000);
   }
 
@@ -452,6 +474,16 @@ export default function CharacterSheetPage() {
             setLevelUpBanner(`Level up to ${char.level} complete!`);
             setTimeout(() => setLevelUpBanner(null), 4000);
           }}
+        />
+      )}
+
+      {/* Expertise Modal */}
+      {showExpertise && char && pendingLevelClass && (
+        <ExpertiseModal
+          character={char}
+          count={pendingLevelClass.expertiseCount}
+          onComplete={handleExpertiseComplete}
+          onClose={() => { setShowExpertise(false); setPendingLevelClass(null); setLevelUpBanner(`Level up to ${char.level} complete!`); setTimeout(() => setLevelUpBanner(null), 4000); }}
         />
       )}
 
@@ -696,26 +728,30 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
 }) {
   const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
   const [loadingSpell, setLoadingSpell] = useState(false);
-  const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook'; className: string } | null>(null);
+  const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook'; className: string; spellListClass?: string; classLevel?: number } | null>(null);
   const [showAddFeat, setShowAddFeat] = useState(false);
   const [confirmRemoveFeat, setConfirmRemoveFeat] = useState<string | null>(null);
 
-  const subclassAlwaysPrepared = useMemo(() => {
+  const subclassAlwaysPreparedGroups = useMemo(() => {
     if (!char.subclassAlwaysPreparedSpells) return [];
-    const parsed = safeJsonParse<Record<string, string[]>>(char.subclassAlwaysPreparedSpells, {});
-    const entries = safeJsonParse<Array<{ className: string; level: number }>>(char.multiclassEntries, []);
-    const primaryEntry = entries.find(e => e.className === char.characterClass);
-    const classLevel = primaryEntry ? primaryEntry.level : char.level;
-    const unlocked: Array<{ name: string; classLevel: number }> = [];
-    for (const [lvlKey, spells] of Object.entries(parsed)) {
-      const lvl = parseInt(lvlKey);
-      if (isNaN(lvl) || lvl > classLevel) continue;
-      for (const name of spells) unlocked.push({ name, classLevel: lvl });
+    const parsed = safeJsonParse<Record<string, Record<string, string[]>>>(char.subclassAlwaysPreparedSpells, {});
+    const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+    const groups: Array<{ subclassName: string; spells: Array<{ name: string; classLevel: number }> }> = [];
+    for (const [scName, levels] of Object.entries(parsed)) {
+      const mcEntry = mcEntries.find(e => e.subclassName === scName);
+      const classLevel = mcEntry ? mcEntry.level : char.level;
+      const unlocked: Array<{ name: string; classLevel: number }> = [];
+      for (const [lvlKey, spells] of Object.entries(levels)) {
+        const lvl = parseInt(lvlKey);
+        if (isNaN(lvl) || lvl > classLevel) continue;
+        for (const name of spells) unlocked.push({ name, classLevel: lvl });
+      }
+      if (unlocked.length > 0) groups.push({ subclassName: scName, spells: unlocked });
     }
-    return unlocked;
-  }, [char.subclassAlwaysPreparedSpells, char.multiclassEntries, char.characterClass, char.level]);
+    return groups;
+  }, [char.subclassAlwaysPreparedSpells, char.multiclassEntries, char.level]);
 
-  const hasSpells = char.spellcastingAbility || spellsKnown.length > 0 || subclassAlwaysPrepared.length > 0;
+  const hasSpells = char.spellcastingAbility || spellsKnown.length > 0 || subclassAlwaysPreparedGroups.length > 0;
   if (!hasSpells) {
     return <p className="text-gray-500 text-sm">This character is not a spellcaster.</p>;
   }
@@ -749,12 +785,21 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
   }
 
   const SPELLCASTER_CLASSES = ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Warlock', 'Wizard', 'Artificer'];
-  const SPELLCASTER_SUBCLASSES = ['Eldritch Knight', 'Arcane Trickster'];
   const isClassCaster = SPELLCASTER_CLASSES.includes(char.characterClass || '')
-    || SPELLCASTER_SUBCLASSES.includes(char.subclass || '');
+    || THIRD_CASTER_SUBCLASSES.has(char.subclass || '');
 
   if (classGroups.length === 0 && char.spellcastingAbility && isClassCaster) {
     classGroups.push({ source: defaultSource, className: char.characterClass || 'Unknown', spells: [] });
+  }
+
+  const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+  for (const entry of mcEntries) {
+    if (!entry.subclassName || !THIRD_CASTER_SUBCLASSES.has(entry.subclassName)) continue;
+    if (entry.level < 3) continue;
+    const source = `class:${entry.className}`;
+    if (!classGroups.some(g => g.source === source)) {
+      classGroups.push({ source, className: entry.className, spells: [] });
+    }
   }
 
   const regularSlots = Object.entries(spellSlots)
@@ -797,9 +842,12 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
 
   function getClassCasterInfo(className: string) {
     const isPrepared = ['Cleric', 'Druid', 'Paladin', 'Wizard', 'Artificer'].includes(className);
-    const isKnown = ['Bard', 'Ranger', 'Sorcerer', 'Warlock'].includes(className);
+    const mcEntry = mcEntries.find(e => e.className === className);
+    const isThirdCaster = mcEntry?.subclassName ? THIRD_CASTER_SUBCLASSES.has(mcEntry.subclassName) : false;
+    const isKnown = ['Bard', 'Ranger', 'Sorcerer', 'Warlock'].includes(className) || isThirdCaster;
     const isPact = className === 'Warlock';
-    return { isPrepared, isKnown, isPact };
+    const thirdCasterSubclass = isThirdCaster ? mcEntry!.subclassName! : null;
+    return { isPrepared, isKnown, isPact, isThirdCaster, thirdCasterSubclass };
   }
 
   function renderSpellRow(spell: SpellEntry, showPrepared: boolean) {
@@ -922,18 +970,27 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
         const cantrips = spells.filter(s => s.level === 0);
         const leveled = spells.filter(s => s.level > 0);
         const prepared = leveled.filter(s => s.prepared || s.alwaysPrepared);
+        const classEntry = mcEntries.find(e => e.className === className);
+        const classLevel = classEntry ? classEntry.level : char.level;
         const abilityMod_ = char.spellcastingAbility
           ? abilityMod(char[ABILITY_FROM_ABBR[char.spellcastingAbility] as keyof PlayerCharacter] as number || 10)
           : 0;
-        const prepLimit = info.isPrepared ? getPreparedCount(className, char.level, abilityMod_) : 0;
-        const knownLimit = SPELLS_KNOWN[className]?.[char.level] ?? 0;
+        const prepLimit = info.isPrepared ? getPreparedCount(className, classLevel, abilityMod_) : 0;
+        const knownLimit = info.isThirdCaster && info.thirdCasterSubclass
+          ? (THIRD_CASTER_SPELLS[info.thirdCasterSubclass]?.[classLevel] ?? 0)
+          : (SPELLS_KNOWN[className]?.[classLevel] ?? 0);
+        const cantripLimit = info.isThirdCaster && info.thirdCasterSubclass
+          ? (THIRD_CASTER_CANTRIPS[info.thirdCasterSubclass]?.[classLevel] ?? 0)
+          : (CANTRIPS_KNOWN[className]?.[classLevel]);
+        const spellListClass = info.thirdCasterSubclass ? THIRD_CASTER_SPELL_LIST[info.thirdCasterSubclass] : className;
+        const displayName = info.thirdCasterSubclass ? `${className} (${info.thirdCasterSubclass})` : className;
 
         const isWizard = className === 'Wizard';
 
         return (
           <div key={className} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-white font-semibold text-sm">{className} Spells</h3>
+              <h3 className="text-white font-semibold text-sm">{displayName} Spells</h3>
               <div className="flex items-center gap-2">
                 {isWizard && (
                   <>
@@ -959,10 +1016,10 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
               </div>
             </div>
 
-            {cantrips.length > 0 && (
+            {(cantrips.length > 0 || (cantripLimit && cantripLimit > 0)) && (
               <div>
                 <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">
-                  Cantrips ({cantrips.length}{CANTRIPS_KNOWN[className] ? `/${CANTRIPS_KNOWN[className][char.level] ?? '?'}` : ''})
+                  Cantrips ({cantrips.length}{cantripLimit ? `/${cantripLimit}` : ''})
                 </h4>
                 <div className="space-y-0.5">{cantrips.map(s => renderSpellRow(s, false))}</div>
               </div>
@@ -996,7 +1053,7 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
                     Known Spells ({leveled.length}{knownLimit ? `/${knownLimit}` : ''})
                   </h4>
                   <button
-                    onClick={() => setManageModal({ type: 'known', className })}
+                    onClick={() => setManageModal({ type: 'known', className, spellListClass, classLevel })}
                     className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                   >
                     Manage Known
@@ -1014,14 +1071,14 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
       })}
 
       {/* Subclass always-prepared spells */}
-      {subclassAlwaysPrepared.length > 0 && char.subclassName && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+      {subclassAlwaysPreparedGroups.map(group => (
+        <div key={group.subclassName} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-white font-semibold text-sm">{char.subclassName} Spells</h3>
+            <h3 className="text-white font-semibold text-sm">{group.subclassName} Spells</h3>
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900 text-amber-300">Always Prepared</span>
           </div>
           <div className="space-y-0.5">
-            {subclassAlwaysPrepared.map(s => (
+            {group.spells.map(s => (
               <button
                 key={s.name}
                 onClick={() => viewSpellDetail(s.name)}
@@ -1034,7 +1091,7 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
             ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* Race spell boxes */}
       {raceGroups.map(({ raceName, spells }) => (
@@ -1122,6 +1179,8 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
           char={char}
           type={manageModal.type}
           className={manageModal.className}
+          spellListClass={manageModal.spellListClass}
+          classLevel={manageModal.classLevel}
           currentSpells={taggedSpells}
           saveField={saveField}
           onClose={() => setManageModal(null)}
@@ -1140,10 +1199,12 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
   );
 }
 
-function ManageSpellsModal({ char, type, className, currentSpells, saveField, onClose }: {
+function ManageSpellsModal({ char, type, className, spellListClass, classLevel, currentSpells, saveField, onClose }: {
   char: PlayerCharacter;
   type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook';
   className: string;
+  spellListClass?: string;
+  classLevel?: number;
   currentSpells: SpellEntry[];
   saveField: (u: CharacterUpdateRequest) => Promise<void>;
   onClose: () => void;
@@ -1164,7 +1225,13 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
     ? abilityMod(char[ABILITY_FROM_ABBR[char.spellcastingAbility] as keyof PlayerCharacter] as number || 10)
     : 0;
   const prepLimit = getPreparedCount(className, char.level, abilityMod_);
-  const knownLimit = SPELLS_KNOWN[className]?.[char.level] ?? 0;
+  const effectiveClassLevel = classLevel ?? char.level;
+  const thirdCasterSub = spellListClass && spellListClass !== className
+    ? Object.entries(THIRD_CASTER_SPELL_LIST).find(([, v]) => v === spellListClass)?.[0] ?? null
+    : null;
+  const knownLimit = thirdCasterSub
+    ? (THIRD_CASTER_SPELLS[thirdCasterSub]?.[effectiveClassLevel] ?? 0)
+    : (SPELLS_KNOWN[className]?.[effectiveClassLevel] ?? 0);
 
   const isWizardPrepared = type === 'prepared' && className === 'Wizard';
   const isSpellbookMode = type === 'spellbook';
@@ -1214,7 +1281,7 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
     if (!needsApiSearch) return;
     setSearching(true);
     try {
-      const params: Record<string, unknown> = { className, size: 50 };
+      const params: Record<string, unknown> = { className: spellListClass || className, size: 50 };
       if (searchQuery.trim()) params.name = searchQuery.trim();
       if (selectedLevel !== '') {
         params.level = selectedLevel;

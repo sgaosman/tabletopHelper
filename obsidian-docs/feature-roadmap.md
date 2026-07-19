@@ -25,7 +25,7 @@
 | 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
 | 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
 | 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
-| 22 | Character Creation Audit | Complete | Class skill proficiencies, 1/3 caster support (EK/AT), subclass always-prepared spells, per-class multiclass spell stats, point buy warning, stale spell reset, dead field cleanup |
+| 22 | Character Creation Audit | Complete | 1/3 caster support (EK/AT), subclass always-prepared spells, multiclass proficiency grants, expertise (Rogue/Bard), multiclass skill choices, race resistances/feats, source-based feature matching, duplicate class validation, point buy range check, spell review step, spell warning for all caster types, TDZ blank screen fix |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 

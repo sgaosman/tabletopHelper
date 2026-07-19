@@ -16,6 +16,8 @@ public class LevelUpResponse {
     public static class PendingChoices {
         private boolean asiAvailable;
         private boolean subclassRequired;
+        private boolean expertiseAvailable;
+        private int expertiseCount;
         private List<String> newFeatures;
         private int maxSpellLevel;
     }

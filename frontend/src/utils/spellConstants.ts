@@ -25,8 +25,8 @@ export const THIRD_CASTER_CANTRIPS: Record<string, number[]> = {
 
 // 1/3 caster subclasses — spells known by CLASS level (not character level)
 export const THIRD_CASTER_SPELLS: Record<string, number[]> = {
-  'Eldritch Knight': [0, 0, 0, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13, 13],
-  'Arcane Trickster': [0, 0, 0, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13, 13],
+  'Eldritch Knight': [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
+  'Arcane Trickster': [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
 };
 
 export const THIRD_CASTER_SUBCLASSES = new Set(['Eldritch Knight', 'Arcane Trickster']);
@@ -47,7 +47,7 @@ export function wizardSpellbookCount(level: number): number {
 }
 
 // Half-casters that use abilityMod + floor(level/2) for prepared count
-export const HALF_CASTERS = new Set(['Paladin', 'Ranger']);
+export const HALF_CASTERS = new Set(['Paladin']);
 
 export function getPreparedCount(className: string, level: number, abilityMod: number): number {
   if (HALF_CASTERS.has(className)) {

@@ -484,9 +484,6 @@ public class CharacterClassSeeder {
             ObjectNode result = objectMapper.createObjectNode();
             for (JsonNode spellBlock : addSpells) {
                 JsonNode prep = spellBlock.get("prepared");
-                if (prep == null) {
-                    prep = spellBlock.get("expanded");
-                }
                 if (prep == null) continue;
 
                 final JsonNode prepared = prep;

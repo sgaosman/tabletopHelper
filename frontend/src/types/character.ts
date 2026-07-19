@@ -25,6 +25,7 @@ export interface CharacterCreateRequest {
   proficiencyBonus?: number;
   savingThrowProficiencies?: string;
   skillProficiencies?: string;
+  skillExpertises?: string;
   armorProficiencies?: string;
   weaponProficiencies?: string;
   toolProficiencies?: string;
@@ -190,6 +191,8 @@ export interface LevelUpResponse {
 export interface PendingChoices {
   asiAvailable: boolean;
   subclassRequired: boolean;
+  expertiseAvailable: boolean;
+  expertiseCount: number;
   newFeatures: string[];
   maxSpellLevel: number;
 }
@@ -197,6 +200,7 @@ export interface PendingChoices {
 export interface ApplyChoicesRequest {
   asi?: AsiChoice;
   subclassId?: string;
+  expertiseSkills?: string[];
 }
 
 export interface AsiChoice {

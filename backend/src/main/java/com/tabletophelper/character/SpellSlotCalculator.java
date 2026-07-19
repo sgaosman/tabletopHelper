@@ -64,6 +64,7 @@ public class SpellSlotCalculator {
                 case "full" -> multiclassCasterLevel += level;
                 case "half" -> multiclassCasterLevel += level / 2;
                 case "artificer" -> multiclassCasterLevel += (level + 1) / 2;
+                case "third" -> multiclassCasterLevel += level / 3;
                 case "pact" -> warlockLevel = level;
             }
         }

@@ -41,11 +41,36 @@ public class RaceSeeder {
             "Blowgun", "Hand Crossbow", "Heavy Crossbow", "Longbow", "Net"
     );
 
+    private Map<String, Integer> spellLevelLookup = Map.of();
+
+    private void buildSpellLevelLookup() {
+        try {
+            ClassPathResource res = new ClassPathResource("data/5etools/spells.json");
+            try (InputStream is = res.getInputStream()) {
+                JsonNode root = objectMapper.readTree(is);
+                JsonNode spellsArr = root.get("spell");
+                if (spellsArr == null || !spellsArr.isArray()) return;
+                Map<String, Integer> map = new HashMap<>();
+                for (JsonNode s : spellsArr) {
+                    String name = s.path("name").asText("").toLowerCase();
+                    int level = s.path("level").asInt(-1);
+                    if (!name.isEmpty() && level >= 0) map.put(name, level);
+                }
+                spellLevelLookup = map;
+                log.info("Built spell level lookup with {} entries", map.size());
+            }
+        } catch (Exception e) {
+            log.warn("Could not build spell level lookup: {}", e.getMessage());
+        }
+    }
+
     public void seed() throws Exception {
         if (raceRepository.count() > 0) {
             log.info("Races already seeded, skipping");
             return;
         }
+
+        buildSpellLevelLookup();
 
         ClassPathResource resource = new ClassPathResource("data/5etools/races.json");
         try (InputStream is = resource.getInputStream()) {
@@ -935,7 +960,12 @@ public class RaceSeeder {
 
         ObjectNode spell = objectMapper.createObjectNode();
         spell.put("name", name);
-        spell.put("level", spellLevel);
+        int resolvedLevel = castLevel > 0 ? castLevel : spellLevel;
+        if (resolvedLevel == 0 && !atWill) {
+            Integer lookup = spellLevelLookup.get(name.toLowerCase());
+            if (lookup != null && lookup > 0) resolvedLevel = lookup;
+        }
+        spell.put("level", resolvedLevel);
         spell.put("atWill", atWill);
         spell.put("unlocksAtLevel", unlocksAt);
         if (castLevel > 0) spell.put("castLevel", castLevel);

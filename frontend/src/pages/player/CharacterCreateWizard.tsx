@@ -253,6 +253,8 @@ export default function CharacterCreateWizard() {
   const [cantripSearch, setCantripSearch] = useState('');
   const [mcSpellSelections, setMcSpellSelections] = useState<Record<string, { cantrips: Spell[]; spells: Spell[] }>>({});
   const [selectedClassSkills, setSelectedClassSkills] = useState<string[]>([]);
+  const [mcSkillSelections, setMcSkillSelections] = useState<Record<string, string[]>>({});
+  const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
 
   const [selectedBgFeat, setSelectedBgFeat] = useState<string | null>(null);
   const [selectedFeatOptionIdx, setSelectedFeatOptionIdx] = useState<number | null>(null);
@@ -328,22 +330,35 @@ export default function CharacterCreateWizard() {
     return safeJsonParse<{ from: string[]; count: number }>(selectedClass.skillChoices, { from: [], count: 0 });
   }, [selectedClass]);
 
-  const raceSkills = useMemo(() => {
-    if (!selectedRace) return new Set<string>();
-    const profs = safeJsonParse<{ skills?: string[] }>(selectedRace.proficiencies, {});
-    return new Set([
-      ...(profs.skills ?? []).map(s => s.toLowerCase()),
-      ...resolvedRaceChoices.skills.map(s => s.toLowerCase()),
-    ]);
-  }, [selectedRace, resolvedRaceChoices.skills]);
+  const mcSkillChoicesMap = useMemo(() => {
+    const map: Record<string, { from: string[]; count: number }> = {};
+    if (classEntries.length <= 1) return map;
+    for (let i = 1; i < classEntries.length; i++) {
+      const entry = classEntries[i];
+      if (!entry.cls.multiclassProficiencies) continue;
+      const mcProfs = safeJsonParse<{ skills?: { from: string[]; count: number } }>(entry.cls.multiclassProficiencies, {});
+      if (mcProfs.skills && mcProfs.skills.from.length > 0 && mcProfs.skills.count > 0) {
+        map[entry.cls.id] = mcProfs.skills;
+      }
+    }
+    return map;
+  }, [classEntries]);
 
-  const bgSkillConflicts = useMemo(() => {
-    const allTaken = new Set([
-      ...raceSkills,
-      ...selectedClassSkills.map(s => s.toLowerCase()),
-    ]);
-    return resolvedBgProfs.skills.filter(s => allTaken.has(s.toLowerCase()));
-  }, [raceSkills, selectedClassSkills, resolvedBgProfs.skills]);
+  const expertiseCount = useMemo(() => {
+    let count = 0;
+    for (const entry of classEntries) {
+      const name = entry.cls.name;
+      const lvl = entry.level;
+      if (name === 'Rogue') {
+        if (lvl >= 1) count += 2;
+        if (lvl >= 6) count += 2;
+      } else if (name === 'Bard') {
+        if (lvl >= 3) count += 2;
+        if (lvl >= 10) count += 2;
+      }
+    }
+    return count;
+  }, [classEntries]);
 
   const hasThirdCasterSubclass = classEntries.some(e =>
     e.subclass && THIRD_CASTER_SUBCLASSES.has(e.subclass.name) && e.level >= 3
@@ -403,12 +418,14 @@ export default function CharacterCreateWizard() {
   }, [level]);
 
   const addMulticlass = useCallback(async (cls: CharacterClassRef) => {
+    if (classEntries.some(e => e.cls.id === cls.id)) return;
     const scs = await getSubclasses(cls.id);
     setClassEntries(prev => {
+      if (prev.some(e => e.cls.id === cls.id)) return prev;
       const updated = prev.map((e, i) => i === 0 ? { ...e, level: Math.max(1, e.level - 1) } : e);
       return [...updated, { cls, level: 1, subclass: null, subclasses: scs }];
     });
-  }, []);
+  }, [classEntries]);
 
   const removeMulticlass = useCallback((clsId: string) => {
     setClassEntries(prev => {
@@ -721,6 +738,23 @@ export default function CharacterCreateWizard() {
     return result;
   }, [selectedBackground, bgProfChoices, bgSetChoices]);
 
+  const raceSkills = useMemo(() => {
+    if (!selectedRace) return new Set<string>();
+    const profs = safeJsonParse<{ skills?: string[] }>(selectedRace.proficiencies, {});
+    return new Set([
+      ...(profs.skills ?? []).map(s => s.toLowerCase()),
+      ...resolvedRaceChoices.skills.map(s => s.toLowerCase()),
+    ]);
+  }, [selectedRace, resolvedRaceChoices.skills]);
+
+  const bgSkillConflicts = useMemo(() => {
+    const allTaken = new Set([
+      ...raceSkills,
+      ...selectedClassSkills.map(s => s.toLowerCase()),
+    ]);
+    return resolvedBgProfs.skills.filter(s => allTaken.has(s.toLowerCase()));
+  }, [raceSkills, selectedClassSkills, resolvedBgProfs.skills]);
+
   const isVanillaHuman = useMemo(() => {
     if (!selectedRace) return false;
     const bonuses = safeJsonParse<Array<{ ability: string; bonus: number }>>(selectedRace.abilityScoreBonuses, []);
@@ -867,11 +901,12 @@ export default function CharacterCreateWizard() {
       }>(selectedRace.additionalSpells, {});
       const raceSource = `race:${selectedRace.name}`;
       for (const s of raceSpells.fixedSpells ?? []) {
-        if (!s.unlocksAtLevel || s.unlocksAtLevel <= 1) {
+        if (!s.unlocksAtLevel || s.unlocksAtLevel <= level) {
           entries.push({
             name: s.name, level: s.level ?? 0, source: raceSource,
             ...(s.atWill ? { atWill: true } : {}),
             ...(s.usesPerLongRest ? { usesPerLongRest: s.usesPerLongRest } : {}),
+            ...(s.unlocksAtLevel ? { unlocksAtLevel: s.unlocksAtLevel } : {}),
           });
         }
       }
@@ -909,19 +944,29 @@ export default function CharacterCreateWizard() {
 
     const savingThrows = safeJsonParse<string[]>(selectedClass.savingThrowProficiencies, []);
     const speed = safeJsonParse<{ walk?: number }>(selectedRace.speed, { walk: 30 });
-    const resistances = safeJsonParse<string[]>(selectedRace.resistances, []);
+    const resistances = [...safeJsonParse<string[]>(selectedRace.resistances, []), ...resolvedRaceChoices.resistances];
 
     const raceProfs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[]; weapons?: string[] }>(selectedRace.proficiencies, {});
     const isMulticlass = classEntries.length > 1;
-    const classArmor = safeJsonParse<string[]>(selectedClass.armorProficiencies, []);
-    const classWeapons = safeJsonParse<string[]>(selectedClass.weaponProficiencies, []);
-    const classTools = safeJsonParse<string[]>(selectedClass.toolProficiencies, []);
+    const classArmor = [...safeJsonParse<string[]>(selectedClass.armorProficiencies, [])];
+    const classWeapons = [...safeJsonParse<string[]>(selectedClass.weaponProficiencies, [])];
+    const classTools = [...safeJsonParse<string[]>(selectedClass.toolProficiencies, [])];
+
+    for (let i = 1; i < classEntries.length; i++) {
+      const mc = classEntries[i].cls;
+      if (!mc.multiclassProficiencies) continue;
+      const mcProfs = safeJsonParse<{ armor?: string[]; weapons?: string[]; tools?: string[]; skills?: unknown }>(mc.multiclassProficiencies, {});
+      if (mcProfs.armor) classArmor.push(...mcProfs.armor);
+      if (mcProfs.weapons) classWeapons.push(...mcProfs.weapons);
+      if (mcProfs.tools) classTools.push(...mcProfs.tools);
+    }
 
     const allSkills = [
       ...(raceProfs.skills ?? []),
       ...resolvedRaceChoices.skills,
       ...selectedClassSkills,
       ...resolvedBgProfs.skills,
+      ...Object.values(mcSkillSelections).flat(),
     ];
     const allWeapons = [
       ...(raceProfs.weapons ?? []),
@@ -941,6 +986,9 @@ export default function CharacterCreateWizard() {
     ];
 
     const featFeatures: Array<{ name: string; description: string; source: string }> = [];
+    for (const featName of resolvedRaceChoices.feats) {
+      featFeatures.push({ name: featName, description: 'Racial feat', source: selectedRace.name });
+    }
     if (selectedFeatObj && selectedFeatOption) {
       const optionDesc = parsedFeatOptions.length > 1 ? ` (${selectedFeatOption.name})` : '';
       const abilityDesc = selectedFeatAbility ? ` Spellcasting ability: ${selectedFeatAbility}.` : '';
@@ -961,13 +1009,18 @@ export default function CharacterCreateWizard() {
     }
 
     const featSpellAbility = selectedFeatAbility ?? selectedFeatOption?.ability;
-    const resolvedSpellAbility = selectedClass.spellcastingAbility ?? (featSpellAbility ? featSpellAbility : undefined);
+    let resolvedSpellAbility: string | undefined = selectedClass.spellcastingAbility ?? undefined;
+    if (!resolvedSpellAbility) {
+      const thirdCasterEntry = classEntries.find(e => e.subclass && THIRD_CASTER_SUBCLASSES.has(e.subclass.name));
+      if (thirdCasterEntry) resolvedSpellAbility = THIRD_CASTER_ABILITY[thirdCasterEntry.subclass!.name];
+    }
+    if (!resolvedSpellAbility && featSpellAbility) resolvedSpellAbility = featSpellAbility;
 
     let spellSaveDc: number | undefined;
     let spellAttackBonus: number | undefined;
-    if (!selectedClass.isSpellcaster && featSpellAbility) {
+    if (resolvedSpellAbility && !selectedClass.isSpellcaster) {
       const profBonus = proficiencyBonusForLevel(level);
-      const abilityKey = ABILITY_FROM_ABBR[featSpellAbility] as keyof typeof finalScores | undefined;
+      const abilityKey = ABILITY_FROM_ABBR[resolvedSpellAbility] as keyof typeof finalScores | undefined;
       const abilityScore = abilityKey ? finalScores[abilityKey] : 10;
       const mod = abilityMod(abilityScore);
       spellSaveDc = 8 + profBonus + mod;
@@ -1014,7 +1067,8 @@ export default function CharacterCreateWizard() {
         speed: speed.walk ?? 30,
         savingThrowProficiencies: JSON.stringify(savingThrows),
         skillProficiencies: allSkills.length > 0 ? JSON.stringify([...new Set(allSkills)]) : undefined,
-        armorProficiencies: classArmor.length > 0 ? JSON.stringify(classArmor) : undefined,
+        skillExpertises: selectedExpertise.length > 0 ? JSON.stringify(selectedExpertise) : undefined,
+        armorProficiencies: classArmor.length > 0 ? JSON.stringify([...new Set(classArmor)]) : undefined,
         weaponProficiencies: allWeapons.length > 0 ? JSON.stringify([...new Set(allWeapons)]) : undefined,
         toolProficiencies: allTools.length > 0 ? JSON.stringify([...new Set(allTools)]) : undefined,
         languageProficiencies: allLanguages.length > 0 ? JSON.stringify([...new Set(allLanguages)]) : undefined,
@@ -1274,6 +1328,8 @@ export default function CharacterCreateWizard() {
                         setClassEntries([]);
                         setMcSpellSelections({});
                         setSelectedClassSkills([]);
+                        setMcSkillSelections({});
+                        setSelectedExpertise([]);
                       } else {
                         setSelectedClass(cls);
                         setSelectedSubclass(null);
@@ -1283,6 +1339,8 @@ export default function CharacterCreateWizard() {
                         setSpellResults([]);
                         setMcSpellSelections({});
                         setSelectedClassSkills([]);
+                        setMcSkillSelections({});
+                        setSelectedExpertise([]);
                         getSubclasses(cls.id).then(scs => {
                           setSubclasses(scs);
                           setClassEntries([{ cls, level, subclass: null, subclasses: scs }]);
@@ -1527,6 +1585,104 @@ export default function CharacterCreateWizard() {
                 )}
               </div>
             )}
+
+            {/* Multiclass skill choices */}
+            {Object.entries(mcSkillChoicesMap).map(([clsId, choices]) => {
+              const entry = classEntries.find(e => e.cls.id === clsId);
+              if (!entry) return null;
+              const selected = mcSkillSelections[clsId] ?? [];
+              const allTaken = new Set([
+                ...raceSkills,
+                ...selectedClassSkills.map(s => s.toLowerCase()),
+                ...Object.entries(mcSkillSelections).filter(([k]) => k !== clsId).flatMap(([, v]) => v.map(s => s.toLowerCase())),
+              ]);
+              return (
+                <div key={clsId} className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-white font-medium text-sm">{entry.cls.name} Multiclass Skills</h3>
+                    <span className="text-xs text-gray-400">{selected.length}/{choices.count} selected</span>
+                  </div>
+                  <p className="text-gray-500 text-xs mb-3">
+                    Choose {choices.count} skill{choices.count > 1 ? 's' : ''} from the {entry.cls.name} multiclass list.
+                  </p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {choices.from.map(skill => {
+                      const isSelected = selected.includes(skill);
+                      const alreadyTaken = allTaken.has(skill.toLowerCase());
+                      const disabled = alreadyTaken || (!isSelected && selected.length >= choices.count);
+                      return (
+                        <button
+                          key={skill}
+                          onClick={() => {
+                            if (alreadyTaken) return;
+                            if (isSelected) {
+                              setMcSkillSelections(prev => ({ ...prev, [clsId]: (prev[clsId] ?? []).filter(s => s !== skill) }));
+                            } else if (selected.length < choices.count) {
+                              setMcSkillSelections(prev => ({ ...prev, [clsId]: [...(prev[clsId] ?? []), skill] }));
+                            }
+                          }}
+                          disabled={disabled && !isSelected}
+                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                            alreadyTaken ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed line-through'
+                              : isSelected ? 'bg-indigo-600 text-white'
+                              : disabled ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                          }`}
+                          title={alreadyTaken ? 'Already proficient' : undefined}
+                        >
+                          {skill}
+                          {alreadyTaken && ' (taken)'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Expertise picker */}
+            {expertiseCount > 0 && (
+              <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-white font-medium text-sm">Expertise</h3>
+                  <span className="text-xs text-gray-400">{selectedExpertise.length}/{expertiseCount} selected</span>
+                </div>
+                <p className="text-gray-500 text-xs mb-3">
+                  Choose {expertiseCount} skill{expertiseCount > 1 ? 's' : ''} to gain expertise in (double proficiency bonus).
+                </p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[...selectedClassSkills, ...resolvedBgProfs.skills, ...(safeJsonParse<{ skills?: string[] }>(selectedRace?.proficiencies, {}).skills ?? []), ...resolvedRaceChoices.skills, ...Object.values(mcSkillSelections).flat()]
+                    .filter((s, i, a) => a.indexOf(s) === i)
+                    .map(skill => {
+                      const isSelected = selectedExpertise.includes(skill);
+                      const disabled = !isSelected && selectedExpertise.length >= expertiseCount;
+                      return (
+                        <button
+                          key={skill}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedExpertise(prev => prev.filter(s => s !== skill));
+                            } else if (selectedExpertise.length < expertiseCount) {
+                              setSelectedExpertise(prev => [...prev, skill]);
+                            }
+                          }}
+                          disabled={disabled}
+                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                            isSelected ? 'bg-yellow-600 text-white'
+                              : disabled ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                          }`}
+                        >
+                          {skill}
+                        </button>
+                      );
+                    })}
+                </div>
+                {selectedExpertise.length < expertiseCount && (
+                  <p className="text-amber-400 text-xs mt-3">Select {expertiseCount - selectedExpertise.length} more skill{expertiseCount - selectedExpertise.length > 1 ? 's' : ''}</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1539,7 +1695,16 @@ export default function CharacterCreateWizard() {
               {(['standard', 'pointbuy', 'manual'] as const).map(m => (
                 <button
                   key={m}
-                  onClick={() => setAbilityMethod(m)}
+                  onClick={() => {
+                    setAbilityMethod(m);
+                    if (m === 'pointbuy') {
+                      setScores(s => {
+                        const clamped = { ...s };
+                        for (const a of ABILITIES) clamped[a] = Math.max(8, Math.min(15, s[a]));
+                        return clamped;
+                      });
+                    }
+                  }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     abilityMethod === m ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                   }`}
@@ -1953,6 +2118,40 @@ export default function CharacterCreateWizard() {
                   warnings.push(`${selectedClass.name}: ${selectedSpells.length}/${spellsAllowed} spells selected`);
                 }
               }
+              for (const entry of classEntries) {
+                if (entry.cls.id === selectedClass?.id) continue;
+                if (!entry.cls.isSpellcaster) {
+                  if (entry.subclass && THIRD_CASTER_SUBCLASSES.has(entry.subclass.name) && entry.level >= 3) {
+                    const sel = mcSpellSelections[`third:${entry.cls.id}`];
+                    const cantripsAllowed = THIRD_CASTER_CANTRIPS[entry.subclass.name]?.[entry.level] ?? 0;
+                    const spellsAllowed = THIRD_CASTER_SPELLS[entry.subclass.name]?.[entry.level] ?? 0;
+                    const cantripCount = sel?.cantrips?.length ?? 0;
+                    const spellCount = sel?.spells?.length ?? 0;
+                    if (cantripsAllowed > 0 && cantripCount < cantripsAllowed) warnings.push(`${entry.subclass.name}: ${cantripCount}/${cantripsAllowed} cantrips`);
+                    if (spellsAllowed > 0 && spellCount < spellsAllowed) warnings.push(`${entry.subclass.name}: ${spellCount}/${spellsAllowed} spells`);
+                  }
+                  continue;
+                }
+                const sel = mcSpellSelections[entry.cls.id];
+                const cantripsAllowed = CANTRIPS_KNOWN[entry.cls.name]?.[entry.level] ?? 0;
+                const isWiz = entry.cls.name === 'Wizard';
+                const spellsAllowed = isWiz ? wizardSpellbookCount(entry.level)
+                  : entry.cls.isKnownCaster ? (SPELLS_KNOWN[entry.cls.name]?.[entry.level] ?? 0) : 0;
+                const cantripCount = sel?.cantrips?.length ?? 0;
+                const spellCount = sel?.spells?.length ?? 0;
+                if (cantripsAllowed > 0 && cantripCount < cantripsAllowed) warnings.push(`${entry.cls.name}: ${cantripCount}/${cantripsAllowed} cantrips`);
+                if (spellsAllowed > 0 && spellCount < spellsAllowed) warnings.push(`${entry.cls.name}: ${spellCount}/${spellsAllowed} spells`);
+              }
+              if (classEntries.length > 0 && classEntries[0].subclass && THIRD_CASTER_SUBCLASSES.has(classEntries[0].subclass.name) && classEntries[0].level >= 3) {
+                const sel = mcSpellSelections[`third:${classEntries[0].cls.id}`];
+                const scName = classEntries[0].subclass.name;
+                const cantripsAllowed = THIRD_CASTER_CANTRIPS[scName]?.[classEntries[0].level] ?? 0;
+                const spellsAllowed = THIRD_CASTER_SPELLS[scName]?.[classEntries[0].level] ?? 0;
+                const cantripCount = sel?.cantrips?.length ?? 0;
+                const spellCount = sel?.spells?.length ?? 0;
+                if (cantripsAllowed > 0 && cantripCount < cantripsAllowed) warnings.push(`${scName}: ${cantripCount}/${cantripsAllowed} cantrips`);
+                if (spellsAllowed > 0 && spellCount < spellsAllowed) warnings.push(`${scName}: ${spellCount}/${spellsAllowed} spells`);
+              }
               if (warnings.length === 0) return null;
               return (
                 <div className="bg-amber-900/20 border border-amber-800/50 rounded-lg p-3">
@@ -2081,6 +2280,73 @@ export default function CharacterCreateWizard() {
                   </div>
                 </div>
               )}
+
+              {/* Selected Spells */}
+              {(() => {
+                const spellGroups: Array<{ label: string; spells: string[] }> = [];
+                if (selectedCantrips.length > 0) {
+                  spellGroups.push({ label: `${selectedClass?.name ?? 'Class'} Cantrips`, spells: selectedCantrips.map(s => s.name) });
+                }
+                if (selectedSpells.length > 0) {
+                  spellGroups.push({ label: `${selectedClass?.name ?? 'Class'} Spells`, spells: selectedSpells.map(s => s.name) });
+                }
+                for (const entry of classEntries) {
+                  if (entry.cls.id === selectedClass?.id) continue;
+                  const sel = mcSpellSelections[entry.cls.id];
+                  if (sel?.cantrips?.length) spellGroups.push({ label: `${entry.cls.name} Cantrips`, spells: sel.cantrips.map(s => s.name) });
+                  if (sel?.spells?.length) spellGroups.push({ label: `${entry.cls.name} Spells`, spells: sel.spells.map(s => s.name) });
+                }
+                for (const entry of classEntries) {
+                  if (!entry.subclass || !THIRD_CASTER_SUBCLASSES.has(entry.subclass.name)) continue;
+                  const sel = mcSpellSelections[`third:${entry.cls.id}`];
+                  if (sel?.cantrips?.length) spellGroups.push({ label: `${entry.subclass.name} Cantrips`, spells: sel.cantrips.map(s => s.name) });
+                  if (sel?.spells?.length) spellGroups.push({ label: `${entry.subclass.name} Spells`, spells: sel.spells.map(s => s.name) });
+                }
+                if (spellGroups.length === 0) return null;
+                return (
+                  <div className="border-t border-gray-800 pt-4">
+                    <h3 className="text-sm font-medium text-gray-400 mb-3">Selected Spells</h3>
+                    <div className="space-y-2">
+                      {spellGroups.map(g => (
+                        <div key={g.label}>
+                          <p className="text-gray-500 text-xs">{g.label}</p>
+                          <p className="text-white text-sm">{g.spells.join(', ')}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Always-prepared subclass spells */}
+              {(() => {
+                const groups: Array<{ scName: string; spells: string[] }> = [];
+                for (const entry of classEntries) {
+                  if (!entry.subclass?.alwaysPreparedSpells) continue;
+                  try {
+                    const parsed = JSON.parse(entry.subclass.alwaysPreparedSpells) as Record<string, string[]>;
+                    const unlocked: string[] = [];
+                    for (const [lvlKey, spells] of Object.entries(parsed)) {
+                      if (parseInt(lvlKey) <= entry.level) unlocked.push(...spells);
+                    }
+                    if (unlocked.length > 0) groups.push({ scName: entry.subclass.name, spells: unlocked });
+                  } catch { /* ignore parse errors */ }
+                }
+                if (groups.length === 0) return null;
+                return (
+                  <div className="border-t border-gray-800 pt-4">
+                    <h3 className="text-sm font-medium text-gray-400 mb-3">Always Prepared (Subclass)</h3>
+                    <div className="space-y-2">
+                      {groups.map(g => (
+                        <div key={g.scName}>
+                          <p className="text-gray-500 text-xs">{g.scName}</p>
+                          <p className="text-amber-300 text-sm">{g.spells.join(', ')}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="border-t border-gray-800 pt-4">
                 <h3 className="text-sm font-medium text-gray-400 mb-3">Ability Scores</h3>

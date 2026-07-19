@@ -720,3 +720,47 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** A Paladin/Druid multiclass uses CHA for Paladin spells and WIS for Druid spells — a single spell save DC is misleading. Per-class display matches how D&D 5e multiclass spellcasting actually works.
 
 **Trade-offs:** Per-class stats are computed client-side from a hardcoded ability mapping rather than stored on the entity. This is appropriate since the mapping is static (derived from PHB) and the character sheet already has all needed data.
+
+## D063: Stale Subclass Reference on Class Level Reduction
+
+**Date:** 2026-07-20
+**Status:** Accepted (known limitation)
+
+**Decision:** When a multiclass entry's class level is reduced below its `subclassLevel`, the subclass picker UI disappears but the stale subclass reference remains in the `classEntries` state. No client-side cleanup is performed.
+
+**Rationale:** The server validates subclass level requirements independently and will reject or ignore a subclass that doesn't meet the level threshold. The stale reference in frontend state is harmless — if the user later increases the level back above `subclassLevel`, the previously selected subclass reappears, which is arguably better UX than forcing re-selection. The server is the source of truth for character data integrity.
+
+**Trade-offs:** Inconsistent UI state (subclass reference exists but picker is hidden). Accepted because the server enforces correctness and the stale reference provides a convenience if the level change was accidental.
+
+## D064: Expertise Support for Rogue and Bard
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Expertise (doubled proficiency bonus) is supported at both creation and level-up for Rogue (levels 1, 6) and Bard (levels 3, 10). The `skillExpertises` JSON array on `PlayerCharacter` stores expertise selections. At creation, the wizard shows an expertise picker when the character has Rogue or Bard levels that qualify. During level-up, an `ExpertiseModal` appears after ASI/subclass choices when leveling into an expertise-granting level.
+
+**Rationale:** Expertise is a core class feature per PHB. Without it, Rogues and Bards are mechanically incomplete. The `isExpertiseLevel()` utility centralizes the level check logic for both flows.
+
+**Trade-offs:** Only skill expertise is supported — tool expertise (which Rogues can also choose) is not yet implemented. The expertise picker only shows skills the character is proficient in, matching PHB rules.
+
+## D065: Multiclass Proficiency Grants
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** When multiclassing, secondary classes grant only their `multiclassProficiencies` (a subset of full class proficiencies per PHB Chapter 6). The `CharacterCreateWizard` reads `multiclassProficiencies` from each secondary class entry and merges armor/weapon/tool proficiencies. Skill choices from multiclass proficiencies are presented via a separate picker per secondary class, deduplicating against already-taken skills.
+
+**Rationale:** PHB multiclass rules explicitly limit proficiency grants for secondary classes. Full class proficiencies would be overpowered and incorrect. The `multiclassProficiencies` data was seeded from 5etools in M10.
+
+**Trade-offs:** The multiclass skill picker only appears at creation, not during level-up into a new class. Level-up multiclass proficiency grants are handled server-side in `CharacterService.levelUp()`.
+
+## D066: 1/3 Caster Spell List on Character Sheet
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** The character sheet's Spells tab detects 1/3 caster subclasses (Eldritch Knight, Arcane Trickster) from `multiclassEntries` and shows a spell management box with the correct spell list class (Wizard for both EK and AT). The `ManageSpellsModal` accepts a `spellListClass` prop that overrides the `className` used for API spell search, so EK/AT characters browse the Wizard spell list instead of the Fighter/Rogue list.
+
+**Rationale:** EK and AT use the Wizard spell list per PHB, not their parent class spell list. Without this mapping, the "Manage Known" modal would search for Fighter/Rogue spells (which don't exist) and show zero results.
+
+**Trade-offs:** The `spellListClass` mapping is hardcoded in `THIRD_CASTER_SPELL_LIST` in `spellConstants.ts`. This is correct for the PHB but would need extension if homebrew 1/3 caster subclasses use different spell lists.
