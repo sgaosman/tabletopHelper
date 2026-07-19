@@ -173,11 +173,14 @@ Create a new player character owned by the authenticated user. Uses FK reference
   "spellcastingAbility": "INT",
   "spellsKnown": "[{\"name\":\"Fire Bolt\",\"level\":0,\"source\":\"class:Wizard\"},{\"name\":\"Shield\",\"level\":1,\"source\":\"class:Wizard\",\"prepared\":true}]",
   "features": "[{\"name\":\"Magic Initiate\",\"description\":\"Granted by Astral Drifter background.\",\"source\":\"Astral Drifter\"}]",
-  "hitDiceMap": "{\"Wizard\":{\"total\":1,\"remaining\":1,\"faces\":6}}"
+  "hitDiceMap": "{\"Wizard\":{\"total\":1,\"remaining\":1,\"faces\":6}}",
+  "multiclassClassEntries": "[{\"classId\":\"uuid\",\"level\":3,\"subclassId\":\"uuid\"},{\"classId\":\"uuid2\",\"level\":2}]"
 }
 ```
 
 For spellcaster classes, `spellSlots`, `spellSaveDc`, and `spellAttackBonus` are auto-calculated server-side if not provided. For non-casters with feat spells, the frontend calculates and sends these values.
+
+For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries`, `hitDiceMap`, `hitDiceTotal`, `levelHistory`, and HP from this data using `LevelUpCalculator.buildMulticlassProgression()`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. ASI choices are applied post-creation via `POST /characters/{characterId}/apply-choices` — the server records each ASI on the correct level history entry (first unrecorded ASI level, not the last entry).
 
 The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceName"`, `"feat:FeatName"`. Entries support `prepared`, `alwaysPrepared`, `atWill`, `usesPerLongRest`, and `unlocksAtLevel` fields.
 

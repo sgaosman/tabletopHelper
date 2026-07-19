@@ -84,65 +84,158 @@ public class CharacterService {
         }
         if (speed == null) speed = 30;
 
+        int conMod = abilityMod(request.getConstitution());
+
+        // Parse multiclass entries if provided
+        List<Map<String, Object>> mcEntries = null;
+        if (request.getMulticlassClassEntries() != null) {
+            try {
+                mcEntries = objectMapper.readValue(request.getMulticlassClassEntries(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+            } catch (Exception ignored) {}
+        }
+
+        boolean isMulticlass = mcEntries != null && mcEntries.size() > 1;
+
+        List<LevelUpCalculator.LevelGain> progression;
+        String multiclassEntries;
+        String hitDiceMap = request.getHitDiceMap();
+        StringBuilder hitDiceTotalBuilder = new StringBuilder();
         String spellSlots = request.getSpellSlots();
         Integer spellSaveDc = request.getSpellSaveDc();
         Integer spellAttackBonus = request.getSpellAttackBonus();
         String spellcastingAbility = request.getSpellcastingAbility();
+        String characterClassName = className;
 
-        if (classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster()) && spellSlots == null) {
-            spellcastingAbility = classRef.getSpellcastingAbility();
-            String casterType = deriveCasterType(classRef);
-            Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
-            entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
-            spellSlots = buildSpellSlotsJson(entries);
+        if (isMulticlass) {
+            List<LevelUpCalculator.ClassInput> classInputs = new ArrayList<>();
+            List<LinkedHashMap<String, Object>> mcEntryList = new ArrayList<>();
+            Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries = new LinkedHashMap<>();
+            Map<String, Map<String, Object>> hdMapBuilder = new LinkedHashMap<>();
 
-            int abilityMod = getSpellcastingAbilityMod(spellcastingAbility, request);
-            if (spellSaveDc == null) spellSaveDc = 8 + profBonus + abilityMod;
-            if (spellAttackBonus == null) spellAttackBonus = profBonus + abilityMod;
+            for (Map<String, Object> mce : mcEntries) {
+                UUID mcClassId = UUID.fromString((String) mce.get("classId"));
+                int mcLevel = ((Number) mce.get("level")).intValue();
+                String mcSubclassId = mce.get("subclassId") != null ? (String) mce.get("subclassId") : null;
+
+                CharacterClass mcClassRef = characterClassRepository.findById(mcClassId)
+                        .orElseThrow(() -> new IllegalArgumentException("Class not found: " + mcClassId));
+                Subclass mcSubclassRef = null;
+                if (mcSubclassId != null && !mcSubclassId.isEmpty()) {
+                    mcSubclassRef = subclassRepository.findById(UUID.fromString(mcSubclassId)).orElse(null);
+                }
+
+                String mcClassName = mcClassRef.getName();
+                String mcSubName = mcSubclassRef != null ? mcSubclassRef.getName() : null;
+                int mcSubLevel = mcClassRef.getSubclassLevel() != null ? mcClassRef.getSubclassLevel() : 99;
+
+                classInputs.add(new LevelUpCalculator.ClassInput(
+                        mcClassId, mcClassName, mcLevel, mcClassRef.getHitDice(),
+                        mcClassRef.getFeatures(),
+                        mcSubclassRef != null ? mcSubclassRef.getFeatures() : null,
+                        mcSubName, mcSubLevel));
+
+                var mcEntry = new LinkedHashMap<String, Object>();
+                mcEntry.put("classId", mcClassId.toString());
+                mcEntry.put("className", mcClassName);
+                if (mcSubclassRef != null) {
+                    mcEntry.put("subclassId", mcSubclassRef.getId().toString());
+                    mcEntry.put("subclassName", mcSubName);
+                }
+                mcEntry.put("level", mcLevel);
+                mcEntryList.add(mcEntry);
+
+                hdMapBuilder.put(mcClassName, Map.of("total", mcLevel, "remaining", mcLevel, "faces", mcClassRef.getHitDice()));
+                if (hitDiceTotalBuilder.length() > 0) hitDiceTotalBuilder.append(" + ");
+                hitDiceTotalBuilder.append(mcLevel).append("d").append(mcClassRef.getHitDice());
+
+                if (Boolean.TRUE.equals(mcClassRef.getIsSpellcaster())) {
+                    String casterType = deriveCasterType(mcClassRef);
+                    spellSlotEntries.put(mcClassName, new SpellSlotCalculator.ClassEntry(mcLevel, casterType));
+                }
+            }
+
+            progression = LevelUpCalculator.buildMulticlassProgression(classInputs, conMod);
+
+            try { multiclassEntries = objectMapper.writeValueAsString(mcEntryList); }
+            catch (Exception e) { multiclassEntries = null; }
+
+            if (hitDiceMap == null) {
+                try { hitDiceMap = objectMapper.writeValueAsString(hdMapBuilder); }
+                catch (Exception ignored) {}
+            }
+
+            if (!spellSlotEntries.isEmpty() && spellSlots == null) {
+                spellSlots = buildSpellSlotsJson(spellSlotEntries);
+            }
+
+            if (classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster())) {
+                if (spellcastingAbility == null) spellcastingAbility = classRef.getSpellcastingAbility();
+                int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
+                if (spellSaveDc == null) spellSaveDc = 8 + profBonus + abilityModVal;
+                if (spellAttackBonus == null) spellAttackBonus = profBonus + abilityModVal;
+            }
+
+            characterClassName = classInputs.stream()
+                    .map(LevelUpCalculator.ClassInput::className)
+                    .reduce((a, b) -> a + " / " + b).orElse(className);
+
+        } else {
+            String classFeatureJson = classRef != null ? classRef.getFeatures() : null;
+            String subclassFeatureJson = subclassRef != null ? subclassRef.getFeatures() : null;
+            int subclassLvl = classRef != null && classRef.getSubclassLevel() != null ? classRef.getSubclassLevel() : 99;
+            int hitDice = classRef != null ? classRef.getHitDice() : 8;
+
+            progression = LevelUpCalculator.buildProgression(
+                    level, classRef != null ? classRef.getId() : null, className,
+                    hitDice, conMod,
+                    classFeatureJson, subclassFeatureJson,
+                    subclassName, subclassLvl);
+
+            if (hitDiceMap == null && classRef != null) {
+                try {
+                    var hdMap = Map.of(className, Map.of("total", level, "remaining", level, "faces", hitDice));
+                    hitDiceMap = objectMapper.writeValueAsString(hdMap);
+                } catch (Exception ignored) {}
+            }
+
+            if (classRef != null) {
+                hitDiceTotalBuilder.append(level).append("d").append(hitDice);
+                try {
+                    var entry = new LinkedHashMap<String, Object>();
+                    entry.put("classId", classRef.getId().toString());
+                    entry.put("className", className);
+                    if (subclassRef != null) {
+                        entry.put("subclassId", subclassRef.getId().toString());
+                        entry.put("subclassName", subclassName);
+                    }
+                    entry.put("level", level);
+                    multiclassEntries = objectMapper.writeValueAsString(List.of(entry));
+                } catch (Exception e) { multiclassEntries = null; }
+            } else {
+                multiclassEntries = null;
+            }
+
+            if (classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster()) && spellSlots == null) {
+                spellcastingAbility = classRef.getSpellcastingAbility();
+                String casterType = deriveCasterType(classRef);
+                Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
+                entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
+                spellSlots = buildSpellSlotsJson(entries);
+
+                int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
+                if (spellSaveDc == null) spellSaveDc = 8 + profBonus + abilityModVal;
+                if (spellAttackBonus == null) spellAttackBonus = profBonus + abilityModVal;
+            }
         }
 
-        int conMod = abilityMod(request.getConstitution());
-        String classFeatureJson = classRef != null ? classRef.getFeatures() : null;
-        String subclassFeatureJson = subclassRef != null ? subclassRef.getFeatures() : null;
-        int subclassLvl = classRef != null && classRef.getSubclassLevel() != null ? classRef.getSubclassLevel() : 99;
-        int hitDice = classRef != null ? classRef.getHitDice() : 8;
-
-        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
-                level, classRef != null ? classRef.getId() : null, className,
-                hitDice, conMod,
-                classFeatureJson, subclassFeatureJson,
-                subclassName, subclassLvl);
-
         int computedHp = LevelUpCalculator.totalHp(progression);
-        Integer hpMax = level > 1 ? computedHp : (request.getHpMax() != null ? request.getHpMax() : computedHp);
+        Integer hpMax = level > 1 || isMulticlass ? computedHp : (request.getHpMax() != null ? request.getHpMax() : computedHp);
 
         List<LevelUpCalculator.FeatureEntry> classFeatures = LevelUpCalculator.allFeatures(progression);
         String mergedFeatures = LevelUpCalculator.mergeFeatures(request.getFeatures(), classFeatures);
 
         String levelHistory = LevelUpCalculator.serializeLevelHistory(progression);
-
-        String hitDiceMap = request.getHitDiceMap();
-        if (hitDiceMap == null && classRef != null) {
-            try {
-                var hdMap = Map.of(className, Map.of("total", level, "remaining", level, "faces", hitDice));
-                hitDiceMap = objectMapper.writeValueAsString(hdMap);
-            } catch (Exception ignored) {}
-        }
-
-        String multiclassEntries = null;
-        if (classRef != null) {
-            try {
-                var entry = new LinkedHashMap<String, Object>();
-                entry.put("classId", classRef.getId().toString());
-                entry.put("className", className);
-                if (subclassRef != null) {
-                    entry.put("subclassId", subclassRef.getId().toString());
-                    entry.put("subclassName", subclassName);
-                }
-                entry.put("level", level);
-                multiclassEntries = objectMapper.writeValueAsString(List.of(entry));
-            } catch (Exception ignored) {}
-        }
 
         PlayerCharacter character = PlayerCharacter.builder()
                 .user(user)
@@ -153,7 +246,7 @@ public class CharacterService {
                 .backgroundRef(backgroundRef)
                 .name(request.getName())
                 .race(raceName)
-                .characterClass(className)
+                .characterClass(characterClassName)
                 .subclass(subclassName)
                 .level(level)
                 .background(backgroundName)
@@ -193,7 +286,10 @@ public class CharacterService {
                 .levelHistory(levelHistory)
                 .build();
 
-        if (classRef != null && character.getHitDiceTotal() == null) {
+        if (character.getHitDiceTotal() == null && hitDiceTotalBuilder.length() > 0) {
+            character.setHitDiceTotal(hitDiceTotalBuilder.toString());
+            character.setHitDiceRemaining(hitDiceTotalBuilder.toString());
+        } else if (classRef != null && character.getHitDiceTotal() == null) {
             character.setHitDiceTotal(level + "d" + classRef.getHitDice());
             character.setHitDiceRemaining(character.getHitDiceTotal());
         }
@@ -802,6 +898,22 @@ public class CharacterService {
         } catch (Exception ignored) {}
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> findNextAsiEntry(List<Map<String, Object>> history) {
+        for (Map<String, Object> entry : history) {
+            String className = (String) entry.get("className");
+            int classLevel = entry.get("classLevel") instanceof Number n ? n.intValue() : 0;
+            if (LevelUpCalculator.isAsiLevel(className, classLevel)) {
+                Map<String, Object> choices = entry.get("choices") instanceof Map
+                        ? (Map<String, Object>) entry.get("choices") : Map.of();
+                if (!choices.containsKey("asi")) {
+                    return entry;
+                }
+            }
+        }
+        return history.isEmpty() ? null : history.get(history.size() - 1);
+    }
+
     private void recordAsiInHistory(PlayerCharacter character, ApplyChoicesRequest.AsiChoice asi) {
         try {
             List<Map<String, Object>> history = character.getLevelHistory() != null
@@ -809,11 +921,11 @@ public class CharacterService {
                     new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {}))
                     : new ArrayList<>();
 
-            if (!history.isEmpty()) {
-                Map<String, Object> lastEntry = history.get(history.size() - 1);
+            Map<String, Object> targetEntry = findNextAsiEntry(history);
+            if (targetEntry != null) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> choices = lastEntry.get("choices") instanceof Map
-                        ? new LinkedHashMap<>((Map<String, Object>) lastEntry.get("choices"))
+                Map<String, Object> choices = targetEntry.get("choices") instanceof Map
+                        ? new LinkedHashMap<>((Map<String, Object>) targetEntry.get("choices"))
                         : new LinkedHashMap<>();
 
                 Map<String, Object> asiRecord = new LinkedHashMap<>();
@@ -827,7 +939,7 @@ public class CharacterService {
                 if (asi.getFeatAbility() != null) asiRecord.put("featAbility", asi.getFeatAbility());
 
                 choices.put("asi", asiRecord);
-                lastEntry.put("choices", choices);
+                targetEntry.put("choices", choices);
                 character.setLevelHistory(objectMapper.writeValueAsString(history));
             }
         } catch (Exception ignored) {}
@@ -841,11 +953,11 @@ public class CharacterService {
                     new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {}))
                     : new ArrayList<>();
 
-            if (!history.isEmpty()) {
-                Map<String, Object> lastEntry = history.get(history.size() - 1);
+            Map<String, Object> targetEntry = findNextAsiEntry(history);
+            if (targetEntry != null) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> choices = lastEntry.get("choices") instanceof Map
-                        ? new LinkedHashMap<>((Map<String, Object>) lastEntry.get("choices"))
+                Map<String, Object> choices = targetEntry.get("choices") instanceof Map
+                        ? new LinkedHashMap<>((Map<String, Object>) targetEntry.get("choices"))
                         : new LinkedHashMap<>();
 
                 Map<String, Object> asiRecord = new LinkedHashMap<>();
@@ -875,7 +987,7 @@ public class CharacterService {
                 asiRecord.put("appliedEffects", appliedRecord);
 
                 choices.put("asi", asiRecord);
-                lastEntry.put("choices", choices);
+                targetEntry.put("choices", choices);
                 character.setLevelHistory(objectMapper.writeValueAsString(history));
             }
         } catch (Exception ignored) {}
