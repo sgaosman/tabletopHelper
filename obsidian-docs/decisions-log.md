@@ -676,3 +676,14 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** The previous approach (always using `history.get(history.size() - 1)`) was correct for the single-ASI level-up flow but incorrect for post-creation ASI application. A level 8 Fighter has ASI at class levels 4, 6, and 8, but the last history entry is level 8 regardless of which ASI is being applied. Forward scanning correctly handles both cases: level-up (only one unrecorded ASI, which is the last entry) and post-creation (multiple unrecorded ASIs, applied in order).
 
 **Trade-offs:** None identified. The forward scan is O(n) where n is character level (max 20), which is negligible.
+
+## D059: Wizard Spellbook as Curated spellsKnown Subset
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** Wizard spellbook management uses the existing `spellsKnown` JSONB array with `source: "class:Wizard"`. At creation, Wizard spells are stored with `prepared: false` (unlike other prepared casters which default to `prepared: true`). The character sheet provides "Add to Spellbook" (search full class list, add with `prepared: false`) and "Remove from Spellbook" buttons. The "Change Prepared" modal for Wizard filters to only spellbook spells rather than searching the full class list. Starting spellbook count is `6 + (level - 1) * 2` per `wizardSpellbookCount()`.
+
+**Rationale:** Wizards are unique among prepared casters: they prepare from a curated spellbook, not the full class list. Other prepared casters (Cleric, Druid, Paladin) have implicit access to all class spells and only need to toggle prepared status. The spellbook is a persistent, growing collection that the player manages — adding spells found during adventuring, copying from scrolls, etc. Storing spellbook spells as unprepared `spellsKnown` entries with an add/remove workflow matches this two-tier model (spellbook membership, then preparation) while reusing the existing data model.
+
+**Trade-offs:** No schema changes needed. The `prepared: false` default for Wizard creation means a newly created Wizard has no prepared spells and must prepare them from the character sheet — a deliberate design choice matching D&D RAW.
