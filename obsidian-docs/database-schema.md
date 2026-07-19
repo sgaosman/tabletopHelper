@@ -333,6 +333,7 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | language_proficiencies | JSONB | `@JsonRawValue` |
 | starting_equipment | JSONB | `@JsonRawValue` |
 | feature | JSONB | `@JsonRawValue` — {name, description} |
+| feats | JSONB | `@JsonRawValue` — array of feat name strings, e.g. `["Magic initiate"]`. 15 backgrounds have feats. |
 | description | TEXT | |
 | created_at | TIMESTAMPTZ | |
 

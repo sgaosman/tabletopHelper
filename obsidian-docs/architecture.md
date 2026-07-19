@@ -184,6 +184,7 @@ tabletophelper/
 │   │   │   ├── dm/               # DM-specific pages
 │   │   │   └── player/           # Player-specific pages
 │   │   ├── components/           # Reusable UI components
+│   │   ├── utils/                # Utility modules (featSpellParser, parseMarkup)
 │   │   └── types/                # TypeScript interfaces
 │   ├── vite.config.ts            # Dev server proxy + Tailwind plugin
 │   └── package.json

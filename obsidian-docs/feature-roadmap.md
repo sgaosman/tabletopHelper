@@ -218,6 +218,12 @@
 - [x] Background feat detection and configuration during character creation: feat selection (multi-feat backgrounds), option picker, ability picker, feat spell selection in Spells step
 - [x] Feat spell parser (`featSpellParser.ts`): parses 5etools `additionalSpells` format into normalized `ParsedFeatOption` (handles known/innate/daily/choose-filter/choose-from-list/ability patterns)
 - [x] Frontend feat spell management: "Add Feat Spells" modal on character sheet for post-creation feat acquisition, spell-granting feat search, option/ability/spell configuration
+- [x] Feat spell removal: remove button on feat spell boxes with inline confirmation
+- [x] Non-caster class spell section hiding: classes like Fighter don't show an empty class spell section when they only have feat spells; spellcaster subclasses (Eldritch Knight, Arcane Trickster) are excluded from this check
+- [x] Spell preparation limit enforcement in Change Prepared modal
+- [x] Max spell level enforcement in Manage Known modal
+- [x] Cantrip exclusion from preparation/known modals
+- [x] Wizard cantrip swapping from level 3+ (Cantrip Formulas class feature)
 
 **Frontend tasks:**
 - [x] Character creation wizard: race selector (with ASI preview and Tasha's reassignment) → class selector (with hit die and proficiency preview) → subclass selector (if level ≥ 3) → ability scores (method selector + inputs) → background → alignment → campaign assignment

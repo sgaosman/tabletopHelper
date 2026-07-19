@@ -141,18 +141,18 @@ All endpoints require authentication.
 
 ### POST /characters
 
-Create a new player character owned by the authenticated user.
+Create a new player character owned by the authenticated user. Uses FK references to seeded reference data.
 
 **Request:**
 ```json
 {
   "name": "Gandalf",
-  "race": "Human",
-  "characterClass": "Wizard",
-  "subclass": "School of Evocation",
-  "level": 20,
-  "background": "Sage",
+  "raceId": "uuid",
+  "classId": "uuid",
+  "subclassId": "uuid (optional)",
+  "backgroundId": "uuid",
   "alignment": "Neutral Good",
+  "abilityScoreMethod": "standard_array",
   "strength": 10,
   "dexterity": 14,
   "constitution": 16,
@@ -160,19 +160,28 @@ Create a new player character owned by the authenticated user.
   "wisdom": 18,
   "charisma": 16,
   "hpMax": 120,
-  "armourClass": 15,
-  "initiativeBonus": 2,
   "speed": 30,
-  "proficiencyBonus": 6,
   "campaignId": "uuid (optional)",
-  "armorProficiencies": "[\"Light armor\",\"Medium armor\"]",
-  "weaponProficiencies": "[\"Simple weapons\"]",
+  "savingThrowProficiencies": "[\"INT\",\"WIS\"]",
+  "skillProficiencies": "[\"Arcana\",\"History\"]",
+  "armorProficiencies": "[\"Light armor\"]",
+  "weaponProficiencies": "[\"Daggers\",\"Darts\",\"Slings\",\"Quarterstaffs\",\"Light crossbows\"]",
   "toolProficiencies": "[\"Herbalism kit\"]",
-  "languageProficiencies": "[\"Common\",\"Elvish\",\"Draconic\"]"
+  "languageProficiencies": "[\"Common\",\"Elvish\",\"Draconic\"]",
+  "damageResistances": "[\"fire\"]",
+  "racialAbilityBonuses": "[{\"ability\":\"Intelligence\",\"bonus\":2}]",
+  "spellcastingAbility": "INT",
+  "spellsKnown": "[{\"name\":\"Fire Bolt\",\"level\":0,\"source\":\"class:Wizard\"},{\"name\":\"Shield\",\"level\":1,\"source\":\"class:Wizard\",\"prepared\":true}]",
+  "features": "[{\"name\":\"Magic Initiate\",\"description\":\"Granted by Astral Drifter background.\",\"source\":\"Astral Drifter\"}]",
+  "hitDiceMap": "{\"Wizard\":{\"total\":1,\"remaining\":1,\"faces\":6}}"
 }
 ```
 
-**Response (201):** Full character object.
+For spellcaster classes, `spellSlots`, `spellSaveDc`, and `spellAttackBonus` are auto-calculated server-side if not provided. For non-casters with feat spells, the frontend calculates and sends these values.
+
+The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceName"`, `"feat:FeatName"`. Entries support `prepared`, `alwaysPrepared`, `atWill`, `usesPerLongRest`, and `unlocksAtLevel` fields.
+
+**Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus).
 
 ### PUT /characters/{characterId}
 
