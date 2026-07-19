@@ -804,6 +804,14 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
   const prepLimit = getPreparedCount(className, char.level, abilityMod_);
   const knownLimit = SPELLS_KNOWN[className]?.[char.level] ?? 0;
 
+  const slots = safeJsonParse<Record<string, { total: number; used: number }>>(char.spellSlots, {});
+  const maxSpellLevel = Math.max(0, ...Object.keys(slots).map(k => {
+    if (k.startsWith('pact_')) return parseInt(k.replace('pact_', ''));
+    const n = parseInt(k);
+    return isNaN(n) ? 0 : n;
+  }));
+  const validLevels = Array.from({ length: maxSpellLevel + 1 }, (_, i) => i);
+
   useEffect(() => {
     doSearch();
   }, [selectedLevel]);
@@ -813,9 +821,13 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
     try {
       const params: Record<string, unknown> = { className, size: 50 };
       if (searchQuery.trim()) params.name = searchQuery.trim();
-      if (selectedLevel !== '') params.level = selectedLevel;
+      if (selectedLevel !== '') {
+        params.level = selectedLevel;
+      } else if (maxSpellLevel > 0) {
+        params.level = validLevels.join(',');
+      }
       const res = await searchSpells(params as any);
-      setSearchResults(res.content);
+      setSearchResults(res.content.filter(s => s.level <= maxSpellLevel));
     } catch { /* ignore */ }
     setSearching(false);
   }
@@ -838,11 +850,13 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
             s.name === spell.name && s.source === source ? { ...s, prepared: false } : s
           ));
         } else {
+          if (preparedCount >= prepLimit) return;
           setLocalSpells(localSpells.map(s =>
             s.name === spell.name && s.source === source ? { ...s, prepared: true } : s
           ));
         }
       } else {
+        if (preparedCount >= prepLimit) return;
         setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source, prepared: true }]);
       }
     } else {
@@ -850,6 +864,7 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
       if (exists) {
         setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
       } else {
+        if (knownLimit > 0 && leveled.length >= knownLimit) return;
         setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source }]);
       }
     }
@@ -899,7 +914,7 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
               className="bg-gray-800 border border-gray-700 rounded-md px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
             >
               <option value="">All Levels</option>
-              {[0,1,2,3,4,5,6,7,8,9].map(l => (
+              {validLevels.map(l => (
                 <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
               ))}
             </select>
@@ -921,17 +936,23 @@ function ManageSpellsModal({ char, type, className, currentSpells, saveField, on
                 const added = isAdded(spell);
                 const prepared = isPreparedSpell(spell);
                 const isAlwaysPrep = classSpells.some(s => s.name === spell.name && s.alwaysPrepared);
+                const atLimit = type === 'prepared'
+                  ? preparedCount >= prepLimit && !prepared
+                  : knownLimit > 0 && leveled.length >= knownLimit && !added;
+                const disabled = isAlwaysPrep || atLimit;
                 return (
                   <button
                     key={spell.id}
-                    onClick={() => !isAlwaysPrep && toggleSpell(spell)}
-                    disabled={isAlwaysPrep}
+                    onClick={() => !disabled && toggleSpell(spell)}
+                    disabled={disabled}
                     className={`w-full flex items-center justify-between py-2 px-3 rounded-md text-sm transition-colors ${
                       isAlwaysPrep
                         ? 'bg-amber-900/20 text-amber-300 cursor-not-allowed'
-                        : (type === 'prepared' ? prepared : added)
-                          ? 'bg-indigo-900/30 text-indigo-200 hover:bg-indigo-900/50'
-                          : 'text-gray-300 hover:bg-gray-800'
+                        : atLimit
+                          ? 'text-gray-600 cursor-not-allowed'
+                          : (type === 'prepared' ? prepared : added)
+                            ? 'bg-indigo-900/30 text-indigo-200 hover:bg-indigo-900/50'
+                            : 'text-gray-300 hover:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-center gap-2">
