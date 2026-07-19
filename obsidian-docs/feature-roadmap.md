@@ -10,15 +10,15 @@
 | 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
 | 5 | Combat Engine | Complete | Full combat: damage, healing, conditions (with duration tracking), death saves, concentration, attack rolls, spell slot tracking, turn-based auto-expiry |
 | 6 | Polish, Mobile & Deployment | Deferred | Will be done after M13 when combat UI has stabilised |
-| 7 | Data Gathering & Spell Effect Schema | Not started | No code — produces data files and analysis docs for human review |
-| 8 | Spell Effect Data Population & Review Cycle | Not started | Validate and finalise all 294 spell definitions |
-| 9 | Character Builder Overhaul | Not started | Race/class/subclass from reference data, ability score methods, new sheet tabs (Spells tab blocked by M7/M8) |
+| 7 | Data Gathering & Spell Effect Schema | Complete | 288 spells, 104 items, 2,357 monsters, class/race analysis — data files and review docs produced |
+| 8 | Spell Effect Data Population & Review Cycle | Complete | All data files validated and approved — 2 critical, 2 moderate, 48 markup fixes applied |
+| 9 | Character Builder Overhaul | Complete | Reference data entities (races, classes, subclasses, backgrounds, feats), 5etools seeders, 6-step creation wizard, 6-tab character sheet, short/long rest mechanics |
 | 10 | Spell Resolver Engine & Encounter Spellcasting | Not started | Cast Spell action, auto-resolution, source-tracked conditions, component checks, optimistic locking |
 | 11 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
 | 12 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
 | 13 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 14 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
-| 15 | Short/Long Rest System | Not started | Hit dice spending, HP recovery, spell slot recovery, feature/charge recovery per rest type |
+| 15 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
 | 16 | Class Feature Automation | Not started | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
 | 17 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 
@@ -177,13 +177,13 @@
 **Goal:** Human review and finalisation of all 294 spell effect definitions from M7.
 
 **Tasks:**
-- [ ] Human reviews `docs/spell-effect-review.md` and flags corrections
-- [ ] Corrections applied to `spell-effect-definitions.json`
-- [ ] Re-run validation checks (cross-reference 5e.tools metadata, verify all cantrips have scaling, verify delivery methods match raw data)
-- [ ] Final sign-off on all spell definitions
-- [ ] Human reviews `docs/class-feature-analysis.md`, `docs/race-trait-analysis.md`, `docs/item-effect-review.md`, `docs/monster-action-review.md`
-- [ ] Corrections applied to all data files
-- [ ] All data files approved for use in subsequent milestones
+- [x] Human reviews `docs/spell-effect-review.md` and flags corrections
+- [x] Corrections applied to `spell-effect-definitions.json` (Snare/Earthbind saveToEndEachTurn fixed, 48 markup tags stripped)
+- [x] Re-run validation checks (25/25 passed — cross-reference 5e.tools metadata, cantrip scaling, delivery methods, type checks, structural integrity)
+- [x] Final sign-off on all spell definitions — see `docs/m8-final-signoff.md`
+- [x] Human reviews `docs/class-feature-analysis.md`, `docs/race-trait-analysis.md`, `docs/item-effect-review.md`, `docs/monster-action-review.md`
+- [x] Corrections applied to all data files (Mummy Lord damage + LR fixed, markup cleaned)
+- [x] All data files approved for use in subsequent milestones
 
 ## Milestone 9: Character Builder Overhaul
 

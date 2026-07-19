@@ -288,6 +288,46 @@ Get a single condition by ID.
 
 Return the full quick reference data from `bookref-quick.json`. Response is a JSON array of 5 chapter objects, each containing an `entries` array of sections with nested content (text, tables, lists, insets, etc.) using 5e.tools markup format.
 
+### GET /reference/races
+
+List all races sorted by name. Optional `?source=PHB` filter.
+
+### GET /reference/races/{id}
+
+Get a single race by ID.
+
+### GET /reference/races/filters/sources
+
+List distinct race source codes.
+
+### GET /reference/classes
+
+List all 13 character classes sorted by name. Includes hit dice, spellcasting info, spell slot progression, skill choices, and proficiencies.
+
+### GET /reference/classes/{id}
+
+Get a single class by ID.
+
+### GET /reference/classes/{id}/subclasses
+
+List subclasses for a given class, sorted by name. Includes features and always-prepared spells.
+
+### GET /reference/backgrounds
+
+List all 101 backgrounds sorted by name. Includes skill/tool/language proficiencies and background feature.
+
+### GET /reference/backgrounds/{id}
+
+Get a single background by ID.
+
+### GET /reference/feats
+
+List all 108 feats sorted by name. Includes prerequisites, description, and ability score increases.
+
+### GET /reference/feats/{id}
+
+Get a single feat by ID.
+
 ## Encounters
 
 All endpoints require authentication. The authenticated user must be the DM of the encounter's campaign (except `GET /encounters/join/{code}`).

@@ -1,11 +1,17 @@
 export interface CharacterCreateRequest {
   name: string;
+  raceId?: string;
+  classId?: string;
+  subclassId?: string;
+  backgroundId?: string;
   race?: string;
   characterClass?: string;
   subclass?: string;
   level?: number;
   background?: string;
   alignment?: string;
+  abilityScoreMethod?: string;
+  racialAbilityBonuses?: string;
   strength: number;
   dexterity: number;
   constitution: number;
@@ -17,6 +23,19 @@ export interface CharacterCreateRequest {
   initiativeBonus?: number;
   speed?: number;
   proficiencyBonus?: number;
+  savingThrowProficiencies?: string;
+  skillProficiencies?: string;
+  spellsKnown?: string;
+  spellSlots?: string;
+  spellSaveDc?: number;
+  spellAttackBonus?: number;
+  spellcastingAbility?: string;
+  features?: string;
+  damageResistances?: string;
+  equipment?: string;
+  currency?: string;
+  hitDiceMap?: string;
+  preparedSpells?: string;
   campaignId?: string;
 }
 
@@ -30,6 +49,12 @@ export interface CharacterUpdateRequest {
   experiencePoints?: number;
   background?: string;
   alignment?: string;
+  raceId?: string;
+  classId?: string;
+  subclassId?: string;
+  backgroundId?: string;
+  abilityScoreMethod?: string;
+  racialAbilityBonuses?: string;
   strength?: number;
   dexterity?: number;
   constitution?: number;
@@ -47,6 +72,16 @@ export interface CharacterUpdateRequest {
   proficiencyBonus?: number;
   savingThrowProficiencies?: string;
   skillProficiencies?: string;
+  skillExpertises?: string;
+  damageResistances?: string;
+  damageImmunities?: string;
+  conditionImmunities?: string;
+  features?: string;
+  spellsKnown?: string;
+  spellSlots?: string;
+  spellSaveDc?: number;
+  spellAttackBonus?: number;
+  spellcastingAbility?: string;
   equipment?: string;
   currency?: string;
   personalityTraits?: string;
@@ -56,6 +91,11 @@ export interface CharacterUpdateRequest {
   notes?: string;
   portraitUrl?: string;
   campaignId?: string;
+  multiclassEntries?: string;
+  preparedSpells?: string;
+  attunedItems?: string;
+  equippedItems?: string;
+  hitDiceMap?: string;
 }
 
 export interface PlayerCharacter {
@@ -63,6 +103,14 @@ export interface PlayerCharacter {
   userId: string;
   ownerDisplayName: string;
   campaignId?: string;
+  raceId?: string;
+  raceName?: string;
+  classId?: string;
+  className?: string;
+  subclassId?: string;
+  subclassName?: string;
+  backgroundId?: string;
+  backgroundName?: string;
   name: string;
   race?: string;
   characterClass?: string;
@@ -108,6 +156,13 @@ export interface PlayerCharacter {
   deathSaveSuccesses: number;
   deathSaveFailures: number;
   portraitUrl?: string;
+  abilityScoreMethod?: string;
+  racialAbilityBonuses?: string;
+  multiclassEntries?: string;
+  preparedSpells?: string;
+  attunedItems?: string;
+  equippedItems?: string;
+  hitDiceMap?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

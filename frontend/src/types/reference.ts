@@ -74,3 +74,73 @@ export interface PageResponse<T> {
   number: number;
   size: number;
 }
+
+export interface Race {
+  id: string;
+  name: string;
+  source: string;
+  size: string;
+  speed: string;
+  abilityScoreBonuses: string;
+  creatureType: string;
+  darkvision: number | null;
+  traits: string;
+  proficiencies: string;
+  resistances: string;
+  baseRaceName: string | null;
+  description: string | null;
+}
+
+export interface CharacterClassRef {
+  id: string;
+  name: string;
+  source: string;
+  hitDice: number;
+  primaryAbility: string;
+  savingThrowProficiencies: string;
+  armorProficiencies: string;
+  weaponProficiencies: string;
+  toolProficiencies: string;
+  skillChoices: string;
+  spellcastingAbility: string | null;
+  isSpellcaster: boolean;
+  isPreparedCaster: boolean;
+  isKnownCaster: boolean;
+  isPactMagic: boolean;
+  spellSlotProgression: string;
+  features: string;
+  startingEquipment: string;
+  subclassLevel: number;
+}
+
+export interface Subclass {
+  id: string;
+  name: string;
+  source: string;
+  characterClass: { id: string; name: string };
+  features: string;
+  alwaysPreparedSpells: string;
+  additionalProficiencies: string;
+}
+
+export interface Background {
+  id: string;
+  name: string;
+  source: string;
+  skillProficiencies: string;
+  toolProficiencies: string;
+  languageProficiencies: string;
+  startingEquipment: string;
+  feature: string;
+  description: string | null;
+}
+
+export interface Feat {
+  id: string;
+  name: string;
+  source: string;
+  prerequisite: string;
+  description: string;
+  abilityScoreIncrease: string;
+  grantsFeatures: string;
+}

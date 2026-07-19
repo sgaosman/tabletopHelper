@@ -16,6 +16,7 @@ import EncounterBuilderPage from './pages/dm/EncounterBuilderPage';
 import EncounterSessionPage from './pages/dm/EncounterSessionPage';
 import JoinEncounterPage from './pages/player/JoinEncounterPage';
 import PlayerEncounterSessionPage from './pages/player/EncounterSessionPage';
+import CharacterCreateWizard from './pages/player/CharacterCreateWizard';
 import PlaceholderPage from './components/common/PlaceholderPage';
 import QuickReferencePage from './pages/QuickReferencePage';
 
@@ -49,6 +50,7 @@ export default function App() {
 
       <Route path="/player" element={<ProtectedRoute><PlayerDashboard /></ProtectedRoute>} />
       <Route path="/player/quickref" element={<ProtectedRoute><QuickReferencePage /></ProtectedRoute>} />
+      <Route path="/player/characters/new" element={<ProtectedRoute><CharacterCreateWizard /></ProtectedRoute>} />
       <Route path="/player/characters/:characterId" element={<ProtectedRoute><CharacterSheetPage /></ProtectedRoute>} />
       <Route path="/player/encounter/join" element={<ProtectedRoute><JoinEncounterPage /></ProtectedRoute>} />
       <Route path="/player/encounter/:encounterId/session" element={<ProtectedRoute><PlayerEncounterSessionPage /></ProtectedRoute>} />

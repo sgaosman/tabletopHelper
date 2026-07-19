@@ -6,6 +6,7 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.CharacterCreateRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.CharacterUpdateRequest;
+import com.tabletophelper.reference.*;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,10 @@ public class CharacterService {
     private final UserRepository userRepository;
     private final CampaignRepository campaignRepository;
     private final CampaignMemberRepository campaignMemberRepository;
+    private final RaceRepository raceRepository;
+    private final CharacterClassRepository characterClassRepository;
+    private final SubclassRepository subclassRepository;
+    private final BackgroundRepository backgroundRepository;
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
@@ -35,16 +40,60 @@ public class CharacterService {
                     .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
         }
 
+        Race raceRef = null;
+        if (request.getRaceId() != null) {
+            raceRef = raceRepository.findById(request.getRaceId())
+                    .orElseThrow(() -> new IllegalArgumentException("Race not found"));
+        }
+
+        CharacterClass classRef = null;
+        if (request.getClassId() != null) {
+            classRef = characterClassRepository.findById(request.getClassId())
+                    .orElseThrow(() -> new IllegalArgumentException("Class not found"));
+        }
+
+        Subclass subclassRef = null;
+        if (request.getSubclassId() != null) {
+            subclassRef = subclassRepository.findById(request.getSubclassId())
+                    .orElseThrow(() -> new IllegalArgumentException("Subclass not found"));
+        }
+
+        Background backgroundRef = null;
+        if (request.getBackgroundId() != null) {
+            backgroundRef = backgroundRepository.findById(request.getBackgroundId())
+                    .orElseThrow(() -> new IllegalArgumentException("Background not found"));
+        }
+
+        String raceName = raceRef != null ? raceRef.getName() : request.getRace();
+        String className = classRef != null ? classRef.getName() : request.getCharacterClass();
+        String subclassName = subclassRef != null ? subclassRef.getName() : request.getSubclass();
+        String backgroundName = backgroundRef != null ? backgroundRef.getName() : request.getBackground();
+
+        int level = request.getLevel() != null ? request.getLevel() : 1;
+        int profBonus = proficiencyBonusForLevel(level);
+
+        Integer speed = request.getSpeed();
+        if (speed == null && raceRef != null) {
+            speed = extractWalkSpeed(raceRef.getSpeed());
+        }
+        if (speed == null) speed = 30;
+
         PlayerCharacter character = PlayerCharacter.builder()
                 .user(user)
                 .campaign(campaign)
+                .raceRef(raceRef)
+                .classRef(classRef)
+                .subclassRef(subclassRef)
+                .backgroundRef(backgroundRef)
                 .name(request.getName())
-                .race(request.getRace())
-                .characterClass(request.getCharacterClass())
-                .subclass(request.getSubclass())
-                .level(request.getLevel() != null ? request.getLevel() : 1)
-                .background(request.getBackground())
+                .race(raceName)
+                .characterClass(className)
+                .subclass(subclassName)
+                .level(level)
+                .background(backgroundName)
                 .alignment(request.getAlignment())
+                .abilityScoreMethod(request.getAbilityScoreMethod())
+                .racialAbilityBonuses(request.getRacialAbilityBonuses())
                 .strength(request.getStrength())
                 .dexterity(request.getDexterity())
                 .constitution(request.getConstitution())
@@ -53,11 +102,29 @@ public class CharacterService {
                 .charisma(request.getCharisma())
                 .hpMax(request.getHpMax())
                 .hpCurrent(request.getHpMax())
-                .armourClass(request.getArmourClass() != null ? request.getArmourClass() : 10)
-                .initiativeBonus(request.getInitiativeBonus() != null ? request.getInitiativeBonus() : 0)
-                .speed(request.getSpeed() != null ? request.getSpeed() : 30)
-                .proficiencyBonus(request.getProficiencyBonus() != null ? request.getProficiencyBonus() : 2)
+                .armourClass(request.getArmourClass() != null ? request.getArmourClass() : 10 + abilityMod(request.getDexterity()))
+                .initiativeBonus(request.getInitiativeBonus() != null ? request.getInitiativeBonus() : abilityMod(request.getDexterity()))
+                .speed(speed)
+                .proficiencyBonus(request.getProficiencyBonus() != null ? request.getProficiencyBonus() : profBonus)
+                .savingThrowProficiencies(request.getSavingThrowProficiencies())
+                .skillProficiencies(request.getSkillProficiencies())
+                .features(request.getFeatures())
+                .damageResistances(request.getDamageResistances())
+                .spellsKnown(request.getSpellsKnown())
+                .spellSlots(request.getSpellSlots())
+                .spellSaveDc(request.getSpellSaveDc())
+                .spellAttackBonus(request.getSpellAttackBonus())
+                .spellcastingAbility(request.getSpellcastingAbility())
+                .equipment(request.getEquipment())
+                .currency(request.getCurrency() != null ? request.getCurrency() : "{\"cp\":0,\"sp\":0,\"ep\":0,\"gp\":0,\"pp\":0}")
+                .hitDiceMap(request.getHitDiceMap())
+                .preparedSpells(request.getPreparedSpells())
                 .build();
+
+        if (classRef != null && character.getHitDiceTotal() == null) {
+            character.setHitDiceTotal(level + "d" + classRef.getHitDice());
+            character.setHitDiceRemaining(character.getHitDiceTotal());
+        }
 
         character = characterRepository.save(character);
         return toResponse(character);
@@ -80,6 +147,33 @@ public class CharacterService {
         if (request.getExperiencePoints() != null) character.setExperiencePoints(request.getExperiencePoints());
         if (request.getBackground() != null) character.setBackground(request.getBackground());
         if (request.getAlignment() != null) character.setAlignment(request.getAlignment());
+        if (request.getAbilityScoreMethod() != null) character.setAbilityScoreMethod(request.getAbilityScoreMethod());
+        if (request.getRacialAbilityBonuses() != null) character.setRacialAbilityBonuses(request.getRacialAbilityBonuses());
+
+        if (request.getRaceId() != null) {
+            Race r = raceRepository.findById(request.getRaceId())
+                    .orElseThrow(() -> new IllegalArgumentException("Race not found"));
+            character.setRaceRef(r);
+            character.setRace(r.getName());
+        }
+        if (request.getClassId() != null) {
+            CharacterClass cc = characterClassRepository.findById(request.getClassId())
+                    .orElseThrow(() -> new IllegalArgumentException("Class not found"));
+            character.setClassRef(cc);
+            character.setCharacterClass(cc.getName());
+        }
+        if (request.getSubclassId() != null) {
+            Subclass sc = subclassRepository.findById(request.getSubclassId())
+                    .orElseThrow(() -> new IllegalArgumentException("Subclass not found"));
+            character.setSubclassRef(sc);
+            character.setSubclass(sc.getName());
+        }
+        if (request.getBackgroundId() != null) {
+            Background bg = backgroundRepository.findById(request.getBackgroundId())
+                    .orElseThrow(() -> new IllegalArgumentException("Background not found"));
+            character.setBackgroundRef(bg);
+            character.setBackground(bg.getName());
+        }
 
         if (request.getStrength() != null) character.setStrength(request.getStrength());
         if (request.getDexterity() != null) character.setDexterity(request.getDexterity());
@@ -122,6 +216,12 @@ public class CharacterService {
         if (request.getNotes() != null) character.setNotes(request.getNotes());
         if (request.getPortraitUrl() != null) character.setPortraitUrl(request.getPortraitUrl());
 
+        if (request.getMulticlassEntries() != null) character.setMulticlassEntries(request.getMulticlassEntries());
+        if (request.getPreparedSpells() != null) character.setPreparedSpells(request.getPreparedSpells());
+        if (request.getAttunedItems() != null) character.setAttunedItems(request.getAttunedItems());
+        if (request.getEquippedItems() != null) character.setEquippedItems(request.getEquippedItems());
+        if (request.getHitDiceMap() != null) character.setHitDiceMap(request.getHitDiceMap());
+
         if (request.getCampaignId() != null) {
             Campaign campaign = campaignRepository.findById(request.getCampaignId())
                     .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
@@ -162,6 +262,14 @@ public class CharacterService {
                 .userId(c.getUser().getId())
                 .ownerDisplayName(c.getUser().getDisplayName())
                 .campaignId(c.getCampaign() != null ? c.getCampaign().getId() : null)
+                .raceId(c.getRaceRef() != null ? c.getRaceRef().getId() : null)
+                .raceName(c.getRaceRef() != null ? c.getRaceRef().getName() : null)
+                .classId(c.getClassRef() != null ? c.getClassRef().getId() : null)
+                .className(c.getClassRef() != null ? c.getClassRef().getName() : null)
+                .subclassId(c.getSubclassRef() != null ? c.getSubclassRef().getId() : null)
+                .subclassName(c.getSubclassRef() != null ? c.getSubclassRef().getName() : null)
+                .backgroundId(c.getBackgroundRef() != null ? c.getBackgroundRef().getId() : null)
+                .backgroundName(c.getBackgroundRef() != null ? c.getBackgroundRef().getName() : null)
                 .name(c.getName())
                 .race(c.getRace())
                 .characterClass(c.getCharacterClass())
@@ -207,9 +315,43 @@ public class CharacterService {
                 .deathSaveSuccesses(c.getDeathSaveSuccesses())
                 .deathSaveFailures(c.getDeathSaveFailures())
                 .portraitUrl(c.getPortraitUrl())
+                .abilityScoreMethod(c.getAbilityScoreMethod())
+                .racialAbilityBonuses(c.getRacialAbilityBonuses())
+                .multiclassEntries(c.getMulticlassEntries())
+                .preparedSpells(c.getPreparedSpells())
+                .attunedItems(c.getAttunedItems())
+                .equippedItems(c.getEquippedItems())
+                .hitDiceMap(c.getHitDiceMap())
                 .isActive(c.getIsActive())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();
+    }
+
+    static int abilityMod(Integer score) {
+        if (score == null) return 0;
+        return Math.floorDiv(score - 10, 2);
+    }
+
+    static int proficiencyBonusForLevel(int level) {
+        if (level <= 4) return 2;
+        if (level <= 8) return 3;
+        if (level <= 12) return 4;
+        if (level <= 16) return 5;
+        return 6;
+    }
+
+    private Integer extractWalkSpeed(String speedJson) {
+        if (speedJson == null) return null;
+        try {
+            if (speedJson.trim().startsWith("{")) {
+                var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                var node = mapper.readTree(speedJson);
+                if (node.has("walk")) return node.get("walk").asInt();
+            }
+            return Integer.parseInt(speedJson.trim());
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

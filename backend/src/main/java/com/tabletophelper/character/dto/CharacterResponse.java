@@ -15,6 +15,15 @@ public class CharacterResponse {
     private String ownerDisplayName;
     private UUID campaignId;
 
+    private UUID raceId;
+    private String raceName;
+    private UUID classId;
+    private String className;
+    private UUID subclassId;
+    private String subclassName;
+    private UUID backgroundId;
+    private String backgroundName;
+
     private String name;
     private String race;
     private String characterClass;
@@ -67,6 +76,15 @@ public class CharacterResponse {
     private Integer deathSaveSuccesses;
     private Integer deathSaveFailures;
     private String portraitUrl;
+
+    private String abilityScoreMethod;
+    private String racialAbilityBonuses;
+    private String multiclassEntries;
+    private String preparedSpells;
+    private String attunedItems;
+    private String equippedItems;
+    private String hitDiceMap;
+
     private Boolean isActive;
     private Instant createdAt;
     private Instant updatedAt;

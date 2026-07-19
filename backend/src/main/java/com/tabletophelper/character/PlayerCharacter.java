@@ -1,6 +1,10 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.campaign.Campaign;
+import com.tabletophelper.reference.Background;
+import com.tabletophelper.reference.CharacterClass;
+import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.user.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -32,6 +36,22 @@ public class PlayerCharacter {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "campaign_id")
     private Campaign campaign;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "race_id")
+    private Race raceRef;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "class_id")
+    private CharacterClass classRef;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subclass_id")
+    private Subclass subclassRef;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "background_id")
+    private Background backgroundRef;
 
     @Column(length = 200, nullable = false)
     private String name;
@@ -184,6 +204,33 @@ public class PlayerCharacter {
 
     @Column(name = "portrait_url", length = 500)
     private String portraitUrl;
+
+    @Column(name = "ability_score_method", length = 20)
+    private String abilityScoreMethod;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "racial_ability_bonuses", columnDefinition = "jsonb")
+    private String racialAbilityBonuses;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "multiclass_entries", columnDefinition = "jsonb")
+    private String multiclassEntries;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "prepared_spells", columnDefinition = "jsonb")
+    private String preparedSpells;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "attuned_items", columnDefinition = "jsonb")
+    private String attunedItems;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "equipped_items", columnDefinition = "jsonb")
+    private String equippedItems;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "hit_dice_map", columnDefinition = "jsonb")
+    private String hitDiceMap;
 
     @Column(name = "is_active")
     @Builder.Default

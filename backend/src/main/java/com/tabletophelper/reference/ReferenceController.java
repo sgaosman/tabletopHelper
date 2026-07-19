@@ -24,6 +24,11 @@ public class ReferenceController {
     private final SpellRepository spellRepository;
     private final ConditionRepository conditionRepository;
     private final ItemRepository itemRepository;
+    private final RaceRepository raceRepository;
+    private final CharacterClassRepository characterClassRepository;
+    private final SubclassRepository subclassRepository;
+    private final BackgroundRepository backgroundRepository;
+    private final FeatRepository featRepository;
     private final ObjectMapper objectMapper;
 
     @GetMapping("/spells")
@@ -136,6 +141,67 @@ public class ReferenceController {
     private List<String> splitFilter(String value) {
         if (value == null || value.isBlank()) return List.of();
         return Arrays.asList(value.split(","));
+    }
+
+    @GetMapping("/races")
+    public List<Race> getAllRaces(@RequestParam(required = false) String source) {
+        if (source != null && !source.isBlank()) {
+            return raceRepository.findBySourceOrderByNameAsc(source);
+        }
+        return raceRepository.findAllByOrderByNameAsc();
+    }
+
+    @GetMapping("/races/{id}")
+    public ResponseEntity<Race> getRace(@PathVariable UUID id) {
+        return raceRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/races/filters/sources")
+    public List<String> getRaceSources() {
+        return raceRepository.findDistinctSources();
+    }
+
+    @GetMapping("/classes")
+    public List<CharacterClass> getAllClasses() {
+        return characterClassRepository.findAllByOrderByNameAsc();
+    }
+
+    @GetMapping("/classes/{id}")
+    public ResponseEntity<CharacterClass> getCharacterClass(@PathVariable UUID id) {
+        return characterClassRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/classes/{id}/subclasses")
+    public List<Subclass> getSubclassesForClass(@PathVariable UUID id) {
+        return subclassRepository.findByCharacterClassIdOrderByNameAsc(id);
+    }
+
+    @GetMapping("/backgrounds")
+    public List<Background> getAllBackgrounds() {
+        return backgroundRepository.findAllByOrderByNameAsc();
+    }
+
+    @GetMapping("/backgrounds/{id}")
+    public ResponseEntity<Background> getBackground(@PathVariable UUID id) {
+        return backgroundRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/feats")
+    public List<Feat> getAllFeats() {
+        return featRepository.findAllByOrderByNameAsc();
+    }
+
+    @GetMapping("/feats/{id}")
+    public ResponseEntity<Feat> getFeat(@PathVariable UUID id) {
+        return featRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/quickref")

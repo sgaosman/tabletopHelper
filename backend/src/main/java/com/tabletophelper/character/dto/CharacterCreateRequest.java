@@ -15,6 +15,11 @@ public class CharacterCreateRequest {
     @Size(max = 200)
     private String name;
 
+    private UUID raceId;
+    private UUID classId;
+    private UUID subclassId;
+    private UUID backgroundId;
+
     private String race;
     private String characterClass;
     private String subclass;
@@ -24,6 +29,8 @@ public class CharacterCreateRequest {
 
     private String background;
     private String alignment;
+    private String abilityScoreMethod;
+    private String racialAbilityBonuses;
 
     @Min(1) @Max(30)
     private Integer strength;
@@ -51,6 +58,20 @@ public class CharacterCreateRequest {
     private Integer initiativeBonus;
     private Integer speed;
     private Integer proficiencyBonus;
+
+    private String savingThrowProficiencies;
+    private String skillProficiencies;
+    private String spellsKnown;
+    private String spellSlots;
+    private Integer spellSaveDc;
+    private Integer spellAttackBonus;
+    private String spellcastingAbility;
+    private String features;
+    private String damageResistances;
+    private String equipment;
+    private String currency;
+    private String hitDiceMap;
+    private String preparedSpells;
 
     private UUID campaignId;
 }

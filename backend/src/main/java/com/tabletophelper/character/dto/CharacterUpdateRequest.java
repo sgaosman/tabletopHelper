@@ -16,6 +16,13 @@ public class CharacterUpdateRequest {
     private String background;
     private String alignment;
 
+    private UUID raceId;
+    private UUID classId;
+    private UUID subclassId;
+    private UUID backgroundId;
+    private String abilityScoreMethod;
+    private String racialAbilityBonuses;
+
     private Integer strength;
     private Integer dexterity;
     private Integer constitution;
@@ -58,4 +65,10 @@ public class CharacterUpdateRequest {
 
     private String portraitUrl;
     private UUID campaignId;
+
+    private String multiclassEntries;
+    private String preparedSpells;
+    private String attunedItems;
+    private String equippedItems;
+    private String hitDiceMap;
 }

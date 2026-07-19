@@ -149,6 +149,17 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | death_save_successes | INTEGER | DEFAULT 0 | |
 | death_save_failures | INTEGER | DEFAULT 0 | |
 | portrait_url | VARCHAR(500) | | |
+| race_id | UUID | FK → races, NULLABLE | Reference to seeded race |
+| class_id | UUID | FK → character_classes, NULLABLE | Reference to seeded class |
+| subclass_id | UUID | FK → subclasses, NULLABLE | Reference to seeded subclass |
+| background_id | UUID | FK → backgrounds, NULLABLE | Reference to seeded background |
+| ability_score_method | VARCHAR(20) | | standard, pointbuy, manual |
+| racial_ability_bonuses | JSONB | | Snapshot of race ability bonuses |
+| multiclass_entries | JSONB | | Array of {classId, className, level} |
+| prepared_spells | JSONB | | Array of prepared spell names |
+| attuned_items | JSONB | | Array of attuned item names |
+| equipped_items | JSONB | | Array of equipped item names |
+| hit_dice_map | JSONB | | Per-class hit dice: {className: {total, remaining, faces}} |
 | is_active | BOOLEAN | DEFAULT TRUE | Soft delete |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
@@ -238,6 +249,103 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 15 conditions
+
+## Character Builder Reference Tables (Milestone 9 — Seeded from 5e.tools)
+
+### races
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| name | VARCHAR(200) | NOT NULL. Subraces stored as separate rows (e.g. "High Elf") |
+| source | VARCHAR(100) | |
+| size | VARCHAR(20) | "Medium", "Small", "Small/Medium" |
+| speed | JSONB | `@JsonRawValue` — int or {walk, fly, swim, ...} |
+| ability_score_bonuses | JSONB | `@JsonRawValue` — [{ability, bonus}] |
+| creature_type | VARCHAR(50) | |
+| darkvision | INTEGER | In feet, null if none |
+| traits | JSONB | `@JsonRawValue` — [{name, description}] |
+| proficiencies | JSONB | `@JsonRawValue` — {skills, languages, weapons, armor, tools} |
+| resistances | JSONB | `@JsonRawValue` — [string] |
+| base_race_name | VARCHAR(200) | Set for subraces (e.g. "Elf") |
+| description | TEXT | |
+| created_at | TIMESTAMPTZ | |
+
+**Count:** 226 races (base races + subraces merged from all sources)
+
+### character_classes
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| name | VARCHAR(100) | NOT NULL |
+| source | VARCHAR(100) | |
+| hit_dice | INTEGER | e.g. 8, 10, 12 |
+| primary_ability | VARCHAR(50) | |
+| saving_throw_proficiencies | JSONB | `@JsonRawValue` — ["STR", "CON"] |
+| armor_proficiencies | JSONB | `@JsonRawValue` |
+| weapon_proficiencies | JSONB | `@JsonRawValue` |
+| tool_proficiencies | JSONB | `@JsonRawValue` |
+| skill_choices | JSONB | `@JsonRawValue` — {count, from: []} |
+| spellcasting_ability | VARCHAR(20) | null for non-casters |
+| is_spellcaster | BOOLEAN | |
+| is_prepared_caster | BOOLEAN | Cleric, Druid, Paladin, Wizard, Artificer |
+| is_known_caster | BOOLEAN | Bard, Ranger, Sorcerer, Warlock |
+| is_pact_magic | BOOLEAN | Warlock only |
+| spell_slot_progression | JSONB | `@JsonRawValue` — {level: {slotLevel: count}} |
+| features | JSONB | `@JsonRawValue` — [{level, name, description}] |
+| starting_equipment | JSONB | `@JsonRawValue` |
+| subclass_level | INTEGER | Level at which subclass is chosen |
+| created_at | TIMESTAMPTZ | |
+
+**Count:** 13 classes
+
+### subclasses
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| name | VARCHAR(200) | NOT NULL |
+| source | VARCHAR(100) | |
+| character_class_id | UUID | FK → character_classes, NOT NULL |
+| features | JSONB | `@JsonRawValue` — [{level, name, description}] |
+| always_prepared_spells | JSONB | `@JsonRawValue` — {level: [spellName]} |
+| additional_proficiencies | JSONB | `@JsonRawValue` |
+| created_at | TIMESTAMPTZ | |
+
+**Count:** 124 subclasses
+
+### backgrounds
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| name | VARCHAR(200) | NOT NULL |
+| source | VARCHAR(100) | |
+| skill_proficiencies | JSONB | `@JsonRawValue` |
+| tool_proficiencies | JSONB | `@JsonRawValue` |
+| language_proficiencies | JSONB | `@JsonRawValue` |
+| starting_equipment | JSONB | `@JsonRawValue` |
+| feature | JSONB | `@JsonRawValue` — {name, description} |
+| description | TEXT | |
+| created_at | TIMESTAMPTZ | |
+
+**Count:** 101 backgrounds
+
+### feats
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| name | VARCHAR(200) | NOT NULL |
+| source | VARCHAR(100) | |
+| prerequisite | JSONB | `@JsonRawValue` |
+| description | TEXT | |
+| ability_score_increase | JSONB | `@JsonRawValue` |
+| grants_features | JSONB | `@JsonRawValue` |
+| created_at | TIMESTAMPTZ | |
+
+**Count:** 108 feats
 
 ## Encounter Tables (Milestone 4)
 
