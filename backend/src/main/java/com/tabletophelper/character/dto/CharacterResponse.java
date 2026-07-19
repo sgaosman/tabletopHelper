@@ -67,6 +67,7 @@ public class CharacterResponse {
     private Integer spellSaveDc;
     private Integer spellAttackBonus;
     private String spellcastingAbility;
+    private String subclassAlwaysPreparedSpells;
 
     private String equipment;
     private String currency;
@@ -84,7 +85,6 @@ public class CharacterResponse {
     private String abilityScoreMethod;
     private String racialAbilityBonuses;
     private String multiclassEntries;
-    private String preparedSpells;
     private String attunedItems;
     private String equippedItems;
     private String hitDiceMap;

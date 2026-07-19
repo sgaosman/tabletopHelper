@@ -39,7 +39,6 @@ export interface CharacterCreateRequest {
   equipment?: string;
   currency?: string;
   hitDiceMap?: string;
-  preparedSpells?: string;
   multiclassClassEntries?: string;
   campaignId?: string;
 }
@@ -102,7 +101,6 @@ export interface CharacterUpdateRequest {
   campaignId?: string;
   clearCampaign?: boolean;
   multiclassEntries?: string;
-  preparedSpells?: string;
   attunedItems?: string;
   equippedItems?: string;
   hitDiceMap?: string;
@@ -160,6 +158,7 @@ export interface PlayerCharacter {
   spellSaveDc?: number;
   spellAttackBonus?: number;
   spellcastingAbility?: string;
+  subclassAlwaysPreparedSpells?: string;
   equipment?: string;
   currency?: string;
   personalityTraits?: string;
@@ -173,7 +172,6 @@ export interface PlayerCharacter {
   abilityScoreMethod?: string;
   racialAbilityBonuses?: string;
   multiclassEntries?: string;
-  preparedSpells?: string;
   attunedItems?: string;
   equippedItems?: string;
   hitDiceMap?: string;

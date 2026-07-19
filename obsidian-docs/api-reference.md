@@ -184,7 +184,7 @@ For multiclass characters (level >= 2), the `multiclassClassEntries` field conta
 
 The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceName"`, `"feat:FeatName"`. Entries support `prepared`, `alwaysPrepared`, `atWill`, `usesPerLongRest`, and `unlocksAtLevel` fields.
 
-**Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus).
+**Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus, subclassAlwaysPreparedSpells). The `subclassAlwaysPreparedSpells` field is a JSON object keyed by class level (e.g. `{"3":["Hold Person","Spike Growth"],"5":["Sleet Storm"]}`) — populated from the Subclass entity's seeded 5etools data.
 
 ### PUT /characters/{characterId}
 

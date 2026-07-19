@@ -17,6 +17,30 @@ export const SPELLS_KNOWN: Record<string, number[]> = {
   Warlock:  [0, 2, 3, 4, 5, 6, 7,  8,  9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
 };
 
+// 1/3 caster subclasses — cantrips known by CLASS level (not character level)
+export const THIRD_CASTER_CANTRIPS: Record<string, number[]> = {
+  'Eldritch Knight': [0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+  'Arcane Trickster': [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+};
+
+// 1/3 caster subclasses — spells known by CLASS level (not character level)
+export const THIRD_CASTER_SPELLS: Record<string, number[]> = {
+  'Eldritch Knight': [0, 0, 0, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13, 13],
+  'Arcane Trickster': [0, 0, 0, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13, 13],
+};
+
+export const THIRD_CASTER_SUBCLASSES = new Set(['Eldritch Knight', 'Arcane Trickster']);
+
+export const THIRD_CASTER_SPELL_LIST: Record<string, string> = {
+  'Eldritch Knight': 'Wizard',
+  'Arcane Trickster': 'Wizard',
+};
+
+export const THIRD_CASTER_ABILITY: Record<string, string> = {
+  'Eldritch Knight': 'INT',
+  'Arcane Trickster': 'INT',
+};
+
 export function wizardSpellbookCount(level: number): number {
   if (level <= 0) return 0;
   return 6 + (level - 1) * 2;
@@ -39,17 +63,26 @@ const FULL_CASTER_CLASSES = new Set(['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wiz
 const HALF_CASTER_CLASSES = new Set(['Paladin', 'Ranger']);
 const PACT_CASTER_CLASSES = new Set(['Warlock']);
 const ARTIFICER_CLASS = 'Artificer';
+const THIRD_CASTER_CLASSES = new Set(['Eldritch Knight', 'Arcane Trickster']);
 
-export function maxSpellLevel(className: string, level: number): number {
+export function maxSpellLevel(className: string, level: number, subclassName?: string): number {
   if (FULL_CASTER_CLASSES.has(className)) {
     return Math.min(9, Math.ceil(level / 2));
   }
-  if (HALF_CASTER_CLASSES.has(className) || className === ARTIFICER_CLASS) {
+  if (className === ARTIFICER_CLASS) {
+    if (level < 1) return 0;
+    return Math.min(5, Math.ceil(level / 4));
+  }
+  if (HALF_CASTER_CLASSES.has(className)) {
     if (level < 2) return 0;
     return Math.min(5, Math.ceil(level / 4));
   }
   if (PACT_CASTER_CLASSES.has(className)) {
     return Math.min(5, Math.ceil(level / 2));
+  }
+  if (subclassName && THIRD_CASTER_CLASSES.has(subclassName)) {
+    if (level < 3) return 0;
+    return Math.min(4, Math.ceil(level / 6));
   }
   return 0;
 }
@@ -60,4 +93,8 @@ export function proficiencyBonusForLevel(level: number): number {
   if (level <= 12) return 4;
   if (level <= 16) return 5;
   return 6;
+}
+
+export function thirdCasterMulticlassContribution(classLevel: number): number {
+  return Math.floor(classLevel / 3);
 }

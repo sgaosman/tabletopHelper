@@ -700,7 +700,22 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
   const [showAddFeat, setShowAddFeat] = useState(false);
   const [confirmRemoveFeat, setConfirmRemoveFeat] = useState<string | null>(null);
 
-  const hasSpells = char.spellcastingAbility || spellsKnown.length > 0;
+  const subclassAlwaysPrepared = useMemo(() => {
+    if (!char.subclassAlwaysPreparedSpells) return [];
+    const parsed = safeJsonParse<Record<string, string[]>>(char.subclassAlwaysPreparedSpells, {});
+    const entries = safeJsonParse<Array<{ className: string; level: number }>>(char.multiclassEntries, []);
+    const primaryEntry = entries.find(e => e.className === char.characterClass);
+    const classLevel = primaryEntry ? primaryEntry.level : char.level;
+    const unlocked: Array<{ name: string; classLevel: number }> = [];
+    for (const [lvlKey, spells] of Object.entries(parsed)) {
+      const lvl = parseInt(lvlKey);
+      if (isNaN(lvl) || lvl > classLevel) continue;
+      for (const name of spells) unlocked.push({ name, classLevel: lvl });
+    }
+    return unlocked;
+  }, [char.subclassAlwaysPreparedSpells, char.multiclassEntries, char.characterClass, char.level]);
+
+  const hasSpells = char.spellcastingAbility || spellsKnown.length > 0 || subclassAlwaysPrepared.length > 0;
   if (!hasSpells) {
     return <p className="text-gray-500 text-sm">This character is not a spellcaster.</p>;
   }
@@ -840,17 +855,62 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
     );
   }
 
+  const CASTER_ABILITY: Record<string, string> = {
+    Bard: 'CHA', Cleric: 'WIS', Druid: 'WIS', Paladin: 'CHA', Ranger: 'WIS',
+    Sorcerer: 'CHA', Warlock: 'CHA', Wizard: 'INT', Artificer: 'INT',
+  };
+  const THIRD_CASTER_ABILITY_MAP: Record<string, string> = {
+    'Eldritch Knight': 'INT', 'Arcane Trickster': 'INT',
+  };
+
+  const multiclassSpellStats = useMemo(() => {
+    const entries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+    if (entries.length <= 1) return [];
+    const stats: Array<{ className: string; ability: string; saveDc: number; attackBonus: number }> = [];
+    const seen = new Set<string>();
+    for (const e of entries) {
+      let ability = CASTER_ABILITY[e.className];
+      if (!ability && e.subclassName) ability = THIRD_CASTER_ABILITY_MAP[e.subclassName];
+      if (!ability || seen.has(ability)) continue;
+      seen.add(ability);
+      const abilityKey = ABILITY_FROM_ABBR[ability] as keyof PlayerCharacter;
+      const score = (char[abilityKey] as number) || 10;
+      const mod = abilityMod(score);
+      stats.push({
+        className: e.className,
+        ability,
+        saveDc: 8 + char.proficiencyBonus + mod,
+        attackBonus: char.proficiencyBonus + mod,
+      });
+    }
+    return stats.length > 1 ? stats : [];
+  }, [char.multiclassEntries, char.proficiencyBonus, char.strength, char.dexterity, char.constitution, char.intelligence, char.wisdom, char.charisma]);
+
   return (
     <div className="space-y-6">
       {/* Spellcasting stats */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Spellcasting</h3>
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard label="Ability" value={char.spellcastingAbility || '-'} />
-          {char.spellSaveDc && <StatCard label="Save DC" value={String(char.spellSaveDc)} />}
-          {char.spellAttackBonus != null && <StatCard label="Attack Bonus" value={formatMod(char.spellAttackBonus)} />}
+      {multiclassSpellStats.length > 0 ? (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Spellcasting by Class</h3>
+          {multiclassSpellStats.map(s => (
+            <div key={s.className} className="grid grid-cols-4 gap-2">
+              <StatCard label={s.className} value={s.ability} />
+              <StatCard label="Save DC" value={String(s.saveDc)} />
+              <StatCard label="Attack" value={formatMod(s.attackBonus)} />
+              <div />
+            </div>
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+          <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Spellcasting</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Ability" value={char.spellcastingAbility || '-'} />
+            {char.spellSaveDc && <StatCard label="Save DC" value={String(char.spellSaveDc)} />}
+            {char.spellAttackBonus != null && <StatCard label="Attack Bonus" value={formatMod(char.spellAttackBonus)} />}
+          </div>
+        </div>
+      )}
 
       {/* Spell slots */}
       {renderSlotButtons(regularSlots, 'Spell Slots')}
@@ -952,6 +1012,29 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
           </div>
         );
       })}
+
+      {/* Subclass always-prepared spells */}
+      {subclassAlwaysPrepared.length > 0 && char.subclassName && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">{char.subclassName} Spells</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900 text-amber-300">Always Prepared</span>
+          </div>
+          <div className="space-y-0.5">
+            {subclassAlwaysPrepared.map(s => (
+              <button
+                key={s.name}
+                onClick={() => viewSpellDetail(s.name)}
+                className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-gray-800 transition-colors w-full text-left group"
+              >
+                <Lock className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                <span className="text-white text-sm group-hover:text-indigo-300 transition-colors">{s.name}</span>
+                <span className="text-xs text-gray-600 ml-auto">Lv {s.classLevel}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Race spell boxes */}
       {raceGroups.map(({ raceName, spells }) => (

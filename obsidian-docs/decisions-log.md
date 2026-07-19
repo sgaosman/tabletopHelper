@@ -687,3 +687,36 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Wizards are unique among prepared casters: they prepare from a curated spellbook, not the full class list. Other prepared casters (Cleric, Druid, Paladin) have implicit access to all class spells and only need to toggle prepared status. The spellbook is a persistent, growing collection that the player manages — adding spells found during adventuring, copying from scrolls, etc. Storing spellbook spells as unprepared `spellsKnown` entries with an add/remove workflow matches this two-tier model (spellbook membership, then preparation) while reusing the existing data model.
 
 **Trade-offs:** No schema changes needed. The `prepared: false` default for Wizard creation means a newly created Wizard has no prepared spells and must prepare them from the character sheet — a deliberate design choice matching D&D RAW.
+
+## D060: 1/3 Caster Subclass Support (Eldritch Knight / Arcane Trickster)
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** Eldritch Knight and Arcane Trickster are handled as 1/3 caster exceptions to Fighter and Rogue. They gain spellcasting at class level 3 with dedicated constants (`THIRD_CASTER_CANTRIPS`, `THIRD_CASTER_SPELLS`) indexed by CLASS level (not character level). Max spell level is `ceil(classLevel / 6)` capped at 4. Multiclass spell slot contribution is `floor(classLevel / 3)`. Spell selection in the creation wizard uses a dedicated `ThirdCasterSpellSelectionStep` component that searches the appropriate spell list class (Wizard for both).
+
+**Rationale:** 1/3 casters don't fit the full/half/pact caster taxonomy. Their progression is by class level, not character level, and they use a different class's spell list. Separate constants and a dedicated component avoid overloading the existing spell selection logic.
+
+**Trade-offs:** Constants are duplicated between EK and AT (same values); this is intentional — they may diverge in supplements. The spell list class lookup (`THIRD_CASTER_SPELL_LIST`) enables future 1/3 caster subclasses with different lists.
+
+## D061: Subclass Always-Prepared Spells on Character Sheet
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** The `subclassAlwaysPreparedSpells` field (parsed from 5etools `additionalSpells.prepared`/`expanded` during seeding) is exposed on `CharacterResponse` from the Subclass entity. The character sheet displays unlocked spells in a dedicated section keyed by class level, with an "Always Prepared" badge and lock icon. Spells are filterable by the character's current class level from their primary class entry in `multiclassEntries`.
+
+**Rationale:** Always-prepared spells are a core subclass feature for Clerics (domains), Paladins (oaths), Druids (circles), and others. Displaying them separately from the main spell list makes it clear which spells don't count against prepared limits.
+
+**Trade-offs:** Only the primary class subclass is shown; secondary class subclasses in multiclass are not yet surfaced (deferred until multiclass-at-creation support matures).
+
+## D062: Per-Class Multiclass Spellcasting Stats
+
+**Date:** 2026-07-19
+**Status:** Accepted
+
+**Decision:** When a multiclass character has spellcasting classes with different abilities, the Spells tab shows per-class spell save DC and attack bonus instead of the single global values. The frontend computes these from the character's ability scores, proficiency bonus, and the known spellcasting ability mapping (`CASTER_ABILITY`). The backend's `CharacterService` iterates all class entries in `multiclassEntries` to find the first spellcasting class for the global spell stats (for backwards compatibility).
+
+**Rationale:** A Paladin/Druid multiclass uses CHA for Paladin spells and WIS for Druid spells — a single spell save DC is misleading. Per-class display matches how D&D 5e multiclass spellcasting actually works.
+
+**Trade-offs:** Per-class stats are computed client-side from a hardcoded ability mapping rather than stored on the entity. This is appropriate since the mapping is static (derived from PHB) and the character sheet already has all needed data.

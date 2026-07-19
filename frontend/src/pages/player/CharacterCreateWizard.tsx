@@ -6,7 +6,7 @@ import { characterApi } from '../../api/characterApi';
 import type { PlayerCharacter } from '../../types/character';
 import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
 import AsiModal from '../../components/character/AsiModal';
-import { CANTRIPS_KNOWN, SPELLS_KNOWN, maxSpellLevel, proficiencyBonusForLevel, wizardSpellbookCount } from '../../utils/spellConstants';
+import { CANTRIPS_KNOWN, SPELLS_KNOWN, THIRD_CASTER_CANTRIPS, THIRD_CASTER_SPELLS, THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST, THIRD_CASTER_ABILITY, maxSpellLevel, proficiencyBonusForLevel, wizardSpellbookCount } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
 
@@ -252,6 +252,7 @@ export default function CharacterCreateWizard() {
   const [spellSearch, setSpellSearch] = useState('');
   const [cantripSearch, setCantripSearch] = useState('');
   const [mcSpellSelections, setMcSpellSelections] = useState<Record<string, { cantrips: Spell[]; spells: Spell[] }>>({});
+  const [selectedClassSkills, setSelectedClassSkills] = useState<string[]>([]);
 
   const [selectedBgFeat, setSelectedBgFeat] = useState<string | null>(null);
   const [selectedFeatOptionIdx, setSelectedFeatOptionIdx] = useState<number | null>(null);
@@ -322,7 +323,32 @@ export default function CharacterCreateWizard() {
     return true;
   }, [bgFeatNames, selectedBgFeat, selectedFeatObj, parsedFeatOptions, selectedFeatOptionIdx, selectedFeatOption, selectedFeatAbility]);
 
-  const isSpellcaster = classEntries.some(e => e.cls.isSpellcaster) || (selectedClass?.isSpellcaster ?? false);
+  const classSkillChoices = useMemo(() => {
+    if (!selectedClass?.skillChoices) return { from: [] as string[], count: 0 };
+    return safeJsonParse<{ from: string[]; count: number }>(selectedClass.skillChoices, { from: [], count: 0 });
+  }, [selectedClass]);
+
+  const raceSkills = useMemo(() => {
+    if (!selectedRace) return new Set<string>();
+    const profs = safeJsonParse<{ skills?: string[] }>(selectedRace.proficiencies, {});
+    return new Set([
+      ...(profs.skills ?? []).map(s => s.toLowerCase()),
+      ...resolvedRaceChoices.skills.map(s => s.toLowerCase()),
+    ]);
+  }, [selectedRace, resolvedRaceChoices.skills]);
+
+  const bgSkillConflicts = useMemo(() => {
+    const allTaken = new Set([
+      ...raceSkills,
+      ...selectedClassSkills.map(s => s.toLowerCase()),
+    ]);
+    return resolvedBgProfs.skills.filter(s => allTaken.has(s.toLowerCase()));
+  }, [raceSkills, selectedClassSkills, resolvedBgProfs.skills]);
+
+  const hasThirdCasterSubclass = classEntries.some(e =>
+    e.subclass && THIRD_CASTER_SUBCLASSES.has(e.subclass.name) && e.level >= 3
+  );
+  const isSpellcaster = classEntries.some(e => e.cls.isSpellcaster) || (selectedClass?.isSpellcaster ?? false) || hasThirdCasterSubclass;
   const showSpellsStep = isSpellcaster || hasFeatSpellChoices;
   const steps = useMemo(() =>
     showSpellsStep ? ALL_STEPS : ALL_STEPS.filter(s => s !== 'Spells'),
@@ -343,6 +369,12 @@ export default function CharacterCreateWizard() {
       setSubclasses([]);
       setSelectedSubclass(null);
     }
+    setSelectedCantrips([]);
+    setSelectedSpells([]);
+    setCantripResults([]);
+    setSpellResults([]);
+    setSpellSearch('');
+    setCantripSearch('');
   }, [selectedClass]);
 
   useEffect(() => {
@@ -766,6 +798,7 @@ export default function CharacterCreateWizard() {
             return false;
           }
         }
+        if (classSkillChoices.count > 0 && selectedClassSkills.length < classSkillChoices.count) return false;
         return true;
       }
       case 'Ability Scores':
@@ -811,6 +844,20 @@ export default function CharacterCreateWizard() {
           name: s.name, level: s.level, source,
           ...(entry.cls.isPreparedCaster && !isWiz ? { prepared: true } : {}),
         });
+      }
+    }
+
+    // 1/3 caster subclass spells (Eldritch Knight, Arcane Trickster)
+    for (const entry of classEntries) {
+      if (!entry.subclass || !THIRD_CASTER_SUBCLASSES.has(entry.subclass.name)) continue;
+      const sel = mcSpellSelections[`third:${entry.cls.id}`];
+      if (!sel) continue;
+      const source = `class:${entry.cls.name}`;
+      for (const s of sel.cantrips) {
+        entries.push({ name: s.name, level: 0, source });
+      }
+      for (const s of sel.spells) {
+        entries.push({ name: s.name, level: s.level, source });
       }
     }
 
@@ -873,6 +920,7 @@ export default function CharacterCreateWizard() {
     const allSkills = [
       ...(raceProfs.skills ?? []),
       ...resolvedRaceChoices.skills,
+      ...selectedClassSkills,
       ...resolvedBgProfs.skills,
     ];
     const allWeapons = [
@@ -1225,6 +1273,7 @@ export default function CharacterCreateWizard() {
                         setSelectedSubclass(null);
                         setClassEntries([]);
                         setMcSpellSelections({});
+                        setSelectedClassSkills([]);
                       } else {
                         setSelectedClass(cls);
                         setSelectedSubclass(null);
@@ -1233,6 +1282,7 @@ export default function CharacterCreateWizard() {
                         setCantripResults([]);
                         setSpellResults([]);
                         setMcSpellSelections({});
+                        setSelectedClassSkills([]);
                         getSubclasses(cls.id).then(scs => {
                           setSubclasses(scs);
                           setClassEntries([{ cls, level, subclass: null, subclasses: scs }]);
@@ -1427,6 +1477,56 @@ export default function CharacterCreateWizard() {
                 </div>
               );
             })()}
+
+            {/* Class skill proficiency selection */}
+            {selectedClass && classSkillChoices.count > 0 && (
+              <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-white font-medium text-sm">Class Skill Proficiencies</h3>
+                  <span className="text-xs text-gray-400">{selectedClassSkills.length}/{classSkillChoices.count} selected</span>
+                </div>
+                <p className="text-gray-500 text-xs mb-3">
+                  Choose {classSkillChoices.count} skill{classSkillChoices.count > 1 ? 's' : ''} from the {selectedClass.name} class list.
+                </p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {classSkillChoices.from.map(skill => {
+                    const isSelected = selectedClassSkills.includes(skill);
+                    const alreadyFromRace = raceSkills.has(skill.toLowerCase());
+                    const disabled = alreadyFromRace || (!isSelected && selectedClassSkills.length >= classSkillChoices.count);
+                    return (
+                      <button
+                        key={skill}
+                        onClick={() => {
+                          if (alreadyFromRace) return;
+                          if (isSelected) {
+                            setSelectedClassSkills(prev => prev.filter(s => s !== skill));
+                          } else if (selectedClassSkills.length < classSkillChoices.count) {
+                            setSelectedClassSkills(prev => [...prev, skill]);
+                          }
+                        }}
+                        disabled={disabled && !isSelected}
+                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                          alreadyFromRace
+                            ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed line-through'
+                            : isSelected
+                            ? 'bg-indigo-600 text-white'
+                            : disabled
+                            ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        }`}
+                        title={alreadyFromRace ? 'Already granted by race' : undefined}
+                      >
+                        {skill}
+                        {alreadyFromRace && ' (race)'}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedClassSkills.length < classSkillChoices.count && (
+                  <p className="text-amber-400 text-xs mt-3">Select {classSkillChoices.count - selectedClassSkills.length} more skill{classSkillChoices.count - selectedClassSkills.length > 1 ? 's' : ''} to continue</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1459,6 +1559,9 @@ export default function CharacterCreateWizard() {
             {abilityMethod === 'pointbuy' && (
               <div>
                 <p className="text-gray-400 text-sm mb-2">Points spent: <span className={pointBuyTotal > 27 ? 'text-red-400' : 'text-cyan-400'}>{pointBuyTotal}/27</span></p>
+                {pointBuyTotal < 27 && pointBuyTotal > 0 && (
+                  <p className="text-amber-400 text-xs mb-2">You have {27 - pointBuyTotal} unspent point{27 - pointBuyTotal !== 1 ? 's' : ''}. You can still proceed.</p>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {ABILITIES.map(a => (
                     <div key={a} className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-center">
@@ -1615,6 +1718,15 @@ export default function CharacterCreateWizard() {
                 )}
               </div>
             )}
+            {selectedBackground && bgSkillConflicts.length > 0 && (
+              <div className="bg-amber-900/20 border border-amber-800/50 rounded-lg p-4 mt-4">
+                <h3 className="text-amber-400 font-medium text-sm">Skill Proficiency Overlap</h3>
+                <p className="text-gray-400 text-xs mt-1">
+                  The following background skill{bgSkillConflicts.length > 1 ? 's are' : ' is'} already granted by your race or class: <span className="text-amber-300 font-medium">{bgSkillConflicts.join(', ')}</span>.
+                  Per PHB rules, you may choose a different skill proficiency instead. You can adjust this from the character sheet after creation.
+                </p>
+              </div>
+            )}
             {selectedBackground && bgFeatNames.length > 0 && (
               <div className="bg-gray-900 border border-amber-800/50 rounded-lg p-4 mt-4 space-y-4">
                 <h3 className="text-white font-medium">Background Feat</h3>
@@ -1732,38 +1844,86 @@ export default function CharacterCreateWizard() {
         {/* Spells */}
         {currentStepName === 'Spells' && (
           <div className="space-y-8">
-            {selectedClass?.isSpellcaster && (
-              <SpellSelectionStep
-                selectedClass={selectedClass}
-                level={classEntries.length > 0 ? classEntries[0].level : level}
-                selectedCantrips={selectedCantrips}
-                setSelectedCantrips={setSelectedCantrips}
-                selectedSpells={selectedSpells}
-                setSelectedSpells={setSelectedSpells}
-                cantripResults={cantripResults}
-                setCantripResults={setCantripResults}
-                spellResults={spellResults}
-                setSpellResults={setSpellResults}
-                cantripSearch={cantripSearch}
-                setCantripSearch={setCantripSearch}
-                spellSearch={spellSearch}
-                setSpellSearch={setSpellSearch}
-                title={classEntries.length > 1 ? `${selectedClass.name} Spells` : undefined}
-              />
-            )}
-            {classEntries.slice(1).filter(e => e.cls.isSpellcaster).map(entry => (
-              <MulticlassSpellSelectionStep
-                key={entry.cls.id}
+            {selectedClass?.isSpellcaster && (() => {
+              const classLevel = classEntries.length > 0 ? classEntries[0].level : level;
+              const maxLvl = maxSpellLevel(selectedClass.name, classLevel);
+              const cantrips = CANTRIPS_KNOWN[selectedClass.name]?.[classLevel] ?? 0;
+              if (maxLvl === 0 && cantrips === 0) {
+                return (
+                  <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                    <h2 className="text-xl font-semibold text-white mb-2">
+                      {classEntries.length > 1 ? `${selectedClass.name} Spells` : 'Spells'}
+                    </h2>
+                    <p className="text-gray-400 text-sm">
+                      {selectedClass.name} does not gain spellcasting until a higher level. No spell selection is needed at level {classLevel}.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <SpellSelectionStep
+                  selectedClass={selectedClass}
+                  level={classLevel}
+                  selectedCantrips={selectedCantrips}
+                  setSelectedCantrips={setSelectedCantrips}
+                  selectedSpells={selectedSpells}
+                  setSelectedSpells={setSelectedSpells}
+                  cantripResults={cantripResults}
+                  setCantripResults={setCantripResults}
+                  spellResults={spellResults}
+                  setSpellResults={setSpellResults}
+                  cantripSearch={cantripSearch}
+                  setCantripSearch={setCantripSearch}
+                  spellSearch={spellSearch}
+                  setSpellSearch={setSpellSearch}
+                  title={classEntries.length > 1 ? `${selectedClass.name} Spells` : undefined}
+                />
+              );
+            })()}
+            {classEntries.slice(1).filter(e => e.cls.isSpellcaster).map(entry => {
+              const maxLvl = maxSpellLevel(entry.cls.name, entry.level);
+              const cantrips = CANTRIPS_KNOWN[entry.cls.name]?.[entry.level] ?? 0;
+              if (maxLvl === 0 && cantrips === 0) {
+                return (
+                  <div key={entry.cls.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                    <h3 className="text-white font-semibold text-sm mb-2">{entry.cls.name} Spells</h3>
+                    <p className="text-gray-400 text-sm">
+                      {entry.cls.name} does not gain spellcasting until a higher level. No spell selection is needed at level {entry.level}.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <MulticlassSpellSelectionStep
+                  key={entry.cls.id}
+                  classEntry={entry}
+                  selectedCantrips={mcSpellSelections[entry.cls.id]?.cantrips ?? []}
+                  onCantripsChange={cantrips => setMcSpellSelections(prev => ({
+                    ...prev,
+                    [entry.cls.id]: { cantrips, spells: prev[entry.cls.id]?.spells ?? [] },
+                  }))}
+                  selectedSpells={mcSpellSelections[entry.cls.id]?.spells ?? []}
+                  onSpellsChange={spells => setMcSpellSelections(prev => ({
+                    ...prev,
+                    [entry.cls.id]: { cantrips: prev[entry.cls.id]?.cantrips ?? [], spells },
+                  }))}
+                />
+              );
+            })}
+            {/* 1/3 caster subclass spell selection (Eldritch Knight, Arcane Trickster) */}
+            {classEntries.filter(e => e.subclass && THIRD_CASTER_SUBCLASSES.has(e.subclass.name) && e.level >= 3).map(entry => (
+              <ThirdCasterSpellSelectionStep
+                key={`third-${entry.cls.id}`}
                 classEntry={entry}
-                selectedCantrips={mcSpellSelections[entry.cls.id]?.cantrips ?? []}
+                selectedCantrips={mcSpellSelections[`third:${entry.cls.id}`]?.cantrips ?? []}
                 onCantripsChange={cantrips => setMcSpellSelections(prev => ({
                   ...prev,
-                  [entry.cls.id]: { cantrips, spells: prev[entry.cls.id]?.spells ?? [] },
+                  [`third:${entry.cls.id}`]: { cantrips, spells: prev[`third:${entry.cls.id}`]?.spells ?? [] },
                 }))}
-                selectedSpells={mcSpellSelections[entry.cls.id]?.spells ?? []}
+                selectedSpells={mcSpellSelections[`third:${entry.cls.id}`]?.spells ?? []}
                 onSpellsChange={spells => setMcSpellSelections(prev => ({
                   ...prev,
-                  [entry.cls.id]: { cantrips: prev[entry.cls.id]?.cantrips ?? [], spells },
+                  [`third:${entry.cls.id}`]: { cantrips: prev[`third:${entry.cls.id}`]?.cantrips ?? [], spells },
                 }))}
               />
             ))}
@@ -1777,6 +1937,34 @@ export default function CharacterCreateWizard() {
                 setFeatSpells={setFeatSpells}
               />
             )}
+            {/* Spell selection warning */}
+            {(() => {
+              const warnings: string[] = [];
+              if (selectedClass?.isSpellcaster) {
+                const classLevel = classEntries.length > 0 ? classEntries[0].level : level;
+                const cantripsAllowed = CANTRIPS_KNOWN[selectedClass.name]?.[classLevel] ?? 0;
+                const isWiz = selectedClass.name === 'Wizard';
+                const spellsAllowed = isWiz ? wizardSpellbookCount(classLevel)
+                  : selectedClass.isKnownCaster ? (SPELLS_KNOWN[selectedClass.name]?.[classLevel] ?? 0) : 0;
+                if (cantripsAllowed > 0 && selectedCantrips.length < cantripsAllowed) {
+                  warnings.push(`${selectedClass.name}: ${selectedCantrips.length}/${cantripsAllowed} cantrips selected`);
+                }
+                if (spellsAllowed > 0 && selectedSpells.length < spellsAllowed) {
+                  warnings.push(`${selectedClass.name}: ${selectedSpells.length}/${spellsAllowed} spells selected`);
+                }
+              }
+              if (warnings.length === 0) return null;
+              return (
+                <div className="bg-amber-900/20 border border-amber-800/50 rounded-lg p-3">
+                  <p className="text-amber-400 text-xs">
+                    You haven't selected all available spells. You can still proceed, but your character may be underpowered.
+                  </p>
+                  <ul className="text-amber-300 text-xs mt-1 list-disc list-inside">
+                    {warnings.map(w => <li key={w}>{w}</li>)}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1811,6 +1999,15 @@ export default function CharacterCreateWizard() {
                   return [`${w} ft`, ...extras].join(', ');
                 })()} />
               </div>
+
+              {selectedClassSkills.length > 0 && (
+                <div className="border-t border-gray-800 pt-4">
+                  <h3 className="text-sm font-medium text-gray-400 mb-3">Class Skills</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <ReviewField label="Skill Proficiencies" value={selectedClassSkills.join(', ')} />
+                  </div>
+                </div>
+              )}
 
               {(resolvedRaceChoices.languages.length > 0 || resolvedRaceChoices.skills.length > 0 || resolvedRaceChoices.tools.length > 0 || resolvedRaceChoices.weapons.length > 0 || resolvedRaceChoices.resistances.length > 0 || resolvedRaceChoices.spellAbility || resolvedRaceChoices.feats.length > 0) && (
                 <div className="border-t border-gray-800 pt-4">
@@ -2647,6 +2844,190 @@ function MulticlassSpellSelectionStep({
             As a {cls.name}, you prepare spells each day from your class spell list.
             You can change your prepared spells from the character sheet after creation.
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThirdCasterSpellSelectionStep({
+  classEntry,
+  selectedCantrips, onCantripsChange,
+  selectedSpells, onSpellsChange,
+}: {
+  classEntry: ClassEntry;
+  selectedCantrips: Spell[];
+  onCantripsChange: (cantrips: Spell[]) => void;
+  selectedSpells: Spell[];
+  onSpellsChange: (spells: Spell[]) => void;
+}) {
+  const subclassName = classEntry.subclass!.name;
+  const classLevel = classEntry.level;
+  const spellListClass = THIRD_CASTER_SPELL_LIST[subclassName] || 'Wizard';
+  const cantripsAllowed = THIRD_CASTER_CANTRIPS[subclassName]?.[classLevel] ?? 0;
+  const spellsAllowed = THIRD_CASTER_SPELLS[subclassName]?.[classLevel] ?? 0;
+  const maxLevel = maxSpellLevel(classEntry.cls.name, classLevel, subclassName);
+
+  const [cantripResults, setCantripResults] = useState<Spell[]>([]);
+  const [spellResults, setSpellResults] = useState<Spell[]>([]);
+  const [cantripSearch, setCantripSearch] = useState('');
+  const [spellSearch, setSpellSearch] = useState('');
+
+  useEffect(() => {
+    if (cantripsAllowed > 0) {
+      searchSpells({ className: spellListClass, level: 0, size: 50 })
+        .then(res => setCantripResults(res.content))
+        .catch(() => {});
+    }
+  }, [spellListClass]);
+
+  useEffect(() => {
+    if (spellsAllowed > 0 && maxLevel > 0) {
+      Promise.all(
+        Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl =>
+          searchSpells({ className: spellListClass, level: lvl, size: 50 }).then(r => r.content)
+        )
+      ).then(results => {
+        const all = results.flat();
+        const seen = new Set<string>();
+        setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
+      }).catch(() => {});
+    }
+  }, [spellListClass, maxLevel]);
+
+  function toggleCantrip(spell: Spell) {
+    const exists = selectedCantrips.some(s => s.id === spell.id);
+    if (exists) onCantripsChange(selectedCantrips.filter(s => s.id !== spell.id));
+    else if (selectedCantrips.length < cantripsAllowed) onCantripsChange([...selectedCantrips, spell]);
+  }
+
+  function toggleSpell(spell: Spell) {
+    const exists = selectedSpells.some(s => s.id === spell.id);
+    if (exists) onSpellsChange(selectedSpells.filter(s => s.id !== spell.id));
+    else if (selectedSpells.length < spellsAllowed) onSpellsChange([...selectedSpells, spell]);
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-white">{subclassName} Spells</h2>
+      <p className="text-gray-400 text-sm">
+        Select spells from the {spellListClass} spell list for your {subclassName} (1/3 caster).
+      </p>
+
+      {cantripsAllowed > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">Cantrips</h3>
+            <span className="text-xs text-gray-400">{selectedCantrips.length}/{cantripsAllowed} selected</span>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={cantripSearch}
+                onChange={e => setCantripSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const params: Record<string, unknown> = { className: spellListClass, level: 0, size: 50 };
+                    if (cantripSearch.trim()) params.name = cantripSearch.trim();
+                    searchSpells(params as any).then(res => setCantripResults(res.content)).catch(() => {});
+                  }
+                }}
+                placeholder="Search cantrips..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+          {selectedCantrips.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedCantrips.map(s => (
+                <span key={s.id} className="flex items-center gap-1 bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded text-xs">
+                  {s.name}
+                  <button onClick={() => toggleCantrip(s)} className="text-indigo-400 hover:text-white"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {cantripResults.map(spell => {
+              const selected = selectedCantrips.some(s => s.id === spell.id);
+              const disabled = !selected && selectedCantrips.length >= cantripsAllowed;
+              return (
+                <button key={spell.id} onClick={() => !disabled && toggleCantrip(spell)} disabled={disabled}
+                  className={`w-full flex items-center justify-between py-1.5 px-3 rounded-md text-sm transition-colors ${
+                    selected ? 'bg-indigo-900/30 text-indigo-200' : disabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
+                  }`}>
+                  <span>{spell.name}</span>
+                  {selected && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {spellsAllowed > 0 && maxLevel > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-semibold text-sm">
+              {maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells'}
+            </h3>
+            <span className="text-xs text-gray-400">{selectedSpells.length}/{spellsAllowed} selected</span>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                value={spellSearch}
+                onChange={e => setSpellSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    Promise.all(
+                      Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => {
+                        const params: Record<string, unknown> = { className: spellListClass, level: lvl, size: 50 };
+                        if (spellSearch.trim()) params.name = spellSearch.trim();
+                        return searchSpells(params as any).then(r => r.content);
+                      })
+                    ).then(results => {
+                      const all = results.flat();
+                      const seen = new Set<string>();
+                      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
+                    }).catch(() => {});
+                  }
+                }}
+                placeholder={maxLevel > 1 ? `Search level 1-${maxLevel} spells...` : "Search level 1 spells..."}
+                className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+          {selectedSpells.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedSpells.map(s => (
+                <span key={s.id} className="flex items-center gap-1 bg-indigo-900/50 text-indigo-200 px-2 py-1 rounded text-xs">
+                  {s.name}
+                  <button onClick={() => toggleSpell(s)} className="text-indigo-400 hover:text-white"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {spellResults.map(spell => {
+              const selected = selectedSpells.some(s => s.id === spell.id);
+              const disabled = !selected && selectedSpells.length >= spellsAllowed;
+              return (
+                <button key={spell.id} onClick={() => !disabled && toggleSpell(spell)} disabled={disabled}
+                  className={`w-full flex items-center justify-between py-1.5 px-3 rounded-md text-sm transition-colors ${
+                    selected ? 'bg-indigo-900/30 text-indigo-200' : disabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
+                  }`}>
+                  <div className="flex items-center gap-2">
+                    <span>{spell.name}</span>
+                    <span className="text-xs text-gray-500">{spell.school}</span>
+                  </div>
+                  {selected && <Check className="w-4 h-4 text-indigo-400" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

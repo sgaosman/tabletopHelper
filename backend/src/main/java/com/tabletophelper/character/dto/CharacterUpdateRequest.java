@@ -72,7 +72,6 @@ public class CharacterUpdateRequest {
     private Boolean clearCampaign;
 
     private String multiclassEntries;
-    private String preparedSpells;
     private String attunedItems;
     private String equippedItems;
     private String hitDiceMap;

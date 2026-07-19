@@ -160,7 +160,7 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | ability_score_method | VARCHAR(20) | | standard, pointbuy, manual |
 | racial_ability_bonuses | JSONB | | Snapshot of race ability bonuses |
 | multiclass_entries | JSONB | | Array of {classId, className, level} |
-| prepared_spells | JSONB | | Array of prepared spell names |
+| prepared_spells | JSONB | DEPRECATED — not used by DTOs | Legacy column, superseded by `spells_known[].prepared` |
 | attuned_items | JSONB | | Array of attuned item names |
 | equipped_items | JSONB | | Array of equipped item names |
 | hit_dice_map | JSONB | | Per-class hit dice: {className: {total, remaining, faces}} |

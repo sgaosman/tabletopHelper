@@ -92,7 +92,9 @@ public class CharacterService {
             try {
                 mcEntries = objectMapper.readValue(request.getMulticlassClassEntries(),
                         new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid multiclass entries JSON: " + e.getMessage());
+            }
         }
 
         boolean isMulticlass = mcEntries != null && mcEntries.size() > 1;
@@ -169,11 +171,16 @@ public class CharacterService {
                 spellSlots = buildSpellSlotsJson(spellSlotEntries);
             }
 
-            if (classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster())) {
-                if (spellcastingAbility == null) spellcastingAbility = classRef.getSpellcastingAbility();
-                int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
-                if (spellSaveDc == null) spellSaveDc = 8 + profBonus + abilityModVal;
-                if (spellAttackBonus == null) spellAttackBonus = profBonus + abilityModVal;
+            for (Map<String, Object> mce : mcEntries) {
+                UUID mcCasterId = UUID.fromString((String) mce.get("classId"));
+                CharacterClass mcCasterRef = characterClassRepository.findById(mcCasterId).orElse(null);
+                if (mcCasterRef != null && Boolean.TRUE.equals(mcCasterRef.getIsSpellcaster()) && spellcastingAbility == null) {
+                    spellcastingAbility = mcCasterRef.getSpellcastingAbility();
+                    int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
+                    spellSaveDc = 8 + profBonus + abilityModVal;
+                    spellAttackBonus = profBonus + abilityModVal;
+                    break;
+                }
             }
 
             characterClassName = classInputs.stream()
@@ -281,7 +288,6 @@ public class CharacterService {
                 .equipment(request.getEquipment())
                 .currency(request.getCurrency() != null ? request.getCurrency() : "{\"cp\":0,\"sp\":0,\"ep\":0,\"gp\":0,\"pp\":0}")
                 .hitDiceMap(hitDiceMap)
-                .preparedSpells(request.getPreparedSpells())
                 .multiclassEntries(multiclassEntries)
                 .levelHistory(levelHistory)
                 .build();
@@ -389,7 +395,6 @@ public class CharacterService {
         if (request.getPortraitUrl() != null) character.setPortraitUrl(request.getPortraitUrl());
 
         if (request.getMulticlassEntries() != null) character.setMulticlassEntries(request.getMulticlassEntries());
-        if (request.getPreparedSpells() != null) character.setPreparedSpells(request.getPreparedSpells());
         if (request.getAttunedItems() != null) character.setAttunedItems(request.getAttunedItems());
         if (request.getEquippedItems() != null) character.setEquippedItems(request.getEquippedItems());
         if (request.getHitDiceMap() != null) character.setHitDiceMap(request.getHitDiceMap());
@@ -1148,6 +1153,7 @@ public class CharacterService {
                 .spellSaveDc(c.getSpellSaveDc())
                 .spellAttackBonus(c.getSpellAttackBonus())
                 .spellcastingAbility(c.getSpellcastingAbility())
+                .subclassAlwaysPreparedSpells(c.getSubclassRef() != null ? c.getSubclassRef().getAlwaysPreparedSpells() : null)
                 .equipment(c.getEquipment())
                 .currency(c.getCurrency())
                 .personalityTraits(c.getPersonalityTraits())
@@ -1161,7 +1167,6 @@ public class CharacterService {
                 .abilityScoreMethod(c.getAbilityScoreMethod())
                 .racialAbilityBonuses(c.getRacialAbilityBonuses())
                 .multiclassEntries(c.getMulticlassEntries())
-                .preparedSpells(c.getPreparedSpells())
                 .attunedItems(c.getAttunedItems())
                 .equippedItems(c.getEquippedItems())
                 .hitDiceMap(c.getHitDiceMap())

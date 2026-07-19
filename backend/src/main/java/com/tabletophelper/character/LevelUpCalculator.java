@@ -2,12 +2,15 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class LevelUpCalculator {
 
+    private static final Logger log = LoggerFactory.getLogger(LevelUpCalculator.class);
     private static final ObjectMapper mapper = new ObjectMapper();
 
     public record FeatureEntry(String name, String description, String source) {}
@@ -59,7 +62,9 @@ public class LevelUpCalculator {
                         ));
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.warn("Failed to parse class features JSON for {}: {}", className, e.getMessage());
+            }
         }
 
         if (subclassFeatureJson != null && subclassName != null) {
@@ -76,7 +81,9 @@ public class LevelUpCalculator {
                         ));
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.warn("Failed to parse subclass features JSON for {}: {}", subclassName, e.getMessage());
+            }
         }
 
         return result;
@@ -180,6 +187,7 @@ public class LevelUpCalculator {
             }
             return mapper.writeValueAsString(history);
         } catch (Exception e) {
+            log.warn("Failed to serialize level history: {}", e.getMessage());
             return "[]";
         }
     }
@@ -191,6 +199,7 @@ public class LevelUpCalculator {
                     .toList();
             return mapper.writeValueAsString(list);
         } catch (Exception e) {
+            log.warn("Failed to serialize features: {}", e.getMessage());
             return "[]";
         }
     }
@@ -216,6 +225,7 @@ public class LevelUpCalculator {
 
             return mapper.writeValueAsString(merged);
         } catch (Exception e) {
+            log.warn("Failed to merge features with existing JSON: {}", e.getMessage());
             return serializeFeatures(classFeatures);
         }
     }
