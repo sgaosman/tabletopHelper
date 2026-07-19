@@ -30,8 +30,9 @@ function formatMod(mod: number): string {
   return mod >= 0 ? `+${mod}` : `${mod}`;
 }
 
-function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
-  if (!json) return fallback;
+function safeJsonParse<T>(json: unknown, fallback: T): T {
+  if (json == null) return fallback;
+  if (typeof json !== 'string') return json as T;
   try { return JSON.parse(json); } catch { return fallback; }
 }
 
@@ -268,11 +269,11 @@ export default function CharacterCreateWizard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
               {filteredRaces.map(race => {
-                const bonuses = safeJsonParse<Array<{ ability: string; bonus: number }>>(race.abilityScoreBonuses, []);
-                const bonusSummary = bonuses
-                  .filter(b => b.ability !== 'CHOOSE')
-                  .map(b => `${b.ability} +${b.bonus}`)
-                  .join(', ');
+                const bonuses = safeJsonParse<Array<{ ability: string; bonus: number; count?: number }>>(race.abilityScoreBonuses, []);
+                const fixedParts = bonuses.filter(b => b.ability !== 'CHOOSE').map(b => `${b.ability} +${b.bonus}`);
+                const chooseParts = bonuses.filter(b => b.ability === 'CHOOSE').map(b => `${b.count || 1}x +${b.bonus || 1}`);
+                const chooseSummary = chooseParts.length > 0 ? `Choose ${chooseParts.join(', ')}` : '';
+                const bonusSummary = [...fixedParts, chooseSummary].filter(Boolean).join(', ');
                 const speed = safeJsonParse<{ walk?: number }>(race.speed, { walk: 30 });
                 return (
                   <button

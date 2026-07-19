@@ -40,8 +40,9 @@ function formatMod(mod: number): string {
   return mod >= 0 ? `+${mod}` : `${mod}`;
 }
 
-function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
-  if (!json) return fallback;
+function safeJsonParse<T>(json: unknown, fallback: T): T {
+  if (json == null) return fallback;
+  if (typeof json !== 'string') return json as T;
   try { return JSON.parse(json); } catch { return fallback; }
 }
 

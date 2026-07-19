@@ -63,12 +63,28 @@ public class RaceSeeder {
                     if (!sr.has("raceName")) continue;
 
                     String subName = sr.path("name").asText("");
-                    if (subName.isEmpty() || "?".equals(subName)) continue;
+                    if ("?".equals(subName)) continue;
 
                     String parentKey = sr.path("raceName").asText() + "|" + sr.path("raceSource").asText();
                     JsonNode parent = raceIndex.get(parentKey);
                     if (parent == null) {
                         log.warn("Subrace '{}' references unknown parent '{}'", subName, parentKey);
+                        continue;
+                    }
+
+                    if (subName.isEmpty()) {
+                        String mergedBonuses = resolveAbilityBonuses(sr, parent);
+                        if (!"[]".equals(mergedBonuses)) {
+                            String parentName = sr.path("raceName").asText();
+                            String parentSource = parent.path("source").asText("");
+                            for (Race r : batch) {
+                                if (r.getName().equals(parentName) && r.getSource().equals(parentSource)
+                                        && "[]".equals(r.getAbilityScoreBonuses())) {
+                                    r.setAbilityScoreBonuses(mergedBonuses);
+                                    break;
+                                }
+                            }
+                        }
                         continue;
                     }
 
@@ -176,6 +192,24 @@ public class RaceSeeder {
             }
             addAbilityBonuses(node.get("ability"), bonuses);
 
+            String lineage = node.path("lineage").asText(null);
+            if (lineage == null && parent != null) lineage = parent.path("lineage").asText(null);
+            if (bonuses.isEmpty() && "VRGR".equals(lineage)) {
+                Map<String, Object> choose1 = new LinkedHashMap<>();
+                choose1.put("ability", "CHOOSE");
+                choose1.put("from", List.of("STR", "DEX", "CON", "INT", "WIS", "CHA"));
+                choose1.put("count", 1);
+                choose1.put("bonus", 2);
+                bonuses.add(choose1);
+
+                Map<String, Object> choose2 = new LinkedHashMap<>();
+                choose2.put("ability", "CHOOSE");
+                choose2.put("from", List.of("STR", "DEX", "CON", "INT", "WIS", "CHA"));
+                choose2.put("count", 1);
+                choose2.put("bonus", 1);
+                bonuses.add(choose2);
+            }
+
             if (bonuses.isEmpty()) return "[]";
             return objectMapper.writeValueAsString(bonuses);
         } catch (Exception e) {
@@ -197,9 +231,9 @@ public class RaceSeeder {
                         choose.get("from").forEach(n -> from.add(ABILITY_MAP.getOrDefault(n.asText(), n.asText().toUpperCase())));
                         bonus.put("from", from);
                     }
-                    int count = choose.has("count") ? choose.get("count").asInt() : choose.has("amount") ? choose.get("amount").asInt() : 1;
-                    bonus.put("count", count);
+                    int count = choose.has("count") ? choose.get("count").asInt() : 1;
                     int amount = choose.has("amount") ? choose.get("amount").asInt() : 1;
+                    bonus.put("count", count);
                     bonus.put("bonus", amount);
                     bonuses.add(bonus);
                 } else {
