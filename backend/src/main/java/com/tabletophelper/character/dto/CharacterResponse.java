@@ -53,6 +53,10 @@ public class CharacterResponse {
     private String savingThrowProficiencies;
     private String skillProficiencies;
     private String skillExpertises;
+    private String armorProficiencies;
+    private String weaponProficiencies;
+    private String toolProficiencies;
+    private String languageProficiencies;
     private String damageResistances;
     private String damageImmunities;
     private String conditionImmunities;

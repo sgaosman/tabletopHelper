@@ -10,7 +10,8 @@ TabletopHelper replaces the scattered collection of PDFs, paper notes, and brows
 
 - **User accounts** — Register, log in, choose between DM and Player roles each session; silent JWT token refresh keeps sessions alive
 - **Campaign management** — DMs create campaigns and share an invite code; players join with the code
-- **Character sheets** — Players create and edit characters with full D&D 5e stats (ability scores, HP, AC, combat stats, personality traits, notes)
+- **Character creation wizard** — Guided 6-step wizard: race (226 races with ASI preview, Tasha's reassignment), class (13 classes, 124 subclasses), ability scores (standard array, point buy, manual), background (101 backgrounds with equipment and proficiency pickers including exotic languages), alignment, review. Multiclass support with PHB spell slot calculation
+- **Character sheets** — Six-tab layout (Stats, Actions, Spells, Inventory, Features, Journal) with full D&D 5e stats; skill proficiency indicators (colored bullets, expertise stars); armor/weapon/tool/language proficiency display; short and long rest mechanics; campaign assignment dropdown; character deletion with confirmation modal and active-combat protection
 - **DM campaign view** — DMs see all members and characters in their campaigns, auto-refreshing every 10 seconds
 - **Full 5e reference database** — Searchable bestiary (2000+ monsters), spells (500+), items (1000+), and conditions from every 2014-era D&D 5e sourcebook, with multiselect filters and quick rules reference
 - **Encounter builder** — DMs create encounters by adding monsters (with fuzzy search, typo-tolerant) and player characters from their campaign; manual or auto-rolled initiative; participant renaming while preserving monster identity

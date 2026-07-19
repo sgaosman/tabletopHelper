@@ -91,7 +91,7 @@ Spells have the lowest automation rate because many involve complex multi-step e
 - 104 spells (36.1%) flagged `requiresManualResolution` (down from 105 -- Eldritch Blast now automatable)
 - Upcast scaling captured where applicable (extra dice, extra targets, extended duration)
 - All 288 spells have `patternCategory`, `deliveryMethod`, `spellLevel`, and `classes` populated
-- Schema extensions added: projectileScaling (3), scalingInterval (2), reactionTrigger (7), saveToEndEachTurn (12), conditionalDamage (3), grantsAdvantage/imposesDisadvantage (6)
+- Schema extensions added: projectileScaling (3), scalingInterval (2), reactionTrigger (7), saveToEndEachTurn (10), conditionalDamage (3), grantsAdvantage/imposesDisadvantage (6)
 - Conditions use the standard 5e set: blinded, charmed, deafened, frightened, grappled, incapacitated, paralysed, petrified, poisoned, prone, restrained, stunned, unconscious
 
 ## Task 2: Class Feature Analysis — Detail
@@ -246,6 +246,10 @@ monster-action-definitions.json ── M11 (Monster Actions Engine)
 8. **CR 11+ non-legendary monsters** -- secondary scope, unlikely to appear in near-term sessions.
 9. **UTILITY and COMPLEX spells** -- these require manual resolution anyway.
 10. **Flavour traits and features** -- no combat impact.
+
+## Milestone 8 Final Sign-Off
+
+All data files were reviewed, validated, and approved on 2026-07-19. See `docs/m8-final-signoff.md` for the full sign-off report (25/25 validation checks passed). Fixes applied: Mummy Lord Rotting Fist damage corrected (3d6+4 to 2d6+4), Mummy Lord legendaryResistanceCount added (3), 48 residual {@...} markup instances stripped. Snare and Earthbind saveToEndEachTurn issues had been fixed in a prior pass.
 
 ## Second Review Pass
 

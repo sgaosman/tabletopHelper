@@ -164,7 +164,11 @@ Create a new player character owned by the authenticated user.
   "initiativeBonus": 2,
   "speed": 30,
   "proficiencyBonus": 6,
-  "campaignId": "uuid (optional)"
+  "campaignId": "uuid (optional)",
+  "armorProficiencies": "[\"Light armor\",\"Medium armor\"]",
+  "weaponProficiencies": "[\"Simple weapons\"]",
+  "toolProficiencies": "[\"Herbalism kit\"]",
+  "languageProficiencies": "[\"Common\",\"Elvish\",\"Draconic\"]"
 }
 ```
 
@@ -174,7 +178,7 @@ Create a new player character owned by the authenticated user.
 
 Update an existing character. Only the owner can update. All fields are optional — only provided fields are updated.
 
-**Request:** Any subset of character fields.
+**Request:** Any subset of character fields. Includes `clearCampaign` (boolean) — set to `true` to unassign the character from its campaign (since `campaignId: null` is indistinguishable from "not provided" in a partial update).
 
 **Response (200):** Full updated character object.
 
@@ -192,6 +196,16 @@ List all active characters owned by the authenticated user.
 Get a specific character by ID.
 
 **Response (200):** Full character object.
+
+### DELETE /characters/{characterId}
+
+Soft-delete a character (sets `isActive = false`). Only the owner can delete. Characters currently in an active encounter (PREPARING, ACTIVE, or PAUSED) cannot be deleted.
+
+**Response (204):** No Content.
+
+**Errors:**
+- `400` — Character not found / Not the owner
+- `409` — Character is in active combat
 
 ### GET /characters/campaign/{campaignId}
 
@@ -706,6 +720,9 @@ All errors return a consistent format:
 HTTP status codes used:
 - `200` — Success
 - `201` — Created
+- `204` — No Content (successful deletion)
 - `400` — Bad request (validation, business logic)
 - `401` — Unauthorized (missing/invalid token)
 - `403` — Forbidden (valid token but insufficient permissions)
+- `409` — Conflict (character is in active combat and cannot be deleted)
+- `409` — Conflict (character in active encounter, optimistic lock conflict)

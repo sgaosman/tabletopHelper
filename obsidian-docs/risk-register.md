@@ -34,16 +34,15 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Category:** Feature
 **Severity:** Low — incomplete character sheet is annoying but not blocking
-**Likelihood:** High — a full 5e character sheet has dozens of fields and many derived values
-**Status:** Partially mitigated
+**Likelihood:** Low — core functionality now in place
+**Status:** Largely mitigated (M9 complete)
 
-**Current state:** Character creation uses free-text inputs for race/class. No derived stat calculation.
+**Current state:** Character creation uses guided wizard with seeded reference data. Race/class/subclass/background selected from dropdowns. Ability scores via standard array, point buy, or manual entry. Derived stats auto-calculated. Six-tab character sheet with Stats, Actions, Spells (placeholder), Inventory, Features, Journal. Proficiency collection from race + class + background. Short/long rest mechanics. Campaign assignment. Character deletion with soft-delete.
 
-**Planned mitigations (post-M3):**
-- Constrain race/class/subclass to dropdowns populated from seeded 5e data
-- Offer standard ability score methods: point buy, standard array, 4d6 drop lowest
-- Auto-calculate derived stats (proficiency bonus from level, ability modifiers, etc.)
-- See [[../memory/feedback_character-creation-ux.md]] for full requirements
+**Remaining gaps:**
+- Spells tab blocked by M10 (spell resolver engine)
+- No feat selection during creation (planned for future iteration)
+- Multiclass spell slot edge cases may need manual override
 
 ### R004: Data Seeding Performance
 
@@ -146,19 +145,16 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 ### R011: Character Builder Scope
 
 **Category:** Feature / Scope
-**Severity:** Medium — incomplete character builder blocks combat automation features
-**Likelihood:** High — full D&D 5e character creation is extremely complex
-**Status:** Open (M9)
+**Severity:** Low — core builder shipped, remaining items are enhancements
+**Likelihood:** Low — M9 delivered the full creation wizard and character sheet
+**Status:** Largely mitigated (M9 complete)
 
-**Mitigations:**
-- Build for levels 1–5 initially — the party is level 3 and unlikely to exceed level 5 in the near term
-- Accept manual override for edge cases (DM can always set arbitrary values)
-- Defer multiclassing to a later iteration if it proves too complex for the initial build
-- Pact Magic (Warlock) handled as a special case, not a general system
-- Class feature analysis (M7 Task 2) categorises features before implementation, preventing scope surprise
-- Feat prerequisites and complex subclass interactions are stretch goals, not blockers
+**Current state:** 6-step guided creation wizard with 226 races, 13 classes, 124 subclasses, 101 backgrounds. All ability score methods implemented. Multiclass support with PHB spell slot calculation. Pact Magic handled. Short/long rest mechanics. Background equipment and proficiency rendering with full coverage of 5e.tools data patterns. Campaign assignment and character deletion.
 
-**Risk areas:** Multiclass spell slot calculation (separate PHB table), feat prerequisites, Warlock Pact Magic vs standard spellcasting, 191 races with varying complexity, subclass spell list variations.
+**Remaining risk areas:**
+- Spells tab and spell preparation blocked by M10
+- Feat selection during creation not yet implemented
+- Some exotic race/background combinations may have edge cases in proficiency data
 
 ### R012: Monster Action Parsing
 

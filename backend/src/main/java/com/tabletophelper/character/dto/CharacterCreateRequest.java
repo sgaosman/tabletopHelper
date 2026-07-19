@@ -61,6 +61,10 @@ public class CharacterCreateRequest {
 
     private String savingThrowProficiencies;
     private String skillProficiencies;
+    private String armorProficiencies;
+    private String weaponProficiencies;
+    private String toolProficiencies;
+    private String languageProficiencies;
     private String spellsKnown;
     private String spellSlots;
     private Integer spellSaveDc;

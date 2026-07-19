@@ -139,6 +139,22 @@ public class PlayerCharacter {
     private String skillExpertises;
 
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "armor_proficiencies", columnDefinition = "jsonb")
+    private String armorProficiencies;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "weapon_proficiencies", columnDefinition = "jsonb")
+    private String weaponProficiencies;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tool_proficiencies", columnDefinition = "jsonb")
+    private String toolProficiencies;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "language_proficiencies", columnDefinition = "jsonb")
+    private String languageProficiencies;
+
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "damage_resistances", columnDefinition = "jsonb")
     private String damageResistances;
 

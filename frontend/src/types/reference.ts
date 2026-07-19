@@ -87,6 +87,7 @@ export interface Race {
   traits: string;
   proficiencies: string;
   resistances: string;
+  raceChoices: string | null;
   baseRaceName: string | null;
   description: string | null;
 }
@@ -132,6 +133,8 @@ export interface Background {
   languageProficiencies: string;
   startingEquipment: string;
   feature: string;
+  feats: string | null;
+  additionalSpells: string | null;
   description: string | null;
 }
 

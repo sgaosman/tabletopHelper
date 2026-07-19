@@ -25,6 +25,10 @@ export interface CharacterCreateRequest {
   proficiencyBonus?: number;
   savingThrowProficiencies?: string;
   skillProficiencies?: string;
+  armorProficiencies?: string;
+  weaponProficiencies?: string;
+  toolProficiencies?: string;
+  languageProficiencies?: string;
   spellsKnown?: string;
   spellSlots?: string;
   spellSaveDc?: number;
@@ -73,6 +77,10 @@ export interface CharacterUpdateRequest {
   savingThrowProficiencies?: string;
   skillProficiencies?: string;
   skillExpertises?: string;
+  armorProficiencies?: string;
+  weaponProficiencies?: string;
+  toolProficiencies?: string;
+  languageProficiencies?: string;
   damageResistances?: string;
   damageImmunities?: string;
   conditionImmunities?: string;
@@ -91,6 +99,7 @@ export interface CharacterUpdateRequest {
   notes?: string;
   portraitUrl?: string;
   campaignId?: string;
+  clearCampaign?: boolean;
   multiclassEntries?: string;
   preparedSpells?: string;
   attunedItems?: string;
@@ -137,6 +146,10 @@ export interface PlayerCharacter {
   savingThrowProficiencies?: string;
   skillProficiencies?: string;
   skillExpertises?: string;
+  armorProficiencies?: string;
+  weaponProficiencies?: string;
+  toolProficiencies?: string;
+  languageProficiencies?: string;
   damageResistances?: string;
   damageImmunities?: string;
   conditionImmunities?: string;

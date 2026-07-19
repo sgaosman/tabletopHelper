@@ -8744,10 +8744,10 @@
 				{
 					"choose": {
 						"from": [
-							"arcana",
-							"investigation",
-							"religion",
-							"survival"
+							"Arcana",
+							"Investigation",
+							"Religion",
+							"Survival"
 						],
 						"count": 2
 					}
@@ -8758,14 +8758,14 @@
 					"anyStandard": 1,
 					"choose": {
 						"from": [
-							"abyssal",
-							"celestial",
-							"deep speech",
-							"draconic",
-							"infernal",
-							"primordial",
-							"sylvan",
-							"undercommon"
+							"Abyssal",
+							"Celestial",
+							"Deep Speech",
+							"Draconic",
+							"Infernal",
+							"Primordial",
+							"Sylvan",
+							"Undercommon"
 						]
 					}
 				}

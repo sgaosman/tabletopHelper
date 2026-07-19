@@ -21,4 +21,8 @@ export const characterApi = {
   getById(id: string) {
     return api.get<PlayerCharacter>(`/characters/${id}`);
   },
+
+  delete(id: string) {
+    return api.delete(`/characters/${id}`);
+  },
 };

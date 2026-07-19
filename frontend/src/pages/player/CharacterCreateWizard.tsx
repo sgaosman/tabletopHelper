@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, Search } from 'lucide-react';
-import { getRaces, getClasses, getSubclasses, getBackgrounds } from '../../api/referenceApi';
+import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
-import type { Race, CharacterClassRef, Subclass, Background } from '../../types/reference';
+import type { Race, CharacterClassRef, Subclass, Background, Feat } from '../../types/reference';
 
 const STEPS = ['Basic Info', 'Race', 'Class', 'Ability Scores', 'Background', 'Review'] as const;
 
@@ -20,7 +20,111 @@ const ABILITY_LABELS: Record<string, string> = {
   intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
 };
 
+const STANDARD_LANGUAGES = [
+  'Common', 'Dwarvish', 'Elvish', 'Giant', 'Gnomish', 'Goblin', 'Halfling', 'Orc',
+];
+
+const EXOTIC_LANGUAGES = [
+  'Abyssal', 'Celestial', 'Deep Speech', 'Draconic', 'Infernal', 'Primordial', 'Sylvan', 'Undercommon',
+];
+
+const ALL_LANGUAGES = [...STANDARD_LANGUAGES, ...EXOTIC_LANGUAGES];
+
+const ALL_SKILLS = [
+  'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception', 'History',
+  'Insight', 'Intimidation', 'Investigation', 'Medicine', 'Nature', 'Perception',
+  'Performance', 'Persuasion', 'Religion', 'Sleight of Hand', 'Stealth', 'Survival',
+];
+
+const ARTISANS_TOOLS = [
+  "Alchemist's Supplies", "Brewer's Supplies", "Calligrapher's Supplies",
+  "Carpenter's Tools", "Cartographer's Tools", "Cobbler's Tools",
+  "Cook's Utensils", "Glassblower's Tools", "Jeweler's Tools",
+  "Leatherworker's Tools", "Mason's Tools", "Painter's Supplies",
+  "Potter's Tools", "Smith's Tools", "Tinker's Tools",
+  "Weaver's Tools", "Woodcarver's Tools",
+];
+
+const MUSICAL_INSTRUMENTS = [
+  'Bagpipes', 'Drum', 'Dulcimer', 'Flute', 'Lute', 'Lyre',
+  'Horn', 'Pan Flute', 'Shawm', 'Viol',
+];
+
+const ALL_TOOLS = [
+  ...ARTISANS_TOOLS,
+  'Disguise Kit', 'Forgery Kit', 'Herbalism Kit',
+  "Navigator's Tools", "Poisoner's Kit", "Thieves' Tools",
+  ...MUSICAL_INSTRUMENTS,
+  'Dice Set', 'Dragonchess Set', 'Playing Card Set', "Three-Dragon Ante Set",
+];
+
+const GAMING_SETS = [
+  'Dice Set', 'Dragonchess Set', 'Playing Card Set', "Three-Dragon Ante Set",
+];
+
+function getToolAnyOptions(entry: string): string[] | null {
+  if (entry === 'Any Gaming Set') return GAMING_SETS;
+  if (entry === "Any Artisan's Tool") return ARTISANS_TOOLS;
+  if (entry === 'Any Musical Instrument') return MUSICAL_INSTRUMENTS;
+  return null;
+}
+
+function expandToolFrom(from: string[]): string[] {
+  const result: string[] = [];
+  for (const item of from) {
+    if (item === 'AnyArtisansTool') result.push(...ARTISANS_TOOLS);
+    else if (item === 'Musical instrument') result.push(...MUSICAL_INSTRUMENTS);
+    else if (item === 'Gaming set') result.push(...GAMING_SETS);
+    else result.push(item);
+  }
+  return result;
+}
+
 type AbilityScores = Record<typeof ABILITIES[number], number>;
+
+type ProfEntry = string | { choose: { from?: string[]; count?: number } } | { anyStandard: number } | { any: number } | { chooseSet: ProfEntry[][] };
+
+function formatProfEntry(p: ProfEntry): string {
+  if (typeof p === 'string') return p;
+  if ('any' in p && !('anyStandard' in p) && !('chooseSet' in p)) {
+    const n = (p as { any: number }).any;
+    return `Any ${n}`;
+  }
+  if ('choose' in p && !('chooseSet' in p)) {
+    const c = (p as { choose: { from?: string[]; count?: number } }).choose;
+    const count = c.count ?? 1;
+    if (c.from && c.from.length > 0) return `Choose ${count} from ${c.from.join(', ')}`;
+    return `Choose ${count}`;
+  }
+  if ('anyStandard' in p) {
+    const n = (p as { anyStandard: number }).anyStandard;
+    return `Any ${n} language${n > 1 ? 's' : ''}`;
+  }
+  return '';
+}
+
+function formatProficiencies(raw: string | null): string[] {
+  if (!raw) return [];
+  const parsed = safeJsonParse<ProfEntry[]>(raw, []);
+  return parsed.flatMap(p => {
+    if (typeof p === 'object' && p !== null && 'chooseSet' in p) {
+      return ['Choose one set from below'];
+    }
+    const text = formatProfEntry(p);
+    return text ? [text] : [];
+  });
+}
+
+function hasChooseSet(raw: string | null): ProfEntry[][] | null {
+  if (!raw) return null;
+  const parsed = safeJsonParse<ProfEntry[]>(raw, []);
+  for (const p of parsed) {
+    if (typeof p === 'object' && p !== null && 'chooseSet' in p) {
+      return (p as { chooseSet: ProfEntry[][] }).chooseSet;
+    }
+  }
+  return null;
+}
 
 function abilityMod(score: number): number {
   return Math.floor((score - 10) / 2);
@@ -64,11 +168,19 @@ export default function CharacterCreateWizard() {
   const [backgrounds, setBackgrounds] = useState<Background[]>([]);
   const [bgSearch, setBgSearch] = useState('');
   const [selectedBackground, setSelectedBackground] = useState<Background | null>(null);
+  const [bgProfChoices, setBgProfChoices] = useState<Record<string, string[]>>({});
+  const [bgSetChoices, setBgSetChoices] = useState<Record<string, number | null>>({});
+
+  const [feats, setFeats] = useState<Feat[]>([]);
+  const [raceChoiceSelections, setRaceChoiceSelections] = useState<Record<string, string[]>>({});
+
+  const [bonusAssignments, setBonusAssignments] = useState<Array<{ bonus: number; ability: string | null }>>([]);
 
   useEffect(() => {
     getRaces().then(res => setRaces(res));
     getClasses().then(res => setClasses(res));
     getBackgrounds().then(res => setBackgrounds(res));
+    getFeats().then(res => setFeats(res));
   }, []);
 
   useEffect(() => {
@@ -79,6 +191,295 @@ export default function CharacterCreateWizard() {
       setSelectedSubclass(null);
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    if (!selectedRace) { setBonusAssignments([]); return; }
+    const bonuses = safeJsonParse<Array<{ ability: string; bonus: number; count?: number }>>(selectedRace.abilityScoreBonuses, []);
+    const rows: Array<{ bonus: number; ability: string | null }> = [];
+    for (const b of bonuses) {
+      if (b.ability === 'CHOOSE') {
+        for (let i = 0; i < (b.count || 1); i++) rows.push({ bonus: b.bonus, ability: null });
+      } else {
+        const key = b.ability.toLowerCase().slice(0, 3);
+        const ability = ABILITIES.find(a => a.startsWith(key)) || null;
+        rows.push({ bonus: b.bonus, ability });
+      }
+    }
+    setBonusAssignments(rows);
+  }, [selectedRace]);
+
+  // Race choice requirements
+  type RaceChoiceReq = { key: string; label: string; options: string[]; count: number };
+
+  useEffect(() => { setRaceChoiceSelections({}); }, [selectedRace]);
+
+  const raceChoiceReqs = useMemo((): RaceChoiceReq[] => {
+    if (!selectedRace) return [];
+    const choices = safeJsonParse<Record<string, unknown>>(selectedRace.raceChoices, null);
+    if (!choices) return [];
+    const reqs: RaceChoiceReq[] = [];
+    const profs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[] }>(selectedRace.proficiencies, {});
+
+    if (choices.languages) {
+      const existingLangs = new Set((profs.languages ?? []).map((l: string) => l.toLowerCase()));
+      for (const lc of choices.languages as Array<Record<string, unknown>>) {
+        if (lc.anyStandard) {
+          const options = ALL_LANGUAGES.filter(l => !existingLangs.has(l.toLowerCase()));
+          reqs.push({ key: `lang_${reqs.length}`, label: 'Language', options, count: lc.anyStandard as number });
+        }
+        if (lc.choose) {
+          const ch = lc.choose as { from?: string[]; count?: number };
+          if (ch.from?.length) reqs.push({ key: `lang_${reqs.length}`, label: 'Language', options: ch.from, count: ch.count ?? 1 });
+        }
+      }
+    }
+
+    if (choices.skills) {
+      const existingSkills = new Set((profs.skills ?? []).map((s: string) => s.toLowerCase()));
+      for (const sc of choices.skills as Array<Record<string, unknown>>) {
+        if (sc.any) {
+          const options = ALL_SKILLS.filter(s => !existingSkills.has(s.toLowerCase()));
+          reqs.push({ key: `skill_${reqs.length}`, label: 'Skill Proficiency', options, count: sc.any as number });
+        }
+        if (sc.choose) {
+          const ch = sc.choose as { from?: string[]; count?: number };
+          if (ch.from?.length) reqs.push({ key: `skill_${reqs.length}`, label: 'Skill Proficiency', options: ch.from, count: ch.count ?? 1 });
+        }
+      }
+    }
+
+    if (choices.tools) {
+      for (const tc of choices.tools as Array<Record<string, unknown>>) {
+        if (tc.any) reqs.push({ key: `tool_${reqs.length}`, label: 'Tool Proficiency', options: ALL_TOOLS, count: tc.any as number });
+        if (tc.anyArtisansTool) reqs.push({ key: `tool_${reqs.length}`, label: "Artisan's Tool", options: ARTISANS_TOOLS, count: tc.anyArtisansTool as number });
+        if (tc.anyMusicalInstrument) reqs.push({ key: `tool_${reqs.length}`, label: 'Musical Instrument', options: MUSICAL_INSTRUMENTS, count: tc.anyMusicalInstrument as number });
+        if (tc.choose) {
+          const ch = tc.choose as { from?: string[]; count?: number };
+          if (ch.from?.length) reqs.push({ key: `tool_${reqs.length}`, label: 'Tool Proficiency', options: ch.from, count: ch.count ?? 1 });
+        }
+      }
+    }
+
+    if (choices.weapons) {
+      for (const wc of choices.weapons as Array<{ from?: string[]; count?: number }>) {
+        reqs.push({ key: `weapon_${reqs.length}`, label: 'Martial Weapon Proficiency', options: wc.from ?? [], count: wc.count ?? 2 });
+      }
+    }
+
+    if (choices.resistances) {
+      for (const rc of choices.resistances as Array<{ from: string[] }>) {
+        reqs.push({ key: `resist_${reqs.length}`, label: 'Damage Resistance', options: rc.from, count: 1 });
+      }
+    }
+
+    if (choices.spellAbility) {
+      reqs.push({ key: 'spellAbility', label: 'Spellcasting Ability', options: choices.spellAbility as string[], count: 1 });
+    }
+
+    if (choices.feats) {
+      const featNames = feats.map(f => f.name).sort();
+      if (featNames.length > 0) reqs.push({ key: `feat_${reqs.length}`, label: 'Feat', options: featNames, count: choices.feats as number });
+    }
+
+    return reqs;
+  }, [selectedRace, feats]);
+
+  function handleRaceChoice(key: string, value: string, count: number) {
+    setRaceChoiceSelections(prev => {
+      const current = prev[key] ?? [];
+      if (current.includes(value)) return { ...prev, [key]: current.filter(v => v !== value) };
+      if (current.length >= count) return { ...prev, [key]: [...current.slice(1), value] };
+      return { ...prev, [key]: [...current, value] };
+    });
+  }
+
+  const raceChoicesComplete = useMemo(() => {
+    return raceChoiceReqs.every(req => (raceChoiceSelections[req.key] ?? []).length === req.count);
+  }, [raceChoiceReqs, raceChoiceSelections]);
+
+  const resolvedRaceChoices = useMemo(() => {
+    const result = { languages: [] as string[], skills: [] as string[], tools: [] as string[], weapons: [] as string[], resistances: [] as string[], spellAbility: null as string | null, feats: [] as string[] };
+    for (const req of raceChoiceReqs) {
+      const selected = raceChoiceSelections[req.key] ?? [];
+      if (req.key.startsWith('lang_')) result.languages.push(...selected);
+      else if (req.key.startsWith('skill_')) result.skills.push(...selected);
+      else if (req.key.startsWith('tool_')) result.tools.push(...selected);
+      else if (req.key.startsWith('weapon_')) result.weapons.push(...selected);
+      else if (req.key.startsWith('resist_')) result.resistances.push(...selected);
+      else if (req.key === 'spellAbility') result.spellAbility = selected[0] ?? null;
+      else if (req.key.startsWith('feat_')) result.feats.push(...selected);
+    }
+    return result;
+  }, [raceChoiceReqs, raceChoiceSelections]);
+
+  // Extract all choose/chooseSet requirements from the selected background
+  type ChoiceReq = { key: string; label: string; type: 'choose'; from: string[]; count: number }
+    | { key: string; label: string; type: 'chooseSet'; sets: string[][] };
+
+  const bgChoiceReqs = useMemo((): ChoiceReq[] => {
+    if (!selectedBackground) return [];
+    const reqs: ChoiceReq[] = [];
+    const fields: Array<[string, string, string]> = [
+      ['skillProficiencies', 'Skill', 'skill'],
+      ['toolProficiencies', 'Tool', 'tool'],
+      ['languageProficiencies', 'Language', 'lang'],
+    ];
+    for (const [field, label, prefix] of fields) {
+      const raw = (selectedBackground as Record<string, string | null>)[field];
+      if (!raw) continue;
+      const parsed = safeJsonParse<ProfEntry[]>(raw, []);
+      let chooseIdx = 0;
+      for (const p of parsed) {
+        if (typeof p === 'string') {
+          const anyOpts = prefix === 'tool' ? getToolAnyOptions(p)
+            : prefix === 'skill' && p === 'Any' ? ALL_SKILLS
+            : null;
+          if (anyOpts) {
+            reqs.push({
+              key: `${prefix}_choose_${chooseIdx}`,
+              label: `${label} Proficiency`,
+              type: 'choose',
+              from: anyOpts,
+              count: 1,
+            });
+            chooseIdx++;
+          }
+        } else if (typeof p === 'object' && p !== null && 'any' in p) {
+          const n = (p as { any: number }).any;
+          const pool = prefix === 'skill' ? ALL_SKILLS : prefix === 'tool' ? ALL_TOOLS : ALL_LANGUAGES;
+          reqs.push({
+            key: `${prefix}_choose_${chooseIdx}`,
+            label: `${label} Proficiency`,
+            type: 'choose',
+            from: pool,
+            count: n,
+          });
+          chooseIdx++;
+        } else if (typeof p === 'object' && p !== null && 'chooseSet' in p) {
+          const sets = (p as { chooseSet: ProfEntry[][] }).chooseSet;
+          reqs.push({
+            key: `${prefix}_set`,
+            label: `${label} Proficiencies`,
+            type: 'chooseSet',
+            sets: sets.map(s => s.map(formatProfEntry).filter(Boolean)),
+          });
+        } else if (typeof p === 'object' && p !== null && 'anyStandard' in p) {
+          const n = (p as { anyStandard: number }).anyStandard;
+          reqs.push({
+            key: `${prefix}_choose_${chooseIdx}`,
+            label: `${label}`,
+            type: 'choose',
+            from: ALL_LANGUAGES,
+            count: n,
+          });
+          chooseIdx++;
+        } else if (typeof p === 'object' && p !== null && 'choose' in p) {
+          const c = (p as { choose: { from?: string[]; count?: number } }).choose;
+          if (c.from && c.from.length > 0) {
+            const expanded = prefix === 'tool' ? expandToolFrom(c.from) : c.from;
+            reqs.push({
+              key: `${prefix}_choose_${chooseIdx}`,
+              label: `${label} Proficiency`,
+              type: 'choose',
+              from: expanded,
+              count: c.count ?? 1,
+            });
+            chooseIdx++;
+          }
+        }
+      }
+    }
+    return reqs;
+  }, [selectedBackground]);
+
+  useEffect(() => {
+    setBgProfChoices({});
+    setBgSetChoices({});
+  }, [selectedBackground]);
+
+  function handleBgProfChoice(key: string, value: string, count: number) {
+    setBgProfChoices(prev => {
+      const current = prev[key] ?? [];
+      if (current.includes(value)) {
+        return { ...prev, [key]: current.filter(v => v !== value) };
+      }
+      if (current.length >= count) {
+        return { ...prev, [key]: [...current.slice(1), value] };
+      }
+      return { ...prev, [key]: [...current, value] };
+    });
+  }
+
+  function handleBgSetChoice(key: string, index: number) {
+    setBgSetChoices(prev => ({ ...prev, [key]: prev[key] === index ? null : index }));
+  }
+
+  const bgChoicesComplete = useMemo(() => {
+    return bgChoiceReqs.every(req => {
+      if (req.type === 'choose') {
+        return (bgProfChoices[req.key] ?? []).length === req.count;
+      }
+      return bgSetChoices[req.key] != null;
+    });
+  }, [bgChoiceReqs, bgProfChoices, bgSetChoices]);
+
+  const resolvedBgProfs = useMemo(() => {
+    if (!selectedBackground) return { skills: [] as string[], tools: [] as string[], languages: [] as string[] };
+    const result: Record<string, string[]> = { skills: [], tools: [], languages: [] };
+    const fields: Array<[string, string, string]> = [
+      ['skillProficiencies', 'skill', 'skills'],
+      ['toolProficiencies', 'tool', 'tools'],
+      ['languageProficiencies', 'lang', 'languages'],
+    ];
+    for (const [field, prefix, outKey] of fields) {
+      const raw = (selectedBackground as Record<string, string | null>)[field];
+      if (!raw) continue;
+      const parsed = safeJsonParse<ProfEntry[]>(raw, []);
+      let chooseIdx = 0;
+      for (const p of parsed) {
+        if (typeof p === 'string') {
+          const isAny = prefix === 'tool' ? !!getToolAnyOptions(p)
+            : prefix === 'skill' && p === 'Any';
+          if (isAny) {
+            const chosen = bgProfChoices[`${prefix}_choose_${chooseIdx}`] ?? [];
+            result[outKey].push(...chosen);
+            chooseIdx++;
+          } else {
+            result[outKey].push(p);
+          }
+        } else if (typeof p === 'object' && p !== null && 'any' in p) {
+          const chosen = bgProfChoices[`${prefix}_choose_${chooseIdx}`] ?? [];
+          result[outKey].push(...chosen);
+          chooseIdx++;
+        } else if (typeof p === 'object' && p !== null && 'chooseSet' in p) {
+          const idx = bgSetChoices[`${prefix}_set`];
+          if (idx != null) {
+            const sets = (p as { chooseSet: ProfEntry[][] }).chooseSet;
+            result[outKey].push(...sets[idx].map(formatProfEntry).filter(Boolean));
+          }
+        } else if (typeof p === 'object' && p !== null && ('anyStandard' in p || 'choose' in p)) {
+          const chosen = bgProfChoices[`${prefix}_choose_${chooseIdx}`] ?? [];
+          result[outKey].push(...chosen);
+          chooseIdx++;
+        }
+      }
+    }
+    return result;
+  }, [selectedBackground, bgProfChoices, bgSetChoices]);
+
+  const isVanillaHuman = useMemo(() => {
+    if (!selectedRace) return false;
+    const bonuses = safeJsonParse<Array<{ ability: string; bonus: number }>>(selectedRace.abilityScoreBonuses, []);
+    return bonuses.length === 6 && bonuses.every(b => b.ability !== 'CHOOSE' && b.bonus === 1);
+  }, [selectedRace]);
+
+  function handleBonusAssignment(rowIndex: number, ability: string) {
+    setBonusAssignments(prev => prev.map((a, i) => {
+      if (i === rowIndex) return { ...a, ability };
+      if (a.ability === ability) return { ...a, ability: null };
+      return a;
+    }));
+  }
 
   const filteredRaces = useMemo(() => {
     if (!raceSearch) return races;
@@ -93,18 +494,12 @@ export default function CharacterCreateWizard() {
   }, [backgrounds, bgSearch]);
 
   const racialBonuses = useMemo(() => {
-    if (!selectedRace) return {};
-    const bonuses = safeJsonParse<Array<{ ability: string; bonus: number }>>(selectedRace.abilityScoreBonuses, []);
     const map: Record<string, number> = {};
-    bonuses.forEach(b => {
-      if (b.ability && b.ability !== 'CHOOSE') {
-        const key = b.ability.toLowerCase().slice(0, 3);
-        const ability = ABILITIES.find(a => a.startsWith(key));
-        if (ability) map[ability] = (map[ability] || 0) + (b.bonus || 0);
-      }
+    bonusAssignments.forEach(a => {
+      if (a.ability) map[a.ability] = (map[a.ability] || 0) + a.bonus;
     });
     return map;
-  }, [selectedRace]);
+  }, [bonusAssignments]);
 
   const finalScores = useMemo(() => {
     const base = abilityMethod === 'standard'
@@ -133,7 +528,11 @@ export default function CharacterCreateWizard() {
   function canAdvance(): boolean {
     switch (step) {
       case 0: return name.trim().length > 0;
-      case 1: return selectedRace !== null;
+      case 1: {
+        if (!selectedRace) return false;
+        const bonusesOk = isVanillaHuman || bonusAssignments.length === 0 || bonusAssignments.every(a => a.ability !== null);
+        return bonusesOk && raceChoicesComplete;
+      }
       case 2: return selectedClass !== null;
       case 3:
         if (abilityMethod === 'standard') {
@@ -141,7 +540,7 @@ export default function CharacterCreateWizard() {
         }
         if (abilityMethod === 'pointbuy') return pointBuyTotal <= 27;
         return true;
-      case 4: return selectedBackground !== null;
+      case 4: return selectedBackground !== null && bgChoicesComplete;
       default: return true;
     }
   }
@@ -158,6 +557,33 @@ export default function CharacterCreateWizard() {
     const speed = safeJsonParse<{ walk?: number }>(selectedRace.speed, { walk: 30 });
     const resistances = safeJsonParse<string[]>(selectedRace.resistances, []);
 
+    const raceProfs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[]; weapons?: string[] }>(selectedRace.proficiencies, {});
+    const classArmor = safeJsonParse<string[]>(selectedClass.armorProficiencies, []);
+    const classWeapons = safeJsonParse<string[]>(selectedClass.weaponProficiencies, []);
+    const classTools = safeJsonParse<string[]>(selectedClass.toolProficiencies, []);
+
+    const allSkills = [
+      ...(raceProfs.skills ?? []),
+      ...resolvedRaceChoices.skills,
+      ...resolvedBgProfs.skills,
+    ];
+    const allWeapons = [
+      ...(raceProfs.weapons ?? []),
+      ...resolvedRaceChoices.weapons,
+      ...classWeapons,
+    ];
+    const allTools = [
+      ...(raceProfs.tools ?? []),
+      ...resolvedRaceChoices.tools,
+      ...resolvedBgProfs.tools,
+      ...classTools,
+    ];
+    const allLanguages = [
+      ...(raceProfs.languages ?? []),
+      ...resolvedRaceChoices.languages,
+      ...resolvedBgProfs.languages,
+    ];
+
     try {
       const res = await characterApi.create({
         name: name.trim(),
@@ -167,7 +593,10 @@ export default function CharacterCreateWizard() {
         backgroundId: selectedBackground.id,
         alignment: alignment || undefined,
         abilityScoreMethod: abilityMethod,
-        racialAbilityBonuses: selectedRace.abilityScoreBonuses,
+        racialAbilityBonuses: JSON.stringify(bonusAssignments.map(a => ({
+          ability: a.ability ? ABILITY_LABELS[a.ability] : null,
+          bonus: a.bonus,
+        }))),
         strength: finalScores.strength,
         dexterity: finalScores.dexterity,
         constitution: finalScores.constitution,
@@ -177,6 +606,11 @@ export default function CharacterCreateWizard() {
         hpMax,
         speed: speed.walk ?? 30,
         savingThrowProficiencies: JSON.stringify(savingThrows),
+        skillProficiencies: allSkills.length > 0 ? JSON.stringify([...new Set(allSkills)]) : undefined,
+        armorProficiencies: classArmor.length > 0 ? JSON.stringify(classArmor) : undefined,
+        weaponProficiencies: allWeapons.length > 0 ? JSON.stringify([...new Set(allWeapons)]) : undefined,
+        toolProficiencies: allTools.length > 0 ? JSON.stringify([...new Set(allTools)]) : undefined,
+        languageProficiencies: allLanguages.length > 0 ? JSON.stringify([...new Set(allLanguages)]) : undefined,
         damageResistances: resistances.length > 0 ? JSON.stringify(resistances) : undefined,
         spellcastingAbility: selectedClass.spellcastingAbility ?? undefined,
         hitDiceMap: JSON.stringify({ [selectedClass.name]: { total: 1, remaining: 1, faces: selectedClass.hitDice } }),
@@ -274,7 +708,12 @@ export default function CharacterCreateWizard() {
                 const chooseParts = bonuses.filter(b => b.ability === 'CHOOSE').map(b => `${b.count || 1}x +${b.bonus || 1}`);
                 const chooseSummary = chooseParts.length > 0 ? `Choose ${chooseParts.join(', ')}` : '';
                 const bonusSummary = [...fixedParts, chooseSummary].filter(Boolean).join(', ');
-                const speed = safeJsonParse<{ walk?: number }>(race.speed, { walk: 30 });
+                const speed = safeJsonParse<Record<string, number | boolean>>(race.speed, { walk: 30 });
+                const walkSpeed = typeof speed.walk === 'number' ? speed.walk : 30;
+                const extraSpeeds = (['fly', 'swim', 'climb', 'burrow'] as const)
+                  .filter(k => speed[k] !== undefined)
+                  .map(k => `${k} ${speed[k] === true ? walkSpeed : speed[k]} ft`);
+                const speedText = [`Speed ${walkSpeed} ft`, ...extraSpeeds].join(', ');
                 return (
                   <button
                     key={race.id}
@@ -290,7 +729,7 @@ export default function CharacterCreateWizard() {
                       <span className="text-gray-500 text-xs">{race.source}</span>
                     </div>
                     <div className="mt-1 space-y-0.5">
-                      <p className="text-gray-400 text-xs">Speed {speed.walk ?? 30} ft &middot; {race.size}</p>
+                      <p className="text-gray-400 text-xs">{speedText} &middot; {race.size}</p>
                       {bonusSummary && <p className="text-cyan-400 text-xs">{bonusSummary}</p>}
                       {race.darkvision && <p className="text-gray-500 text-xs">Darkvision {race.darkvision} ft</p>}
                     </div>
@@ -300,6 +739,72 @@ export default function CharacterCreateWizard() {
             </div>
             {selectedRace && (
               <RaceDetail race={selectedRace} />
+            )}
+            {selectedRace && raceChoiceReqs.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mt-4">
+                <h3 className="text-white font-medium mb-1">Race Choices</h3>
+                <p className="text-gray-500 text-xs mb-3">Make the following selections for your race</p>
+                <div className="space-y-4">
+                  {raceChoiceReqs.map(req => (
+                    <div key={req.key}>
+                      <p className="text-gray-400 text-xs mb-2">
+                        {req.label}: choose {req.count}
+                      </p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {req.options.map(option => (
+                          <button
+                            key={option}
+                            onClick={() => handleRaceChoice(req.key, option, req.count)}
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                              (raceChoiceSelections[req.key] ?? []).includes(option)
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!raceChoicesComplete && (
+                  <p className="text-amber-400 text-xs mt-3">Complete all selections to continue</p>
+                )}
+              </div>
+            )}
+            {selectedRace && !isVanillaHuman && bonusAssignments.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mt-4">
+                <h3 className="text-white font-medium mb-1">Assign Ability Score Bonuses</h3>
+                <p className="text-gray-500 text-xs mb-3">Tasha's rules: reassign racial bonuses to any ability</p>
+                <div className="space-y-3">
+                  {bonusAssignments.map((assignment, i) => (
+                    <div key={i} className="flex items-center gap-3 flex-wrap">
+                      <span className="text-cyan-400 text-sm font-medium w-24 shrink-0">
+                        Apply +{assignment.bonus} to:
+                      </span>
+                      <div className="flex gap-1.5">
+                        {ABILITIES.map(ability => (
+                          <button
+                            key={ability}
+                            onClick={() => handleBonusAssignment(i, ability)}
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                              assignment.ability === ability
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                            }`}
+                          >
+                            {ABILITY_LABELS[ability]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {bonusAssignments.some(a => a.ability === null) && (
+                  <p className="text-amber-400 text-xs mt-3">Select all bonuses to continue</p>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -467,8 +972,10 @@ export default function CharacterCreateWizard() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
               {filteredBackgrounds.map(bg => {
-                const skills = safeJsonParse<(string | { choose: unknown })[]>(bg.skillProficiencies, []);
-                const skillNames = skills.filter((s): s is string => typeof s === 'string');
+                const skills = formatProficiencies(bg.skillProficiencies);
+                const tools = formatProficiencies(bg.toolProficiencies);
+                const langs = formatProficiencies(bg.languageProficiencies);
+                const feats = safeJsonParse<string[]>(bg.feats, []);
                 return (
                   <button
                     key={bg.id}
@@ -483,15 +990,74 @@ export default function CharacterCreateWizard() {
                       <h3 className="text-white font-medium text-sm">{bg.name}</h3>
                       <span className="text-gray-500 text-xs">{bg.source}</span>
                     </div>
-                    {skillNames.length > 0 && (
-                      <p className="text-cyan-400 text-xs mt-1">Skills: {skillNames.join(', ')}</p>
-                    )}
+                    <div className="mt-1 space-y-0.5">
+                      {skills.length > 0 && <p className="text-cyan-400 text-xs">Skills: {skills.join(', ')}</p>}
+                      {tools.length > 0 && <p className="text-gray-400 text-xs">Tools: {tools.join(', ')}</p>}
+                      {langs.length > 0 && <p className="text-gray-400 text-xs">Languages: {langs.join(', ')}</p>}
+                      {feats.length > 0 && <p className="text-amber-400 text-xs">Feat: {feats.join(', ')}</p>}
+                    </div>
                   </button>
                 );
               })}
             </div>
             {selectedBackground && (
               <BackgroundDetail bg={selectedBackground} />
+            )}
+            {selectedBackground && bgChoiceReqs.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mt-4 space-y-4">
+                <h3 className="text-white font-medium">Choose Your Proficiencies</h3>
+                {bgChoiceReqs.map(req => (
+                  <div key={req.key}>
+                    {req.type === 'choose' && (
+                      <div>
+                        <p className="text-gray-400 text-xs mb-2">
+                          {req.label}: choose {req.count} from the options below
+                        </p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {req.from.map(option => (
+                            <button
+                              key={option}
+                              onClick={() => handleBgProfChoice(req.key, option, req.count)}
+                              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                (bgProfChoices[req.key] ?? []).includes(option)
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                              }`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {req.type === 'chooseSet' && (
+                      <div>
+                        <p className="text-gray-400 text-xs mb-2">
+                          {req.label}: choose one set
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {req.sets.map((set, i) => (
+                            <button
+                              key={i}
+                              onClick={() => handleBgSetChoice(req.key, i)}
+                              className={`px-3 py-2 rounded border text-xs text-left transition-colors ${
+                                bgSetChoices[req.key] === i
+                                  ? 'bg-indigo-900/30 border-indigo-500 text-white'
+                                  : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                              }`}
+                            >
+                              {set.join(', ')}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {!bgChoicesComplete && (
+                  <p className="text-amber-400 text-xs">Complete all selections to continue</p>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -510,8 +1076,61 @@ export default function CharacterCreateWizard() {
                 {selectedSubclass && <ReviewField label="Subclass" value={selectedSubclass.name} />}
                 <ReviewField label="Background" value={selectedBackground?.name || '—'} />
                 <ReviewField label="Hit Points" value={String((selectedClass?.hitDice || 0) + abilityMod(finalScores.constitution))} />
-                <ReviewField label="Speed" value={`${safeJsonParse<{ walk?: number }>(selectedRace?.speed ?? null, { walk: 30 }).walk ?? 30} ft`} />
+                <ReviewField label="Speed" value={(() => {
+                  const sp = safeJsonParse<Record<string, number | boolean>>(selectedRace?.speed ?? null, { walk: 30 });
+                  const w = typeof sp.walk === 'number' ? sp.walk : 30;
+                  const extras = (['fly', 'swim', 'climb', 'burrow'] as const)
+                    .filter(k => sp[k] !== undefined)
+                    .map(k => `${k} ${sp[k] === true ? w : sp[k]} ft`);
+                  return [`${w} ft`, ...extras].join(', ');
+                })()} />
               </div>
+
+              {(resolvedRaceChoices.languages.length > 0 || resolvedRaceChoices.skills.length > 0 || resolvedRaceChoices.tools.length > 0 || resolvedRaceChoices.weapons.length > 0 || resolvedRaceChoices.resistances.length > 0 || resolvedRaceChoices.spellAbility || resolvedRaceChoices.feats.length > 0) && (
+                <div className="border-t border-gray-800 pt-4">
+                  <h3 className="text-sm font-medium text-gray-400 mb-3">Race Choices</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {resolvedRaceChoices.languages.length > 0 && (
+                      <ReviewField label="Languages" value={resolvedRaceChoices.languages.join(', ')} />
+                    )}
+                    {resolvedRaceChoices.skills.length > 0 && (
+                      <ReviewField label="Skills" value={resolvedRaceChoices.skills.join(', ')} />
+                    )}
+                    {resolvedRaceChoices.tools.length > 0 && (
+                      <ReviewField label="Tools" value={resolvedRaceChoices.tools.join(', ')} />
+                    )}
+                    {resolvedRaceChoices.weapons.length > 0 && (
+                      <ReviewField label="Weapons" value={resolvedRaceChoices.weapons.join(', ')} />
+                    )}
+                    {resolvedRaceChoices.resistances.length > 0 && (
+                      <ReviewField label="Damage Resistance" value={resolvedRaceChoices.resistances.join(', ')} />
+                    )}
+                    {resolvedRaceChoices.spellAbility && (
+                      <ReviewField label="Spellcasting Ability" value={resolvedRaceChoices.spellAbility} />
+                    )}
+                    {resolvedRaceChoices.feats.length > 0 && (
+                      <ReviewField label="Feat" value={resolvedRaceChoices.feats.join(', ')} />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {(resolvedBgProfs.skills.length > 0 || resolvedBgProfs.tools.length > 0 || resolvedBgProfs.languages.length > 0) && (
+                <div className="border-t border-gray-800 pt-4">
+                  <h3 className="text-sm font-medium text-gray-400 mb-3">Background Proficiencies</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {resolvedBgProfs.skills.length > 0 && (
+                      <ReviewField label="Skills" value={resolvedBgProfs.skills.join(', ')} />
+                    )}
+                    {resolvedBgProfs.tools.length > 0 && (
+                      <ReviewField label="Tools" value={resolvedBgProfs.tools.join(', ')} />
+                    )}
+                    {resolvedBgProfs.languages.length > 0 && (
+                      <ReviewField label="Languages" value={resolvedBgProfs.languages.join(', ')} />
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="border-t border-gray-800 pt-4">
                 <h3 className="text-sm font-medium text-gray-400 mb-3">Ability Scores</h3>
@@ -644,20 +1263,156 @@ function RaceDetail({ race }: { race: Race }) {
   );
 }
 
+function ChooseSetPicker({ label, sets, colorClass }: { label: string; sets: ProfEntry[][]; colorClass: string }) {
+  return (
+    <div className="md:col-span-2">
+      <p className="text-gray-500 text-xs font-medium mb-1">{label} (choose one set)</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {sets.map((set, i) => (
+          <div key={i} className="bg-gray-800 rounded px-3 py-1.5 border border-gray-700">
+            <p className={`${colorClass} text-xs`}>{set.map(formatProfEntry).filter(Boolean).join(', ')}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function BackgroundDetail({ bg }: { bg: Background }) {
   const feature = safeJsonParse<{ name: string; description: string } | null>(bg.feature, null);
+  const skills = formatProficiencies(bg.skillProficiencies);
+  const tools = formatProficiencies(bg.toolProficiencies);
+  const langs = formatProficiencies(bg.languageProficiencies);
+  const feats = safeJsonParse<string[]>(bg.feats, []);
+  const spells = safeJsonParse<Record<string, string[]>[]>(bg.additionalSpells, []);
+  const equipment = safeJsonParse<Array<Record<string, unknown>>>(bg.startingEquipment, []);
+
+  function fmtCurrency(cp: number): string {
+    if (cp >= 100 && cp % 100 === 0) return `${cp / 100} gp`;
+    if (cp >= 10 && cp % 10 === 0) return `${cp / 10} sp`;
+    return `${cp} cp`;
+  }
+
+  function strip5eMarkup(s: string): string {
+    return s.replace(/\{@\w+ ([^|}]+)[^}]*\}/g, '$1');
+  }
+
+  function fmtEquipItem(item: unknown): string | null {
+    if (typeof item === 'string') {
+      const name = item.includes('|') ? item.substring(0, item.indexOf('|')) : item;
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+    if (typeof item !== 'object' || item === null) return null;
+    const obj = item as Record<string, unknown>;
+    const qty = typeof obj.quantity === 'number' && obj.quantity > 1 ? obj.quantity : null;
+    let label = '';
+    if (typeof obj.displayName === 'string') {
+      label = strip5eMarkup(obj.displayName);
+    } else if (typeof obj.item === 'string') {
+      const raw = obj.item as string;
+      label = raw.includes('|') ? raw.substring(0, raw.indexOf('|')) : raw;
+    } else if (typeof obj.equipmentType === 'string') {
+      const et: Record<string, string> = { instrumentMusical: 'Musical instrument', setGaming: 'Gaming set', toolArtisan: "Artisan's tools", holy: 'Holy symbol' };
+      label = et[obj.equipmentType as string] ?? (obj.equipmentType as string);
+    } else if (typeof obj.special === 'string') {
+      label = obj.special as string;
+    } else if (typeof obj.value === 'number') {
+      return fmtCurrency(obj.value as number);
+    } else {
+      return null;
+    }
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+    if (qty) label = `${qty} ${label}`;
+    if (typeof obj.containsValue === 'number') {
+      label += ` containing ${fmtCurrency(obj.containsValue as number)}`;
+    }
+    if (typeof obj.worthValue === 'number') {
+      label += ` (worth ${fmtCurrency(obj.worthValue as number)})`;
+    }
+    return label;
+  }
+
+  const equipItems: string[] = [];
+  const equipChoices: string[] = [];
+  for (const entry of equipment) {
+    if (entry._ && Array.isArray(entry._)) {
+      for (const item of entry._) equipItems.push(fmtEquipItem(item) ?? '');
+    }
+    const choiceKeys = Object.keys(entry).filter(k => k !== '_').sort();
+    if (choiceKeys.length > 0) {
+      const options = choiceKeys.map(k => {
+        const arr = entry[k] as unknown[];
+        return arr.map(i => fmtEquipItem(i)).filter(Boolean).join(', ');
+      });
+      equipChoices.push(options.join(' -or- '));
+    }
+  }
+  const allEquip = [...equipItems.filter(Boolean), ...equipChoices].filter(Boolean);
+
+  const skillSets = hasChooseSet(bg.skillProficiencies);
+  const toolSets = hasChooseSet(bg.toolProficiencies);
+  const langSets = hasChooseSet(bg.languageProficiencies);
+
+  const LEVEL_LABELS: Record<string, string> = { s1: '1st', s2: '2nd', s3: '3rd', s4: '4th', s5: '5th' };
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mt-4">
-      <h3 className="text-white font-medium mb-2">{bg.name}</h3>
+      <h3 className="text-white font-medium mb-3">{bg.name} — Summary</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        {!skillSets && skills.length > 0 && (
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Skill Proficiencies</p>
+            <p className="text-cyan-400 text-sm">{skills.join(', ')}</p>
+          </div>
+        )}
+        {skillSets && <ChooseSetPicker label="Skill Proficiencies" sets={skillSets} colorClass="text-cyan-400" />}
+        {!toolSets && tools.length > 0 && (
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Tool Proficiencies</p>
+            <p className="text-gray-300 text-sm">{tools.join(', ')}</p>
+          </div>
+        )}
+        {toolSets && <ChooseSetPicker label="Tool Proficiencies" sets={toolSets} colorClass="text-gray-300" />}
+        {!langSets && langs.length > 0 && (
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Languages</p>
+            <p className="text-gray-300 text-sm">{langs.join(', ')}</p>
+          </div>
+        )}
+        {langSets && <ChooseSetPicker label="Languages" sets={langSets} colorClass="text-gray-300" />}
+        {feats.length > 0 && (
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Feat</p>
+            <p className="text-amber-400 text-sm">{feats.join(', ')}</p>
+          </div>
+        )}
+        {allEquip.length > 0 && (
+          <div className="md:col-span-2">
+            <p className="text-gray-500 text-xs font-medium">Equipment</p>
+            <p className="text-gray-300 text-sm">{allEquip.join('; ')}</p>
+          </div>
+        )}
+      </div>
+      {spells.length > 0 && (
+        <div className="mt-3">
+          <p className="text-gray-500 text-xs font-medium mb-1">Expanded Spell List</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {spells.map((levelMap, i) =>
+              Object.entries(levelMap).map(([level, names]) => (
+                <div key={`${i}-${level}`}>
+                  <p className="text-gray-500 text-xs">{LEVEL_LABELS[level] ?? level} level</p>
+                  <p className="text-purple-400 text-xs">{(names as string[]).join(', ')}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
       {feature && (
-        <div>
+        <div className="mt-3 pt-3 border-t border-gray-800">
           <p className="text-gray-300 text-sm font-medium">Feature: {feature.name}</p>
           <p className="text-gray-500 text-xs mt-1 line-clamp-4">{feature.description}</p>
         </div>
-      )}
-      {bg.description && !feature && (
-        <p className="text-gray-500 text-xs line-clamp-4">{bg.description}</p>
       )}
     </div>
   );

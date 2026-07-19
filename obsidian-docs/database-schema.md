@@ -130,6 +130,10 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | saving_throw_proficiencies | JSONB | | Array of ability names |
 | skill_proficiencies | JSONB | | Array of skill names |
 | skill_expertises | JSONB | | |
+| armor_proficiencies | JSONB | | Array of armor proficiency names |
+| weapon_proficiencies | JSONB | | Array of weapon proficiency names |
+| tool_proficiencies | JSONB | | Array of tool proficiency names |
+| language_proficiencies | JSONB | | Array of language names |
 | damage_resistances | JSONB | | |
 | damage_immunities | JSONB | | |
 | condition_immunities | JSONB | | |

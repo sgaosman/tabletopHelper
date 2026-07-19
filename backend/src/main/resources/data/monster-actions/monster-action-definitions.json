@@ -763,7 +763,7 @@
       }
     },
     "notes": [
-      "REVIEW: Storm of Crows {@recharge} has complex description (669 chars), verify extraction"
+      "REVIEW: Storm of Crows Recharge has complex description (669 chars), verify extraction"
     ]
   },
   {
@@ -1554,7 +1554,7 @@
         "halfOnSave": false,
         "targetCount": 1,
         "description": "While holding the Staff of the Forgotten One, Acererak expends 1 charge from it and targets one creature he can see within 60 feet of him. The target must succeed on a 23 Constitution saving throw or be cursed. Until the curse is ended, the target can't regain hit points and has vulnerability to necrotic damage. Greater restoration, remove curse, or similar magic ends the curse on the target.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "legendaryActions": [
@@ -8211,7 +8211,7 @@
         "saveDC": 17,
         "halfOnSave": false,
         "description": "The golem targets one or more creatures it can see within 10 feet of it. Each target must make a 17 Wisdom saving throw against this magic. On a failed save, a target can't use reactions, its speed is halved, and it can't make more than one attack on its turn. In addition, the target can take either an action or a bonus action on its turn, not both. These effects last for 1 minute. A target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "traits": [
@@ -14583,7 +14583,7 @@
         "halfOnSave": false,
         "targetCount": 1,
         "description": "The archaic reverses gravity for one creature it can see within 100 feet of itself. The creature must succeed on a 22 Wisdom saving throw or fall 100 feet upward. If the falling creature encounters a solid object (such as a ceiling) in this fall, it strikes the object just as it would during a downward fall. If the creature reaches the top of the area without striking anything, it hovers there until the start of the archaic's next turn, at which time gravity returns to normal and the creature falls.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       },
       {
         "name": "Teleport",
@@ -14635,7 +14635,7 @@
         "saveDC": 22,
         "halfOnSave": false,
         "description": "Immediately after a creature the archaic can see casts a spell of 5th level or lower, that creature must succeed on a 22 Charisma saving throw, or the archaic immediately casts the same spell at the same level (14 to hit with spell attacks, spell save 22), requiring no material components and choosing the spell's targets.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "spellcasting": {
@@ -17987,7 +17987,7 @@
         "saveDC": 10,
         "halfOnSave": false,
         "description": "The null utters a magical word of cancellation to interrupt a creature it can see that is casting a spell. If the spell is 3rd level or lower, it fails and has no effect. If the spell is 4th level or higher, the null makes an Intelligence check (10 + the spell's level). On a successful check, the spell fails and has no effect.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "traits": [
@@ -18056,7 +18056,7 @@
         ]
       },
       {
-        "name": "Summon Wraith {@recharge}",
+        "name": "Summon Wraith Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "automatable": false,
@@ -26596,7 +26596,7 @@
       }
     ],
     "spellcasting": {
-      "name": "Creeping Darkness {@recharge}",
+      "name": "Creeping Darkness Recharge",
       "innateSpells": false,
       "ability": "WIS",
       "notes": "Casts darkness. No DC needed. Can move the area 60 feet as a bonus action. Requires no concentration."
@@ -27343,7 +27343,7 @@
             "damageType": "acid"
           }
         ],
-        "description": "A creature that touches the pudding or hits it with a melee attack while within 5 feet of it takes 4 (1d8) acid damage. Any nonmagical weapon made of metal or wood that hits the pudding corrodes. After dealing damage, the weapon takes a permanent and cumulative \u22121 penalty to damage rolls. "
+        "description": "A creature that touches the pudding or hits it with a melee attack while within 5 feet of it takes 4 (1d8) acid damage. Any nonmagical weapon made of metal or wood that hits the pudding corrodes. After dealing damage, the weapon takes a permanent and cumulative −1 penalty to damage rolls. "
       },
       {
         "name": "Spider Climb",
@@ -32522,7 +32522,7 @@
     ],
     "bonusActions": [
       {
-        "name": "Conjure Effigy {@recharge}",
+        "name": "Conjure Effigy Recharge",
         "actionType": "BONUS_ACTION",
         "effects": [
           {
@@ -32642,7 +32642,7 @@
         "description": "Morax immediately deals Brittle Spine ongoing damage to all creatures that have at least one Brittle Spine that he can see."
       },
       {
-        "name": "Bone Spikes {@recharge}",
+        "name": "Bone Spikes Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 21,
@@ -33026,7 +33026,7 @@
         "automatable": true
       },
       {
-        "name": "Spectral Reaping {@recharge}",
+        "name": "Spectral Reaping Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 21,
@@ -38480,7 +38480,7 @@
         "description": "The ghost enters the Ethereal Plane from the Material Plane, or vice versa. It is visible on the Material Plane while it is in the Border Ethereal, and vice versa, yet it can't affect or be affected by anything on the other plane."
       },
       {
-        "name": "Wind Howl {@recharge}",
+        "name": "Wind Howl Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 15,
@@ -39757,7 +39757,7 @@
         "recharge": "5-6"
       },
       {
-        "name": "Crystal Spores {@recharge}",
+        "name": "Crystal Spores Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 14,
@@ -42601,7 +42601,7 @@
         ]
       },
       {
-        "name": "Grasping Ground {@recharge}",
+        "name": "Grasping Ground Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
@@ -43994,7 +43994,7 @@
         "name": "Multiattack",
         "actionType": "ACTION",
         "isMultiattack": true,
-        "multiattackDescription": "The death kiss makes three Tentacle attacks. Up to three of these attacks can be replaced by Blood Drain\u2014one replacement per tentacle grappling a creature.",
+        "multiattackDescription": "The death kiss makes three Tentacle attacks. Up to three of these attacks can be replaced by Blood Drain—one replacement per tentacle grappling a creature.",
         "multiattackComponents": [
           "Blood Drain",
           "Tentacle",
@@ -45420,7 +45420,7 @@
         ]
       },
       {
-        "name": "Lightning Rays {@recharge}",
+        "name": "Lightning Rays Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
@@ -45684,7 +45684,7 @@
     }
   },
   {
-    "monsterName": "Deep Roth\u00e9",
+    "monsterName": "Deep Rothé",
     "source": "MPMM",
     "challengeRating": "1/4",
     "actions": [
@@ -45718,12 +45718,12 @@
       {
         "name": "Beast of Burden",
         "traitType": "FLAVOUR",
-        "description": "The roth\u00e9 is considered to be one size larger for the purpose of determining its carrying capacity."
+        "description": "The rothé is considered to be one size larger for the purpose of determining its carrying capacity."
       }
     ]
   },
   {
-    "monsterName": "Deep Roth\u00e9",
+    "monsterName": "Deep Rothé",
     "source": "VGM",
     "challengeRating": "1/4",
     "actions": [
@@ -45763,7 +45763,7 @@
             "damageType": "piercing"
           }
         ],
-        "description": "If the roth\u00e9 moves at least 20 feet straight toward a target and then hits it with a gore attack on the same turn, the target takes an extra 7 (2d6) piercing damage."
+        "description": "If the rothé moves at least 20 feet straight toward a target and then hits it with a gore attack on the same turn, the target takes an extra 7 (2d6) piercing damage."
       }
     ]
   },
@@ -46539,7 +46539,7 @@
         "notes": "REVIEW: Complex list-based action with multiple sub-options.",
         "subOptions": [
           {
-            "name": "1\u20132: Beguiling Gaze",
+            "name": "1–2: Beguiling Gaze",
             "description": "The target is stunned until the start of Demogorgon's next turn or until Demogorgon is no longer within line of sight.",
             "automatable": false,
             "effects": [
@@ -46552,12 +46552,12 @@
             ]
           },
           {
-            "name": "3\u20134: Confusing Gaze",
+            "name": "3–4: Confusing Gaze",
             "description": "The target suffers the effect of the confusion spell without making a saving throw. The effect lasts until the start of Demogorgon's next turn. Demogorgon doesn't need to concentrate on the spell.",
             "automatable": false
           },
           {
-            "name": "5\u20136: Hypnotic Gaze",
+            "name": "5–6: Hypnotic Gaze",
             "description": "The target is charmed by Demogorgon until the start of Demogorgon's next turn. Demogorgon chooses how the charmed target uses its action, reaction, and movement.",
             "automatable": false,
             "effects": [
@@ -57774,7 +57774,7 @@
         "automatable": true
       },
       {
-        "name": "Possession {@recharge}",
+        "name": "Possession Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 20,
@@ -58712,7 +58712,7 @@
       },
       {
         "name": "Uniqueness",
-        "description": "These statistics are shared by all six elder dinosaurs: Elder Dinosaur (Etali, Primal Storm), Elder Dinosaur (Ghalta, Primal Hunger), Elder Dinosaur (Nezahal, Primal Tide), Elder Dinosaur (Tetzimoc, Primal Death), Elder Dinosaur (Zacama, Primal Calamity), {@creature Elder Dinosaur (Zetalpa, Primal Dawn)|PSX|Z"
+        "description": "These statistics are shared by all six elder dinosaurs: Elder Dinosaur (Etali, Primal Storm), Elder Dinosaur (Ghalta, Primal Hunger), Elder Dinosaur (Nezahal, Primal Tide), Elder Dinosaur (Tetzimoc, Primal Death), Elder Dinosaur (Zacama, Primal Calamity), "
       }
     ]
   },
@@ -60973,7 +60973,7 @@
         ]
       },
       {
-        "name": "Shout {@recharge}",
+        "name": "Shout Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
@@ -62813,7 +62813,7 @@
       {
         "name": "The Colors of Age",
         "combatRelevant": false,
-        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red\u20145 years or less Orange\u20146\u201310 years Yellow\u201411\u201320 years Green\u201421\u201330 years Blue\u201431\u201340 years Indigo\u201441\u201350 years Violet\u201451 years or more A green or older faerie dragon's CR increases to 2."
+        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red—5 years or less Orange—6–10 years Yellow—11–20 years Green—21–30 years Blue—31–40 years Indigo—41–50 years Violet—51 years or more A green or older faerie dragon's CR increases to 2."
       },
       {
         "name": "Superior Invisibility",
@@ -62863,7 +62863,7 @@
         "saveAbility": "WIS",
         "halfOnSave": false,
         "targetCount": 1,
-        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1\u20134. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5\u20136. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
+        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1–4. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5–6. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
         "automatable": false
       }
     ],
@@ -62893,7 +62893,7 @@
       {
         "name": "The Colors of Age",
         "combatRelevant": false,
-        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red\u20145 years or less Orange\u20146\u201310 years Yellow\u201411\u201320 years Green\u201421\u201330 years Blue\u201431\u201340 years Indigo\u201441\u201350 years Violet\u201451 years or more A green or older faerie dragon's CR increases to 2."
+        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red—5 years or less Orange—6–10 years Yellow—11–20 years Green—21–30 years Blue—31–40 years Indigo—41–50 years Violet—51 years or more A green or older faerie dragon's CR increases to 2."
       },
       {
         "name": "Superior Invisibility",
@@ -62943,7 +62943,7 @@
         "saveAbility": "WIS",
         "halfOnSave": false,
         "targetCount": 1,
-        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1\u20134. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5\u20136. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
+        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1–4. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5–6. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
         "automatable": false
       }
     ],
@@ -62972,7 +62972,7 @@
       {
         "name": "The Colors of Age",
         "combatRelevant": false,
-        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red\u20145 years or less Orange\u20146\u201310 years Yellow\u201411\u201320 years Green\u201421\u201330 years Blue\u201431\u201340 years Indigo\u201441\u201350 years Violet\u201451 years or more A green or older faerie dragon's CR increases to 2."
+        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red—5 years or less Orange—6–10 years Yellow—11–20 years Green—21–30 years Blue—31–40 years Indigo—41–50 years Violet—51 years or more A green or older faerie dragon's CR increases to 2."
       },
       {
         "name": "Superior Invisibility",
@@ -63022,7 +63022,7 @@
         "saveAbility": "WIS",
         "halfOnSave": false,
         "targetCount": 1,
-        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1\u20134. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5\u20136. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
+        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1–4. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5–6. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
         "automatable": false
       }
     ],
@@ -63053,7 +63053,7 @@
       {
         "name": "The Colors of Age",
         "combatRelevant": false,
-        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red\u20145 years or less Orange\u20146\u201310 years Yellow\u201411\u201320 years Green\u201421\u201330 years Blue\u201431\u201340 years Indigo\u201441\u201350 years Violet\u201451 years or more A green or older faerie dragon's CR increases to 2."
+        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red—5 years or less Orange—6–10 years Yellow—11–20 years Green—21–30 years Blue—31–40 years Indigo—41–50 years Violet—51 years or more A green or older faerie dragon's CR increases to 2."
       },
       {
         "name": "Superior Invisibility",
@@ -63103,7 +63103,7 @@
         "saveAbility": "WIS",
         "halfOnSave": false,
         "targetCount": 1,
-        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1\u20134. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5\u20136. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
+        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1–4. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5–6. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
         "automatable": false
       }
     ],
@@ -63130,7 +63130,7 @@
       {
         "name": "The Colors of Age",
         "combatRelevant": false,
-        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red\u20145 years or less Orange\u20146\u201310 years Yellow\u201411\u201320 years Green\u201421\u201330 years Blue\u201431\u201340 years Indigo\u201441\u201350 years Violet\u201451 years or more A green or older faerie dragon's CR increases to 2."
+        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red—5 years or less Orange—6–10 years Yellow—11–20 years Green—21–30 years Blue—31–40 years Indigo—41–50 years Violet—51 years or more A green or older faerie dragon's CR increases to 2."
       },
       {
         "name": "Superior Invisibility",
@@ -63180,7 +63180,7 @@
         "saveAbility": "WIS",
         "halfOnSave": false,
         "targetCount": 1,
-        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1\u20134. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5\u20136. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
+        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1–4. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5–6. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
         "automatable": false
       }
     ],
@@ -63206,7 +63206,7 @@
       {
         "name": "The Colors of Age",
         "combatRelevant": false,
-        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red\u20145 years or less Orange\u20146\u201310 years Yellow\u201411\u201320 years Green\u201421\u201330 years Blue\u201431\u201340 years Indigo\u201441\u201350 years Violet\u201451 years or more A green or older faerie dragon's CR increases to 2."
+        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red—5 years or less Orange—6–10 years Yellow—11–20 years Green—21–30 years Blue—31–40 years Indigo—41–50 years Violet—51 years or more A green or older faerie dragon's CR increases to 2."
       },
       {
         "name": "Superior Invisibility",
@@ -63256,7 +63256,7 @@
         "saveAbility": "WIS",
         "halfOnSave": false,
         "targetCount": 1,
-        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1\u20134. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5\u20136. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
+        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1–4. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5–6. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
         "automatable": false
       }
     ],
@@ -63288,7 +63288,7 @@
       {
         "name": "The Colors of Age",
         "combatRelevant": false,
-        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red\u20145 years or less Orange\u20146\u201310 years Yellow\u201411\u201320 years Green\u201421\u201330 years Blue\u201431\u201340 years Indigo\u201441\u201350 years Violet\u201451 years or more A green or older faerie dragon's CR increases to 2."
+        "description": "A faerie dragon's scales change hue as it ages, moving through all the colors of the rainbow. All faerie dragons have innate spellcasting ability, gaining new spells as they mature. Red—5 years or less Orange—6–10 years Yellow—11–20 years Green—21–30 years Blue—31–40 years Indigo—41–50 years Violet—51 years or more A green or older faerie dragon's CR increases to 2."
       },
       {
         "name": "Superior Invisibility",
@@ -63338,7 +63338,7 @@
         "saveAbility": "WIS",
         "halfOnSave": false,
         "targetCount": 1,
-        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1\u20134. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5\u20136. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
+        "description": "The dragon exhales a puff of euphoria gas at one creature within 5 feet of it. The target must succeed on a 11 Wisdom saving throw, or for 1 minute, the target can't take reactions and must roll a d6 at the start of each of its turns to determine its behavior during the turn: 1–4. The target takes no action or bonus action and uses all of its movement to move in a random direction. 5–6. The target doesn't move, and the only thing it can do on its turn is make a 11 Wisdom saving throw, ending the effect on itself on a success.",
         "automatable": false
       }
     ],
@@ -69852,7 +69852,7 @@
       },
       {
         "name": "Shock Susceptibility",
-        "description": "If the froghemoth takes lightning damage, it suffers several effects until the end of its next turn: its speed is halved, it takes a \u22122 penalty to AC and Dexterity saving throws, it can't use reactions or Multiattack, and on its turn, it can use either an action or a bonus action, not both."
+        "description": "If the froghemoth takes lightning damage, it suffers several effects until the end of its next turn: its speed is halved, it takes a −2 penalty to AC and Dexterity saving throws, it can't use reactions or Multiattack, and on its turn, it can use either an action or a bonus action, not both."
       }
     ]
   },
@@ -69986,7 +69986,7 @@
         "name": "Change Shape",
         "actionType": "ACTION",
         "automatable": false,
-        "description": "The druid magically polymorphs into a beast form\u2014fox, mountain goat, owl, or wolf\u2014or back into its humanoid form. Any equipment it is wearing or carrying is absorbed or borne by the beast form (the druid's choice). It reverts to its humanoid form when it dies. The druid's statistics are the same in each form, except where noted in this stat block."
+        "description": "The druid magically polymorphs into a beast form—fox, mountain goat, owl, or wolf—or back into its humanoid form. Any equipment it is wearing or carrying is absorbed or borne by the beast form (the druid's choice). It reverts to its humanoid form when it dies. The druid's statistics are the same in each form, except where noted in this stat block."
       }
     ],
     "spellcasting": {
@@ -70687,7 +70687,7 @@
         "automatable": true
       },
       {
-        "name": "Scalding Breath {@recharge}",
+        "name": "Scalding Breath Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 11,
@@ -72774,7 +72774,7 @@
         "automatable": true
       },
       {
-        "name": "Shrapnel Blast {@recharge}",
+        "name": "Shrapnel Blast Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 15,
@@ -77409,7 +77409,7 @@
         "name": "Change Shape",
         "actionType": "ACTION",
         "automatable": false,
-        "description": "The gingwatzim changes from its true form\u2014a 3-foot-diameter sphere of luminous ectoplasm\u2014into one of its two alternate forms, or from one of those forms back into its true form. In object form, it can't move or make attacks but otherwise retains its statistics, and it is indistinguishable from the thing it is imitating. In beast form, it retains its hit points but otherwise uses the stat block of the beast it is imitating. When it dies, the gingwatzim reverts to its true form and then vanishes."
+        "description": "The gingwatzim changes from its true form—a 3-foot-diameter sphere of luminous ectoplasm—into one of its two alternate forms, or from one of those forms back into its true form. In object form, it can't move or make attacks but otherwise retains its statistics, and it is indistinguishable from the thing it is imitating. In beast form, it retains its hit points but otherwise uses the stat block of the beast it is imitating. When it dies, the gingwatzim reverts to its true form and then vanishes."
       }
     ],
     "traits": [
@@ -79173,7 +79173,7 @@
         "halfOnSave": false,
         "targetCount": 1,
         "description": "The githzerai touches one creature it can see within 5 feet of itself. The target must succeed on a 14 Intelligence saving throw, or the githzerai chooses an action for that target: Attack, Cast a Spell, or Dash. The affected target can't take that action for 1 minute. At the end of each of the target's turns, it can repeat the saving throw, ending the effect on itself on a successful save. A target that succeeds on the saving throw becomes immune to this githzerai's Pacifying Touch for 24 hours.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "spellcasting": {
@@ -80036,7 +80036,7 @@
         "automatable": true
       },
       {
-        "name": "Shriek {@recharge}",
+        "name": "Shriek Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 13,
@@ -82430,7 +82430,7 @@
         "automatable": true
       },
       {
-        "name": "Lightning Bolt {@recharge}",
+        "name": "Lightning Bolt Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 15,
@@ -82535,7 +82535,7 @@
       {
         "name": "Corrode Metal",
         "combatRelevant": false,
-        "description": "Any nonmagical weapon made of metal that hits the ooze corrodes. After dealing damage, the weapon takes a permanent and cumulative \u22121 penalty to damage rolls. If its penalty drops to \u22125, the weapon is destroyed. Nonmagical ammunition made of metal that hits the ooze is destroyed after dealing damage. The ooze can eat through 2-inch-thick, nonmagical metal in 1 round."
+        "description": "Any nonmagical weapon made of metal that hits the ooze corrodes. After dealing damage, the weapon takes a permanent and cumulative −1 penalty to damage rolls. If its penalty drops to −5, the weapon is destroyed. Nonmagical ammunition made of metal that hits the ooze is destroyed after dealing damage. The ooze can eat through 2-inch-thick, nonmagical metal in 1 round."
       },
       {
         "name": "False Appearance",
@@ -83907,7 +83907,7 @@
         "actionType": "ACTION",
         "deliveryMethod": "NONE",
         "automatable": false,
-        "description": "The hag magically turns invisible until she attacks or casts a spell, or until her concentration ends (as if concentration on a spell). While {@conditio"
+        "description": "The hag magically turns invisible until she attacks or casts a spell, or until her concentration ends (as if concentration on a spell). While "
       }
     ],
     "spellcasting": {
@@ -84379,7 +84379,7 @@
         "automatable": true
       },
       {
-        "name": "Possession {@recharge}",
+        "name": "Possession Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 15,
@@ -88366,7 +88366,7 @@
       }
     },
     "notes": [
-      "REVIEW: Possession {@recharge} has complex description (1059 chars), verify extraction"
+      "REVIEW: Possession Recharge has complex description (1059 chars), verify extraction"
     ]
   },
   {
@@ -89135,7 +89135,7 @@
         "saveDC": 10,
         "halfOnSave": false,
         "description": "The hexton attempts to interrupt a creature it can see that is casting a spell. If the spell is 3rd level or lower, it fails and has no effect. If the spell is 4th level or higher, the hexton makes an Intelligence check (10 + the spell's level). On a success, the spell fails and has no effect.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       },
       {
         "name": "Lightning Rebuke",
@@ -90382,7 +90382,7 @@
         "recharge": "SHORT_OR_LONG_REST",
         "deliveryMethod": "NONE",
         "automatable": false,
-        "description": "For 1 minute, the hobgoblin can utter a special command or warning whenever a nonhostile creature that it can see within 30 feet of it makes an attack roll or a saving throw. The creature can add a {@"
+        "description": "For 1 minute, the hobgoblin can utter a special command or warning whenever a nonhostile creature that it can see within 30 feet of it makes an attack roll or a saving throw. The creature can add a "
       }
     ],
     "traits": [
@@ -100182,7 +100182,7 @@
       {
         "name": "Pounce",
         "combatRelevant": true,
-        "description": "If the kamadan moves at least 20 feet straight toward a creature and then hits it with a claw attack on the same turn that target must succeed on a 13 Strength saving throw or be knocked prone. If the target is knocked prone, the kamadan can make two attacks\u2014one with its bite and one with its snakes\u2014against it as a bonus action."
+        "description": "If the kamadan moves at least 20 feet straight toward a creature and then hits it with a claw attack on the same turn that target must succeed on a 13 Strength saving throw or be knocked prone. If the target is knocked prone, the kamadan can make two attacks—one with its bite and one with its snakes—against it as a bonus action."
       }
     ]
   },
@@ -102179,7 +102179,7 @@
         "recharge": "SHORT_OR_LONG_REST",
         "deliveryMethod": "NONE",
         "automatable": false,
-        "description": "For 1 minute, the knight can utter a special command or warning whenever a nonhostile creature that it can see within 30 feet of it makes an attack roll or a saving throw. The creature can add a {@dic"
+        "description": "For 1 minute, the knight can utter a special command or warning whenever a nonhostile creature that it can see within 30 feet of it makes an attack roll or a saving throw. The creature can add a "
       }
     ],
     "reactions": [
@@ -102427,7 +102427,7 @@
       {
         "name": "Dragon's Resistance",
         "traitType": "COMBAT_PASSIVE",
-        "description": "The kobold has resistance to a type of damage based on the color of dragon that invested it with power (choose or roll a d10): 1\u20132, acid (black or copper); 3\u20134, cold (silver or white); 5\u20136, fire (brass, gold, or red); 7\u20138, lightning (blue or bronze); 9\u201310, poison (green)."
+        "description": "The kobold has resistance to a type of damage based on the color of dragon that invested it with power (choose or roll a d10): 1–2, acid (black or copper); 3–4, cold (silver or white); 5–6, fire (brass, gold, or red); 7–8, lightning (blue or bronze); 9–10, poison (green)."
       },
       {
         "name": "Heart of the Dragon",
@@ -102483,7 +102483,7 @@
     "traits": [
       {
         "name": "Dragon's Resistance",
-        "description": "The kobold has resistance to a type of damage based on the color of dragon that invested it with power (choose or roll a d10): 1\u20132, acid (black); 3\u20134, cold (white); 5\u20136, fire (red); 7\u20138, lightning (blue); 9\u201310, poison (green)."
+        "description": "The kobold has resistance to a type of damage based on the color of dragon that invested it with power (choose or roll a d10): 1–2, acid (black); 3–4, cold (white); 5–6, fire (red); 7–8, lightning (blue); 9–10, poison (green)."
       },
       {
         "name": "Heart of the Dragon",
@@ -102927,7 +102927,7 @@
         "automatable": true
       },
       {
-        "name": "Alchemical Flame {@recharge}",
+        "name": "Alchemical Flame Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 12,
@@ -103305,7 +103305,7 @@
         "saveDC": 18,
         "halfOnSave": false,
         "description": "The kolyarut casts plane shift, requiring no material components and using Intelligence as the spellcasting ability. The kolyarut can cast the spell normally, or it can cast the spell on an unwilling creature it can see within 60 feet of itself. If it uses the latter option, the targeted creature must succeed on a 18 Charisma saving throw or be sent to a teleportation circle in the Hall of Concordance in Sigil.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "reactions": [
@@ -106290,7 +106290,7 @@
         "automatable": true
       },
       {
-        "name": "Possession {@recharge}",
+        "name": "Possession Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 13,
@@ -110159,7 +110159,7 @@
         ]
       },
       {
-        "name": "Reduce to Memory {@recharge}",
+        "name": "Reduce to Memory Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
@@ -110441,7 +110441,7 @@
         "saveDC": 15,
         "halfOnSave": false,
         "description": "When a creature the professor can see within 60 feet of it casts a spell, the professor can magically lock the casting in the moment before completion. The spellcaster must succeed on a 15 saving throw using the spell's spellcasting ability, or the spell fails and is wasted.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "spellcasting": {
@@ -111413,7 +111413,7 @@
         "saveDC": 14,
         "halfOnSave": false,
         "description": "When the hunter takes damage from a spell, it takes only half the triggering damage (rounded down). If the creature that cast the spell is within 60 feet of the hunter, that creature must succeed on a 14 Dexterity saving throw or take the other half of the damage.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "traits": [
@@ -112555,7 +112555,7 @@
         "automatable": true
       },
       {
-        "name": "Golden Gaze {@recharge}",
+        "name": "Golden Gaze Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 23,
@@ -113193,12 +113193,12 @@
         "notes": "REVIEW: Complex list-based action with multiple sub-options.",
         "subOptions": [
           {
-            "name": "1\u20132: Knock Down.",
+            "name": "1–2: Knock Down.",
             "description": "",
             "automatable": false
           },
           {
-            "name": "3\u20134: Push.",
+            "name": "3–4: Push.",
             "description": "",
             "automatable": false
           }
@@ -114800,7 +114800,7 @@
         "name": "Multiattack",
         "actionType": "ACTION",
         "isMultiattack": true,
-        "multiattackDescription": "The medusa makes either three melee attacks\u2014one with its snake hair and two with its shortsword\u2014or two ranged attacks with its longbow.",
+        "multiattackDescription": "The medusa makes either three melee attacks—one with its snake hair and two with its shortsword—or two ranged attacks with its longbow.",
         "multiattackComponents": [
           "Snake Hair"
         ]
@@ -120374,7 +120374,7 @@
             "condition": "unconscious"
           }
         ],
-        "description": "The mongrelfolk has one of the following extraordinary features, determined randomly by rolling a d20 or chosen by the DM: 1\u20133: Amphibious. The mongrelfolk can breathe air and water. 4\u20139: Darkvision. The mongrelfolk has darkvision out to a range of 60 feet. 10: Flight. The mongrelfolk has leathery wings and a flying speed of 40 feet. 11\u201315: Keen Hearing and Smell. The mongrelfolk has advantage on Wisdom (Perception) checks that rely on hearing or smell. 16\u201317: Spider Climb. The mongrelfolk can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check. 18\u201319: Standing Leap. The mongrelfolk's long jump is up to 20 feet and its high jump up to 10 feet, with or without a running start. 20: Two-Headed. The mongrelfolk has advantage on Wisdom (Perception) checks and on saving throws against being blinded, charmed, deafened, frightened, stunned, or knocked unconscious.",
+        "description": "The mongrelfolk has one of the following extraordinary features, determined randomly by rolling a d20 or chosen by the DM: 1–3: Amphibious. The mongrelfolk can breathe air and water. 4–9: Darkvision. The mongrelfolk has darkvision out to a range of 60 feet. 10: Flight. The mongrelfolk has leathery wings and a flying speed of 40 feet. 11–15: Keen Hearing and Smell. The mongrelfolk has advantage on Wisdom (Perception) checks that rely on hearing or smell. 16–17: Spider Climb. The mongrelfolk can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check. 18–19: Standing Leap. The mongrelfolk's long jump is up to 20 feet and its high jump up to 10 feet, with or without a running start. 20: Two-Headed. The mongrelfolk has advantage on Wisdom (Perception) checks and on saving throws against being blinded, charmed, deafened, frightened, stunned, or knocked unconscious.",
         "combatRelevant": true
       },
       {
@@ -120500,7 +120500,7 @@
         "targetType": "AOE_SPHERE",
         "aoeSize": 60,
         "description": "The peryton chooses up to three creatures within 60 feet of it that it can see. Each creature must succeed on a 14 Wisdom saving throw or become cursed. While cursed, whenever the creature makes an attack roll, an ability check, or a saving throw, it must roll a d4 and subtract that number from the roll. A cursed creature can repeat this saving throw at the end of each of its turns, ending the effect on itself with a success. A creature that succeeds on this saving throw is immune to this peryton's Warp Shadow for 24 hours.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "legendaryActions": [
@@ -120772,7 +120772,7 @@
         "name": "Chromatic Resistance",
         "cost": 1,
         "automatable": false,
-        "description": "Modakhesh gains resistance to one damage type of his choice\u2014acid, cold, fire, lightning, poison, or thunder\u2014until the start of his next turn."
+        "description": "Modakhesh gains resistance to one damage type of his choice—acid, cold, fire, lightning, poison, or thunder—until the start of his next turn."
       },
       {
         "name": "Warlord's Command",
@@ -121424,7 +121424,7 @@
       {
         "name": "Mouth of Madness",
         "combatRelevant": true,
-        "description": "The giant is immune to confusion spells and similar magic. On each of its turns, the giant uses all its movement to move toward the nearest creature or whatever else it might perceive as food. Roll a d10 at the start of each of the giant's turns to determine its action for that turn: 1\u20133. The giant makes three attacks with its fists against one random target within its reach. If no other creatures are within its reach, the giant flies into a rage and gains advantage on all attack rolls until the end of its next turn. 4\u20135. The giant makes one attack with its fist against every creature within its reach. If no other creatures are within its reach, the giant makes one fist attack against itself. 6\u20137. The giant makes one attack with its bite against one random target within its reach. If no other creatures are within its reach, its eyes glaze over and it becomes stunned until the start of its next turn. 8\u201310. The giant makes three attacks against one random target within its reach: one attack with its bite and two with its fists. If no other creatures are within its reach, the giant flies into a rage and gains advantage on all attack rolls until the end of its next turn."
+        "description": "The giant is immune to confusion spells and similar magic. On each of its turns, the giant uses all its movement to move toward the nearest creature or whatever else it might perceive as food. Roll a d10 at the start of each of the giant's turns to determine its action for that turn: 1–3. The giant makes three attacks with its fists against one random target within its reach. If no other creatures are within its reach, the giant flies into a rage and gains advantage on all attack rolls until the end of its next turn. 4–5. The giant makes one attack with its fist against every creature within its reach. If no other creatures are within its reach, the giant makes one fist attack against itself. 6–7. The giant makes one attack with its bite against one random target within its reach. If no other creatures are within its reach, its eyes glaze over and it becomes stunned until the start of its next turn. 8–10. The giant makes three attacks against one random target within its reach: one attack with its bite and two with its fists. If no other creatures are within its reach, the giant flies into a rage and gains advantage on all attack rolls until the end of its next turn."
       }
     ]
   },
@@ -121929,7 +121929,7 @@
         "effects": [
           {
             "effectType": "DAMAGE",
-            "damageDice": "3d6+4",
+            "damageDice": "2d6 + 4",
             "damageType": "bludgeoning"
           },
           {
@@ -122090,7 +122090,8 @@
     "notes": [
       "REVIEW: Has spellcasting block.",
       "REVIEW: Rotting Fist curse prevents HP recovery. Dreadful Glare distance-based effect."
-    ]
+    ],
+    "legendaryResistanceCount": 3
   },
   {
     "monsterName": "Mummy",
@@ -122385,7 +122386,7 @@
     }
   },
   {
-    "monsterName": "Mwaxanar\u00e9",
+    "monsterName": "Mwaxanaré",
     "source": "ToA",
     "challengeRating": "1/8",
     "hasLairActions": false,
@@ -122659,7 +122660,7 @@
     ]
   },
   {
-    "monsterName": "M\u00f4rg\u00e6n",
+    "monsterName": "Môrgæn",
     "source": "AI",
     "challengeRating": "4",
     "actions": [
@@ -122667,7 +122668,7 @@
         "name": "Multiattack",
         "actionType": "ACTION",
         "isMultiattack": true,
-        "multiattackDescription": "M\u00f4rg\u00e6n makes three attacks with her scimitars or her longbow.",
+        "multiattackDescription": "Môrgæn makes three attacks with her scimitars or her longbow.",
         "multiattackComponents": [
           "Scimitars"
         ],
@@ -122752,7 +122753,7 @@
             "condition": "charmed"
           }
         ],
-        "description": "M\u00f4rg\u00e6n has advantage on saving throws against being charmed, and magic can't put her to sleep.",
+        "description": "Môrgæn has advantage on saving throws against being charmed, and magic can't put her to sleep.",
         "combatRelevant": true
       }
     ]
@@ -126496,7 +126497,7 @@
         "automatable": true
       },
       {
-        "name": "Storm of Shattered Glass {@recharge}",
+        "name": "Storm of Shattered Glass Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 20,
@@ -129015,7 +129016,7 @@
     ]
   },
   {
-    "monsterName": "Ogr\u00e9moch",
+    "monsterName": "Ogrémoch",
     "source": "PotA",
     "challengeRating": "20",
     "legendaryActionCount": 3,
@@ -129025,7 +129026,7 @@
     "traits": [
       {
         "name": "Empowered Attacks",
-        "description": "Ogr\u00e9moch's slam attacks are treated as magical and adamantine for the purpose of bypassing resistance and immunity to nonmagical attacks."
+        "description": "Ogrémoch's slam attacks are treated as magical and adamantine for the purpose of bypassing resistance and immunity to nonmagical attacks."
       },
       {
         "name": "Legendary Resistance (3/Day)",
@@ -129035,11 +129036,11 @@
       },
       {
         "name": "Magic Resistance",
-        "description": "Ogr\u00e9moch has advantage on saving throws against spells and other magical effects."
+        "description": "Ogrémoch has advantage on saving throws against spells and other magical effects."
       },
       {
         "name": "Siege Monster",
-        "description": "Ogr\u00e9moch deals double damage to objects and structures with his melee and ranged weapon attacks."
+        "description": "Ogrémoch deals double damage to objects and structures with his melee and ranged weapon attacks."
       }
     ],
     "actions": [
@@ -129047,7 +129048,7 @@
         "name": "Multiattack",
         "actionType": "ACTION",
         "isMultiattack": true,
-        "multiattackDescription": "Ogr\u00e9moch makes two slam attacks.",
+        "multiattackDescription": "Ogrémoch makes two slam attacks.",
         "multiattackComponents": [
           "Slam",
           "Slam"
@@ -129097,7 +129098,7 @@
         "uses": 1,
         "rechargeType": "LONG_REST",
         "automatable": false,
-        "description": "Ogr\u00e9moch summons up to three earth elemental and loses 30 hit points for each elemental he summons. Summoned elementals have maximum hit points, appear within 100 feet of Ogr\u00e9moch, and disappear if Ogr\u00e9moch is reduced to 0 hit points."
+        "description": "Ogrémoch summons up to three earth elemental and loses 30 hit points for each elemental he summons. Summoned elementals have maximum hit points, appear within 100 feet of Ogrémoch, and disappear if Ogrémoch is reduced to 0 hit points."
       }
     ],
     "legendaryActions": [
@@ -129105,7 +129106,7 @@
         "name": "Illuminating Crystals",
         "cost": 1,
         "automatable": false,
-        "description": "Ogr\u00e9moch's crystalline protrusions flare. Each creature within 30 feet of Ogr\u00e9moch becomes outlined in orange light, shedding dim light in a 10-foot radius. Any attack roll against an affected creature has advantage if the attacker can see it, and the affected creature can't benefit from being invisible."
+        "description": "Ogrémoch's crystalline protrusions flare. Each creature within 30 feet of Ogrémoch becomes outlined in orange light, shedding dim light in a 10-foot radius. Any attack roll against an affected creature has advantage if the attacker can see it, and the affected creature can't benefit from being invisible."
       },
       {
         "name": "Stomp",
@@ -129118,13 +129119,13 @@
         "aoeSize": 30,
         "effects": [],
         "automatable": false,
-        "description": "Ogr\u00e9moch stomps the ground, creating an earth tremor that extends in a 30-foot radius. Other creatures standing on the ground in that radius must succeed on a 23 Dexterity saving throw or fall prone."
+        "description": "Ogrémoch stomps the ground, creating an earth tremor that extends in a 30-foot radius. Other creatures standing on the ground in that radius must succeed on a 23 Dexterity saving throw or fall prone."
       },
       {
         "name": "Create Gargoyle",
         "cost": 3,
         "automatable": false,
-        "description": "Ogr\u00e9moch's hit points are reduced by 50 as he breaks off a chunk of his body and places it on the ground in an unoccupied space within 15 feet of him. The chunk of rock instantly transforms into a gargoyle and acts on the same initiative count as Ogr\u00e9moch. Ogr\u00e9moch can't use this action if he has 50 hit points or fewer. The gargoyle obeys Ogr\u00e9moch's commands and fights until destroyed."
+        "description": "Ogrémoch's hit points are reduced by 50 as he breaks off a chunk of his body and places it on the ground in an unoccupied space within 15 feet of him. The chunk of rock instantly transforms into a gargoyle and acts on the same initiative count as Ogrémoch. Ogrémoch can't use this action if he has 50 hit points or fewer. The gargoyle obeys Ogrémoch's commands and fights until destroyed."
       }
     ],
     "spellcasting": {
@@ -129883,7 +129884,7 @@
         "targetCount": 1,
         "description": "The Oracle teleports one creature she can see within 60 feet of herself, along with any equipment it is wearing or carrying, to an unoccupied space within 30 feet of herself. An unwilling target must succeed on a 18 Charisma saving throw to avoid the effect.",
         "cost": 1,
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       },
       {
         "name": "Spellcasting",
@@ -135337,7 +135338,7 @@
         ]
       },
       {
-        "name": "Lightning Flourish {@recharge}",
+        "name": "Lightning Flourish Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
@@ -136824,7 +136825,7 @@
         "saveDC": 15,
         "halfOnSave": false,
         "description": "When the professor sees another creature within 60 feet of itself casting a spell, the professor can try to nullify the spell's formation. The creature must succeed on a 15 saving throw using the spell's spellcasting ability, or the spell fails and is wasted.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "spellcasting": {
@@ -138529,7 +138530,7 @@
         ]
       },
       {
-        "name": "Life-Draining Vines {@recharge}",
+        "name": "Life-Draining Vines Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
@@ -141770,7 +141771,7 @@
     ]
   },
   {
-    "monsterName": "Roth\u00e9",
+    "monsterName": "Rothé",
     "source": "CoA",
     "challengeRating": "1/4",
     "actions": [
@@ -141794,7 +141795,7 @@
     ]
   },
   {
-    "monsterName": "Roth\u00e9",
+    "monsterName": "Rothé",
     "source": "VGM",
     "challengeRating": "1/4",
     "actions": [
@@ -141826,7 +141827,7 @@
             "damageType": "piercing"
           }
         ],
-        "description": "If the roth\u00e9 moves at least 20 feet straight toward a target and then hits it with a gore attack on the same turn, the target takes an extra 7 (2d6) piercing damage."
+        "description": "If the rothé moves at least 20 feet straight toward a target and then hits it with a gore attack on the same turn, the target takes an extra 7 (2d6) piercing damage."
       }
     ]
   },
@@ -142233,7 +142234,7 @@
       {
         "name": "Rust Metal",
         "combatRelevant": false,
-        "description": "Any nonmagical weapon made of metal that hits the rust monster corrodes. After dealing damage, the weapon takes a permanent and cumulative \u22121 penalty to damage rolls. If its penalty drops to \u22125, the weapon is destroyed. Non magical ammunition made of metal that hits the rust monster is destroyed after dealing damage."
+        "description": "Any nonmagical weapon made of metal that hits the rust monster corrodes. After dealing damage, the weapon takes a permanent and cumulative −1 penalty to damage rolls. If its penalty drops to −5, the weapon is destroyed. Non magical ammunition made of metal that hits the rust monster is destroyed after dealing damage."
       }
     ],
     "actions": [
@@ -142262,7 +142263,7 @@
         "halfOnSave": false,
         "targetType": "AOE_CUBE",
         "aoeSize": 1,
-        "description": "The rust monster corrodes a nonmagical ferrous metal object it can see within 5 feet of it. If the object isn't being worn or carried, the touch destroys a 1-foot cube of it. If the object is being worn or carried by a creature, the creature can make a 11 Dexterity saving throw to avoid the rust monster's touch. If the object touched is either metal armor or a metal shield being worn or carried, it takes a permanent and cumulative \u22121 penalty to the AC it offers. Armor reduced to an AC of 10 or a shield that drops to a +0 bonus is destroyed. If the object touched is a held metal weapon, it rusts as described in the Rust Metal trait.",
+        "description": "The rust monster corrodes a nonmagical ferrous metal object it can see within 5 feet of it. If the object isn't being worn or carried, the touch destroys a 1-foot cube of it. If the object is being worn or carried by a creature, the creature can make a 11 Dexterity saving throw to avoid the rust monster's touch. If the object touched is either metal armor or a metal shield being worn or carried, it takes a permanent and cumulative −1 penalty to the AC it offers. Armor reduced to an AC of 10 or a shield that drops to a +0 bonus is destroyed. If the object touched is a held metal weapon, it rusts as described in the Rust Metal trait.",
         "automatable": false
       }
     ]
@@ -146834,7 +146835,7 @@
         "notes": "REVIEW: Complex list-based action with multiple sub-options.",
         "subOptions": [
           {
-            "name": "1\u20132: Bite",
+            "name": "1–2: Bite",
             "actionType": "ACTION",
             "deliveryMethod": "ATTACK_ROLL",
             "attackType": "MELEE_WEAPON",
@@ -146850,7 +146851,7 @@
             ]
           },
           {
-            "name": "3\u20134: Poison Quills",
+            "name": "3–4: Poison Quills",
             "actionType": "ACTION",
             "deliveryMethod": "ATTACK_ROLL",
             "attackType": "MELEE_WEAPON",
@@ -146877,7 +146878,7 @@
             ]
           },
           {
-            "name": "5\u20136: Tentacle",
+            "name": "5–6: Tentacle",
             "actionType": "ACTION",
             "deliveryMethod": "ATTACK_ROLL",
             "attackType": "MELEE_WEAPON",
@@ -147729,7 +147730,7 @@
         "notes": "REVIEW: Complex list-based action with multiple sub-options.",
         "subOptions": [
           {
-            "name": "1\u20132: Decay",
+            "name": "1–2: Decay",
             "description": "The target takes 22 (4d10) necrotic damage.",
             "automatable": false,
             "effects": [
@@ -147741,7 +147742,7 @@
             ]
           },
           {
-            "name": "3\u20134: Grapple",
+            "name": "3–4: Grapple",
             "description": "The target is grappled (escape 14) if it is a Medium or smaller creature. Until the grapple ends, the target is restrained, and the shadar-kai can't grapple another target.",
             "automatable": false,
             "effects": [
@@ -147756,7 +147757,7 @@
             ]
           },
           {
-            "name": "5\u20136: Topple",
+            "name": "5–6: Topple",
             "description": "The target is knocked prone.",
             "automatable": false,
             "effects": [
@@ -149073,7 +149074,7 @@
         "automatable": true
       },
       {
-        "name": "Howling Babble {@recharge}",
+        "name": "Howling Babble Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 13,
@@ -159002,7 +159003,7 @@
             "condition": "prone"
           }
         ],
-        "description": "Whenever the zombie takes at least 5 bludgeoning or slashing damage at one time, roll a d20 to determine what else happens to it: 1\u20138: One leg is severed from the zombie if it has any legs left. 9\u201316: One arm is severed from the zombie if it has any arms left. 17\u201320: The zombie is decapitated. If the zombie is reduced to 0 hit points, all parts of it die. Until then, a severed part acts on the zombie's initiative and has its own action and movement. A severed part has AC 8. Any damage it takes is subtracted from the zombie's hit points. A severed leg is unable to attack and has a speed of 5 feet. A severed arm has a speed of 5 feet and can make one claw attack on its turn, with disadvantage on the attack roll. Each time the zombie loses an arm, it loses a claw attack. If its head is severed, the zombie loses its bite attack and its body is blinded unless the head can see it. The severed head has a speed of 0 feet. It can make a bite attack, but only against a target in its space. The zombie's speed is halved if it's missing a leg. If it loses both legs, it falls prone. If it has both arms, it can crawl. With only one arm, it can still crawl, but its speed is halved. With no arms or legs, its speed is 0 feet, and it can't benefit from bonuses to speed.",
+        "description": "Whenever the zombie takes at least 5 bludgeoning or slashing damage at one time, roll a d20 to determine what else happens to it: 1–8: One leg is severed from the zombie if it has any legs left. 9–16: One arm is severed from the zombie if it has any arms left. 17–20: The zombie is decapitated. If the zombie is reduced to 0 hit points, all parts of it die. Until then, a severed part acts on the zombie's initiative and has its own action and movement. A severed part has AC 8. Any damage it takes is subtracted from the zombie's hit points. A severed leg is unable to attack and has a speed of 5 feet. A severed arm has a speed of 5 feet and can make one claw attack on its turn, with disadvantage on the attack roll. Each time the zombie loses an arm, it loses a claw attack. If its head is severed, the zombie loses its bite attack and its body is blinded unless the head can see it. The severed head has a speed of 0 feet. It can make a bite attack, but only against a target in its space. The zombie's speed is halved if it's missing a leg. If it loses both legs, it falls prone. If it has both arms, it can crawl. With only one arm, it can still crawl, but its speed is halved. With no arms or legs, its speed is 0 feet, and it can't benefit from bonuses to speed.",
         "combatRelevant": true
       }
     ]
@@ -161702,7 +161703,7 @@
         "description": "The target's speed is reduced by 10 feet until the end of its next turn."
       },
       {
-        "name": "Dazzling Lights {@recharge}",
+        "name": "Dazzling Lights Recharge",
         "actionType": "ACTION",
         "recharge": "6",
         "deliveryMethod": "SAVING_THROW",
@@ -170429,7 +170430,7 @@
         "halfOnSave": false,
         "targetCount": 1,
         "description": "The tri-flower frond chooses one creature it can see within 5 feet of it. The target must succeed on a 11 Dexterity saving throw, or it is covered with corrosive sap and takes 5 acid damage at the start of each of its turns. Dousing the target with water reduces the acid damage by 1 point per pint or flask of water used.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       },
       {
         "name": "Red Blossom",
@@ -171706,7 +171707,7 @@
       }
     },
     "notes": [
-      "REVIEW: Possession {@recharge} has complex description (1059 chars), verify extraction"
+      "REVIEW: Possession Recharge has complex description (1059 chars), verify extraction"
     ]
   },
   {
@@ -172199,7 +172200,7 @@
         "automatable": true
       },
       {
-        "name": "Shadows of Death {@recharge}",
+        "name": "Shadows of Death Recharge",
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 19,
@@ -179543,7 +179544,7 @@
         "name": "Multiattack",
         "actionType": "ACTION",
         "isMultiattack": true,
-        "multiattackDescription": "The colossus makes three attacks\u2014one with its slam and two with its eldritch turrets\u2014and then uses Stomp.",
+        "multiattackDescription": "The colossus makes three attacks—one with its slam and two with its eldritch turrets—and then uses Stomp.",
         "multiattackComponents": [
           "Slam",
           "Eldritch Turret",
@@ -182439,7 +182440,7 @@
       },
       {
         "name": "Corrode Metal",
-        "description": "Any nonmagical weapon made of metal that hits White Maw corrodes. After dealing damage, the weapon takes a permanent and cumulative \u22121 penalty to damage rolls. if its penalty drops to \u22125, the weapon is destroyed. Nonmagical ammunition made of metal that hits White Maw is destroyed after dealing damage. White Maw can eat through 2-inch-thick, nonmagical metal in 1 round."
+        "description": "Any nonmagical weapon made of metal that hits White Maw corrodes. After dealing damage, the weapon takes a permanent and cumulative −1 penalty to damage rolls. if its penalty drops to −5, the weapon is destroyed. Nonmagical ammunition made of metal that hits White Maw is destroyed after dealing damage. White Maw can eat through 2-inch-thick, nonmagical metal in 1 round."
       },
       {
         "name": "False Appearance",
@@ -188523,7 +188524,7 @@
       {
         "name": "Tunneler",
         "traitType": "FLAVOUR",
-        "description": "The kruthik can burrow through solid rock at half its burrowing speed and leaves a 2\u00bd-foot-diameter tunnel in its wake."
+        "description": "The kruthik can burrow through solid rock at half its burrowing speed and leaves a 2½-foot-diameter tunnel in its wake."
       }
     ]
   },
@@ -188562,7 +188563,7 @@
       },
       {
         "name": "Tunneler",
-        "description": "The kruthik can burrow through solid rock at half its burrowing speed and leaves a 2\u00bd-foot-diameter tunnel in its wake."
+        "description": "The kruthik can burrow through solid rock at half its burrowing speed and leaves a 2½-foot-diameter tunnel in its wake."
       }
     ]
   },
@@ -192881,7 +192882,7 @@
         "targetType": "AOE_CONE",
         "aoeSize": 15,
         "description": "Zindar exhales gas in a 15-foot cone. Each creature in that area must succeed on a 15 Strength saving throw or have disadvantage on Strength-based attack rolls, Strength checks, and Strength saving throws for 1 minute. A creature can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with {@condition}."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
       }
     ],
     "spellcasting": {

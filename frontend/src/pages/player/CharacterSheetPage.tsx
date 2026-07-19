@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun } from 'lucide-react';
 import { characterApi } from '../../api/characterApi';
+import { campaignApi } from '../../api/campaignApi';
 import type { PlayerCharacter, CharacterUpdateRequest } from '../../types/character';
+import type { Campaign } from '../../types/campaign';
 
 const ABILITIES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
 const ABILITY_ABBR: Record<string, string> = {
@@ -55,11 +57,13 @@ export default function CharacterSheetPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [restModal, setRestModal] = useState<'short' | 'long' | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
     if (characterId && characterId !== 'new') {
       characterApi.getById(characterId).then(res => setChar(res.data));
     }
+    campaignApi.getAll().then(res => setCampaigns(res.data)).catch(() => {});
   }, [characterId]);
 
   const saveField = useCallback(async (updates: CharacterUpdateRequest) => {
@@ -77,6 +81,21 @@ export default function CharacterSheetPage() {
       setSaving(false);
     }
   }, [characterId]);
+
+  async function handleCampaignChange(value: string) {
+    if (!characterId) return;
+    try {
+      const update: CharacterUpdateRequest = value
+        ? { campaignId: value }
+        : { clearCampaign: true };
+      const res = await characterApi.update(characterId, update);
+      setChar(res.data);
+      setSuccess('Campaign updated');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update campaign');
+    }
+  }
 
   const savingThrows = useMemo(() => safeJsonParse<string[]>(char?.savingThrowProficiencies, []), [char?.savingThrowProficiencies]);
   const skillProfs = useMemo(() => safeJsonParse<string[]>(char?.skillProficiencies, []), [char?.skillProficiencies]);
@@ -189,18 +208,30 @@ export default function CharacterSheetPage() {
 
       {/* Tabs */}
       <div className="max-w-5xl mx-auto px-4">
-        <div className="flex gap-1 border-b border-gray-800 overflow-x-auto">
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
-                activeTab === key ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" /> {label}
-            </button>
-          ))}
+        <div className="flex items-center border-b border-gray-800">
+          <div className="flex gap-1 overflow-x-auto flex-1">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === key ? 'text-indigo-400 border-b-2 border-indigo-400' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" /> {label}
+              </button>
+            ))}
+          </div>
+          <select
+            value={char.campaignId ?? ''}
+            onChange={e => handleCampaignChange(e.target.value)}
+            className="ml-2 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded-md text-gray-300 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 shrink-0"
+          >
+            <option value="">No campaign</option>
+            {campaigns.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -267,6 +298,13 @@ function StatsTab({ char, savingThrows, skillProfs, skillExpertises, resistances
   skillExpertises: string[];
   resistances: string[];
 }) {
+  const armorProfs = useMemo(() => safeJsonParse<string[]>(char.armorProficiencies, []), [char.armorProficiencies]);
+  const weaponProfs = useMemo(() => safeJsonParse<string[]>(char.weaponProficiencies, []), [char.weaponProficiencies]);
+  const toolProfs = useMemo(() => safeJsonParse<string[]>(char.toolProficiencies, []), [char.toolProficiencies]);
+  const languageProfs = useMemo(() => safeJsonParse<string[]>(char.languageProficiencies, []), [char.languageProficiencies]);
+
+  const hasProficiencies = armorProfs.length > 0 || weaponProfs.length > 0 || toolProfs.length > 0 || languageProfs.length > 0;
+
   return (
     <div className="space-y-6">
       {/* Ability Scores */}
@@ -314,12 +352,22 @@ function StatsTab({ char, savingThrows, skillProfs, skillExpertises, resistances
             const bonus = mod + (isExpert ? char.proficiencyBonus * 2 : isProficient ? char.proficiencyBonus : 0);
             return (
               <div key={skill.name} className="flex items-center gap-2 py-0.5">
-                <div className={`w-2 h-2 rounded-full ${isExpert ? 'bg-yellow-400' : isProficient ? 'bg-green-400' : 'bg-gray-700'}`} />
-                <span className="text-gray-400 text-sm flex-1">{skill.name} <span className="text-gray-600 text-xs">({ABILITY_ABBR[skill.ability]})</span></span>
-                <span className="text-white text-sm font-medium">{formatMod(bonus)}</span>
+                {isExpert ? (
+                  <span className="text-yellow-400 text-xs leading-none" style={{ fontSize: '10px' }}>&#9733;</span>
+                ) : (
+                  <div className={`w-2.5 h-2.5 rounded-full border-2 ${isProficient ? 'bg-green-400 border-green-400' : 'bg-transparent border-gray-600'}`} />
+                )}
+                <span className={`text-sm flex-1 ${isProficient || isExpert ? 'text-white font-medium' : 'text-gray-400'}`}>
+                  {skill.name} <span className="text-gray-600 text-xs">({ABILITY_ABBR[skill.ability]})</span>
+                </span>
+                <span className={`text-sm font-medium ${isProficient || isExpert ? 'text-white' : 'text-gray-500'}`}>{formatMod(bonus)}</span>
               </div>
             );
           })}
+        </div>
+        <div className="mt-3 pt-3 border-t border-gray-800 flex gap-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-400" /> Proficient</span>
+          <span className="flex items-center gap-1.5"><span className="text-yellow-400" style={{ fontSize: '10px' }}>&#9733;</span> Expertise</span>
         </div>
       </div>
 
@@ -330,6 +378,39 @@ function StatsTab({ char, savingThrows, skillProfs, skillExpertises, resistances
         <StatCard label="Hit Dice" value={char.hitDiceTotal || `${char.level}d?`} />
         <StatCard label="XP" value={String(char.experiencePoints)} />
       </div>
+
+      {/* Proficiencies */}
+      {hasProficiencies && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+          <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Proficiencies</h3>
+          <div className="space-y-2">
+            {armorProfs.length > 0 && (
+              <div>
+                <span className="text-gray-500 text-xs font-medium">Armor: </span>
+                <span className="text-gray-300 text-sm">{armorProfs.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}</span>
+              </div>
+            )}
+            {weaponProfs.length > 0 && (
+              <div>
+                <span className="text-gray-500 text-xs font-medium">Weapons: </span>
+                <span className="text-gray-300 text-sm">{weaponProfs.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(', ')}</span>
+              </div>
+            )}
+            {toolProfs.length > 0 && (
+              <div>
+                <span className="text-gray-500 text-xs font-medium">Tools: </span>
+                <span className="text-gray-300 text-sm">{toolProfs.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}</span>
+              </div>
+            )}
+            {languageProfs.length > 0 && (
+              <div>
+                <span className="text-gray-500 text-xs font-medium">Languages: </span>
+                <span className="text-gray-300 text-sm">{languageProfs.join(', ')}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {resistances.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">

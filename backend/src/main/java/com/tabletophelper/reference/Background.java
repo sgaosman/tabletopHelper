@@ -54,6 +54,16 @@ public class Background {
     @Column(columnDefinition = "jsonb")
     private String feature;
 
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private String feats;
+
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "additional_spells", columnDefinition = "jsonb")
+    private String additionalSpells;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

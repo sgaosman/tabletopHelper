@@ -12,7 +12,7 @@
 | 6 | Polish, Mobile & Deployment | Deferred | Will be done after M13 when combat UI has stabilised |
 | 7 | Data Gathering & Spell Effect Schema | Complete | 288 spells, 104 items, 2,357 monsters, class/race analysis — data files and review docs produced |
 | 8 | Spell Effect Data Population & Review Cycle | Complete | All data files validated and approved — 2 critical, 2 moderate, 48 markup fixes applied |
-| 9 | Character Builder Overhaul | Complete | Reference data entities (races, classes, subclasses, backgrounds, feats), 5etools seeders, 6-step creation wizard, 6-tab character sheet, short/long rest mechanics |
+| 9 | Character Builder Overhaul | Complete | Reference data entities, 5etools seeders, 6-step creation wizard, 6-tab character sheet, rest mechanics, proficiency display, character deletion, campaign assignment |
 | 10 | Spell Resolver Engine & Encounter Spellcasting | Not started | Cast Spell action, auto-resolution, source-tracked conditions, component checks, optimistic locking |
 | 11 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
 | 12 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
@@ -192,30 +192,42 @@
 **Note:** The Spells tab and spell preparation/known management UI are blocked by M7/M8 completion. Build M9 with a placeholder Spells tab; wire it once spell data review is complete. All other parts of M9 can proceed in parallel with M7/M8.
 
 **Backend tasks:**
-- [ ] Seed `Race` entity from 5e.tools `races.json` (191 races with size, speed, ASI, proficiencies, features, creature type)
-- [ ] Seed `CharacterClass` entity from 5e.tools `class-*.json` files (hit dice, proficiencies, features per level, spell list type: prepared/known/spellbook)
-- [ ] Seed `Subclass` entity with subclass features, domain/oath/circle spells
-- [ ] Seed `Background` entity with proficiencies, equipment, features
-- [ ] Seed `Feat` entity with prerequisites and effects
-- [ ] Delete existing test characters (all current `player_characters` are test data — see [[decisions-log#D035]])
-- [ ] Character creation API: race → class → ability scores → background → derived stats auto-calculated
-- [ ] Ability score methods: manual entry, standard array, point buy, 4d6 drop lowest (server-side roll)
-- [ ] Tasha's ability score reassignment (move racial ASI to different abilities)
-- [ ] Multiclass support: add 2nd–5th class following PHB multiclassing rules
-- [ ] Auto-calculate derived stats: proficiency bonus, ability modifiers, saving throw bonuses, skill bonuses, spell save DC, spell attack bonus, initiative bonus, HP
-- [ ] HP calculation: first level (max hit die + CON mod), higher levels (average, set, or roll per class rules)
-- [ ] Equipment and currency management endpoints
-- [ ] Attunement tracking (max 3 items)
+- [x] Seed `Race` entity from 5e.tools `races.json` (226 races with size, speed, ASI, proficiencies, features, creature type)
+- [x] Seed `CharacterClass` entity from 5e.tools `class-*.json` files (hit dice, proficiencies, features per level, spell list type: prepared/known/spellbook)
+- [x] Seed `Subclass` entity with subclass features, domain/oath/circle spells
+- [x] Seed `Background` entity with proficiencies, equipment, features
+- [x] Seed `Feat` entity with prerequisites and effects
+- [x] Delete existing test characters (all current `player_characters` are test data — see [[decisions-log#D035]])
+- [x] Character creation API: race → class → ability scores → background → derived stats auto-calculated
+- [x] Ability score methods: manual entry, standard array, point buy, 4d6 drop lowest (server-side roll)
+- [x] Tasha's ability score reassignment (move racial ASI to different abilities)
+- [x] Multiclass support: add 2nd–5th class following PHB multiclassing rules
+- [x] Auto-calculate derived stats: proficiency bonus, ability modifiers, saving throw bonuses, skill bonuses, spell save DC, spell attack bonus, initiative bonus, HP
+- [x] HP calculation: first level (max hit die + CON mod), higher levels (average, set, or roll per class rules)
+- [x] Equipment and currency management endpoints
+- [x] Attunement tracking (max 3 items)
+- [x] Character soft-delete endpoint (`DELETE /characters/{characterId}`) — sets `isActive = false`, blocked if character is in active combat (PREPARING/ACTIVE/PAUSED encounter)
+- [x] `IllegalStateException` → 409 Conflict global exception handler
+- [x] Proficiency JSONB columns: `armor_proficiencies`, `weapon_proficiencies`, `tool_proficiencies`, `language_proficiencies`
+- [x] `clearCampaign` boolean on update request for campaign unassignment
+- [x] `EncounterParticipantRepository.existsByCharacter_IdAndEncounter_StatusIn()` for active-combat check
+- [x] BackgroundSeeder recursive `_copy` resolution (depth limit 5) and `{"any": N}` proficiency parsing
 
 **Frontend tasks:**
-- [ ] Character creation wizard: race selector (with ASI preview and Tasha's reassignment) → class selector (with hit die and proficiency preview) → subclass selector (if level ≥ 3) → ability scores (method selector + inputs) → background → alignment → campaign assignment
-- [ ] New character sheet tabs:
-  - [ ] **Stats** — HP (current/max), ability scores + modifiers, speed, AC, darkvision, proficiency bonus, initiative bonus, hit dice (remaining/total), spell slots (used/remaining), saving throw bonuses + proficiencies, skill bonuses + proficiencies, weapon/armor/tool/language proficiencies
-  - [ ] **Actions** — attack actions with equipped weapons (extra attack reminder), class actions (Channel Divinity, Second Wind), feat actions, race actions
+- [x] Character creation wizard: race selector (with ASI preview and Tasha's reassignment) → class selector (with hit die and proficiency preview) → subclass selector (if level ≥ 3) → ability scores (method selector + inputs) → background → alignment → campaign assignment
+- [x] Background proficiency pickers: "Any Gaming Set"/"Any Artisan's Tool"/"Any Musical Instrument" tool categories expanded to concrete options; `{"any": N}` structured entries rendered as pickers
+- [x] Exotic language support: full 18-language list (8 standard + 8 exotic + Druidic + Thieves' Cant) in race and background pickers
+- [x] Background equipment rendering: all 10+ item patterns (string, displayName, containsValue, equipmentType, quantity, worthValue, value, special), `fmtCurrency()` for cp/sp/gp, `strip5eMarkup()` for `{@item ...}` tags, equipment choice groups with "-or-" separator
+- [x] Proficiency collection at creation: merge from race + class + background, deduplicate, save to 4 JSONB columns
+- [x] New character sheet tabs:
+  - [x] **Stats** — HP (current/max), ability scores + modifiers, speed, AC, darkvision, proficiency bonus, initiative bonus, hit dice (remaining/total), spell slots (used/remaining), saving throw bonuses + proficiencies, skill bonuses + proficiencies (colored bullets for proficiency, stars ★ for expertise), weapon/armor/tool/language proficiencies section
+  - [x] **Actions** — attack actions with equipped weapons (extra attack reminder), class actions (Channel Divinity, Second Wind), feat actions, race actions
   - [ ] **Spells** (blocked by M7/M8) — spell slots display, spells listed by class in separate boxes, burger menu per class box to change prepared/known spells via modal, save/cancel on modal
-  - [ ] **Inventory** — currency (gp, sp, cp, pp), all items (from class/background + added), equipped items, attuned items (indicator), "+" button to add items from reference database
-  - [ ] **Features** — class features, race features, background features, other features (text descriptions for reference)
-  - [ ] **Journal** — character image (with upload), alignment, physical description, personality traits, ideals, bonds, flaws, notes
+  - [x] **Inventory** — currency (gp, sp, cp, pp), all items (from class/background + added), equipped items, attuned items (indicator), "+" button to add items from reference database
+  - [x] **Features** — class features, race features, background features, other features (text descriptions for reference)
+  - [x] **Journal** — character image (with upload), alignment, physical description, personality traits, ideals, bonds, flaws, notes
+- [x] Campaign assignment dropdown on character sheet (to the right of tab navigation)
+- [x] Character deletion: persistent trash icon on player dashboard cards, confirmation modal requiring exact name input, backend error display (e.g. active combat), soft-delete via API
 
 ## Milestone 10: Spell Resolver Engine & Encounter Spellcasting
 

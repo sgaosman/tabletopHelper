@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+@theme {
+  --color-gray-400: #d5dbe6;
+  --color-gray-500: #b8c1d1;
+  --color-gray-600: #949eb2;
+  --font-size-xs: 1.125rem;
+  --font-size-xs--line-height: 1.625rem;
+  --font-size-sm: 1.25rem;
+  --font-size-sm--line-height: 1.75rem;
+}

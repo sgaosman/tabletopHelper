@@ -6,6 +6,8 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.CharacterCreateRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.CharacterUpdateRequest;
+import com.tabletophelper.encounter.EncounterParticipantRepository;
+import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.reference.*;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
@@ -28,6 +30,7 @@ public class CharacterService {
     private final CharacterClassRepository characterClassRepository;
     private final SubclassRepository subclassRepository;
     private final BackgroundRepository backgroundRepository;
+    private final EncounterParticipantRepository encounterParticipantRepository;
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
@@ -108,6 +111,10 @@ public class CharacterService {
                 .proficiencyBonus(request.getProficiencyBonus() != null ? request.getProficiencyBonus() : profBonus)
                 .savingThrowProficiencies(request.getSavingThrowProficiencies())
                 .skillProficiencies(request.getSkillProficiencies())
+                .armorProficiencies(request.getArmorProficiencies())
+                .weaponProficiencies(request.getWeaponProficiencies())
+                .toolProficiencies(request.getToolProficiencies())
+                .languageProficiencies(request.getLanguageProficiencies())
                 .features(request.getFeatures())
                 .damageResistances(request.getDamageResistances())
                 .spellsKnown(request.getSpellsKnown())
@@ -195,6 +202,10 @@ public class CharacterService {
         if (request.getSavingThrowProficiencies() != null) character.setSavingThrowProficiencies(request.getSavingThrowProficiencies());
         if (request.getSkillProficiencies() != null) character.setSkillProficiencies(request.getSkillProficiencies());
         if (request.getSkillExpertises() != null) character.setSkillExpertises(request.getSkillExpertises());
+        if (request.getArmorProficiencies() != null) character.setArmorProficiencies(request.getArmorProficiencies());
+        if (request.getWeaponProficiencies() != null) character.setWeaponProficiencies(request.getWeaponProficiencies());
+        if (request.getToolProficiencies() != null) character.setToolProficiencies(request.getToolProficiencies());
+        if (request.getLanguageProficiencies() != null) character.setLanguageProficiencies(request.getLanguageProficiencies());
         if (request.getDamageResistances() != null) character.setDamageResistances(request.getDamageResistances());
         if (request.getDamageImmunities() != null) character.setDamageImmunities(request.getDamageImmunities());
         if (request.getConditionImmunities() != null) character.setConditionImmunities(request.getConditionImmunities());
@@ -222,7 +233,9 @@ public class CharacterService {
         if (request.getEquippedItems() != null) character.setEquippedItems(request.getEquippedItems());
         if (request.getHitDiceMap() != null) character.setHitDiceMap(request.getHitDiceMap());
 
-        if (request.getCampaignId() != null) {
+        if (Boolean.TRUE.equals(request.getClearCampaign())) {
+            character.setCampaign(null);
+        } else if (request.getCampaignId() != null) {
             Campaign campaign = campaignRepository.findById(request.getCampaignId())
                     .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
             character.setCampaign(campaign);
@@ -230,6 +243,27 @@ public class CharacterService {
 
         character = characterRepository.save(character);
         return toResponse(character);
+    }
+
+    @Transactional
+    public void deleteCharacter(UUID characterId, UUID userId) {
+        PlayerCharacter character = characterRepository.findById(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
+
+        if (!character.getUser().getId().equals(userId)) {
+            throw new IllegalArgumentException("You do not own this character");
+        }
+
+        boolean inActiveCombat = encounterParticipantRepository
+                .existsByCharacter_IdAndEncounter_StatusIn(characterId,
+                        List.of(EncounterStatus.ACTIVE, EncounterStatus.PAUSED, EncounterStatus.PREPARING));
+
+        if (inActiveCombat) {
+            throw new IllegalStateException("Cannot delete a character that is in an active encounter");
+        }
+
+        character.setIsActive(false);
+        characterRepository.save(character);
     }
 
     @Transactional(readOnly = true)
@@ -296,6 +330,10 @@ public class CharacterService {
                 .savingThrowProficiencies(c.getSavingThrowProficiencies())
                 .skillProficiencies(c.getSkillProficiencies())
                 .skillExpertises(c.getSkillExpertises())
+                .armorProficiencies(c.getArmorProficiencies())
+                .weaponProficiencies(c.getWeaponProficiencies())
+                .toolProficiencies(c.getToolProficiencies())
+                .languageProficiencies(c.getLanguageProficiencies())
                 .damageResistances(c.getDamageResistances())
                 .damageImmunities(c.getDamageImmunities())
                 .conditionImmunities(c.getConditionImmunities())

@@ -43,6 +43,10 @@ public class CharacterUpdateRequest {
     private String savingThrowProficiencies;
     private String skillProficiencies;
     private String skillExpertises;
+    private String armorProficiencies;
+    private String weaponProficiencies;
+    private String toolProficiencies;
+    private String languageProficiencies;
     private String damageResistances;
     private String damageImmunities;
     private String conditionImmunities;
@@ -65,6 +69,7 @@ public class CharacterUpdateRequest {
 
     private String portraitUrl;
     private UUID campaignId;
+    private Boolean clearCampaign;
 
     private String multiclassEntries;
     private String preparedSpells;

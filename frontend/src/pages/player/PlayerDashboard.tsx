@@ -5,7 +5,7 @@ import { campaignApi } from '../../api/campaignApi';
 import { characterApi } from '../../api/characterApi';
 import type { Campaign } from '../../types/campaign';
 import type { PlayerCharacter } from '../../types/character';
-import { Plus, Users, ScrollText, Zap, Swords } from 'lucide-react';
+import { Plus, Users, ScrollText, Zap, Swords, Trash2 } from 'lucide-react';
 
 export default function PlayerDashboard() {
   const { user, logout } = useAuth();
@@ -15,6 +15,10 @@ export default function PlayerDashboard() {
   const [inviteCode, setInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<PlayerCharacter | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -42,6 +46,22 @@ export default function PlayerDashboard() {
       loadData();
     } catch (err: any) {
       setJoinError(err.response?.data?.error || 'Failed to join campaign');
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget || deleteConfirmName !== deleteTarget.name) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await characterApi.delete(deleteTarget.id);
+      setCharacters(prev => prev.filter(c => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDeleteConfirmName('');
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.error || 'Failed to delete character');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -137,29 +157,80 @@ export default function PlayerDashboard() {
           ) : (
             <div className="space-y-3">
               {characters.map((c) => (
-                <button
+                <div
                   key={c.id}
-                  onClick={() => navigate(`/player/characters/${c.id}`)}
-                  className="w-full bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg p-4 text-left transition-colors"
+                  className="group bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg transition-colors flex items-center"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-white font-semibold">{c.name}</h3>
-                      <p className="text-gray-400 text-sm">
-                        Level {c.level} {c.race} {c.characterClass}
-                      </p>
+                  <button
+                    onClick={() => navigate(`/player/characters/${c.id}`)}
+                    className="flex-1 p-4 text-left min-w-0"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-white font-semibold">{c.name}</h3>
+                        <p className="text-gray-400 text-sm">
+                          Level {c.level} {c.race} {c.characterClass}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white text-sm">HP {c.hpCurrent}/{c.hpMax}</p>
+                        <p className="text-gray-400 text-xs">AC {c.armourClass}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-white text-sm">HP {c.hpCurrent}/{c.hpMax}</p>
-                      <p className="text-gray-400 text-xs">AC {c.armourClass}</p>
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    onClick={() => { setDeleteTarget(c); setDeleteConfirmName(''); setDeleteError(''); }}
+                    className="p-3 mr-1 rounded-md text-gray-600 hover:text-red-400 hover:bg-gray-800 transition-colors shrink-0"
+                    title="Delete character"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
         </section>
       </main>
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { if (!deleting) { setDeleteTarget(null); setDeleteConfirmName(''); } }}>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-bold text-lg mb-2">Delete Character</h3>
+            <p className="text-gray-400 text-sm mb-1">
+              Are you sure you want to delete <span className="text-white font-medium">{deleteTarget.name}</span>? This action cannot be undone.
+            </p>
+            <p className="text-gray-500 text-xs mb-4">
+              Type the character's name below to confirm.
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmName}
+              onChange={e => setDeleteConfirmName(e.target.value)}
+              placeholder={deleteTarget.name}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
+              autoFocus
+            />
+            {deleteError && <p className="text-red-400 text-sm mb-3">{deleteError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg text-sm hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteConfirmName !== deleteTarget.name || deleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

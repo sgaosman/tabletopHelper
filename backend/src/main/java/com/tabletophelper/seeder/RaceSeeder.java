@@ -30,6 +30,17 @@ public class RaceSeeder {
             "str", "STR", "dex", "DEX", "con", "CON", "int", "INT", "wis", "WIS", "cha", "CHA"
     );
 
+    private static final List<String> STANDARD_LANGUAGES = List.of(
+            "Common", "Dwarvish", "Elvish", "Giant", "Gnomish", "Goblin", "Halfling", "Orc"
+    );
+
+    private static final List<String> MARTIAL_WEAPONS = List.of(
+            "Battleaxe", "Flail", "Glaive", "Greataxe", "Greatsword", "Halberd", "Lance",
+            "Longsword", "Maul", "Morningstar", "Pike", "Rapier", "Scimitar", "Shortsword",
+            "Trident", "War Pick", "Warhammer", "Whip",
+            "Blowgun", "Hand Crossbow", "Heavy Crossbow", "Longbow", "Net"
+    );
+
     public void seed() throws Exception {
         if (raceRepository.count() > 0) {
             log.info("Races already seeded, skipping");
@@ -130,6 +141,7 @@ public class RaceSeeder {
                     .traits(traits)
                     .proficiencies(proficiencies)
                     .resistances(resistances)
+                    .raceChoices(resolveRaceChoices(node, parent))
                     .baseRaceName(parentRaceName)
                     .description(description)
                     .build();
@@ -515,6 +527,246 @@ public class RaceSeeder {
         }
     }
 
+    private String resolveRaceChoices(JsonNode node, JsonNode parent) {
+        try {
+            Set<String> overwritten = getOverwriteKeys(node);
+            ObjectNode choices = objectMapper.createObjectNode();
+
+            ArrayNode langChoices = objectMapper.createArrayNode();
+            if (parent != null && !overwritten.contains("languageProficiencies"))
+                extractLanguageChoices(parent.get("languageProficiencies"), langChoices);
+            extractLanguageChoices(node.get("languageProficiencies"), langChoices);
+            if (!langChoices.isEmpty()) choices.set("languages", langChoices);
+
+            ArrayNode skillChoices = objectMapper.createArrayNode();
+            if (parent != null && !overwritten.contains("skillProficiencies"))
+                extractSkillChoices(parent.get("skillProficiencies"), skillChoices);
+            extractSkillChoices(node.get("skillProficiencies"), skillChoices);
+            if (!skillChoices.isEmpty()) choices.set("skills", skillChoices);
+
+            ArrayNode toolChoices = objectMapper.createArrayNode();
+            if (parent != null && !overwritten.contains("toolProficiencies"))
+                extractToolChoices(parent.get("toolProficiencies"), toolChoices);
+            extractToolChoices(node.get("toolProficiencies"), toolChoices);
+            if (!toolChoices.isEmpty()) choices.set("tools", toolChoices);
+
+            ArrayNode weaponChoices = objectMapper.createArrayNode();
+            if (parent != null && !overwritten.contains("weaponProficiencies"))
+                extractWeaponChoices(parent.get("weaponProficiencies"), weaponChoices);
+            extractWeaponChoices(node.get("weaponProficiencies"), weaponChoices);
+            if (!weaponChoices.isEmpty()) choices.set("weapons", weaponChoices);
+
+            ArrayNode resistChoices = objectMapper.createArrayNode();
+            if (parent != null && !overwritten.contains("resist"))
+                extractResistanceChoices(parent.get("resist"), resistChoices);
+            extractResistanceChoices(node.get("resist"), resistChoices);
+            if (!resistChoices.isEmpty()) choices.set("resistances", resistChoices);
+
+            ArrayNode spellAbility = objectMapper.createArrayNode();
+            extractSpellAbilityChoices(node.get("additionalSpells"), spellAbility);
+            if (spellAbility.isEmpty() && parent != null)
+                extractSpellAbilityChoices(parent.get("additionalSpells"), spellAbility);
+            if (!spellAbility.isEmpty()) choices.set("spellAbility", spellAbility);
+
+            int featCount = extractFeatCount(node.get("feats"));
+            if (featCount == 0 && parent != null) featCount = extractFeatCount(parent.get("feats"));
+            if (featCount > 0) choices.put("feats", featCount);
+
+            if (choices.isEmpty()) return null;
+            return objectMapper.writeValueAsString(choices);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void extractLanguageChoices(JsonNode node, ArrayNode choices) {
+        if (node == null || !node.isArray()) return;
+        for (JsonNode obj : node) {
+            if (!obj.isObject()) continue;
+            boolean hasAnyStandard = false;
+            if (obj.has("anyStandard")) {
+                ObjectNode c = objectMapper.createObjectNode();
+                c.put("anyStandard", obj.get("anyStandard").asInt());
+                choices.add(c);
+                hasAnyStandard = true;
+            }
+            if (!hasAnyStandard && obj.has("other") && obj.get("other").asBoolean()) {
+                ObjectNode c = objectMapper.createObjectNode();
+                c.put("anyStandard", 1);
+                choices.add(c);
+            }
+            if (obj.has("choose")) {
+                JsonNode choose = obj.get("choose");
+                ArrayNode from = objectMapper.createArrayNode();
+                Set<String> explicit = new HashSet<>();
+                boolean hasOther = false;
+                if (choose.has("from")) {
+                    for (JsonNode f : choose.get("from")) {
+                        String lang = f.asText();
+                        if ("other".equals(lang)) {
+                            hasOther = true;
+                        } else {
+                            String formatted = titleCase(lang);
+                            from.add(formatted);
+                            explicit.add(formatted);
+                        }
+                    }
+                }
+                if (hasOther) {
+                    for (String stdLang : STANDARD_LANGUAGES) {
+                        if (!explicit.contains(stdLang)) from.add(stdLang);
+                    }
+                }
+                ObjectNode c = objectMapper.createObjectNode();
+                ObjectNode inner = objectMapper.createObjectNode();
+                inner.set("from", from);
+                inner.put("count", choose.path("count").asInt(1));
+                c.set("choose", inner);
+                choices.add(c);
+            }
+        }
+    }
+
+    private void extractSkillChoices(JsonNode node, ArrayNode choices) {
+        if (node == null || !node.isArray()) return;
+        for (JsonNode obj : node) {
+            if (!obj.isObject()) continue;
+            if (obj.has("any")) {
+                ObjectNode c = objectMapper.createObjectNode();
+                c.put("any", obj.get("any").asInt());
+                choices.add(c);
+            }
+            if (obj.has("choose")) {
+                JsonNode choose = obj.get("choose");
+                ObjectNode c = objectMapper.createObjectNode();
+                ObjectNode inner = objectMapper.createObjectNode();
+                if (choose.has("from")) {
+                    ArrayNode from = objectMapper.createArrayNode();
+                    for (JsonNode f : choose.get("from")) {
+                        String skill = f.asText();
+                        if (skill.contains(" ")) {
+                            from.add(Arrays.stream(skill.split(" "))
+                                    .map(this::titleCase)
+                                    .reduce((a, b) -> a + " " + b).orElse(skill));
+                        } else {
+                            from.add(titleCase(skill));
+                        }
+                    }
+                    inner.set("from", from);
+                }
+                inner.put("count", choose.path("count").asInt(1));
+                c.set("choose", inner);
+                choices.add(c);
+            }
+        }
+    }
+
+    private void extractToolChoices(JsonNode node, ArrayNode choices) {
+        if (node == null || !node.isArray()) return;
+        for (JsonNode obj : node) {
+            if (!obj.isObject()) continue;
+            if (obj.has("any")) {
+                ObjectNode c = objectMapper.createObjectNode();
+                c.put("any", obj.get("any").asInt());
+                choices.add(c);
+            }
+            if (obj.has("anyArtisansTool")) {
+                ObjectNode c = objectMapper.createObjectNode();
+                c.put("anyArtisansTool", obj.get("anyArtisansTool").asInt());
+                choices.add(c);
+            }
+            if (obj.has("anyMusicalInstrument")) {
+                ObjectNode c = objectMapper.createObjectNode();
+                c.put("anyMusicalInstrument", obj.get("anyMusicalInstrument").asInt());
+                choices.add(c);
+            }
+            if (obj.has("choose")) {
+                JsonNode choose = obj.get("choose");
+                ObjectNode c = objectMapper.createObjectNode();
+                ObjectNode inner = objectMapper.createObjectNode();
+                if (choose.has("from")) {
+                    ArrayNode from = objectMapper.createArrayNode();
+                    for (JsonNode f : choose.get("from")) {
+                        from.add(titleCase(f.asText()));
+                    }
+                    inner.set("from", from);
+                }
+                inner.put("count", choose.path("count").asInt(1));
+                c.set("choose", inner);
+                choices.add(c);
+            }
+        }
+    }
+
+    private void extractWeaponChoices(JsonNode node, ArrayNode choices) {
+        if (node == null || !node.isArray()) return;
+        for (JsonNode obj : node) {
+            if (!obj.isObject() || !obj.has("choose")) continue;
+            JsonNode choose = obj.get("choose");
+            ObjectNode c = objectMapper.createObjectNode();
+            int count = choose.path("count").asInt(1);
+            c.put("count", count);
+            if (choose.has("from")) {
+                ArrayNode from = objectMapper.createArrayNode();
+                for (JsonNode f : choose.get("from")) from.add(titleCase(f.asText()));
+                c.set("from", from);
+            } else if (choose.has("fromFilter")) {
+                String filter = choose.get("fromFilter").asText("");
+                if (filter.contains("martial weapon")) {
+                    ArrayNode from = objectMapper.createArrayNode();
+                    MARTIAL_WEAPONS.forEach(from::add);
+                    c.set("from", from);
+                }
+            }
+            choices.add(c);
+        }
+    }
+
+    private void extractResistanceChoices(JsonNode node, ArrayNode choices) {
+        if (node == null || !node.isArray()) return;
+        for (JsonNode r : node) {
+            if (r.isObject() && r.has("choose")) {
+                JsonNode from = r.path("choose").get("from");
+                if (from != null && from.isArray()) {
+                    ObjectNode c = objectMapper.createObjectNode();
+                    ArrayNode fromArr = objectMapper.createArrayNode();
+                    from.forEach(f -> fromArr.add(titleCase(f.asText())));
+                    c.set("from", fromArr);
+                    choices.add(c);
+                }
+            }
+        }
+    }
+
+    private void extractSpellAbilityChoices(JsonNode node, ArrayNode choices) {
+        if (node == null || !node.isArray() || !choices.isEmpty()) return;
+        for (JsonNode spellSet : node) {
+            JsonNode ability = spellSet.get("ability");
+            if (ability == null || !ability.isObject() || !ability.has("choose")) continue;
+            JsonNode choose = ability.get("choose");
+            if (choose.isArray()) {
+                for (JsonNode c : choose) {
+                    if (c.isTextual()) {
+                        choices.add(ABILITY_MAP.getOrDefault(c.asText(), c.asText().toUpperCase()));
+                    } else if (c.isObject() && c.has("from")) {
+                        for (JsonNode f : c.get("from")) {
+                            choices.add(ABILITY_MAP.getOrDefault(f.asText(), f.asText().toUpperCase()));
+                        }
+                    }
+                }
+            }
+            if (!choices.isEmpty()) break;
+        }
+    }
+
+    private int extractFeatCount(JsonNode node) {
+        if (node == null || !node.isArray()) return 0;
+        for (JsonNode obj : node) {
+            if (obj.has("any")) return obj.get("any").asInt(1);
+        }
+        return 0;
+    }
+
     private Set<String> getOverwriteKeys(JsonNode node) {
         Set<String> keys = new HashSet<>();
         JsonNode overwrite = node.get("overwrite");
@@ -522,5 +774,10 @@ public class RaceSeeder {
             overwrite.fieldNames().forEachRemaining(keys::add);
         }
         return keys;
+    }
+
+    private String titleCase(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 }

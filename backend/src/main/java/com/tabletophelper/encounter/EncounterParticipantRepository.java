@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface EncounterParticipantRepository extends JpaRepository<EncounterParticipant, UUID> {
 
     List<EncounterParticipant> findByEncounterIdOrderBySortOrder(UUID encounterId);
+
+    boolean existsByCharacter_IdAndEncounter_StatusIn(UUID characterId, List<EncounterStatus> statuses);
 }
