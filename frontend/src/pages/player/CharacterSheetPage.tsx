@@ -496,6 +496,7 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
   const [loadingSpell, setLoadingSpell] = useState(false);
   const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known'; className: string } | null>(null);
   const [showAddFeat, setShowAddFeat] = useState(false);
+  const [confirmRemoveFeat, setConfirmRemoveFeat] = useState<string | null>(null);
 
   const hasSpells = char.spellcastingAbility || spellsKnown.length > 0;
   if (!hasSpells) {
@@ -564,6 +565,11 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
         ? { ...s, prepared: !s.prepared }
         : s
     );
+    await saveField({ spellsKnown: JSON.stringify(updated) });
+  }
+
+  async function removeFeatSpells(source: string) {
+    const updated = taggedSpells.filter(s => s.source !== source);
     await saveField({ spellsKnown: JSON.stringify(updated) });
   }
 
@@ -732,12 +738,38 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
       ))}
 
       {/* Feat spell boxes */}
-      {featGroups.map(({ featName, spells }) => (
+      {featGroups.map(({ featName, source, spells }) => (
         <div key={featName} className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-white font-semibold text-sm">{featName}</h3>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900 text-amber-300">Feat</span>
+            <div className="flex items-center gap-2">
+              <h3 className="text-white font-semibold text-sm">{featName}</h3>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900 text-amber-300">Feat</span>
+            </div>
+            <button
+              onClick={() => setConfirmRemoveFeat(confirmRemoveFeat === source ? null : source)}
+              className="text-gray-600 hover:text-red-400 transition-colors"
+              title="Remove feat spells"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
+          {confirmRemoveFeat === source && (
+            <div className="flex items-center gap-2 bg-red-900/20 border border-red-800/50 rounded px-3 py-2">
+              <p className="text-red-300 text-xs flex-1">Remove all {featName} spells?</p>
+              <button
+                onClick={() => { removeFeatSpells(source); setConfirmRemoveFeat(null); }}
+                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition-colors"
+              >
+                Remove
+              </button>
+              <button
+                onClick={() => setConfirmRemoveFeat(null)}
+                className="px-2 py-1 text-gray-400 hover:text-white text-xs transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <div className="space-y-0.5">{spells.map(s => renderSpellRow(s, false))}</div>
         </div>
       ))}
