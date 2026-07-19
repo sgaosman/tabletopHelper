@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, Search, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, Search, X } from 'lucide-react';
 import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats, searchSpells } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
 import type { PlayerCharacter } from '../../types/character';
@@ -226,6 +226,7 @@ export default function CharacterCreateWizard() {
 
   const [createdCharacter, setCreatedCharacter] = useState<PlayerCharacter | null>(null);
   const [pendingAsiCount, setPendingAsiCount] = useState(0);
+  const [multiclassExpanded, setMulticlassExpanded] = useState(false);
 
   const [abilityMethod, setAbilityMethod] = useState<'standard' | 'pointbuy' | 'manual'>('standard');
   const [scores, setScores] = useState<AbilityScores>({ strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 });
@@ -1232,56 +1233,71 @@ export default function CharacterCreateWizard() {
 
             {/* Multiclass section */}
             {selectedClass && level >= 2 && (
-              <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-white mb-1">Multiclass (Optional)</h3>
-                <p className="text-gray-500 text-xs mb-3">
-                  PHB rule: you must meet the ability score prerequisites for both your current class and the new class.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {classes.filter(c => c.id !== selectedClass.id).map(cls => {
-                    const entryEligibility = checkMulticlassEligibility(cls, finalScores);
-                    const exitEligibility = checkMulticlassEligibility(selectedClass, finalScores);
-                    const canMulticlass = entryEligibility.eligible && exitEligibility.eligible;
-                    const isAdded = classEntries.some(e => e.cls.id === cls.id);
-                    const remainingLevels = level - classEntries.reduce((s, e) => s + e.level, 0);
-                    const canAddMore = remainingLevels > 0 || isAdded;
-                    const saves = safeJsonParse<string[]>(cls.savingThrowProficiencies, []);
+              <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setMulticlassExpanded(prev => !prev)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-300">Multiclassing Options</h3>
+                    {classEntries.length > 1 && (
+                      <span className="text-xs text-emerald-400">({classEntries.length - 1} added)</span>
+                    )}
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${multiclassExpanded ? 'rotate-180' : ''}`} />
+                </button>
+                {multiclassExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-800">
+                    <p className="text-gray-500 text-xs my-3">
+                      PHB rule: you must meet the ability score prerequisites for both your current class and the new class.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {classes.filter(c => c.id !== selectedClass.id).map(cls => {
+                        const entryEligibility = checkMulticlassEligibility(cls, finalScores);
+                        const exitEligibility = checkMulticlassEligibility(selectedClass, finalScores);
+                        const canMulticlass = entryEligibility.eligible && exitEligibility.eligible;
+                        const isAdded = classEntries.some(e => e.cls.id === cls.id);
+                        const primaryCanGive = classEntries.length > 0 && classEntries[0].level > 1;
+                        const canAddMore = primaryCanGive || isAdded;
+                        const saves = safeJsonParse<string[]>(cls.savingThrowProficiencies, []);
 
-                    return (
-                      <button
-                        key={cls.id}
-                        onClick={() => {
-                          if (isAdded) {
-                            removeMulticlass(cls.id);
-                          } else if (canMulticlass && canAddMore) {
-                            addMulticlass(cls);
-                          }
-                        }}
-                        disabled={!canMulticlass && !isAdded}
-                        className={`p-3 rounded-lg border text-left transition-colors ${
-                          isAdded
-                            ? 'bg-emerald-900/30 border-emerald-500'
-                            : !canMulticlass
-                            ? 'bg-gray-900/50 border-gray-800 opacity-50 cursor-not-allowed'
-                            : 'bg-gray-900 border-gray-800 hover:border-gray-600'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <h4 className="text-white font-medium text-sm">{cls.name}</h4>
-                          <span className="text-gray-500 text-xs">d{cls.hitDice}</span>
-                        </div>
-                        {saves.length > 0 && <p className="text-cyan-400 text-xs">Saves: {saves.join(', ')}</p>}
-                        {cls.isSpellcaster && <p className="text-purple-400 text-xs">Spellcaster ({cls.spellcastingAbility})</p>}
-                        {!canMulticlass && (
-                          <p className="text-red-400 text-xs mt-1">
-                            {!exitEligibility.eligible ? `Exit: ${exitEligibility.reason}` : entryEligibility.reason}
-                          </p>
-                        )}
-                        {isAdded && <p className="text-emerald-400 text-xs mt-1">Added to multiclass</p>}
-                      </button>
-                    );
-                  })}
-                </div>
+                        return (
+                          <button
+                            key={cls.id}
+                            onClick={() => {
+                              if (isAdded) {
+                                removeMulticlass(cls.id);
+                              } else if (canMulticlass && canAddMore) {
+                                addMulticlass(cls);
+                              }
+                            }}
+                            disabled={!canMulticlass && !isAdded}
+                            className={`p-3 rounded-lg border text-left transition-colors ${
+                              isAdded
+                                ? 'bg-emerald-900/30 border-emerald-500'
+                                : !canMulticlass
+                                ? 'bg-gray-900/50 border-gray-800 opacity-50 cursor-not-allowed'
+                                : 'bg-gray-900 border-gray-800 hover:border-gray-600 cursor-pointer'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <h4 className="text-white font-medium text-sm">{cls.name}</h4>
+                              <span className="text-gray-500 text-xs">d{cls.hitDice}</span>
+                            </div>
+                            {saves.length > 0 && <p className="text-cyan-400 text-xs">Saves: {saves.join(', ')}</p>}
+                            {cls.isSpellcaster && <p className="text-purple-400 text-xs">Spellcaster ({cls.spellcastingAbility})</p>}
+                            {!canMulticlass && (
+                              <p className="text-red-400 text-xs mt-1">
+                                {!exitEligibility.eligible ? `Exit: ${exitEligibility.reason}` : entryEligibility.reason}
+                              </p>
+                            )}
+                            {isAdded && <p className="text-emerald-400 text-xs mt-1">Added to multiclass</p>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
