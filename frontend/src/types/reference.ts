@@ -124,6 +124,7 @@ export interface Subclass {
   characterClass: { id: string; name: string };
   features: string;
   alwaysPreparedSpells: string;
+  expandedSpellList: string;
   additionalProficiencies: string;
 }
 

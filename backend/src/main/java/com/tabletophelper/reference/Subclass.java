@@ -47,6 +47,11 @@ public class Subclass {
 
     @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "expanded_spell_list", columnDefinition = "jsonb")
+    private String expandedSpellList;
+
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "additional_proficiencies", columnDefinition = "jsonb")
     private String additionalProficiencies;
 

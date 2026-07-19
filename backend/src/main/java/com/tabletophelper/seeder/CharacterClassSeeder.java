@@ -177,6 +177,7 @@ public class CharacterClassSeeder {
 
             String features = parseSubclassFeatures(node, scd.featureMap);
             String alwaysPreparedSpells = parseAlwaysPreparedSpells(node);
+            String expandedSpellList = parseExpandedSpellList(node);
 
             return Subclass.builder()
                     .name(name)
@@ -184,6 +185,7 @@ public class CharacterClassSeeder {
                     .characterClass(parent)
                     .features(features)
                     .alwaysPreparedSpells(alwaysPreparedSpells)
+                    .expandedSpellList(expandedSpellList)
                     .build();
         } catch (Exception e) {
             log.warn("Failed to parse subclass {}: {}", scd.node.path("name").asText("?"), e.getMessage());
@@ -489,6 +491,36 @@ public class CharacterClassSeeder {
                 final JsonNode prepared = prep;
                 prepared.fieldNames().forEachRemaining(level -> {
                     JsonNode spells = prepared.get(level);
+                    if (spells != null && spells.isArray()) {
+                        ArrayNode arr = objectMapper.createArrayNode();
+                        for (JsonNode s : spells) {
+                            if (s.isTextual()) {
+                                arr.add(FiveEToolsMarkupParser.parse(s.asText()));
+                            }
+                        }
+                        if (!arr.isEmpty()) result.set(level, arr);
+                    }
+                });
+            }
+
+            return result.isEmpty() ? null : objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String parseExpandedSpellList(JsonNode scNode) {
+        try {
+            JsonNode addSpells = scNode.get("additionalSpells");
+            if (addSpells == null || !addSpells.isArray() || addSpells.isEmpty()) return null;
+
+            ObjectNode result = objectMapper.createObjectNode();
+            for (JsonNode spellBlock : addSpells) {
+                JsonNode expanded = spellBlock.get("expanded");
+                if (expanded == null) continue;
+
+                expanded.fieldNames().forEachRemaining(level -> {
+                    JsonNode spells = expanded.get(level);
                     if (spells != null && spells.isArray()) {
                         ArrayNode arr = objectMapper.createArrayNode();
                         for (JsonNode s : spells) {

@@ -764,3 +764,36 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** EK and AT use the Wizard spell list per PHB, not their parent class spell list. Without this mapping, the "Manage Known" modal would search for Fighter/Rogue spells (which don't exist) and show zero results.
 
 **Trade-offs:** The `spellListClass` mapping is hardcoded in `THIRD_CASTER_SPELL_LIST` in `spellConstants.ts`. This is correct for the PHB but would need extension if homebrew 1/3 caster subclasses use different spell lists.
+
+## D067: Expertise Modal in Level-Up Flow
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Added `ExpertiseModal` component to the level-up choice chain (LevelUp → ASI → Subclass → Expertise → Done). Rogue gets 2 expertise slots at class levels 1 and 6; Bard gets 2 at class levels 3 and 10. The modal shows all proficient skills not already marked as expertise, and the selected skills are saved via `applyChoices` with `expertiseSkills` field. Backend merges new expertise into existing `skillExpertises` JSON array.
+
+**Rationale:** Expertise is a core Rogue/Bard feature that doubles proficiency bonus on chosen skills. Without automation, players must manually track this.
+
+**Trade-offs:** `isExpertiseLevel()` is hardcoded for Rogue/Bard. Homebrew classes with expertise at different levels would need updates.
+
+## D068: Expanded Spell List Column on Subclasses
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Added `expanded_spell_list` JSONB column to the `subclasses` table, separate from `always_prepared_spells`. The `CharacterClassSeeder` parses the 5etools `expanded` key (as opposed to `prepared`) into this column. Expanded spells are added to the class's spell list for selection but are not always prepared.
+
+**Rationale:** 5etools distinguishes between `prepared` (always prepared, e.g., Land Druid circle spells) and `expanded` (added to selection list, e.g., Warlock patron spells). These are mechanically different: expanded spells can be chosen when learning/preparing spells but don't auto-prepare.
+
+**Trade-offs:** The frontend does not yet use `expandedSpellList` to filter the spell selection modal — that integration is deferred. The data is seeded and available via the API.
+
+## D069: Race Spell Level Lookup from Spell Data
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** The `RaceSeeder` now builds a spell level lookup map from `spells.json` during seeding and uses it to set the correct spell level for race spells that don't have an explicit `#N` cast-level suffix. Previously, spells like Darkness (a 2nd-level spell) were stored with `level: 0` because no suffix was present.
+
+**Rationale:** Race spells should display at their actual spell level for correct sorting and grouping in the Spells tab. The 5etools data only includes explicit cast levels (via `#N` suffix) when the spell is cast at a higher level than normal (e.g., Tiefling's Hellish Rebuke at 2nd level).
+
+**Trade-offs:** Adds a spells.json read during race seeding. Since spells are seeded first, the data is always available. The lookup is built once per seed run.
