@@ -304,6 +304,32 @@ cd backend
 
 ---
 
+## Spell Casting Fails with "Failed to cast spell" (M11)
+
+**Status:** Fixed (2026-07-20)
+
+**Description:** All spell casting in encounters failed silently with "Failed to cast spell". Additionally, spell slot level selection was greyed out for leveled spells.
+
+**Root Causes (two bugs):**
+
+1. **CHECK constraint missing SPELL_CAST:** The `combat_logs` table had a Hibernate-generated CHECK constraint on `action_type` that did not include `SPELL_CAST`. Every cast-spell call that tried to log the action threw `DataIntegrityViolationException`. Fixed by Flyway V3 migration that drops and recreates the constraint with all 16 action types.
+
+2. **Spell slot format mismatch:** `PlayerCharacter.spellSlots` uses `{used, total}` format but `CombatService` expects `{remaining, max}`. When a character joins an encounter, `EncounterService.addPlayerParticipant()` was copying the raw JSON. `slot.getOrDefault("remaining", 0)` returned 0, making the frontend show all slots as empty/greyed-out. Fixed by adding `convertSpellSlotsFormat()` that converts `{used, total}` → `{remaining: total-used, max: total}` at copy time.
+
+---
+
+## Race Spells All Show as Cantrips (Level 0)
+
+**Status:** Fixed (2026-07-20)
+
+**Description:** 46 races had non-cantrip spells (e.g., Enlarge/Reduce) stored with level 0 in their `additional_spells` JSON.
+
+**Root Cause:** `RaceSeeder.buildSpellLevelLookup()` tried to read `data/5etools/spells.json` which doesn't exist — spells are split across multiple source-book files (`spells-phb.json`, `spells-xge.json`, etc.). The lookup map was empty, so all race spells defaulted to level 0.
+
+**Fix:** Changed `buildSpellLevelLookup()` to query `SpellRepository.findAll()` (database) instead of the nonexistent JSON file. Added `fixRaceSpellLevels()` method that runs on every startup and corrects any level-0 non-cantrip spells by cross-referencing the database.
+
+---
+
 ## Blank Spell Line in Feat Spell Section
 
 **Status:** Fixed (2026-07-20)

@@ -1,5 +1,8 @@
 package com.tabletophelper.encounter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
@@ -9,6 +12,7 @@ import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EncounterService {
@@ -27,6 +32,7 @@ public class EncounterService {
     private final CampaignMemberRepository campaignMemberRepository;
     private final CharacterRepository characterRepository;
     private final MonsterRepository monsterRepository;
+    private final ObjectMapper objectMapper;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -94,7 +100,7 @@ public class EncounterService {
                 .hpCurrent(character.getHpCurrent())
                 .armourClass(character.getArmourClass())
                 .controlledByUserId(character.getUser().getId())
-                .spellSlotsCurrent(character.getSpellSlots())
+                .spellSlotsCurrent(convertSpellSlotsFormat(character.getSpellSlots()))
                 .spellAttackBonus(character.getSpellAttackBonus())
                 .spellSaveDc(character.getSpellSaveDc())
                 .spellcastingAbility(character.getSpellcastingAbility())
@@ -351,5 +357,26 @@ public class EncounterService {
                 .participants(participantResponses)
                 .createdAt(encounter.getCreatedAt())
                 .build();
+    }
+
+    private String convertSpellSlotsFormat(String characterSpellSlots) {
+        if (characterSpellSlots == null) return null;
+        try {
+            Map<String, Map<String, Integer>> charSlots = objectMapper.readValue(characterSpellSlots,
+                    new TypeReference<LinkedHashMap<String, Map<String, Integer>>>() {});
+            Map<String, Map<String, Integer>> encounterSlots = new LinkedHashMap<>();
+            for (var entry : charSlots.entrySet()) {
+                Map<String, Integer> slot = entry.getValue();
+                int total = slot.getOrDefault("total", slot.getOrDefault("max", 0));
+                int used = slot.getOrDefault("used", 0);
+                int remaining = slot.containsKey("remaining") ? slot.get("remaining") : total - used;
+                int max = slot.containsKey("max") ? slot.get("max") : total;
+                encounterSlots.put(entry.getKey(), Map.of("remaining", remaining, "max", max));
+            }
+            return objectMapper.writeValueAsString(encounterSlots);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to convert spell slots format: {}", e.getMessage());
+            return characterSpellSlots;
+        }
     }
 }
