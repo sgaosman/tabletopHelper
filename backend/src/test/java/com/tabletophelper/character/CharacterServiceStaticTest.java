@@ -88,4 +88,24 @@ class CharacterServiceStaticTest {
                 .build();
         assertEquals(0, CharacterService.getAbilityMod(null, pc));
     }
+
+    @Test
+    @DisplayName("abilityMod extreme values: score 1 gives -5, score 30 gives +10")
+    void abilityModExtremeValues() {
+        assertEquals(-5, CharacterService.abilityMod(1));
+        assertEquals(10, CharacterService.abilityMod(30));
+    }
+
+    @Test
+    @DisplayName("proficiencyBonus at boundary transitions: 4->5 and 8->9")
+    void proficiencyBonusBoundaryTransitions() {
+        // Level 4 is the last level with +2
+        assertEquals(2, CharacterService.proficiencyBonusForLevel(4));
+        // Level 5 transitions to +3
+        assertEquals(3, CharacterService.proficiencyBonusForLevel(5));
+        // Level 8 is the last level with +3
+        assertEquals(3, CharacterService.proficiencyBonusForLevel(8));
+        // Level 9 transitions to +4
+        assertEquals(4, CharacterService.proficiencyBonusForLevel(9));
+    }
 }

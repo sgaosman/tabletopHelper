@@ -470,4 +470,190 @@ class LevelUpDownRoundTripTest {
             assertThat(response.getPendingChoices().getSpellSelectionType()).isEqualTo("prepared");
         }
     }
+
+    @Nested
+    @DisplayName("Multiclass level up")
+    class MulticlassLevelUp {
+
+        @Test
+        @DisplayName("Fighter 3 adds Wizard: HP uses d6, spell slots appear, hit dice mixed")
+        void fighterAddsWizard() throws Exception {
+            PlayerCharacter pc = buildFighter(3);
+            int originalHp = pc.getHpMax();
+
+            when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
+            when(characterClassRepository.findById(wizardId)).thenReturn(Optional.of(wizard));
+            when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
+            mockSaveReturnsArg();
+
+            LevelUpRequest request = new LevelUpRequest();
+            request.setClassId(wizardId);
+            LevelUpResponse response = service.levelUp(pc.getId(), request, userId);
+
+            // Character level should be 4 (Fighter 3 + Wizard 1)
+            assertThat(response.getCharacter().getLevel()).isEqualTo(4);
+
+            // HP gained uses Wizard d6 hit die, not Fighter d10
+            int conMod = CharacterService.abilityMod(pc.getConstitution());
+            int expectedHpGain = 6 + conMod; // class level 1 uses max die
+            assertThat(pc.getHpMax()).isEqualTo(originalHp + expectedHpGain);
+
+            // Spell slots should appear (Wizard caster level 1 = 2 first-level slots)
+            assertThat(pc.getSpellSlots()).isNotNull();
+
+            // Hit dice should include both d10 and d6
+            assertThat(pc.getHitDiceTotal()).contains("d10");
+            assertThat(pc.getHitDiceTotal()).contains("d6");
+        }
+    }
+
+    @Nested
+    @DisplayName("Multiclass level down")
+    class MulticlassLevelDown {
+
+        @Test
+        @DisplayName("Fighter 3 / Wizard 1 level down removes Wizard, reverts to Fighter 3")
+        void levelDownRemovesLastClass() throws Exception {
+            int conMod = CharacterService.abilityMod(12); // CON 12 = +1
+            int fighterHp = (10 + conMod) + 2 * ((10 / 2 + 1) + conMod); // lvl1 max + 2 * avg
+            int wizardHpGain = 6 + conMod; // Wizard class level 1 = max d6 + CON
+            int totalHp = fighterHp + wizardHpGain;
+
+            String mcEntries = objectMapper.writeValueAsString(List.of(
+                    new MulticlassEntry(fighterId.toString(), "Fighter", null, null, 3),
+                    new MulticlassEntry(wizardId.toString(), "Wizard", null, null, 1)));
+
+            Map<String, Map<String, Object>> hdMapObj = new LinkedHashMap<>();
+            hdMapObj.put("Fighter", Map.of("total", 3, "remaining", 3, "faces", 10));
+            hdMapObj.put("Wizard", Map.of("total", 1, "remaining", 1, "faces", 6));
+            String hdMap = objectMapper.writeValueAsString(hdMapObj);
+
+            List<LevelHistoryEntry> history = new ArrayList<>();
+            history.add(new LevelHistoryEntry(1, fighterId.toString(), "Fighter", 1,
+                    10 + conMod, List.of(), Map.of()));
+            history.add(new LevelHistoryEntry(2, fighterId.toString(), "Fighter", 2,
+                    (10 / 2 + 1) + conMod, List.of(), Map.of()));
+            history.add(new LevelHistoryEntry(3, fighterId.toString(), "Fighter", 3,
+                    (10 / 2 + 1) + conMod, List.of(), Map.of()));
+            history.add(new LevelHistoryEntry(4, wizardId.toString(), "Wizard", 1,
+                    wizardHpGain, List.of(), Map.of()));
+
+            PlayerCharacter pc = PlayerCharacter.builder()
+                    .id(UUID.randomUUID()).user(user).name("TestMulticlass")
+                    .characterClass("Fighter / Wizard").level(4)
+                    .classRef(fighter).strength(16).dexterity(14).constitution(12)
+                    .intelligence(10).wisdom(10).charisma(10)
+                    .hpMax(totalHp).hpCurrent(totalHp)
+                    .proficiencyBonus(CharacterService.proficiencyBonusForLevel(4))
+                    .multiclassEntries(mcEntries).hitDiceMap(hdMap)
+                    .hitDiceTotal("3d10 + 1d6").hitDiceRemaining("3d10 + 1d6")
+                    .spellcastingAbility("INT")
+                    .levelHistory(objectMapper.writeValueAsString(history))
+                    .isActive(true)
+                    .build();
+
+            when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
+            when(characterClassRepository.findById(wizardId)).thenReturn(Optional.of(wizard));
+            when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
+            mockSaveReturnsArg();
+
+            CharacterResponse response = service.levelDown(pc.getId(), userId);
+
+            // Should revert to Fighter 3
+            assertThat(response.getLevel()).isEqualTo(3);
+            assertThat(pc.getHpMax()).isEqualTo(fighterHp);
+
+            // Spell slots should be gone (Fighter has no spellcasting)
+            assertThat(pc.getSpellSlots()).isNull();
+
+            // Hit dice should be only Fighter's d10
+            assertThat(pc.getHitDiceTotal()).isEqualTo("3d10");
+        }
+    }
+
+    @Nested
+    @DisplayName("Subclass threshold")
+    class SubclassThreshold {
+
+        @Test
+        @DisplayName("Fighter leveling to level 3 flags subclass as available")
+        void subclassAvailableAtThreshold() throws Exception {
+            PlayerCharacter pc = buildFighter(2);
+
+            when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
+            when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
+            mockSaveReturnsArg();
+
+            LevelUpRequest request = new LevelUpRequest();
+            request.setClassId(fighterId);
+            LevelUpResponse response = service.levelUp(pc.getId(), request, userId);
+
+            assertThat(response.getCharacter().getLevel()).isEqualTo(3);
+            assertThat(response.getPendingChoices().isSubclassRequired()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("Spellcaster level down")
+    class SpellcasterLevelDown {
+
+        @Test
+        @DisplayName("Wizard level 5 to 4: spell slots recalculated, no 3rd-level slots")
+        void wizardLevelDownRecalculatesSlots() throws Exception {
+            int conMod = CharacterService.abilityMod(12); // CON 12 = +1
+            int level1Hp = 6 + conMod;
+            int avgHpGain = (6 / 2 + 1) + conMod;
+            int totalHp = level1Hp + 4 * avgHpGain;
+
+            String mcEntries = objectMapper.writeValueAsString(List.of(
+                    new MulticlassEntry(wizardId.toString(), "Wizard", null, null, 5)));
+            String hdMap = objectMapper.writeValueAsString(Map.of(
+                    "Wizard", Map.of("total", 5, "remaining", 5, "faces", 6)));
+
+            List<LevelHistoryEntry> history = new ArrayList<>();
+            history.add(new LevelHistoryEntry(1, wizardId.toString(), "Wizard", 1, level1Hp,
+                    List.of(new LevelHistoryEntry.FeatureRecord("Arcane Recovery", "Recover spell slots", "Wizard")),
+                    Map.of()));
+            for (int i = 2; i <= 5; i++) {
+                List<LevelHistoryEntry.FeatureRecord> features = i == 2
+                        ? List.of(new LevelHistoryEntry.FeatureRecord("Arcane Tradition", "Choose a tradition", "Wizard"))
+                        : List.of();
+                history.add(new LevelHistoryEntry(i, wizardId.toString(), "Wizard", i, avgHpGain,
+                        features, Map.of()));
+            }
+
+            PlayerCharacter pc = PlayerCharacter.builder()
+                    .id(UUID.randomUUID()).user(user).name("TestWizard")
+                    .characterClass("Wizard").level(5)
+                    .classRef(wizard).strength(8).dexterity(14).constitution(12)
+                    .intelligence(16).wisdom(10).charisma(10)
+                    .hpMax(totalHp).hpCurrent(totalHp)
+                    .proficiencyBonus(CharacterService.proficiencyBonusForLevel(5))
+                    .multiclassEntries(mcEntries).hitDiceMap(hdMap)
+                    .hitDiceTotal("5d6").hitDiceRemaining("5d6")
+                    .spellcastingAbility("INT")
+                    .levelHistory(objectMapper.writeValueAsString(history))
+                    .isActive(true)
+                    .build();
+
+            when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
+            when(characterClassRepository.findById(wizardId)).thenReturn(Optional.of(wizard));
+            mockSaveReturnsArg();
+
+            CharacterResponse response = service.levelDown(pc.getId(), userId);
+
+            assertThat(response.getLevel()).isEqualTo(4);
+            assertThat(pc.getHpMax()).isEqualTo(totalHp - avgHpGain);
+
+            // Spell slots should be recalculated for caster level 4
+            // Level 4 full caster: 4/3 at levels 1/2, no 3rd-level slots
+            assertThat(pc.getSpellSlots()).isNotNull();
+            assertThat(pc.getSpellSlots()).contains("\"1\"");
+            assertThat(pc.getSpellSlots()).contains("\"2\"");
+            assertThat(pc.getSpellSlots()).doesNotContain("\"3\"");
+
+            // Hit dice total should reflect 4d6
+            assertThat(pc.getHitDiceTotal()).isEqualTo("4d6");
+        }
+    }
 }

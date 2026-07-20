@@ -1,9 +1,13 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.character.dto.EligibleClassResponse;
+import com.tabletophelper.reference.CharacterClass;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -87,5 +91,96 @@ class MulticlassValidatorTest {
         String reqs = "[{\"ability\":\"STR\",\"minimum\":13},{\"ability\":\"CHA\",\"minimum\":13}]";
         assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
         assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+    }
+
+    @Test
+    @DisplayName("Ranger prerequisites: DEX 13 AND WIS 13")
+    void rangerPrereqs() {
+        var passes = characterWithScores(10, 14, 10, 10, 16, 10);
+        var fails = characterWithScores(10, 14, 10, 10, 11, 10);
+        String reqs = "[{\"ability\":\"DEX\",\"minimum\":13},{\"ability\":\"WIS\",\"minimum\":13}]";
+        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
+        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+    }
+
+    @Test
+    @DisplayName("Monk prerequisites: DEX 13 AND WIS 13, exact threshold passes")
+    void monkPrereqs() {
+        var passes = characterWithScores(10, 13, 10, 10, 13, 10);
+        var fails = characterWithScores(10, 12, 10, 10, 13, 10);
+        String reqs = "[{\"ability\":\"DEX\",\"minimum\":13},{\"ability\":\"WIS\",\"minimum\":13}]";
+        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
+        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+    }
+
+    @Test
+    @DisplayName("Bard/Sorcerer/Warlock: CHA 13 only, other scores irrelevant")
+    void charismaOnlyPrereqs() {
+        var passes = characterWithScores(8, 8, 8, 8, 8, 14);
+        var fails = characterWithScores(20, 20, 20, 20, 20, 12);
+        String reqs = "[{\"ability\":\"CHA\",\"minimum\":13}]";
+        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
+        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+    }
+
+    @Test
+    @DisplayName("Score exactly at threshold passes, one below fails")
+    void exactThresholdBoundary() {
+        var atThreshold = characterWithScores(13, 10, 10, 10, 10, 10);
+        var belowThreshold = characterWithScores(12, 10, 10, 10, 10, 10);
+        String reqs = "[{\"ability\":\"STR\",\"minimum\":13}]";
+        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, atThreshold),
+                "Score of exactly 13 should pass");
+        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, belowThreshold),
+                "Score of 12 should fail");
+    }
+
+    @Test
+    @DisplayName("getEligibleClasses excludes current class from eligible multiclass options")
+    void getEligibleClassesExcludesCurrentClass() {
+        UUID fId = UUID.randomUUID();
+        UUID rogueId = UUID.randomUUID();
+        UUID bardId = UUID.randomUUID();
+
+        var pc = PlayerCharacter.builder()
+                .strength(16).dexterity(14).constitution(14)
+                .intelligence(10).wisdom(12).charisma(8)
+                .multiclassEntries("[{\"classId\":\"" + fId + "\",\"className\":\"Fighter\",\"level\":3}]")
+                .build();
+
+        CharacterClass fighterClass = CharacterClass.builder()
+                .id(fId).name("Fighter").hitDice(10)
+                .multiclassRequirements("[{\"ability\":\"STR\",\"minimum\":13}]")
+                .build();
+
+        CharacterClass rogueClass = CharacterClass.builder()
+                .id(rogueId).name("Rogue").hitDice(8)
+                .multiclassRequirements("[{\"ability\":\"DEX\",\"minimum\":13}]")
+                .build();
+
+        CharacterClass bardClass = CharacterClass.builder()
+                .id(bardId).name("Bard").hitDice(8)
+                .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]")
+                .build();
+
+        List<EligibleClassResponse> results = MulticlassValidator.getEligibleClasses(pc,
+                List.of(fighterClass, rogueClass, bardClass));
+
+        // Fighter should be marked as current class
+        EligibleClassResponse fighterResult = results.stream()
+                .filter(r -> r.getClassName().equals("Fighter")).findFirst().orElseThrow();
+        assertTrue(fighterResult.isCurrentClass());
+
+        // Rogue should be eligible (DEX 14 >= 13)
+        EligibleClassResponse rogueResult = results.stream()
+                .filter(r -> r.getClassName().equals("Rogue")).findFirst().orElseThrow();
+        assertFalse(rogueResult.isCurrentClass());
+        assertTrue(rogueResult.isMeetsPrerequisites());
+
+        // Bard should not be eligible (CHA 8 < 13)
+        EligibleClassResponse bardResult = results.stream()
+                .filter(r -> r.getClassName().equals("Bard")).findFirst().orElseThrow();
+        assertFalse(bardResult.isCurrentClass());
+        assertFalse(bardResult.isMeetsPrerequisites());
     }
 }

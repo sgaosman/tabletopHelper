@@ -140,4 +140,107 @@ class SpellSlotCalculatorTest {
         // level 2 / 2 = 1 caster level → 2 first-level slots
         assertEquals(2, slots.get("1"));
     }
+
+    @Test
+    @DisplayName("Multiclass full + half caster: Wizard 5 + Paladin 4 = caster level 7")
+    void multiclassFullPlusHalf() {
+        var entries = new LinkedHashMap<String, SpellSlotCalculator.ClassEntry>();
+        entries.put("Wizard", new SpellSlotCalculator.ClassEntry(5, "full"));
+        entries.put("Paladin", new SpellSlotCalculator.ClassEntry(4, "half"));
+        var slots = SpellSlotCalculator.calculateSlots(entries);
+        // 5 + floor(4/2) = 5 + 2 = 7 caster levels
+        assertEquals(4, slots.get("1"));
+        assertEquals(3, slots.get("2"));
+        assertEquals(3, slots.get("3"));
+        assertEquals(1, slots.get("4"));
+        assertNull(slots.get("5"));
+    }
+
+    @Test
+    @DisplayName("Multiclass full + third caster: Cleric 5 + EK 6 = caster level 7")
+    void multiclassFullPlusThird() {
+        var entries = new LinkedHashMap<String, SpellSlotCalculator.ClassEntry>();
+        entries.put("Cleric", new SpellSlotCalculator.ClassEntry(5, "full"));
+        entries.put("Eldritch Knight", new SpellSlotCalculator.ClassEntry(6, "third"));
+        var slots = SpellSlotCalculator.calculateSlots(entries);
+        // 5 + floor(6/3) = 5 + 2 = 7 caster levels
+        assertEquals(4, slots.get("1"));
+        assertEquals(3, slots.get("2"));
+        assertEquals(3, slots.get("3"));
+        assertEquals(1, slots.get("4"));
+        assertNull(slots.get("5"));
+    }
+
+    @Test
+    @DisplayName("Multiclass half + third caster: Paladin 6 + EK 6 = caster level 5")
+    void multiclassHalfPlusThird() {
+        var entries = new LinkedHashMap<String, SpellSlotCalculator.ClassEntry>();
+        entries.put("Paladin", new SpellSlotCalculator.ClassEntry(6, "half"));
+        entries.put("Eldritch Knight", new SpellSlotCalculator.ClassEntry(6, "third"));
+        var slots = SpellSlotCalculator.calculateSlots(entries);
+        // floor(6/2) + floor(6/3) = 3 + 2 = 5 caster levels
+        assertEquals(4, slots.get("1"));
+        assertEquals(3, slots.get("2"));
+        assertEquals(2, slots.get("3"));
+        assertNull(slots.get("4"));
+    }
+
+    @Test
+    @DisplayName("Multiclass Artificer + Wizard: Artificer 3 + Wizard 2 = caster level 4")
+    void multiclassArtificerPlusWizard() {
+        var entries = new LinkedHashMap<String, SpellSlotCalculator.ClassEntry>();
+        entries.put("Artificer", new SpellSlotCalculator.ClassEntry(3, "artificer"));
+        entries.put("Wizard", new SpellSlotCalculator.ClassEntry(2, "full"));
+        var slots = SpellSlotCalculator.calculateSlots(entries);
+        // ceil(3/2) + 2 = (3+1)/2 + 2 = 2 + 2 = 4 caster levels
+        assertEquals(4, slots.get("1"));
+        assertEquals(3, slots.get("2"));
+        assertNull(slots.get("3"));
+    }
+
+    @Test
+    @DisplayName("Warlock pact slot level progression from level 1 to 9")
+    void warlockPactSlotProgression() {
+        // Levels 1-2: pact slots at 1st level
+        var slots1 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(1, "pact")));
+        assertEquals(1, slots1.get("pact_1"));
+
+        var slots2 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(2, "pact")));
+        assertEquals(2, slots2.get("pact_1"));
+
+        // Levels 3-4: pact slots at 2nd level
+        var slots3 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(3, "pact")));
+        assertEquals(2, slots3.get("pact_2"));
+        assertNull(slots3.get("pact_1"));
+
+        var slots4 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(4, "pact")));
+        assertEquals(2, slots4.get("pact_2"));
+
+        // Levels 5-6: pact slots at 3rd level
+        var slots5 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(5, "pact")));
+        assertEquals(2, slots5.get("pact_3"));
+
+        var slots6 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(6, "pact")));
+        assertEquals(2, slots6.get("pact_3"));
+
+        // Levels 7-8: pact slots at 4th level
+        var slots7 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(7, "pact")));
+        assertEquals(2, slots7.get("pact_4"));
+
+        var slots8 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(8, "pact")));
+        assertEquals(2, slots8.get("pact_4"));
+
+        // Level 9+: pact slots at 5th level
+        var slots9 = SpellSlotCalculator.calculateSlots(
+                Map.of("Warlock", new SpellSlotCalculator.ClassEntry(9, "pact")));
+        assertEquals(2, slots9.get("pact_5"));
+    }
 }

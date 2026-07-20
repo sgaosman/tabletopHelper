@@ -111,4 +111,122 @@ class LevelUpCalculatorTest {
                 null, null, 1, "Fighter", null);
         assertTrue(features.isEmpty());
     }
+
+    @Test
+    @DisplayName("HP with d6 hit die: Wizard level 1 max 6 + CON, level 2 average 4 + CON")
+    void d6HitDieHpCalculation() {
+        // Level 1 Wizard with CON 12 (+1): max d6 (6) + 1 = 7
+        assertEquals(7, LevelUpCalculator.calculateHpGain(1, 6, 1));
+        // Level 2: average d6 (6/2+1=4) + 1 = 5
+        assertEquals(5, LevelUpCalculator.calculateHpGain(2, 6, 1));
+    }
+
+    @Test
+    @DisplayName("HP with d12 hit die: Barbarian level 1 max 12 + CON, level 2 average 7 + CON")
+    void d12HitDieHpCalculation() {
+        // Level 1 Barbarian with CON 16 (+3): max d12 (12) + 3 = 15
+        assertEquals(15, LevelUpCalculator.calculateHpGain(1, 12, 3));
+        // Level 2: average d12 (12/2+1=7) + 3 = 10
+        assertEquals(10, LevelUpCalculator.calculateHpGain(2, 12, 3));
+    }
+
+    @Test
+    @DisplayName("Multiclass progression uses new class hit die for HP")
+    void multiclassProgressionUsesNewClassHitDie() {
+        UUID fighterId = UUID.randomUUID();
+        UUID wizardId = UUID.randomUUID();
+        int conMod = 2; // CON 14
+
+        List<LevelUpCalculator.ClassInput> classInputs = List.of(
+                new LevelUpCalculator.ClassInput(fighterId, "Fighter", 3, 10,
+                        null, null, null, 99),
+                new LevelUpCalculator.ClassInput(wizardId, "Wizard", 1, 6,
+                        null, null, null, 99)
+        );
+
+        List<LevelUpCalculator.LevelGain> progression =
+                LevelUpCalculator.buildMulticlassProgression(classInputs, conMod);
+        assertEquals(4, progression.size());
+
+        // Fighter level 1 (character level 1): max d10 + CON = 12
+        assertEquals(12, progression.get(0).hpGained());
+        assertEquals("Fighter", progression.get(0).className());
+
+        // Fighter levels 2-3: avg d10 (6) + CON (2) = 8
+        assertEquals(8, progression.get(1).hpGained());
+        assertEquals(8, progression.get(2).hpGained());
+
+        // Wizard level 1 (character level 4): avg d6 (4) + CON (2) = 6
+        // Not max die because this is not the first class in the list
+        assertEquals(6, progression.get(3).hpGained());
+        assertEquals("Wizard", progression.get(3).className());
+    }
+
+    @Test
+    @DisplayName("collectFeaturesForLevel filters by exact level match")
+    void collectFeaturesFiltersByLevel() {
+        String classFeatures = "[{\"name\":\"Extra Attack\",\"description\":\"Two attacks\",\"level\":5},"
+                + "{\"name\":\"Indomitable\",\"description\":\"Reroll save\",\"level\":9}]";
+        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+                classFeatures, null, 3, "Fighter", null);
+        assertTrue(features.isEmpty(), "Level 3 should have no features from level 5 or 9");
+    }
+
+    @Test
+    @DisplayName("collectFeaturesForLevel includes both class and subclass features at same level")
+    void collectClassAndSubclassFeaturesAtSameLevel() {
+        String classFeatures = "[{\"name\":\"Channel Divinity\",\"description\":\"Use channel divinity\",\"level\":2}]";
+        String subclassFeatures = "[{\"name\":\"Preserve Life\",\"description\":\"Restore HP\",\"level\":2}]";
+        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+                classFeatures, subclassFeatures, 2, "Cleric", "Life Domain");
+        assertEquals(2, features.size());
+
+        List<String> names = features.stream().map(LevelUpCalculator.FeatureEntry::name).toList();
+        assertTrue(names.contains("Channel Divinity"));
+        assertTrue(names.contains("Preserve Life"));
+
+        // Verify sources are tagged correctly
+        assertEquals("Cleric", features.stream()
+                .filter(f -> f.name().equals("Channel Divinity")).findFirst().get().source());
+        assertEquals("Life Domain", features.stream()
+                .filter(f -> f.name().equals("Preserve Life")).findFirst().get().source());
+    }
+
+    @Test
+    @DisplayName("buildProgression total levels matches input")
+    void buildProgressionTotalLevelsMatchInput() {
+        UUID classId = UUID.randomUUID();
+        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
+                5, classId, "Fighter", 10, 2,
+                null, null, null, 99);
+        assertEquals(5, progression.size());
+
+        for (int i = 0; i < 5; i++) {
+            assertEquals(i + 1, progression.get(i).characterLevel());
+            assertEquals(i + 1, progression.get(i).classLevel());
+            assertEquals("Fighter", progression.get(i).className());
+        }
+    }
+
+    @Test
+    @DisplayName("buildProgression with existing HP: level 4 gain adds to existing base")
+    void buildProgressionWithExistingHp() {
+        UUID classId = UUID.randomUUID();
+        int conMod = 2; // CON 14
+
+        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
+                4, classId, "Fighter", 10, conMod,
+                null, null, null, 99);
+
+        // Levels 1-3 give: (10+2) + (6+2) + (6+2) = 12 + 8 + 8 = 28
+        int hpAfter3 = progression.subList(0, 3).stream()
+                .mapToInt(LevelUpCalculator.LevelGain::hpGained).sum();
+        assertEquals(28, hpAfter3);
+
+        // Level 4 adds: avg d10 (6) + CON mod (2) = 8
+        assertEquals(8, progression.get(3).hpGained());
+
+        // Total HP = 28 + 8 = 36
+        assertEquals(36, LevelUpCalculator.totalHp(progression));
+    }
 }

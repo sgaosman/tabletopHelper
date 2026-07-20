@@ -440,6 +440,16 @@ public class CharacterService {
             character.setCampaign(campaign);
         }
 
+        // Recalculate spell stats if ability scores changed and spellcasting is present
+        if (character.getSpellcastingAbility() != null &&
+                (request.getStrength() != null || request.getDexterity() != null || request.getConstitution() != null ||
+                 request.getIntelligence() != null || request.getWisdom() != null || request.getCharisma() != null)) {
+            int profBonus = character.getProficiencyBonus();
+            int abilityModVal = getAbilityMod(character.getSpellcastingAbility(), character);
+            character.setSpellSaveDc(8 + profBonus + abilityModVal);
+            character.setSpellAttackBonus(profBonus + abilityModVal);
+        }
+
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
     }
@@ -861,6 +871,167 @@ public class CharacterService {
     private int getCurrentClassLevel(PlayerCharacter character, UUID classId) {
         Map<String, Integer> levels = MulticlassValidator.parseMulticlassEntries(character.getMulticlassEntries());
         return levels.getOrDefault(classId.toString(), 1);
+    }
+
+    @Transactional
+    public CharacterResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
+        PlayerCharacter character = characterRepository.findById(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
+        if (!character.getUser().getId().equals(userId))
+            throw new IllegalArgumentException("You do not own this character");
+
+        int conMod = abilityMod(character.getConstitution());
+
+        // Spend hit dice for healing
+        if (request != null && request.getHitDiceToSpend() != null && !request.getHitDiceToSpend().isEmpty()) {
+            try {
+                Map<String, HitDiceEntry> hdMap = character.getHitDiceMap() != null
+                        ? new LinkedHashMap<>(objectMapper.readValue(character.getHitDiceMap(),
+                            new com.fasterxml.jackson.core.type.TypeReference<Map<String, HitDiceEntry>>() {}))
+                        : new LinkedHashMap<>();
+                int totalHeal = 0;
+
+                for (var entry : request.getHitDiceToSpend().entrySet()) {
+                    String className = entry.getKey();
+                    int count = entry.getValue();
+                    HitDiceEntry hde = hdMap.get(className);
+                    if (hde == null)
+                        throw new IllegalArgumentException("No hit dice for class: " + className);
+                    if (hde.remaining() < count)
+                        throw new IllegalArgumentException("Not enough hit dice remaining for " + className);
+
+                    int healPerDie = (hde.faces() / 2 + 1) + conMod;
+                    totalHeal += count * healPerDie;
+                    hdMap.put(className, new HitDiceEntry(hde.total(), hde.remaining() - count, hde.faces()));
+                }
+
+                character.setHpCurrent(Math.min(character.getHpMax(), character.getHpCurrent() + totalHeal));
+                character.setHitDiceMap(objectMapper.writeValueAsString(hdMap));
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to process hit dice spending: " + e.getMessage(), e);
+            }
+        }
+
+        // Reset pact slots
+        resetPactSlots(character);
+
+        // Reset short rest feat resources
+        resetFeatResources(character, true);
+
+        character = characterRepository.save(character);
+        return characterMapper.toResponse(character);
+    }
+
+    @Transactional
+    public CharacterResponse longRest(UUID characterId, UUID userId) {
+        PlayerCharacter character = characterRepository.findById(characterId)
+                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
+        if (!character.getUser().getId().equals(userId))
+            throw new IllegalArgumentException("You do not own this character");
+
+        // Restore full HP
+        character.setHpCurrent(character.getHpMax());
+
+        // Restore all spell slots
+        resetAllSpellSlots(character);
+
+        // Recover hit dice: floor(total/2), min 1
+        recoverHitDice(character);
+
+        // Reset all feat resources
+        resetFeatResources(character, false);
+
+        character = characterRepository.save(character);
+        return characterMapper.toResponse(character);
+    }
+
+    private void resetPactSlots(PlayerCharacter character) {
+        if (character.getSpellSlots() == null) return;
+        try {
+            var node = objectMapper.readTree(character.getSpellSlots());
+            if (node.isObject()) {
+                var objNode = (ObjectNode) node;
+                var fieldNames = new ArrayList<String>();
+                node.fieldNames().forEachRemaining(fieldNames::add);
+                for (String key : fieldNames) {
+                    if (key.startsWith("pact_")) {
+                        var slotNode = (ObjectNode) objNode.get(key);
+                        slotNode.put("used", 0);
+                    }
+                }
+                character.setSpellSlots(objectMapper.writeValueAsString(objNode));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to reset pact slots for character {}", character.getId(), e);
+        }
+    }
+
+    private void resetAllSpellSlots(PlayerCharacter character) {
+        if (character.getSpellSlots() == null) return;
+        try {
+            var node = objectMapper.readTree(character.getSpellSlots());
+            if (node.isObject()) {
+                var objNode = (ObjectNode) node;
+                var fieldNames = new ArrayList<String>();
+                node.fieldNames().forEachRemaining(fieldNames::add);
+                for (String key : fieldNames) {
+                    var slotNode = (ObjectNode) objNode.get(key);
+                    slotNode.put("used", 0);
+                }
+                character.setSpellSlots(objectMapper.writeValueAsString(objNode));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to reset all spell slots for character {}", character.getId(), e);
+        }
+    }
+
+    private void recoverHitDice(PlayerCharacter character) {
+        if (character.getHitDiceMap() == null) return;
+        try {
+            Map<String, HitDiceEntry> hdMap = new LinkedHashMap<>(
+                    objectMapper.readValue(character.getHitDiceMap(),
+                            new com.fasterxml.jackson.core.type.TypeReference<Map<String, HitDiceEntry>>() {}));
+
+            int totalDice = hdMap.values().stream().mapToInt(HitDiceEntry::total).sum();
+            int recovery = Math.max(1, totalDice / 2);
+
+            for (var entry : hdMap.entrySet()) {
+                HitDiceEntry hde = entry.getValue();
+                int missing = hde.total() - hde.remaining();
+                int classRecovery = Math.min(missing, recovery);
+                if (classRecovery > 0) {
+                    entry.setValue(new HitDiceEntry(hde.total(), hde.remaining() + classRecovery, hde.faces()));
+                    recovery -= classRecovery;
+                }
+                if (recovery <= 0) break;
+            }
+
+            character.setHitDiceMap(objectMapper.writeValueAsString(hdMap));
+        } catch (Exception e) {
+            log.warn("Failed to recover hit dice for character {}", character.getId(), e);
+        }
+    }
+
+    private void resetFeatResources(PlayerCharacter character, boolean shortRestOnly) {
+        if (character.getFeatResources() == null) return;
+        try {
+            List<FeatResourceEntry> resources = objectMapper.readValue(
+                    character.getFeatResources(),
+                    new com.fasterxml.jackson.core.type.TypeReference<List<FeatResourceEntry>>() {});
+            List<FeatResourceEntry> updated = new ArrayList<>();
+            for (FeatResourceEntry r : resources) {
+                if (!shortRestOnly || "shortRest".equals(r.resetOn())) {
+                    updated.add(new FeatResourceEntry(r.featName(), r.name(), r.maxUses(), r.maxUses(), r.resetOn()));
+                } else {
+                    updated.add(r);
+                }
+            }
+            character.setFeatResources(objectMapper.writeValueAsString(updated));
+        } catch (Exception e) {
+            log.warn("Failed to reset feat resources for character {}", character.getId(), e);
+        }
     }
 
     @Transactional

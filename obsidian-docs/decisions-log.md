@@ -1150,3 +1150,14 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** The helper returns a record with `actualDamage` and `droppedToZero` fields so callers can still make decisions based on the damage outcome.
 
+## D102: Comprehensive Testing Suite (M25)
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Implemented 330 tests (220 backend + 110 frontend). Backend uses JUnit 5 + Mockito; frontend uses Vitest + jsdom. Tests cover all domain logic (spell slots, level up/down, multiclass validation, feat effects, combat mechanics, dice rolling), all services (CharacterService, CombatService, EncounterService, AuthService, CampaignService), all utilities (markup parsing, JSON helpers, exception handling), and all frontend utility functions (D&D rules, spell constants, feat prerequisites, feat spell parsing, markup parsing, wizard helpers).
+
+**Rationale:** The codebase had only 53 tests before this milestone. With major refactoring and new features landing, a comprehensive test suite was needed before adding more features. Tests were prioritized by risk: FeatEffectResolver reversal symmetry, CombatService rules, CharacterJsonHelper mutations, then progressively less risky areas.
+
+**Trade-offs:** Component-level React tests and integration tests (requiring a test database) are deferred — the current suite covers logic and service layers. CharacterService gained `shortRest()` and `longRest()` methods as part of making the business logic testable.
+
