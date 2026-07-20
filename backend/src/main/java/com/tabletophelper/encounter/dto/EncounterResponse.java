@@ -48,5 +48,9 @@ public class EncounterResponse {
         private Integer deathSaveSuccesses;
         private Integer deathSaveFailures;
         private String notes;
+        private Integer spellAttackBonus;
+        private Integer spellSaveDc;
+        private String spellcastingAbility;
+        private String spellsKnown;
     }
 }

@@ -19,6 +19,7 @@ public class CombatService {
     private final CombatLogRepository combatLogRepository;
     private final EncounterService encounterService;
     private final ObjectMapper objectMapper;
+    private final SpellResolverEngine spellResolverEngine;
 
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId, UUID userId) {
@@ -393,8 +394,7 @@ public class CombatService {
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
 
         if (participant.getConcentrationSpell() != null && request.getSpellName() != null) {
-            logAction(encounter, null, participant, CombatActionType.CONCENTRATION_LOST,
-                    participant.getDisplayName() + " loses concentration on " + participant.getConcentrationSpell(), null, null, null, null);
+            dropConcentrationCascade(encounter, participant);
         }
 
         participant.setConcentrationSpell(request.getSpellName());
@@ -456,6 +456,114 @@ public class CombatService {
                 null, null, null, null);
 
         return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    @Transactional
+    public CastSpellResponse castSpell(UUID encounterId, CastSpellRequest request, UUID actorParticipantId, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDmOrControllerOnTurn(encounter, userId, actorParticipantId);
+
+        EncounterParticipant caster = findParticipant(encounter, actorParticipantId);
+
+        if (request.getSlotLevel() > 0) {
+            Map<String, Map<String, Integer>> slots = parseSpellSlots(caster);
+            String slotKey = Boolean.TRUE.equals(request.getUsePactSlot())
+                    ? "pact_" + request.getSlotLevel()
+                    : String.valueOf(request.getSlotLevel());
+            Map<String, Integer> slot = slots.get(slotKey);
+            if (slot == null || slot.getOrDefault("remaining", 0) <= 0) {
+                throw new IllegalArgumentException("No level " + request.getSlotLevel() + " spell slots remaining");
+            }
+            slot.put("remaining", slot.get("remaining") - 1);
+            caster.setSpellSlotsCurrent(serializeSpellSlots(slots));
+
+            logAction(encounter, null, caster, CombatActionType.SPELL_SLOT_USE,
+                    caster.getDisplayName() + " uses a level " + request.getSlotLevel() + " spell slot ("
+                            + slot.get("remaining") + "/" + slot.get("max") + " remaining)",
+                    null, null, null, null);
+        }
+
+        int spellAttackBonus = request.getOverrideSpellAttackBonus() != null
+                ? request.getOverrideSpellAttackBonus()
+                : (caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0);
+        int spellSaveDC = request.getOverrideSpellSaveDC() != null
+                ? request.getOverrideSpellSaveDC()
+                : (caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10);
+
+        SpellResolverEngine.SpellCastResult result = spellResolverEngine.resolveSpell(
+                encounter, caster, request.getSpellName(), request.getSlotLevel(),
+                request.getTargetIds(), spellAttackBonus, spellSaveDC, request.getAdvantage());
+
+        List<CastSpellResponse.TargetOutcome> outcomes = new ArrayList<>();
+
+        for (SpellResolverEngine.TargetResult tr : result.targetResults()) {
+            if (tr.damage() > 0) {
+                EncounterParticipant target = findParticipant(encounter, tr.targetId());
+                DamageResult dmgResult = applyDamageToTarget(encounter, target, tr.damage());
+                if (target.getConcentrationSpell() != null && dmgResult.actualDamage() > 0 && target.getIsAlive()) {
+                    checkConcentration(encounter, target, dmgResult.actualDamage());
+                }
+            }
+            if (tr.healing() > 0) {
+                EncounterParticipant target = findParticipant(encounter, tr.targetId());
+                int newHp = Math.min(target.getHpMax(), target.getHpCurrent() + tr.healing());
+                target.setHpCurrent(newHp);
+                if (!target.getIsAlive() && newHp > 0) {
+                    target.setIsAlive(true);
+                    target.setDeathSaveSuccesses(0);
+                    target.setDeathSaveFailures(0);
+                }
+            }
+            if (!tr.conditionsApplied().isEmpty()) {
+                EncounterParticipant target = findParticipant(encounter, tr.targetId());
+                List<ConditionEntry> conditions = parseConditionEntries(target);
+                for (String condName : tr.conditionsApplied()) {
+                    if (conditions.stream().noneMatch(c -> c.name.equalsIgnoreCase(condName))) {
+                        conditions.add(new ConditionEntry(condName, result.durationRounds(),
+                                encounter.getRoundNumber(), request.getSpellName(),
+                                caster.getId(), result.concentrationSet()));
+                    }
+                }
+                target.setActiveConditions(serializeConditionEntries(conditions));
+            }
+
+            outcomes.add(CastSpellResponse.TargetOutcome.builder()
+                    .targetId(tr.targetId())
+                    .targetName(tr.targetName())
+                    .outcome(tr.attackOutcome())
+                    .damage(tr.damage() > 0 ? tr.damage() : null)
+                    .healing(tr.healing() > 0 ? tr.healing() : null)
+                    .conditionsApplied(tr.conditionsApplied())
+                    .attackRoll("hit".equals(tr.attackOutcome()) || "miss".equals(tr.attackOutcome())
+                            || "critical".equals(tr.attackOutcome()) ? tr.rollTotal() : null)
+                    .saveRoll("saved".equals(tr.attackOutcome()) || "failed_save".equals(tr.attackOutcome())
+                            ? tr.rollTotal() : null)
+                    .build());
+        }
+
+        if (result.concentrationSet()) {
+            if (caster.getConcentrationSpell() != null) {
+                dropConcentrationCascade(encounter, caster);
+            }
+            caster.setConcentrationSpell(result.concentrationSpellName());
+        }
+
+        logAction(encounter, caster, null, CombatActionType.SPELL_CAST,
+                result.description(), null, null,
+                result.totalDamage() > 0 ? result.totalDamage() : null,
+                result.totalHealing() > 0 ? result.totalHealing() : null);
+
+        EncounterResponse encounterResponse = encounterService.toResponse(encounterRepository.save(encounter));
+
+        return CastSpellResponse.builder()
+                .encounterState(encounterResponse)
+                .spellName(request.getSpellName())
+                .slotLevelUsed(request.getSlotLevel())
+                .autoResolved(result.resolved())
+                .resultSummary(result.description())
+                .targets(outcomes)
+                .manualResolutionReason(result.requiresManualResolution() ? result.manualResolutionReason() : null)
+                .build();
     }
 
     @Transactional
@@ -627,8 +735,8 @@ public class CombatService {
                     roll, total, null, null);
         } else {
             String spell = participant.getConcentrationSpell();
-            participant.setConcentrationSpell(null);
-            logAction(encounter, null, participant, CombatActionType.CONCENTRATION_LOST,
+            dropConcentrationCascade(encounter, participant);
+            logAction(encounter, null, participant, CombatActionType.CONCENTRATION_CHECK,
                     participant.getDisplayName() + " concentration check: " + bonusStr + " = " + total + " vs DC " + dc + " — lost concentration on " + spell,
                     roll, total, null, null);
         }
@@ -648,11 +756,39 @@ public class CombatService {
 
     private void dropConcentrationOnZeroHp(Encounter encounter, EncounterParticipant participant) {
         if (participant.getConcentrationSpell() != null) {
-            String spell = participant.getConcentrationSpell();
-            participant.setConcentrationSpell(null);
-            logAction(encounter, null, participant, CombatActionType.CONCENTRATION_LOST,
-                    participant.getDisplayName() + " drops to 0 HP — loses concentration on " + spell,
-                    null, null, null, null);
+            dropConcentrationCascade(encounter, participant);
+        }
+    }
+
+    private void dropConcentrationCascade(Encounter encounter, EncounterParticipant concentrator) {
+        String spell = concentrator.getConcentrationSpell();
+        if (spell == null) return;
+
+        UUID casterId = concentrator.getId();
+        concentrator.setConcentrationSpell(null);
+
+        logAction(encounter, null, concentrator, CombatActionType.CONCENTRATION_LOST,
+                concentrator.getDisplayName() + " loses concentration on " + spell,
+                null, null, null, null);
+
+        for (EncounterParticipant p : encounter.getParticipants()) {
+            List<ConditionEntry> conditions = parseConditionEntries(p);
+            List<ConditionEntry> toRemove = conditions.stream()
+                    .filter(c -> c.sourceRequiresConcentration != null
+                            && c.sourceRequiresConcentration
+                            && spell.equals(c.sourceSpellName)
+                            && casterId.equals(c.sourceParticipantId))
+                    .toList();
+
+            if (!toRemove.isEmpty()) {
+                conditions.removeAll(toRemove);
+                p.setActiveConditions(conditions.isEmpty() ? null : serializeConditionEntries(conditions));
+                for (ConditionEntry removed : toRemove) {
+                    logAction(encounter, null, p, CombatActionType.CONDITION_REMOVE,
+                            removed.name + " ends on " + p.getDisplayName() + " (" + spell + " concentration lost)",
+                            null, null, null, null);
+                }
+            }
         }
     }
 
@@ -826,6 +962,9 @@ public class CombatService {
         public String name;
         public Integer duration;
         public int appliedRound;
+        public String sourceSpellName;
+        public UUID sourceParticipantId;
+        public Boolean sourceRequiresConcentration;
 
         public ConditionEntry() {}
 
@@ -833,6 +972,16 @@ public class CombatService {
             this.name = name;
             this.duration = duration;
             this.appliedRound = appliedRound;
+        }
+
+        public ConditionEntry(String name, Integer duration, int appliedRound,
+                              String sourceSpellName, UUID sourceParticipantId, Boolean sourceRequiresConcentration) {
+            this.name = name;
+            this.duration = duration;
+            this.appliedRound = appliedRound;
+            this.sourceSpellName = sourceSpellName;
+            this.sourceParticipantId = sourceParticipantId;
+            this.sourceRequiresConcentration = sourceRequiresConcentration;
         }
     }
 }

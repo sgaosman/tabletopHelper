@@ -2,6 +2,9 @@ export interface ConditionEntry {
   name: string;
   duration: number | null;
   appliedRound: number;
+  sourceSpellName?: string;
+  sourceParticipantId?: string;
+  sourceRequiresConcentration?: boolean;
 }
 
 export interface SpellSlotLevel {
@@ -37,6 +40,10 @@ export interface EncounterParticipant {
   deathSaveSuccesses: number;
   deathSaveFailures: number;
   notes?: string;
+  spellAttackBonus?: number;
+  spellSaveDc?: number;
+  spellcastingAbility?: string;
+  spellsKnown?: string;
 }
 
 export interface Encounter {

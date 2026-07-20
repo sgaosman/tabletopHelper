@@ -42,6 +42,7 @@ public class DataSeeder implements CommandLineRunner {
 
         try {
             spellSeeder.seed();
+            spellSeeder.seedEffectTemplates();
         } catch (Exception e) {
             log.error("Failed to seed spells: {}", e.getMessage(), e);
         }

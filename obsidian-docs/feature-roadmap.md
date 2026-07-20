@@ -14,7 +14,7 @@
 | 8 | Spell Effect Data Population & Review Cycle | Complete | All data files validated and approved — 2 critical, 2 moderate, 48 markup fixes applied |
 | 9 | Character Builder Overhaul | Complete | Reference data entities, 5etools seeders, 6-step creation wizard, 6-tab character sheet, rest mechanics, proficiency display, character deletion, campaign assignment |
 | 10 | Character Leveling & Multiclass | Complete | Create at any level (1-20), level up/down with multiclass support, PHB prerequisite validation, ASI/feat/subclass choices, deterministic rollback via levelHistory |
-| 11 | Spell Resolver Engine & Encounter Spellcasting | Not started | Cast Spell action, auto-resolution, source-tracked conditions, component checks, optimistic locking |
+| 11 | Spell Resolver Engine & Encounter Spellcasting | Complete | Cast Spell action, auto-resolution for ~184 spells, source-tracked conditions, concentration cascade, silence check, cantrip/upcast scaling |
 | 12 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
 | 13 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
@@ -25,10 +25,9 @@
 | 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
 | 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
 | 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
-| 22 | Character Creation Audit | Complete | 1/3 caster support (EK/AT), subclass always-prepared spells, multiclass proficiency grants, expertise (Rogue/Bard), multiclass skill choices, race resistances/feats, source-based feature matching, duplicate class validation, point buy range check, spell review step, spell warning for all caster types, TDZ blank screen fix |
-| 23 | Feat Spell & ASI Fixes | Complete | Fix blank feat spell lines (missing name/level in spellsKnown), feat ASI choice picker in creation wizard, AsiModal display fix for auto-granted spells |
-| 24 | Architecture Review & Refactor | Complete | 6-way review, 2-week action plan executed: exception logging, short rest fix, concentration save fix, typed JSONB records, input validation, integration tests, wizard draft saving, shared utils extraction, wizard component split, DB indexes + GIN, reference data caching, CharacterService extraction |
-| 25 | Comprehensive Testing Suite | Not started | Full backend + frontend test coverage across all unique functionality patterns — see detailed breakdown below |
+| 22 | Architecture Review Action Plan | Complete | 6-way review, 2-week action plan: exception logging, short rest fix, concentration save fix, typed JSONB records, input validation, wizard draft saving, shared utils, wizard split, DB indexes + GIN, caching, CharacterService extraction, 38 tests |
+| 23 | Architecture Review 2 Action Plan | Complete | IDOR fix, long rest resource reset, unconscious auto-crit, ErrorBoundary, CombatService dedup, CharacterSheetPage split, HikariCP, @EntityGraph, Flyway, ARIA, FeatPicker extraction |
+| 25 | Comprehensive Testing Suite | Complete | 330 tests (220 backend + 110 frontend) across all services, utilities, and domain logic — see detailed breakdown below |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 
@@ -162,20 +161,20 @@
 **Goal:** Produce structured data definitions for the spell resolver, combat automation, character builder, and monster action systems. No implementation code — output is JSON data files and analysis documents for human review.
 
 **Sub-tasks:**
-- [ ] **Task 1: Spell Effect Definitions (Levels 0–3)** — Structured JSON definition for every spell at levels 0–3 (~294 spells). Each spell classified into a pattern category (ATTACK_DAMAGE, SAVE_DAMAGE, SAVE_CONDITION, HEAL, BUFF_NO_ROLL, etc.) with delivery method, targeting, effects array, upcast scaling, cantrip scaling, and `requiresManualResolution` flag for complex spells.
+- [x] **Task 1: Spell Effect Definitions (Levels 0–3)** — Structured JSON definition for every spell at levels 0–3 (~294 spells). Each spell classified into a pattern category (ATTACK_DAMAGE, SAVE_DAMAGE, SAVE_CONDITION, HEAL, BUFF_NO_ROLL, etc.) with delivery method, targeting, effects array, upcast scaling, cantrip scaling, and `requiresManualResolution` flag for complex spells.
   - Output: `backend/src/main/resources/data/spell-effects/spell-effect-definitions.json`
   - Review: `docs/spell-effect-review.md`
-- [ ] **Task 2: Class Feature Analysis (Levels 1–5)** — Every class and subclass feature at levels 1–5, categorised as COMBAT_ACTIVE, COMBAT_PASSIVE, COMBAT_MODIFIER, RESOURCE, FLAVOUR, or SPELLCASTING. Includes uses, recharge period, and combat notes.
+- [x] **Task 2: Class Feature Analysis (Levels 1–5)** — Every class and subclass feature at levels 1–5, categorised as COMBAT_ACTIVE, COMBAT_PASSIVE, COMBAT_MODIFIER, RESOURCE, FLAVOUR, or SPELLCASTING. Includes uses, recharge period, and combat notes.
   - Output: `docs/class-feature-analysis.md`
-- [ ] **Task 3: Race Trait Analysis** — Every racial trait categorised as STAT_BONUS, COMBAT_ACTIVE, COMBAT_PASSIVE, PROFICIENCY, MOVEMENT, SENSE, RESISTANCE, or FLAVOUR.
+- [x] **Task 3: Race Trait Analysis** — Every racial trait categorised as STAT_BONUS, COMBAT_ACTIVE, COMBAT_PASSIVE, PROFICIENCY, MOVEMENT, SENSE, RESISTANCE, or FLAVOUR.
   - Output: `docs/race-trait-analysis.md`
-- [ ] **Task 4: Item Effect Analysis** — Combat-relevant items (potions, wands, staves, scrolls) with structured effect definitions. ~50–80 items.
+- [x] **Task 4: Item Effect Analysis** — Combat-relevant items (potions, wands, staves, scrolls) with structured effect definitions. ~50–80 items.
   - Output: `backend/src/main/resources/data/item-effects/item-effect-definitions.json`
   - Review: `docs/item-effect-review.md`
-- [ ] **Task 5: Monster Action Structured Data** — Structured action templates for ~1,300–1,600 monsters: all CR 0–10 (~1,200–1,500), all legendary/lair monsters at any CR (~60–80 additional), and CR 11–15 as secondary priority if time permits (~200–300 additional). Parses attack bonuses, damage dice, save DCs, conditions, recharge, legendary action costs, spellcasting blocks from raw 5e.tools JSON.
+- [x] **Task 5: Monster Action Structured Data** — Structured action templates for ~1,300–1,600 monsters: all CR 0–10 (~1,200–1,500), all legendary/lair monsters at any CR (~60–80 additional), and CR 11–15 as secondary priority if time permits (~200–300 additional). Parses attack bonuses, damage dice, save DCs, conditions, recharge, legendary action costs, spellcasting blocks from raw 5e.tools JSON.
   - Output: `backend/src/main/resources/data/monster-actions/monster-action-definitions.json`
   - Review: `docs/monster-action-review.md`
-- [ ] **Task 6: Validation Summary** — Cross-check all definitions against 5e.tools metadata, report data quality issues and recommended review priorities.
+- [x] **Task 6: Validation Summary** — Cross-check all definitions against 5e.tools metadata, report data quality issues and recommended review priorities.
   - Output: `docs/data-gathering-summary.md`
 
 **Critical rules:** No implementation code. No modifications to existing source code, entities, database schema, or database data. Flag uncertainty with "REVIEW:" notes. Be conservative about automation — mark complex spells as manual resolution.
@@ -303,41 +302,41 @@ Phase 3 — Multiclass at creation:
 
 **Goal:** "Cast Spell" combat action with fully automated resolution for ~85% of level 0–3 spells.
 
-**Backend tasks:**
-- [ ] Enrich `Spell` entity with missing columns from 5e.tools data: `conditionInflict`, `spellAttack`, `scalingLevelDice`, `areaTags`, `miscTags`, `affectsCreatureType`
-- [ ] Add `effectTemplate` JSONB column to `Spell` entity, populated from M7/M8 spell definitions
-- [ ] Update seeder to extract currently-ignored 5e.tools fields
-- [ ] Re-seed spells with enriched data (migration strategy for existing data)
-- [ ] `SpellResolverEngine` — interprets effect templates server-side:
-  - Validate: caster has slot, spell is prepared, components satisfied (costly material check against inventory)
-  - Deduct spell slot (cantrips: no deduction)
-  - Calculate upcast scaling (damage dice, target count)
-  - For SPELL_ATTACK: roll d20 + spell attack bonus vs each target's AC
-  - For SAVING_THROW: each target rolls save vs caster's spell save DC (half-on-save handling)
-  - For AUTO_HIT: effects apply automatically
-  - Apply damage through existing damage pipeline (respects temp HP, death saves, etc.)
-  - Apply conditions with source tracking (sourceSpellName, sourceParticipantId, sourceRequiresConcentration) — see [[decisions-log#D032]]
-  - Set concentration (auto-drop previous concentration)
-  - Log everything to combat log with detailed entries
-  - Broadcast via WebSocket
-- [ ] `CastSpellRequest` DTO: spellId, slotLevel, targetParticipantIds, actorParticipantId
-- [ ] `POST /api/encounters/{id}/combat/cast-spell` endpoint
-- [ ] Verbal component check: if caster has Silence effect, block spells with verbal components
-- [ ] Cantrip scaling: use character level, not class level
-- [ ] Concentration drop cascade: when concentration drops or caster dies, auto-remove all conditions from all targets with matching sourceSpellName + sourceParticipantId
-- [ ] `@Version` optimistic locking on `Encounter` and `EncounterParticipant` entities — see [[decisions-log#D034]]
-- [ ] 409 Conflict response on `OptimisticLockException`, client retries after next WebSocket broadcast
-- [ ] Spell test harness: unit tests for each pattern category with representative spells
+**Implemented (2026-07-20):**
 
-**Frontend tasks:**
-- [ ] "Cast Spell" button in player encounter panel (on their turn)
-- [ ] Spell selection modal: list prepared spells, show components/concentration/casting time
-- [ ] Slot level selector (for upcasting): shows available slots, highlights minimum level
-- [ ] Target selector: validates target count for the spell, adjusts with upcast if targetCountUpcastScaling
-- [ ] Auto-resolution result display in combat log (attack rolls, save results, damage dealt, conditions applied)
-- [ ] Condition indicators showing source spell (e.g., "Restrained (Entangle)")
-- [ ] DM spell casting for monsters with spellcasting stat blocks
-- [ ] `requiresManualResolution` spells: deduct slot, log cast, show prompt for DM to resolve manually
+**Backend:**
+- [x] Flyway migration V2: `effect_template` on spells, `spell_attack_bonus`/`spell_save_dc`/`spellcasting_ability`/`spells_known` on encounter_participants
+- [x] `SpellResolverEngine` — interprets effect templates server-side for all 4 delivery methods (SPELL_ATTACK, SAVING_THROW, AUTO_HIT, SELF)
+- [x] Cantrip scaling by total character level (not class level), including monster CR-based level estimation
+- [x] Upcast damage scaling from effect templates
+- [x] Silence check: blocks spells with verbal components when caster has "silenced" condition
+- [x] `CastSpellRequest` / `CastSpellResponse` DTOs with DM override fields for monster spell stats
+- [x] `POST /api/encounters/{id}/combat/cast-spell` endpoint with WebSocket broadcast
+- [x] `CombatService.castSpell()` — slot deduction, damage pipeline, condition application with source tracking, concentration cascade, combat logging
+- [x] `dropConcentrationCascade()` wired into all 3 concentration-loss paths (0 HP, failed save, replacement)
+- [x] ConditionEntry extended with `sourceSpellName`, `sourceParticipantId`, `sourceRequiresConcentration`
+- [x] `SpellSeeder.seedEffectTemplates()` — loads spell-effect-definitions.json into `effectTemplate` column
+- [x] `SpellResolverEngineTest` — 40 unit tests covering all delivery methods, scaling, saves, crits, multi-target, concentration
+
+**Frontend:**
+- [x] `SpellCastModal` — 4-step modal: spell selection (search + filter), slot selection (upcast + pact), target selection (multi-select), confirm + result view
+- [x] "Cast Spell" button on both DM and player encounter pages (Sparkles icon, indigo)
+- [x] DM monster spell overrides: manual spellAttackBonus/spellSaveDC entry for monsters
+- [x] Concentration replacement warning in confirm step
+- [x] Result view with per-target outcomes (attack rolls, save rolls, damage, conditions)
+- [x] `requiresManualResolution` spells: show "Requires DM adjudication" with reason
+- [x] Condition badges show source spell (e.g., "Restrained (Entangle)")
+- [x] SPELL_CAST combat log entries styled in indigo
+- [x] `CastSpellRequest`, `CastSpellResponse`, `TargetOutcome` TypeScript types
+- [x] `combatApi.castSpell()` API method
+
+**Key files:**
+- `SpellResolverEngine.java` — core spell resolution (~400 lines)
+- `CombatService.java` — castSpell() + dropConcentrationCascade() integration
+- `CombatController.java` — POST /cast-spell endpoint
+- `SpellCastModal.tsx` — multi-step casting modal (~450 lines)
+- `V2__spell_resolver_fields.sql` — Flyway migration
+- `SpellResolverEngineTest.java` — 40 unit tests
 
 ## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions
 

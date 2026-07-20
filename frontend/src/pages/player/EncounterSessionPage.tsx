@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { combatApi } from '../../api/combatApi';
 import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
 import type { CombatLogEntry } from '../../types/combat';
+import SpellCastModal from '../../components/encounter/SpellCastModal';
 import {
   ArrowLeft, Wifi, WifiOff, Heart, Shield, Skull, Copy,
   ChevronRight, ChevronLeft, ScrollText, Sparkles, Crosshair, Zap, Swords, X, Plus
@@ -21,7 +22,7 @@ const DAMAGE_TYPES = [
   'force', 'lightning', 'necrotic', 'poison', 'psychic', 'radiant', 'thunder',
 ];
 
-type PlayerAction = 'attack' | 'condition' | 'concentration' | null;
+type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | null;
 
 const CONDITION_COLORS: Record<string, string> = {
   blinded: 'bg-gray-700 text-gray-300',
@@ -213,6 +214,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
       case 'STABILIZE': return 'text-green-300';
       case 'CONCENTRATION_CHECK': return 'text-purple-400';
       case 'CONCENTRATION_LOST': return 'text-purple-300';
+      case 'SPELL_CAST': return 'text-indigo-400';
       case 'SPELL_SLOT_USE': return 'text-indigo-400';
       case 'SPELL_SLOT_RESTORE': return 'text-indigo-300';
       case 'CONDITION_ADD': return 'text-yellow-400';
@@ -577,11 +579,28 @@ function PlayerSessionView() {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-900/30 hover:bg-purple-900/60 text-purple-400 rounded-lg text-xs font-medium border border-purple-900/50">
               <Swords className="w-3.5 h-3.5" /> {myCharacter.concentrationSpell ? 'Change' : 'Set'} Concentration
             </button>
+            {myCharacter.spellsKnown && (
+              <button onClick={() => selectSelfAction('spell')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-900/30 hover:bg-indigo-900/60 text-indigo-400 rounded-lg text-xs font-medium border border-indigo-900/50">
+                <Sparkles className="w-3.5 h-3.5" /> Cast Spell
+              </button>
+            )}
           </div>
         )}
 
+        {/* Spell cast modal */}
+        {actionMode === 'spell' && myCharacter && (
+          <SpellCastModal
+            encounterId={encounter.id}
+            caster={myCharacter}
+            participants={encounter.participants}
+            onUpdate={refreshEncounter}
+            onClose={() => { setActionMode(null); setAttackTargetId(null); }}
+          />
+        )}
+
         {/* Action panel */}
-        {actionMode && myCharacter && (
+        {actionMode && actionMode !== 'spell' && myCharacter && (
           <PlayerActionPanel
             myCharacter={myCharacter}
             encounter={encounter}
@@ -634,11 +653,11 @@ function PlayerSessionView() {
                             <button key={c.name} onClick={() => removeCondition(c.name)}
                               className={`px-1.5 py-0.5 rounded text-xs hover:opacity-70 ${CONDITION_COLORS[c.name] || 'bg-gray-700 text-gray-300'}`}
                               title="Click to remove">
-                              {c.name}{remaining != null ? ` (${remaining})` : ''} ×
+                              {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''} ×
                             </button>
                           ) : (
                             <span key={c.name} className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c.name] || 'bg-gray-700 text-gray-300'}`}>
-                              {c.name}{remaining != null ? ` (${remaining})` : ''}
+                              {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''}
                             </span>
                           );
                         })}

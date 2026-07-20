@@ -233,10 +233,11 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | description, higher_levels | TEXT | |
 | classes | JSONB | `@JsonRawValue` — array including subclass entries like "Cleric (Knowledge)" |
 | damage_type, damage_dice, save_ability | VARCHAR | |
+| effect_template | JSONB | `@JsonRawValue` — structured spell effect definition from M7/M8 data. Contains deliveryMethod, patternCategory, effects array, cantripScaling, upcastScaling, requiresManualResolution flag. ~184 spells have auto-resolvable templates. |
 | source | VARCHAR | |
 | created_at | TIMESTAMPTZ | |
 
-**Count:** 525 spells
+**Count:** 525 spells (288 with effect templates, ~184 auto-resolvable)
 
 ### items
 
@@ -425,9 +426,13 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | hp_current | INTEGER | NOT NULL | |
 | hp_temp | INTEGER | DEFAULT 0 | |
 | armour_class | INTEGER | NOT NULL | |
-| active_conditions | JSONB | | Array of condition objects: `[{"name":"blinded","duration":3,"appliedRound":1}]`. Duration null = indefinite. Legacy string arrays are auto-migrated on read. |
+| active_conditions | JSONB | | Array of condition objects: `[{"name":"blinded","duration":3,"appliedRound":1,"sourceSpellName":"Blindness/Deafness","sourceParticipantId":"uuid","sourceRequiresConcentration":false}]`. Duration null = indefinite. Source fields nullable (null for manually added conditions). Legacy string arrays are auto-migrated on read. |
 | concentration_spell | VARCHAR(200) | | |
 | spell_slots_current | JSONB | | Copied from character on encounter join. Format: `{"1":{"max":4,"remaining":3},...}` |
+| spell_attack_bonus | INTEGER | | Copied from character on encounter join. Used by SpellResolverEngine. |
+| spell_save_dc | INTEGER | | Copied from character on encounter join. Used by SpellResolverEngine. |
+| spellcasting_ability | VARCHAR(20) | | Copied from character on encounter join. |
+| spells_known | JSONB | | Copied from character on encounter join. Array of spell entries with name, level, prepared status. |
 | is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
 | is_alive | BOOLEAN | DEFAULT TRUE | |
 | is_current_turn | BOOLEAN | DEFAULT FALSE | |
@@ -453,7 +458,7 @@ Append-only log of every combat action in an encounter. One row per action.
 | actor_name | VARCHAR(200) | | Display name snapshot at time of action |
 | target_id | UUID | | Participant affected |
 | target_name | VARCHAR(200) | | Display name snapshot at time of action |
-| action_type | VARCHAR(30) | NOT NULL | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE, SPELL_SLOT_USE, SPELL_SLOT_RESTORE |
+| action_type | VARCHAR(30) | NOT NULL | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE, SPELL_SLOT_USE, SPELL_SLOT_RESTORE, SPELL_CAST |
 | description | TEXT | NOT NULL | Human-readable action description |
 | roll_value | INTEGER | | Raw d20 roll (before modifiers) |
 | roll_total | INTEGER | | Roll + modifiers |

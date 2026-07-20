@@ -76,6 +76,11 @@ public class Spell {
     @Column(length = 100)
     private String source;
 
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "effect_template", columnDefinition = "jsonb")
+    private String effectTemplate;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

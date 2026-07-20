@@ -780,6 +780,72 @@ Restore a spell slot (DM only). Increments the remaining count.
 **Errors:**
 - `400` — Already at maximum
 
+### POST /encounters/{id}/combat/cast-spell
+
+Cast a spell as a combat action. Auto-resolves ~184 spells using the SpellResolverEngine; remaining spells deduct the slot and log the cast for DM adjudication.
+
+**Query params:** `actorId` (UUID) — required, the caster participant ID.
+
+**Request:**
+```json
+{
+  "spellName": "Guiding Bolt",
+  "slotLevel": 1,
+  "targetIds": ["uuid"],
+  "advantage": null,
+  "usePactSlot": false,
+  "overrideSpellAttackBonus": null,
+  "overrideSpellSaveDC": null
+}
+```
+
+- `slotLevel` — 0 for cantrips (no slot deducted), 1–9 for leveled spells
+- `advantage` — `true` for advantage, `false` for disadvantage, `null` for normal
+- `usePactSlot` — if true, deducts from pact magic slots instead of regular slots
+- `overrideSpellAttackBonus` / `overrideSpellSaveDC` — DM overrides for monsters (which don't have snapshot spell stats)
+
+**Response (200):**
+```json
+{
+  "encounterState": { "...full encounter response..." },
+  "spellName": "Guiding Bolt",
+  "slotLevelUsed": 1,
+  "autoResolved": true,
+  "resultSummary": "Guiding Bolt hits Goblin 1 for 14 radiant damage",
+  "targets": [
+    {
+      "targetId": "uuid",
+      "targetName": "Goblin 1",
+      "outcome": "HIT",
+      "damage": 14,
+      "healing": null,
+      "conditionsApplied": [],
+      "attackRoll": 18,
+      "saveRoll": null
+    }
+  ],
+  "manualResolutionReason": null
+}
+```
+
+**Delivery methods resolved:**
+- `SPELL_ATTACK` — d20 + spell attack bonus vs target AC (nat 20 crits, nat 1 misses)
+- `SAVING_THROW` — target rolls d20 + save mod vs spell save DC (half damage on save if applicable)
+- `AUTO_HIT` — effects applied without rolls (e.g., Magic Missile)
+- `SELF` — effects applied to caster only
+
+**Auto-handled mechanics:**
+- Cantrip scaling by total character level (not class level)
+- Upcast damage scaling
+- Slot deduction (regular or pact)
+- Concentration replacement with condition cascade
+- Silence check (blocks verbal component spells)
+- Damage applied through existing pipeline (temp HP, death saves, concentration checks)
+- Conditions applied with source tracking (`sourceSpellName`, `sourceParticipantId`, `sourceRequiresConcentration`)
+
+**Errors:**
+- `400` — No spell slot available, caster is silenced and spell requires verbal component, spell not found
+
 ### POST /encounters/{id}/combat/turn/next
 
 Advance to the next participant in initiative order. Increments round number when wrapping to the top. Automatically removes expired conditions on the participant whose turn is starting (conditions with a `duration` that has elapsed).
@@ -814,7 +880,7 @@ Get the full combat log for the encounter, ordered chronologically.
 ]
 ```
 
-**Action types:** `ATTACK`, `DAMAGE`, `HEAL`, `CONDITION_ADD`, `CONDITION_REMOVE`, `DEATH_SAVE`, `CONCENTRATION_CHECK`, `CONCENTRATION_LOST`, `TURN_ADVANCE`, `TURN_BACK`, `STABILIZE`, `KILL`, `REVIVE`, `SPELL_SLOT_USE`, `SPELL_SLOT_RESTORE`
+**Action types:** `ATTACK`, `DAMAGE`, `HEAL`, `CONDITION_ADD`, `CONDITION_REMOVE`, `DEATH_SAVE`, `CONCENTRATION_CHECK`, `CONCENTRATION_LOST`, `TURN_ADVANCE`, `TURN_BACK`, `STABILIZE`, `KILL`, `REVIVE`, `SPELL_SLOT_USE`, `SPELL_SLOT_RESTORE`, `SPELL_CAST`
 
 ## Error Response Format
 

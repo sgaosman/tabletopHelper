@@ -1,6 +1,6 @@
 import api from './axiosConfig';
 import type { Encounter } from '../types/encounter';
-import type { CombatLogEntry } from '../types/combat';
+import type { CombatLogEntry, CastSpellRequest, CastSpellResponse } from '../types/combat';
 
 export const combatApi = {
   rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, forceCrit?: boolean, actorId?: string, isRanged?: boolean) {
@@ -48,6 +48,12 @@ export const combatApi = {
 
   restoreSpellSlot(encounterId: string, participantId: string, slotLevel: number) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/spell-slot/restore`, { participantId, slotLevel });
+  },
+
+  castSpell(encounterId: string, request: CastSpellRequest, actorId?: string) {
+    return api.post<CastSpellResponse>(`/encounters/${encounterId}/combat/cast-spell`, request, {
+      params: actorId ? { actorId } : undefined,
+    });
   },
 
   advanceTurn(encounterId: string) {

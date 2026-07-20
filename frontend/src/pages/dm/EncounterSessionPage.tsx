@@ -4,6 +4,7 @@ import { encounterApi } from '../../api/encounterApi';
 import { combatApi } from '../../api/combatApi';
 import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
 import type { CombatLogEntry } from '../../types/combat';
+import SpellCastModal from '../../components/encounter/SpellCastModal';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
   ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
@@ -35,7 +36,7 @@ const DAMAGE_TYPES = [
   'force', 'lightning', 'necrotic', 'poison', 'psychic', 'radiant', 'thunder',
 ];
 
-type ActionMode = 'attack' | 'damage' | 'heal' | 'condition' | 'concentration' | null;
+type ActionMode = 'attack' | 'damage' | 'heal' | 'condition' | 'concentration' | 'spell' | null;
 
 function HpBar({ participant }: { participant: EncounterParticipant }) {
   const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
@@ -495,6 +496,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
       case 'STABILIZE': return 'text-green-300';
       case 'CONCENTRATION_CHECK': return 'text-purple-400';
       case 'CONCENTRATION_LOST': return 'text-purple-300';
+      case 'SPELL_CAST': return 'text-indigo-400';
       case 'SPELL_SLOT_USE': return 'text-indigo-400';
       case 'SPELL_SLOT_RESTORE': return 'text-indigo-300';
       case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-gray-500';
@@ -720,14 +722,28 @@ function DmSessionView() {
           </div>
         </div>
 
+        {/* Spell cast modal */}
+        {actionMode === 'spell' && selectedTarget && (
+          <SpellCastModal
+            encounterId={encounter.id}
+            caster={selectedTarget}
+            participants={encounter.participants}
+            onUpdate={refreshEncounter}
+            onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
+            isMonster={selectedTarget.participantType === 'MONSTER'}
+          />
+        )}
+
         {/* Action panel */}
-        <ActionPanel
-          encounterId={encounter.id}
-          selectedTarget={selectedTarget}
-          actionMode={actionMode}
-          setActionMode={setActionMode}
-          onUpdate={refreshEncounter}
-        />
+        {actionMode !== 'spell' && (
+          <ActionPanel
+            encounterId={encounter.id}
+            selectedTarget={selectedTarget}
+            actionMode={actionMode}
+            setActionMode={setActionMode}
+            onUpdate={refreshEncounter}
+          />
+        )}
 
         {/* Participant list */}
         <div className="space-y-2 mb-4" role="list" aria-label="Initiative order">
@@ -779,7 +795,7 @@ function DmSessionView() {
                               className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c.name] || 'bg-gray-700 text-gray-300'} hover:opacity-75 cursor-pointer`}
                               title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}`}
                             >
-                              {c.name}{remaining != null ? ` (${remaining})` : ''} <X className="w-2.5 h-2.5 inline" />
+                              {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''} <X className="w-2.5 h-2.5 inline" />
                             </button>
                           );
                         })}
@@ -862,6 +878,15 @@ function DmSessionView() {
                           title="Set concentration"
                         >
                           <Swords className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {p.isAlive && (
+                        <button
+                          onClick={() => selectTarget(p.id, 'spell')}
+                          className="p-1.5 bg-indigo-900/30 hover:bg-indigo-900/60 text-indigo-400 rounded"
+                          title="Cast spell"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>

@@ -15,5 +15,6 @@ public enum CombatActionType {
     KILL,
     REVIVE,
     SPELL_SLOT_USE,
-    SPELL_SLOT_RESTORE
+    SPELL_SLOT_RESTORE,
+    SPELL_CAST
 }

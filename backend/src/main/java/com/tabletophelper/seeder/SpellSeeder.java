@@ -81,6 +81,47 @@ public class SpellSeeder {
             spellRepository.saveAll(batch);
         }
         log.info("Spell seeding complete: {} spells", total);
+
+        seedEffectTemplates();
+    }
+
+    public void seedEffectTemplates() {
+        long populated = spellRepository.count() == 0 ? 0 :
+                spellRepository.findAll().stream().filter(s -> s.getEffectTemplate() != null).count();
+        if (populated > 0) {
+            log.info("Spell effect templates already seeded ({} spells), skipping", populated);
+            return;
+        }
+
+        try {
+            ClassPathResource resource = new ClassPathResource("data/spell-effects/spell-effect-definitions.json");
+            JsonNode definitions = objectMapper.readTree(resource.getInputStream());
+            if (!definitions.isArray()) {
+                log.warn("spell-effect-definitions.json is not an array, skipping effect template seeding");
+                return;
+            }
+
+            int matched = 0;
+            int unmatched = 0;
+            for (JsonNode def : definitions) {
+                String spellName = def.path("spellName").asText(null);
+                if (spellName == null) continue;
+
+                var spellOpt = spellRepository.findByNameIgnoreCase(spellName);
+                if (spellOpt.isPresent()) {
+                    Spell spell = spellOpt.get();
+                    spell.setEffectTemplate(objectMapper.writeValueAsString(def));
+                    spellRepository.save(spell);
+                    matched++;
+                } else {
+                    unmatched++;
+                    log.debug("No spell entity found for effect template: {}", spellName);
+                }
+            }
+            log.info("Spell effect template seeding complete: {} matched, {} unmatched", matched, unmatched);
+        } catch (Exception e) {
+            log.error("Failed to seed spell effect templates: {}", e.getMessage(), e);
+        }
     }
 
     private Map<String, Set<String>> loadSpellClassMap() {

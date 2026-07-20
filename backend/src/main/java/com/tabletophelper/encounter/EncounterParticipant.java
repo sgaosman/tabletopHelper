@@ -85,6 +85,20 @@ public class EncounterParticipant {
     @Column(name = "spell_slots_current", columnDefinition = "jsonb")
     private String spellSlotsCurrent;
 
+    @Column(name = "spell_attack_bonus")
+    private Integer spellAttackBonus;
+
+    @Column(name = "spell_save_dc")
+    private Integer spellSaveDc;
+
+    @Column(name = "spellcasting_ability", length = 20)
+    private String spellcastingAbility;
+
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "spells_known", columnDefinition = "jsonb")
+    private String spellsKnown;
+
     @Column(name = "is_visible_to_players")
     @Builder.Default
     private Boolean isVisibleToPlayers = true;

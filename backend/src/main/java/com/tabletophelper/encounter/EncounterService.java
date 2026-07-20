@@ -95,6 +95,10 @@ public class EncounterService {
                 .armourClass(character.getArmourClass())
                 .controlledByUserId(character.getUser().getId())
                 .spellSlotsCurrent(character.getSpellSlots())
+                .spellAttackBonus(character.getSpellAttackBonus())
+                .spellSaveDc(character.getSpellSaveDc())
+                .spellcastingAbility(character.getSpellcastingAbility())
+                .spellsKnown(character.getSpellsKnown())
                 .build();
 
         encounter.getParticipants().add(participant);
@@ -327,6 +331,10 @@ public class EncounterService {
                         .deathSaveSuccesses(p.getDeathSaveSuccesses())
                         .deathSaveFailures(p.getDeathSaveFailures())
                         .notes(p.getNotes())
+                        .spellAttackBonus(p.getSpellAttackBonus())
+                        .spellSaveDc(p.getSpellSaveDc())
+                        .spellcastingAbility(p.getSpellcastingAbility())
+                        .spellsKnown(p.getSpellsKnown())
                         .build())
                 .toList();
 

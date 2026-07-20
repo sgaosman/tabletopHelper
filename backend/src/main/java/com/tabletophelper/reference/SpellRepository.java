@@ -7,9 +7,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface SpellRepository extends JpaRepository<Spell, UUID> {
+
+    Optional<Spell> findByNameIgnoreCase(String name);
 
     @Query(value = "SELECT * FROM spells s WHERE " +
            "(CAST(:name AS TEXT) IS NULL OR LOWER(s.name) LIKE LOWER('%' || CAST(:name AS TEXT) || '%')) AND " +

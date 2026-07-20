@@ -132,6 +132,18 @@ public class CombatController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/cast-spell")
+    public ResponseEntity<CastSpellResponse> castSpell(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody CastSpellRequest request,
+            @RequestParam(required = false) UUID actorId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        CastSpellResponse response = combatService.castSpell(encounterId, request, actorId, userId);
+        broadcastState(response.getEncounterState());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/turn/next")
     public ResponseEntity<EncounterResponse> advanceTurn(
             @PathVariable UUID encounterId,

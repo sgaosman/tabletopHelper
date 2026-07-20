@@ -1161,3 +1161,47 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Component-level React tests and integration tests (requiring a test database) are deferred — the current suite covers logic and service layers. CharacterService gained `shortRest()` and `longRest()` methods as part of making the business logic testable.
 
+## D103: Spell Stats Snapshot on Encounter Participant
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Copy `spellAttackBonus`, `spellSaveDc`, `spellcastingAbility`, and `spellsKnown` from `PlayerCharacter` to `EncounterParticipant` when a player is added to an encounter. The SpellResolverEngine reads these from the participant, not the character.
+
+**Rationale:** Follows the existing snapshot pattern for `hpMax` and `armourClass`. Encounter participants are combat snapshots — the character sheet can change mid-encounter (e.g., leveling between sessions), and combat should use the stats that were current when the encounter started. Reading from participant also avoids needing to load the full character entity during spell resolution.
+
+**Trade-offs:** Spell stats diverge from the character sheet after encounter start. This is intentional and consistent with how HP/AC are already handled.
+
+## D104: DM Monster Spell Overrides
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** `CastSpellRequest` includes `overrideSpellAttackBonus` and `overrideSpellSaveDC` fields. When the DM casts a spell for a monster, these values override the participant's (likely null) spell stats. The frontend shows input fields for these when `isMonster` is true.
+
+**Rationale:** Monsters don't have snapshot spell stats because they aren't added from a PlayerCharacter. Monster spellcasting stats are in the stat block's free-text description, not in structured columns. Rather than parsing monster spellcasting from text (fragile and error-prone), the DM enters the values from the stat block.
+
+**Trade-offs:** DMs must manually look up and enter spell attack bonus and save DC from the monster's stat block. This will be improved in M12 when monster actions and spellcasting get structured data.
+
+## D105: Concentration Cascade via Source-Tracked Conditions
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** `dropConcentrationCascade()` iterates ALL encounter participants and removes any condition where `sourceRequiresConcentration=true` AND `sourceSpellName` and `sourceParticipantId` match the concentrating caster. This method is wired into all three concentration-loss paths: `dropConcentrationOnZeroHp()`, `checkConcentration()` on failed save, and `setConcentration()` when replacing with a new spell. Each removed condition is logged to the combat log.
+
+**Rationale:** D&D 5e requires all spell effects to end when concentration drops. Without cascade, the DM must manually remove conditions from every affected target — error-prone with spells like Bless or Entangle that affect multiple targets. Source tracking (D032) provides the data; this decision wires the automation.
+
+**Trade-offs:** The cascade iterates all participants on every concentration drop, which is O(participants × conditions). With typical encounter sizes (10–20 participants, 0–3 conditions each), this is negligible.
+
+## D106: SpellResolverEngine as Pure Logic Service
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** `SpellResolverEngine` is a `@Service` with no `@Transactional` annotation. It receives entities as method parameters and returns a `SpellCastResult` record — it never persists anything. All persistence (damage application, condition addition, concentration setting, combat logging) is handled by the calling `CombatService.castSpell()` method within its transaction.
+
+**Rationale:** Separating resolution logic from persistence makes the engine independently testable (40 unit tests with mocked repositories) and ensures the full spell cast is atomic — if any step fails, the entire transaction rolls back. The engine is a pure function from (encounter state, spell template, targets) → (result), which is easier to reason about.
+
+**Trade-offs:** The engine loads the spell entity via `SpellRepository.findByNameIgnoreCase()`, so it does have one repository dependency. This could be removed by passing the effect template as a parameter, but the current approach is simpler for the caller.
+
