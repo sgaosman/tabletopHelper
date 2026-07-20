@@ -27,6 +27,7 @@
 | 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
 | 22 | Character Creation Audit | Complete | 1/3 caster support (EK/AT), subclass always-prepared spells, multiclass proficiency grants, expertise (Rogue/Bard), multiclass skill choices, race resistances/feats, source-based feature matching, duplicate class validation, point buy range check, spell review step, spell warning for all caster types, TDZ blank screen fix |
 | 23 | Feat Spell & ASI Fixes | Complete | Fix blank feat spell lines (missing name/level in spellsKnown), feat ASI choice picker in creation wizard, AsiModal display fix for auto-granted spells |
+| 24 | Architecture Review & Refactor | Complete | 6-way review, 2-week action plan executed: exception logging, short rest fix, concentration save fix, typed JSONB records, input validation, integration tests, wizard draft saving, shared utils extraction, wizard component split, DB indexes + GIN, reference data caching, CharacterService extraction |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 

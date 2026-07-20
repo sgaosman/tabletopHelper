@@ -262,27 +262,29 @@ Default HikariCP pool of 10 connections, no caching, in-memory STOMP broker, no 
 
 ## Prioritized Action Plan
 
+*All items completed 2026-07-20.*
+
 ### Week 1: Fix Critical Bugs & De-Risk
 
-| Day | Action | Impact |
+| Day | Action | Status |
 |---|---|---|
-| 1 | Replace all `catch (Exception ignored) {}` with logging; throw for critical operations | Makes bugs visible instead of silent corruption |
-| 2 | Fix short rest: allow multiple hit dice, reset warlock pact slots | Corrects the most impactful rules bug |
-| 2 | Fix concentration saves to include CON proficiency bonus | Rules accuracy |
-| 3 | Add typed records for JSONB structures (LevelHistoryEntry, MulticlassEntry, etc.) | Catches schema drift at compile time |
-| 3 | Add `@Valid` to update endpoint, min/max constraints | Prevents invalid state via API |
-| 4 | Write integration tests for levelUp/levelDown round-trip (10-15 tests) | Guards the most fragile code path |
-| 5 | Add `beforeunload` guard + localStorage draft to wizard | Prevents the most frustrating UX failure |
+| 1 | Replace all `catch (Exception ignored) {}` with logging; throw for critical operations | Done |
+| 2 | Fix short rest: allow multiple hit dice, reset warlock pact slots | Done |
+| 2 | Fix concentration saves to include CON proficiency bonus | Done |
+| 3 | Add typed records for JSONB structures (LevelHistoryEntry, MulticlassEntry, etc.) | Done |
+| 3 | Add `@Valid` to update endpoint, min/max constraints | Done |
+| 4 | Write integration tests for levelUp/levelDown round-trip (39 tests) | Done |
+| 5 | Add `beforeunload` guard + localStorage draft to wizard | Done |
 
 ### Week 2: Structural Improvements
 
-| Day | Action | Impact |
+| Day | Action | Status |
 |---|---|---|
-| 6 | Extract shared frontend utilities into `utils/dndRules.ts` | Eliminates 6+ duplicated constant/function sets |
-| 7-8 | Split CharacterCreateWizard into step components | 3600 lines into 6 files of 200-500 lines each |
-| 9 | Add DB indexes on all FKs + GIN index on spells.classes | Immediate query performance at any scale |
-| 9 | Add `@Cacheable` on reference data endpoints | Eliminates ~80% of DB reads |
-| 10 | Begin CharacterService extraction (CharacterMapper, CharacterJsonHelper) | 1420 lines down to ~800 |
+| 6 | Extract shared frontend utilities into `utils/dndRules.ts` | Done |
+| 7-8 | Split CharacterCreateWizard into step components (wizard/constants.ts, wizard/StepComponents.tsx, wizard/SpellSteps.tsx) | Done — 3664→2377 lines main, 3 modules extracted |
+| 9 | Add DB indexes on all FKs + GIN index on spells.classes | Done |
+| 9 | Add `@Cacheable` on reference data endpoints (13 endpoints) | Done |
+| 10 | CharacterService extraction (CharacterMapper, CharacterJsonHelper) | Done — 1420→997 lines
 
 ### Next Sprint
 

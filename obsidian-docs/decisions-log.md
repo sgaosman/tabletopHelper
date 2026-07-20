@@ -984,3 +984,58 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Users reported losing in-progress character creation when accidentally navigating away or closing the tab. This was the most frustrating UX failure identified in the review.
 
 **Trade-offs:** localStorage has a 5MB limit (plenty for a single wizard draft). Draft may become stale if reference data changes between sessions.
+
+## D087: Shared Frontend Utilities in dndRules.ts
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Extract duplicated D&D constants and functions (ABILITIES, abilityMod, formatMod, safeJsonParse, skill lists, ability abbreviation maps) into `frontend/src/utils/dndRules.ts`. All components import from this single source.
+
+**Rationale:** Six components had independent copies of the same constants and functions. Updates required finding and changing every copy — a maintenance hazard that the architecture review flagged.
+
+**Trade-offs:** None significant. All consumers already used identical implementations.
+
+## D088: CharacterCreateWizard Split into Modules
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Split the 3664-line `CharacterCreateWizard.tsx` into 4 files: `wizard/constants.ts` (166 lines — types, constants, helper functions), `wizard/StepComponents.tsx` (249 lines — StandardArrayAssigner, RaceDetail, BackgroundDetail, ReviewField), `wizard/SpellSteps.tsx` (890 lines — FeatSpellSelectionStep, MulticlassSpellSelectionStep, ThirdCasterSpellSelectionStep, SpellSelectionStep), and the main wizard (2377 lines).
+
+**Rationale:** The architecture review flagged the wizard as the largest single file. Extracting standalone components and shared constants reduces the main file by 35% and makes each extracted module independently readable.
+
+**Trade-offs:** The main wizard still contains ~2377 lines of tightly coupled state + render logic. Further step-level extraction would require extensive prop drilling interfaces.
+
+## D089: Database Indexes on Foreign Keys and GIN on spells.classes
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add JPA `@Table(indexes)` on `player_characters.user_id`, `player_characters.campaign_id`, `encounter_participants.encounter_id`, `encounter_participants.character_id`, and `combat_logs.encounter_id`. Add a PostgreSQL GIN index on `spells.classes` via `schema.sql`.
+
+**Rationale:** All FK columns are used in WHERE/JOIN queries but had no indexes. The GIN index supports containment queries on the JSONB classes column for spell filtering by class.
+
+**Trade-offs:** Minor write overhead. Using `ddl-auto: update` with JPA `@Table(indexes)` for FK indexes; `schema.sql` with `CREATE INDEX IF NOT EXISTS` for the GIN index since JPA doesn't support GIN natively.
+
+## D090: Reference Data Caching with @Cacheable
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add `@EnableCaching` to the application and `@Cacheable` to 13 reference data endpoints (spell schools, spell sources, spell classes, conditions, item types, item rarities, item sources, races, race sources, classes, subclasses, backgrounds, feats).
+
+**Rationale:** Reference data changes only on redeploy. Caching eliminates ~80% of repeated DB reads for data that is loaded on nearly every wizard/sheet page view.
+
+**Trade-offs:** Uses Spring's default ConcurrentMapCache (in-memory, no TTL, no eviction). Adequate for a single-instance deployment. Cache is invalidated by restart.
+
+## D091: CharacterService Extraction to CharacterMapper and CharacterJsonHelper
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Extract `toResponse()` and `buildAllSubclassAlwaysPreparedSpells()` into `CharacterMapper` (138 lines). Extract all JSON manipulation helpers (appendFeatures, removeFeatures, updateHitDiceMap, buildHitDiceTotal, updateMulticlassEntries, mergeJsonArray, appendLevelHistory, findNextAsiEntry, recordAsiInHistory, recordFeatInHistory, parseFeaturesList) into `CharacterJsonHelper` (347 lines). CharacterService delegates to both via injected fields.
+
+**Rationale:** CharacterService was a 1420-line god object with 10 dependencies. Extracting mapping and JSON manipulation into focused components reduces it to 997 lines and makes each helper independently testable.
+
+**Trade-offs:** Adds two more Spring beans and constructor parameters. The service still has core business logic that could be further decomposed if it grows again.
