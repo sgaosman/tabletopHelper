@@ -20,7 +20,7 @@ TabletopHelper is a genuinely impressive D&D 5e character and campaign managemen
 | In-memory STOMP broker blocks horizontal scaling | Architect | Critical |
 | No DB connection pool tuning (default 10 connections) | Architect | Critical |
 | Monster actions require manual entry every attack | PM, End User | High |
-| CharacterCreateWizard.tsx at 3605 lines with no draft saving | Senior Eng, New Eng, PM | High |
+| CharacterCreateWizard.tsx at 3605 lines with no draft saving | Senior Eng, New Eng, PM | **Resolved** — split to 902 lines + 7 step components, draft saving added |
 | Untyped JSONB everywhere (`Map<String, Object>`, `String` fields) | Senior Eng, New Eng | High |
 
 ---
@@ -58,7 +58,7 @@ No JUnit tests, no React Testing Library tests, no integration tests anywhere. T
 
 | File | Lines | Problem |
 |---|---|---|
-| CharacterCreateWizard.tsx | 3,605 | 57 `useState` calls, 7 wizard steps inline, no draft saving |
+| CharacterCreateWizard.tsx | 902 (was 3,605) | Split into 7 step components + types.ts; draft saving + beforeunload guard added |
 | CharacterSheetPage.tsx | 2,083 | 6 tabs + level-up flow + rest mechanics in one component |
 | AsiModal.tsx | 909 | Manages ASI, feat selection, spell picking, and ability choices |
 
@@ -281,7 +281,7 @@ Default HikariCP pool of 10 connections, no caching, in-memory STOMP broker, no 
 | Day | Action | Status |
 |---|---|---|
 | 6 | Extract shared frontend utilities into `utils/dndRules.ts` | Done |
-| 7-8 | Split CharacterCreateWizard into step components (wizard/constants.ts, wizard/StepComponents.tsx, wizard/SpellSteps.tsx) | Done — 3664→2377 lines main, 3 modules extracted |
+| 7-8 | Split CharacterCreateWizard into step components | Done — 3664→902 lines main, 7 step components + types.ts extracted |
 | 9 | Add DB indexes on all FKs + GIN index on spells.classes | Done |
 | 9 | Add `@Cacheable` on reference data endpoints (13 endpoints) | Done |
 | 10 | CharacterService extraction (CharacterMapper, CharacterJsonHelper) | Done — 1420→997 lines

@@ -996,16 +996,16 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** None significant. All consumers already used identical implementations.
 
-## D088: CharacterCreateWizard Split into Modules
+## D088: CharacterCreateWizard Split into Step Components
 
 **Date:** 2026-07-20
 **Status:** Accepted
 
-**Decision:** Split the 3664-line `CharacterCreateWizard.tsx` into 4 files: `wizard/constants.ts` (166 lines — types, constants, helper functions), `wizard/StepComponents.tsx` (249 lines — StandardArrayAssigner, RaceDetail, BackgroundDetail, ReviewField), `wizard/SpellSteps.tsx` (890 lines — FeatSpellSelectionStep, MulticlassSpellSelectionStep, ThirdCasterSpellSelectionStep, SpellSelectionStep), and the main wizard (2377 lines).
+**Decision:** Split the 3664-line `CharacterCreateWizard.tsx` into 8 files under `wizard/`: `types.ts` (188 lines — shared types, constants, utilities), `BasicInfoStep.tsx` (65 lines), `RaceStep.tsx` (176 lines), `AbilityScoresStep.tsx` (165 lines), `ClassStep.tsx` (400 lines), `BackgroundStep.tsx` (463 lines), `SpellsStep.tsx` (1101 lines), and `ReviewStep.tsx` (264 lines). The main wizard is now 902 lines.
 
-**Rationale:** The architecture review flagged the wizard as the largest single file. Extracting standalone components and shared constants reduces the main file by 35% and makes each extracted module independently readable.
+**Rationale:** The architecture review flagged the wizard as the largest single file. Extracting each wizard step into its own component with a typed props interface reduces the main file by 75% and makes each step independently readable and testable. All state remains in the parent; step components are pure render + callbacks.
 
-**Trade-offs:** The main wizard still contains ~2377 lines of tightly coupled state + render logic. Further step-level extraction would require extensive prop drilling interfaces.
+**Trade-offs:** Props interfaces are large (especially SpellsStep and ClassStep) due to the amount of state the parent manages. This is acceptable because the prop drilling makes data flow explicit and avoids hidden coupling.
 
 ## D089: Database Indexes on Foreign Keys and GIN on spells.classes
 
