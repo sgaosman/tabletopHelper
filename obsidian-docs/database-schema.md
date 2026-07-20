@@ -445,6 +445,28 @@ Append-only log of every combat action in an encounter. One row per action.
 | turn_participant_name | VARCHAR(200) | | Display name of the participant whose turn it was when the action occurred |
 | created_at | TIMESTAMPTZ | | |
 
+## Indexes
+
+### JPA-Managed Indexes (`@Table(indexes)`)
+
+| Table | Column(s) | Index Name | Notes |
+|-------|-----------|------------|-------|
+| player_characters | user_id | idx_pc_user_id | FK lookup for "my characters" |
+| player_characters | campaign_id | idx_pc_campaign_id | FK lookup for campaign character lists |
+| encounter_participants | encounter_id | idx_ep_encounter_id | FK lookup for loading encounter participants |
+| encounter_participants | character_id | idx_ep_character_id | FK lookup for "is this character in combat" checks |
+| combat_logs | encounter_id | idx_cl_encounter_id | FK lookup for combat log retrieval |
+
+These are created automatically by Hibernate `ddl-auto: update` from `@Table(indexes = @Index(...))` annotations on the JPA entities.
+
+### SQL-Managed Indexes (`schema.sql`)
+
+| Table | Column | Index Name | Type | Notes |
+|-------|--------|------------|------|-------|
+| spells | classes | idx_spells_classes_gin | GIN | Supports JSONB containment queries for filtering spells by class |
+
+Created via `CREATE INDEX IF NOT EXISTS` in `backend/src/main/resources/schema.sql`, run on startup with `sql.init.mode: always` and `defer-datasource-initialization: true`.
+
 ## Querying the Database Directly
 
 ```bash
