@@ -583,6 +583,35 @@ Phase 3 — Multiclass at creation:
 - `wizard/` — 7 step components + `types.ts`
 - `utils/dndRules.ts` — shared frontend utilities
 
+## Milestone 23: Architecture Review 2 Action Plan
+
+**Goal:** Address findings from the second 6-way architecture review. Covers IDOR security fix, D&D rules corrections, performance tuning, structural splits, accessibility, and migration management.
+
+**Tasks:**
+- [x] Fix IDOR on `GET /api/characters/{id}` — add auth check with ownership/campaign membership validation
+- [x] Fix long rest to reset short-rest feat resources (resetOn === 'shortRest' || 'longRest')
+- [x] Fix unconscious melee auto-crit with `isRanged` opt-out in AttackRollRequest
+- [x] Add global React ErrorBoundary wrapping `<App>` in main.tsx
+- [x] Extract CombatService damage helper — `applyDamageToTarget()` with `DamageResult` record
+- [x] Split CharacterSheetPage.tsx into 8 tab components (2103→573 lines)
+- [x] Configure HikariCP pool (20 dev, 30 prod, 5 min idle)
+- [x] Add `@EntityGraph` on character listing repository queries (6 lazy relationships)
+- [x] Add Flyway with V1 migration, remove schema.sql, switch ddl-auto to validate
+- [x] Add ARIA attributes across frontend (dialogs, alerts, nav, tabs, multiselect)
+- [x] Extract FeatPicker from AsiModal (903→160 lines + 530-line FeatPicker)
+
+**Key decisions:** D092–D101 in [[decisions-log]]
+
+**Key files:**
+- `CharacterController.java`, `CharacterService.java` — IDOR fix
+- `CombatService.java` — auto-crit + damage deduplication
+- `CharacterRepository.java` — @EntityGraph
+- `application-dev.yml`, `application-prod.yml` — HikariCP + Flyway config
+- `db/migration/V1__gin_index_spells_classes.sql` — first Flyway migration
+- `ErrorBoundary.tsx` — global crash recovery
+- `sheet/` — 8 extracted tab components
+- `FeatPicker.tsx` — extracted from AsiModal
+
 ## Milestone 25: Comprehensive Testing Suite
 
 **Goal:** Full test coverage across every unique functionality pattern in the application. Tests should cover both character creation and editing paths, all D&D 5e rule implementations, combat mechanics, and frontend utility logic. Existing 39 tests (SpellSlotCalculator 12, LevelUpCalculator 10, MulticlassValidator 9, CharacterServiceStatic 8) are retained and extended.

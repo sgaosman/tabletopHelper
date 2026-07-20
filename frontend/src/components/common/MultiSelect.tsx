@@ -55,6 +55,8 @@ export default function MultiSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         className={`w-full flex items-center justify-between gap-2 px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 text-left hover:border-gray-600 transition-colors ${selected.length > 0 ? 'text-white' : 'text-gray-400'} ${borderFocus}`}
       >
         <span className="truncate">
@@ -68,7 +70,10 @@ export default function MultiSelect({
           {selected.length > 0 && (
             <span
               role="button"
+              tabIndex={0}
+              aria-label="Clear selection"
               onClick={(e) => { e.stopPropagation(); onChange([]); setSearch(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onChange([]); setSearch(''); } }}
               className="p-0.5 hover:bg-gray-700 rounded"
             >
               <X size={14} />
@@ -79,7 +84,7 @@ export default function MultiSelect({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+        <div role="listbox" aria-multiselectable="true" className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
           {options.length > 6 && (
             <div className="p-2 border-b border-gray-700">
               <input
@@ -87,6 +92,7 @@ export default function MultiSelect({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search..."
+                aria-label="Filter options"
                 autoFocus
                 className={`w-full px-3 py-1.5 bg-gray-900 rounded border border-gray-700 text-white text-sm placeholder-gray-500 focus:outline-none ${focusRing}`}
               />

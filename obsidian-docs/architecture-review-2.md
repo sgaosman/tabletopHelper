@@ -32,16 +32,16 @@
 | IDOR on `GET /api/characters/{id}` — no auth check | Senior Eng | Critical — **Resolved** |
 | Long rest doesn't reset short-rest feat resources | D&D Expert | High — **Resolved** |
 | Unconscious attack doesn't auto-crit on melee | D&D Expert | High — **Resolved** |
-| CharacterSheetPage.tsx still 2,103 lines | Senior Eng, New Eng | High |
-| AsiModal.tsx still 903 lines | Senior Eng | Medium |
-| CombatService duplicated damage application logic | Senior Eng | High |
+| CharacterSheetPage.tsx still 2,103 lines | Senior Eng, New Eng | High — **Resolved** |
+| AsiModal.tsx still 903 lines | Senior Eng | Medium — **Resolved** |
+| CombatService duplicated damage application logic | Senior Eng | High — **Resolved** |
 | No connection pool tuning (default 10) | Architect | High — **Resolved** |
 | In-memory STOMP broker blocks horizontal scaling | Architect | High (unchanged) |
 | No global React error boundary | PM | High — **Resolved** |
-| Zero ARIA attributes in frontend | PM | High |
+| Zero ARIA attributes in frontend | PM | High — **Resolved** |
 | No class resource tracking (Ki, Action Surge, etc.) | D&D Expert, End User | High (unchanged) |
 | Catch blocks in CharacterJsonHelper: 13 `catch → log + return null` | Senior Eng | Medium |
-| No Flyway — using Hibernate `ddl-auto: update` | Architect, New Eng | Medium |
+| No Flyway — using Hibernate `ddl-auto: update` | Architect, New Eng | Medium — **Resolved** |
 | Single spellcasting ability for multiclass casters | D&D Expert | Medium |
 
 ---
@@ -290,20 +290,20 @@ README, `obsidian-docs/`, `docs/`, `PROJECT_DOCUMENTATION.md`, `CLAUDE_CODE_BRIE
 | 1 | **Fix long rest feat resource reset**: change filter to include `shortRest` resources | Done |
 | 1 | **Fix unconscious melee auto-crit**: default `isCrit = true` for downed targets, add `isRanged` field to `AttackRollRequest` to opt out | Done |
 | 2 | **Add global React error boundary**: wrap `<App>` in `ErrorBoundary` with "reload" button, don't lose router state | Done |
-| 2 | **Extract CombatService damage helper**: consolidate temp HP + HP reduction + dying logic into `applyDamageToTarget()` | |
-| 3-4 | **Split CharacterSheetPage.tsx**: extract 6 tab components (`StatsTab`, `SpellsTab`, etc.) | |
+| 2 | **Extract CombatService damage helper**: consolidate temp HP + HP reduction + dying logic into `applyDamageToTarget()` | Done (already extracted) |
+| 3-4 | **Split CharacterSheetPage.tsx**: extract 6 tab components (`StatsTab`, `SpellsTab`, etc.) into `sheet/` directory | Done |
 | 5 | **Configure HikariCP pool**: 20 max connections, 5 minimum idle | Done |
 
 ### Week 2: Structural Improvements
 
 | Day | Action | Effort |
 |---|---|---|
-| 6 | Add JPA fetch joins / `@EntityGraph` for character listing queries | 2 hours |
-| 7 | Add Flyway with initial migration from current schema | 3 hours |
-| 8 | Update `architecture-review.md` survival guide with current file sizes and test counts | 30 min |
-| 8 | Document `@JsonRawValue` behavior in `database-schema.md` | 30 min |
-| 9 | Add basic ARIA attributes (labels, roles) to key interactive elements | 3 hours |
-| 10 | Split AsiModal.tsx — extract FeatPicker component | 2 hours |
+| 6 | Add JPA fetch joins / `@EntityGraph` for character listing queries | Done (already in place) |
+| 7 | Add Flyway with initial migration from current schema | Done |
+| 8 | Update `architecture-review.md` survival guide with current file sizes and test counts | Done |
+| 8 | Document `@JsonRawValue` behavior in `database-schema.md` | Done (already documented) |
+| 9 | Add basic ARIA attributes (labels, roles) to key interactive elements | Done |
+| 10 | Split AsiModal.tsx — extract FeatPicker component | Done |
 
 ### Next Sprint
 

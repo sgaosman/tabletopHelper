@@ -11,13 +11,12 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
-    defer-datasource-initialization: true
 
-  sql:
-    init:
-      mode: always
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
 
 logging:
   level:

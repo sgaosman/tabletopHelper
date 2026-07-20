@@ -170,6 +170,23 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
 
+### JSONB Serialization Behavior
+
+There is a critical difference in how JSONB fields are handled between `player_characters` and reference tables:
+
+**PlayerCharacter JSONB fields** are stored as Java `String` fields. They arrive on the frontend as **JSON strings** that need `JSON.parse()` (or `safeJsonParse()` from `utils/dndRules.ts`). Example: `character.features` is `'[{"name":"Extra Attack","description":"..."}]'` — a string, not an array.
+
+**Reference entity JSONB fields** (monsters, spells, races, classes, etc.) use `@JsonRawValue` on the Java side. This means they arrive on the frontend as **pre-parsed JavaScript objects** — they are already arrays/objects, NOT strings. Calling `JSON.parse()` on them will throw.
+
+The `safeJsonParse()` utility handles both cases: if the input is already an object, it returns it as-is; if it's a string, it parses it. **Always use `safeJsonParse()` for any JSONB field to avoid this trap.**
+
+Typed records for PlayerCharacter JSONB structures:
+- `LevelHistoryEntry` — level history entries
+- `MulticlassEntry` — multiclass class/level tracking
+- `HitDiceEntry` — per-class hit dice (total, remaining, faces)
+- `SpellSlotEntry` — spell slot tracking (total, used)
+- `FeatResourceEntry` — feat-granted limited-use resources
+
 ## Reference Tables (Milestone 3 — Seeded from 5e.tools)
 
 These tables are populated automatically on startup by `DataSeeder` if empty. Data comes from the 2014 branch of 5e.tools.

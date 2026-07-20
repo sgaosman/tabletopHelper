@@ -39,7 +39,7 @@ export default function RegisterPage() {
         <p className="text-gray-400 text-center mb-8">Create your account</p>
 
         {error && (
-          <div className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 mb-4 text-sm">
+          <div role="alert" className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 mb-4 text-sm">
             {error}
           </div>
         )}

@@ -1083,3 +1083,70 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Without an error boundary, any component throwing during render crashes the entire app to a white screen with no recovery. This is especially dangerous during combat encounters.
 
 **Trade-offs:** A single top-level boundary is coarse-grained — a bug in the combat log kills the entire page rather than just the log component. Per-section boundaries can be added later for high-risk areas.
+
+## D096: CharacterSheetPage Split into Tab Components
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Split the 2103-line `CharacterSheetPage.tsx` into 8 files under `sheet/`: `types.ts` (shared SpellEntry interface), `StatCard.tsx`, `StatsTab.tsx`, `ActionsTab.tsx`, `SpellsTab.tsx` (includes ManageSpellsModal and AddFeatModal), `InventoryTab.tsx`, `FeaturesTab.tsx`, and `JournalTab.tsx`. The main page is now 570 lines (state management, header, HP bar, tab routing, rest/level modals).
+
+**Rationale:** The second architecture review flagged this as the largest remaining file. Each tab was already a separate function at the bottom of the file — extraction to separate files was mechanical. SpellsTab at 1190 lines is the largest component due to its two embedded modals, which are tightly coupled and not worth splitting further.
+
+**Trade-offs:** Props are passed down from the parent rather than each tab accessing shared state directly. This makes data flow explicit at the cost of larger prop interfaces on SpellsTab.
+
+## D097: Flyway Database Migration Management
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Replaced Hibernate `ddl-auto: update` with `ddl-auto: validate` and added Flyway for schema migration management. First migration `V1__gin_index_spells_classes.sql` moves the GIN index from `schema.sql` to Flyway. Configured `baseline-on-migrate: true` with `baseline-version: 0` to handle existing databases.
+
+**Rationale:** `ddl-auto: update` silently alters production schemas and can't handle index creation, column renames, or data migration. Flyway provides versioned, repeatable migrations with rollback capability.
+
+**Trade-offs:** All future schema changes must go through Flyway migration files. Developers must run `flyway:migrate` or let Spring Boot auto-migrate on startup.
+
+## D098: JPA EntityGraph on Character Listing Queries
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Added `@EntityGraph(attributePaths = {"user", "campaign", "raceRef", "classRef", "subclassRef", "backgroundRef"})` to both `findByUserIdAndIsActiveTrue` and `findByCampaignIdAndIsActiveTrue` repository methods.
+
+**Rationale:** `CharacterMapper.toResponse()` accesses all 6 lazy `@ManyToOne` relationships. Without the entity graph, listing N characters generates up to 6N+1 queries. With the entity graph, it's a single query with LEFT JOINs.
+
+**Trade-offs:** The query is wider (more columns) but eliminates N+1. For the typical case of 1-10 characters per user, this is a clear win.
+
+## D099: AsiModal FeatPicker Extraction
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Extracted `FeatPicker.tsx` (~530 lines) from `AsiModal.tsx`, reducing the modal to ~160 lines. FeatPicker manages all feat-related state internally and communicates via `onSelectionChange(AsiChoice | null)` callback.
+
+**Rationale:** The 903-line AsiModal was the largest remaining component file. The feat selection UI (search, prerequisites, choices, spell picker) is a self-contained concern with complex internal state.
+
+**Trade-offs:** The callback pattern means AsiModal can't inspect FeatPicker's internal state — it only knows whether a valid selection exists and what the final AsiChoice is.
+
+## D100: ARIA Accessibility Attributes
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Added basic ARIA attributes across the frontend: `role="dialog"` + `aria-modal` + `aria-labelledby` on all 5 modals, `aria-label="Close"` on icon-only close buttons, `role="alert"` on error messages, `<nav aria-label>` on dashboard headers, `aria-expanded` + `aria-haspopup` + `role="listbox"` on MultiSelect, `role="tablist"` + `role="tab"` + `aria-selected` on CharacterSheetPage tabs.
+
+**Rationale:** The codebase had essentially zero ARIA attributes. These additions cover the highest-impact areas for screen reader users without requiring structural changes.
+
+**Trade-offs:** Focus trapping in modals is not yet implemented — just the semantic markup. Full keyboard accessibility would require a focus trap hook.
+
+## D101: CombatService Damage Deduplication
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Extracted `applyDamageToTarget()` private method with a `DamageResult` record return type from `CombatService`. Both `rollAttack()` and `applyDamage()` now delegate to this method instead of duplicating temp HP absorption + HP reduction + death/dying logic.
+
+**Rationale:** Three copies of nearly identical damage application code meant bug fixes had to be applied in multiple places, and the unconscious auto-crit fix revealed this duplication.
+
+**Trade-offs:** The helper returns a record with `actualDamage` and `droppedToZero` fields so callers can still make decisions based on the damage outcome.
+
