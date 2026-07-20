@@ -6,7 +6,8 @@ This is the internal documentation hub for TabletopHelper. It's written in Markd
 
 ### Architecture & Design
 - [[architecture]] — System overview, tiers, data flow, and deployment topology
-- [[architecture-review]] — Comprehensive 6-perspective review (maintainability, scalability, rules, UX, automation, onboarding)
+- [[architecture-review]] — First 6-perspective review with completed action plan (2026-07-20)
+- [[architecture-review-2]] — Second 6-perspective review: post-action-plan findings and new action plan (2026-07-20)
 - [[database-schema]] — All tables, columns, types, and relationships
 - [[api-reference]] — REST endpoints with request/response formats
 - [[websocket-protocol]] — STOMP destinations, message formats, and connection lifecycle
