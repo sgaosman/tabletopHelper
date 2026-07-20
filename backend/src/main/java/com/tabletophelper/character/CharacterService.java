@@ -902,9 +902,18 @@ public class CharacterService {
     }
 
     @Transactional(readOnly = true)
-    public CharacterResponse getCharacter(UUID characterId) {
+    public CharacterResponse getCharacter(UUID characterId, UUID userId) {
         PlayerCharacter character = characterRepository.findById(characterId)
                 .orElseThrow(() -> new IllegalArgumentException("Character not found"));
+
+        boolean isOwner = character.getUser().getId().equals(userId);
+        boolean isCampaignMember = character.getCampaign() != null
+                && campaignMemberRepository.existsByCampaignIdAndUserId(character.getCampaign().getId(), userId);
+
+        if (!isOwner && !isCampaignMember) {
+            throw new IllegalArgumentException("You do not have access to this character");
+        }
+
         return characterMapper.toResponse(character);
     }
 

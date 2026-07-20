@@ -157,7 +157,7 @@ export default function CharacterSheetPage() {
       resetSlots[lvl] = { ...slot, used: 0 };
     }
     const resetResources = featResources.map(r =>
-      r.resetOn === 'longRest' ? { ...r, currentUses: r.maxUses } : r
+      r.resetOn === 'shortRest' || r.resetOn === 'longRest' ? { ...r, currentUses: r.maxUses } : r
     );
 
     await saveField({
