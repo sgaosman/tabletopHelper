@@ -38,7 +38,8 @@ public class CombatService {
         boolean forceCrit = Boolean.TRUE.equals(request.getForceCrit());
 
         if (targetDowned) {
-            boolean isCrit = forceCrit;
+            boolean isRanged = Boolean.TRUE.equals(request.getIsRanged());
+            boolean isCrit = forceCrit || !isRanged;
             DiceRoller.RollResult damageRoll = isCrit
                     ? DiceRoller.rollCritical(request.getDamageDice())
                     : DiceRoller.roll(request.getDamageDice());

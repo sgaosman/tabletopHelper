@@ -23,4 +23,6 @@ public class AttackRollRequest {
     private Boolean advantage;
 
     private Boolean forceCrit;
+
+    private Boolean isRanged;
 }

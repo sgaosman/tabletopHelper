@@ -1039,3 +1039,47 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** CharacterService was a 1420-line god object with 10 dependencies. Extracting mapping and JSON manipulation into focused components reduces it to 997 lines and makes each helper independently testable.
 
 **Trade-offs:** Adds two more Spring beans and constructor parameters. The service still has core business logic that could be further decomposed if it grows again.
+
+## D092: Character GET Endpoint Auth Check
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add ownership and campaign membership validation to `GET /api/characters/{id}`. A user can view a character if they own it or are a member of its campaign.
+
+**Rationale:** The endpoint had no auth check — any authenticated user could read any character by UUID (IDOR vulnerability). All other character endpoints already validated ownership.
+
+**Trade-offs:** DMs viewing campaign members' sheets now works by design rather than by accident. Characters not assigned to a campaign can only be viewed by their owner.
+
+## D093: Unconscious Attack Auto-Crit with isRanged Override
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Attacks against downed targets auto-crit by default (PHB p.292: melee attacks against unconscious creatures are critical hits). Added `isRanged` field to `AttackRollRequest` — when true, the auto-crit is suppressed (ranged attacks don't auto-crit). UI shows a "Ranged" toggle button next to "Crit" on both DM and player encounter pages.
+
+**Rationale:** The system doesn't track melee vs ranged weapon types, so defaulting to auto-crit (the common case) with an opt-out for ranged is the safest approach.
+
+**Trade-offs:** DMs attacking a downed PC at range must remember to toggle "Ranged". Forgetting means double dice damage, which is more harmful than the previous behavior of under-damaging.
+
+## D094: HikariCP Connection Pool Configuration
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Configure HikariCP with 20 max connections (dev) / 30 max connections (prod), 5 minimum idle, 20-second connection timeout.
+
+**Rationale:** Spring Boot defaults to 10 connections. Combat actions hold transactions through multiple repository reads; concurrent encounters can exhaust the default pool.
+
+**Trade-offs:** Higher pool size uses more PostgreSQL backend connections. 20-30 is well within PostgreSQL's default `max_connections` of 100.
+
+## D095: Global React Error Boundary
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add `ErrorBoundary` component wrapping the entire app in `main.tsx`. Catches unhandled React rendering errors and shows a recovery UI with a reload button.
+
+**Rationale:** Without an error boundary, any component throwing during render crashes the entire app to a white screen with no recovery. This is especially dangerous during combat encounters.
+
+**Trade-offs:** A single top-level boundary is coarse-grained — a bug in the combat log kills the entire page rather than just the log component. Per-section boundaries can be added later for high-risk areas.

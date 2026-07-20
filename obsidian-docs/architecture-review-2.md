@@ -29,15 +29,15 @@
 
 | Theme | Flagged By | Severity |
 |---|---|---|
-| IDOR on `GET /api/characters/{id}` — no auth check | Senior Eng | Critical |
-| Long rest doesn't reset short-rest feat resources | D&D Expert | High |
-| Unconscious attack doesn't auto-crit on melee | D&D Expert | High |
+| IDOR on `GET /api/characters/{id}` — no auth check | Senior Eng | Critical — **Resolved** |
+| Long rest doesn't reset short-rest feat resources | D&D Expert | High — **Resolved** |
+| Unconscious attack doesn't auto-crit on melee | D&D Expert | High — **Resolved** |
 | CharacterSheetPage.tsx still 2,103 lines | Senior Eng, New Eng | High |
 | AsiModal.tsx still 903 lines | Senior Eng | Medium |
 | CombatService duplicated damage application logic | Senior Eng | High |
-| No connection pool tuning (default 10) | Architect | High |
+| No connection pool tuning (default 10) | Architect | High — **Resolved** |
 | In-memory STOMP broker blocks horizontal scaling | Architect | High (unchanged) |
-| No global React error boundary | PM | High |
+| No global React error boundary | PM | High — **Resolved** |
 | Zero ARIA attributes in frontend | PM | High |
 | No class resource tracking (Ki, Action Surge, etc.) | D&D Expert, End User | High (unchanged) |
 | Catch blocks in CharacterJsonHelper: 13 `catch → log + return null` | Senior Eng | Medium |
@@ -284,15 +284,15 @@ README, `obsidian-docs/`, `docs/`, `PROJECT_DOCUMENTATION.md`, `CLAUDE_CODE_BRIE
 
 ### Week 1: Fix Critical + High Issues
 
-| Day | Action | Effort |
+| Day | Action | Status |
 |---|---|---|
-| 1 | **Fix IDOR on `GET /api/characters/{id}`**: add auth check, verify ownership or campaign membership | 30 min |
-| 1 | **Fix long rest feat resource reset**: change filter to include `shortRest` resources | 5 min |
-| 1 | **Fix unconscious melee auto-crit**: default `isCrit = true` for downed targets, add `isRanged` field to `AttackRollRequest` to opt out | 1 hour |
-| 2 | **Add global React error boundary**: wrap `<App>` in `ErrorBoundary` with "reload" button, don't lose router state | 1 hour |
-| 2 | **Extract CombatService damage helper**: consolidate temp HP + HP reduction + dying logic into `applyDamageToTarget()` | 2 hours |
-| 3-4 | **Split CharacterSheetPage.tsx**: extract 6 tab components (`StatsTab`, `SpellsTab`, etc.) | 4-6 hours |
-| 5 | **Configure HikariCP pool**: 20 max connections, 5 minimum idle | 15 min |
+| 1 | **Fix IDOR on `GET /api/characters/{id}`**: add auth check, verify ownership or campaign membership | Done |
+| 1 | **Fix long rest feat resource reset**: change filter to include `shortRest` resources | Done |
+| 1 | **Fix unconscious melee auto-crit**: default `isCrit = true` for downed targets, add `isRanged` field to `AttackRollRequest` to opt out | Done |
+| 2 | **Add global React error boundary**: wrap `<App>` in `ErrorBoundary` with "reload" button, don't lose router state | Done |
+| 2 | **Extract CombatService damage helper**: consolidate temp HP + HP reduction + dying logic into `applyDamageToTarget()` | |
+| 3-4 | **Split CharacterSheetPage.tsx**: extract 6 tab components (`StatsTab`, `SpellsTab`, etc.) | |
+| 5 | **Configure HikariCP pool**: 20 max connections, 5 minimum idle | Done |
 
 ### Week 2: Structural Improvements
 

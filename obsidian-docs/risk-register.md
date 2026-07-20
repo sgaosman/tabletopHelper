@@ -192,6 +192,15 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Remaining:** No frontend tests (React Testing Library). No integration tests hitting a real database. No end-to-end tests.
 
+### R015: IDOR on Character GET Endpoint
+
+**Category:** Security
+**Severity:** Critical — any authenticated user could read any character by UUID
+**Likelihood:** Low — UUIDs are hard to guess, but URL sharing or browser history could leak them
+**Status:** Resolved (2026-07-20)
+
+**Resolution:** Added ownership and campaign membership validation to `GET /api/characters/{id}`. Users can now only view characters they own or that belong to a campaign they're a member of.
+
 ## Resolved Risks
 
 ### R-RESOLVED-001: Vite 8 Build Failures with Type Imports

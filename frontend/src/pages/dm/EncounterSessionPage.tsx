@@ -167,7 +167,7 @@ function ActionPanel({
   const [damageType, setDamageType] = useState('');
   const [condition, setCondition] = useState('');
   const [spellName, setSpellName] = useState('');
-  const [attacks, setAttacks] = useState([{ attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false }]);
+  const [attacks, setAttacks] = useState([{ attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false, isRanged: false }]);
   const [conditionDuration, setConditionDuration] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -177,7 +177,7 @@ function ActionPanel({
 
   function addAttackRow() {
     if (attacks.length >= 5) return;
-    setAttacks(prev => [...prev, { attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false }]);
+    setAttacks(prev => [...prev, { attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false, isRanged: false }]);
   }
 
   function cloneAttackRow(index: number) {
@@ -200,7 +200,7 @@ function ActionPanel({
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await combatApi.rollAttack(encounterId, selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined);
+            await combatApi.rollAttack(encounterId, selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, undefined, atk.isRanged || undefined);
           }
         }
       } else if (actionMode === 'damage' && amount) {
@@ -217,7 +217,7 @@ function ActionPanel({
       setDamageType('');
       setCondition('');
       setSpellName('');
-      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false }]);
+      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false, isRanged: false }]);
       setConditionDuration('');
     } finally {
       setLoading(false);
@@ -303,6 +303,10 @@ function ActionPanel({
                     <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
                       className={`px-2 py-2 rounded text-xs font-medium ${atk.forceCrit ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
                       Crit
+                    </button>
+                    <button type="button" onClick={() => updateAttack(i, 'isRanged', !atk.isRanged)}
+                      className={`px-2 py-2 rounded text-xs font-medium ${atk.isRanged ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                      Ranged
                     </button>
                   </div>
                   <div className="flex gap-1">
@@ -627,7 +631,7 @@ function DmSessionView() {
     if (mode === 'attack') {
       const target = encounter.participants.find(p => p.id === participantId);
       const isDowned = target && !target.isAlive && target.participantType === 'PLAYER';
-      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: isDowned ? true : null, forceCrit: false }]);
+      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: isDowned ? true : null, forceCrit: false, isRanged: false }]);
     }
   }
 

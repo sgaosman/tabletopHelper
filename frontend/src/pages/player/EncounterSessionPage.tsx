@@ -299,7 +299,7 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
   const [condition, setCondition] = useState('');
   const [conditionDuration, setConditionDuration] = useState('');
   const [spellName, setSpellName] = useState('');
-  const [attacks, setAttacks] = useState([{ attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false }]);
+  const [attacks, setAttacks] = useState([{ attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false, isRanged: false }]);
   const [loading, setLoading] = useState(false);
 
   const target = encounter.participants.find(p => p.id === targetId);
@@ -311,7 +311,7 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
 
   function addAttackRow() {
     if (attacks.length >= 5) return;
-    setAttacks(prev => [...prev, { attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false }]);
+    setAttacks(prev => [...prev, { attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false, isRanged: false }]);
   }
 
   function cloneAttackRow(index: number) {
@@ -333,7 +333,7 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await combatApi.rollAttack(encounter.id, targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, myCharacter.id);
+            await combatApi.rollAttack(encounter.id, targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, myCharacter.id, atk.isRanged || undefined);
           }
         }
       } else if (actionMode === 'condition' && condition) {
@@ -398,6 +398,8 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
                     {i === 0 && <label className="block text-xs text-gray-400 mb-1">&nbsp;</label>}
                     <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
                       className={`px-2 py-2 rounded text-xs font-medium ${atk.forceCrit ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Crit</button>
+                    <button type="button" onClick={() => updateAttack(i, 'isRanged', !atk.isRanged)}
+                      className={`px-2 py-2 rounded text-xs font-medium ${atk.isRanged ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>Ranged</button>
                   </div>
                   <div className="flex gap-1">
                     {attacks.length < 5 && (

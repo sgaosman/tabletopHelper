@@ -51,8 +51,11 @@ public class CharacterController {
     }
 
     @GetMapping("/{characterId}")
-    public ResponseEntity<CharacterResponse> getCharacter(@PathVariable UUID characterId) {
-        return ResponseEntity.ok(characterService.getCharacter(characterId));
+    public ResponseEntity<CharacterResponse> getCharacter(
+            @PathVariable UUID characterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(characterService.getCharacter(characterId, userId));
     }
 
     @PostMapping("/{characterId}/level-up")
