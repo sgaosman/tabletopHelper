@@ -237,7 +237,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
       </button>
       {expanded && (
         <div className="relative">
-          <div ref={scrollRef} onScroll={handleScroll} className="max-h-48 overflow-y-auto border-t border-gray-800 px-4 py-2 space-y-1">
+          <div ref={scrollRef} onScroll={handleScroll} aria-live="polite" aria-label="Combat log entries" className="max-h-48 overflow-y-auto border-t border-gray-800 px-4 py-2 space-y-1">
             {logs.length === 0 ? (
               <p className="text-gray-500 text-xs py-2">No actions yet</p>
             ) : (

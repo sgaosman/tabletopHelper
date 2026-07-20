@@ -24,15 +24,15 @@ export default function ExpertiseModal({ character, count, onComplete, onClose }
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="expertise-title" className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
           <div>
-            <h2 className="text-white font-bold text-lg">Choose Expertise</h2>
+            <h2 id="expertise-title" className="text-white font-bold text-lg">Choose Expertise</h2>
             <p className="text-gray-400 text-xs mt-0.5">
               Select {count} skill{count > 1 ? 's' : ''} to double your proficiency bonus ({selected.length}/{count})
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">

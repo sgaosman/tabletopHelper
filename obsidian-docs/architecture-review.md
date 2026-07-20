@@ -253,7 +253,7 @@ Default HikariCP pool of 10 connections, no caching, in-memory STOMP broker, no 
 1. Start with `obsidian-docs/architecture.md` then `database-schema.md` then `api-reference.md`
 2. Every JSONB field is a `String` that needs parsing — always use `safeJsonParse` on frontend
 3. Reference entities use `@JsonRawValue` (pre-parsed); PlayerCharacter fields are strings (need `JSON.parse`)
-4. The biggest frontend files: CharacterSheetPage.tsx (2103L) and AsiModal.tsx (903L). CharacterCreateWizard.tsx was split to 902L + 7 step components. CharacterService.java was split to 997L + CharacterMapper (138L) + CharacterJsonHelper (347L)
+4. The biggest frontend files: AsiModal.tsx (903L) and SpellsTab.tsx (1190L, in `sheet/` directory). CharacterSheetPage.tsx was split from 2103L to 570L + 8 tab/component files. CharacterCreateWizard.tsx was split to 902L + 7 step components. CharacterService.java was split to 997L + CharacterMapper (138L) + CharacterJsonHelper (347L)
 5. Combat is REST-then-broadcast: HTTP for mutations, WebSocket for state sync
 6. 39 backend unit tests exist across SpellSlotCalculator, LevelUpCalculator, MulticlassValidator, and CharacterService — run with `./gradlew test`
 7. When changing any D&D rule constant, grep the entire codebase

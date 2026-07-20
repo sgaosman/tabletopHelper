@@ -121,48 +121,17 @@ public class CombatService {
         logAction(encounter, actor, target, CombatActionType.ATTACK, attackDesc, attackRoll, total, null, null);
 
         int damage = damageRoll.total();
-        int actualDamage = 0;
+        DamageResult result = applyDamageToTarget(encounter, target, damage);
 
-        int tempHp = target.getHpTemp() != null ? target.getHpTemp() : 0;
-        int remainingDamage = damage;
-        if (tempHp > 0) {
-            if (remainingDamage <= tempHp) {
-                target.setHpTemp(tempHp - remainingDamage);
-                actualDamage = remainingDamage;
-                remainingDamage = 0;
-            } else {
-                remainingDamage -= tempHp;
-                actualDamage = tempHp;
-                target.setHpTemp(0);
-            }
-        }
-
-        if (remainingDamage > 0) {
-            int newHp = Math.max(0, target.getHpCurrent() - remainingDamage);
-            actualDamage += (target.getHpCurrent() - newHp);
-            target.setHpCurrent(newHp);
-
-            if (newHp == 0) {
-                dropConcentrationOnZeroHp(encounter, target);
-                if (target.getParticipantType() == ParticipantType.PLAYER) {
-                    target.setIsAlive(false);
-                    target.setDeathSaveSuccesses(0);
-                    target.setDeathSaveFailures(0);
-                } else {
-                    target.setIsAlive(false);
-                }
-            }
-        }
-
-        String damageDesc = actorName + " deals " + actualDamage
+        String damageDesc = actorName + " deals " + result.actualDamage()
                 + (isNat20 ? " critical" : "") + " damage to " + target.getDisplayName()
                 + " (" + damageRoll.diceCount() + "d" + damageRoll.diceSides()
                 + (damageRoll.modifier() > 0 ? "+" + damageRoll.modifier() : "")
                 + " = " + damage + ")"
                 + (request.getDamageType() != null ? " [" + request.getDamageType() + "]" : "");
-        logAction(encounter, actor, target, CombatActionType.DAMAGE, damageDesc, null, null, actualDamage, null);
+        logAction(encounter, actor, target, CombatActionType.DAMAGE, damageDesc, null, null, result.actualDamage(), null);
 
-        if (target.getHpCurrent() == 0) {
+        if (result.droppedToZero()) {
             if (target.getParticipantType() == ParticipantType.PLAYER) {
                 logAction(encounter, actor, target, CombatActionType.KILL,
                         target.getDisplayName() + " drops to 0 HP and is dying", null, null, null, null);
@@ -172,8 +141,8 @@ public class CombatService {
             }
         }
 
-        if (target.getConcentrationSpell() != null && actualDamage > 0 && target.getIsAlive()) {
-            checkConcentration(encounter, target, actualDamage);
+        if (target.getConcentrationSpell() != null && result.actualDamage() > 0 && target.getIsAlive()) {
+            checkConcentration(encounter, target, result.actualDamage());
         }
 
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -216,51 +185,26 @@ public class CombatService {
             return encounterService.toResponse(encounterRepository.save(encounter));
         }
 
-        int amount = request.getAmount();
-        int actualDamage = 0;
+        DamageResult result = applyDamageToTarget(encounter, target, request.getAmount());
 
-        int tempHp = target.getHpTemp() != null ? target.getHpTemp() : 0;
-        if (tempHp > 0) {
-            if (amount <= tempHp) {
-                target.setHpTemp(tempHp - amount);
-                actualDamage = amount;
-                amount = 0;
+        if (result.droppedToZero()) {
+            if (target.getParticipantType() == ParticipantType.PLAYER) {
+                logAction(encounter, actor, target, CombatActionType.KILL,
+                        target.getDisplayName() + " drops to 0 HP and is dying", null, null, result.actualDamage(), null);
             } else {
-                amount -= tempHp;
-                actualDamage = tempHp;
-                target.setHpTemp(0);
+                logAction(encounter, actor, target, CombatActionType.KILL,
+                        target.getDisplayName() + " is killed", null, null, result.actualDamage(), null);
             }
         }
 
-        if (amount > 0) {
-            int newHp = Math.max(0, target.getHpCurrent() - amount);
-            actualDamage += (target.getHpCurrent() - newHp);
-            target.setHpCurrent(newHp);
-
-            if (newHp == 0) {
-                dropConcentrationOnZeroHp(encounter, target);
-                if (target.getParticipantType() == ParticipantType.PLAYER) {
-                    target.setIsAlive(false);
-                    target.setDeathSaveSuccesses(0);
-                    target.setDeathSaveFailures(0);
-                    logAction(encounter, actor, target, CombatActionType.KILL,
-                            target.getDisplayName() + " drops to 0 HP and is dying", null, null, actualDamage, null);
-                } else {
-                    target.setIsAlive(false);
-                    logAction(encounter, actor, target, CombatActionType.KILL,
-                            target.getDisplayName() + " is killed", null, null, actualDamage, null);
-                }
-            }
-        }
-
-        if (target.getIsAlive() || actualDamage > 0) {
-            String damageDesc = actorDesc + " deals " + actualDamage + " damage to " + target.getDisplayName()
+        if (target.getIsAlive() || result.actualDamage() > 0) {
+            String damageDesc = actorDesc + " deals " + result.actualDamage() + " damage to " + target.getDisplayName()
                     + (request.getDamageType() != null ? " (" + request.getDamageType() + ")" : "");
-            logAction(encounter, actor, target, CombatActionType.DAMAGE, damageDesc, null, null, actualDamage, null);
+            logAction(encounter, actor, target, CombatActionType.DAMAGE, damageDesc, null, null, result.actualDamage(), null);
         }
 
-        if (target.getConcentrationSpell() != null && actualDamage > 0 && target.getIsAlive()) {
-            checkConcentration(encounter, target, actualDamage);
+        if (target.getConcentrationSpell() != null && result.actualDamage() > 0 && target.getIsAlive()) {
+            checkConcentration(encounter, target, result.actualDamage());
         }
 
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -614,6 +558,47 @@ public class CombatService {
                         .createdAt(log.getCreatedAt())
                         .build())
                 .toList();
+    }
+
+    private record DamageResult(int actualDamage, boolean droppedToZero) {}
+
+    private DamageResult applyDamageToTarget(Encounter encounter, EncounterParticipant target, int damage) {
+        int actualDamage = 0;
+        int tempHp = target.getHpTemp() != null ? target.getHpTemp() : 0;
+        int remainingDamage = damage;
+
+        if (tempHp > 0) {
+            if (remainingDamage <= tempHp) {
+                target.setHpTemp(tempHp - remainingDamage);
+                actualDamage = remainingDamage;
+                remainingDamage = 0;
+            } else {
+                remainingDamage -= tempHp;
+                actualDamage = tempHp;
+                target.setHpTemp(0);
+            }
+        }
+
+        boolean droppedToZero = false;
+        if (remainingDamage > 0) {
+            int newHp = Math.max(0, target.getHpCurrent() - remainingDamage);
+            actualDamage += (target.getHpCurrent() - newHp);
+            target.setHpCurrent(newHp);
+
+            if (newHp == 0) {
+                droppedToZero = true;
+                dropConcentrationOnZeroHp(encounter, target);
+                if (target.getParticipantType() == ParticipantType.PLAYER) {
+                    target.setIsAlive(false);
+                    target.setDeathSaveSuccesses(0);
+                    target.setDeathSaveFailures(0);
+                } else {
+                    target.setIsAlive(false);
+                }
+            }
+        }
+
+        return new DamageResult(actualDamage, droppedToZero);
     }
 
     private void checkConcentration(Encounter encounter, EncounterParticipant participant, int damage) {

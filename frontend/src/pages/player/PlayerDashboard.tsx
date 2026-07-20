@@ -72,13 +72,13 @@ export default function PlayerDashboard() {
           <h1 className="text-xl font-bold text-white">TabletopHelper</h1>
           <p className="text-sm text-gray-400">Player — {user?.displayName}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <nav aria-label="Main navigation" className="flex items-center gap-4">
           <button onClick={() => navigate('/player/quickref')} className="flex items-center gap-1.5 text-gray-400 hover:text-cyan-400 text-sm transition-colors">
             <Zap className="w-4 h-4" /> Quick Rules Reference
           </button>
           <button onClick={() => navigate('/select-role')} className="text-gray-400 hover:text-white text-sm transition-colors">Switch Role</button>
           <button onClick={logout} className="text-gray-400 hover:text-white text-sm transition-colors">Sign Out</button>
-        </div>
+        </nav>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-10">
@@ -97,7 +97,7 @@ export default function PlayerDashboard() {
             />
             <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors">Join</button>
           </form>
-          {joinError && <p className="text-red-400 text-sm mt-2">{joinError}</p>}
+          {joinError && <p role="alert" className="text-red-400 text-sm mt-2">{joinError}</p>}
         </section>
 
         {/* Join Encounter */}
@@ -195,8 +195,8 @@ export default function PlayerDashboard() {
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { if (!deleting) { setDeleteTarget(null); setDeleteConfirmName(''); } }}>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <h3 className="text-white font-bold text-lg mb-2">Delete Character</h3>
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-title" className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <h3 id="delete-title" className="text-white font-bold text-lg mb-2">Delete Character</h3>
             <p className="text-gray-400 text-sm mb-1">
               Are you sure you want to delete <span className="text-white font-medium">{deleteTarget.name}</span>? This action cannot be undone.
             </p>
@@ -211,7 +211,7 @@ export default function PlayerDashboard() {
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
               autoFocus
             />
-            {deleteError && <p className="text-red-400 text-sm mb-3">{deleteError}</p>}
+            {deleteError && <p role="alert" className="text-red-400 text-sm mb-3">{deleteError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}

@@ -22,7 +22,7 @@ export default function DmDashboard() {
           <h1 className="text-xl font-bold text-white">TabletopHelper</h1>
           <p className="text-sm text-gray-400">Dungeon Master — {user?.displayName}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <nav aria-label="Main navigation" className="flex items-center gap-4">
           <button
             onClick={() => navigate('/dm/quickref')}
             className="flex items-center gap-1.5 text-gray-400 hover:text-cyan-400 text-sm transition-colors"
@@ -41,7 +41,7 @@ export default function DmDashboard() {
           >
             Sign Out
           </button>
-        </div>
+        </nav>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-10">
