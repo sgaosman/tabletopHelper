@@ -61,6 +61,7 @@ public class DataSeeder implements CommandLineRunner {
 
         try {
             raceSeeder.seed();
+            raceSeeder.fixRaceSpellLevels();
         } catch (Exception e) {
             log.error("Failed to seed races: {}", e.getMessage(), e);
         }

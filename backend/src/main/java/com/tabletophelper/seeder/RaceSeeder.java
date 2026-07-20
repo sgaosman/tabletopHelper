@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.RaceRepository;
+import com.tabletophelper.reference.Spell;
+import com.tabletophelper.reference.SpellRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -20,6 +22,7 @@ import java.util.*;
 public class RaceSeeder {
 
     private final RaceRepository raceRepository;
+    private final SpellRepository spellRepository;
     private final ObjectMapper objectMapper;
 
     private static final Map<String, String> SIZE_MAP = Map.of(
@@ -44,24 +47,46 @@ public class RaceSeeder {
     private Map<String, Integer> spellLevelLookup = Map.of();
 
     private void buildSpellLevelLookup() {
-        try {
-            ClassPathResource res = new ClassPathResource("data/5etools/spells.json");
-            try (InputStream is = res.getInputStream()) {
-                JsonNode root = objectMapper.readTree(is);
-                JsonNode spellsArr = root.get("spell");
-                if (spellsArr == null || !spellsArr.isArray()) return;
-                Map<String, Integer> map = new HashMap<>();
-                for (JsonNode s : spellsArr) {
-                    String name = s.path("name").asText("").toLowerCase();
-                    int level = s.path("level").asInt(-1);
-                    if (!name.isEmpty() && level >= 0) map.put(name, level);
-                }
-                spellLevelLookup = map;
-                log.info("Built spell level lookup with {} entries", map.size());
-            }
-        } catch (Exception e) {
-            log.warn("Could not build spell level lookup: {}", e.getMessage());
+        Map<String, Integer> map = new HashMap<>();
+        for (Spell spell : spellRepository.findAll()) {
+            map.put(spell.getName().toLowerCase(), spell.getLevel());
         }
+        spellLevelLookup = map;
+        log.info("Built spell level lookup with {} entries from database", map.size());
+    }
+
+    public void fixRaceSpellLevels() {
+        buildSpellLevelLookup();
+        if (spellLevelLookup.isEmpty()) return;
+        int fixed = 0;
+        for (Race race : raceRepository.findAll()) {
+            if (race.getAdditionalSpells() == null) continue;
+            try {
+                JsonNode root = objectMapper.readTree(race.getAdditionalSpells());
+                boolean changed = false;
+                JsonNode fixedSpells = root.get("fixedSpells");
+                if (fixedSpells != null && fixedSpells.isArray()) {
+                    for (JsonNode spell : fixedSpells) {
+                        if (spell.path("level").asInt(0) == 0 && !spell.path("atWill").asBoolean(false)) {
+                            String name = spell.path("name").asText("").toLowerCase();
+                            Integer correctLevel = spellLevelLookup.get(name);
+                            if (correctLevel != null && correctLevel > 0) {
+                                ((ObjectNode) spell).put("level", correctLevel);
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+                if (changed) {
+                    race.setAdditionalSpells(objectMapper.writeValueAsString(root));
+                    raceRepository.save(race);
+                    fixed++;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fix spell levels for race {}: {}", race.getName(), e.getMessage());
+            }
+        }
+        if (fixed > 0) log.info("Fixed spell levels in {} races", fixed);
     }
 
     public void seed() throws Exception {
