@@ -17,7 +17,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "player_characters")
+@Table(name = "player_characters", indexes = {
+    @Index(name = "idx_pc_user_id", columnList = "user_id"),
+    @Index(name = "idx_pc_campaign_id", columnList = "campaign_id")
+})
 @Getter
 @Setter
 @Builder

@@ -618,26 +618,45 @@ public class CombatService {
     private void checkConcentration(Encounter encounter, EncounterParticipant participant, int damage) {
         int dc = Math.max(10, damage / 2);
         int conMod = 0;
+        int saveBonus = 0;
 
         if (participant.getParticipantType() == ParticipantType.PLAYER && participant.getCharacter() != null) {
-            conMod = (participant.getCharacter().getConstitution() - 10) / 2;
+            var character = participant.getCharacter();
+            conMod = (character.getConstitution() - 10) / 2;
+            if (hasConSaveProficiency(character)) {
+                saveBonus = character.getProficiencyBonus() != null ? character.getProficiencyBonus() : 2;
+            }
         } else if (participant.getParticipantType() == ParticipantType.MONSTER && participant.getMonster() != null) {
             conMod = (participant.getMonster().getConstitution() - 10) / 2;
         }
 
         int roll = ThreadLocalRandom.current().nextInt(1, 21);
-        int total = roll + conMod;
+        int total = roll + conMod + saveBonus;
 
+        String bonusStr = roll + " + " + conMod;
+        if (saveBonus > 0) bonusStr += " + " + saveBonus + " (prof)";
         if (total >= dc) {
             logAction(encounter, null, participant, CombatActionType.CONCENTRATION_CHECK,
-                    participant.getDisplayName() + " concentration check: " + roll + " + " + conMod + " = " + total + " vs DC " + dc + " — maintained " + participant.getConcentrationSpell(),
+                    participant.getDisplayName() + " concentration check: " + bonusStr + " = " + total + " vs DC " + dc + " — maintained " + participant.getConcentrationSpell(),
                     roll, total, null, null);
         } else {
             String spell = participant.getConcentrationSpell();
             participant.setConcentrationSpell(null);
             logAction(encounter, null, participant, CombatActionType.CONCENTRATION_LOST,
-                    participant.getDisplayName() + " concentration check: " + roll + " + " + conMod + " = " + total + " vs DC " + dc + " — lost concentration on " + spell,
+                    participant.getDisplayName() + " concentration check: " + bonusStr + " = " + total + " vs DC " + dc + " — lost concentration on " + spell,
                     roll, total, null, null);
+        }
+    }
+
+    private boolean hasConSaveProficiency(com.tabletophelper.character.PlayerCharacter character) {
+        String savesJson = character.getSavingThrowProficiencies();
+        if (savesJson == null || savesJson.isBlank()) return false;
+        try {
+            List<String> saves = objectMapper.readValue(savesJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+            return saves.stream().anyMatch(s -> "CON".equalsIgnoreCase(s) || "Constitution".equalsIgnoreCase(s));
+        } catch (Exception e) {
+            return false;
         }
     }
 

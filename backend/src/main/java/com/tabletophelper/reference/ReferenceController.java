@@ -3,6 +3,7 @@ package com.tabletophelper.reference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -67,16 +68,19 @@ public class ReferenceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Cacheable("spellSchools")
     @GetMapping("/spells/filters/schools")
     public List<String> getSpellSchools() {
         return spellRepository.findDistinctSchools();
     }
 
+    @Cacheable("spellSources")
     @GetMapping("/spells/filters/sources")
     public List<String> getSpellSources() {
         return spellRepository.findDistinctSources();
     }
 
+    @Cacheable("spellClasses")
     @GetMapping("/spells/filters/classes")
     public List<String> getSpellClasses() {
         return spellRepository.findDistinctClasses();
@@ -87,6 +91,7 @@ public class ReferenceController {
         return spellRepository.findDistinctSubclasses(className);
     }
 
+    @Cacheable("conditions")
     @GetMapping("/conditions")
     public List<Condition> getAllConditions() {
         return conditionRepository.findAll(Sort.by("name"));
@@ -124,16 +129,19 @@ public class ReferenceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Cacheable("itemTypes")
     @GetMapping("/items/filters/types")
     public List<String> getItemTypes() {
         return itemRepository.findDistinctTypes();
     }
 
+    @Cacheable("itemRarities")
     @GetMapping("/items/filters/rarities")
     public List<String> getItemRarities() {
         return itemRepository.findDistinctRarities();
     }
 
+    @Cacheable("itemSources")
     @GetMapping("/items/filters/sources")
     public List<String> getItemSources() {
         return itemRepository.findDistinctSources();
@@ -144,6 +152,7 @@ public class ReferenceController {
         return Arrays.asList(value.split(","));
     }
 
+    @Cacheable(value = "races", key = "#source != null ? #source : 'all'")
     @GetMapping("/races")
     public List<Race> getAllRaces(@RequestParam(required = false) String source) {
         if (source != null && !source.isBlank()) {
@@ -159,11 +168,13 @@ public class ReferenceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Cacheable("raceSources")
     @GetMapping("/races/filters/sources")
     public List<String> getRaceSources() {
         return raceRepository.findDistinctSources();
     }
 
+    @Cacheable("classes")
     @GetMapping("/classes")
     public List<CharacterClass> getAllClasses() {
         return characterClassRepository.findAllByOrderByNameAsc();
@@ -176,11 +187,13 @@ public class ReferenceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Cacheable(value = "subclasses", key = "#id")
     @GetMapping("/classes/{id}/subclasses")
     public List<Subclass> getSubclassesForClass(@PathVariable UUID id) {
         return subclassRepository.findByCharacterClassIdOrderByNameAsc(id);
     }
 
+    @Cacheable("backgrounds")
     @GetMapping("/backgrounds")
     public List<Background> getAllBackgrounds() {
         return backgroundRepository.findAllByOrderByNameAsc();
@@ -193,6 +206,7 @@ public class ReferenceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Cacheable("feats")
     @GetMapping("/feats")
     public List<Feat> getAllFeats() {
         return featRepository.findAllByOrderByNameAsc();

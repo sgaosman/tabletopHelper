@@ -1,10 +1,6 @@
 import type { Monster } from '../../types/monster';
 import { parseMarkup } from '../../utils/parseMarkup';
-
-function abilityMod(score: number): string {
-  const mod = Math.floor((score - 10) / 2);
-  return mod >= 0 ? `+${mod}` : `${mod}`;
-}
+import { formatAbilityMod } from '../../utils/dndRules';
 
 export default function MonsterStatBlock({ monster }: { monster: Monster }) {
   const m = monster;
@@ -41,7 +37,7 @@ export default function MonsterStatBlock({ monster }: { monster: Monster }) {
             {(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const).map(ab => (
               <div key={ab}>
                 <div className="font-bold text-xs uppercase">{ab.slice(0, 3)}</div>
-                <div>{m[ab]} ({abilityMod(m[ab])})</div>
+                <div>{m[ab]} ({formatAbilityMod(m[ab])})</div>
               </div>
             ))}
           </div>

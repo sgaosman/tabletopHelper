@@ -58,8 +58,11 @@ The system is designed for a single DM and up to 8 players — roughly 9 concurr
          │  │  AuthService                │  │
          │  │  CampaignService            │  │
          │  │  CharacterService           │  │
+         │  │  CharacterMapper            │  │
+         │  │  CharacterJsonHelper        │  │
          │  │  CombatService (M5)         │  │
          │  │  EncounterService (M4)      │  │
+         │  │  FeatEffectResolver         │  │
          │  └─────────────┬───────────────┘  │
          │                │                  │
          │  ┌─────────────▼───────────────┐  │

@@ -16,28 +16,7 @@ import type { Spell, Feat } from '../../types/reference';
 import { CANTRIPS_KNOWN, SPELLS_KNOWN, THIRD_CASTER_CANTRIPS, THIRD_CASTER_SPELLS, THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST, getPreparedCount } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
-
-const ABILITIES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
-const ABILITY_FROM_ABBR: Record<string, string> = {
-  STR: 'strength', DEX: 'dexterity', CON: 'constitution',
-  INT: 'intelligence', WIS: 'wisdom', CHA: 'charisma',
-};
-const ABILITY_ABBR: Record<string, string> = {
-  strength: 'STR', dexterity: 'DEX', constitution: 'CON',
-  intelligence: 'INT', wisdom: 'WIS', charisma: 'CHA',
-};
-
-const SKILLS: Array<{ name: string; ability: typeof ABILITIES[number] }> = [
-  { name: 'Acrobatics', ability: 'dexterity' }, { name: 'Animal Handling', ability: 'wisdom' },
-  { name: 'Arcana', ability: 'intelligence' }, { name: 'Athletics', ability: 'strength' },
-  { name: 'Deception', ability: 'charisma' }, { name: 'History', ability: 'intelligence' },
-  { name: 'Insight', ability: 'wisdom' }, { name: 'Intimidation', ability: 'charisma' },
-  { name: 'Investigation', ability: 'intelligence' }, { name: 'Medicine', ability: 'wisdom' },
-  { name: 'Nature', ability: 'intelligence' }, { name: 'Perception', ability: 'wisdom' },
-  { name: 'Performance', ability: 'charisma' }, { name: 'Persuasion', ability: 'charisma' },
-  { name: 'Religion', ability: 'intelligence' }, { name: 'Sleight of Hand', ability: 'dexterity' },
-  { name: 'Stealth', ability: 'dexterity' }, { name: 'Survival', ability: 'wisdom' },
-];
+import { ABILITIES, ABILITY_FROM_ABBR, ABILITY_ABBR, SKILLS, abilityMod, formatMod, safeJsonParse } from '../../utils/dndRules';
 
 type Tab = 'Stats' | 'Actions' | 'Spells' | 'Inventory' | 'Features' | 'Journal';
 const TABS: { key: Tab; label: string; icon: typeof Shield }[] = [
@@ -49,20 +28,6 @@ const TABS: { key: Tab; label: string; icon: typeof Shield }[] = [
   { key: 'Journal', label: 'Journal', icon: ScrollText },
 ];
 
-function abilityMod(score: number): number {
-  return Math.floor((score - 10) / 2);
-}
-
-function formatMod(mod: number): string {
-  return mod >= 0 ? `+${mod}` : `${mod}`;
-}
-
-function safeJsonParse<T>(json: unknown, fallback: T): T {
-  if (json == null) return fallback;
-  if (typeof json !== 'string') return json as T;
-  try { return JSON.parse(json); } catch { return fallback; }
-}
-
 export default function CharacterSheetPage() {
   const { characterId } = useParams<{ characterId: string }>();
   const navigate = useNavigate();
@@ -72,6 +37,7 @@ export default function CharacterSheetPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [restModal, setRestModal] = useState<'short' | 'long' | null>(null);
+  const [shortRestDice, setShortRestDice] = useState<Record<string, number>>({});
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [showAsi, setShowAsi] = useState(false);
@@ -142,20 +108,40 @@ export default function CharacterSheetPage() {
 
   async function handleShortRest() {
     if (!char) return;
-    const hdEntries = Object.entries(hitDiceMap);
-    if (hdEntries.length === 0) { setRestModal(null); return; }
-
+    const totalDiceSpent = Object.values(shortRestDice).reduce((sum, n) => sum + n, 0);
     const updated = { ...hitDiceMap };
     let hpGain = 0;
-    for (const [cls, hd] of hdEntries) {
-      if (hd.remaining > 0) {
-        const roll = Math.ceil(hd.faces / 2) + 1;
-        hpGain += roll + abilityMod(char.constitution);
-        updated[cls] = { ...hd, remaining: hd.remaining - 1 };
+    for (const [cls, count] of Object.entries(shortRestDice)) {
+      if (count > 0 && updated[cls]) {
+        for (let i = 0; i < count; i++) {
+          const roll = Math.ceil(updated[cls].faces / 2) + 1;
+          hpGain += Math.max(0, roll + abilityMod(char.constitution));
+        }
+        updated[cls] = { ...updated[cls], remaining: updated[cls].remaining - count };
       }
     }
+
     const newHp = Math.min(char.hpMax, char.hpCurrent + hpGain);
-    await saveField({ hpCurrent: newHp, hitDiceMap: JSON.stringify(updated) });
+    const resetSlots: Record<string, { total: number; used: number }> = {};
+    for (const [key, slot] of Object.entries(spellSlots)) {
+      if (key.startsWith('pact_')) {
+        resetSlots[key] = { ...slot, used: 0 };
+      } else {
+        resetSlots[key] = slot;
+      }
+    }
+    const resetResources = featResources.map(r =>
+      r.resetOn === 'shortRest' || r.resetOn === 'longRest' ? { ...r, currentUses: r.maxUses } : r
+    );
+
+    const updates: Record<string, unknown> = {
+      hpCurrent: newHp,
+      hitDiceMap: JSON.stringify(updated),
+    };
+    if (Object.keys(resetSlots).length > 0) updates.spellSlots = JSON.stringify(resetSlots);
+    if (resetResources.length > 0) updates.featResources = JSON.stringify(resetResources);
+    await saveField(updates as Record<string, string | number | undefined>);
+    setShortRestDice({});
     setRestModal(null);
   }
 
@@ -532,18 +518,52 @@ export default function CharacterSheetPage() {
 
       {/* Rest Modal */}
       {restModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setRestModal(null)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { setRestModal(null); setShortRestDice({}); }}>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <h3 className="text-white font-bold text-lg mb-2">
               {restModal === 'short' ? 'Short Rest' : 'Long Rest'}
             </h3>
-            <p className="text-gray-400 text-sm mb-4">
-              {restModal === 'short'
-                ? 'Spend hit dice to regain hit points. You can spend one hit die per short rest.'
-                : 'Regain all hit points, reset spell slots, and regain half your total hit dice (minimum 1).'}
-            </p>
+            {restModal === 'short' ? (
+              <>
+                <p className="text-gray-400 text-sm mb-3">
+                  Spend hit dice to regain hit points. For each die spent, regain 1d{Object.values(hitDiceMap)[0]?.faces ?? 8} + CON modifier HP.
+                  {Object.values(spellSlots).some((_, i, arr) => Object.keys(spellSlots).some(k => k.startsWith('pact_'))) ? ' Warlock pact slots will be restored.' : ''}
+                </p>
+                <div className="space-y-2 mb-4">
+                  {Object.entries(hitDiceMap).map(([cls, hd]) => (
+                    <div key={cls} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                      <span className="text-gray-300 text-sm">{cls} (d{hd.faces})</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500 text-xs">{hd.remaining}/{hd.total} remaining</span>
+                        <button
+                          onClick={() => setShortRestDice(prev => ({ ...prev, [cls]: Math.max(0, (prev[cls] || 0) - 1) }))}
+                          disabled={!shortRestDice[cls]}
+                          className="w-7 h-7 rounded bg-gray-700 text-gray-300 text-sm disabled:opacity-30 hover:bg-gray-600"
+                        >−</button>
+                        <span className="text-white text-sm w-4 text-center">{shortRestDice[cls] || 0}</span>
+                        <button
+                          onClick={() => setShortRestDice(prev => ({ ...prev, [cls]: Math.min(hd.remaining, (prev[cls] || 0) + 1) }))}
+                          disabled={(shortRestDice[cls] || 0) >= hd.remaining}
+                          className="w-7 h-7 rounded bg-gray-700 text-gray-300 text-sm disabled:opacity-30 hover:bg-gray-600"
+                        >+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {Object.keys(spellSlots).some(k => k.startsWith('pact_')) && (
+                  <p className="text-purple-400 text-xs mb-3">Warlock pact slots will be restored on short rest.</p>
+                )}
+                {featResources.some(r => r.resetOn === 'shortRest') && (
+                  <p className="text-yellow-400 text-xs mb-3">Short rest abilities will be restored.</p>
+                )}
+              </>
+            ) : (
+              <p className="text-gray-400 text-sm mb-4">
+                Regain all hit points, reset spell slots, and regain half your total hit dice (minimum 1).
+              </p>
+            )}
             <div className="flex gap-3">
-              <button onClick={() => setRestModal(null)} className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg text-sm hover:bg-gray-700 transition-colors">Cancel</button>
+              <button onClick={() => { setRestModal(null); setShortRestDice({}); }} className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg text-sm hover:bg-gray-700 transition-colors">Cancel</button>
               <button
                 onClick={restModal === 'short' ? handleShortRest : handleLongRest}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-500 transition-colors"

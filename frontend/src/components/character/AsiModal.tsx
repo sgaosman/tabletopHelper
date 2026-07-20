@@ -6,6 +6,7 @@ import type { PlayerCharacter, ApplyChoicesRequest, AsiChoice } from '../../type
 import type { Feat, OptionalFeature, Spell } from '../../types/reference';
 import { checkFeatPrerequisites, parseFeatEffects, parseAbilityScoreIncrease } from '../../utils/featPrerequisites';
 import FormattedDescription from '../FormattedDescription';
+import { ALL_SKILLS } from '../../utils/dndRules';
 
 const ABILITIES = [
   { key: 'strength', label: 'STR', full: 'Strength' },
@@ -15,13 +16,6 @@ const ABILITIES = [
   { key: 'wisdom', label: 'WIS', full: 'Wisdom' },
   { key: 'charisma', label: 'CHA', full: 'Charisma' },
 ] as const;
-
-const ALL_SKILLS = [
-  'Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Deception',
-  'History', 'Insight', 'Intimidation', 'Investigation', 'Medicine',
-  'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion',
-  'Sleight of Hand', 'Stealth', 'Survival',
-];
 
 const SCHOOL_ABBREV: Record<string, string> = {
   A: 'Abjuration', C: 'Conjuration', D: 'Divination', E: 'Enchantment',

@@ -30,7 +30,7 @@ public class CharacterController {
     @PutMapping("/{characterId}")
     public ResponseEntity<CharacterResponse> updateCharacter(
             @PathVariable UUID characterId,
-            @RequestBody CharacterUpdateRequest request,
+            @Valid @RequestBody CharacterUpdateRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         return ResponseEntity.ok(characterService.updateCharacter(characterId, request, userId));

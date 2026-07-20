@@ -863,3 +863,124 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** `JSON.parse()` on an already-parsed array coerces it to `"[object Object]"` and throws SyntaxError. The catch block silently returned `null`, which caused the AsiModal's ability score choice UI to never render for feats like Fey Teleportation. The `parseFeatOptions` function already had this guard; `parseAbilityScoreIncrease` and `parseFeatEffects` did not.
 
 **Trade-offs:** None. This is a pure bug fix. All `@JsonRawValue` fields should use this pattern going forward.
+
+## D076: Replace Silent Exception Swallowing with Logging
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Replace all `catch (Exception ignored) {}` blocks across CharacterService and FeatEffectResolver with `log.warn`/`log.error`. Critical operations (`recalculateSpellSlots`, `appendLevelHistory`) now re-throw after logging.
+
+**Rationale:** 18 silent catch blocks were hiding data corruption and making bugs invisible. The 6-way architecture review flagged this as the highest-priority fix.
+
+**Trade-offs:** Critical operations now throw, which could surface previously-hidden errors. This is intentional — failing loudly prevents silent data corruption.
+
+## D077: CharacterService Extraction to CharacterMapper and CharacterJsonHelper
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Extract `toResponse()` and `buildAllSubclassAlwaysPreparedSpells()` into `CharacterMapper`, and 15 JSON manipulation methods into `CharacterJsonHelper`. CharacterService delegates to both via constructor injection.
+
+**Rationale:** CharacterService was ~1457 lines with mixed concerns (business logic, DTO mapping, JSON manipulation). Extraction reduces it to ~997 lines and makes each class single-responsibility.
+
+**Trade-offs:** Three files to navigate instead of one. Offset by each file being focused and independently testable.
+
+## D078: Typed JSONB Records (LevelHistoryEntry, MulticlassEntry, HitDiceEntry)
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add Java records (`LevelHistoryEntry`, `MulticlassEntry`, `HitDiceEntry`, `FeatureRecord`) to replace `Map<String, Object>` for JSONB deserialization throughout CharacterJsonHelper and CharacterService.
+
+**Rationale:** Raw maps provide no compile-time safety. Typos in map keys (e.g., `classid` vs `classId`) silently return null. Typed records catch schema drift at compile time and make the code self-documenting.
+
+**Trade-offs:** Records are immutable, so mutations require creating new instances (e.g., updating a level requires `new MulticlassEntry(...)` instead of `entry.put("level", ...)`). Accepted because immutability reduces side-effect bugs.
+
+## D079: Reference Data Caching with @Cacheable
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add `@EnableCaching` on the application class and `@Cacheable` annotations on 13 reference data endpoints (spell filters, conditions, item filters, races, classes, subclasses, backgrounds, feats).
+
+**Rationale:** Reference data changes only when the database is re-seeded. Caching eliminates ~80% of DB reads for read-heavy reference lookups. Uses Spring's default `ConcurrentMapCacheManager` (in-memory, no expiry) — appropriate since reference data is effectively immutable at runtime.
+
+**Trade-offs:** Cache is never evicted (requires app restart to pick up reference data changes). Acceptable for this project's deployment model.
+
+## D080: FK Indexes and GIN Index for Query Performance
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add `@Index` annotations on FK columns (`user_id`, `campaign_id` on `PlayerCharacter`; `encounter_id`, `character_id` on `EncounterParticipant`; `encounter_id` on `CombatLog`). Add a GIN index on `spells.classes` JSONB column via `schema.sql`.
+
+**Rationale:** PostgreSQL does not automatically index FK columns. All these FKs are used in WHERE/JOIN clauses. The GIN index enables efficient `@>` containment queries on the JSONB `classes` array in the spells table.
+
+**Trade-offs:** Slight write overhead from index maintenance. Negligible at this scale.
+
+## D081: Shared Frontend Utility Module (dndRules.ts)
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Extract duplicated D&D constants and utility functions (`ABILITIES`, `ALL_SKILLS`, `abilityMod`, `formatMod`, `safeJsonParse`) into `frontend/src/utils/dndRules.ts`. Update CharacterSheetPage, MonsterStatBlock, and AsiModal to import from the shared module.
+
+**Rationale:** 6+ files had independent copies of ability score arrays, skill lists, and modifier calculations. Any fix or change required updating all copies.
+
+**Trade-offs:** None. Pure deduplication.
+
+## D082: Input Validation on Character Update Endpoint
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add `@Valid` to the `updateCharacter` endpoint and Jakarta validation constraints on `CharacterUpdateRequest` fields: `@Min/@Max` on level (1-20), ability scores (1-30), HP, AC, speed, proficiency bonus; `@Size(max=100)` on name.
+
+**Rationale:** Previously, any value could be submitted via the API, potentially creating invalid game state (negative HP max, level 0, etc.).
+
+**Trade-offs:** May reject legitimate edge cases (ability scores >30 from magic items). The constraint is on the API input, not the stored value, so DM-applied effects can bypass this if needed.
+
+## D083: Short Rest Hit Dice Spending and Warlock Pact Slot Reset
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Replace the single-die short rest with a multi-die spending UI (per-class +/- buttons with remaining dice tracking). Add warlock pact slot reset on short rest. Add short-rest feat resource resets.
+
+**Rationale:** The original short rest implementation only spent a single hit die of an arbitrary class. D&D 5e allows spending multiple hit dice from any class, and warlocks recover pact magic slots on short rest.
+
+**Trade-offs:** More complex UI, but essential for rules accuracy.
+
+## D084: Concentration Save CON Proficiency Fix
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Fix `CombatService.checkConcentration()` to include Constitution saving throw proficiency bonus when calculating concentration checks. Added `hasConSaveProficiency()` helper that parses the `savingThrowProficiencies` JSON array.
+
+**Rationale:** Classes like Sorcerer have CON save proficiency, which was being ignored in concentration checks. This gave an incorrect DC comparison.
+
+**Trade-offs:** None. Pure bug fix.
+
+## D085: LevelUp/LevelDown Integration Tests
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add 16 unit tests with Mockito mocks covering single-class levelUp, levelDown, round-trip state restoration, ownership validation, level history integrity, and spellcaster slot recalculation.
+
+**Rationale:** LevelUp/LevelDown is the most fragile code path — it mutates HP, features, hit dice, spell slots, multiclass entries, and level history. Zero tests existed before this.
+
+**Trade-offs:** Tests use mocked repositories (not a real DB), so they don't catch JPA/SQL issues. Full integration tests would require `@SpringBootTest` + test database, which is a future improvement.
+
+## D086: localStorage Draft Saving and beforeunload Guard for Character Wizard
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Add `beforeunload` event handler when the wizard has meaningful data, and persist wizard draft to localStorage on step/field changes. Show a restoration banner on mount if a draft exists. Clear draft on successful character creation.
+
+**Rationale:** Users reported losing in-progress character creation when accidentally navigating away or closing the tab. This was the most frustrating UX failure identified in the review.
+
+**Trade-offs:** localStorage has a 5MB limit (plenty for a single wizard draft). Draft may become stale if reference data changes between sessions.

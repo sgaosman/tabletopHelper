@@ -10,10 +10,12 @@ import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class FeatEffectResolver {
@@ -619,7 +621,9 @@ public class FeatEffectResolver {
                     }
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.warn("Failed to parse feat spell usage from grantsFeatures JSON", e);
+        }
         return usage;
     }
 
