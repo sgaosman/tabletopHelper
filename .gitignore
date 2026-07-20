@@ -26,14 +26,5 @@ Thumbs.db
 # Logs
 *.log
 
-# MCP config (local tooling)
-.mcp.json
-
-# Claude Code
-.claude/
-CLAUDE_CODE_BRIEF.md
-DATA_GATHERING_INSTRUCTIONS.md
-PROJECT_DOCUMENTATION.md
-
 # Obsidian editor config
 obsidian-docs/.obsidian/
