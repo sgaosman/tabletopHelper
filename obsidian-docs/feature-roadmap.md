@@ -555,6 +555,33 @@ Phase 3 — Multiclass at creation:
 
 **Dependencies:** M9 (character sheet spell tab), M10 (multiclass creation)
 
+## Milestone 22: Architecture Review Action Plan
+
+**Goal:** Address findings from the 6-way comprehensive architecture review (Senior Engineer, D&D Rules Expert, End User, PM, New Team Member, Architect perspectives). Two-week action plan covering correctness fixes, safety, performance, and structural improvements.
+
+**Tasks:**
+- [x] Replace all silent `catch` blocks with `@Slf4j` logging across CharacterService (18 blocks) and FeatEffectResolver
+- [x] Add `@Valid` + Jakarta validation constraints on `CharacterUpdateRequest`
+- [x] Fix concentration save to include CON saving throw proficiency bonus
+- [x] Fix short rest to support multi-dice spending with per-class UI, warlock pact slot reset, and short-rest feat resource resets
+- [x] Add `beforeunload` guard + localStorage draft saving to CharacterCreateWizard
+- [x] Extract shared frontend utilities into `utils/dndRules.ts` (abilityMod, formatMod, safeJsonParse, constants)
+- [x] Split CharacterCreateWizard into 7 step components (3664→902 lines main + 7 components)
+- [x] Add typed Java records for JSONB structures (LevelHistoryEntry, MulticlassEntry, HitDiceEntry, SpellSlotEntry, FeatResourceEntry)
+- [x] Add JPA `@Index` on FK columns + GIN index on `spells.classes`
+- [x] Add `@Cacheable` on 13 reference data endpoints + `@EnableCaching`
+- [x] Extract CharacterMapper and CharacterJsonHelper from CharacterService (1420→997 lines)
+- [x] Add 38 unit tests (LevelUpCalculator, SpellSlotCalculator, MulticlassValidator, CharacterService statics, level up/down round trips)
+
+**Key decisions:** D076–D091 in [[decisions-log]]
+
+**Key files:**
+- `CharacterService.java` (997 lines, down from 1420)
+- `CharacterMapper.java`, `CharacterJsonHelper.java` — extracted helpers
+- `LevelUpCalculator.java`, `SpellSlotCalculator.java`, `MulticlassValidator.java` — domain logic
+- `wizard/` — 7 step components + `types.ts`
+- `utils/dndRules.ts` — shared frontend utilities
+
 ## Future Features (Post Month 1)
 
 These are documented for future reference and explicitly **not in scope** for the current build.
