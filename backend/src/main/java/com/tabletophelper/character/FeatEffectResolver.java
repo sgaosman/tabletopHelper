@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.Spell;
+import com.tabletophelper.reference.SpellRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +19,7 @@ import java.util.*;
 public class FeatEffectResolver {
 
     private final ObjectMapper objectMapper;
+    private final SpellRepository spellRepository;
 
     public record AppliedEffects(
             Map<String, Integer> abilityIncreases,
@@ -129,7 +132,7 @@ public class FeatEffectResolver {
 
         // Apply spell choices
         if (choices != null && choices.getSpellIds() != null && !choices.getSpellIds().isEmpty()) {
-            spellsAdded = applyFeatSpells(character, choices.getSpellIds(), feat.getName());
+            spellsAdded = applyFeatSpells(character, choices.getSpellIds(), feat);
         }
 
         // Add feat as a feature with full description
@@ -555,23 +558,69 @@ public class FeatEffectResolver {
     // --- Spells ---
 
     private List<Map<String, Object>> applyFeatSpells(PlayerCharacter character, List<UUID> spellIds,
-                                                       String featName) throws Exception {
+                                                       Feat feat) throws Exception {
         List<Map<String, Object>> spellsKnown = character.getSpellsKnown() != null
                 ? objectMapper.readValue(character.getSpellsKnown(), new TypeReference<>() {})
                 : new ArrayList<>();
         List<Map<String, Object>> added = new ArrayList<>();
 
-        String source = "feat:" + featName;
+        String source = "feat:" + feat.getName();
+        Map<String, Integer> fixedSpellUsage = parseFeatSpellUsage(feat.getGrantsFeatures());
+
         for (UUID spellId : spellIds) {
+            Spell spell = spellRepository.findById(spellId).orElse(null);
             Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put("id", spellId.toString());
+            if (spell != null) {
+                entry.put("name", spell.getName());
+                entry.put("level", spell.getLevel());
+            }
             entry.put("source", source);
+            Integer usesPerDay = spell != null ? fixedSpellUsage.get(spell.getName().toLowerCase()) : null;
+            if (usesPerDay != null && usesPerDay > 0) {
+                entry.put("usesPerLongRest", usesPerDay);
+            }
+            if (spell != null && spell.getLevel() == 0) {
+                entry.put("atWill", true);
+            }
             spellsKnown.add(entry);
-            added.add(Map.of("id", spellId.toString(), "source", source));
+            added.add(new LinkedHashMap<>(entry));
         }
 
         character.setSpellsKnown(objectMapper.writeValueAsString(spellsKnown));
         return added;
+    }
+
+    private Map<String, Integer> parseFeatSpellUsage(String grantsFeatures) {
+        Map<String, Integer> usage = new HashMap<>();
+        if (grantsFeatures == null) return usage;
+        try {
+            JsonNode arr = objectMapper.readTree(grantsFeatures);
+            if (!arr.isArray()) return usage;
+            for (JsonNode option : arr) {
+                JsonNode daily = option.path("innate").path("_").path("daily");
+                if (daily.isObject()) {
+                    daily.fields().forEachRemaining(e -> {
+                        int uses = 1;
+                        try { uses = Integer.parseInt(e.getKey().replace("e", "")); } catch (NumberFormatException ignored) {}
+                        for (JsonNode spell : e.getValue()) {
+                            if (spell.isTextual()) {
+                                usage.put(spell.asText().toLowerCase(), uses);
+                            }
+                        }
+                    });
+                }
+                JsonNode known = option.path("known").path("_");
+                if (known.isArray()) {
+                    for (JsonNode item : known) {
+                        if (item.isTextual()) {
+                            usage.put(item.asText().replace("#c", "").replaceAll("#\\d+$", "")
+                                    .replaceAll("\\|.*$", "").toLowerCase(), 0);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return usage;
     }
 
     private void removeFeatSpells(PlayerCharacter character, List<Map<String, Object>> spellsToRemove) throws Exception {
@@ -579,12 +628,16 @@ public class FeatEffectResolver {
         List<Map<String, Object>> spellsKnown = objectMapper.readValue(
                 character.getSpellsKnown(), new TypeReference<>() {});
 
-        Set<String> idsToRemove = new HashSet<>();
-        for (Map<String, Object> spell : spellsToRemove) {
-            idsToRemove.add((String) spell.get("id"));
+        for (Map<String, Object> toRemove : spellsToRemove) {
+            String id = (String) toRemove.get("id");
+            String name = (String) toRemove.get("name");
+            String source = (String) toRemove.get("source");
+            spellsKnown.removeIf(s -> {
+                if (id != null && id.equals(s.get("id"))) return true;
+                return name != null && name.equals(s.get("name"))
+                        && source != null && source.equals(s.get("source"));
+            });
         }
-
-        spellsKnown.removeIf(s -> idsToRemove.contains(s.get("id")));
         character.setSpellsKnown(objectMapper.writeValueAsString(spellsKnown));
     }
 

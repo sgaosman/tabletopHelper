@@ -9,6 +9,7 @@ import AsiModal from '../../components/character/AsiModal';
 import { CANTRIPS_KNOWN, SPELLS_KNOWN, THIRD_CASTER_CANTRIPS, THIRD_CASTER_SPELLS, THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST, THIRD_CASTER_ABILITY, maxSpellLevel, proficiencyBonusForLevel, wizardSpellbookCount } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
+import { parseAbilityScoreIncrease } from '../../utils/featPrerequisites';
 
 const ALL_STEPS = ['Basic Info', 'Race', 'Ability Scores', 'Class', 'Background', 'Spells', 'Review'] as const;
 
@@ -259,6 +260,7 @@ export default function CharacterCreateWizard() {
   const [selectedBgFeat, setSelectedBgFeat] = useState<string | null>(null);
   const [selectedFeatOptionIdx, setSelectedFeatOptionIdx] = useState<number | null>(null);
   const [selectedFeatAbility, setSelectedFeatAbility] = useState<string | null>(null);
+  const [selectedFeatAsiAbility, setSelectedFeatAsiAbility] = useState<string | null>(null);
   const [featCantrips, setFeatCantrips] = useState<Spell[]>([]);
   const [featSpells, setFeatSpells] = useState<Spell[]>([]);
 
@@ -279,6 +281,11 @@ export default function CharacterCreateWizard() {
 
   const selectedFeatOption: ParsedFeatOption | null = selectedFeatOptionIdx != null ? parsedFeatOptions[selectedFeatOptionIdx] ?? null : null;
 
+  const featAsi = useMemo(() => {
+    if (!selectedFeatObj) return null;
+    return parseAbilityScoreIncrease(selectedFeatObj);
+  }, [selectedFeatObj]);
+
   useEffect(() => {
     if (bgFeatNames.length === 1) {
       setSelectedBgFeat(bgFeatNames[0]);
@@ -287,6 +294,7 @@ export default function CharacterCreateWizard() {
     }
     setSelectedFeatOptionIdx(null);
     setSelectedFeatAbility(null);
+    setSelectedFeatAsiAbility(null);
     setFeatCantrips([]);
     setFeatSpells([]);
   }, [selectedBackground]);
@@ -311,6 +319,14 @@ export default function CharacterCreateWizard() {
     setFeatSpells([]);
   }, [selectedFeatOptionIdx]);
 
+  useEffect(() => {
+    if (featAsi?.choose) {
+      setSelectedFeatAsiAbility(null);
+    } else if (featAsi?.fixed) {
+      setSelectedFeatAsiAbility(null);
+    }
+  }, [selectedBgFeat]);
+
   const hasFeatSpellChoices = useMemo(() => {
     if (!selectedFeatOption) return false;
     return selectedFeatOption.cantripChoice != null || selectedFeatOption.spellChoice != null;
@@ -319,11 +335,12 @@ export default function CharacterCreateWizard() {
   const featConfigComplete = useMemo(() => {
     if (bgFeatNames.length === 0) return true;
     if (!selectedBgFeat) return false;
+    if (featAsi?.choose && !selectedFeatAsiAbility) return false;
     if (!selectedFeatObj?.grantsFeatures) return true;
     if (parsedFeatOptions.length > 0 && selectedFeatOptionIdx == null) return false;
     if (selectedFeatOption?.abilityChoices && !selectedFeatAbility) return false;
     return true;
-  }, [bgFeatNames, selectedBgFeat, selectedFeatObj, parsedFeatOptions, selectedFeatOptionIdx, selectedFeatOption, selectedFeatAbility]);
+  }, [bgFeatNames, selectedBgFeat, selectedFeatObj, parsedFeatOptions, selectedFeatOptionIdx, selectedFeatOption, selectedFeatAbility, featAsi, selectedFeatAsiAbility]);
 
   const classSkillChoices = useMemo(() => {
     if (!selectedClass?.skillChoices) return { from: [] as string[], count: 0 };
@@ -799,8 +816,22 @@ export default function CharacterCreateWizard() {
         result[ability as keyof AbilityScores] += bonus;
       }
     }
+    if (featAsi) {
+      for (const [ability, bonus] of Object.entries(featAsi.fixed)) {
+        const key = ABILITY_FROM_ABBR[ability] || ability.toLowerCase();
+        if (key in result) {
+          result[key as keyof AbilityScores] = Math.min(20, result[key as keyof AbilityScores] + bonus);
+        }
+      }
+      if (featAsi.choose && selectedFeatAsiAbility) {
+        const key = ABILITY_FROM_ABBR[selectedFeatAsiAbility] || selectedFeatAsiAbility.toLowerCase();
+        if (key in result) {
+          result[key as keyof AbilityScores] = Math.min(20, result[key as keyof AbilityScores] + featAsi.choose.amount);
+        }
+      }
+    }
     return result;
-  }, [scores, standardAssignments, abilityMethod, racialBonuses]);
+  }, [scores, standardAssignments, abilityMethod, racialBonuses, featAsi, selectedFeatAsiAbility]);
 
   const pointBuyTotal = useMemo(() => {
     let total = 0;
@@ -1907,6 +1938,7 @@ export default function CharacterCreateWizard() {
                             setSelectedBgFeat(selectedBgFeat === fn ? null : fn);
                             setSelectedFeatOptionIdx(null);
                             setSelectedFeatAbility(null);
+                            setSelectedFeatAsiAbility(null);
                             setFeatCantrips([]);
                             setFeatSpells([]);
                           }}
@@ -1969,6 +2001,35 @@ export default function CharacterCreateWizard() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {selectedFeatObj && featAsi?.choose && (
+                  <div>
+                    <p className="text-gray-400 text-xs mb-2">
+                      Ability Score Increase (+{featAsi.choose.amount}):
+                    </p>
+                    <div className="flex gap-1.5">
+                      {featAsi.choose.from.map(a => (
+                        <button
+                          key={a}
+                          onClick={() => setSelectedFeatAsiAbility(selectedFeatAsiAbility === a ? null : a)}
+                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                            selectedFeatAsiAbility === a
+                              ? 'bg-green-600 text-white'
+                              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                          }`}
+                        >
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedFeatObj && featAsi && Object.keys(featAsi.fixed).length > 0 && (
+                  <div className="text-xs text-green-400">
+                    {Object.entries(featAsi.fixed).map(([k, v]) => `+${v} ${k}`).join(', ')}
                   </div>
                 )}
 
@@ -2263,7 +2324,13 @@ export default function CharacterCreateWizard() {
                       <ReviewField label="Option" value={selectedFeatOption.name} />
                     )}
                     {selectedFeatAbility && (
-                      <ReviewField label="Feat Ability" value={selectedFeatAbility} />
+                      <ReviewField label="Spellcasting Ability" value={selectedFeatAbility} />
+                    )}
+                    {selectedFeatAsiAbility && featAsi?.choose && (
+                      <ReviewField label="Ability Increase" value={`+${featAsi.choose.amount} ${selectedFeatAsiAbility}`} />
+                    )}
+                    {featAsi && Object.keys(featAsi.fixed).length > 0 && (
+                      <ReviewField label="Ability Increase" value={Object.entries(featAsi.fixed).map(([k, v]) => `+${v} ${k}`).join(', ')} />
                     )}
                     {(selectedFeatOption?.fixedCantrips.length ?? 0) > 0 && (
                       <ReviewField label="Feat Cantrips" value={selectedFeatOption!.fixedCantrips.join(', ')} />

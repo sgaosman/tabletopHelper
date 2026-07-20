@@ -830,3 +830,25 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Players expect to select spells when leveling into a caster class. Without this prompt, new multiclass casters had to manually navigate to the Spells tab and find the right button.
 
 **Trade-offs:** The modal auto-opens but can be dismissed. If the player skips it, they can still use the "Manage Known" / "Change Prepared" buttons on the Spells tab at any time.
+
+## D073: Feat Spell Entries Include Full Data
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** When a feat grants spells via the ASI modal (level-up), `FeatEffectResolver.applyFeatSpells()` now looks up each spell from the repository to populate `name` and `level`, and parses the feat's `grantsFeatures` to determine `usesPerLongRest` and `atWill` status. Previously, only `id` and `source` were stored, causing blank spell lines on the character sheet.
+
+**Rationale:** The frontend's Spells tab renders spell entries by `name` and displays usage info (`usesPerLongRest`, `atWill`). Missing data caused blank lines and clicking them triggered a nameless search returning an unrelated spell.
+
+**Trade-offs:** Added `SpellRepository` dependency to `FeatEffectResolver`. The `parseFeatSpellUsage` helper parses the 5etools `additionalSpells` JSON format to extract daily usage counts.
+
+## D074: Feat Ability Score Increase in Character Creation
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Feats with optional ability score increases (e.g., Fey Teleportation's +1 INT or CHA) now show a choice picker in the character creation wizard's Background step. The chosen bonus is applied to `finalScores` before character submission. The `abilityScoreIncrease` field (from the feat's top-level `ability` data) is parsed separately from the spellcasting ability (from `additionalSpells[].ability`).
+
+**Rationale:** The 5etools data has two distinct `ability` concepts: the feat's stat increase (top-level) and the granted spells' casting ability (inside `additionalSpells`). The wizard previously only handled the latter as "Spellcasting Ability" and never applied the actual stat increase.
+
+**Trade-offs:** Added `selectedFeatAsiAbility` state and `featAsi` memo to the wizard. Feats with fixed ASI show the bonus as text; feats with choose-from-list ASI show a button picker.

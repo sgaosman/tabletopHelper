@@ -665,7 +665,7 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
                         <p className="text-xs text-gray-500 mb-1">Granted automatically:</p>
                         {spellSlots.fixed.map((s, i) => (
                           <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/60 rounded text-sm text-green-300">
-                            <Check className="w-3.5 h-3.5" /> {s.name}
+                            <Check className="w-3.5 h-3.5" /> {s}
                           </div>
                         ))}
                       </div>

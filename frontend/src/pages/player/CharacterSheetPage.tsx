@@ -794,10 +794,12 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField, pendingSpellManag
   }
 
   const defaultSource = `class:${char.characterClass || 'Unknown'}`;
-  const taggedSpells: SpellEntry[] = spellsKnown.map(s => ({
-    ...s,
-    source: s.source || defaultSource,
-  }));
+  const taggedSpells: SpellEntry[] = spellsKnown
+    .filter(s => s.name)
+    .map(s => ({
+      ...s,
+      source: s.source || defaultSource,
+    }));
 
   const sourceGroups = new Map<string, SpellEntry[]>();
   for (const s of taggedSpells) {
@@ -849,6 +851,7 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField, pendingSpellManag
   }
 
   async function viewSpellDetail(spellName: string) {
+    if (!spellName) return;
     setLoadingSpell(true);
     try {
       const res = await searchSpells({ name: spellName, size: 1 });
