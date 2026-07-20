@@ -287,3 +287,29 @@ cd backend
 3. Select a subclass for Fighter (e.g., Champion, available at level 3).
 4. Reduce the Fighter's class level to 2 (below subclass level 3).
 5. The subclass picker disappears but the stale subclass reference remains in state.
+
+---
+
+## Feat Ability Choice Not Showing in AsiModal
+
+**Status:** Fixed (2026-07-20)
+
+**Description:** When selecting a feat with an optional ability score increase (e.g., Fey Teleportation +1 INT or CHA), the ability choice picker did not appear in the AsiModal. The feat was applied without the stat bonus.
+
+**Root Cause:** The `Feat` entity uses `@JsonRawValue` on JSONB fields. Jackson outputs these as raw JSON, so the browser JSON parser converts them to native JS objects before frontend code runs. `parseAbilityScoreIncrease()` called `JSON.parse()` on the already-parsed array, which coerced it to `"[object Object]"` and threw SyntaxError. The catch block silently returned `null`, hiding the choice UI.
+
+**Fix:** Added `typeof` guard: `typeof feat.abilityScoreIncrease === 'string' ? JSON.parse(...) : feat.abilityScoreIncrease`. Same fix applied to `parseFeatEffects()`.
+
+**Key Lesson:** All `@JsonRawValue` JSONB fields arrive as pre-parsed JS objects — always check `typeof === 'string'` before `JSON.parse()`.
+
+---
+
+## Blank Spell Line in Feat Spell Section
+
+**Status:** Fixed (2026-07-20)
+
+**Description:** Feat spells added via the AsiModal (level-up) showed as blank lines in the Spells tab. Clicking a blank line opened an unrelated spell detail (e.g., "Horrid Wilting").
+
+**Root Cause:** `FeatEffectResolver.applyFeatSpells()` stored spell entries with only `{id, source}`, missing `name` and `level`. The Spells tab rendered `spell.name` as undefined (blank row). `viewSpellDetail("")` searched with no name filter, returning the first API result.
+
+**Fix:** Backend now looks up spells by ID from the repository and stores full entries with `name`, `level`, `source`, `usesPerLongRest`/`atWill`. Frontend filters out nameless entries and guards `viewSpellDetail` against empty names.

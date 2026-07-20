@@ -852,3 +852,14 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** The 5etools data has two distinct `ability` concepts: the feat's stat increase (top-level) and the granted spells' casting ability (inside `additionalSpells`). The wizard previously only handled the latter as "Spellcasting Ability" and never applied the actual stat increase.
 
 **Trade-offs:** Added `selectedFeatAsiAbility` state and `featAsi` memo to the wizard. Feats with fixed ASI show the bonus as text; feats with choose-from-list ASI show a button picker.
+
+## D075: Handle @JsonRawValue Pre-Parsed Fields in Frontend
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** Frontend parsing functions for `@JsonRawValue` JSONB fields (`abilityScoreIncrease`, `effects`, `grantsFeatures`, `prerequisite`) must check `typeof value === 'string'` before calling `JSON.parse()`. Jackson's `@JsonRawValue` outputs raw JSON without quoting, so the browser's JSON parser converts these to native JS objects/arrays before the frontend code runs.
+
+**Rationale:** `JSON.parse()` on an already-parsed array coerces it to `"[object Object]"` and throws SyntaxError. The catch block silently returned `null`, which caused the AsiModal's ability score choice UI to never render for feats like Fey Teleportation. The `parseFeatOptions` function already had this guard; `parseAbilityScoreIncrease` and `parseFeatEffects` did not.
+
+**Trade-offs:** None. This is a pure bug fix. All `@JsonRawValue` fields should use this pattern going forward.

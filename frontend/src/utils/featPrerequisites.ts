@@ -142,7 +142,7 @@ export interface FeatEffects {
 export function parseFeatEffects(feat: Feat): FeatEffects | null {
   if (!feat.effects) return null;
   try {
-    return JSON.parse(feat.effects);
+    return typeof feat.effects === 'string' ? JSON.parse(feat.effects) : feat.effects;
   } catch { return null; }
 }
 
@@ -154,7 +154,8 @@ export interface AbilityScoreIncrease {
 export function parseAbilityScoreIncrease(feat: Feat): AbilityScoreIncrease | null {
   if (!feat.abilityScoreIncrease) return null;
   try {
-    const parsed = JSON.parse(feat.abilityScoreIncrease);
+    const parsed = typeof feat.abilityScoreIncrease === 'string'
+      ? JSON.parse(feat.abilityScoreIncrease) : feat.abilityScoreIncrease;
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
 
     const result: AbilityScoreIncrease = { fixed: {}, choose: null };
