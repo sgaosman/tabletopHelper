@@ -88,9 +88,9 @@ public class SpellResolverEngine {
         int spellLevel = template.path("spellLevel").asInt(0);
 
         JsonNode effects = template.get("effects");
-        String damageDice = resolveDamageDice(effects, spellLevel, slotLevel, caster);
-        String damageType = effects != null && effects.isArray() && effects.size() > 0
-                ? effects.get(0).path("damageType").asText(null) : null;
+        JsonNode damageEffect = findDamageEffect(effects);
+        String damageDice = resolveDamageDice(damageEffect, spellLevel, slotLevel, caster, spellAttackBonus);
+        String damageType = damageEffect != null ? damageEffect.path("damageType").asText(null) : null;
 
         JsonNode conditionsNode = template.get("conditionsInflicted");
         List<String> conditionsInflicted = new ArrayList<>();
@@ -203,22 +203,38 @@ public class SpellResolverEngine {
         }
     }
 
-    private String resolveDamageDice(JsonNode effects, int spellLevel, int slotLevel, EncounterParticipant caster) {
-        if (effects == null || !effects.isArray() || effects.isEmpty()) return null;
+    private JsonNode findDamageEffect(JsonNode effects) {
+        if (effects == null || !effects.isArray()) return null;
+        for (JsonNode effect : effects) {
+            if (effect.has("damageDice")) return effect;
+        }
+        return null;
+    }
 
-        JsonNode firstEffect = effects.get(0);
-        String baseDice = firstEffect.path("damageDice").asText(null);
+    private String resolveDamageDice(JsonNode damageEffect, int spellLevel, int slotLevel,
+                                     EncounterParticipant caster, int spellAttackBonus) {
+        if (damageEffect == null) return null;
+
+        String baseDice = damageEffect.path("damageDice").asText(null);
         if (baseDice == null) return null;
 
+        String result;
         if (spellLevel == 0) {
-            return scaleCantripDice(firstEffect, caster);
+            result = scaleCantripDice(damageEffect, caster);
+        } else if (slotLevel > spellLevel) {
+            result = scaleUpcastDice(baseDice, damageEffect.get("upcastScaling"), slotLevel - spellLevel);
+        } else {
+            result = baseDice;
         }
 
-        if (slotLevel > spellLevel) {
-            return scaleUpcastDice(baseDice, firstEffect.get("upcastScaling"), slotLevel - spellLevel);
+        if (result != null && result.contains("SPELL_MOD")) {
+            int charLevel = getCharacterLevel(caster);
+            int profBonus = (charLevel - 1) / 4 + 2;
+            int spellMod = spellAttackBonus - profBonus;
+            result = result.replace("SPELL_MOD", String.valueOf(spellMod));
         }
 
-        return baseDice;
+        return result;
     }
 
     private String scaleCantripDice(JsonNode effect, EncounterParticipant caster) {
@@ -396,7 +412,10 @@ public class SpellResolverEngine {
     private int resolveHealing(JsonNode healingNode, int spellLevel, int slotLevel, EncounterParticipant caster) {
         if (healingNode == null) return 0;
 
-        String healDice = healingNode.path("healDice").asText(null);
+        String healDice = healingNode.path("healingDice").asText(null);
+        if (healDice == null) {
+            healDice = healingNode.path("dice").asText(null);
+        }
         if (healDice == null) return 0;
 
         JsonNode upcastScaling = healingNode.get("upcastScaling");

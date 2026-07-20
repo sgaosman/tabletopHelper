@@ -412,8 +412,14 @@ public class CombatService {
 
         String level = String.valueOf(request.getSlotLevel());
         Map<String, Integer> slot = slots.get(level);
+        if (slot == null) {
+            slot = slots.get("pact_" + level);
+            if (slot != null) {
+                level = "pact_" + level;
+            }
+        }
         if (slot == null || slot.getOrDefault("remaining", 0) <= 0) {
-            throw new IllegalArgumentException("No level " + level + " spell slots remaining");
+            throw new IllegalArgumentException("No level " + request.getSlotLevel() + " spell slots remaining");
         }
 
         slot.put("remaining", slot.get("remaining") - 1);
@@ -438,7 +444,13 @@ public class CombatService {
         String level = String.valueOf(request.getSlotLevel());
         Map<String, Integer> slot = slots.get(level);
         if (slot == null) {
-            throw new IllegalArgumentException("Participant has no level " + level + " spell slots");
+            slot = slots.get("pact_" + level);
+            if (slot != null) {
+                level = "pact_" + level;
+            }
+        }
+        if (slot == null) {
+            throw new IllegalArgumentException("Participant has no level " + request.getSlotLevel() + " spell slots");
         }
 
         int remaining = slot.getOrDefault("remaining", 0);

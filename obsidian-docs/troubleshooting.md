@@ -339,3 +339,51 @@ cd backend
 **Root Cause:** `FeatEffectResolver.applyFeatSpells()` stored spell entries with only `{id, source}`, missing `name` and `level`. The Spells tab rendered `spell.name` as undefined (blank row). `viewSpellDetail("")` searched with no name filter, returning the first API result.
 
 **Fix:** Backend now looks up spells by ID from the repository and stores full entries with `name`, `level`, `source`, `usesPerLongRest`/`atWill`. Frontend filters out nameless entries and guards `viewSpellDetail` against empty names.
+
+---
+
+## Healing Spells Return Zero Healing
+
+**Status:** Fixed (2026-07-21)
+
+**Description:** All auto-resolved healing spells (Cure Wounds, Healing Word, Mass Healing Word, Prayer of Healing) returned `healing: null` / 0 HP healed despite the spell being cast successfully.
+
+**Root Cause:** `SpellResolverEngine.resolveHealing()` read `healingNode.path("healDice")` but all spell effect templates use the key `healingDice` (and Prayer of Healing uses `dice`). The field name mismatch caused every healing dice lookup to return null.
+
+**Fix:** Changed to read `healingDice` with a `dice` fallback. Updated the corresponding test fixture to use `healingDice`.
+
+---
+
+## Magic Stone Crashes with "Invalid dice expression: 1d6+SPELL_MOD"
+
+**Status:** Fixed (2026-07-21)
+
+**Description:** Casting Magic Stone threw an error because the dice roller received the raw placeholder string `1d6+SPELL_MOD` instead of a resolved expression like `1d6+5`.
+
+**Root Cause:** `SpellResolverEngine.resolveDamageDice()` returned the raw `damageDice` string from the spell template without replacing the `SPELL_MOD` placeholder with the caster's spellcasting ability modifier.
+
+**Fix:** After cantrip/upcast scaling, the method now replaces `SPELL_MOD` with the computed spellcasting modifier (spell attack bonus minus proficiency bonus derived from character level).
+
+---
+
+## Spells with Damage in Non-First Effect Deal No Damage
+
+**Status:** Fixed (2026-07-21)
+
+**Description:** Lightning Lure, Absorb Elements, Armor of Agathys, Ensnaring Strike, Zephyr Strike, and other spells with the damage effect listed as the 2nd+ entry in the `effects` array dealt 0 damage on a hit/failed save.
+
+**Root Cause:** `resolveDamageDice()` only checked `effects.get(0)` for `damageDice`. Spells whose first effect is a non-damage entry (pull, buff, control) had their damage in a later effect, which was never read.
+
+**Fix:** Introduced `findDamageEffect()` that iterates all effects to find the first with a `damageDice` field. Damage type is now also extracted from this same effect node.
+
+---
+
+## Pact Slot Use/Restore Endpoints Fail for Warlocks
+
+**Status:** Fixed (2026-07-21)
+
+**Description:** The `POST /spell-slot/use` and `POST /spell-slot/restore` endpoints failed for Warlock participants with "No level N spell slots remaining" or "Participant has no level N spell slots", even when pact slots had remaining uses.
+
+**Root Cause:** Both endpoints looked up spell slots by key `"N"` (e.g., `"5"`), but Warlock pact slots are stored with the key `"pact_N"` (e.g., `"pact_5"`). The key mismatch caused a null lookup.
+
+**Fix:** Both `useSpellSlot()` and `restoreSpellSlot()` now fall back to checking `"pact_N"` when the regular `"N"` key is not found.

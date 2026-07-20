@@ -1238,3 +1238,25 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Future additions to `CombatActionType` will also need Flyway migrations to update this constraint. This is preferable to removing the constraint entirely, as it provides data integrity at the database level.
 
+## D110: Spell Damage Effect Lookup Iterates All Effects
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** `SpellResolverEngine.findDamageEffect()` iterates all entries in the `effects` array to find the first with a `damageDice` field, rather than assuming `effects[0]` is the damage effect.
+
+**Rationale:** 11 spell templates place the damage effect at index 1+ (Lightning Lure, Absorb Elements, Armor of Agathys, Ensnaring Strike, Zephyr Strike, Web, Ashardalon's Stride, Elemental Weapon, Meld into Stone, Booming Blade). The first effect in these spells is a non-damage entry (pull, buff, control). Hardcoding index 0 missed damage for all of these.
+
+**Trade-offs:** Marginal iteration overhead (effects arrays are 1-3 entries). No functional downside.
+
+## D111: Pact Slot Fallback in Use/Restore Endpoints
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** `CombatService.useSpellSlot()` and `restoreSpellSlot()` now fall back to looking up `"pact_N"` when `"N"` is not found in the spell slot map.
+
+**Rationale:** Warlock pact slots are keyed as `"pact_5"` (not `"5"`), but the `SpellSlotRequest` DTO only accepts `slotLevel` as an integer. Without the fallback, the use/restore endpoints could never operate on pact slots, breaking short rest recovery and manual slot management for Warlocks.
+
+**Trade-offs:** The fallback is implicit rather than requiring an explicit `usePactSlot` flag on the DTO. This keeps the API simpler (callers don't need to know whether a slot is a pact slot) but means you can't have both regular and pact slots at the same level and target one specifically. This isn't a real scenario for Warlocks.
+

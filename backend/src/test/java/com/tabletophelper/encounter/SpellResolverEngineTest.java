@@ -886,7 +886,7 @@ class SpellResolverEngineTest {
                  "components":{"verbal":true,"somatic":true},
                  "targetType":"SELF","halfOnSave":false,
                  "effects":[],
-                 "healing":{"healDice":"1d8+3",
+                 "healing":{"healingDice":"1d8+3",
                    "upcastScaling":{"additionalDicePerLevel":"1d8"}},
                  "conditionsInflicted":null}""";
             stubSpell("Cure Wounds", template);
