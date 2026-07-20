@@ -78,8 +78,9 @@ export default function CharacterSheetPage() {
   const [subclassPrompt, setSubclassPrompt] = useState<{ classId: string; className: string } | null>(null);
   const [levelUpBanner, setLevelUpBanner] = useState<string | null>(null);
   const [levelDownConfirm, setLevelDownConfirm] = useState(false);
-  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean; expertiseAvailable: boolean; expertiseCount: number } | null>(null);
+  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean; expertiseAvailable: boolean; expertiseCount: number; spellSelectionNeeded: boolean; spellSelectionType?: string } | null>(null);
   const [showExpertise, setShowExpertise] = useState(false);
+  const [pendingSpellManage, setPendingSpellManage] = useState<{ className: string; type: 'known' | 'prepared' } | null>(null);
 
   useEffect(() => {
     if (characterId && characterId !== 'new') {
@@ -183,11 +184,22 @@ export default function CharacterSheetPage() {
     setRestModal(null);
   }
 
+  function finishLevelUp(level: number) {
+    if (pendingLevelClass?.spellSelectionNeeded) {
+      const type = (pendingLevelClass.spellSelectionType === 'known' ? 'known' : 'prepared') as 'known' | 'prepared';
+      setPendingSpellManage({ className: pendingLevelClass.className, type });
+      setActiveTab('Spells');
+    }
+    setPendingLevelClass(null);
+    setLevelUpBanner(`Level up to ${level} complete!`);
+    setTimeout(() => setLevelUpBanner(null), 4000);
+  }
+
   function handleLevelUpComplete(response: LevelUpResponse, leveledClassId: string, leveledClassName: string) {
     setChar(response.character);
     setShowLevelUp(false);
     const { pendingChoices } = response;
-    const pending = { classId: leveledClassId, className: leveledClassName, subclassRequired: pendingChoices.subclassRequired, expertiseAvailable: pendingChoices.expertiseAvailable, expertiseCount: pendingChoices.expertiseCount };
+    const pending = { classId: leveledClassId, className: leveledClassName, subclassRequired: pendingChoices.subclassRequired, expertiseAvailable: pendingChoices.expertiseAvailable, expertiseCount: pendingChoices.expertiseCount, spellSelectionNeeded: pendingChoices.spellSelectionNeeded, spellSelectionType: pendingChoices.spellSelectionType };
     setPendingLevelClass(pending);
     if (pendingChoices.asiAvailable) {
       setShowAsi(true);
@@ -196,8 +208,7 @@ export default function CharacterSheetPage() {
     } else if (pendingChoices.expertiseAvailable) {
       setShowExpertise(true);
     } else {
-      setPendingLevelClass(null);
-      showLevelBanner(response);
+      finishLevelUp(response.character.level);
     }
   }
 
@@ -209,18 +220,32 @@ export default function CharacterSheetPage() {
     } else if (pendingLevelClass?.expertiseAvailable) {
       setShowExpertise(true);
     } else {
-      setPendingLevelClass(null);
-      setLevelUpBanner(`Level up to ${updated.level} complete!`);
-      setTimeout(() => setLevelUpBanner(null), 4000);
+      finishLevelUp(updated.level);
     }
   }
 
   function handleSubclassComplete(updated: PlayerCharacter) {
     setChar(updated);
     setSubclassPrompt(null);
-    if (pendingLevelClass?.expertiseAvailable) {
+
+    let updatedPending = pendingLevelClass;
+    if (updatedPending && !updatedPending.spellSelectionNeeded) {
+      const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(updated.multiclassEntries, []);
+      const entry = mcEntries.find(e => e.className === updatedPending!.className);
+      if (entry?.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName)) {
+        updatedPending = { ...updatedPending, spellSelectionNeeded: true, spellSelectionType: 'known' };
+        setPendingLevelClass(updatedPending);
+      }
+    }
+
+    if (updatedPending?.expertiseAvailable) {
       setShowExpertise(true);
     } else {
+      if (updatedPending?.spellSelectionNeeded) {
+        const type = (updatedPending.spellSelectionType === 'known' ? 'known' : 'prepared') as 'known' | 'prepared';
+        setPendingSpellManage({ className: updatedPending.className, type });
+        setActiveTab('Spells');
+      }
       setPendingLevelClass(null);
       setLevelUpBanner(`Level up to ${updated.level} complete!`);
       setTimeout(() => setLevelUpBanner(null), 4000);
@@ -234,9 +259,7 @@ export default function CharacterSheetPage() {
       setChar(res.data);
     } catch { /* expertise is best-effort */ }
     setShowExpertise(false);
-    setPendingLevelClass(null);
-    setLevelUpBanner(`Level up to ${char.level} complete!`);
-    setTimeout(() => setLevelUpBanner(null), 4000);
+    finishLevelUp(char.level);
   }
 
   function showLevelBanner(response: LevelUpResponse) {
@@ -418,7 +441,7 @@ export default function CharacterSheetPage() {
           <ActionsTab char={char} features={features} />
         )}
         {activeTab === 'Spells' && (
-          <SpellsTab char={char} spellsKnown={spellsKnown} spellSlots={spellSlots} saveField={saveField} />
+          <SpellsTab char={char} spellsKnown={spellsKnown} spellSlots={spellSlots} saveField={saveField} pendingSpellManage={pendingSpellManage} onSpellManageHandled={() => setPendingSpellManage(null)} />
         )}
         {activeTab === 'Inventory' && (
           <InventoryTab equipment={equipment} currency={currency} char={char} saveField={saveField} />
@@ -720,17 +743,31 @@ interface SpellEntry {
   unlocksAtLevel?: number;
 }
 
-function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
+function SpellsTab({ char, spellsKnown, spellSlots, saveField, pendingSpellManage, onSpellManageHandled }: {
   char: PlayerCharacter;
   spellsKnown: SpellEntry[];
   spellSlots: Record<string, { total: number; used: number }>;
   saveField: (u: CharacterUpdateRequest) => Promise<void>;
+  pendingSpellManage?: { className: string; type: 'known' | 'prepared' } | null;
+  onSpellManageHandled?: () => void;
 }) {
   const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
   const [loadingSpell, setLoadingSpell] = useState(false);
   const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook'; className: string; spellListClass?: string; classLevel?: number } | null>(null);
   const [showAddFeat, setShowAddFeat] = useState(false);
   const [confirmRemoveFeat, setConfirmRemoveFeat] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingSpellManage && !manageModal) {
+      const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+      const entry = mcEntries.find(e => e.className === pendingSpellManage.className);
+      const classLevel = entry ? entry.level : char.level;
+      const isThirdCaster = entry?.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName);
+      const spellListClass = isThirdCaster ? THIRD_CASTER_SPELL_LIST[entry!.subclassName!] : pendingSpellManage.className;
+      setManageModal({ type: pendingSpellManage.type, className: pendingSpellManage.className, spellListClass, classLevel });
+      onSpellManageHandled?.();
+    }
+  }, [pendingSpellManage]);
 
   const subclassAlwaysPreparedGroups = useMemo(() => {
     if (!char.subclassAlwaysPreparedSpells) return [];
@@ -785,19 +822,14 @@ function SpellsTab({ char, spellsKnown, spellSlots, saveField }: {
   }
 
   const SPELLCASTER_CLASSES = ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Warlock', 'Wizard', 'Artificer'];
-  const isClassCaster = SPELLCASTER_CLASSES.includes(char.characterClass || '')
-    || THIRD_CASTER_SUBCLASSES.has(char.subclass || '');
-
-  if (classGroups.length === 0 && char.spellcastingAbility && isClassCaster) {
-    classGroups.push({ source: defaultSource, className: char.characterClass || 'Unknown', spells: [] });
-  }
 
   const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
   for (const entry of mcEntries) {
-    if (!entry.subclassName || !THIRD_CASTER_SUBCLASSES.has(entry.subclassName)) continue;
-    if (entry.level < 3) continue;
     const source = `class:${entry.className}`;
-    if (!classGroups.some(g => g.source === source)) {
+    if (classGroups.some(g => g.source === source)) continue;
+    const isCasterClass = SPELLCASTER_CLASSES.includes(entry.className);
+    const isThirdCaster = entry.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName) && entry.level >= 3;
+    if (isCasterClass || isThirdCaster) {
       classGroups.push({ source, className: entry.className, spells: [] });
     }
   }

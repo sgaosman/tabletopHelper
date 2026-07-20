@@ -18,6 +18,8 @@ public class LevelUpResponse {
         private boolean subclassRequired;
         private boolean expertiseAvailable;
         private int expertiseCount;
+        private boolean spellSelectionNeeded;
+        private String spellSelectionType;
         private List<String> newFeatures;
         private int maxSpellLevel;
     }

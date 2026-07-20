@@ -486,6 +486,11 @@ public class CharacterService {
         Subclass levelSubclass = null;
         if (levelClassId.equals(character.getClassRef() != null ? character.getClassRef().getId() : null)) {
             levelSubclass = character.getSubclassRef();
+        } else {
+            UUID existingScId = getSubclassIdFromMulticlassEntries(character, levelClassId);
+            if (existingScId != null) {
+                levelSubclass = subclassRepository.findById(existingScId).orElse(null);
+            }
         }
 
         String scFeatures = (levelSubclass != null && newClassLevel >= levelClass.getSubclassLevel())
@@ -524,12 +529,22 @@ public class CharacterService {
 
         character = characterRepository.save(character);
 
+        boolean isCasterClass = Boolean.TRUE.equals(levelClass.getIsSpellcaster());
+        boolean spellSelectionNeeded = isCasterClass;
+        String spellSelectionType = null;
+        if (spellSelectionNeeded) {
+            boolean isKnownCaster = List.of("Bard", "Ranger", "Sorcerer", "Warlock").contains(levelClass.getName());
+            spellSelectionType = isKnownCaster ? "known" : "prepared";
+        }
+
         List<String> featureNames = newFeatures.stream().map(LevelUpCalculator.FeatureEntry::name).toList();
         LevelUpResponse.PendingChoices choices = LevelUpResponse.PendingChoices.builder()
                 .asiAvailable(asiAvailable)
                 .subclassRequired(subclassRequired)
                 .expertiseAvailable(expertiseAvailable)
                 .expertiseCount(expertiseSlots)
+                .spellSelectionNeeded(spellSelectionNeeded)
+                .spellSelectionType(spellSelectionType)
                 .newFeatures(featureNames)
                 .maxSpellLevel(0)
                 .build();
@@ -631,12 +646,25 @@ public class CharacterService {
             if (request.getSubclassId() != null) {
                 Subclass sc = subclassRepository.findById(request.getSubclassId())
                         .orElseThrow(() -> new IllegalArgumentException("Subclass not found"));
-                character.setSubclassRef(sc);
-                character.setSubclass(sc.getName());
 
-                int classLevel = getCurrentClassLevel(character, character.getClassRef().getId());
+                UUID targetClassId = request.getClassId() != null ? request.getClassId()
+                        : (character.getClassRef() != null ? character.getClassRef().getId() : null);
+                boolean isPrimaryClass = character.getClassRef() != null
+                        && targetClassId != null && targetClassId.equals(character.getClassRef().getId());
+
+                if (isPrimaryClass) {
+                    character.setSubclassRef(sc);
+                    character.setSubclass(sc.getName());
+                }
+
+                updateMulticlassEntrySubclass(character, targetClassId, sc);
+
+                CharacterClass targetClass = targetClassId != null
+                        ? characterClassRepository.findById(targetClassId).orElse(null) : null;
+                String targetClassName = targetClass != null ? targetClass.getName() : character.getCharacterClass();
+                int classLevel = getCurrentClassLevel(character, targetClassId);
                 List<LevelUpCalculator.FeatureEntry> scFeatures = LevelUpCalculator.collectFeaturesForLevel(
-                        null, sc.getFeatures(), classLevel, character.getCharacterClass(), sc.getName());
+                        null, sc.getFeatures(), classLevel, targetClassName, sc.getName());
                 appendFeatures(character, scFeatures);
             }
 
@@ -860,6 +888,40 @@ public class CharacterService {
 
             character.setMulticlassEntries(objectMapper.writeValueAsString(entries));
         } catch (Exception ignored) {}
+    }
+
+    private void updateMulticlassEntrySubclass(PlayerCharacter character, UUID classId, Subclass sc) {
+        if (classId == null || sc == null) return;
+        try {
+            List<Map<String, Object>> entries = character.getMulticlassEntries() != null
+                    ? new ArrayList<>(objectMapper.readValue(character.getMulticlassEntries(),
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {}))
+                    : new ArrayList<>();
+
+            for (Map<String, Object> entry : entries) {
+                if (classId.toString().equals(entry.get("classId"))) {
+                    entry.put("subclassId", sc.getId().toString());
+                    entry.put("subclassName", sc.getName());
+                    break;
+                }
+            }
+
+            character.setMulticlassEntries(objectMapper.writeValueAsString(entries));
+        } catch (Exception ignored) {}
+    }
+
+    private UUID getSubclassIdFromMulticlassEntries(PlayerCharacter character, UUID classId) {
+        try {
+            if (character.getMulticlassEntries() == null) return null;
+            List<Map<String, Object>> entries = objectMapper.readValue(character.getMulticlassEntries(),
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+            for (Map<String, Object> entry : entries) {
+                if (classId.toString().equals(entry.get("classId")) && entry.get("subclassId") != null) {
+                    return UUID.fromString((String) entry.get("subclassId"));
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     private void rebuildMulticlassEntries(PlayerCharacter character, Map<String, Integer> classLevels) {

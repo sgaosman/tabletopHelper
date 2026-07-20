@@ -797,3 +797,36 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Race spells should display at their actual spell level for correct sorting and grouping in the Spells tab. The 5etools data only includes explicit cast levels (via `#N` suffix) when the spell is cast at a higher level than normal (e.g., Tiefling's Hellish Rebuke at 2nd level).
 
 **Trade-offs:** Adds a spells.json read during race seeding. Since spells are seeded first, the data is always available. The lookup is built once per seed run.
+
+## D070: Multiclass Subclass Written to multiclassEntries
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** When `applyChoices` is called with a `subclassId` for a secondary multiclass, the backend now writes `subclassId`/`subclassName` into the matching `multiclassEntries` JSON entry. A new `classId` field in `ApplyChoicesRequest` identifies which class the subclass belongs to. For primary classes, `character.subclassRef`/`subclass` are still set. For secondary classes, only `multiclassEntries` is updated.
+
+**Rationale:** Previously, `applyChoices` always overwrote the primary class's subclass fields regardless of which class the subclass belonged to, and never updated `multiclassEntries`. This caused: (1) the primary class's subclass being overwritten by a secondary class's subclass, (2) spell slot calculation not detecting 1/3 casters (which reads `subclassName` from `multiclassEntries`), and (3) the character sheet not showing spell sections for 1/3 caster subclasses.
+
+**Trade-offs:** The `classId` must be passed from the frontend. If omitted, the backend defaults to the primary class for backwards compatibility.
+
+## D071: Multiclass Caster Spell Sections on Character Sheet
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** The character sheet Spells tab now creates empty spell groups for ALL multiclassed caster classes from `multiclassEntries`, not just the primary class and 1/3 casters. Regular casters (Druid, Cleric, etc.) and 1/3 casters (EK, AT) taken via multiclass all get a spell management section even when no spells have been selected yet.
+
+**Rationale:** Previously, only the primary class and 1/3 caster subclasses (with `subclassName` in `multiclassEntries`) got empty spell groups. Secondary caster classes like Druid taken via multiclass were invisible on the Spells tab, making it impossible to select or manage their spells.
+
+**Trade-offs:** Uses a hardcoded `SPELLCASTER_CLASSES` list to determine which classes are casters. This is correct for PHB but would need extension for homebrew classes.
+
+## D072: Spell Selection After Level-Up
+
+**Date:** 2026-07-20
+**Status:** Accepted
+
+**Decision:** After level-up into a spellcasting class completes (ASI/subclass/expertise choices resolved), the frontend automatically switches to the Spells tab and opens the ManageSpellsModal for the leveled class. For known casters, the modal opens in "known" mode; for prepared casters, it opens in "prepared" mode. For 1/3 caster subclasses, this is triggered after the subclass choice resolves.
+
+**Rationale:** Players expect to select spells when leveling into a caster class. Without this prompt, new multiclass casters had to manually navigate to the Spells tab and find the right button.
+
+**Trade-offs:** The modal auto-opens but can be dismissed. If the player skips it, they can still use the "Manage Known" / "Change Prepared" buttons on the Spells tab at any time.

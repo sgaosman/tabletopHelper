@@ -9,6 +9,7 @@ import java.util.UUID;
 public class ApplyChoicesRequest {
     private AsiChoice asi;
     private UUID subclassId;
+    private UUID classId;
     private List<String> expertiseSkills;
 
     @Data

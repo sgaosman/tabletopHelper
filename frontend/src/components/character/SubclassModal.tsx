@@ -32,7 +32,7 @@ export default function SubclassModal({ character, classId, className, onComplet
     setSubmitting(true);
     setError('');
     try {
-      const res = await characterApi.applyChoices(character.id, { subclassId: selectedId });
+      const res = await characterApi.applyChoices(character.id, { subclassId: selectedId, classId });
       onComplete(res.data);
     } catch (err: any) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to select subclass');

@@ -193,6 +193,8 @@ export interface PendingChoices {
   subclassRequired: boolean;
   expertiseAvailable: boolean;
   expertiseCount: number;
+  spellSelectionNeeded: boolean;
+  spellSelectionType?: string;
   newFeatures: string[];
   maxSpellLevel: number;
 }
@@ -200,6 +202,7 @@ export interface PendingChoices {
 export interface ApplyChoicesRequest {
   asi?: AsiChoice;
   subclassId?: string;
+  classId?: string;
   expertiseSkills?: string[];
 }
 
