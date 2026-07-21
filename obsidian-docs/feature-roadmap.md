@@ -677,6 +677,31 @@ Phase 3 — Multiclass at creation:
 
 ## Future Features (Post Month 1)
 
+## Milestone 26: Summoning Spells Automation
+
+**Goal:** Full automation for summoning spells (Conjure Animals, Conjure Woodland Beings, Summon Beast, Summon Fey, Summon Undead, Find Familiar, Find Steed, Animate Dead, etc.).
+
+**Status:** Future — not yet started.
+
+**Requirements:**
+- [ ] Summoned creature picker: select creature(s) matching the spell's CR/type constraints (e.g., Conjure Animals: 1 CR 2, 2 CR 1, 4 CR 1/2, or 8 CR 1/4 beasts)
+- [ ] Auto-add summoned creatures to the encounter as COMPANION participants with correct stat blocks
+- [ ] Initiative handling: player chooses whether summoned creatures follow the caster's turn or roll their own initiative as a group
+- [ ] Upcast scaling: automatically multiply creature count for upcast levels (e.g., Conjure Animals at 5th: double creatures)
+- [ ] Auto-cleanup: remove summoned creatures when concentration drops, caster drops to 0 HP, or spell duration expires
+- [ ] Link summoned creatures to the caster's concentration so `dropConcentrationCascade()` removes them
+- [ ] DM override: allow DM to choose specific creatures (RAW says DM picks for Conjure spells)
+- [ ] Summoned creature actions: either auto-resolve via the existing action system or flag for manual resolution
+
+**Spells in scope (levels 0–3 in current definitions):**
+Conjure Animals (L3), Summon Beast (L2), Summon Fey (L3), Summon Shadowspawn (L3), Summon Undead (L3), Summon Lesser Demons (L3), Find Familiar (L1), Find Steed (L2), Flock of Familiars (L2), Animate Dead (L3), Tiny Servant (L3)
+
+**Dependencies:** Monster reference data (M7/M8 complete), encounter participant system (existing).
+
+---
+
+## Future Feature Ideas (Out of Scope)
+
 These are documented for future reference and explicitly **not in scope** for the current build.
 
 - Homebrew monster creator with CR calculator

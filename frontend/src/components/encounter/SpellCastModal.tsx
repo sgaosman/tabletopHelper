@@ -49,11 +49,16 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
     try {
       const info = await getSpellTargeting(spellName, slotLevel);
       setTargetingInfo(info);
+      if (!info.selfOnly && !info.canTargetSelf && !info.canTargetAllies && !info.canTargetEnemies) {
+        setStep('confirm');
+        return;
+      }
     } catch {
       setTargetingInfo(null);
     } finally {
       setTargetingLoading(false);
     }
+    setStep('target');
   }, []);
 
   const spells: SpellEntry[] = useMemo(() => {
@@ -106,7 +111,6 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
     if (spell.level === 0) {
       setSelectedSlotLevel(0);
       fetchTargeting(spell.name, 0);
-      setStep('target');
     } else {
       setSelectedSlotLevel(spell.level);
       setStep('slot');
@@ -117,7 +121,6 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
     setSelectedSlotLevel(level);
     setUsePactSlot(isPact);
     if (selectedSpell) fetchTargeting(selectedSpell.name, level);
-    setStep('target');
   }
 
   function toggleTarget(id: string) {
@@ -233,7 +236,14 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
               onAdvantageChange={setAdvantage}
               casting={casting}
               onCast={cast}
-              onBack={() => setStep('target')}
+              onBack={() => {
+                const noTargets = targetingInfo && !targetingInfo.selfOnly && !targetingInfo.canTargetSelf && !targetingInfo.canTargetAllies && !targetingInfo.canTargetEnemies;
+                if (noTargets) {
+                  setStep(selectedSpell!.level === 0 ? 'spell' : 'slot');
+                } else {
+                  setStep('target');
+                }
+              }}
               isMonster={isMonster}
               overrideAttackBonus={overrideAttackBonus}
               overrideSaveDC={overrideSaveDC}
