@@ -1315,3 +1315,14 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** None — this was a bug fix. The manual resolution path now correctly signals concentration.
 
+
+## D116: MOD Placeholder Substitution in Spell Resolver
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Added `substituteModPlaceholders()` method to `SpellResolverEngine` that replaces both `SPELL_MOD` and `MOD` placeholders in dice expressions with the caster's spellcasting ability modifier (derived from `spellAttackBonus - proficiencyBonus`). Applied to damage dice, healing dice, and repeat effect dice paths. MOD substitution now runs before upcast scaling so `parseDiceExpression` can correctly parse the numeric modifier.
+
+**Rationale:** Spell definitions use `+MOD` for spells where damage/healing includes the spellcasting modifier (Cure Wounds, Healing Word, Spiritual Weapon, etc.). Previously only `SPELL_MOD` was handled (for cantrip scaling like Magic Stone and Green-Flame Blade), causing `1d8+MOD` to throw "Invalid dice expression" at runtime.
+
+**Trade-offs:** `MOD` is now a reserved token in dice expressions. This is acceptable since all dice expressions in the system are internally authored.

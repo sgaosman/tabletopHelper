@@ -387,3 +387,17 @@ cd backend
 **Root Cause:** Both endpoints looked up spell slots by key `"N"` (e.g., `"5"`), but Warlock pact slots are stored with the key `"pact_N"` (e.g., `"pact_5"`). The key mismatch caused a null lookup.
 
 **Fix:** Both `useSpellSlot()` and `restoreSpellSlot()` now fall back to checking `"pact_N"` when the regular `"N"` key is not found.
+
+## "Invalid dice expression: 1d8+MOD" on Spell Cast
+
+**Status:** Fixed (2026-07-21)
+
+**Description:** Casting Spiritual Weapon or using Cure Wounds / Healing Word healing resulted in "Invalid dice expression: 1d8+MOD" (or 1d4+MOD). The spell resolver couldn't parse `MOD` as an integer in the dice expression.
+
+**Root Cause:** Spell definitions used `+MOD` as a placeholder for the spellcasting ability modifier, but only `SPELL_MOD` was being replaced. Additionally, for healing spells, the `healing` node in the definition used raw dice (e.g., `"1d8"`) without `+MOD`, while the `effects` array had `"1d8+MOD"`. The resolver reads from the `healing` node.
+
+**Fix:**
+1. Added `substituteModPlaceholders()` helper that replaces both `SPELL_MOD` and `MOD` with the numeric modifier
+2. Applied substitution to all dice resolution paths: damage, healing, and repeat effects
+3. Fixed `healing.healingDice` in definitions for Cure Wounds, Healing Word, Prayer of Healing, and Mass Healing Word to include `+MOD`
+4. Ensured MOD substitution runs before upcast scaling (so `parseDiceExpression` receives numeric values)

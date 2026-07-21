@@ -150,7 +150,7 @@ public class SpellResolverEngine {
             }
             case "SELF" -> {
                 JsonNode healingNode = template.get("healing");
-                int healing = resolveHealing(healingNode, spellLevel, slotLevel, caster);
+                int healing = resolveHealing(healingNode, spellLevel, slotLevel, caster, spellAttackBonus);
                 if (healing > 0) {
                     totalHealing = healing;
                     targetResults.add(new TargetResult(caster.getId(), caster.getDisplayName(),
@@ -170,7 +170,7 @@ public class SpellResolverEngine {
         // Handle healing spells that target others (HEAL pattern with non-SELF delivery)
         JsonNode healingNode = template.get("healing");
         if (healingNode != null && !"SELF".equals(deliveryMethod)) {
-            int healing = resolveHealing(healingNode, spellLevel, slotLevel, caster);
+            int healing = resolveHealing(healingNode, spellLevel, slotLevel, caster, spellAttackBonus);
             if (healing > 0) {
                 totalHealing = healing;
                 for (int i = 0; i < targetResults.size(); i++) {
@@ -251,6 +251,8 @@ public class SpellResolverEngine {
             }
         }
 
+        damageDice = substituteModPlaceholders(damageDice, caster, spellAttackBonus);
+
         String healingDice = null;
         if (!repeatNode.isBoolean()) {
             healingDice = repeatNode.path("healingDice").asText(null);
@@ -260,6 +262,7 @@ public class SpellResolverEngine {
                 healingDice = healingNode.path("healingDice").asText(healingNode.path("dice").asText(null));
             }
         }
+        healingDice = substituteModPlaceholders(healingDice, caster, spellAttackBonus);
 
         List<String> conditionsInflicted = new ArrayList<>();
         JsonNode conditionsNode = template.get("conditionsInflicted");
@@ -357,23 +360,31 @@ public class SpellResolverEngine {
         String baseDice = damageEffect.path("damageDice").asText(null);
         if (baseDice == null) return null;
 
+        baseDice = substituteModPlaceholders(baseDice, caster, spellAttackBonus);
+
         String result;
         if (spellLevel == 0) {
             result = scaleCantripDice(damageEffect, caster);
+            result = substituteModPlaceholders(result, caster, spellAttackBonus);
         } else if (slotLevel > spellLevel) {
             result = scaleUpcastDice(baseDice, damageEffect.get("upcastScaling"), slotLevel - spellLevel);
         } else {
             result = baseDice;
         }
 
-        if (result != null && result.contains("SPELL_MOD")) {
+        return result;
+    }
+
+    private String substituteModPlaceholders(String dice, EncounterParticipant caster, int spellAttackBonus) {
+        if (dice == null) return null;
+        if (dice.contains("SPELL_MOD") || dice.contains("MOD")) {
             int charLevel = getCharacterLevel(caster);
             int profBonus = (charLevel - 1) / 4 + 2;
             int spellMod = spellAttackBonus - profBonus;
-            result = result.replace("SPELL_MOD", String.valueOf(spellMod));
+            dice = dice.replace("SPELL_MOD", String.valueOf(spellMod));
+            dice = dice.replace("MOD", String.valueOf(spellMod));
         }
-
-        return result;
+        return dice;
     }
 
     private String scaleCantripDice(JsonNode effect, EncounterParticipant caster) {
@@ -552,7 +563,8 @@ public class SpellResolverEngine {
                 damage, 0, false, conditions, "hit", null, null, damageType);
     }
 
-    private int resolveHealing(JsonNode healingNode, int spellLevel, int slotLevel, EncounterParticipant caster) {
+    private int resolveHealing(JsonNode healingNode, int spellLevel, int slotLevel,
+                               EncounterParticipant caster, int spellAttackBonus) {
         if (healingNode == null) return 0;
 
         String healDice = healingNode.path("healingDice").asText(null);
@@ -560,6 +572,8 @@ public class SpellResolverEngine {
             healDice = healingNode.path("dice").asText(null);
         }
         if (healDice == null) return 0;
+
+        healDice = substituteModPlaceholders(healDice, caster, spellAttackBonus);
 
         JsonNode upcastScaling = healingNode.get("upcastScaling");
         if (upcastScaling != null && slotLevel > spellLevel) {
