@@ -16,5 +16,6 @@ public enum CombatActionType {
     REVIVE,
     SPELL_SLOT_USE,
     SPELL_SLOT_RESTORE,
-    SPELL_CAST
+    SPELL_CAST,
+    SPELL_EFFECT_REPEAT
 }

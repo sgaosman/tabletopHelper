@@ -80,6 +80,9 @@ public class EncounterParticipant {
     @Column(name = "concentration_spell", length = 200)
     private String concentrationSpell;
 
+    @Column(name = "concentration_slot_level")
+    private Integer concentrationSlotLevel;
+
     @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "spell_slots_current", columnDefinition = "jsonb")

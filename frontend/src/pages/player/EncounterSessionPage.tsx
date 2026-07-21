@@ -5,9 +5,10 @@ import { combatApi } from '../../api/combatApi';
 import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
 import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
+import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import {
   ArrowLeft, Wifi, WifiOff, Heart, Shield, Skull, Copy,
-  ChevronRight, ChevronLeft, ScrollText, Sparkles, Crosshair, Zap, Swords, X, Plus
+  ChevronRight, ChevronLeft, ScrollText, Sparkles, Crosshair, Zap, Swords, X, Plus, RotateCw
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 
@@ -22,7 +23,7 @@ const DAMAGE_TYPES = [
   'force', 'lightning', 'necrotic', 'poison', 'psychic', 'radiant', 'thunder',
 ];
 
-type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | null;
+type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
 
 const CONDITION_COLORS: Record<string, string> = {
   blinded: 'bg-gray-700 text-gray-300',
@@ -585,6 +586,12 @@ function PlayerSessionView() {
                 <Sparkles className="w-3.5 h-3.5" /> Cast Spell
               </button>
             )}
+            {myCharacter.concentrationSpell && (
+              <button onClick={() => selectSelfAction('repeat-effect')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-900/30 hover:bg-purple-900/60 text-purple-400 rounded-lg text-xs font-medium border border-purple-900/50">
+                <RotateCw className="w-3.5 h-3.5" /> Repeat Effect
+              </button>
+            )}
           </div>
         )}
 
@@ -594,6 +601,18 @@ function PlayerSessionView() {
             encounterId={encounter.id}
             caster={myCharacter}
             participants={encounter.participants}
+            onUpdate={refreshEncounter}
+            onClose={() => { setActionMode(null); setAttackTargetId(null); }}
+          />
+        )}
+
+        {/* Repeat spell effect modal */}
+        {actionMode === 'repeat-effect' && myCharacter && myCharacter.concentrationSpell && (
+          <RepeatEffectModal
+            encounterId={encounter.id}
+            caster={myCharacter}
+            participants={encounter.participants}
+            spellName={myCharacter.concentrationSpell}
             onUpdate={refreshEncounter}
             onClose={() => { setActionMode(null); setAttackTargetId(null); }}
           />

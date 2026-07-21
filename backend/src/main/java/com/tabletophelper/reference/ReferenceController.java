@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -98,15 +100,17 @@ public class ReferenceController {
             boolean canTargetAllies = template.path("canTargetAllies").asBoolean(true);
             boolean canTargetEnemies = template.path("canTargetEnemies").asBoolean(true);
             String targetType = template.path("targetType").asText(null);
+            boolean hasRepeatEffect = template.has("repeatEffect") && !template.get("repeatEffect").isNull();
 
-            return ResponseEntity.ok(java.util.Map.of(
-                    "maxTargets", baseTargetCount != null ? maxTargets : -1,
-                    "selfOnly", selfOnly,
-                    "canTargetSelf", canTargetSelf,
-                    "canTargetAllies", canTargetAllies,
-                    "canTargetEnemies", canTargetEnemies,
-                    "targetType", targetType != null ? targetType : "SINGLE_TARGET"
-            ));
+            Map<String, Object> result = new HashMap<>();
+            result.put("maxTargets", baseTargetCount != null ? maxTargets : -1);
+            result.put("selfOnly", selfOnly);
+            result.put("canTargetSelf", canTargetSelf);
+            result.put("canTargetAllies", canTargetAllies);
+            result.put("canTargetEnemies", canTargetEnemies);
+            result.put("targetType", targetType != null ? targetType : "SINGLE_TARGET");
+            result.put("hasRepeatEffect", hasRepeatEffect);
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
         }

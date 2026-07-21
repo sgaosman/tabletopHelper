@@ -49,7 +49,8 @@ public class SpellResolverEngine {
             List<String> conditionsApplied,
             String attackOutcome,
             Integer rollValue,
-            Integer rollTotal
+            Integer rollTotal,
+            String damageType
     ) {}
 
     public SpellCastResult resolveSpell(
@@ -147,11 +148,11 @@ public class SpellResolverEngine {
                 if (healing > 0) {
                     totalHealing = healing;
                     targetResults.add(new TargetResult(caster.getId(), caster.getDisplayName(),
-                            0, healing, false, conditionsInflicted, "self", null, null));
+                            0, healing, false, conditionsInflicted, "self", null, null, null));
                     desc.append(" Heals ").append(healing).append(" HP.");
                 } else {
                     targetResults.add(new TargetResult(caster.getId(), caster.getDisplayName(),
-                            0, 0, false, conditionsInflicted, "self", null, null));
+                            0, 0, false, conditionsInflicted, "self", null, null, null));
                     desc.append(" Effect applied.");
                 }
             }
@@ -170,7 +171,7 @@ public class SpellResolverEngine {
                     TargetResult tr = targetResults.get(i);
                     targetResults.set(i, new TargetResult(tr.targetId(), tr.targetName(),
                             tr.damage(), healing, tr.savedSuccessfully(), tr.conditionsApplied(),
-                            tr.attackOutcome(), tr.rollValue(), tr.rollTotal()));
+                            tr.attackOutcome(), tr.rollValue(), tr.rollTotal(), tr.damageType()));
                 }
                 desc.append(" Heals ").append(healing).append(" HP.");
             }
@@ -179,6 +180,117 @@ public class SpellResolverEngine {
         return new SpellCastResult(true, desc.toString(), totalDamage, totalHealing,
                 concentration, concentration ? spellName : null, durationRounds,
                 targetResults, false, null, conditionsInflicted);
+    }
+
+    public SpellCastResult resolveRepeatEffect(
+            Encounter encounter,
+            EncounterParticipant caster,
+            String spellName,
+            int slotLevel,
+            List<UUID> targetIds,
+            int spellAttackBonus,
+            int spellSaveDC,
+            Boolean advantage
+    ) {
+        var spellOpt = spellRepository.findByNameIgnoreCase(spellName);
+        if (spellOpt.isEmpty() || spellOpt.get().getEffectTemplate() == null) {
+            return manualResult(spellName, "No effect template available");
+        }
+
+        JsonNode template;
+        try {
+            template = objectMapper.readTree(spellOpt.get().getEffectTemplate());
+        } catch (JsonProcessingException e) {
+            return manualResult(spellName, "Failed to parse effect template");
+        }
+
+        JsonNode repeatNode = template.get("repeatEffect");
+        if (repeatNode == null || repeatNode.isNull()) {
+            return manualResult(spellName, "Spell has no repeatable effect");
+        }
+
+        String deliveryMethod;
+        String saveAbility;
+        boolean halfOnSave;
+        String damageDice;
+        String damageType;
+        boolean usesUpcastScaling;
+
+        if (repeatNode.isBoolean() && repeatNode.asBoolean()) {
+            deliveryMethod = template.path("deliveryMethod").asText("NONE");
+            saveAbility = template.path("saveAbility").asText(null);
+            halfOnSave = template.path("halfOnSave").asBoolean(false);
+            JsonNode damageEffect = findDamageEffect(template.get("effects"));
+            int spellLevel = template.path("spellLevel").asInt(0);
+            damageDice = resolveDamageDice(damageEffect, spellLevel, slotLevel, caster, spellAttackBonus);
+            damageType = damageEffect != null ? damageEffect.path("damageType").asText(null) : null;
+            usesUpcastScaling = true;
+        } else {
+            deliveryMethod = repeatNode.path("deliveryMethod").asText(template.path("deliveryMethod").asText("NONE"));
+            saveAbility = repeatNode.path("saveAbility").asText(template.path("saveAbility").asText(null));
+            halfOnSave = repeatNode.path("halfOnSave").asBoolean(template.path("halfOnSave").asBoolean(false));
+            damageDice = repeatNode.path("damageDice").asText(null);
+            damageType = repeatNode.path("damageType").asText(null);
+            usesUpcastScaling = repeatNode.path("usesUpcastScaling").asBoolean(false);
+            if (usesUpcastScaling && damageDice != null) {
+                int spellLevel = template.path("spellLevel").asInt(0);
+                JsonNode upcastScaling = repeatNode.get("upcastScaling");
+                if (upcastScaling == null) {
+                    JsonNode damageEffect = findDamageEffect(template.get("effects"));
+                    upcastScaling = damageEffect != null ? damageEffect.get("upcastScaling") : null;
+                }
+                if (slotLevel > spellLevel && upcastScaling != null) {
+                    damageDice = scaleUpcastDice(damageDice, upcastScaling, slotLevel - spellLevel);
+                }
+            }
+        }
+
+        List<String> conditionsInflicted = new ArrayList<>();
+        JsonNode conditionsNode = template.get("conditionsInflicted");
+        if (conditionsNode != null && conditionsNode.isArray()) {
+            for (JsonNode c : conditionsNode) conditionsInflicted.add(c.asText());
+        }
+
+        List<EncounterParticipant> targets = resolveTargets(encounter, targetIds, deliveryMethod, caster);
+        List<TargetResult> targetResults = new ArrayList<>();
+        int totalDamage = 0;
+        StringBuilder desc = new StringBuilder();
+        desc.append(caster.getDisplayName()).append(" uses ").append(spellName).append(" effect.");
+
+        switch (deliveryMethod) {
+            case "SPELL_ATTACK" -> {
+                for (EncounterParticipant target : targets) {
+                    var result = resolveSpellAttack(target, spellAttackBonus, damageDice, damageType,
+                            conditionsInflicted, advantage);
+                    targetResults.add(result);
+                    totalDamage += result.damage();
+                    desc.append(" ").append(formatAttackResult(result));
+                }
+            }
+            case "SAVING_THROW" -> {
+                for (EncounterParticipant target : targets) {
+                    var result = resolveSavingThrow(target, spellSaveDC, saveAbility, damageDice,
+                            damageType, conditionsInflicted, halfOnSave);
+                    targetResults.add(result);
+                    totalDamage += result.damage();
+                    desc.append(" ").append(formatSaveResult(result, saveAbility));
+                }
+            }
+            case "AUTO_HIT" -> {
+                for (EncounterParticipant target : targets) {
+                    var result = resolveAutoHit(target, damageDice, damageType, conditionsInflicted);
+                    targetResults.add(result);
+                    totalDamage += result.damage();
+                    desc.append(" ").append(formatAutoHitResult(result));
+                }
+            }
+            default -> {
+                return manualResult(spellName, "Repeat delivery method '" + deliveryMethod + "' requires DM adjudication");
+            }
+        }
+
+        return new SpellCastResult(true, desc.toString(), totalDamage, 0,
+                false, null, null, targetResults, false, null, conditionsInflicted);
     }
 
     private void checkSilence(EncounterParticipant caster, JsonNode template) {
@@ -260,12 +372,16 @@ public class SpellResolverEngine {
     private String scaleUpcastDice(String baseDice, JsonNode upcastScaling, int levelsAbove) {
         if (upcastScaling == null || levelsAbove <= 0) return baseDice;
 
+        int scalingInterval = upcastScaling.path("scalingInterval").asInt(1);
+        int effectiveLevels = levelsAbove / Math.max(1, scalingInterval);
+        if (effectiveLevels <= 0) return baseDice;
+
         String additionalDicePerLevel = upcastScaling.path("additionalDicePerLevel").asText(null);
         if (additionalDicePerLevel != null) {
             var baseParsed = parseDiceExpression(baseDice);
             var additionalParsed = parseDiceExpression(additionalDicePerLevel);
             if (baseParsed != null && additionalParsed != null && baseParsed[1] == additionalParsed[1]) {
-                int totalCount = baseParsed[0] + (additionalParsed[0] * levelsAbove);
+                int totalCount = baseParsed[0] + (additionalParsed[0] * effectiveLevels);
                 String result = totalCount + "d" + baseParsed[1];
                 if (baseParsed[2] > 0) result += "+" + baseParsed[2];
                 return result;
@@ -351,7 +467,7 @@ public class SpellResolverEngine {
 
         if (isNat1) {
             return new TargetResult(target.getId(), target.getDisplayName(),
-                    0, 0, false, List.of(), "miss", roll, total);
+                    0, 0, false, List.of(), "miss", roll, total, null);
         }
 
         boolean targetDowned = !target.getIsAlive() ||
@@ -368,11 +484,11 @@ public class SpellResolverEngine {
             }
             String outcome = isNat20 ? "critical" : "hit";
             return new TargetResult(target.getId(), target.getDisplayName(),
-                    damage, 0, false, conditions, outcome, roll, total);
+                    damage, 0, false, conditions, outcome, roll, total, damageType);
         }
 
         return new TargetResult(target.getId(), target.getDisplayName(),
-                0, 0, false, List.of(), "miss", roll, total);
+                0, 0, false, List.of(), "miss", roll, total, null);
     }
 
     private TargetResult resolveSavingThrow(EncounterParticipant target, int spellSaveDC,
@@ -396,7 +512,7 @@ public class SpellResolverEngine {
         List<String> appliedConditions = saved ? List.of() : conditions;
 
         return new TargetResult(target.getId(), target.getDisplayName(),
-                damage, 0, saved, appliedConditions, saved ? "saved" : "failed_save", roll, total);
+                damage, 0, saved, appliedConditions, saved ? "saved" : "failed_save", roll, total, damageType);
     }
 
     private TargetResult resolveAutoHit(EncounterParticipant target, String damageDice,
@@ -406,7 +522,7 @@ public class SpellResolverEngine {
             damage = DiceRoller.roll(damageDice).total();
         }
         return new TargetResult(target.getId(), target.getDisplayName(),
-                damage, 0, false, conditions, "hit", null, null);
+                damage, 0, false, conditions, "hit", null, null, damageType);
     }
 
     private int resolveHealing(JsonNode healingNode, int spellLevel, int slotLevel, EncounterParticipant caster) {

@@ -31,6 +31,13 @@ export interface CastSpellResponse {
   manualResolutionReason?: string;
 }
 
+export interface RepeatSpellEffectRequest {
+  targetIds: string[];
+  advantage?: boolean | null;
+  overrideSpellAttackBonus?: number;
+  overrideSpellSaveDC?: number;
+}
+
 export interface CombatLogEntry {
   id: string;
   roundNumber: number;

@@ -144,6 +144,18 @@ public class CombatController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/repeat-spell-effect")
+    public ResponseEntity<CastSpellResponse> repeatSpellEffect(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody RepeatSpellEffectRequest request,
+            @RequestParam(required = false) UUID actorId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        CastSpellResponse response = combatService.repeatSpellEffect(encounterId, request, actorId, userId);
+        broadcastState(response.getEncounterState());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/turn/next")
     public ResponseEntity<EncounterResponse> advanceTurn(
             @PathVariable UUID encounterId,

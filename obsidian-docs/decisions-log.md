@@ -1271,3 +1271,25 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** The fallback is implicit rather than requiring an explicit `usePactSlot` flag on the DTO. This keeps the API simpler (callers don't need to know whether a slot is a pact slot) but means you can't have both regular and pact slots at the same level and target one specifically. This isn't a real scenario for Warlocks.
 
+## D112: Damage Resistance/Immunity/Vulnerability Handling
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** `CombatService.applyDamageToTarget()` now checks the target's damage immunities, resistances, and vulnerabilities before applying damage. Immune → 0, resistant → half (rounded down), vulnerable → double. Data is read from Monster (`damageResistances`, `damageImmunities`, `damageVulnerabilities`) and PlayerCharacter entities. Complex conditional resistances (objects with `cond: true`) are skipped — only simple string entries are matched.
+
+**Rationale:** Damage type data was stored on all monsters and characters but was never applied during combat. A lightning-immune creature would take full lightning damage from Call Lightning.
+
+**Trade-offs:** Conditional resistances (e.g., "resistance to bludgeoning from nonmagical weapons") require DM adjudication and are intentionally skipped. The DM can still override damage amounts manually.
+
+## D113: Repeatable Concentration Spell Effects
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Added `repeatEffect` field to spell effect definitions and a `POST /repeat-spell-effect` endpoint. 10 concentration spells (Call Lightning, Moonbeam, Flaming Sphere, etc.) now support repeating their damaging effect on subsequent turns without consuming a spell slot. The concentration slot level is tracked via a new `concentration_slot_level` column to support upcast scaling on repeats. A `RotateCw` button appears next to concentration text in the encounter UI.
+
+**Rationale:** D&D 5e concentration spells like Call Lightning deal damage each turn as an action. Without this, the DM had to manually apply damage each round instead of using the auto-resolver.
+
+**Trade-offs:** `repeatEffect: true` reuses the spell's main damage/save/delivery. For special cases (Witch Bolt: AUTO_HIT, no upcast), `repeatEffect` accepts an override object. The modal always appears when concentration is active — if the spell doesn't have `repeatEffect`, the backend returns an error message rather than filtering the button client-side (avoids per-participant API calls in the DM view).
+

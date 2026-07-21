@@ -6913,7 +6913,7 @@
     "healing": null,
     "upcastDescription": "Initial damage increases by 1d12 for each slot level above 1st (subsequent turns always 1d12)",
     "specialMechanics": "Sustained arc: on hit, can use action each turn for auto 1d12 lightning (no roll). Only initial damage scales. Ends on: different action, target out of range (30 ft), or total cover.",
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Sustained damage over multiple turns. Must use action each turn to maintain. Upcast only affects initial damage, not sustained damage.",
     "patternCategory": "ATTACK_DAMAGE",
     "classes": [
@@ -6921,7 +6921,13 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "Concentration. Initial: spell attack for 1d12 lightning. Subsequent turns: action for auto 1d12. Only initial damage upscales. Terrible scaling."
+    "notes": "Concentration. Initial: spell attack for 1d12 lightning. Subsequent turns: action for auto 1d12. Only initial damage upscales. Terrible scaling.",
+    "repeatEffect": {
+      "deliveryMethod": "AUTO_HIT",
+      "damageDice": "1d12",
+      "damageType": "lightning",
+      "usesUpcastScaling": false
+    }
   },
   {
     "spellName": "Wrathful Smite",
@@ -8264,7 +8270,7 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d8 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent movable effect. STR save for creatures ending turn within 5ft. Half damage on save but not pushed. Can be moved 30ft as bonus action.",
     "patternCategory": "COMPLEX",
     "classes": [
@@ -8272,7 +8278,8 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Creatures ending turn within 5ft must save. Half damage on save but no push. Can move 30ft as bonus action. Can create obscuring cloud over loose terrain."
+    "notes": "Creatures ending turn within 5ft must save. Half damage on save but no push. Can move 30ft as bonus action. Can create obscuring cloud over loose terrain.",
+    "repeatEffect": true
   },
   {
     "spellName": "Earthbind",
@@ -8633,13 +8640,14 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d6 for every two slot levels above 2nd (4th: 4d6, 6th: 5d6, 8th: 6d6)",
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Creates a fiery blade weapon. Melee spell attack as action on each turn. Bonus action to cast, action to attack. Upcast scaling is per 2 levels.",
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid"
     ],
-    "notes": "Bonus action to cast. Action to make melee spell attack each turn. Sheds bright light 10ft, dim light 10ft. Upcast scales per 2 levels, not per 1."
+    "notes": "Bonus action to cast. Action to make melee spell attack each turn. Sheds bright light 10ft, dim light 10ft. Upcast scales per 2 levels, not per 1.",
+    "repeatEffect": true
   },
   {
     "spellName": "Flaming Sphere",
@@ -8687,14 +8695,15 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d6 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent movable sphere. Creatures ending turn within 5ft must save. Can be rammed into creatures as bonus action (forces save). Movable 30ft per bonus action.",
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid",
       "Wizard"
     ],
-    "notes": "5ft diameter sphere. Creatures ending turn within 5ft must DEX save. Bonus action: move 30ft + ram (forces save). Ignites flammable objects. Sheds bright light 20ft, dim 20ft."
+    "notes": "5ft diameter sphere. Creatures ending turn within 5ft must DEX save. Bonus action: move 30ft + ram (forces save). Ignites flammable objects. Sheds bright light 20ft, dim 20ft.",
+    "repeatEffect": true
   },
   {
     "spellName": "Flock of Familiars",
@@ -9048,7 +9057,7 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d8 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Auto-damage with no save on initial cast and each bonus action repeat. CON save only to avoid dropping object/disadvantage. Multiple mechanics per turn.",
     "patternCategory": "COMPLEX",
     "classes": [
@@ -9056,7 +9065,8 @@
       "Bard",
       "Druid"
     ],
-    "notes": "Targets a metal object, not a creature. Damage is automatic (no save). CON save only to avoid dropping the object. Bonus action each turn to repeat damage. Concentration."
+    "notes": "Targets a metal object, not a creature. Damage is automatic (no save). CON save only to avoid dropping the object. Bonus action each turn to repeat damage. Concentration.",
+    "repeatEffect": true
   },
   {
     "spellName": "Hold Person",
@@ -9753,14 +9763,15 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Multi-turn spell: initial grab (STR save, damage + restrained), crush action (STR save, damage), retarget/move as action. Target can use action to break free with STR check.",
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Initial: STR save or 2d6 bludgeoning + restrained. Crush action: STR save, 2d6 on fail / half on success. Target can break free with STR check (action). Can retarget or move hand as action."
+    "notes": "Initial: STR save or 2d6 bludgeoning + restrained. Crush action: STR save, 2d6 on fail / half on success. Target can break free with STR check (action). Can retarget or move hand as action.",
+    "repeatEffect": true
   },
   {
     "spellName": "Melf's Acid Arrow",
@@ -10031,13 +10042,14 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d10 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent movable AOE cylinder. CON save when entering area first time on a turn or starting turn there. Can be moved 60ft as action each turn.",
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid"
     ],
-    "notes": "5ft radius, 40ft high cylinder. Shapechangers save with disadvantage; on fail, revert to original form. Dim light in area. Action to move beam 60ft. Concentration."
+    "notes": "5ft radius, 40ft high cylinder. Shapechangers save with disadvantage; on fail, revert to original form. Dim light in area. Action to move beam 60ft. Concentration.",
+    "repeatEffect": true
   },
   {
     "spellName": "Nathair's Mischief",
@@ -12310,13 +12322,14 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d10 for each slot level above 3rd",
     "specialMechanics": "Creates storm cloud (60ft radius, 10ft tall cylinder). Each turn, use action to call bolt on a point under cloud \u2014 creatures within 5ft of point save. Outdoors in stormy conditions: +1d10 damage.",
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent effect requiring action each turn to target a new point; storm cloud has spatial constraints; bonus damage in stormy conditions",
     "patternCategory": "COMPLEX",
     "classes": [
       "Druid"
     ],
-    "notes": "REVIEW: aoeSize is 5 (the bolt's 5ft radius), but the storm cloud is 60ft radius. Each bolt targets a 5ft radius area. Storm condition bonus is situational."
+    "notes": "REVIEW: aoeSize is 5 (the bolt's 5ft radius), but the storm cloud is 60ft radius. Each bolt targets a 5ft radius area. Storm condition bonus is situational.",
+    "repeatEffect": true
   },
   {
     "spellName": "Catnap",
@@ -14372,14 +14385,15 @@
     "healing": null,
     "upcastDescription": "The number of meteors created increases by two for each slot level above 3rd",
     "specialMechanics": "Creates 6 tiny meteors. On cast and as bonus action each turn, expend 1-2 meteors at points within 120 feet. Each creature within 5 feet of impact makes DEX save. 2d6 fire per meteor on fail, half on success.",
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent resource (6 meteors) with bonus action activation each turn, 1-2 meteors per use, each with its own AOE and save",
     "patternCategory": "COMPLEX",
     "classes": [
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "Source: XGE. classesFromMap was empty; classes from general 5e knowledge. Each meteor is a separate 5-foot radius AOE. Upcast adds more meteors, not more damage."
+    "notes": "Source: XGE. classesFromMap was empty; classes from general 5e knowledge. Each meteor is a separate 5-foot radius AOE. Upcast adds more meteors, not more damage.",
+    "repeatEffect": true
   },
   {
     "spellName": "Motivational Speech",
@@ -15725,14 +15739,15 @@
     },
     "upcastDescription": "Damage increases by 1d6 for each slot level above 3rd",
     "specialMechanics": "Persistent: can repeat the melee spell attack as an action on each turn for the duration. Healing equals half the necrotic damage dealt on each hit.",
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent spell attack repeatable each turn; healing derived from damage dealt requires calculation per hit",
     "patternCategory": "COMPLEX",
     "classes": [
       "Warlock",
       "Wizard"
     ],
-    "notes": null
+    "notes": null,
+    "repeatEffect": true
   },
   {
     "spellName": "Wall of Sand",

@@ -5,10 +5,11 @@ import { combatApi } from '../../api/combatApi';
 import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
 import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
+import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
   ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
-  Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles
+  Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles, RotateCw
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 
@@ -36,7 +37,7 @@ const DAMAGE_TYPES = [
   'force', 'lightning', 'necrotic', 'poison', 'psychic', 'radiant', 'thunder',
 ];
 
-type ActionMode = 'attack' | 'damage' | 'heal' | 'condition' | 'concentration' | 'spell' | null;
+type ActionMode = 'attack' | 'damage' | 'heal' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
 
 function HpBar({ participant }: { participant: EncounterParticipant }) {
   const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
@@ -734,6 +735,19 @@ function DmSessionView() {
           />
         )}
 
+        {/* Repeat spell effect modal */}
+        {actionMode === 'repeat-effect' && selectedTarget && selectedTarget.concentrationSpell && (
+          <RepeatEffectModal
+            encounterId={encounter.id}
+            caster={selectedTarget}
+            participants={encounter.participants}
+            spellName={selectedTarget.concentrationSpell}
+            onUpdate={refreshEncounter}
+            onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
+            isMonster={selectedTarget.participantType === 'MONSTER'}
+          />
+        )}
+
         {/* Action panel */}
         {actionMode !== 'spell' && (
           <ActionPanel
@@ -804,9 +818,18 @@ function DmSessionView() {
 
                     {/* Concentration */}
                     {p.concentrationSpell && (
-                      <p className="text-purple-400 text-xs mt-0.5">
-                        Concentrating: {p.concentrationSpell}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-purple-400 text-xs">
+                          Concentrating: {p.concentrationSpell}
+                        </p>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
+                          className="p-0.5 bg-purple-900/40 hover:bg-purple-900/70 text-purple-400 rounded"
+                          title="Repeat spell effect"
+                        >
+                          <RotateCw className="w-3 h-3" />
+                        </button>
+                      </div>
                     )}
 
                     {/* Death saves for downed players */}
