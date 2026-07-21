@@ -570,6 +570,11 @@ public class CombatService {
             caster.setConcentrationSlotLevel(request.getSlotLevel());
         }
 
+        if (!result.concentrationSet() && hasActiveSpellFlag(request.getSpellName())) {
+            caster.setActiveSpell(request.getSpellName());
+            caster.setActiveSpellSlotLevel(request.getSlotLevel());
+        }
+
         logAction(encounter, caster, null, CombatActionType.SPELL_CAST,
                 result.description(), null, null,
                 result.totalDamage() > 0 ? result.totalDamage() : null,
@@ -595,12 +600,18 @@ public class CombatService {
         verifyDmOrControllerOnTurn(encounter, userId, actorParticipantId);
 
         EncounterParticipant caster = findParticipant(encounter, actorParticipantId);
-        if (caster.getConcentrationSpell() == null) {
-            throw new IllegalArgumentException("Caster is not concentrating on any spell");
-        }
 
-        String spellName = caster.getConcentrationSpell();
-        int slotLevel = caster.getConcentrationSlotLevel() != null ? caster.getConcentrationSlotLevel() : 0;
+        String spellName;
+        int slotLevel;
+        if (caster.getConcentrationSpell() != null) {
+            spellName = caster.getConcentrationSpell();
+            slotLevel = caster.getConcentrationSlotLevel() != null ? caster.getConcentrationSlotLevel() : 0;
+        } else if (caster.getActiveSpell() != null) {
+            spellName = caster.getActiveSpell();
+            slotLevel = caster.getActiveSpellSlotLevel() != null ? caster.getActiveSpellSlotLevel() : 0;
+        } else {
+            throw new IllegalArgumentException("Caster has no active concentration or persistent spell");
+        }
 
         int spellAttackBonus = request.getOverrideSpellAttackBonus() != null
                 ? request.getOverrideSpellAttackBonus()
@@ -866,6 +877,17 @@ public class CombatService {
         return false;
     }
 
+    private boolean hasActiveSpellFlag(String spellName) {
+        var spellOpt = spellRepository.findByNameIgnoreCase(spellName);
+        if (spellOpt.isEmpty() || spellOpt.get().getEffectTemplate() == null) return false;
+        try {
+            JsonNode template = objectMapper.readTree(spellOpt.get().getEffectTemplate());
+            return template.path("persistsWithoutConcentration").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private void checkConcentration(Encounter encounter, EncounterParticipant participant, int damage) {
         int dc = Math.max(10, damage / 2);
         int conMod = 0;
@@ -914,6 +936,10 @@ public class CombatService {
     private void dropConcentrationOnZeroHp(Encounter encounter, EncounterParticipant participant) {
         if (participant.getConcentrationSpell() != null) {
             dropConcentrationCascade(encounter, participant);
+        }
+        if (participant.getActiveSpell() != null) {
+            participant.setActiveSpell(null);
+            participant.setActiveSpellSlotLevel(null);
         }
     }
 

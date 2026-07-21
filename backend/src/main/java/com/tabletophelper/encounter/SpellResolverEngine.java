@@ -77,7 +77,13 @@ public class SpellResolverEngine {
 
         if (template.path("requiresManualResolution").asBoolean(false)) {
             String reason = template.path("manualResolutionReason").asText("Complex spell requires DM adjudication");
-            return manualResult(spellName, reason);
+            boolean conc = template.path("concentration").asBoolean(false);
+            Integer durRounds = template.has("durationRounds") && !template.get("durationRounds").isNull()
+                    ? template.get("durationRounds").asInt() : null;
+            return new SpellCastResult(false,
+                    spellName + " cast — " + reason,
+                    0, 0, conc, conc ? spellName : null, durRounds,
+                    List.of(), true, reason, List.of());
         }
 
         checkSilence(caster, template);
@@ -245,6 +251,16 @@ public class SpellResolverEngine {
             }
         }
 
+        String healingDice = null;
+        if (!repeatNode.isBoolean()) {
+            healingDice = repeatNode.path("healingDice").asText(null);
+        } else {
+            JsonNode healingNode = template.get("healing");
+            if (healingNode != null) {
+                healingDice = healingNode.path("healingDice").asText(healingNode.path("dice").asText(null));
+            }
+        }
+
         List<String> conditionsInflicted = new ArrayList<>();
         JsonNode conditionsNode = template.get("conditionsInflicted");
         if (conditionsNode != null && conditionsNode.isArray()) {
@@ -254,42 +270,53 @@ public class SpellResolverEngine {
         List<EncounterParticipant> targets = resolveTargets(encounter, targetIds, deliveryMethod, caster);
         List<TargetResult> targetResults = new ArrayList<>();
         int totalDamage = 0;
+        int totalHealing = 0;
         StringBuilder desc = new StringBuilder();
         desc.append(caster.getDisplayName()).append(" uses ").append(spellName).append(" effect.");
 
-        switch (deliveryMethod) {
-            case "SPELL_ATTACK" -> {
-                for (EncounterParticipant target : targets) {
-                    var result = resolveSpellAttack(target, spellAttackBonus, damageDice, damageType,
-                            conditionsInflicted, advantage);
-                    targetResults.add(result);
-                    totalDamage += result.damage();
-                    desc.append(" ").append(formatAttackResult(result));
-                }
+        if (healingDice != null && damageDice == null) {
+            int healing = DiceRoller.roll(healingDice).total();
+            totalHealing = healing;
+            for (EncounterParticipant target : targets) {
+                targetResults.add(new TargetResult(target.getId(), target.getDisplayName(),
+                        0, healing, false, List.of(), "healed", null, null, null));
+                desc.append(" Heals ").append(target.getDisplayName()).append(" for ").append(healing).append(" HP.");
             }
-            case "SAVING_THROW" -> {
-                for (EncounterParticipant target : targets) {
-                    var result = resolveSavingThrow(target, spellSaveDC, saveAbility, damageDice,
-                            damageType, conditionsInflicted, halfOnSave);
-                    targetResults.add(result);
-                    totalDamage += result.damage();
-                    desc.append(" ").append(formatSaveResult(result, saveAbility));
+        } else {
+            switch (deliveryMethod) {
+                case "SPELL_ATTACK" -> {
+                    for (EncounterParticipant target : targets) {
+                        var result = resolveSpellAttack(target, spellAttackBonus, damageDice, damageType,
+                                conditionsInflicted, advantage);
+                        targetResults.add(result);
+                        totalDamage += result.damage();
+                        desc.append(" ").append(formatAttackResult(result));
+                    }
                 }
-            }
-            case "AUTO_HIT" -> {
-                for (EncounterParticipant target : targets) {
-                    var result = resolveAutoHit(target, damageDice, damageType, conditionsInflicted);
-                    targetResults.add(result);
-                    totalDamage += result.damage();
-                    desc.append(" ").append(formatAutoHitResult(result));
+                case "SAVING_THROW" -> {
+                    for (EncounterParticipant target : targets) {
+                        var result = resolveSavingThrow(target, spellSaveDC, saveAbility, damageDice,
+                                damageType, conditionsInflicted, halfOnSave);
+                        targetResults.add(result);
+                        totalDamage += result.damage();
+                        desc.append(" ").append(formatSaveResult(result, saveAbility));
+                    }
                 }
-            }
-            default -> {
-                return manualResult(spellName, "Repeat delivery method '" + deliveryMethod + "' requires DM adjudication");
+                case "AUTO_HIT" -> {
+                    for (EncounterParticipant target : targets) {
+                        var result = resolveAutoHit(target, damageDice, damageType, conditionsInflicted);
+                        targetResults.add(result);
+                        totalDamage += result.damage();
+                        desc.append(" ").append(formatAutoHitResult(result));
+                    }
+                }
+                default -> {
+                    return manualResult(spellName, "Repeat delivery method '" + deliveryMethod + "' requires DM adjudication");
+                }
             }
         }
 
-        return new SpellCastResult(true, desc.toString(), totalDamage, 0,
+        return new SpellCastResult(true, desc.toString(), totalDamage, totalHealing,
                 false, null, null, targetResults, false, null, conditionsInflicted);
     }
 

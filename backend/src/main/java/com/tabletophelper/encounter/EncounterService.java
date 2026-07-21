@@ -330,6 +330,8 @@ public class EncounterService {
                         .activeConditions(p.getActiveConditions())
                         .concentrationSpell(p.getConcentrationSpell())
                         .concentrationSlotLevel(p.getConcentrationSlotLevel())
+                        .activeSpell(p.getActiveSpell())
+                        .activeSpellSlotLevel(p.getActiveSpellSlotLevel())
                         .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
                         .isAlive(p.getIsAlive())

@@ -33,6 +33,8 @@ export interface EncounterParticipant {
   activeConditions?: string;
   concentrationSpell?: string;
   concentrationSlotLevel?: number;
+  activeSpell?: string;
+  activeSpellSlotLevel?: number;
   spellSlotsCurrent?: string;
   isVisibleToPlayers: boolean;
   isAlive: boolean;

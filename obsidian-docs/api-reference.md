@@ -884,11 +884,13 @@ Repeat the damaging effect of a concentration spell without consuming a spell sl
 
 **Response (200):** Same `CastSpellResponse` format as cast-spell.
 
-**Supported spells (10):** Call Lightning, Moonbeam, Flaming Sphere, Dust Devil, Heat Metal, Vampiric Touch, Flame Blade, Maximilian's Earthen Grasp, Melf's Minute Meteors, Witch Bolt.
+**Supported spells (20):** Call Lightning, Moonbeam, Flaming Sphere, Dust Devil, Heat Metal, Vampiric Touch, Flame Blade, Maximilian's Earthen Grasp, Melf's Minute Meteors, Witch Bolt, Create Bonfire, Cloud of Daggers, Spirit Guardians, Spiritual Weapon, Searing Smite, Ensnaring Strike, Tasha's Caustic Brew, Phantasmal Force, Hunger of Hadar, Aura of Vitality.
 
 **Mechanics:**
-- No spell slot consumed — uses the slot level stored from the original cast (`concentrationSlotLevel`)
+- No spell slot consumed — uses the slot level stored from the original cast (`concentrationSlotLevel` or `activeSpellSlotLevel`)
+- Works for both concentration spells and non-concentration persistent spells (e.g., Spiritual Weapon)
 - Upcast scaling applied based on stored slot level
+- Supports healing repeats (Aura of Vitality: 2d6 healing)
 - Witch Bolt special case: repeat is AUTO_HIT (no save), 1d12 lightning, no upcast scaling
 - Damage resistances/immunities/vulnerabilities applied to targets
 - Logged as `SPELL_EFFECT_REPEAT` action type

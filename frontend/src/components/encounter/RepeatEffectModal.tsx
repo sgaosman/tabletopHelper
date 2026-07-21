@@ -34,14 +34,15 @@ export default function RepeatEffectModal({ encounterId, caster, participants, s
   const fetchTargeting = useCallback(async () => {
     setTargetingLoading(true);
     try {
-      const info = await getSpellTargeting(spellName, caster.concentrationSlotLevel || 0);
+      const slotLevel = caster.concentrationSlotLevel || caster.activeSpellSlotLevel || 0;
+      const info = await getSpellTargeting(spellName, slotLevel);
       setTargetingInfo(info);
     } catch {
       setTargetingInfo(null);
     } finally {
       setTargetingLoading(false);
     }
-  }, [spellName, caster.concentrationSlotLevel]);
+  }, [spellName, caster.concentrationSlotLevel, caster.activeSpellSlotLevel]);
 
   useEffect(() => { fetchTargeting(); }, [fetchTargeting]);
 
@@ -93,8 +94,8 @@ export default function RepeatEffectModal({ encounterId, caster, participants, s
             </h2>
             <p className="text-gray-400 text-xs mt-0.5">
               {caster.displayName}
-              {caster.concentrationSlotLevel && (
-                <span className="text-purple-400 ml-1">(slot level {caster.concentrationSlotLevel})</span>
+              {(caster.concentrationSlotLevel || caster.activeSpellSlotLevel) && (
+                <span className="text-purple-400 ml-1">(slot level {caster.concentrationSlotLevel || caster.activeSpellSlotLevel})</span>
               )}
             </p>
           </div>

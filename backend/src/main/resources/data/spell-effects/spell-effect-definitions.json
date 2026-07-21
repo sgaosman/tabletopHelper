@@ -346,8 +346,9 @@
     "healing": null,
     "upcastDescription": null,
     "specialMechanics": "Persistent 5-foot cube zone. Creatures save when the spell is cast (if in the space), when moving into the space for the first time on a turn, or when ending their turn there. Ignites unattended flammable objects.",
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent zone requiring saves on entry and at end of turn for each creature. Requires positional tracking each round.",
+    "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -4287,6 +4288,7 @@
     "specialMechanics": "Applied on next weapon hit. If restrained, target takes piercing damage at start of each turn. Large+ creatures have advantage on save. STR check (action) to free.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Smite-style spell: triggers on next weapon hit, then requires STR save. Ongoing damage at start of restrained target's turns.",
+    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "piercing", "usesUpcastScaling": false},
     "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
     "classes": [
       "Ranger"
@@ -6097,6 +6099,7 @@
     "specialMechanics": "Smite-style: bonus action, triggers on next melee weapon hit. Sets target on fire (1d6 fire per turn, CON save to end). Only initial damage scales with upcasting.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Smite-style delivery on next weapon hit. Ongoing fire damage with per-turn CON saves. Can be manually extinguished.",
+    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "fire", "usesUpcastScaling": false},
     "patternCategory": "SAVE_DAMAGE",
     "classes": [
       "Paladin"
@@ -6547,6 +6550,7 @@
     "specialMechanics": "On failed save, creature covered in acid. Takes 2d4 acid at start of each of its turns. An action can scrape/wash acid off. Concentration.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Ongoing damage at start of each affected creature's turn. Can be removed by action (self or ally). Concentration.",
+    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "2d4", "damageType": "acid", "usesUpcastScaling": true},
     "patternCategory": "SAVE_DAMAGE",
     "classes": [
       "Artificer",
@@ -7841,8 +7845,9 @@
     "healing": null,
     "upcastDescription": "Damage increases by 2d4 for each slot level above 2nd",
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent area damage with no save; triggers on entering or starting turn in area",
+    "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -10262,6 +10267,7 @@
     "specialMechanics": null,
     "requiresManualResolution": true,
     "manualResolutionReason": "Creates an illusion perceived only by the target. DM adjudicates what the illusion is and how the target interacts with it. 1d6 psychic damage per round if illusion can logically deal damage.",
+    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "psychic", "usesUpcastScaling": false},
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -11145,8 +11151,10 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d8 for every two slot levels above 2nd (4th: 2d8, 6th: 3d8, 8th: 4d8)",
     "specialMechanics": null,
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Creates a persistent spectral weapon. Melee spell attack on cast (bonus action) and each subsequent turn (bonus action). Moves 20ft as part of bonus action attack. No concentration.",
+    "repeatEffect": true,
+    "persistsWithoutConcentration": true,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric"
@@ -12038,6 +12046,7 @@
     "specialMechanics": "Bonus action each turn to heal one creature in the 30-foot radius aura for 2d6 HP",
     "requiresManualResolution": true,
     "manualResolutionReason": "Requires bonus action each turn to select a creature in the aura and heal it",
+    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "healingDice": "2d6", "usesUpcastScaling": false},
     "patternCategory": "COMPLEX",
     "classes": [
       "Paladin"
@@ -13617,6 +13626,7 @@
     "specialMechanics": "Creature starting turn in area takes 2d6 cold damage (no save). Creature ending turn in area must DEX save or take 2d6 acid damage. Creatures fully within area are blinded (no save). Area is difficult terrain. No light can illuminate the area.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Persistent AOE with two separate damage triggers (start of turn cold, end of turn acid DEX save), automatic blinding in area, difficult terrain, and no-light zone",
+    "repeatEffect": {"deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "halfOnSave": false, "damageDice": "2d6", "damageType": "acid", "usesUpcastScaling": false},
     "patternCategory": "COMPLEX",
     "classes": [
       "Warlock"
@@ -15132,8 +15142,9 @@
     "healing": null,
     "upcastDescription": "Damage increases by 1d8 for each slot level above 3rd",
     "specialMechanics": "Persistent 15-foot emanation centered on caster that moves with caster. Damage occurs when creature enters area for first time on a turn or starts its turn there. Caster can designate creatures to be unaffected. Damage type is radiant (good/neutral caster) or necrotic (evil caster).",
-    "requiresManualResolution": true,
+    "requiresManualResolution": false,
     "manualResolutionReason": "Persistent AOE that moves with caster, triggers on creature entry or turn start, requires tracking designated unaffected creatures, damage type depends on caster alignment",
+    "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric"

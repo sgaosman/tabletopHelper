@@ -342,7 +342,10 @@ Phase 3 — Multiclass at creation:
 - [x] `POST /api/encounters/{id}/combat/repeat-spell-effect` endpoint
 - [x] `RepeatEffectModal.tsx` — simplified 2-step modal (target selection → confirm/results) with purple RotateCw theme
 - [x] Repeat button (RotateCw icon) next to concentration display on both DM and player encounter pages
-- [x] 10 concentration spells updated: `requiresManualResolution: false`, `repeatEffect` added (Call Lightning, Moonbeam, Flaming Sphere, Dust Devil, Heat Metal, Vampiric Touch, Flame Blade, Maximilian's Earthen Grasp, Melf's Minute Meteors, Witch Bolt)
+- [x] 20 spells with `repeatEffect`: 10 concentration action-based (Call Lightning, Moonbeam, Flaming Sphere, etc.), 6 auto-triggered overrides (Searing Smite, Ensnaring Strike, Tasha's Caustic Brew, Phantasmal Force, Hunger of Hadar, Aura of Vitality), 3 zone auto-resolve (Create Bonfire, Cloud of Daggers, Spirit Guardians), 1 non-concentration persistent (Spiritual Weapon)
+- [x] Active spell tracking (`active_spell`/`active_spell_slot_level`) for non-concentration persistent spells (V6 migration)
+- [x] Healing repeat support in `resolveRepeatEffect()` for Aura of Vitality
+- [x] Manual resolution concentration fix: smite spells now properly set concentration on cast
 - [x] `scalingInterval` field support in `scaleUpcastDice()` for Flame Blade (scales every 2 levels)
 
 **Key files:**

@@ -1293,3 +1293,25 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** `repeatEffect: true` reuses the spell's main damage/save/delivery. For special cases (Witch Bolt: AUTO_HIT, no upcast), `repeatEffect` accepts an override object. The modal always appears when concentration is active — if the spell doesn't have `repeatEffect`, the backend returns an error message rather than filtering the button client-side (avoids per-participant API calls in the DM view).
 
+## D114: Active Spell Tracking for Non-Concentration Persistent Spells
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Added `active_spell` and `active_spell_slot_level` columns to encounter_participants (V6 migration) to track non-concentration persistent spells like Spiritual Weapon. Spells with `persistsWithoutConcentration: true` in their effect template are stored in these fields on cast. The repeat-spell-effect endpoint checks both concentration and active spell fields.
+
+**Rationale:** Spiritual Weapon is the most commonly used non-concentration persistent spell. It requires a bonus action each turn to attack, which fits the repeat button pattern. Tying repeat effects only to concentration would miss this important spell.
+
+**Trade-offs:** Currently only Spiritual Weapon uses this mechanism at levels 0–3. Crown of Stars (L7) and Animate Objects (L5) would use it when higher-level definitions are added. Active spells are cleared on death (0 HP) but not on concentration checks or new concentration spells — they are independent tracking.
+
+## D115: Manual Resolution Concentration Fix
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Fixed the `requiresManualResolution` early return in `SpellResolverEngine.resolveSpell()` to pass through `concentration` and `durationRounds` from the spell template. Previously, manually-resolved concentration spells (e.g., Searing Smite, Ensnaring Strike) would not set concentration on the caster, making the repeat button invisible.
+
+**Rationale:** Smite spells require manual resolution for the initial hit but are concentration spells with ongoing repeatable effects. Without this fix, casting Searing Smite would not set concentration, so the DM couldn't use the repeat button for ongoing fire damage.
+
+**Trade-offs:** None — this was a bug fix. The manual resolution path now correctly signals concentration.
+

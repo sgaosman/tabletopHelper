@@ -41,6 +41,8 @@ public class EncounterResponse {
         private String activeConditions;
         private String concentrationSpell;
         private Integer concentrationSlotLevel;
+        private String activeSpell;
+        private Integer activeSpellSlotLevel;
         private String spellSlotsCurrent;
         private Boolean isVisibleToPlayers;
         private Boolean isAlive;

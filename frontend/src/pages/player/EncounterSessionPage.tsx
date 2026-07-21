@@ -586,7 +586,7 @@ function PlayerSessionView() {
                 <Sparkles className="w-3.5 h-3.5" /> Cast Spell
               </button>
             )}
-            {myCharacter.concentrationSpell && (
+            {(myCharacter.concentrationSpell || myCharacter.activeSpell) && (
               <button onClick={() => selectSelfAction('repeat-effect')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-900/30 hover:bg-purple-900/60 text-purple-400 rounded-lg text-xs font-medium border border-purple-900/50">
                 <RotateCw className="w-3.5 h-3.5" /> Repeat Effect
@@ -607,12 +607,12 @@ function PlayerSessionView() {
         )}
 
         {/* Repeat spell effect modal */}
-        {actionMode === 'repeat-effect' && myCharacter && myCharacter.concentrationSpell && (
+        {actionMode === 'repeat-effect' && myCharacter && (myCharacter.concentrationSpell || myCharacter.activeSpell) && (
           <RepeatEffectModal
             encounterId={encounter.id}
             caster={myCharacter}
             participants={encounter.participants}
-            spellName={myCharacter.concentrationSpell}
+            spellName={(myCharacter.concentrationSpell || myCharacter.activeSpell)!}
             onUpdate={refreshEncounter}
             onClose={() => { setActionMode(null); setAttackTargetId(null); }}
           />
@@ -684,6 +684,9 @@ function PlayerSessionView() {
                     )}
                     {p.concentrationSpell && (
                       <p className="text-purple-400 text-xs mt-0.5">Concentrating: {p.concentrationSpell}</p>
+                    )}
+                    {p.activeSpell && (
+                      <p className="text-amber-400 text-xs mt-0.5">Active: {p.activeSpell}</p>
                     )}
                   </div>
 

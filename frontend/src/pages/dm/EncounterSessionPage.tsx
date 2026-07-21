@@ -736,12 +736,12 @@ function DmSessionView() {
         )}
 
         {/* Repeat spell effect modal */}
-        {actionMode === 'repeat-effect' && selectedTarget && selectedTarget.concentrationSpell && (
+        {actionMode === 'repeat-effect' && selectedTarget && (selectedTarget.concentrationSpell || selectedTarget.activeSpell) && (
           <RepeatEffectModal
             encounterId={encounter.id}
             caster={selectedTarget}
             participants={encounter.participants}
-            spellName={selectedTarget.concentrationSpell}
+            spellName={(selectedTarget.concentrationSpell || selectedTarget.activeSpell)!}
             onUpdate={refreshEncounter}
             onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
             isMonster={selectedTarget.participantType === 'MONSTER'}
@@ -825,6 +825,22 @@ function DmSessionView() {
                         <button
                           onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
                           className="p-0.5 bg-purple-900/40 hover:bg-purple-900/70 text-purple-400 rounded"
+                          title="Repeat spell effect"
+                        >
+                          <RotateCw className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Active spell (non-concentration persistent) */}
+                    {p.activeSpell && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-amber-400 text-xs">
+                          Active: {p.activeSpell}
+                        </p>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
+                          className="p-0.5 bg-amber-900/40 hover:bg-amber-900/70 text-amber-400 rounded"
                           title="Repeat spell effect"
                         >
                           <RotateCw className="w-3 h-3" />

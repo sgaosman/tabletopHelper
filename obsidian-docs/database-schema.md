@@ -429,6 +429,8 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | active_conditions | JSONB | | Array of condition objects: `[{"name":"blinded","duration":3,"appliedRound":1,"sourceSpellName":"Blindness/Deafness","sourceParticipantId":"uuid","sourceRequiresConcentration":false}]`. Duration null = indefinite. Source fields nullable (null for manually added conditions). Legacy string arrays are auto-migrated on read. |
 | concentration_spell | VARCHAR(200) | | Name of spell being concentrated on |
 | concentration_slot_level | INTEGER | | Slot level used to cast the concentration spell (for upcast scaling on repeat effects) |
+| active_spell | VARCHAR(200) | | Non-concentration persistent spell (e.g., Spiritual Weapon) |
+| active_spell_slot_level | INTEGER | | Slot level used to cast the active spell (for upcast scaling) |
 | spell_slots_current | JSONB | | Copied from character on encounter join. Format: `{"1":{"max":4,"remaining":3},...}` |
 | spell_attack_bonus | INTEGER | | Copied from character on encounter join. Used by SpellResolverEngine. |
 | spell_save_dc | INTEGER | | Copied from character on encounter join. Used by SpellResolverEngine. |
