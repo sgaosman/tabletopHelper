@@ -4,6 +4,7 @@ backend/.gradle/
 backend/bin/
 *.class
 *.jar
+!gradle-wrapper.jar
 *.war
 
 # Frontend
