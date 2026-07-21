@@ -348,6 +348,12 @@ Phase 3 — Multiclass at creation:
 - [x] Manual resolution concentration fix: smite spells now properly set concentration on cast
 - [x] `scalingInterval` field support in `scaleUpcastDice()` for Flame Blade (scales every 2 levels)
 
+**Bug Fixes (2026-07-21):**
+
+- [x] MOD placeholder substitution: `substituteModPlaceholders()` replaces both `SPELL_MOD` and `MOD` in dice expressions before upcast scaling; fixed healing data for Cure Wounds, Healing Word, Prayer of Healing, Mass Healing Word
+- [x] NONE delivery concentration: added explicit `case "NONE"` to resolver switch so 8 utility/illusion spells (Dancing Lights, Friends, True Strike, Darkness, Silence, Skywrite, Clairvoyance, Major Image) correctly set concentration
+- [x] Flock of Familiars data correction: `concentration: false` (not concentration in 5e 2014)
+
 **Key files:**
 - `SpellResolverEngine.java` — core spell resolution + resolveRepeatEffect() (~500 lines)
 - `CombatService.java` — castSpell() + repeatSpellEffect() + applyResistances() + dropConcentrationCascade()
