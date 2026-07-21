@@ -1,5 +1,7 @@
-{$DOMAIN:localhost} {
+{$DOMAIN::80} {
 	encode gzip
+
+	tls {$TLS_MODE:internal}
 
 	handle /api/* {
 		reverse_proxy backend:8080
