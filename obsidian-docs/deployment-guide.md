@@ -1,10 +1,27 @@
 # Deployment Guide
 
-## Target Environment
+## Current Environment
 
-**Primary recommendation:** Hetzner Cloud CX22 VPS (2 vCPU, 4GB RAM, 40GB SSD) at ~EUR 4.50/month. London datacentre for low latency. 99.9% SLA.
+**Active deployment:** Hetzner Cloud CPX22 VPS (2 vCPU, 4GB RAM, 80GB SSD) at ~EUR 23.39/month. Falkenstein datacentre.
+
+**Server IP:** 167.233.219.230
+**Access:** SSH as root (Mac + home PC keys installed)
+**Status:** Live, HTTP only (no domain yet)
 
 The entire stack (Caddy, Spring Boot, PostgreSQL) runs on a single VPS via Docker Compose.
+
+## Future Migration Plan: DigitalOcean
+
+The Hetzner CPX22 at ~EUR 24/month is overpowered for current needs. Plan is to migrate to DigitalOcean after the first month (covered by EUR 25 Hetzner credit):
+
+| Provider | Spec | Monthly cost |
+|----------|------|-------------|
+| **DigitalOcean (target)** | 1 vCPU, 2GB RAM, 50GB | ~$12/month (~GBP 9.50) |
+| **Hetzner (current)** | 2 vCPU, 4GB RAM, 80GB | ~EUR 24/month (~GBP 20) |
+
+Migration steps: create DigitalOcean droplet, install Docker, clone repo, copy `.env`, `pg_dump` from Hetzner -> `psql` restore on DigitalOcean, update DNS/bookmarks, delete Hetzner server. The Docker Compose setup is provider-agnostic — no changes needed.
+
+When a custom domain is purchased, update the Caddyfile to use the domain name instead of `:80` and Caddy will auto-provision HTTPS via Let's Encrypt.
 
 ## Production Architecture
 
@@ -14,14 +31,14 @@ Internet
     v
 +------------------------+
 |   Caddy                |
-|   :443 (HTTPS)         |
+|   :80 (HTTP)           |
 |                        |
 |   /         -> /srv    |
 |   /api/*    -> :8080   |
 |   /ws/*     -> :8080   |
 |                        |
-|   SSL: automatic       |
-|   (Let's Encrypt)      |
+|   HTTPS: auto when     |
+|   domain is configured |
 +--------+---------------+
          |
     +----+----+
@@ -50,11 +67,12 @@ Internet
 | `docker-compose.prod.yml` | Production orchestration: Caddy + Backend + PostgreSQL |
 | `.env.example` | Template for production secrets |
 | `deploy.sh` | Pull + build + deploy script |
+| `V0__initial_schema.sql` | Creates all base tables on fresh database |
 
 ## Initial Server Setup
 
 ```bash
-# 1. Create a Hetzner CX22 VPS (Ubuntu 24.04, London DC)
+# 1. Create VPS (Ubuntu 24.04)
 # 2. SSH in and install Docker
 ssh root@YOUR_SERVER_IP
 curl -fsSL https://get.docker.com | sh
@@ -71,10 +89,11 @@ cd tabletopHelper
 cp .env.example .env
 
 # 5. Generate secrets and edit .env
-openssl rand -base64 64  # use output for JWT_SECRET
-nano .env                # fill in DOMAIN, POSTGRES_PASSWORD, JWT_SECRET
+openssl rand -hex 64   # use output for JWT_SECRET (hex avoids special char issues)
+nano .env              # fill in POSTGRES_PASSWORD, JWT_SECRET
 
 # 6. Deploy
+chmod +x deploy.sh
 ./deploy.sh
 ```
 
@@ -82,28 +101,33 @@ nano .env                # fill in DOMAIN, POSTGRES_PASSWORD, JWT_SECRET
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DOMAIN` | Yes | `localhost` | Your domain (e.g. `tabletop.example.com`). Caddy auto-provisions SSL. |
 | `POSTGRES_DB` | No | `tabletophelper` | Database name |
 | `POSTGRES_USER` | No | `tabletophelper` | Database user |
 | `POSTGRES_PASSWORD` | Yes | - | Database password |
-| `JWT_SECRET` | Yes | - | JWT signing key (min 64 chars) |
-| `CORS_ALLOWED_ORIGINS` | No | - | Comma-separated origins. Leave empty when Caddy proxies everything. |
+| `JWT_SECRET` | Yes | - | JWT signing key (use `openssl rand -hex 64`) |
+| `CORS_ALLOWED_ORIGINS` | No | `http://localhost:5173` | Comma-separated origins. Leave empty when Caddy proxies everything. |
 
 ## SSL / HTTPS
 
-Caddy handles SSL automatically. When `DOMAIN` is set to a real domain (not `localhost`):
-- Caddy obtains a Let's Encrypt certificate on first request
-- Certificates auto-renew before expiry
-- HTTP automatically redirects to HTTPS
+Currently serving HTTP only (no custom domain). When a domain is purchased:
 
-No certbot, no cron jobs, no manual renewal.
-
-**Prerequisite:** Your domain's DNS A record must point to the server IP before deploying.
+1. Buy a domain and point its A record to the server IP
+2. Replace the Caddyfile content with:
+```
+yourdomain.com {
+    encode gzip
+    handle /api/* { reverse_proxy backend:8080 }
+    handle /ws/* { reverse_proxy backend:8080 }
+    handle { root * /srv; try_files {path} /index.html; file_server }
+}
+```
+3. Rebuild frontend: `docker compose -f docker-compose.prod.yml up -d --build frontend`
+4. Caddy auto-provisions Let's Encrypt SSL — no certbot, no cron jobs
 
 ## Updating
 
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@167.233.219.230
 cd tabletopHelper
 ./deploy.sh
 ```
@@ -125,6 +149,9 @@ docker compose -f docker-compose.prod.yml down
 
 # Stop and remove volumes (DESTROYS DATA)
 docker compose -f docker-compose.prod.yml down -v
+
+# Access database
+docker compose -f docker-compose.prod.yml exec db psql -U tabletophelper -d tabletophelper
 ```
 
 ## Backups
@@ -142,12 +169,7 @@ cat backup_20260717.sql | docker compose -f docker-compose.prod.yml exec -T db \
 0 3 * * * cd /root/tabletopHelper && docker compose -f docker-compose.prod.yml exec -T db pg_dump -U tabletophelper tabletophelper | gzip > /backups/tabletophelper_$(date +\%Y\%m\%d).sql.gz
 ```
 
-## Scaling
+## Known Issues
 
-| Stage | Hetzner spec | Cost | Handles |
-|-------|-------------|------|---------|
-| Small group | CX22 (2 vCPU, 4GB) | ~EUR 4.50/mo | Single game group |
-| Multiple groups | CX32 (4 vCPU, 8GB) | ~EUR 7.50/mo | Hundreds of WebSocket connections |
-| Multi-system platform | CX42 (8 vCPU, 16GB) | ~EUR 15/mo | Thousands of users |
-
-Hetzner supports live resizing — scale the VPS up without reprovisioning.
+- **Chrome HTTPS forcing:** Chrome may auto-upgrade `http://` to `https://` for the bare IP address. Workaround: use Safari, Firefox, or Edge InPrivate. Resolved permanently once a custom domain with SSL is configured.
+- **Hetzner pricing:** Actual CPX22 cost is ~EUR 23.39/month (not EUR 4.50 as initially estimated from outdated pricing data). Plan to migrate to DigitalOcean $12/month.

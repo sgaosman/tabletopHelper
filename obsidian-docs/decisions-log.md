@@ -1366,3 +1366,34 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Decision:** `CorsConfig.java` reads allowed origins from the `CORS_ALLOWED_ORIGINS` environment variable (comma-separated), defaulting to `http://localhost:5173` for local development.
 
 **Rationale:** In production, Caddy proxies both frontend and API on the same domain, making CORS headers unnecessary. However, the CORS filter still runs as a Spring bean. Making it configurable avoids hardcoding `localhost:5173` while supporting future setups where frontend and backend might be on separate origins.
+
+## D121: V0 Initial Schema Migration for Production
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Created `V0__initial_schema.sql` containing all base table definitions (users, campaigns, characters, spells, monsters, encounters, etc.). Disabled `baseline-on-migrate` in the prod profile so Flyway runs V0 as a real migration on fresh databases.
+
+**Rationale:** In development, tables were created by Hibernate `ddl-auto`. The existing migrations (V1-V6) only added indexes, columns, and constraint updates — they assumed the base tables already existed. A fresh production database had no tables, causing V1 to fail with "relation spells does not exist". V0 creates the base schema that V1-V6 build upon.
+
+**Trade-offs:** The dev profile still uses `baseline-on-migrate: true` since local databases already have all tables. New developers must run the local Docker Compose DB before starting the backend.
+
+## D122: HTTP-Only Caddy for IP Access
+
+**Date:** 2026-07-21
+**Status:** Accepted (temporary)
+
+**Decision:** The Caddyfile uses `auto_https off` and listens on `:80` only. No HTTPS is configured while the app is accessed by IP address.
+
+**Rationale:** Caddy cannot provision Let's Encrypt certificates for bare IP addresses. Self-signed certs caused `ERR_SSL_PROTOCOL_ERROR` in browsers, and Chrome's HTTPS-first mode prevented HTTP access via IP. Disabling auto-HTTPS entirely resolves both issues. When a custom domain is purchased, the Caddyfile will be updated to use the domain name and Caddy will auto-provision HTTPS.
+
+**Trade-offs:** Traffic is unencrypted over HTTP. Acceptable for a private game group on a known IP; must be resolved before any public-facing deployment.
+
+## D123: Planned Migration from Hetzner to DigitalOcean
+
+**Date:** 2026-07-21
+**Status:** Proposed
+
+**Decision:** Migrate from Hetzner CPX22 (~EUR 24/month) to DigitalOcean Basic Droplet ($12/month, 1 vCPU, 2GB RAM) after the initial Hetzner credit (EUR 25) is consumed.
+
+**Rationale:** Hetzner's current pricing is significantly higher than initially estimated. DigitalOcean offers a 2GB droplet at $12/month — sufficient for the current workload (small group, single game session). The Docker Compose deployment is provider-agnostic; migration requires only a database dump/restore and DNS update.
