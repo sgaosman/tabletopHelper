@@ -108,6 +108,7 @@ export interface SpellTargetingInfo {
   canTargetAllies: boolean;
   canTargetEnemies: boolean;
   targetType: string;
+  hasRepeatEffect: boolean;
 }
 
 export const getSpellTargeting = async (name: string, slotLevel: number): Promise<SpellTargetingInfo> => {

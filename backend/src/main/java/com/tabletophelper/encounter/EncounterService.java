@@ -329,6 +329,7 @@ public class EncounterService {
                         .armourClass(p.getArmourClass())
                         .activeConditions(p.getActiveConditions())
                         .concentrationSpell(p.getConcentrationSpell())
+                        .concentrationSlotLevel(p.getConcentrationSlotLevel())
                         .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
                         .isAlive(p.getIsAlive())

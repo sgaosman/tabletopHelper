@@ -332,12 +332,26 @@ Phase 3 — Multiclass at creation:
 - [x] Target count enforcement: `SpellCastModal` fetches `GET /api/reference/spells/targeting` to cap target selection at `targetCount` + upcast scaling, filter by self/ally/enemy rules
 - [x] Backend target count validation: `CombatService.validateTargetCount()` rejects requests exceeding the spell's allowed target count
 
+**Damage Resistance & Repeat Effects (2026-07-21):**
+
+- [x] `CombatService.applyResistances()` — damage immunities (→0), vulnerabilities (→×2), resistances (→÷2) from Monster/PlayerCharacter JSONB fields
+- [x] All spell damage now routes through resistance handling via `damageType` on `TargetResult`
+- [x] V4 migration: `concentration_slot_level` column on encounter_participants + force re-seed of spell effect templates
+- [x] V5 migration: `SPELL_EFFECT_REPEAT` added to combat action type CHECK constraint
+- [x] `SpellResolverEngine.resolveRepeatEffect()` — repeat concentration spell effects with upcast scaling, supports `repeatEffect: true` (reuse main spell) and override objects (Witch Bolt)
+- [x] `POST /api/encounters/{id}/combat/repeat-spell-effect` endpoint
+- [x] `RepeatEffectModal.tsx` — simplified 2-step modal (target selection → confirm/results) with purple RotateCw theme
+- [x] Repeat button (RotateCw icon) next to concentration display on both DM and player encounter pages
+- [x] 10 concentration spells updated: `requiresManualResolution: false`, `repeatEffect` added (Call Lightning, Moonbeam, Flaming Sphere, Dust Devil, Heat Metal, Vampiric Touch, Flame Blade, Maximilian's Earthen Grasp, Melf's Minute Meteors, Witch Bolt)
+- [x] `scalingInterval` field support in `scaleUpcastDice()` for Flame Blade (scales every 2 levels)
+
 **Key files:**
-- `SpellResolverEngine.java` — core spell resolution (~400 lines)
-- `CombatService.java` — castSpell() + dropConcentrationCascade() integration
-- `CombatController.java` — POST /cast-spell endpoint
+- `SpellResolverEngine.java` — core spell resolution + resolveRepeatEffect() (~500 lines)
+- `CombatService.java` — castSpell() + repeatSpellEffect() + applyResistances() + dropConcentrationCascade()
+- `CombatController.java` — POST /cast-spell + POST /repeat-spell-effect endpoints
 - `SpellCastModal.tsx` — multi-step casting modal (~450 lines)
-- `V2__spell_resolver_fields.sql` — Flyway migration
+- `RepeatEffectModal.tsx` — repeat effect modal (~400 lines)
+- `V2__spell_resolver_fields.sql`, `V4__add_concentration_slot_level.sql`, `V5__add_spell_effect_repeat_action_type.sql` — Flyway migrations
 - `SpellResolverEngineTest.java` — 40 unit tests
 
 ## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions

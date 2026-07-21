@@ -866,6 +866,36 @@ Cast a spell as a combat action. Auto-resolves ~184 spells using the SpellResolv
 **Errors:**
 - `400` — No spell slot available, caster is silenced and spell requires verbal component, spell not found
 
+### POST /encounters/{id}/combat/repeat-spell-effect
+
+Repeat the damaging effect of a concentration spell without consuming a spell slot. Used for spells like Call Lightning, Flaming Sphere, Moonbeam, etc. that have recurring effects each turn.
+
+**Query params:** `actorId` (UUID) — required, the caster participant ID. Must have active concentration.
+
+**Request:**
+```json
+{
+  "targetIds": ["uuid"],
+  "advantage": null,
+  "overrideSpellAttackBonus": null,
+  "overrideSpellSaveDC": null
+}
+```
+
+**Response (200):** Same `CastSpellResponse` format as cast-spell.
+
+**Supported spells (10):** Call Lightning, Moonbeam, Flaming Sphere, Dust Devil, Heat Metal, Vampiric Touch, Flame Blade, Maximilian's Earthen Grasp, Melf's Minute Meteors, Witch Bolt.
+
+**Mechanics:**
+- No spell slot consumed — uses the slot level stored from the original cast (`concentrationSlotLevel`)
+- Upcast scaling applied based on stored slot level
+- Witch Bolt special case: repeat is AUTO_HIT (no save), 1d12 lightning, no upcast scaling
+- Damage resistances/immunities/vulnerabilities applied to targets
+- Logged as `SPELL_EFFECT_REPEAT` action type
+
+**Errors:**
+- `400` — Caster has no active concentration, spell has no repeatable effect
+
 ### POST /encounters/{id}/combat/turn/next
 
 Advance to the next participant in initiative order. Increments round number when wrapping to the top. Automatically removes expired conditions on the participant whose turn is starting (conditions with a `duration` that has elapsed).
