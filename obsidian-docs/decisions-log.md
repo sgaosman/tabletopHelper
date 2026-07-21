@@ -1346,3 +1346,23 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Decision:** Changed `concentration: false` for Flock of Familiars in `spell-effect-definitions.json`. The spell was incorrectly marked as concentration in the original data.
 
 **Rationale:** Per D&D 5e 2014 rules (Icewind Dale: Rime of the Frostmaiden), Flock of Familiars has a 1-hour duration but is NOT a concentration spell. The familiars persist for the full duration without requiring concentration.
+
+## D119: Caddy Over Nginx for Production Reverse Proxy
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Use Caddy as the production reverse proxy and static file server instead of Nginx. Caddy serves the frontend SPA, reverse proxies `/api/*` and `/ws/*` to the Spring Boot backend, and handles SSL via automatic Let's Encrypt provisioning.
+
+**Rationale:** Caddy provides automatic HTTPS with zero configuration — no certbot, no cron jobs, no manual certificate renewal. The Caddyfile syntax is significantly simpler than Nginx config for our use case (reverse proxy + SPA fallback). WebSocket proxying works out of the box.
+
+**Trade-offs:** Slightly higher memory footprint than Nginx (~15MB vs ~5MB). Less community content/examples. Acceptable for our scale.
+
+## D120: Environment-Driven CORS Configuration
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** `CorsConfig.java` reads allowed origins from the `CORS_ALLOWED_ORIGINS` environment variable (comma-separated), defaulting to `http://localhost:5173` for local development.
+
+**Rationale:** In production, Caddy proxies both frontend and API on the same domain, making CORS headers unnecessary. However, the CORS filter still runs as a Spring bean. Making it configurable avoids hardcoding `localhost:5173` while supporting future setups where frontend and backend might be on separate origins.
