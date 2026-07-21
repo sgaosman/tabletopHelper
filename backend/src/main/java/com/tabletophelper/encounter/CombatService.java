@@ -4,6 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.reference.Spell;
+import com.tabletophelper.reference.SpellRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ public class CombatService {
     private final EncounterService encounterService;
     private final ObjectMapper objectMapper;
     private final SpellResolverEngine spellResolverEngine;
+    private final SpellRepository spellRepository;
 
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId, UUID userId) {
@@ -477,6 +481,8 @@ public class CombatService {
 
         EncounterParticipant caster = findParticipant(encounter, actorParticipantId);
 
+        validateTargetCount(request);
+
         if (request.getSlotLevel() > 0) {
             Map<String, Map<String, Integer>> slots = parseSpellSlots(caster);
             String slotKey = Boolean.TRUE.equals(request.getUsePactSlot())
@@ -848,6 +854,40 @@ public class CombatService {
                 .filter(p -> p.getId().equals(participantId))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Participant not found"));
+    }
+
+    private void validateTargetCount(CastSpellRequest request) {
+        var spellOpt = spellRepository.findByNameIgnoreCase(request.getSpellName());
+        if (spellOpt.isEmpty() || spellOpt.get().getEffectTemplate() == null) return;
+
+        try {
+            JsonNode template = objectMapper.readTree(spellOpt.get().getEffectTemplate());
+            JsonNode targetCountNode = template.get("targetCount");
+            if (targetCountNode == null || targetCountNode.isNull()) return;
+
+            int baseTargetCount = targetCountNode.asInt();
+            int spellLevel = template.path("spellLevel").asInt(0);
+            int slotLevel = request.getSlotLevel();
+
+            int maxTargets = baseTargetCount;
+            if (slotLevel > spellLevel) {
+                JsonNode upcastScaling = template.get("targetCountUpcastScaling");
+                if (upcastScaling != null && !upcastScaling.isNull()) {
+                    int additionalPerLevel = upcastScaling.path("additionalTargetsPerLevel").asInt(0);
+                    maxTargets += additionalPerLevel * (slotLevel - spellLevel);
+                }
+            }
+
+            if (request.getTargetIds().size() > maxTargets) {
+                throw new IllegalArgumentException(
+                        request.getSpellName() + " can target at most " + maxTargets
+                                + " creature" + (maxTargets != 1 ? "s" : "")
+                                + " at level " + slotLevel
+                                + ", but " + request.getTargetIds().size() + " targets were selected");
+            }
+        } catch (JsonProcessingException e) {
+            // ignore parse errors, let the resolver handle it
+        }
     }
 
     private void verifyDm(Encounter encounter, UUID userId) {

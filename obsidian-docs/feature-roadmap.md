@@ -329,6 +329,8 @@ Phase 3 — Multiclass at creation:
 - [x] SPELL_CAST combat log entries styled in indigo
 - [x] `CastSpellRequest`, `CastSpellResponse`, `TargetOutcome` TypeScript types
 - [x] `combatApi.castSpell()` API method
+- [x] Target count enforcement: `SpellCastModal` fetches `GET /api/reference/spells/targeting` to cap target selection at `targetCount` + upcast scaling, filter by self/ally/enemy rules
+- [x] Backend target count validation: `CombatService.validateTargetCount()` rejects requests exceeding the spell's allowed target count
 
 **Key files:**
 - `SpellResolverEngine.java` — core spell resolution (~400 lines)

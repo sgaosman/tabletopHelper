@@ -1249,6 +1249,17 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Marginal iteration overhead (effects arrays are 1-3 entries). No functional downside.
 
+## D112: Target Count Enforcement in Cast Spell
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Spell target counts are now enforced at both the backend (`CombatService.validateTargetCount()`) and frontend (`SpellCastModal.tsx` target selection step). The backend rejects requests exceeding the spell's `targetCount` (with upcast scaling applied). The frontend fetches targeting constraints from `GET /api/reference/spells/targeting` and caps the selection UI at the maximum allowed targets, plus filters the target list by `selfOnly`/`canTargetSelf`/`canTargetAllies`/`canTargetEnemies`.
+
+**Rationale:** Previously, the `targetCount` field existed in all 288 spell effect definitions but was completely unused — the Cast Spell modal allowed selecting any number of targets for any spell. This violated D&D 5e targeting rules (e.g., Bless targets 3 creatures at level 1, +1 per upcast level).
+
+**Trade-offs:** The targeting endpoint adds one extra API call per spell cast. Backend validation is the authoritative check; frontend enforcement is purely UX to prevent the user from selecting too many targets.
+
 ## D111: Pact Slot Fallback in Use/Restore Endpoints
 
 **Date:** 2026-07-21

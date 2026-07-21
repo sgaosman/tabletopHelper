@@ -68,6 +68,50 @@ public class ReferenceController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/spells/targeting")
+    public ResponseEntity<?> getSpellTargeting(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "0") int slotLevel) {
+        var spellOpt = spellRepository.findByNameIgnoreCase(name);
+        if (spellOpt.isEmpty() || spellOpt.get().getEffectTemplate() == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            JsonNode template = objectMapper.readTree(spellOpt.get().getEffectTemplate());
+            int spellLevel = template.path("spellLevel").asInt(0);
+            JsonNode targetCountNode = template.get("targetCount");
+            Integer baseTargetCount = (targetCountNode != null && !targetCountNode.isNull())
+                    ? targetCountNode.asInt() : null;
+
+            int maxTargets = baseTargetCount != null ? baseTargetCount : Integer.MAX_VALUE;
+            if (baseTargetCount != null && slotLevel > spellLevel) {
+                JsonNode upcastScaling = template.get("targetCountUpcastScaling");
+                if (upcastScaling != null && !upcastScaling.isNull()) {
+                    int additionalPerLevel = upcastScaling.path("additionalTargetsPerLevel").asInt(0);
+                    maxTargets += additionalPerLevel * (slotLevel - spellLevel);
+                }
+            }
+
+            boolean selfOnly = template.path("selfOnly").asBoolean(false);
+            boolean canTargetSelf = template.path("canTargetSelf").asBoolean(false) || selfOnly;
+            boolean canTargetAllies = template.path("canTargetAllies").asBoolean(true);
+            boolean canTargetEnemies = template.path("canTargetEnemies").asBoolean(true);
+            String targetType = template.path("targetType").asText(null);
+
+            return ResponseEntity.ok(java.util.Map.of(
+                    "maxTargets", baseTargetCount != null ? maxTargets : -1,
+                    "selfOnly", selfOnly,
+                    "canTargetSelf", canTargetSelf,
+                    "canTargetAllies", canTargetAllies,
+                    "canTargetEnemies", canTargetEnemies,
+                    "targetType", targetType != null ? targetType : "SINGLE_TARGET"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @Cacheable("spellSchools")
     @GetMapping("/spells/filters/schools")
     public List<String> getSpellSchools() {

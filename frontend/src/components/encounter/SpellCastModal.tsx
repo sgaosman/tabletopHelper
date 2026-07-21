@@ -1,6 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { X, Zap, Shield, Target, Sparkles, AlertTriangle } from 'lucide-react';
 import { combatApi } from '../../api/combatApi';
+import { getSpellTargeting } from '../../api/referenceApi';
+import type { SpellTargetingInfo } from '../../api/referenceApi';
 import type { EncounterParticipant, SpellSlots } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
 
@@ -38,6 +40,21 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
 
   const [overrideAttackBonus, setOverrideAttackBonus] = useState<string>('');
   const [overrideSaveDC, setOverrideSaveDC] = useState<string>('');
+  const [targetingInfo, setTargetingInfo] = useState<SpellTargetingInfo | null>(null);
+  const [targetingLoading, setTargetingLoading] = useState(false);
+
+  const fetchTargeting = useCallback(async (spellName: string, slotLevel: number) => {
+    setTargetingLoading(true);
+    setSelectedTargets([]);
+    try {
+      const info = await getSpellTargeting(spellName, slotLevel);
+      setTargetingInfo(info);
+    } catch {
+      setTargetingInfo(null);
+    } finally {
+      setTargetingLoading(false);
+    }
+  }, []);
 
   const spells: SpellEntry[] = useMemo(() => {
     if (!caster.spellsKnown) return [];
@@ -88,6 +105,7 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
 
     if (spell.level === 0) {
       setSelectedSlotLevel(0);
+      fetchTargeting(spell.name, 0);
       setStep('target');
     } else {
       setSelectedSlotLevel(spell.level);
@@ -98,13 +116,17 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
   function selectSlot(level: number, isPact: boolean) {
     setSelectedSlotLevel(level);
     setUsePactSlot(isPact);
+    if (selectedSpell) fetchTargeting(selectedSpell.name, level);
     setStep('target');
   }
 
   function toggleTarget(id: string) {
-    setSelectedTargets(prev =>
-      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-    );
+    setSelectedTargets(prev => {
+      if (prev.includes(id)) return prev.filter(t => t !== id);
+      const max = targetingInfo?.maxTargets ?? -1;
+      if (max > 0 && prev.length >= max) return prev;
+      return [...prev, id];
+    });
   }
 
   function proceedToConfirm() {
@@ -197,6 +219,8 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
               onToggle={toggleTarget}
               onBack={() => selectedSpell!.level === 0 ? setStep('spell') : setStep('slot')}
               onProceed={proceedToConfirm}
+              targetingInfo={targetingInfo}
+              targetingLoading={targetingLoading}
             />
           ) : (
             <ConfirmStep
@@ -347,7 +371,7 @@ function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
   );
 }
 
-function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle, onBack, onProceed }: {
+function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle, onBack, onProceed, targetingInfo, targetingLoading }: {
   spell: SpellEntry;
   targets: EncounterParticipant[];
   caster: EncounterParticipant;
@@ -355,42 +379,77 @@ function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle
   onToggle: (id: string) => void;
   onBack: () => void;
   onProceed: () => void;
+  targetingInfo: SpellTargetingInfo | null;
+  targetingLoading: boolean;
 }) {
-  const allTargetable = [caster, ...targets];
+  const maxTargets = targetingInfo?.maxTargets ?? -1;
+  const selfOnly = targetingInfo?.selfOnly ?? false;
+  const canTargetSelf = targetingInfo?.canTargetSelf ?? true;
+
+  const casterIsMonster = caster.participantType === 'MONSTER';
+
+  const filteredTargets = useMemo(() => {
+    if (selfOnly) return [caster];
+
+    const eligible: EncounterParticipant[] = [];
+    if (canTargetSelf) eligible.push(caster);
+
+    for (const p of targets) {
+      const pIsMonster = p.participantType === 'MONSTER';
+      const isAlly = casterIsMonster === pIsMonster;
+      if (isAlly && targetingInfo?.canTargetAllies !== false) eligible.push(p);
+      else if (!isAlly && targetingInfo?.canTargetEnemies !== false) eligible.push(p);
+    }
+    return eligible;
+  }, [targets, caster, targetingInfo, selfOnly, canTargetSelf, casterIsMonster]);
+
+  const atLimit = maxTargets > 0 && selectedTargets.length >= maxTargets;
+
+  const targetLabel = maxTargets > 0
+    ? `Select targets (${selectedTargets.length}/${maxTargets})`
+    : `Select target${selectedTargets.length > 0 ? `s (${selectedTargets.length})` : '(s)'}`;
 
   return (
     <>
       <div className="flex items-center gap-2 mb-2">
         <button onClick={onBack} className="text-gray-400 hover:text-white text-sm">&larr; Back</button>
         <span className="text-white font-medium">{spell.name}</span>
-        <span className="text-gray-500 text-xs">— Select target{selectedTargets.length > 0 ? `s (${selectedTargets.length})` : '(s)'}</span>
+        <span className="text-gray-500 text-xs">— {targetingLoading ? 'Loading...' : targetLabel}</span>
       </div>
 
-      <div className="space-y-1">
-        {allTargetable.map(p => {
-          const isSelected = selectedTargets.includes(p.id);
-          const isSelf = p.id === caster.id;
-          return (
-            <button
-              key={p.id}
-              onClick={() => onToggle(p.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors
-                ${isSelected ? 'bg-indigo-900/40 border border-indigo-500/50' : 'bg-gray-800 border border-gray-700 hover:bg-gray-750'}
-              `}
-            >
-              <div className="flex items-center gap-2">
-                <Target className={`w-3.5 h-3.5 ${isSelected ? 'text-indigo-400' : 'text-gray-500'}`} />
-                <span className={isSelected ? 'text-white' : 'text-gray-300'}>{p.displayName}</span>
-                {isSelf && <span className="text-gray-500 text-[10px]">(self)</span>}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span>AC {p.armourClass}</span>
-                <span>{p.hpCurrent}/{p.hpMax} HP</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      {targetingLoading ? (
+        <p className="text-gray-500 text-sm text-center py-4">Loading targeting info...</p>
+      ) : (
+        <div className="space-y-1">
+          {filteredTargets.map(p => {
+            const isSelected = selectedTargets.includes(p.id);
+            const isSelf = p.id === caster.id;
+            const disabled = !isSelected && atLimit;
+            return (
+              <button
+                key={p.id}
+                onClick={() => !disabled && onToggle(p.id)}
+                disabled={disabled}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors
+                  ${isSelected ? 'bg-indigo-900/40 border border-indigo-500/50' :
+                    disabled ? 'bg-gray-800/50 border border-gray-800 opacity-50 cursor-not-allowed' :
+                    'bg-gray-800 border border-gray-700 hover:bg-gray-750'}
+                `}
+              >
+                <div className="flex items-center gap-2">
+                  <Target className={`w-3.5 h-3.5 ${isSelected ? 'text-indigo-400' : 'text-gray-500'}`} />
+                  <span className={isSelected ? 'text-white' : 'text-gray-300'}>{p.displayName}</span>
+                  {isSelf && <span className="text-gray-500 text-[10px]">(self)</span>}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>AC {p.armourClass}</span>
+                  <span>{p.hpCurrent}/{p.hpMax} HP</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <button
         onClick={onProceed}

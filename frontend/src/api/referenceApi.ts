@@ -100,3 +100,17 @@ export const getOptionalFeatures = async (type?: string): Promise<OptionalFeatur
   const response = await api.get('/reference/optional-features', { params: type ? { type } : {} });
   return response.data;
 };
+
+export interface SpellTargetingInfo {
+  maxTargets: number;
+  selfOnly: boolean;
+  canTargetSelf: boolean;
+  canTargetAllies: boolean;
+  canTargetEnemies: boolean;
+  targetType: string;
+}
+
+export const getSpellTargeting = async (name: string, slotLevel: number): Promise<SpellTargetingInfo> => {
+  const response = await api.get('/reference/spells/targeting', { params: { name, slotLevel } });
+  return response.data;
+};
