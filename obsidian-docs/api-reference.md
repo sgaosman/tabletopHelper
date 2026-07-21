@@ -367,6 +367,26 @@ Return distinct filter values. Classes excludes subclass entries (entries contai
 
 Return subclass entries for a given class (e.g., `Cleric (Knowledge)` for className=`Cleric`).
 
+### GET /reference/spells/targeting?name={name}&slotLevel={level}
+
+Returns targeting constraints for a spell at a given cast/upcast level. Used by the Cast Spell modal to enforce target limits.
+
+**Query params:** `name` (required, case-insensitive), `slotLevel` (default 0)
+
+**Response:**
+```json
+{
+  "maxTargets": 3,
+  "selfOnly": false,
+  "canTargetSelf": true,
+  "canTargetAllies": true,
+  "canTargetEnemies": false,
+  "targetType": "MULTI_TARGET"
+}
+```
+
+`maxTargets` is -1 for unlimited (AOE spells). Upcast scaling is applied automatically based on `targetCountUpcastScaling` in the spell effect template.
+
 ## Items
 
 ### GET /reference/items
