@@ -8723,7 +8723,7 @@
       "materialConsumed": false,
       "materialCostGp": null
     },
-    "concentration": true,
+    "concentration": false,
     "durationRounds": 600,
     "durationText": "1 hour",
     "deliveryMethod": "NONE",

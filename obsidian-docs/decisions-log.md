@@ -1326,3 +1326,23 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Spell definitions use `+MOD` for spells where damage/healing includes the spellcasting modifier (Cure Wounds, Healing Word, Spiritual Weapon, etc.). Previously only `SPELL_MOD` was handled (for cantrip scaling like Magic Stone and Green-Flame Blade), causing `1d8+MOD` to throw "Invalid dice expression" at runtime.
 
 **Trade-offs:** `MOD` is now a reserved token in dice expressions. This is acceptable since all dice expressions in the system are internally authored.
+
+## D117: Explicit NONE Delivery Case for Concentration Spells
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Added explicit `case "NONE"` to the delivery method switch in `SpellResolverEngine.resolveSpell()` that correctly passes through concentration info (`concentration` flag, `concentrationSpellName`, `durationRounds`). Previously, NONE delivery spells fell through to the `default` case which called `manualResult()` — a helper that hardcodes `concentrationSet: false`.
+
+**Rationale:** 8 concentration spells use `NONE` delivery (Dancing Lights, Friends, True Strike, Darkness, Silence, Skywrite, Clairvoyance, Major Image). These are utility/illusion spells where damage resolution doesn't apply, but concentration tracking must still work. The `manualResult()` method was designed as a generic fallback that doesn't examine spell metadata, so it never set concentration.
+
+**Trade-offs:** None. The fix is a targeted case addition that mirrors the `SELF` delivery pattern.
+
+## D118: Flock of Familiars Concentration Correction
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Decision:** Changed `concentration: false` for Flock of Familiars in `spell-effect-definitions.json`. The spell was incorrectly marked as concentration in the original data.
+
+**Rationale:** Per D&D 5e 2014 rules (Icewind Dale: Rime of the Frostmaiden), Flock of Familiars has a 1-hour duration but is NOT a concentration spell. The familiars persist for the full duration without requiring concentration.

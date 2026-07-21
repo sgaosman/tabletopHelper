@@ -401,3 +401,13 @@ cd backend
 2. Applied substitution to all dice resolution paths: damage, healing, and repeat effects
 3. Fixed `healing.healingDice` in definitions for Cure Wounds, Healing Word, Prayer of Healing, and Mass Healing Word to include `+MOD`
 4. Ensured MOD substitution runs before upcast scaling (so `parseDiceExpression` receives numeric values)
+
+## NONE Delivery Concentration Spells Don't Set Concentration
+
+**Status:** Fixed (2026-07-21)
+
+**Description:** 8 concentration spells (Dancing Lights, Friends, True Strike, Darkness, Silence, Skywrite, Clairvoyance, Major Image) never set the caster's `concentrationSpell` field when cast. Other concentration spells (e.g., Bless, Hold Person) worked correctly.
+
+**Root Cause:** All 8 spells use `deliveryMethod: "NONE"` (utility/illusion spells with no attack roll or save). In `SpellResolverEngine`, the `NONE` delivery method had no explicit case in the switch statement, so it fell through to `default`, which called `manualResult()`. The `manualResult()` helper hardcodes `concentrationSet: false` because it was designed as a generic fallback that doesn't examine spell metadata.
+
+**Fix:** Added explicit `case "NONE"` to the delivery switch in `resolveSpell()` that constructs a `SpellCastResult` with the correct concentration fields from the spell definition. The new case returns `manualResolution: true` (DM must adjudicate the effect) while correctly setting `concentrationSet` and `concentrationSpellName`.

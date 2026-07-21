@@ -162,6 +162,12 @@ public class SpellResolverEngine {
                     desc.append(" Effect applied.");
                 }
             }
+            case "NONE" -> {
+                desc.append(" Effect requires DM adjudication.");
+                return new SpellCastResult(false, desc.toString(),
+                        0, 0, concentration, concentration ? spellName : null, durationRounds,
+                        List.of(), true, "Delivery method 'NONE' requires DM adjudication", List.of());
+            }
             default -> {
                 return manualResult(spellName, "Delivery method '" + deliveryMethod + "' requires DM adjudication");
             }
