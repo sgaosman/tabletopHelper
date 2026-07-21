@@ -3768,7 +3768,7 @@
     ],
     "conditionsInflicted": [],
     "healing": {
-      "healingDice": "1d8",
+      "healingDice": "1d8+MOD",
       "healingBonus": "spellcasting ability modifier",
       "upcastScaling": {
         "additionalDicePerLevel": "1d8",
@@ -5046,7 +5046,7 @@
     ],
     "conditionsInflicted": [],
     "healing": {
-      "healingDice": "1d4",
+      "healingDice": "1d4+MOD",
       "healingBonus": "spellcasting ability modifier",
       "upcastScaling": {
         "additionalDicePerLevel": "1d4",
@@ -10319,7 +10319,7 @@
     ],
     "conditionsInflicted": [],
     "healing": {
-      "dice": "2d8",
+      "dice": "2d8+MOD",
       "modifier": "spellcasting ability modifier"
     },
     "upcastDescription": "Healing increases by 1d8 for each slot level above 2nd",
@@ -14268,7 +14268,7 @@
     ],
     "conditionsInflicted": [],
     "healing": {
-      "healingDice": "1d4",
+      "healingDice": "1d4+MOD",
       "healingFlat": "spellcasting ability modifier",
       "healingDescription": "Up to six creatures regain 1d4 + spellcasting ability modifier hit points"
     },
