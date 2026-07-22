@@ -152,7 +152,7 @@ export default function BestiaryPage() {
                           <td className="px-3 py-2 font-heading text-[13px] font-bold text-monster">{m.name}</td>
                           <td className="px-3 py-2 font-body text-[13px] font-medium text-muted hidden md:table-cell capitalize">{m.type}</td>
                           <td className="px-3 py-2 hidden md:table-cell">
-                            <span className={`inline-block font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 ${crBadgeClasses(m.challengeRating)}`}>
+                            <span className={`inline-block font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 ${crBadgeClasses(m.challengeRating ?? '')}`}>
                               {m.challengeRating}
                             </span>
                           </td>

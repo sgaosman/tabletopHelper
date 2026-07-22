@@ -164,8 +164,6 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
     onClose();
   }
 
-  const levelLabel = (lvl: number) => lvl === 0 ? 'Cantrip' : `Level ${lvl}`;
-
   const otherParticipants = participants.filter(p => p.id !== caster.id && p.isAlive);
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Client, IMessage } from '@stomp/stompjs';
+import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import type { Encounter } from '../types/encounter';
 

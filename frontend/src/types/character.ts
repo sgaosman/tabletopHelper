@@ -18,7 +18,7 @@ export interface CharacterCreateRequest {
   intelligence: number;
   wisdom: number;
   charisma: number;
-  hpMax: number;
+  hpMax?: number;
   armourClass?: number;
   initiativeBonus?: number;
   speed?: number;

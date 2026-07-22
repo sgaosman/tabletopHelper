@@ -178,7 +178,7 @@ export default function SpellsPage() {
                         <tr key={s.id} onClick={() => setSelectedSpell(s)}
                           className={`border-b border-rule-light hover:bg-page-alt cursor-pointer transition-colors ${selectedSpell?.id === s.id ? 'bg-page-alt' : ''}`}>
                           <td className="px-3 py-2">
-                            <span className="font-heading text-[13px] font-bold" style={{ color: SCHOOL_COLOURS[s.school] || '#292524' }}>{s.name}</span>
+                            <span className="font-heading text-[13px] font-bold" style={{ color: SCHOOL_COLOURS[s.school ?? ''] || '#292524' }}>{s.name}</span>
                             {s.concentration && <span className="ml-2 font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 text-muted border border-rule">C</span>}
                             {s.ritual && <span className="ml-1 font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 text-cls-wizard border border-abj-border bg-abj-bg">R</span>}
                           </td>

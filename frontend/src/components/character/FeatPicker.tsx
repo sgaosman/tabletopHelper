@@ -745,9 +745,9 @@ function parseChooseString(choose: string): Partial<SpellFilter> {
 }
 
 function getSkillOptions(effects: ReturnType<typeof parseFeatEffects>, proficientSkills: string[]): string[] {
-  if (!effects) return ALL_SKILLS;
+  if (!effects) return [...ALL_SKILLS];
   const skillProfs = effects.skillProficiencies || effects.skillToolLanguageProficiencies;
-  if (!skillProfs) return ALL_SKILLS;
+  if (!skillProfs) return [...ALL_SKILLS];
   for (const entry of skillProfs) {
     if (entry?.choose?.from) {
       return entry.choose.from.map((s: string) => s.charAt(0).toUpperCase() + s.slice(1));
@@ -755,10 +755,10 @@ function getSkillOptions(effects: ReturnType<typeof parseFeatEffects>, proficien
     if (entry?.choose) {
       for (const c of Array.isArray(entry.choose) ? entry.choose : [entry.choose]) {
         if (c.from?.includes('anySkill')) {
-          return ALL_SKILLS.filter(s => !proficientSkills.includes(s));
+          return [...ALL_SKILLS].filter(s => !proficientSkills.includes(s));
         }
       }
     }
   }
-  return ALL_SKILLS.filter(s => !proficientSkills.includes(s));
+  return [...ALL_SKILLS].filter(s => !proficientSkills.includes(s));
 }

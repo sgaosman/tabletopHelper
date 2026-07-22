@@ -13,7 +13,7 @@ import { parseAbilityScoreIncrease } from '../../utils/featPrerequisites';
 import { ABILITIES, ABILITY_FROM_ABBR, ALL_SKILLS, abilityMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../utils/dndRules';
 
 import {
-  ALL_STEPS, ALIGNMENTS, ALL_LANGUAGES, ALL_TOOLS, ARTISANS_TOOLS, MUSICAL_INSTRUMENTS,
+  ALL_STEPS, ALL_LANGUAGES, ALL_TOOLS, ARTISANS_TOOLS, MUSICAL_INSTRUMENTS,
   getToolAnyOptions, expandToolFrom, formatProfEntry, countAsiLevels,
 } from './wizard/types';
 import type { AbilityScores, ProfEntry, ClassEntry, RaceChoiceReq, ChoiceReq } from './wizard/types';
@@ -41,7 +41,7 @@ export default function CharacterCreateWizard() {
 
   const [classes, setClasses] = useState<CharacterClassRef[]>([]);
   const [selectedClass, setSelectedClass] = useState<CharacterClassRef | null>(null);
-  const [subclasses, setSubclasses] = useState<Subclass[]>([]);
+  const [, setSubclasses] = useState<Subclass[]>([]);
   const [selectedSubclass, setSelectedSubclass] = useState<Subclass | null>(null);
   const [level, setLevel] = useState(1);
 
@@ -368,7 +368,7 @@ export default function CharacterCreateWizard() {
 
   const raceChoiceReqs = useMemo((): RaceChoiceReq[] => {
     if (!selectedRace) return [];
-    const choices = safeJsonParse<Record<string, unknown>>(selectedRace.raceChoices, null);
+    const choices = safeJsonParse<Record<string, unknown> | null>(selectedRace.raceChoices, null);
     if (!choices) return [];
     const reqs: RaceChoiceReq[] = [];
     const profs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[] }>(selectedRace.proficiencies, {});

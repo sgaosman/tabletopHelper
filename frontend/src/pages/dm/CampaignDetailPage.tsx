@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Copy, Check, Users, ScrollText } from 'lucide-react';
 import { campaignApi } from '../../api/campaignApi';
 import { characterApi } from '../../api/characterApi';
@@ -14,8 +14,6 @@ export default function CampaignDetailPage() {
   const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState(false);
-  const navigate = useNavigate();
-
   const fetchData = useCallback(() => {
     if (!campaignId) return;
     Promise.all([

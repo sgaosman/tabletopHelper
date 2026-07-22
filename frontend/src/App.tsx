@@ -17,7 +17,6 @@ import EncounterSessionPage from './pages/dm/EncounterSessionPage';
 import JoinEncounterPage from './pages/player/JoinEncounterPage';
 import PlayerEncounterSessionPage from './pages/player/EncounterSessionPage';
 import CharacterCreateWizard from './pages/player/CharacterCreateWizard';
-import PlaceholderPage from './components/common/PlaceholderPage';
 import QuickReferencePage from './pages/QuickReferencePage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {

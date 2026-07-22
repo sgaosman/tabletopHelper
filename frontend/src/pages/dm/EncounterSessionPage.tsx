@@ -6,7 +6,7 @@ import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../typ
 import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
-import { getClassColour, getParticipantColour, getParticipantBg } from '../../utils/classColours';
+import { getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
   ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
