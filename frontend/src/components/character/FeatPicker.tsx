@@ -324,16 +324,16 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
     return (
       <>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search feats..."
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full bg-page-alt border border-rule pl-9 pr-4 py-2 font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
             autoFocus
           />
         </div>
         {loading ? (
-          <p className="text-gray-500 text-sm text-center py-4">Loading feats...</p>
+          <p className="font-body text-[13px] text-faint text-center py-4">Loading feats...</p>
         ) : (
           <div className="space-y-1 max-h-[50vh] overflow-y-auto">
             {filteredFeats.map(({ feat, eligible, reason }) => (
@@ -341,24 +341,24 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                 key={feat.id}
                 onClick={() => eligible && selectFeat(feat)}
                 disabled={!eligible}
-                className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                className={`w-full text-left px-3 py-2 transition-colors ${
                   eligible
-                    ? 'hover:bg-gray-800 text-white cursor-pointer'
-                    : 'text-gray-600 cursor-not-allowed'
+                    ? 'hover:bg-page-alt text-ink cursor-pointer'
+                    : 'text-faint cursor-not-allowed'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm font-medium">{feat.name}</span>
-                    <span className="text-xs text-gray-500 ml-2">{feat.source}</span>
+                    <span className="font-heading text-[14px] font-semibold">{feat.name}</span>
+                    <span className="font-body text-[11px] text-faint ml-2">{feat.source}</span>
                   </div>
-                  {!eligible && <Lock className="w-3.5 h-3.5 text-gray-600" />}
+                  {!eligible && <Lock className="w-3.5 h-3.5 text-faint" />}
                 </div>
                 {!eligible && reason && (
-                  <p className="text-xs text-red-400/70 mt-0.5">{reason}</p>
+                  <p className="font-body text-[11px] text-debuff/70 mt-0.5">{reason}</p>
                 )}
                 {eligible && feat.abilityScoreIncrease && (
-                  <p className="text-xs text-green-400/70 mt-0.5">
+                  <p className="font-body text-[11px] text-buff/70 mt-0.5">
                     {formatAsiPreview(feat)}
                   </p>
                 )}
@@ -374,19 +374,19 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
     <>
       <div className="flex items-center gap-2">
         <button onClick={() => { setSelectedFeat(null); resetFeatChoices(); onSelectionChange(null); }}
-          className="text-gray-400 hover:text-white text-sm">&larr; Back</button>
-        <h3 className="text-white font-bold">{selectedFeat.name}</h3>
-        <span className="text-xs text-gray-500">{selectedFeat.source}</span>
+          className="font-body text-[13px] font-medium text-muted hover:text-ink">&larr; Back</button>
+        <h3 className="font-heading text-[15px] font-bold text-ink">{selectedFeat.name}</h3>
+        <span className="font-body text-[11px] text-faint">{selectedFeat.source}</span>
       </div>
 
       <button onClick={() => setShowDescription(!showDescription)}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300">
+        className="flex items-center gap-1 font-body text-[11px] font-medium text-muted hover:text-ink">
         {showDescription ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         {showDescription ? 'Hide' : 'Show'} description
       </button>
       {showDescription && selectedFeat.description && (
-        <div className="bg-gray-800/50 rounded-lg p-3 max-h-40 overflow-y-auto">
-          <FormattedDescription text={selectedFeat.description} className="text-xs [&_p]:text-gray-300" />
+        <div className="bg-page-alt border border-rule p-3 max-h-40 overflow-y-auto">
+          <FormattedDescription text={selectedFeat.description} className="text-xs [&_p]:text-muted" />
         </div>
       )}
 
@@ -398,8 +398,8 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
             <div className="flex flex-wrap gap-2">
               {selectedAsi.choose.from.map(ab => (
                 <button key={ab} onClick={() => setAbilityChoice(ab)}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    abilityChoice === ab ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  className={`px-3 py-1.5 font-body text-[13px] font-medium border transition-colors ${
+                    abilityChoice === ab ? 'bg-ink text-card border-ink' : 'bg-page border-rule text-muted hover:border-muted'
                   }`}>
                   {ab} ({(character[ab.toLowerCase() as keyof PlayerCharacter] as number) || '?'})
                 </button>
@@ -413,8 +413,8 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
             <div className="flex flex-wrap gap-2">
               {getResistanceOptions(selectedEffects!).map(r => (
                 <button key={r} onClick={() => setResistanceChoice(r)}
-                  className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-colors ${
-                    resistanceChoice === r ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  className={`px-3 py-1.5 font-body text-[13px] font-medium capitalize border transition-colors ${
+                    resistanceChoice === r ? 'bg-ink text-card' : 'bg-page-alt border border-rule text-muted hover:border-muted'
                   }`}>{r}</button>
               ))}
             </div>
@@ -426,8 +426,8 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
             <div className="flex flex-wrap gap-1.5">
               {getSkillOptions(selectedEffects!, proficientSkills).map(skill => (
                 <button key={skill} onClick={() => toggleChoice(skill, skillChoices, setSkillChoices, choices.skill)}
-                  className={`px-2 py-1 rounded text-xs transition-colors ${
-                    skillChoices.includes(skill) ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  className={`px-2 py-1 rounded font-heading text-[9px] font-medium tracking-[0.02em] transition-colors ${
+                    skillChoices.includes(skill) ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:bg-rule'
                   }`}>{skill}</button>
               ))}
             </div>
@@ -439,8 +439,8 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
             <div className="flex flex-wrap gap-2">
               {ABILITIES.map(({ key, label }) => (
                 <button key={key} onClick={() => setSavingThrowChoice(key)}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    savingThrowChoice === key ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  className={`px-3 py-1.5 font-body text-[13px] font-medium transition-colors ${
+                    savingThrowChoice === key ? 'bg-ink text-card' : 'bg-page-alt border border-rule text-muted hover:border-muted'
                   }`}>{label}</button>
               ))}
             </div>
@@ -452,8 +452,8 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
             <div className="flex flex-wrap gap-1.5">
               {proficientSkills.filter(s => !existingExpertise.includes(s)).map(skill => (
                 <button key={skill} onClick={() => toggleChoice(skill, expertiseChoices, setExpertiseChoices, choices.expertise)}
-                  className={`px-2 py-1 rounded text-xs transition-colors ${
-                    expertiseChoices.includes(skill) ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  className={`px-2 py-1 rounded font-heading text-[9px] font-medium tracking-[0.02em] transition-colors ${
+                    expertiseChoices.includes(skill) ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:bg-rule'
                   }`}>{skill}</button>
               ))}
             </div>
@@ -469,7 +469,7 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                 setToolChoices(updated.filter(Boolean));
               }}
               placeholder={`Tool ${i + 1}...`}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-1" />
+              className="w-full bg-page-alt border border-rule px-3 py-1.5 font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted mb-1" />
             ))}
           </ChoiceSection>
         )}
@@ -483,7 +483,7 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                 setLanguageChoices(updated.filter(Boolean));
               }}
               placeholder={`Language ${i + 1}...`}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-1" />
+              className="w-full bg-page-alt border border-rule px-3 py-1.5 font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted mb-1" />
             ))}
           </ChoiceSection>
         )}
@@ -497,7 +497,7 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                 setWeaponChoices(updated.filter(Boolean));
               }}
               placeholder={`Weapon ${i + 1}...`}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-1" />
+              className="w-full bg-page-alt border border-rule px-3 py-1.5 font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted mb-1" />
             ))}
           </ChoiceSection>
         )}
@@ -508,15 +508,15 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
               {optionalFeatures.map(of => (
                 <button key={of.id}
                   onClick={() => toggleChoice(of.id, selectedOptFeatures, setSelectedOptFeatures, choices.optFeature)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    selectedOptFeatures.includes(of.id) ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  className={`w-full text-left px-3 py-2 font-body text-[13px] font-medium transition-colors ${
+                    selectedOptFeatures.includes(of.id) ? 'bg-ink text-card' : 'bg-page-alt border border-rule text-muted hover:border-muted'
                   }`}>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{of.name}</span>
                     {selectedOptFeatures.includes(of.id) && <Check className="w-4 h-4" />}
                   </div>
                   {of.description && (
-                    <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{of.description}</p>
+                    <p className="font-body text-[11px] text-muted mt-0.5 line-clamp-2">{of.description}</p>
                   )}
                 </button>
               ))}
@@ -528,12 +528,12 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
           <ChoiceSection title="Feat Spells">
             {featSpellOptions.length > 1 && (
               <div className="mb-3">
-                <p className="text-xs text-gray-500 mb-1.5">Choose a spell list:</p>
+                <p className="font-body text-[11px] text-faint mb-1.5">Choose a spell list:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {featSpellOptions.map((opt, i) => (
                     <button key={i} onClick={() => { setSelectedSpellOption(i); setSelectedSpellIds([]); setActiveSpellSlot(null); }}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        selectedSpellOption === i ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      className={`px-3 py-1.5 font-body text-[13px] font-medium transition-colors ${
+                        selectedSpellOption === i ? 'bg-ink text-card' : 'bg-page-alt border border-rule text-muted hover:border-muted'
                       }`}>{opt.name}</button>
                   ))}
                 </div>
@@ -542,9 +542,9 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
 
             {spellSlots.fixed.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs text-gray-500 mb-1">Granted automatically:</p>
+                <p className="font-body text-[11px] font-medium text-faint mb-1">Granted automatically:</p>
                 {spellSlots.fixed.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/60 rounded text-sm text-green-300">
+                  <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-page-alt rounded font-body text-[13px] font-medium text-buff">
                     <Check className="w-3.5 h-3.5" /> {s}
                   </div>
                 ))}
@@ -571,23 +571,23 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                       setSpellSearchQuery('');
                       searchFeatSpells('', filter);
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors border ${
+                    className={`w-full text-left px-3 py-2 font-body text-[13px] font-medium transition-colors border ${
                       selectedSpell
-                        ? 'border-indigo-600 bg-indigo-900/30 text-white'
-                        : 'border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        ? 'border-2 border-ink bg-page-alt text-ink'
+                        : 'border-rule bg-page-alt text-ink hover:bg-rule'
                     }`}
                   >
                     {selectedSpell && selectedSpellData
-                      ? <span className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-indigo-400" /> {selectedSpellData.name}</span>
+                      ? <span className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-ink" /> {selectedSpellData.name}</span>
                       : <span>Choose a {filterDesc}...</span>
                     }
                   </button>
 
                   {isActive && (
-                    <div className="mt-1 border border-gray-700 rounded-lg bg-gray-850 overflow-hidden">
+                    <div className="mt-1 border border-rule bg-card overflow-hidden">
                       <div className="p-2">
                         <div className="relative">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint" />
                           <input
                             value={spellSearchQuery}
                             onChange={e => {
@@ -595,16 +595,16 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                               searchFeatSpells(e.target.value, filter);
                             }}
                             placeholder={`Search ${filterDesc}...`}
-                            className="w-full bg-gray-800 border border-gray-700 rounded pl-8 pr-3 py-1.5 text-white text-xs placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            className="w-full bg-page-alt border border-rule pl-8 pr-3 py-1.5 font-body text-[12px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
                             autoFocus
                           />
                         </div>
                       </div>
                       <div className="max-h-40 overflow-y-auto">
                         {spellSearchLoading ? (
-                          <p className="text-gray-500 text-xs text-center py-3">Searching...</p>
+                          <p className="font-body text-[11px] font-medium text-faint text-center py-3">Searching...</p>
                         ) : spellSearchResults.length === 0 ? (
-                          <p className="text-gray-500 text-xs text-center py-3">No spells found</p>
+                          <p className="font-body text-[11px] font-medium text-faint text-center py-3">No spells found</p>
                         ) : (
                           spellSearchResults.map(spell => (
                             <button key={spell.id}
@@ -614,12 +614,12 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                                 setSelectedSpellIds(updated);
                                 setActiveSpellSlot(null);
                               }}
-                              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-800 transition-colors ${
-                                selectedSpell === spell.id ? 'bg-indigo-900/30 text-indigo-300' : 'text-gray-300'
+                              className={`w-full text-left px-3 py-1.5 font-body text-[11px] font-medium hover:bg-page-alt transition-colors ${
+                                selectedSpell === spell.id ? 'bg-page-alt text-ink' : 'text-muted'
                               }`}
                             >
-                              <span className="font-medium">{spell.name}</span>
-                              <span className="text-gray-500 ml-2">
+                              <span className="font-heading text-[11px] font-semibold">{spell.name}</span>
+                              <span className="text-faint ml-2">
                                 {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
                                 {spell.school ? ` · ${spell.school}` : ''}
                               </span>
@@ -641,8 +641,8 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
 
 function ChoiceSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-gray-800/30 rounded-lg p-3">
-      <p className="text-xs text-gray-400 font-medium mb-2">{title}</p>
+    <div className="bg-page-alt p-3">
+      <p className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-2">{title}</p>
       {children}
     </div>
   );
@@ -680,7 +680,7 @@ function EffectsSummary({ feat, effects, asi }: { feat: Feat; effects: ReturnTyp
   return (
     <div className="flex flex-wrap gap-1.5">
       {tags.map(tag => (
-        <span key={tag} className="px-2 py-0.5 bg-indigo-900/40 text-indigo-300 text-xs rounded-full">{tag}</span>
+        <span key={tag} className="px-2 py-0.5 bg-page-alt border border-rule font-heading text-[9px] font-medium tracking-[0.02em] text-ink">{tag}</span>
       ))}
     </div>
   );

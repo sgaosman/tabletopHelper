@@ -6,6 +6,7 @@ import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../typ
 import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
+import { getClassColour, getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
   ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
@@ -13,24 +14,11 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 
-const CONDITION_COLORS: Record<string, string> = {
-  blinded: 'bg-gray-700 text-gray-300',
-  charmed: 'bg-pink-900/60 text-pink-300',
-  deafened: 'bg-gray-700 text-gray-300',
-  frightened: 'bg-yellow-900/60 text-yellow-300',
-  grappled: 'bg-orange-900/60 text-orange-300',
-  incapacitated: 'bg-red-900/60 text-red-300',
-  invisible: 'bg-blue-900/60 text-blue-300',
-  paralyzed: 'bg-red-900/60 text-red-300',
-  petrified: 'bg-stone-800 text-stone-300',
-  poisoned: 'bg-green-900/60 text-green-300',
-  prone: 'bg-amber-900/60 text-amber-300',
-  restrained: 'bg-orange-900/60 text-orange-300',
-  stunned: 'bg-yellow-900/60 text-yellow-300',
-  unconscious: 'bg-red-900/60 text-red-300',
-};
-
-const ALL_CONDITIONS = Object.keys(CONDITION_COLORS);
+const ALL_CONDITIONS = [
+  'blinded', 'charmed', 'deafened', 'frightened', 'grappled',
+  'incapacitated', 'invisible', 'paralyzed', 'petrified',
+  'poisoned', 'prone', 'restrained', 'stunned', 'unconscious',
+];
 
 const DAMAGE_TYPES = [
   'bludgeoning', 'piercing', 'slashing', 'acid', 'cold', 'fire',
@@ -43,15 +31,15 @@ function HpBar({ participant }: { participant: EncounterParticipant }) {
   const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
   const tempPct = participant.hpMax > 0 ? ((participant.hpTemp || 0) / participant.hpMax) * 100 : 0;
 
-  let barColor = 'bg-green-500';
-  if (pct <= 25) barColor = 'bg-red-500';
-  else if (pct <= 50) barColor = 'bg-yellow-500';
+  let barColor = 'bg-buff';
+  if (pct <= 25) barColor = 'bg-debuff';
+  else if (pct <= 50) barColor = 'bg-cls-monk';
 
   return (
-    <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden flex">
+    <div className="w-full bg-rule h-2 overflow-hidden flex">
       <div className={`${barColor} h-full transition-all duration-300`} style={{ width: `${Math.min(pct, 100)}%` }} />
       {tempPct > 0 && (
-        <div className="bg-cyan-500 h-full transition-all duration-300" style={{ width: `${Math.min(tempPct, 100 - pct)}%` }} />
+        <div className="bg-cls-wizard h-full transition-all duration-300" style={{ width: `${Math.min(tempPct, 100 - pct)}%` }} />
       )}
     </div>
   );
@@ -73,21 +61,21 @@ function DeathSaves({ participant, encounterId, onUpdate }: { participant: Encou
   return (
     <div className="flex items-center gap-3 mt-1">
       <div className="flex items-center gap-1">
-        <span className="text-xs text-gray-400">Saves:</span>
+        <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted">Saves:</span>
         {[0, 1, 2].map(i => (
-          <div key={`s${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveSuccesses ? 'bg-green-500 border-green-400' : 'border-gray-600'}`} />
+          <div key={`s${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveSuccesses ? 'bg-buff border-buff' : 'border-rule-light'}`} />
         ))}
       </div>
       <div className="flex items-center gap-1">
-        <span className="text-xs text-gray-400">Fails:</span>
+        <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted">Fails:</span>
         {[0, 1, 2].map(i => (
-          <div key={`f${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveFailures ? 'bg-red-500 border-red-400' : 'border-gray-600'}`} />
+          <div key={`f${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveFailures ? 'bg-debuff border-debuff' : 'border-rule-light'}`} />
         ))}
       </div>
       <button
         onClick={handleRoll}
         disabled={rolling}
-        className="px-2 py-0.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded disabled:opacity-50"
+        className="px-2 py-0.5 font-body text-[14px] font-medium bg-page-alt hover:bg-rule text-muted disabled:opacity-50"
       >
         {rolling ? '...' : 'Roll'}
       </button>
@@ -114,12 +102,12 @@ function SpellSlotDisplay({ participant, encounterId, onUpdate }: { participant:
 
   return (
     <div className="flex items-center gap-2 mt-1 flex-wrap">
-      <Sparkles className="w-3 h-3 text-indigo-400" />
+      <Sparkles className="w-3 h-3 text-ink" />
       {levels.map(lvl => {
         const s = slots[lvl];
         return (
           <div key={lvl} className="flex items-center gap-0.5">
-            <span className="text-xs text-gray-500">{lvl}:</span>
+            <span className="font-heading text-[10px] font-semibold tracking-[0.1em] text-faint">{lvl}:</span>
             <div className="flex gap-0.5">
               {Array.from({ length: s.max }).map((_, i) => (
                 <button
@@ -127,8 +115,8 @@ function SpellSlotDisplay({ participant, encounterId, onUpdate }: { participant:
                   onClick={() => i < s.remaining ? handleUse(parseInt(lvl)) : handleRestore(parseInt(lvl))}
                   className={`w-2.5 h-2.5 rounded-full border transition-colors ${
                     i < s.remaining
-                      ? 'bg-indigo-500 border-indigo-400 hover:bg-indigo-700'
-                      : 'border-gray-600 hover:border-indigo-500'
+                      ? 'bg-ink border-ink hover:bg-ink/80'
+                      : 'border-rule-light hover:border-ink'
                   }`}
                   title={i < s.remaining ? `Use level ${lvl} slot` : `Restore level ${lvl} slot`}
                 />
@@ -229,16 +217,16 @@ function ActionPanel({
   if (!selectedTarget || !actionMode) return null;
 
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4">
+    <div className="bg-card border border-rule p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-300">
-          {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-orange-400" />Attack {selectedTarget.displayName} (AC {selectedTarget.armourClass})</>}
-          {actionMode === 'damage' && <><Swords className="w-4 h-4 inline mr-1 text-red-400" />Damage {selectedTarget.displayName}</>}
-          {actionMode === 'heal' && <><Heart className="w-4 h-4 inline mr-1 text-green-400" />Heal {selectedTarget.displayName}</>}
-          {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-yellow-400" />Add Condition to {selectedTarget.displayName}</>}
-          {actionMode === 'concentration' && <><Zap className="w-4 h-4 inline mr-1 text-purple-400" />Concentration for {selectedTarget.displayName}</>}
+        <h3 className="font-heading text-[13px] font-semibold tracking-[0.01em] text-muted">
+          {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-cls-fighter" />Attack {selectedTarget.displayName} (AC {selectedTarget.armourClass})</>}
+          {actionMode === 'damage' && <><Swords className="w-4 h-4 inline mr-1 text-debuff" />Damage {selectedTarget.displayName}</>}
+          {actionMode === 'heal' && <><Heart className="w-4 h-4 inline mr-1 text-buff" />Heal {selectedTarget.displayName}</>}
+          {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-cls-monk" />Add Condition to {selectedTarget.displayName}</>}
+          {actionMode === 'concentration' && <><Zap className="w-4 h-4 inline mr-1 text-cls-warlock" />Concentration for {selectedTarget.displayName}</>}
         </h3>
-        <button onClick={() => setActionMode(null)} className="text-gray-500 hover:text-gray-300">
+        <button onClick={() => setActionMode(null)} className="text-faint hover:text-muted">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -250,77 +238,77 @@ function ActionPanel({
               {attacks.map((atk, i) => (
                 <div key={i} className="flex items-end gap-2">
                   <div className="w-20">
-                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Attack +</label>}
+                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Attack +</label>}
                     <input
                       type="number"
                       value={atk.attackBonus}
                       onChange={e => updateAttack(i, 'attackBonus', e.target.value)}
                       placeholder="+5"
-                      className="w-full px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
                       autoFocus={i === 0}
                     />
                   </div>
                   <div className="w-24">
-                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Damage</label>}
+                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Damage</label>}
                     <input
                       type="text"
                       value={atk.damageDice}
                       onChange={e => updateAttack(i, 'damageDice', e.target.value)}
                       placeholder="1d8+3"
-                      className="w-full px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
                     />
                   </div>
                   <div className="w-28">
-                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Type</label>}
+                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>}
                     <select
                       value={atk.damageType}
                       onChange={e => updateAttack(i, 'damageType', e.target.value)}
-                      className="w-full h-[38px] px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full h-[38px] px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink focus:outline-none focus:border-muted"
                     >
-                      <option value="">—</option>
+                      <option value="">&#8212;</option>
                       {DAMAGE_TYPES.map(dt => (
                         <option key={dt} value={dt}>{dt}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">Roll</label>}
+                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Roll</label>}
                     <div className="flex gap-1">
                       <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === false ? null : false)}
-                        className={`px-2 py-2 rounded text-xs font-medium ${atk.advantage === false ? 'bg-red-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                        className={`px-2 py-2 font-body text-[14px] font-medium ${atk.advantage === false ? 'bg-debuff text-white' : 'bg-page-alt text-muted border border-rule'}`}>
                         Dis
                       </button>
                       <button type="button" onClick={() => updateAttack(i, 'advantage', null)}
-                        className={`px-2 py-2 rounded text-xs font-medium ${atk.advantage === null ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                        className={`px-2 py-2 font-body text-[14px] font-medium ${atk.advantage === null ? 'bg-rule text-ink' : 'bg-page-alt text-muted border border-rule'}`}>
                         Norm
                       </button>
                       <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === true ? null : true)}
-                        className={`px-2 py-2 rounded text-xs font-medium ${atk.advantage === true ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                        className={`px-2 py-2 font-body text-[14px] font-medium ${atk.advantage === true ? 'bg-buff text-white' : 'bg-page-alt text-muted border border-rule'}`}>
                         Adv
                       </button>
                     </div>
                   </div>
                   <div>
-                    {i === 0 && <label className="block text-xs text-gray-400 mb-1">&nbsp;</label>}
+                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
                     <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
-                      className={`px-2 py-2 rounded text-xs font-medium ${atk.forceCrit ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                      className={`px-2 py-2 font-body text-[14px] font-medium ${atk.forceCrit ? 'bg-cls-monk text-white' : 'bg-page-alt text-muted border border-rule'}`}>
                       Crit
                     </button>
                     <button type="button" onClick={() => updateAttack(i, 'isRanged', !atk.isRanged)}
-                      className={`px-2 py-2 rounded text-xs font-medium ${atk.isRanged ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                      className={`px-2 py-2 font-body text-[14px] font-medium ${atk.isRanged ? 'bg-cls-wizard text-white' : 'bg-page-alt text-muted border border-rule'}`}>
                       Ranged
                     </button>
                   </div>
                   <div className="flex gap-1">
                     {attacks.length < 5 && (
                       <button type="button" onClick={() => cloneAttackRow(i)}
-                        className="p-2 text-gray-500 hover:text-green-400" title="Clone this attack">
+                        className="p-2 text-faint hover:text-buff" title="Clone this attack">
                         <Copy className="w-4 h-4" />
                       </button>
                     )}
                     {attacks.length > 1 && (
                       <button type="button" onClick={() => removeAttackRow(i)}
-                        className="p-2 text-gray-500 hover:text-red-400" title="Remove this attack">
+                        className="p-2 text-faint hover:text-debuff" title="Remove this attack">
                         <X className="w-4 h-4" />
                       </button>
                     )}
@@ -329,7 +317,7 @@ function ActionPanel({
               ))}
               {attacks.length < 5 && (
                 <button type="button" onClick={addAttackRow}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-400 py-1">
+                  className="flex items-center gap-1 font-body text-[13px] font-medium text-muted hover:text-ink py-1">
                   <Plus className="w-3 h-3" /> Add attack
                 </button>
               )}
@@ -338,7 +326,7 @@ function ActionPanel({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white text-sm rounded-lg whitespace-nowrap"
+                className="px-4 py-2 bg-ink hover:bg-ink/90 disabled:bg-ink/50 text-card font-body text-[14px] font-medium whitespace-nowrap"
               >
                 {loading ? '...' : `Roll ${attacks.length > 1 ? `${attacks.length} ` : ''}Attack${attacks.length > 1 ? 's' : ''}`}
               </button>
@@ -351,25 +339,25 @@ function ActionPanel({
             {(actionMode === 'damage' || actionMode === 'heal') && (
               <>
                 <div className="flex-1">
-                  <label className="block text-xs text-gray-400 mb-1">Amount</label>
+                  <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Amount</label>
                   <input
                     type="number"
                     min="0"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
                     autoFocus
                   />
                 </div>
                 {actionMode === 'damage' && (
                   <div className="flex-1">
-                    <label className="block text-xs text-gray-400 mb-1">Type</label>
+                    <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>
                     <select
                       value={damageType}
                       onChange={e => setDamageType(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink focus:outline-none focus:border-muted"
                     >
-                      <option value="">—</option>
+                      <option value="">&#8212;</option>
                       {DAMAGE_TYPES.map(dt => (
                         <option key={dt} value={dt}>{dt}</option>
                       ))}
@@ -382,11 +370,11 @@ function ActionPanel({
             {actionMode === 'condition' && (
               <>
                 <div className="flex-1">
-                  <label className="block text-xs text-gray-400 mb-1">Condition</label>
+                  <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Condition</label>
                   <select
                     value={condition}
                     onChange={e => setCondition(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink focus:outline-none focus:border-muted"
                     autoFocus
                   >
                     <option value="">Select condition...</option>
@@ -396,14 +384,14 @@ function ActionPanel({
                   </select>
                 </div>
                 <div className="w-28">
-                  <label className="block text-xs text-gray-400 mb-1">Duration (rounds)</label>
+                  <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Duration (rounds)</label>
                   <input
                     type="number"
                     min="1"
                     value={conditionDuration}
                     onChange={e => setConditionDuration(e.target.value)}
-                    placeholder="∞"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="&#8734;"
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
                   />
                 </div>
               </>
@@ -411,13 +399,13 @@ function ActionPanel({
 
             {actionMode === 'concentration' && (
               <div className="flex-1">
-                <label className="block text-xs text-gray-400 mb-1">Spell Name (blank to clear)</label>
+                <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Spell Name (blank to clear)</label>
                 <input
                   type="text"
                   value={spellName}
                   onChange={e => setSpellName(e.target.value)}
                   placeholder="e.g. Bless, Hold Person"
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
                   autoFocus
                 />
               </div>
@@ -426,7 +414,7 @@ function ActionPanel({
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white text-sm rounded-lg"
+              className="px-4 py-2 bg-ink hover:bg-ink/90 disabled:bg-ink/50 text-card font-body text-[14px] font-medium"
             >
               {loading ? '...' : 'Apply'}
             </button>
@@ -488,41 +476,53 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
 
   function getLogColor(actionType: string) {
     switch (actionType) {
-      case 'ATTACK': return 'text-orange-400';
-      case 'DAMAGE': case 'KILL': return 'text-red-400';
-      case 'HEAL': case 'REVIVE': return 'text-green-400';
-      case 'CONDITION_ADD': return 'text-yellow-400';
-      case 'CONDITION_REMOVE': return 'text-blue-400';
-      case 'DEATH_SAVE': return 'text-orange-400';
-      case 'STABILIZE': return 'text-green-300';
-      case 'CONCENTRATION_CHECK': return 'text-purple-400';
-      case 'CONCENTRATION_LOST': return 'text-purple-300';
-      case 'SPELL_CAST': return 'text-indigo-400';
-      case 'SPELL_SLOT_USE': return 'text-indigo-400';
-      case 'SPELL_SLOT_RESTORE': return 'text-indigo-300';
-      case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-gray-500';
-      default: return 'text-gray-400';
+      case 'ATTACK': return 'text-cls-fighter';
+      case 'DAMAGE': case 'KILL': return 'text-debuff';
+      case 'HEAL': case 'REVIVE': return 'text-buff';
+      case 'CONDITION_ADD': return 'text-cls-monk';
+      case 'CONDITION_REMOVE': return 'text-cls-wizard';
+      case 'DEATH_SAVE': return 'text-cls-fighter';
+      case 'STABILIZE': return 'text-buff';
+      case 'CONCENTRATION_CHECK': return 'text-cls-warlock';
+      case 'CONCENTRATION_LOST': return 'text-cls-warlock';
+      case 'SPELL_CAST': return 'text-ink';
+      case 'SPELL_SLOT_USE': return 'text-ink';
+      case 'SPELL_SLOT_RESTORE': return 'text-ink';
+      case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-faint';
+      default: return 'text-muted';
+    }
+  }
+
+  function getLogBorderColor(actionType: string) {
+    switch (actionType) {
+      case 'ATTACK': case 'DAMAGE': case 'KILL': case 'DEATH_SAVE':
+      case 'CONDITION_ADD': case 'CONCENTRATION_LOST':
+        return 'border-debuff';
+      case 'HEAL': case 'REVIVE': case 'STABILIZE': case 'CONDITION_REMOVE':
+        return 'border-buff';
+      default:
+        return 'border-muted';
     }
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+    <div className="bg-card border border-rule overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/50"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-page-alt"
       >
         <div className="flex items-center gap-2">
-          <ScrollText className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-semibold text-gray-300">Combat Log</span>
-          <span className="text-xs text-gray-500">({logs.length} entries)</span>
+          <ScrollText className="w-4 h-4 text-muted" />
+          <span className="font-heading text-[13px] font-semibold tracking-[0.01em] text-muted">Combat Log</span>
+          <span className="font-body text-[13px] font-medium text-faint">({logs.length} entries)</span>
         </div>
-        <ChevronRight className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        <ChevronRight className={`w-4 h-4 text-faint transition-transform ${expanded ? 'rotate-90' : ''}`} />
       </button>
       {expanded && (
         <div className="relative">
-          <div ref={scrollRef} onScroll={handleScroll} aria-live="polite" aria-label="Combat log entries" className="max-h-64 overflow-y-auto border-t border-gray-800 px-4 py-2 space-y-1">
+          <div ref={scrollRef} onScroll={handleScroll} aria-live="polite" aria-label="Combat log entries" className="max-h-64 overflow-y-auto border-t border-rule px-4 py-2 space-y-1">
             {logs.length === 0 ? (
-              <p className="text-gray-500 text-xs py-2">No actions yet</p>
+              <p className="text-faint font-body text-[13px] font-medium py-2">No actions yet</p>
             ) : (
               logs.map((log, idx) => {
                 const prevLog = idx > 0 ? logs[idx - 1] : null;
@@ -539,18 +539,18 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
                 return (
                   <div key={log.id}>
                     {showRoundHeader && (
-                      <div className="text-xs font-semibold text-indigo-400 border-b border-gray-800 pb-1 pt-2 mb-1">
+                      <div className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-ink border-b border-rule pb-1 pt-2 mb-1">
                         Round {log.roundNumber}
                       </div>
                     )}
                     {showTurnHeader && (
-                      <div className="text-xs text-gray-500 font-medium py-0.5 pl-2 border-l-2 border-gray-700 my-1">
+                      <div className="font-body text-[13px] font-medium text-faint py-0.5 pl-2 border-l-2 border-rule my-1">
                         Turn: {turnName}
                       </div>
                     )}
                     {!isTurnChange && (
-                      <div className="flex items-start gap-2 text-xs pl-2">
-                        <span className={getLogColor(log.actionType)}>{log.description}</span>
+                      <div className={`bg-page-alt border-l-2 ${getLogBorderColor(log.actionType)} px-2 py-0.5`}>
+                        <span className={`font-body text-[13px] font-medium ${getLogColor(log.actionType)}`}>{log.description}</span>
                       </div>
                     )}
                   </div>
@@ -561,7 +561,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
           {!isAtBottom && newCount > 0 && (
             <button
               onClick={scrollToBottom}
-              className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-full shadow-lg"
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1.5 bg-ink hover:bg-ink/90 text-card font-heading text-[9px] font-medium shadow-lg"
             >
               <ChevronLeft className="w-3 h-3 rotate-[-90deg]" />
               Scroll to bottom ({newCount} new message{newCount !== 1 ? 's' : ''})
@@ -581,7 +581,7 @@ function DmSessionView() {
   const [actionMode, setActionMode] = useState<ActionMode>(null);
 
   if (!encounter) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-gray-400">Loading encounter...</p></div>;
+    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[13px] font-medium">Loading encounter...</p></div>;
   }
 
   function copySessionCode() {
@@ -631,11 +631,6 @@ function DmSessionView() {
   function selectTarget(participantId: string, mode: ActionMode) {
     setSelectedTargetId(participantId);
     setActionMode(mode);
-    if (mode === 'attack') {
-      const target = encounter.participants.find(p => p.id === participantId);
-      const isDowned = target && !target.isAlive && target.participantType === 'PLAYER';
-      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: isDowned ? true : null, forceCrit: false, isRanged: false }]);
-    }
   }
 
   function parseConditions(p: EncounterParticipant): ConditionEntry[] {
@@ -656,69 +651,69 @@ function DmSessionView() {
   const isActive = encounter.status === 'ACTIVE';
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-3">
+    <div className="min-h-screen bg-page">
+      <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
         <div className="flex items-center justify-between">
-          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm">
+          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 text-muted hover:text-ink transition-colors font-body text-[14px] font-medium">
             <ArrowLeft className="w-4 h-4" /> Builder
           </button>
           <div className="flex items-center gap-4">
             {encounter.sessionCode && (
-              <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg">
-                <span className="text-gray-400 text-xs">Code:</span>
-                <span className="text-white font-mono font-bold tracking-wider">{encounter.sessionCode}</span>
-                <button onClick={copySessionCode} className="text-gray-400 hover:text-white">
-                  {copiedCode ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <div className="flex items-center gap-2 bg-card border border-rule px-3 py-1.5">
+                <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted">Code:</span>
+                <span className="text-ink font-mono font-bold tracking-wider">{encounter.sessionCode}</span>
+                <button onClick={copySessionCode} className="text-muted hover:text-ink">
+                  {copiedCode ? <Check className="w-3.5 h-3.5 text-buff" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
             )}
             <div className="flex items-center gap-1.5">
-              {isConnected ? <Wifi className="w-4 h-4 text-green-400" /> : <WifiOff className="w-4 h-4 text-red-400" />}
-              <span className="text-xs text-gray-400">{isConnected ? 'Live' : 'Disconnected'}</span>
+              {isConnected ? <Wifi className="w-4 h-4 text-buff" /> : <WifiOff className="w-4 h-4 text-debuff" />}
+              <span className="font-body text-[13px] font-medium text-muted">{isConnected ? 'Live' : 'Disconnected'}</span>
             </div>
           </div>
         </div>
       </header>
 
       <main className="px-6 py-4">
-        {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+        {error && <p className="text-debuff font-body text-[13px] font-medium mb-4">{error}</p>}
 
         {/* Encounter info + controls bar */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-bold text-white">{encounter.name}</h1>
-            <p className="text-gray-400 text-sm">
+            <h1 className="font-heading text-[20px] font-bold tracking-[0.02em] text-ink">{encounter.name}</h1>
+            <p className="text-muted font-body text-[13px] font-medium">
               Round {encounter.roundNumber} &middot; {encounter.participants.filter(p => p.isAlive).length}/{encounter.participants.length} alive
             </p>
           </div>
           <div className="flex items-center gap-2">
             {isActive && (
               <>
-                <button onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm" title="Previous turn">
+                <button onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[14px] font-medium" title="Previous turn">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium">
+                <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-ink hover:bg-ink/90 text-card font-body text-[14px] font-medium">
                   Next Turn <ChevronRight className="w-4 h-4" />
                 </button>
               </>
             )}
             {encounter.status === 'ACTIVE' && (
-              <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg text-sm">
+              <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-cls-monk hover:bg-cls-monk/90 text-white font-body text-[14px] font-medium">
                 <Pause className="w-4 h-4" /> Pause
               </button>
             )}
             {encounter.status === 'PAUSED' && (
-              <button onClick={handleResume} className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm">
+              <button onClick={handleResume} className="flex items-center gap-1.5 px-3 py-2 bg-buff hover:bg-buff/90 text-white font-body text-[14px] font-medium">
                 <Play className="w-4 h-4" /> Resume
               </button>
             )}
             {(encounter.status === 'ACTIVE' || encounter.status === 'PAUSED') && (
-              <button onClick={handleEnd} className="flex items-center gap-1.5 px-3 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm">
+              <button onClick={handleEnd} className="flex items-center gap-1.5 px-3 py-2 bg-debuff hover:bg-debuff/90 text-white font-body text-[14px] font-medium">
                 <Flag className="w-4 h-4" /> End
               </button>
             )}
             {encounter.status === 'COMPLETED' && (
-              <span className="px-3 py-2 bg-gray-800 text-gray-400 rounded-lg text-sm">Complete</span>
+              <span className="px-3 py-2 bg-page-alt text-muted font-body text-[14px] font-medium">Complete</span>
             )}
           </div>
         </div>
@@ -764,37 +759,40 @@ function DmSessionView() {
           {sorted.map((p: EncounterParticipant) => {
             const conditions = parseConditions(p);
             const isSelected = p.id === selectedTargetId;
+            const isMonster = p.participantType === 'MONSTER';
 
             return (
               <div
                 key={p.id}
-                className={`bg-gray-900 border rounded-lg px-4 py-3 transition-all ${
-                  p.isCurrentTurn ? 'border-orange-500 ring-1 ring-orange-500/30' :
-                  isSelected ? 'border-indigo-500 ring-1 ring-indigo-500/30' :
-                  'border-gray-800'
+                className={`bg-card border border-l-[3px] px-4 py-3 transition-all ${
+                  p.isCurrentTurn ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
+                  isSelected ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
+                  'border-t-rule border-r-rule border-b-rule'
                 } ${!p.isAlive ? 'opacity-60' : ''}`}
+                style={{ borderLeftColor: getParticipantColour(isMonster) }}
               >
                 <div className="flex items-center gap-3">
                   {/* Turn indicator */}
                   <div className="w-5 flex-shrink-0">
-                    {p.isCurrentTurn && <ChevronRight className="w-5 h-5 text-orange-400" />}
+                    {p.isCurrentTurn && <ChevronRight className="w-5 h-5 text-cls-fighter" />}
                   </div>
 
                   {/* Initiative */}
                   <div className="w-9 text-center flex-shrink-0">
-                    <span className="text-white font-bold text-lg">{p.initiative ?? '—'}</span>
+                    <span className="font-heading text-[17px] font-bold text-ink">{p.initiative ?? '&#8212;'}</span>
                   </div>
 
                   {/* Name + info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`text-white font-semibold ${!p.isAlive ? 'line-through' : ''}`}>{p.displayName}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                        p.participantType === 'PLAYER' ? 'bg-blue-900/50 text-blue-400' : 'bg-red-900/50 text-red-400'
-                      }`}>
+                      <span className={`font-heading text-[13px] font-semibold tracking-[0.01em] text-ink ${!p.isAlive ? 'line-through' : ''}`}>{p.displayName}</span>
+                      <span
+                        className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5"
+                        style={{ color: getParticipantColour(isMonster), backgroundColor: getParticipantBg(isMonster) }}
+                      >
                         {p.participantType}
                       </span>
-                      {!p.isAlive && <Skull className="w-4 h-4 text-red-400" />}
+                      {!p.isAlive && <Skull className="w-4 h-4 text-debuff" />}
                     </div>
 
                     {/* Conditions */}
@@ -806,7 +804,7 @@ function DmSessionView() {
                             <button
                               key={c.name}
                               onClick={() => handleRemoveCondition(p.id, c.name)}
-                              className={`px-1.5 py-0.5 rounded text-xs ${CONDITION_COLORS[c.name] || 'bg-gray-700 text-gray-300'} hover:opacity-75 cursor-pointer`}
+                              className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff hover:opacity-75 cursor-pointer"
                               title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}`}
                             >
                               {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''} <X className="w-2.5 h-2.5 inline" />
@@ -819,12 +817,12 @@ function DmSessionView() {
                     {/* Concentration */}
                     {p.concentrationSpell && (
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-purple-400 text-xs">
+                        <p className="text-cls-warlock font-body text-[13px] font-medium">
                           Concentrating: {p.concentrationSpell}
                         </p>
                         <button
                           onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
-                          className="p-0.5 bg-purple-900/40 hover:bg-purple-900/70 text-purple-400 rounded"
+                          className="p-0.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock"
                           title="Repeat spell effect"
                         >
                           <RotateCw className="w-3 h-3" />
@@ -835,12 +833,12 @@ function DmSessionView() {
                     {/* Active spell (non-concentration persistent) */}
                     {p.activeSpell && (
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-amber-400 text-xs">
+                        <p className="text-cls-monk font-body text-[13px] font-medium">
                           Active: {p.activeSpell}
                         </p>
                         <button
                           onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
-                          className="p-0.5 bg-amber-900/40 hover:bg-amber-900/70 text-amber-400 rounded"
+                          className="p-0.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk"
                           title="Repeat spell effect"
                         >
                           <RotateCw className="w-3 h-3" />
@@ -862,17 +860,17 @@ function DmSessionView() {
                   {/* HP bar + values */}
                   <div className="w-36 flex-shrink-0">
                     <div className="flex items-center justify-end gap-1.5 mb-1">
-                      <Heart className={`w-3.5 h-3.5 ${p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.5 ? 'text-green-400' : p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.25 ? 'text-yellow-400' : 'text-red-400'}`} />
-                      <span className="font-mono text-sm text-white">{p.hpCurrent}/{p.hpMax}</span>
-                      {(p.hpTemp || 0) > 0 && <span className="text-cyan-400 text-xs font-mono">+{p.hpTemp}</span>}
+                      <Heart className={`w-3.5 h-3.5 ${p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.5 ? 'text-buff' : p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.25 ? 'text-cls-monk' : 'text-debuff'}`} />
+                      <span className="font-heading text-[11px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</span>
+                      {(p.hpTemp || 0) > 0 && <span className="text-cls-wizard font-heading text-[11px] font-semibold">+{p.hpTemp}</span>}
                     </div>
                     <HpBar participant={p} />
                   </div>
 
                   {/* AC */}
                   <div className="flex items-center gap-1 w-12 justify-end flex-shrink-0">
-                    <Shield className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-300 font-mono text-sm">{p.armourClass}</span>
+                    <Shield className="w-4 h-4 text-muted" />
+                    <span className="text-muted font-heading text-[11px] font-semibold">{p.armourClass}</span>
                   </div>
 
                   {/* Quick action buttons */}
@@ -881,7 +879,7 @@ function DmSessionView() {
                       {(p.isAlive || (p.participantType === 'PLAYER' && p.deathSaveFailures < 3)) && (
                         <button
                           onClick={() => selectTarget(p.id, 'attack')}
-                          className="p-1.5 bg-orange-900/30 hover:bg-orange-900/60 text-orange-400 rounded"
+                          className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter"
                           title="Attack roll"
                         >
                           <Crosshair className="w-3.5 h-3.5" />
@@ -889,7 +887,7 @@ function DmSessionView() {
                       )}
                       <button
                         onClick={() => selectTarget(p.id, 'damage')}
-                        className="p-1.5 bg-red-900/30 hover:bg-red-900/60 text-red-400 rounded"
+                        className="p-1.5 bg-debuff/10 hover:bg-debuff/20 text-debuff"
                         title="Deal damage"
                       >
                         <Minus className="w-3.5 h-3.5" />
@@ -897,7 +895,7 @@ function DmSessionView() {
                       {(p.isAlive || p.participantType === 'PLAYER') && (
                         <button
                           onClick={() => selectTarget(p.id, 'heal')}
-                          className="p-1.5 bg-green-900/30 hover:bg-green-900/60 text-green-400 rounded"
+                          className="p-1.5 bg-buff/10 hover:bg-buff/20 text-buff"
                           title={!p.isAlive && p.deathSaveFailures >= 3 ? "Resurrect" : "Heal"}
                         >
                           <Plus className="w-3.5 h-3.5" />
@@ -905,7 +903,7 @@ function DmSessionView() {
                       )}
                       <button
                         onClick={() => selectTarget(p.id, 'condition')}
-                        className="p-1.5 bg-yellow-900/30 hover:bg-yellow-900/60 text-yellow-400 rounded"
+                        className="p-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk"
                         title="Add condition"
                       >
                         <Zap className="w-3.5 h-3.5" />
@@ -913,7 +911,7 @@ function DmSessionView() {
                       {p.isAlive && (
                         <button
                           onClick={() => selectTarget(p.id, 'concentration')}
-                          className="p-1.5 bg-purple-900/30 hover:bg-purple-900/60 text-purple-400 rounded"
+                          className="p-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock"
                           title="Set concentration"
                         >
                           <Swords className="w-3.5 h-3.5" />
@@ -922,7 +920,7 @@ function DmSessionView() {
                       {p.isAlive && (
                         <button
                           onClick={() => selectTarget(p.id, 'spell')}
-                          className="p-1.5 bg-indigo-900/30 hover:bg-indigo-900/60 text-indigo-400 rounded"
+                          className="p-1.5 bg-ink/10 hover:bg-ink/20 text-ink"
                           title="Cast spell"
                         >
                           <Sparkles className="w-3.5 h-3.5" />

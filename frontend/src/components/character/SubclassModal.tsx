@@ -49,66 +49,66 @@ export default function SubclassModal({ character, classId, className, onComplet
   const selectedFeatures = selected ? safeParseFeatures(selected.features).filter(f => f.level <= character.level) : [];
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="subclass-title" className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="subclass-title" className="bg-card border border-rule w-full max-w-md max-h-[85vh] flex flex-col shadow-lg" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-rule flex items-center justify-between">
           <div>
-            <h2 id="subclass-title" className="text-white font-bold text-lg">Choose Subclass</h2>
-            <p className="text-gray-400 text-xs mt-0.5">{className} specialization</p>
+            <h2 id="subclass-title" className="font-heading text-[17px] font-bold text-ink">Choose Subclass</h2>
+            <p className="font-body text-[11px] font-medium text-muted mt-0.5">{className} specialization</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {error && (
-            <div className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 text-sm">{error}</div>
+            <div className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[13px] font-medium">{error}</div>
           )}
 
           {loading ? (
-            <p className="text-gray-400 text-sm text-center py-8">Loading subclasses...</p>
+            <p className="text-muted font-body text-[13px] font-medium text-center py-8">Loading subclasses...</p>
           ) : (
             <div className="space-y-2">
               {subclasses.map(sc => (
                 <button
                   key={sc.id}
                   onClick={() => setSelectedId(sc.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 border text-left transition-colors ${
                     selectedId === sc.id
-                      ? 'border-indigo-500 bg-indigo-900/20'
-                      : 'border-gray-800 bg-gray-900 hover:border-gray-600'
+                      ? 'border-2 border-ink bg-page-alt'
+                      : 'border-rule bg-card hover:border-rule-light'
                   }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <span className="text-white font-medium text-sm">{sc.name}</span>
-                    <p className="text-gray-500 text-xs mt-0.5">{sc.source}</p>
+                    <span className="font-heading text-[14px] font-semibold text-ink">{sc.name}</span>
+                    <p className="font-body text-[11px] font-medium text-faint mt-0.5">{sc.source}</p>
                   </div>
-                  <ChevronRight className={`w-4 h-4 ${selectedId === sc.id ? 'text-indigo-400' : 'text-gray-600'}`} />
+                  <ChevronRight className={`w-4 h-4 ${selectedId === sc.id ? 'text-ink' : 'text-faint'}`} />
                 </button>
               ))}
             </div>
           )}
 
           {selected && selectedFeatures.length > 0 && (
-            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-2">
-              <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider">Features at current level</h4>
+            <div className="bg-page-alt border border-rule p-4 space-y-2">
+              <h4 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted">Features at current level</h4>
               {selectedFeatures.map((f, i) => (
                 <div key={i}>
-                  <p className="text-white text-sm font-medium">{f.name}</p>
-                  <p className="text-gray-400 text-xs mt-0.5 line-clamp-2">{f.description}</p>
+                  <p className="font-heading text-[14px] font-semibold text-ink">{f.name}</p>
+                  <p className="font-body text-[11px] font-medium text-muted mt-0.5 line-clamp-2">{f.description}</p>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-800 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+        <div className="px-5 py-4 border-t border-rule flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-medium hover:bg-rule transition-colors">
             Skip
           </button>
           <button
             onClick={handleConfirm}
             disabled={!selectedId || submitting}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-ink text-card font-body text-[14px] font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Selecting...' : 'Confirm'}
           </button>

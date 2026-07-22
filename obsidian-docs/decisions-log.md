@@ -1389,6 +1389,17 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Traffic is unencrypted over HTTP. Acceptable for a private game group on a known IP; must be resolved before any public-facing deployment.
 
+## D124: Tourmaline Design System — Tailwind v4 Theme Tokens
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Decision:** Implement the UI redesign using Tailwind CSS v4's `@theme` block with CSS custom properties, rather than a JS-based design tokens file or a separate CSS variables sheet. All 51 frontend TSX files converted from dark-mode utility classes to semantic token classes (e.g., `bg-gray-900` → `bg-card`, `text-gray-400` → `text-muted`). Typography uses Google Fonts (Cinzel for headings/labels, Cormorant Garamond for body/inputs) loaded via `<link>` in `index.html`. Square corners enforced via global `border-radius: 0 !important`. Class-colored accents provided by `classColours.ts` utility with 13 D&D class colors.
+
+**Rationale:** Tailwind v4 `@theme` blocks make custom properties first-class utilities (e.g., `--color-page` automatically generates `bg-page`, `text-page`, `border-page`). This eliminates the need for a separate token mapping layer. The semantic naming (`card`, `ink`, `muted`, `rule`) provides design intent rather than raw color values, making future palette changes a single-file edit in `index.css`.
+
+**Trade-offs:** The `@theme` block is CSS-only — JS code that needs token values (like `classColours.ts`) must duplicate the hex values. Game-icons replacement and slide-out panels were deferred to keep scope focused on the visual conversion. Lucide-react icons are retained.
+
 ## D123: Planned Migration from Hetzner to DigitalOcean
 
 **Date:** 2026-07-21
@@ -1397,3 +1408,16 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Decision:** Migrate from Hetzner CPX22 (~EUR 24/month) to DigitalOcean Basic Droplet ($12/month, 1 vCPU, 2GB RAM) after the initial Hetzner credit (EUR 25) is consumed.
 
 **Rationale:** Hetzner's current pricing is significantly higher than initially estimated. DigitalOcean offers a 2GB droplet at $12/month — sufficient for the current workload (small group, single game session). The Docker Compose deployment is provider-agnostic; migration requires only a database dump/restore and DNS update.
+
+## D124: Tourmaline Theme UI Redesign
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Decision:** Replace the default dark-mode UI with a warm parchment light-mode design system ("Tourmaline Theme") using Cinzel and Cormorant Garamond serif fonts, square corners, class-colored accents, and Tailwind v4 CSS custom property tokens.
+
+**Rationale:** The original dark-mode UI (bg-gray-950, sans-serif, rounded corners) looked generic and AI-generated. A fantasy-themed light design with serif typography gives the app a distinctive D&D identity. Tailwind v4's `@theme` block with CSS custom properties (`--color-page`, `--color-card`, `--color-ink`, etc.) provides a single source of truth for the design system, making future theming changes trivial. Class colors (13 D&D classes) are applied as accent stripes and text color, not full backgrounds, keeping the interface readable.
+
+**Trade-offs:** Serif fonts have slightly lower information density than sans-serif at small sizes — mitigated by using Cormorant Garamond at 13-15px for body text. Square corners lose visual softness but reinforce the medieval/parchment aesthetic. Light mode may strain eyes in dark rooms during evening game sessions — a future dark theme toggle could address this.
+
+**Key files:** `frontend/src/index.css` (@theme block), `frontend/src/components/common/NavBar.tsx`, `frontend/src/utils/classColours.ts`, `.claude/DESIGN_SYSTEM.md`

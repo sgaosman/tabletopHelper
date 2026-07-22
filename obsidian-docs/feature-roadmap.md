@@ -15,7 +15,7 @@
 | 9 | Character Builder Overhaul | Complete | Reference data entities, 5etools seeders, 6-step creation wizard, 6-tab character sheet, rest mechanics, proficiency display, character deletion, campaign assignment |
 | 10 | Character Leveling & Multiclass | Complete | Create at any level (1-20), level up/down with multiclass support, PHB prerequisite validation, ASI/feat/subclass choices, deterministic rollback via levelHistory |
 | 11 | Spell Resolver Engine & Encounter Spellcasting | Complete | Cast Spell action, auto-resolution for ~184 spells, source-tracked conditions, concentration cascade, silence check, cantrip/upcast scaling |
-| 26 | UI Redesign: Tourmaline Theme | Not started | **NEXT UP** — Light mode, square layout, tourmaline gradient accents, class-colored cards, Cinzel/Crimson Text fonts, game-icons, slide-out panels replacing modals |
+| 26 | UI Redesign: Tourmaline Theme | Complete | Light mode, square corners, Cinzel + Cormorant Garamond fonts, tourmaline gradient nav accent, class-colored accents, warm parchment surfaces |
 | 12 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
 | 13 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
@@ -364,60 +364,52 @@ Phase 3 — Multiclass at creation:
 - `V2__spell_resolver_fields.sql`, `V4__add_concentration_slot_level.sql`, `V5__add_spell_effect_repeat_action_type.sql` — Flyway migrations
 - `SpellResolverEngineTest.java` — 40 unit tests
 
-## Milestone 26: UI Redesign — Tourmaline Theme
+## Milestone 26: UI Redesign — Tourmaline Theme (Complete)
 
-**Goal:** Complete visual overhaul from the default dark AI-generated look to a distinctive, fantasy-themed light UI. This is the next milestone before any feature work.
+**Goal:** Complete visual overhaul from the default dark AI-generated look to a distinctive, fantasy-themed light UI.
 
-**Status:** Not started
+**Status:** Complete (2026-07-22)
 
-**Design Language:**
-- Light mode with warm cream/parchment backgrounds (#FAFAF5 cards, #F5F5F0 page)
-- Square corners throughout (no border-radius)
-- Tourmaline gradient accents (rose #E11D48 -> fuchsia #C026D3 -> violet #7C3AED -> indigo #4F46E5 -> teal #0D9488 -> emerald #059669)
-- Dark warm gray text (#292524)
+**Design System (documented in `.claude/DESIGN_SYSTEM.md`):**
+- Light mode with warm parchment surfaces (`#FAFAF5` cards, `#F5F5F0` page, `#EEEEE8` page-alt)
+- Square corners throughout (global `border-radius: 0 !important`)
+- Tourmaline gradient on nav bar 2px top accent line only
+- Dark warm gray ink text (`#292524`)
+- Tailwind v4 `@theme` block with CSS custom properties for all design tokens
 
 **Typography:**
-- Headings: Cinzel (Google Fonts) — medieval/fantasy serif, D&D chapter title feel
-- Body: Crimson Text (Google Fonts) — book-like serif, comfortable for reading
+- Headings/labels: Cinzel (Google Fonts) — medieval/fantasy serif
+- Body/inputs/buttons: Cormorant Garamond (Google Fonts) — book-like serif
 
-**Class Color System:**
-- Barbarian #DC2626, Bard #7C3AED, Cleric #CA8A04, Druid #16A34A, Fighter #991B1B
-- Monk #0D9488, Paladin #D97706, Ranger #65A30D, Rogue #57534E
-- Sorcerer #EA580C, Warlock #6D28D9, Wizard #2563EB, Artificer #C2410C
-- Applied as accent stripe/border on character cards, not full backgrounds
+**Class Color System (13 classes):**
+- Primary colors for text accents + light background variants (e.g., `--color-cls-wizard: #4F46E5`, `--color-cls-wizard-bg: #EEF2FF`)
+- `classColours.ts` utility for runtime lookups by class name
 
-**Icons:**
-- Replace lucide-react with game-icons (react-game-icons / game-icons.net)
-- Fantasy RPG themed: swords, shields, potions, spell schools, class symbols
+**Semantic Colors:**
+- Monster: `#991B1B`, 8 spell school colors, status colors (`buff`/`debuff`/`cls-monk` for warning)
 
-**Interaction Patterns:**
-- Replace modals with slide-out panels (from right edge) for spell casting, character details
-- Inline popovers for quick actions (damage, healing) anchored to the target element
-- Keep modals only for confirmations and small forms (login, delete confirm)
+**Tasks completed:**
+- [x] Google Fonts (Cinzel, Cormorant Garamond) loaded via index.html
+- [x] Complete `@theme` block in `index.css` with all design tokens (surfaces, text, borders, class colors, spell schools, status)
+- [x] Shared `NavBar.tsx` component with role-aware links and tourmaline gradient accent
+- [x] `classColours.ts` utility (`getClassColour`, `getParticipantColour`, `getParticipantBg`)
+- [x] All 51 TSX files converted from dark-mode to design system tokens
+- [x] Zero remaining `bg-gray-*`, `text-gray-*`, `border-gray-*`, `bg-indigo-*`, `text-indigo-*` classes
+- [x] TypeScript compilation: 0 errors
+- [x] Vite production build: passes (749KB bundle)
 
-**Tasks:**
-- [ ] Install Google Fonts (Cinzel, Crimson Text) and react-game-icons
-- [ ] Create design tokens: color palette, class colors, gradient definitions, spacing scale
-- [ ] Build base layout components: PageLayout, Card, GradientDivider, SlideOutPanel, Popover
-- [ ] Redesign navigation bar with tourmaline gradient
-- [ ] Redesign encounter session page (DM view) — initiative tracker, action panels, participant cards with class color accents
-- [ ] Redesign encounter session page (Player view) — self-actions, participant list
-- [ ] Redesign character sheet page — tab layout, ability scores, spells, inventory
-- [ ] Redesign character creation wizard — step indicators, form styling
-- [ ] Redesign campaign management pages — campaign list, encounter list
-- [ ] Redesign login/register pages
-- [ ] Redesign reference browsing pages (bestiary, spells, items)
-- [ ] Replace all lucide-react icons with game-icons equivalents
-- [ ] Convert all modals to slide-out panels (SpellCastModal, RepeatEffectModal, etc.)
-- [ ] Mobile responsiveness pass
-- [ ] Cross-browser testing
+**Deferred (out of scope for this milestone):**
+- game-icons replacement (lucide-react icons retained)
+- Slide-out panels (modals retained, working well)
+- Mobile responsiveness pass
+- Cross-browser testing
 
-**Key files (will be modified):**
-- All pages in `frontend/src/pages/`
-- All components in `frontend/src/components/`
-- `frontend/index.html` — Google Fonts link tags
-- New: `frontend/src/styles/tokens.ts` — design tokens
-- New: `frontend/src/components/ui/` — base UI components (Card, SlideOutPanel, GradientDivider, etc.)
+**Key files:**
+- `frontend/index.html` — Google Fonts links
+- `frontend/src/index.css` — `@theme` block with all design tokens + global border-radius override
+- `frontend/src/components/common/NavBar.tsx` — shared navigation
+- `frontend/src/utils/classColours.ts` — class color utility
+- `.claude/DESIGN_SYSTEM.md` — full design system reference
 
 ## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions
 

@@ -47,29 +47,29 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
   const isMulticlass = selected && !selected.currentClass;
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="levelup-title" className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="levelup-title" className="bg-card border border-rule w-full max-w-md max-h-[85vh] flex flex-col shadow-lg" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-rule flex items-center justify-between">
           <div>
-            <h2 id="levelup-title" className="text-white font-bold text-lg">Level Up</h2>
-            <p className="text-gray-400 text-xs mt-0.5">
+            <h2 id="levelup-title" className="font-heading text-[17px] font-bold text-ink">Level Up</h2>
+            <p className="font-body text-[11px] font-medium text-muted mt-0.5">
               Level {character.level} {'→'} Level {newCharLevel}
             </p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {error && (
-            <div className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 text-sm">{error}</div>
+            <div className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[13px] font-medium">{error}</div>
           )}
 
           {loading ? (
-            <p className="text-gray-400 text-sm text-center py-8">Loading classes...</p>
+            <p className="text-muted font-body text-[13px] font-medium text-center py-8">Loading classes...</p>
           ) : (
             <>
               <div>
-                <p className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Choose a class for this level</p>
+                <p className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-3">Choose a class for this level</p>
                 <div className="space-y-2">
                   {classes.map(cls => {
                     const disabled = !cls.meetsPrerequisites;
@@ -79,43 +79,43 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
                         key={cls.classId}
                         onClick={() => !disabled && setSelectedClassId(cls.classId)}
                         disabled={disabled}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                        className={`w-full flex items-center gap-3 px-4 py-3 border text-left transition-colors ${
                           disabled
-                            ? 'border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed'
+                            ? 'border-rule bg-card/50 opacity-50 cursor-not-allowed'
                             : isSelected
-                              ? 'border-indigo-500 bg-indigo-900/20'
-                              : 'border-gray-800 bg-gray-900 hover:border-gray-600'
+                              ? 'border-2 border-ink bg-page-alt'
+                              : 'border-rule bg-card hover:border-rule-light'
                         }`}
                       >
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          disabled ? 'bg-gray-800' : isSelected ? 'bg-indigo-600' : 'bg-gray-800'
+                          disabled ? 'bg-page-alt' : isSelected ? 'bg-ink' : 'bg-page-alt'
                         }`}>
                           {disabled ? (
-                            <Lock className="w-4 h-4 text-gray-500" />
+                            <Lock className="w-4 h-4 text-faint" />
                           ) : (
-                            <Shield className="w-4 h-4 text-white" />
+                            <Shield className={`w-4 h-4 ${isSelected ? 'text-card' : 'text-ink'}`} />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={`font-medium text-sm ${disabled ? 'text-gray-500' : 'text-white'}`}>
+                            <span className={`font-heading text-[14px] font-semibold ${disabled ? 'text-faint' : 'text-ink'}`}>
                               {cls.className}
                             </span>
                             {cls.currentClass && (
-                              <span className="text-xs px-1.5 py-0.5 bg-indigo-900/50 text-indigo-300 rounded">Current</span>
+                              <span className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 bg-page-alt text-ink border border-rule">Current</span>
                             )}
                             {cls.currentClassLevel > 0 && (
-                              <span className="text-xs text-gray-500">Lv {cls.currentClassLevel}</span>
+                              <span className="font-body text-[11px] font-medium text-faint">Lv {cls.currentClassLevel}</span>
                             )}
                           </div>
                           {!cls.currentClass && (
-                            <p className={`text-xs mt-0.5 ${disabled ? 'text-red-400/70' : 'text-gray-400'}`}>
+                            <p className={`font-body text-[11px] font-medium mt-0.5 ${disabled ? 'text-debuff' : 'text-muted'}`}>
                               {cls.prerequisiteDescription}
                             </p>
                           )}
                         </div>
                         {!disabled && (
-                          <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-indigo-400' : 'text-gray-600'}`} />
+                          <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-ink' : 'text-faint'}`} />
                         )}
                       </button>
                     );
@@ -124,13 +124,13 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
               </div>
 
               {selected && (
-                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-                  <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">Preview</h4>
-                  <p className="text-white text-sm">
-                    Take <span className="font-bold text-indigo-300">{selected.className}</span> level {newClassLevel}
+                <div className="bg-page-alt border border-rule p-4">
+                  <h4 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-2">Preview</h4>
+                  <p className="font-body text-[13px] font-medium text-ink">
+                    Take <span className="font-bold text-ink">{selected.className}</span> level {newClassLevel}
                   </p>
                   {isMulticlass && (
-                    <p className="text-amber-400 text-xs mt-1">
+                    <p className="font-body text-[11px] font-medium text-cls-monk mt-1">
                       This will multiclass your character into {selected.className}.
                     </p>
                   )}
@@ -140,14 +140,14 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
           )}
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-800 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+        <div className="px-5 py-4 border-t border-rule flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-medium hover:bg-rule transition-colors">
             Cancel
           </button>
           <button
             onClick={handleConfirm}
             disabled={!selectedClassId || submitting || loading}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-ink text-card font-body text-[14px] font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Leveling up...' : 'Level Up'}
           </button>

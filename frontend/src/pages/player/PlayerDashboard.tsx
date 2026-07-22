@@ -1,14 +1,14 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { campaignApi } from '../../api/campaignApi';
 import { characterApi } from '../../api/characterApi';
+import { campaignApi } from '../../api/campaignApi';
 import type { Campaign } from '../../types/campaign';
 import type { PlayerCharacter } from '../../types/character';
-import { Plus, Users, ScrollText, Zap, Swords, Trash2 } from 'lucide-react';
+import { Plus, Users, ScrollText, Swords, Trash2 } from 'lucide-react';
+import NavBar from '../../components/common/NavBar';
+import { getClassColour } from '../../utils/classColours';
 
 export default function PlayerDashboard() {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
@@ -66,25 +66,13 @@ export default function PlayerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white">TabletopHelper</h1>
-          <p className="text-sm text-gray-400">Player — {user?.displayName}</p>
-        </div>
-        <nav aria-label="Main navigation" className="flex items-center gap-4">
-          <button onClick={() => navigate('/player/quickref')} className="flex items-center gap-1.5 text-gray-400 hover:text-cyan-400 text-sm transition-colors">
-            <Zap className="w-4 h-4" /> Quick Rules Reference
-          </button>
-          <button onClick={() => navigate('/select-role')} className="text-gray-400 hover:text-white text-sm transition-colors">Switch Role</button>
-          <button onClick={logout} className="text-gray-400 hover:text-white text-sm transition-colors">Sign Out</button>
-        </nav>
-      </header>
+    <div className="min-h-screen bg-page">
+      <NavBar />
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-10">
         {/* Join Campaign */}
         <section>
-          <h2 className="text-xl font-semibold text-white mb-4">Join a Campaign</h2>
+          <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-3">Join a Campaign</h2>
           <form onSubmit={handleJoin} className="flex gap-3">
             <input
               type="text"
@@ -93,43 +81,46 @@ export default function PlayerDashboard() {
               required
               maxLength={8}
               placeholder="Enter invite code"
-              className="flex-1 max-w-xs px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white font-mono tracking-wider placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
+              className="flex-1 max-w-xs px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink tracking-wider placeholder-faint focus:border-muted focus:outline-none uppercase"
             />
-            <button type="submit" className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors">Join</button>
+            <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[14px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors">
+              Join
+            </button>
           </form>
-          {joinError && <p role="alert" className="text-red-400 text-sm mt-2">{joinError}</p>}
+          {joinError && <p role="alert" className="text-debuff font-body text-[13px] mt-2">{joinError}</p>}
         </section>
 
         {/* Join Encounter */}
         <section>
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <Swords className="w-5 h-5 text-orange-400" /> Encounters
+          <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
+            <Swords className="w-3.5 h-3.5" /> Encounters
           </h2>
           <button
             onClick={() => navigate('/player/encounter/join')}
-            className="px-4 py-3 bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-lg text-left transition-colors w-full max-w-xs"
+            className="bg-card border border-rule hover:border-muted p-4 text-left transition-colors w-full max-w-xs"
+            style={{ borderLeftWidth: '3px', borderLeftColor: '#DC2626' }}
           >
-            <p className="text-white font-medium">Join Encounter</p>
-            <p className="text-gray-400 text-xs mt-0.5">Enter a session code from your DM</p>
+            <p className="font-heading text-[13px] font-semibold text-ink">Join Encounter</p>
+            <p className="font-body text-[12px] font-medium text-muted mt-0.5">Enter a session code from your DM</p>
           </button>
         </section>
 
         {/* My Campaigns */}
         <section>
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-gray-400" /> My Campaigns
+          <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
+            <Users className="w-3.5 h-3.5" /> My Campaigns
           </h2>
           {loading ? (
-            <p className="text-gray-400">Loading...</p>
+            <p className="font-body text-[13px] text-muted">Loading...</p>
           ) : campaigns.length === 0 ? (
-            <p className="text-gray-500 text-sm">You haven't joined any campaigns yet. Ask your DM for an invite code.</p>
+            <p className="font-body text-[13px] text-faint">You haven't joined any campaigns yet. Ask your DM for an invite code.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {campaigns.map((c) => (
-                <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex items-center justify-between">
+                <div key={c.id} className="bg-card border border-rule p-4 flex items-center justify-between">
                   <div>
-                    <h3 className="text-white font-medium">{c.name}</h3>
-                    <p className="text-gray-400 text-sm">DM: {c.dmDisplayName} &middot; {c.members.length} members</p>
+                    <h3 className="font-heading text-[13px] font-semibold text-ink">{c.name}</h3>
+                    <p className="font-body text-[12px] font-medium text-muted">DM: {c.dmDisplayName} &middot; {c.members.length} members</p>
                   </div>
                 </div>
               ))}
@@ -139,54 +130,77 @@ export default function PlayerDashboard() {
 
         {/* My Characters */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-              <ScrollText className="w-5 h-5 text-gray-400" /> My Characters
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint flex items-center gap-2">
+              <ScrollText className="w-3.5 h-3.5" /> My Characters
             </h2>
             <button
               onClick={() => navigate('/player/characters/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors"
             >
-              <Plus className="w-4 h-4" /> New Character
+              <Plus className="w-3.5 h-3.5" /> New Character
             </button>
           </div>
           {loading ? (
-            <p className="text-gray-400">Loading...</p>
+            <p className="font-body text-[13px] text-muted">Loading...</p>
           ) : characters.length === 0 ? (
-            <p className="text-gray-500 text-sm">No characters yet. Create one to get started.</p>
+            <button
+              onClick={() => navigate('/player/characters/new')}
+              className="bg-page border border-dashed border-rule hover:border-muted p-6 flex flex-col items-center gap-1.5 w-full transition-colors"
+            >
+              <Plus className="w-6 h-6 text-faint" />
+              <span className="font-heading text-[12px] font-medium text-faint">Create New Character</span>
+            </button>
           ) : (
-            <div className="space-y-3">
-              {characters.map((c) => (
-                <div
-                  key={c.id}
-                  className="group bg-gray-900 border border-gray-800 hover:border-gray-600 rounded-lg transition-colors flex items-center"
-                >
-                  <button
-                    onClick={() => navigate(`/player/characters/${c.id}`)}
-                    className="flex-1 p-4 text-left min-w-0"
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {characters.map((c) => {
+                const clsColour = getClassColour(c.characterClass);
+                return (
+                  <div
+                    key={c.id}
+                    className="group bg-card border border-rule hover:bg-page-alt transition-colors flex"
+                    style={{ borderLeftWidth: '3px', borderLeftColor: clsColour }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-white font-semibold">{c.name}</h3>
-                        <p className="text-gray-400 text-sm">
-                          Level {c.level} {c.race} {c.characterClass}
-                        </p>
+                    <button
+                      onClick={() => navigate(`/player/characters/${c.id}`)}
+                      className="flex-1 p-3 text-left min-w-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-9 h-9 flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: clsColour }}
+                        >
+                          <span className="font-heading text-[13px] font-bold text-white">{c.name[0]}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-heading text-[14px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
+                          <p className="font-body text-[11px] font-medium text-muted">
+                            Level {c.level} {c.race} {c.characterClass}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-heading text-[11px] font-semibold text-ink">HP {c.hpCurrent}/{c.hpMax}</p>
+                          <p className="font-body text-[11px] text-faint">AC {c.armourClass}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-white text-sm">HP {c.hpCurrent}/{c.hpMax}</p>
-                        <p className="text-gray-400 text-xs">AC {c.armourClass}</p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => { setDeleteTarget(c); setDeleteConfirmName(''); setDeleteError(''); }}
-                    className="p-3 mr-1 rounded-md text-gray-600 hover:text-red-400 hover:bg-gray-800 transition-colors shrink-0"
-                    title="Delete character"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+                    </button>
+                    <button
+                      onClick={() => { setDeleteTarget(c); setDeleteConfirmName(''); setDeleteError(''); }}
+                      className="px-3 text-faint hover:text-debuff transition-colors shrink-0"
+                      title="Delete character"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+              <button
+                onClick={() => navigate('/player/characters/new')}
+                className="bg-page border border-dashed border-rule hover:border-muted p-6 flex flex-col items-center justify-center gap-1.5 transition-colors"
+              >
+                <Plus className="w-5 h-5 text-faint" />
+                <span className="font-heading text-[11px] font-medium text-faint">Create New</span>
+              </button>
             </div>
           )}
         </section>
@@ -194,13 +208,13 @@ export default function PlayerDashboard() {
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { if (!deleting) { setDeleteTarget(null); setDeleteConfirmName(''); } }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="delete-title" className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <h3 id="delete-title" className="text-white font-bold text-lg mb-2">Delete Character</h3>
-            <p className="text-gray-400 text-sm mb-1">
-              Are you sure you want to delete <span className="text-white font-medium">{deleteTarget.name}</span>? This action cannot be undone.
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => { if (!deleting) { setDeleteTarget(null); setDeleteConfirmName(''); } }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-title" className="bg-card border border-rule p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <h3 id="delete-title" className="font-heading text-[15px] font-semibold text-ink mb-2">Delete Character</h3>
+            <p className="font-body text-[13px] font-medium text-muted mb-1">
+              Are you sure you want to delete <span className="text-ink font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
             </p>
-            <p className="text-gray-500 text-xs mb-4">
+            <p className="font-body text-[12px] text-faint mb-4">
               Type the character's name below to confirm.
             </p>
             <input
@@ -208,22 +222,22 @@ export default function PlayerDashboard() {
               value={deleteConfirmName}
               onChange={e => setDeleteConfirmName(e.target.value)}
               placeholder={deleteTarget.name}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none mb-4"
               autoFocus
             />
-            {deleteError && <p role="alert" className="text-red-400 text-sm mb-3">{deleteError}</p>}
+            {deleteError && <p role="alert" className="text-debuff font-body text-[13px] mb-3">{deleteError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}
                 disabled={deleting}
-                className="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg text-sm hover:bg-gray-700 transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-page border border-rule font-body text-[14px] font-medium text-muted hover:border-muted transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleteConfirmName !== deleteTarget.name || deleting}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-debuff text-white font-body text-[14px] font-medium border border-debuff hover:opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>

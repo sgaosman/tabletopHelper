@@ -25,18 +25,18 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
           const score = char[ability];
           const mod = abilityMod(score);
           return (
-            <div key={ability} className="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
-              <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">{ABILITY_ABBR[ability]}</p>
-              <p className="text-white text-2xl font-bold mt-1">{score}</p>
-              <p className="text-indigo-400 text-sm font-medium">{formatMod(mod)}</p>
+            <div key={ability} className="bg-card border border-rule p-3 text-center">
+              <p className="font-heading text-[8px] font-semibold tracking-[0.1em] uppercase text-faint">{ABILITY_ABBR[ability]}</p>
+              <p className="font-heading text-[20px] font-bold text-ink mt-1">{score}</p>
+              <p className="font-body text-[12px] font-medium text-muted">{formatMod(mod)}</p>
             </div>
           );
         })}
       </div>
 
       {/* Saving Throws */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Saving Throws</h3>
+      <div className="bg-card border border-rule p-4">
+        <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-3">Saving Throws</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {ABILITIES.map(ability => {
             const mod = abilityMod(char[ability]);
@@ -44,9 +44,9 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
             const total = mod + (isProficient ? char.proficiencyBonus : 0);
             return (
               <div key={ability} className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isProficient ? 'bg-green-400' : 'bg-gray-700'}`} />
-                <span className="text-gray-400 text-sm">{ABILITY_ABBR[ability]}</span>
-                <span className="text-white text-sm ml-auto font-medium">{formatMod(total)}</span>
+                <div className={`w-2 h-2 rounded-full ${isProficient ? 'bg-buff' : 'bg-rule'}`} />
+                <span className="font-heading text-[11px] font-medium text-muted">{ABILITY_ABBR[ability]}</span>
+                <span className="font-heading text-[12px] font-bold text-ink ml-auto">{formatMod(total)}</span>
               </div>
             );
           })}
@@ -54,8 +54,8 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
       </div>
 
       {/* Skills */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Skills</h3>
+      <div className="bg-card border border-rule p-4">
+        <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-3">Skills</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {SKILLS.map(skill => {
             const mod = abilityMod(char[skill.ability]);
@@ -65,21 +65,21 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
             return (
               <div key={skill.name} className="flex items-center gap-2 py-0.5">
                 {isExpert ? (
-                  <span className="text-yellow-400 text-xs leading-none" style={{ fontSize: '10px' }}>&#9733;</span>
+                  <span className="text-cls-cleric text-xs leading-none" style={{ fontSize: '10px' }}>&#9733;</span>
                 ) : (
-                  <div className={`w-2.5 h-2.5 rounded-full border-2 ${isProficient ? 'bg-green-400 border-green-400' : 'bg-transparent border-gray-600'}`} />
+                  <div className={`w-2.5 h-2.5 rounded-full border-2 ${isProficient ? 'bg-buff border-buff' : 'bg-transparent border-rule'}`} />
                 )}
-                <span className={`text-sm flex-1 ${isProficient || isExpert ? 'text-white font-medium' : 'text-gray-400'}`}>
-                  {skill.name} <span className="text-gray-600 text-xs">({ABILITY_ABBR[skill.ability]})</span>
+                <span className={`font-body text-[13px] flex-1 ${isProficient || isExpert ? 'font-semibold text-ink' : 'font-medium text-muted'}`}>
+                  {skill.name} <span className="text-faint text-[11px]">({ABILITY_ABBR[skill.ability]})</span>
                 </span>
-                <span className={`text-sm font-medium ${isProficient || isExpert ? 'text-white' : 'text-gray-500'}`}>{formatMod(bonus)}</span>
+                <span className={`font-heading text-[12px] font-bold ${isProficient || isExpert ? 'text-ink' : 'text-faint'}`}>{formatMod(bonus)}</span>
               </div>
             );
           })}
         </div>
-        <div className="mt-3 pt-3 border-t border-gray-800 flex gap-4 text-xs text-gray-500">
-          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-400" /> Proficient</span>
-          <span className="flex items-center gap-1.5"><span className="text-yellow-400" style={{ fontSize: '10px' }}>&#9733;</span> Expertise</span>
+        <div className="mt-3 pt-3 border-t border-rule-light flex gap-4 font-body text-[11px] text-faint">
+          <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-buff" /> Proficient</span>
+          <span className="flex items-center gap-1.5"><span className="text-cls-cleric" style={{ fontSize: '10px' }}>&#9733;</span> Expertise</span>
         </div>
       </div>
 
@@ -93,31 +93,31 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
 
       {/* Proficiencies */}
       {hasProficiencies && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Proficiencies</h3>
+        <div className="bg-card border border-rule p-4">
+          <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-3">Proficiencies</h3>
           <div className="space-y-2">
             {armorProfs.length > 0 && (
               <div>
-                <span className="text-gray-500 text-xs font-medium">Armor: </span>
-                <span className="text-gray-300 text-sm">{armorProfs.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}</span>
+                <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Armor: </span>
+                <span className="font-body text-[13px] font-medium text-muted">{armorProfs.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}</span>
               </div>
             )}
             {weaponProfs.length > 0 && (
               <div>
-                <span className="text-gray-500 text-xs font-medium">Weapons: </span>
-                <span className="text-gray-300 text-sm">{weaponProfs.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(', ')}</span>
+                <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Weapons: </span>
+                <span className="font-body text-[13px] font-medium text-muted">{weaponProfs.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(', ')}</span>
               </div>
             )}
             {toolProfs.length > 0 && (
               <div>
-                <span className="text-gray-500 text-xs font-medium">Tools: </span>
-                <span className="text-gray-300 text-sm">{toolProfs.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}</span>
+                <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Tools: </span>
+                <span className="font-body text-[13px] font-medium text-muted">{toolProfs.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}</span>
               </div>
             )}
             {languageProfs.length > 0 && (
               <div>
-                <span className="text-gray-500 text-xs font-medium">Languages: </span>
-                <span className="text-gray-300 text-sm">{languageProfs.join(', ')}</span>
+                <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Languages: </span>
+                <span className="font-body text-[13px] font-medium text-muted">{languageProfs.join(', ')}</span>
               </div>
             )}
           </div>
@@ -125,11 +125,11 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
       )}
 
       {resistances.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">Resistances & Immunities</h3>
+        <div className="bg-card border border-rule p-4">
+          <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-2">Resistances & Immunities</h3>
           <div className="flex flex-wrap gap-2">
             {resistances.map((r, i) => (
-              <span key={i} className="px-2 py-1 bg-gray-800 text-gray-300 rounded text-xs">{r}</span>
+              <span key={i} className="px-2 py-1 bg-page-alt border border-rule font-body text-[11px] font-medium text-muted">{r}</span>
             ))}
           </div>
         </div>

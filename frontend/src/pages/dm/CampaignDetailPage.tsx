@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, Check, Users, ScrollText } from 'lucide-react';
+import { Copy, Check, Users, ScrollText } from 'lucide-react';
 import { campaignApi } from '../../api/campaignApi';
 import { characterApi } from '../../api/characterApi';
 import type { Campaign } from '../../types/campaign';
 import type { PlayerCharacter } from '../../types/character';
+import NavBar from '../../components/common/NavBar';
+import { getClassColour } from '../../utils/classColours';
 
 export default function CampaignDetailPage() {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -43,43 +45,39 @@ export default function CampaignDetailPage() {
     return mod >= 0 ? `+${mod}` : `${mod}`;
   }
 
-  if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-gray-400">Loading...</p></div>;
-  if (!campaign) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-red-400">Campaign not found</p></div>;
+  if (loading) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[14px] text-muted">Loading...</p></div></div>;
+  if (!campaign) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[14px] text-debuff">Campaign not found</p></div></div>;
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4">
-        <button onClick={() => navigate('/dm/campaigns')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Campaigns
-        </button>
-      </header>
+    <div className="min-h-screen bg-page">
+      <NavBar />
 
       <main className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">{campaign.name}</h1>
-          {campaign.description && <p className="text-gray-400">{campaign.description}</p>}
+          <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">{campaign.name}</h1>
+          {campaign.description && <p className="font-body text-[13px] font-medium text-muted">{campaign.description}</p>}
 
-          <div className="flex items-center gap-2 mt-4 bg-gray-900 border border-gray-800 px-4 py-3 rounded-lg w-fit">
-            <span className="text-gray-400 text-sm">Invite Code:</span>
-            <span className="text-white font-mono font-bold tracking-wider text-lg">{campaign.inviteCode}</span>
-            <button onClick={copyInviteCode} className="ml-2 text-gray-400 hover:text-white transition-colors">
-              {copiedCode ? <Check className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
+          <div className="flex items-center gap-2 mt-4 bg-card border border-rule px-4 py-2.5 w-fit">
+            <span className="font-heading text-[9px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
+            <span className="font-heading text-[15px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
+            <button onClick={copyInviteCode} className="ml-2 text-faint hover:text-ink transition-colors">
+              {copiedCode ? <Check className="w-4 h-4 text-buff" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-gray-400" /> Members ({campaign.members.length})
+          <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
+            <Users className="w-3.5 h-3.5" /> Members ({campaign.members.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {campaign.members.map((m) => (
-              <div key={m.userId} className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex items-center justify-between">
+              <div key={m.userId} className="bg-card border border-rule p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-white font-medium">{m.displayName}</p>
-                  <p className="text-gray-500 text-sm">@{m.username}</p>
+                  <p className="font-heading text-[13px] font-semibold text-ink">{m.displayName}</p>
+                  <p className="font-body text-[11px] font-medium text-faint">@{m.username}</p>
                 </div>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${m.role === 'DM' ? 'bg-amber-900/50 text-amber-400' : 'bg-indigo-900/50 text-indigo-400'}`}>
+                <span className={`font-heading text-[9px] font-medium tracking-[0.04em] px-2 py-0.5 border ${m.role === 'DM' ? 'text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]' : 'text-cls-wizard bg-cls-wizard-bg border-abj-border'}`}>
                   {m.role}
                 </span>
               </div>
@@ -88,38 +86,47 @@ export default function CampaignDetailPage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            <ScrollText className="w-5 h-5 text-gray-400" /> Characters ({characters.length})
+          <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
+            <ScrollText className="w-3.5 h-3.5" /> Characters ({characters.length})
           </h2>
           {characters.length === 0 ? (
-            <p className="text-gray-500 text-sm">No characters assigned to this campaign yet.</p>
+            <p className="font-body text-[13px] text-faint">No characters assigned to this campaign yet.</p>
           ) : (
-            <div className="space-y-3">
-              {characters.map((c) => (
-                <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h3 className="text-white font-semibold">{c.name}</h3>
-                      <p className="text-gray-400 text-sm">
-                        Level {c.level} {c.race} {c.characterClass}{c.subclass ? ` (${c.subclass})` : ''}
-                        <span className="text-gray-600"> — played by {c.ownerDisplayName}</span>
-                      </p>
+            <div className="space-y-2">
+              {characters.map((c) => {
+                const clsColour = getClassColour(c.characterClass);
+                return (
+                  <div key={c.id} className="bg-card border border-rule p-4"
+                    style={{ borderLeftWidth: '3px', borderLeftColor: clsColour }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h3 className="font-heading text-[14px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
+                        <p className="font-body text-[12px] font-medium text-muted">
+                          Level {c.level} {c.race} {c.characterClass}{c.subclass ? ` (${c.subclass})` : ''}
+                          <span className="text-faint"> — played by {c.ownerDisplayName}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-heading text-[11px] font-semibold text-ink">HP {c.hpCurrent}/{c.hpMax}</p>
+                        <p className="font-body text-[11px] text-faint">AC {c.armourClass}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-white text-sm">HP {c.hpCurrent}/{c.hpMax}</p>
-                      <p className="text-gray-400 text-xs">AC {c.armourClass}</p>
+                    <div className="flex gap-4 mt-2">
+                      {(['strength','dexterity','constitution','intelligence','wisdom','charisma'] as const).map(stat => {
+                        const val = c[stat];
+                        const label = stat.slice(0, 3).toUpperCase();
+                        return (
+                          <span key={stat} className="font-body text-[11px] text-muted">
+                            <span className="font-heading text-[9px] font-semibold tracking-[0.04em] text-faint">{label}</span>{' '}
+                            <span className="font-heading text-[11px] font-bold text-ink">{val}</span>{' '}
+                            <span className="text-faint">({modifierString(val)})</span>
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
-                  <div className="flex gap-4 text-xs text-gray-400 mt-2">
-                    <span>STR {c.strength} ({modifierString(c.strength)})</span>
-                    <span>DEX {c.dexterity} ({modifierString(c.dexterity)})</span>
-                    <span>CON {c.constitution} ({modifierString(c.constitution)})</span>
-                    <span>INT {c.intelligence} ({modifierString(c.intelligence)})</span>
-                    <span>WIS {c.wisdom} ({modifierString(c.wisdom)})</span>
-                    <span>CHA {c.charisma} ({modifierString(c.charisma)})</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

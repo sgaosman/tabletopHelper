@@ -16,7 +16,6 @@ export default function MultiSelect({
   onChange,
   placeholder,
   renderLabel,
-  accentColor = 'indigo',
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -47,9 +46,6 @@ export default function MultiSelect({
     }
   }
 
-  const focusRing = `focus:ring-${accentColor}-500`;
-  const borderFocus = `focus-within:border-${accentColor}-500`;
-
   return (
     <div ref={ref} className="relative">
       <button
@@ -57,7 +53,7 @@ export default function MultiSelect({
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`w-full flex items-center justify-between gap-2 px-4 py-2 bg-gray-800 rounded-lg border border-gray-700 text-left hover:border-gray-600 transition-colors ${selected.length > 0 ? 'text-white' : 'text-gray-400'} ${borderFocus}`}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-card border border-rule text-left hover:border-muted transition-colors font-body text-[14px] font-medium ${selected.length > 0 ? 'text-ink' : 'text-faint'}`}
       >
         <span className="truncate">
           {selected.length === 0
@@ -74,19 +70,19 @@ export default function MultiSelect({
               aria-label="Clear selection"
               onClick={(e) => { e.stopPropagation(); onChange([]); setSearch(''); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onChange([]); setSearch(''); } }}
-              className="p-0.5 hover:bg-gray-700 rounded"
+              className="p-0.5 hover:bg-page-alt text-faint hover:text-ink"
             >
               <X size={14} />
             </span>
           )}
-          <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown size={16} className={`text-faint transition-transform ${open ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
       {open && (
-        <div role="listbox" aria-multiselectable="true" className="absolute z-50 mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+        <div role="listbox" aria-multiselectable="true" className="absolute z-50 mt-1 w-full bg-card border border-rule overflow-hidden">
           {options.length > 6 && (
-            <div className="p-2 border-b border-gray-700">
+            <div className="p-2 border-b border-rule">
               <input
                 type="text"
                 value={search}
@@ -94,28 +90,28 @@ export default function MultiSelect({
                 placeholder="Search..."
                 aria-label="Filter options"
                 autoFocus
-                className={`w-full px-3 py-1.5 bg-gray-900 rounded border border-gray-700 text-white text-sm placeholder-gray-500 focus:outline-none ${focusRing}`}
+                className="w-full px-3 py-1.5 bg-page border border-rule font-body text-[13px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
           )}
           <div className="max-h-60 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="px-4 py-3 text-gray-500 text-sm">No matches</p>
+              <p className="px-4 py-3 font-body text-[13px] text-faint">No matches</p>
             ) : (
               filtered.map(option => {
                 const isSelected = selected.includes(option);
                 return (
                   <label
                     key={option}
-                    className="flex items-center gap-3 px-4 py-2 hover:bg-gray-700/50 cursor-pointer text-sm"
+                    className="flex items-center gap-3 px-4 py-1.5 hover:bg-page-alt cursor-pointer font-body text-[13px] font-medium"
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggle(option)}
-                      className="rounded border-gray-600 bg-gray-900 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                      className="border-rule bg-page w-3.5 h-3.5 cursor-pointer accent-ink"
                     />
-                    <span className={isSelected ? 'text-white' : 'text-gray-300'}>
+                    <span className={isSelected ? 'text-ink' : 'text-muted'}>
                       {label(option)}
                     </span>
                   </label>
@@ -124,10 +120,10 @@ export default function MultiSelect({
             )}
           </div>
           {selected.length > 0 && (
-            <div className="border-t border-gray-700 px-4 py-2">
+            <div className="border-t border-rule px-4 py-1.5">
               <button
                 onClick={() => { onChange([]); setSearch(''); }}
-                className="text-xs text-gray-400 hover:text-white transition-colors"
+                className="font-heading text-[9px] font-medium tracking-[0.04em] text-faint hover:text-ink transition-colors"
               >
                 Clear all ({selected.length})
               </button>

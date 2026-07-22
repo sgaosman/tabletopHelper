@@ -1,34 +1,24 @@
 import type { Item } from '../../types/reference';
 
-const RARITY_COLORS: Record<string, string> = {
-  'common': 'bg-gray-800 border-gray-600',
-  'uncommon': 'bg-green-950 border-green-800',
-  'rare': 'bg-blue-950 border-blue-800',
-  'very rare': 'bg-purple-950 border-purple-800',
-  'legendary': 'bg-orange-950 border-orange-800',
-  'artifact': 'bg-red-950 border-red-800',
-};
-
-const RARITY_HEADER: Record<string, string> = {
-  'common': 'bg-gray-700',
-  'uncommon': 'bg-green-900',
-  'rare': 'bg-blue-900',
-  'very rare': 'bg-purple-900',
-  'legendary': 'bg-orange-900',
-  'artifact': 'bg-red-900',
+const RARITY_COLOURS: Record<string, { text: string; border: string }> = {
+  'common':    { text: '#78716C', border: '#E7E5E4' },
+  'uncommon':  { text: '#166534', border: '#BBF7D0' },
+  'rare':      { text: '#4F46E5', border: '#C7D2FE' },
+  'very rare': { text: '#9333EA', border: '#D8B4FE' },
+  'legendary': { text: '#B45309', border: '#FDE68A' },
+  'artifact':  { text: '#991B1B', border: '#FECACA' },
 };
 
 export default function ItemCard({ item }: { item: Item }) {
-  const rarityKey = item.rarity?.toLowerCase() || '';
-  const cardClass = RARITY_COLORS[rarityKey] || 'bg-gray-800 border-gray-600';
-  const headerClass = RARITY_HEADER[rarityKey] || 'bg-gray-700';
+  const rarity = RARITY_COLOURS[item.rarity?.toLowerCase() || ''];
+  const accent = rarity?.text || '#292524';
 
   return (
-    <div className={`max-w-2xl rounded-lg overflow-hidden shadow-xl border ${cardClass}`}>
-      <div className={`px-6 py-4 ${headerClass}`}>
-        <h2 className="text-2xl font-bold text-white">{item.name}</h2>
-        <p className="text-gray-300 italic text-sm">
-          {[item.type, item.subtype].filter(Boolean).join(' - ')}
+    <div className="max-w-2xl bg-card border border-rule overflow-hidden" style={{ borderLeftWidth: '3px', borderLeftColor: accent }}>
+      <div className="px-5 py-3 border-b border-rule">
+        <h2 className="font-heading text-[17px] font-bold" style={{ color: accent }}>{item.name}</h2>
+        <p className="font-body text-[12px] font-medium text-muted italic">
+          {[item.type, item.subtype].filter(Boolean).join(' — ')}
           {item.rarity && `, ${item.rarity}`}
           {item.requiresAttunement && (
             <span> (requires attunement{item.attunementCondition ? ` ${item.attunementCondition}` : ''})</span>
@@ -36,27 +26,43 @@ export default function ItemCard({ item }: { item: Item }) {
         </p>
       </div>
 
-      <div className="px-6 py-4 space-y-3 text-gray-200">
-        <div className="grid grid-cols-2 gap-2 text-sm border-b border-gray-700 pb-3">
-          {item.cost && <p><span className="font-bold text-gray-400">Cost:</span> {item.cost}</p>}
-          {item.weight != null && <p><span className="font-bold text-gray-400">Weight:</span> {item.weight} lb.</p>}
+      <div className="px-5 py-4 space-y-3">
+        <div className="grid grid-cols-2 gap-1.5 border-b border-rule-light pb-3">
+          {item.cost && (
+            <p className="font-body text-[12px]">
+              <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Cost</span><br/>
+              <span className="text-ink font-medium">{item.cost}</span>
+            </p>
+          )}
+          {item.weight != null && (
+            <p className="font-body text-[12px]">
+              <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Weight</span><br/>
+              <span className="text-ink font-medium">{item.weight} lb.</span>
+            </p>
+          )}
           {item.damageDice && (
-            <p><span className="font-bold text-gray-400">Damage:</span> {item.damageDice} {item.damageType}</p>
+            <p className="font-body text-[12px]">
+              <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Damage</span><br/>
+              <span className="text-ink font-medium">{item.damageDice} {item.damageType}</span>
+            </p>
           )}
           {item.properties?.ac != null && (
-            <p><span className="font-bold text-gray-400">AC:</span> {String(item.properties.ac)}</p>
+            <p className="font-body text-[12px]">
+              <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">AC</span><br/>
+              <span className="text-ink font-medium">{String(item.properties.ac)}</span>
+            </p>
           )}
         </div>
 
         {item.description && (
-          <div className="text-sm whitespace-pre-line leading-relaxed">
+          <div className="font-body text-[13px] font-medium text-muted whitespace-pre-line leading-relaxed">
             {item.description}
           </div>
         )}
       </div>
 
-      <div className="bg-black/20 px-6 py-2 text-xs text-gray-500 text-right">
-        Source: {item.source}
+      <div className="px-5 py-1.5 border-t border-rule-light text-right">
+        <span className="font-body text-[11px] text-faint">Source: {item.source}</span>
       </div>
     </div>
   );

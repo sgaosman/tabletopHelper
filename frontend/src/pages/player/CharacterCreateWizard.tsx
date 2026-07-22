@@ -434,18 +434,18 @@ export default function CharacterCreateWizard() {
     const reqs: ChoiceReq[] = [];
     const fields: Array<[string, string, string]> = [['skillProficiencies', 'Skill', 'skill'], ['toolProficiencies', 'Tool', 'tool'], ['languageProficiencies', 'Language', 'lang']];
     for (const [field, label, prefix] of fields) {
-      const raw = (selectedBackground as Record<string, string | null>)[field];
+      const raw = (selectedBackground as unknown as Record<string, string | null>)[field];
       if (!raw) continue;
       const parsed = safeJsonParse<ProfEntry[]>(raw, []);
       let chooseIdx = 0;
       for (const p of parsed) {
         if (typeof p === 'string') {
           const anyOpts = prefix === 'tool' ? getToolAnyOptions(p) : prefix === 'skill' && p === 'Any' ? ALL_SKILLS : null;
-          if (anyOpts) { reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label} Proficiency`, type: 'choose', from: anyOpts, count: 1 }); chooseIdx++; }
+          if (anyOpts) { reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label} Proficiency`, type: 'choose', from: [...anyOpts], count: 1 }); chooseIdx++; }
         } else if (typeof p === 'object' && p !== null && 'any' in p) {
           const n = (p as { any: number }).any;
           const pool = prefix === 'skill' ? ALL_SKILLS : prefix === 'tool' ? ALL_TOOLS : ALL_LANGUAGES;
-          reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label} Proficiency`, type: 'choose', from: pool, count: n }); chooseIdx++;
+          reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label} Proficiency`, type: 'choose', from: [...pool], count: n }); chooseIdx++;
         } else if (typeof p === 'object' && p !== null && 'chooseSet' in p) {
           const sets = (p as { chooseSet: ProfEntry[][] }).chooseSet;
           reqs.push({ key: `${prefix}_set`, label: `${label} Proficiencies`, type: 'chooseSet', sets: sets.map(s => s.map(formatProfEntry).filter(Boolean)) });
@@ -483,10 +483,10 @@ export default function CharacterCreateWizard() {
 
   const resolvedBgProfs = useMemo(() => {
     if (!selectedBackground) return { skills: [] as string[], tools: [] as string[], languages: [] as string[] };
-    const result: Record<string, string[]> = { skills: [], tools: [], languages: [] };
+    const result: { skills: string[]; tools: string[]; languages: string[]; [key: string]: string[] } = { skills: [], tools: [], languages: [] };
     const fields: Array<[string, string, string]> = [['skillProficiencies', 'skill', 'skills'], ['toolProficiencies', 'tool', 'tools'], ['languageProficiencies', 'lang', 'languages']];
     for (const [field, prefix, outKey] of fields) {
-      const raw = (selectedBackground as Record<string, string | null>)[field];
+      const raw = (selectedBackground as unknown as Record<string, string | null>)[field];
       if (!raw) continue;
       const parsed = safeJsonParse<ProfEntry[]>(raw, []);
       let chooseIdx = 0;
@@ -721,7 +721,7 @@ export default function CharacterCreateWizard() {
         racialAbilityBonuses: JSON.stringify(bonusAssignments.map(a => ({ ability: a.ability ? ABILITY_LABELS[a.ability] : null, bonus: a.bonus }))),
         strength: finalScores.strength, dexterity: finalScores.dexterity, constitution: finalScores.constitution,
         intelligence: finalScores.intelligence, wisdom: finalScores.wisdom, charisma: finalScores.charisma,
-        ...(level === 1 && !isMulticlass ? { hpMax } : {}),
+        ...(level === 1 && !isMulticlass ? { hpMax: hpMax as number } : {}),
         speed: speed.walk ?? 30,
         savingThrowProficiencies: JSON.stringify(savingThrows),
         skillProficiencies: allSkills.length > 0 ? JSON.stringify([...new Set(allSkills)]) : undefined,
@@ -753,24 +753,24 @@ export default function CharacterCreateWizard() {
   // ── Render ──
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4">
+    <div className="min-h-screen bg-page">
+      <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <button onClick={() => navigate('/player')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm transition-colors">
+          <button onClick={() => navigate('/player')} className="flex items-center gap-2 font-body text-[13px] font-medium text-muted hover:text-ink transition-colors">
             <ChevronLeft className="w-4 h-4" /> Back
           </button>
-          <h1 className="text-lg font-bold text-white">Create Character</h1>
+          <h1 className="font-heading text-[17px] font-semibold tracking-[0.02em] text-ink">Create Character</h1>
           <div className="w-16" />
         </div>
       </header>
 
       {showDraftBanner && (
         <div className="max-w-3xl mx-auto px-6 pt-4">
-          <div className="bg-indigo-900/40 border border-indigo-700 rounded-lg px-4 py-3 flex items-center justify-between">
-            <span className="text-indigo-300 text-sm">You have an unsaved character draft. Restore it?</span>
+          <div className="bg-cls-wizard-bg border border-abj-border px-4 py-3 flex items-center justify-between">
+            <span className="font-body text-[13px] font-medium text-cls-wizard">You have an unsaved character draft. Restore it?</span>
             <div className="flex gap-2">
-              <button onClick={dismissDraft} className="px-3 py-1 text-xs text-gray-400 hover:text-white transition-colors">Discard</button>
-              <button onClick={restoreDraft} className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-500 transition-colors">Restore</button>
+              <button onClick={dismissDraft} className="px-3 py-1 font-body text-[12px] text-muted hover:text-ink transition-colors">Discard</button>
+              <button onClick={restoreDraft} className="px-3 py-1 font-body text-[12px] bg-ink text-card hover:bg-muted transition-colors">Restore</button>
             </div>
           </div>
         </div>
@@ -780,12 +780,12 @@ export default function CharacterCreateWizard() {
         <div className="flex items-center gap-1">
           {steps.map((label, i) => (
             <div key={label} className="flex-1 flex flex-col items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
-                i < step ? 'bg-green-600 border-green-600 text-white' : i === step ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-gray-800 border-gray-700 text-gray-500'
+              <div className={`w-7 h-7 flex items-center justify-center font-heading text-[11px] font-bold border-2 transition-colors ${
+                i < step ? 'bg-buff border-buff text-white' : i === step ? 'bg-ink border-ink text-card' : 'bg-page border-rule text-faint'
               }`}>
-                {i < step ? <Check className="w-4 h-4" /> : i + 1}
+                {i < step ? <Check className="w-3.5 h-3.5" /> : i + 1}
               </div>
-              <span className={`text-xs mt-1 hidden sm:block ${i === step ? 'text-indigo-400' : 'text-gray-500'}`}>{label}</span>
+              <span className={`font-heading text-[9px] font-medium tracking-[0.04em] mt-1 hidden sm:block ${i === step ? 'text-ink' : 'text-faint'}`}>{label}</span>
             </div>
           ))}
         </div>
@@ -878,16 +878,16 @@ export default function CharacterCreateWizard() {
           />
         )}
 
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-800">
-          <button onClick={() => step > 0 ? setStep(step - 1) : navigate('/player')} className="flex items-center gap-2 px-4 py-2.5 text-gray-400 hover:text-white text-sm transition-colors">
+        <div className="flex items-center justify-between mt-8 pt-6 border-t border-rule">
+          <button onClick={() => step > 0 ? setStep(step - 1) : navigate('/player')} className="flex items-center gap-2 px-4 py-2 font-body text-[14px] font-medium text-muted hover:text-ink transition-colors">
             <ArrowLeft className="w-4 h-4" /> {step > 0 ? 'Previous' : 'Cancel'}
           </button>
           {step < steps.length - 1 ? (
-            <button onClick={() => setStep(step + 1)} disabled={!canAdvance()} className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm transition-colors">
+            <button onClick={() => setStep(step + 1)} disabled={!canAdvance()} className="flex items-center gap-2 px-5 py-2 bg-ink text-card font-body text-[14px] font-medium border border-ink hover:bg-muted hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               Next <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={handleCreate} disabled={submitting} className="flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors">
+            <button onClick={handleCreate} disabled={submitting} className="flex items-center gap-2 px-5 py-2 bg-buff text-white font-body text-[14px] font-medium border border-buff hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               {submitting ? 'Creating...' : 'Create Character'} <Check className="w-4 h-4" />
             </button>
           )}

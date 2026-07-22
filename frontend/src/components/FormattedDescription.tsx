@@ -108,12 +108,12 @@ export default function FormattedDescription({ text, className = '' }: Props) {
       {paragraphs.map((para, i) => {
         const parts = applyBolding(para.trim());
         return (
-          <p key={i} className="text-gray-300 text-sm leading-relaxed">
+          <p key={i} className="text-muted font-body text-[13px] font-medium leading-relaxed">
             {parts.map((part, j) =>
               typeof part === 'string' ? (
                 <Fragment key={j}>{part}</Fragment>
               ) : (
-                <strong key={j} className="text-white font-semibold">{part.bold}</strong>
+                <strong key={j} className="text-ink font-semibold">{part.bold}</strong>
               )
             )}
           </p>

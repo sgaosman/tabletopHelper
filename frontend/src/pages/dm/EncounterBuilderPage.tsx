@@ -9,13 +9,15 @@ import type { Campaign } from '../../types/campaign';
 import type { PlayerCharacter } from '../../types/character';
 import type { Monster } from '../../types/monster';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
-import { ArrowLeft, Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Check } from 'lucide-react';
+import { Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Check } from 'lucide-react';
+import NavBar from '../../components/common/NavBar';
+import { getClassColour, getParticipantColour } from '../../utils/classColours';
 
-const STATUS_COLORS: Record<string, string> = {
-  PREPARING: 'bg-yellow-900/50 text-yellow-400',
-  ACTIVE: 'bg-green-900/50 text-green-400',
-  PAUSED: 'bg-orange-900/50 text-orange-400',
-  COMPLETED: 'bg-gray-800 text-gray-400',
+const STATUS_STYLES: Record<string, { text: string; bg: string; border: string }> = {
+  PREPARING: { text: '#B45309', bg: '#FFFBEB', border: '#FDE68A' },
+  ACTIVE:    { text: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
+  PAUSED:    { text: '#92400E', bg: '#FFF7ED', border: '#FDE68A' },
+  COMPLETED: { text: '#78716C', bg: '#F5F5F0', border: '#E7E5E4' },
 };
 
 export default function EncounterBuilderPage() {
@@ -184,30 +186,25 @@ export default function EncounterBuilderPage() {
   const hasParticipants = (selectedEncounter?.participants.length ?? 0) > 0;
 
   if (loading) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-gray-400">Loading...</p></div>;
+    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="font-body text-muted">Loading...</p></div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4">
-        <button onClick={() => navigate('/dm')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-        </button>
-      </header>
+    <div className="min-h-screen bg-page">
+      <NavBar />
 
       <main className="px-6 py-8">
-        <h1 className="text-3xl font-bold text-white mb-6">Encounters</h1>
+        <h1 className="font-heading text-[20px] font-semibold tracking-[0.02em] text-ink mb-6">Encounters</h1>
 
-        {/* Campaign selector */}
         {campaigns.length === 0 ? (
-          <p className="text-gray-500">Create a campaign first to build encounters.</p>
+          <p className="font-body text-faint">Create a campaign first to build encounters.</p>
         ) : (
           <>
             <div className="mb-6">
               <select
                 value={selectedCampaignId}
                 onChange={e => { setSelectedCampaignId(e.target.value); setSelectedEncounter(null); }}
-                className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="px-4 py-2.5 bg-card border border-rule font-body text-[14px] font-medium text-ink focus:outline-none focus:border-muted"
               >
                 <option value="">Select a campaign...</option>
                 {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -219,59 +216,67 @@ export default function EncounterBuilderPage() {
                 {/* Encounter list */}
                 <div className="w-80 flex-shrink-0">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-white">Encounters</h2>
+                    <h2 className="font-heading text-[14px] font-semibold text-ink">Encounters</h2>
                     <button
                       onClick={() => setShowCreateForm(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium transition-colors hover:opacity-90"
                     >
                       <Plus className="w-4 h-4" /> New
                     </button>
                   </div>
 
                   {showCreateForm && (
-                    <form onSubmit={handleCreate} className="bg-gray-900 border border-gray-800 rounded-lg p-4 mb-3">
+                    <form onSubmit={handleCreate} className="bg-card border border-rule p-4 mb-3">
                       <input
                         type="text"
                         value={newName}
                         onChange={e => setNewName(e.target.value)}
                         placeholder="Encounter name"
                         required
-                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white mb-2 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-medium text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted"
                       />
                       <textarea
                         value={newDesc}
                         onChange={e => setNewDesc(e.target.value)}
                         placeholder="Description (optional)"
                         rows={2}
-                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white mb-2 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                        className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-medium text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted resize-none"
                       />
                       <div className="flex gap-2">
-                        <button type="submit" className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm">Create</button>
-                        <button type="button" onClick={() => setShowCreateForm(false)} className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg text-sm">Cancel</button>
+                        <button type="submit" className="px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium">Create</button>
+                        <button type="button" onClick={() => setShowCreateForm(false)} className="px-3 py-1.5 bg-page border border-rule font-body text-[13px] font-medium text-muted hover:border-muted">Cancel</button>
                       </div>
                     </form>
                   )}
 
                   <div className="space-y-2">
-                    {encounters.map(enc => (
-                      <button
-                        key={enc.id}
-                        onClick={() => setSelectedEncounter(enc)}
-                        className={`w-full text-left bg-gray-900 border rounded-lg p-3 transition-colors ${
-                          selectedEncounter?.id === enc.id ? 'border-orange-500' : 'border-gray-800 hover:border-gray-600'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-white font-medium truncate">{enc.name}</span>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[enc.status]}`}>
-                            {enc.status}
-                          </span>
-                        </div>
-                        <p className="text-gray-500 text-xs">{enc.participants.length} participants</p>
-                      </button>
-                    ))}
+                    {encounters.map(enc => {
+                      const status = STATUS_STYLES[enc.status];
+                      return (
+                        <button
+                          key={enc.id}
+                          onClick={() => setSelectedEncounter(enc)}
+                          className={`w-full text-left bg-card border p-3 transition-colors ${
+                            selectedEncounter?.id === enc.id ? 'border-ink' : 'border-rule hover:border-muted'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-heading text-[13px] font-semibold text-ink truncate">{enc.name}</span>
+                            {status && (
+                              <span
+                                className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 border"
+                                style={{ color: status.text, backgroundColor: status.bg, borderColor: status.border }}
+                              >
+                                {enc.status}
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-body text-[11px] font-medium text-faint">{enc.participants.length} participants</p>
+                        </button>
+                      );
+                    })}
                     {encounters.length === 0 && !showCreateForm && (
-                      <p className="text-gray-500 text-sm">No encounters yet.</p>
+                      <p className="font-body text-[13px] text-faint">No encounters yet.</p>
                     )}
                   </div>
                 </div>
@@ -281,25 +286,26 @@ export default function EncounterBuilderPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h2 className="text-2xl font-bold text-white">{selectedEncounter.name}</h2>
+                        <h2 className="font-heading text-[19px] font-semibold text-ink">{selectedEncounter.name}</h2>
                         {selectedEncounter.description && (
-                          <p className="text-gray-400 text-sm mt-1">{selectedEncounter.description}</p>
+                          <p className="font-body text-[13px] font-medium text-muted mt-1">{selectedEncounter.description}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
                         {selectedEncounter.sessionCode && (
-                          <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-2 rounded-lg">
-                            <span className="text-gray-400 text-xs">Session:</span>
-                            <span className="text-white font-mono font-bold tracking-wider">{selectedEncounter.sessionCode}</span>
-                            <button onClick={copySessionCode} className="text-gray-400 hover:text-white">
-                              {copiedCode ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                          <div className="flex items-center gap-2 bg-card border border-rule px-3 py-2">
+                            <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Session</span>
+                            <span className="font-heading text-[14px] font-bold tracking-wider text-ink">{selectedEncounter.sessionCode}</span>
+                            <button onClick={copySessionCode} className="text-muted hover:text-ink">
+                              {copiedCode ? <Check className="w-4 h-4" style={{ color: '#166534' }} /> : <Copy className="w-4 h-4" />}
                             </button>
                           </div>
                         )}
                         {selectedEncounter.status === 'ACTIVE' && (
                           <button
                             onClick={() => navigate(`/dm/encounter/${selectedEncounter.id}/session`)}
-                            className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm flex items-center gap-2"
+                            className="px-4 py-2 font-body text-[13px] font-medium text-white flex items-center gap-2"
+                            style={{ backgroundColor: '#166534' }}
                           >
                             <Swords className="w-4 h-4" /> Go to Session
                           </button>
@@ -307,7 +313,7 @@ export default function EncounterBuilderPage() {
                         {selectedEncounter.status === 'PREPARING' && (
                           <button
                             onClick={() => handleDeleteEncounter(selectedEncounter.id)}
-                            className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+                            className="p-2 text-faint hover:text-debuff transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -320,32 +326,34 @@ export default function EncounterBuilderPage() {
                         {/* Add participants */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                           {/* Campaign PCs */}
-                          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-                            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                              <Users className="w-4 h-4 text-blue-400" /> Campaign Characters
+                          <div className="bg-card border border-rule p-4">
+                            <h3 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-muted mb-3 flex items-center gap-2">
+                              <Users className="w-4 h-4" style={{ color: '#4F46E5' }} /> Campaign Characters
                             </h3>
                             {campaignCharacters.length === 0 ? (
-                              <p className="text-gray-500 text-sm">No characters in this campaign.</p>
+                              <p className="font-body text-[13px] text-faint">No characters in this campaign.</p>
                             ) : (
                               <div className="space-y-2">
                                 {campaignCharacters.map(c => {
                                   const added = addedCharacterIds.has(c.id);
+                                  const classClr = getClassColour(c.characterClass);
                                   return (
-                                    <div key={c.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                                    <div key={c.id} className="flex items-center justify-between bg-page border border-rule-light px-3 py-2">
                                       <div>
-                                        <span className="text-white text-sm font-medium">{c.name}</span>
-                                        <span className="text-gray-400 text-xs ml-2">
+                                        <span className="font-heading text-[12px] font-semibold" style={{ color: classClr }}>{c.name}</span>
+                                        <span className="font-body text-[11px] font-medium text-muted ml-2">
                                           Lv{c.level} {c.characterClass} — HP {c.hpMax} AC {c.armourClass}
                                         </span>
                                       </div>
                                       <button
                                         onClick={() => handleAddPlayer(c)}
                                         disabled={added}
-                                        className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                                        className={`px-2.5 py-1 font-heading text-[9px] font-medium tracking-[0.02em] border transition-colors ${
                                           added
-                                            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                            : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                            ? 'bg-page-alt text-faint border-rule cursor-not-allowed'
+                                            : 'text-white border-transparent'
                                         }`}
+                                        style={!added ? { backgroundColor: classClr } : undefined}
                                       >
                                         {added ? 'Added' : 'Add'}
                                       </button>
@@ -357,30 +365,30 @@ export default function EncounterBuilderPage() {
                           </div>
 
                           {/* Add Monsters */}
-                          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-                            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                              <Swords className="w-4 h-4 text-red-400" /> Add Monsters
+                          <div className="bg-card border border-rule p-4">
+                            <h3 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-muted mb-3 flex items-center gap-2">
+                              <Swords className="w-4 h-4 text-monster" /> Add Monsters
                             </h3>
                             <div className="relative mb-3">
-                              <Search className="absolute left-3 top-2 text-gray-400" size={16} />
+                              <Search className="absolute left-3 top-2 text-faint" size={16} />
                               <input
                                 type="text"
                                 value={monsterSearch}
                                 onChange={e => setMonsterSearch(e.target.value)}
                                 placeholder="Search monsters (fuzzy)..."
-                                className="w-full pl-9 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                                className="w-full pl-9 pr-3 py-1.5 bg-page border border-rule font-body text-[13px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
                               />
                             </div>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {searchingMonsters && <p className="text-gray-400 text-sm">Searching...</p>}
+                              {searchingMonsters && <p className="font-body text-[13px] text-muted">Searching...</p>}
                               {!searchingMonsters && monsterSearch.trim() && monsterResults.length === 0 && (
-                                <p className="text-gray-500 text-sm">No monsters found.</p>
+                                <p className="font-body text-[13px] text-faint">No monsters found.</p>
                               )}
                               {monsterResults.map(m => (
-                                <div key={m.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                                <div key={m.id} className="flex items-center justify-between bg-page border border-rule-light px-3 py-2">
                                   <div>
-                                    <span className="text-white text-sm font-medium">{m.name}</span>
-                                    <span className="text-gray-400 text-xs ml-2">
+                                    <span className="font-heading text-[12px] font-semibold text-monster">{m.name}</span>
+                                    <span className="font-body text-[11px] font-medium text-muted ml-2">
                                       CR {m.challengeRating} — HP {m.hitPoints} AC {m.armourClass}
                                     </span>
                                   </div>
@@ -391,11 +399,12 @@ export default function EncounterBuilderPage() {
                                       max={20}
                                       value={monsterQuantities[m.id] || 1}
                                       onChange={e => setMonsterQuantities(q => ({ ...q, [m.id]: parseInt(e.target.value) || 1 }))}
-                                      className="w-12 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm text-center"
+                                      className="w-12 px-2 py-1 bg-card border border-rule font-body text-[13px] font-medium text-ink text-center focus:outline-none focus:border-muted"
                                     />
                                     <button
                                       onClick={() => handleAddMonster(m)}
-                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-medium"
+                                      className="px-2.5 py-1 text-white font-heading text-[9px] font-medium tracking-[0.02em]"
+                                      style={{ backgroundColor: '#991B1B' }}
                                     >
                                       Add
                                     </button>
@@ -411,19 +420,20 @@ export default function EncounterBuilderPage() {
                           <div className="flex items-center gap-3 mb-6">
                             <button
                               onClick={handleRollInitiative}
-                              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors"
+                              className="flex items-center gap-2 px-4 py-2 bg-page border border-rule font-body text-[13px] font-medium text-ink hover:border-muted transition-colors"
                             >
-                              <Dice5 className="w-4 h-4" /> Roll All Initiative
+                              <Dice5 className="w-4 h-4 text-muted" /> Roll All Initiative
                             </button>
                             <button
                               onClick={handleStartEncounter}
                               disabled={!allHaveInitiative}
-                              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="flex items-center gap-2 px-4 py-2 font-body text-[13px] font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              style={{ backgroundColor: '#166534' }}
                             >
                               <Play className="w-4 h-4" /> Start Encounter
                             </button>
                             {!allHaveInitiative && hasParticipants && (
-                              <span className="text-yellow-400 text-xs">Set initiative for all participants before starting</span>
+                              <span className="font-body text-[12px] font-medium" style={{ color: '#B45309' }}>Set initiative for all participants before starting</span>
                             )}
                           </div>
                         )}
@@ -432,111 +442,118 @@ export default function EncounterBuilderPage() {
 
                     {/* Participants list */}
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                        <ScrollText className="w-4 h-4 text-gray-400" /> Participants ({selectedEncounter.participants.length})
+                      <h3 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-muted mb-3 flex items-center gap-2">
+                        <ScrollText className="w-4 h-4 text-faint" /> Participants ({selectedEncounter.participants.length})
                       </h3>
                       {selectedEncounter.participants.length === 0 ? (
-                        <p className="text-gray-500 text-sm">Add characters and monsters above.</p>
+                        <p className="font-body text-[13px] text-faint">Add characters and monsters above.</p>
                       ) : (
-                        <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+                        <div className="bg-card border border-rule overflow-hidden">
                           <table className="w-full">
                             <thead>
-                              <tr className="border-b border-gray-700 text-left text-gray-400 text-xs uppercase tracking-wider">
-                                <th className="px-4 py-3">Name</th>
-                                <th className="px-4 py-3">Type</th>
-                                <th className="px-4 py-3">HP</th>
-                                <th className="px-4 py-3">AC</th>
-                                <th className="px-4 py-3">Initiative</th>
+                              <tr className="border-b border-rule text-left">
+                                <th className="px-4 py-3 font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">Name</th>
+                                <th className="px-4 py-3 font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">Type</th>
+                                <th className="px-4 py-3 font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">HP</th>
+                                <th className="px-4 py-3 font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">AC</th>
+                                <th className="px-4 py-3 font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">Initiative</th>
                                 {selectedEncounter.status === 'PREPARING' && <th className="px-4 py-3"></th>}
                               </tr>
                             </thead>
                             <tbody>
-                              {selectedEncounter.participants.map((p: EncounterParticipant) => (
-                                <tr key={p.id} className="border-b border-gray-700/50">
-                                  <td className="px-4 py-3">
-                                    {selectedEncounter.status === 'PREPARING' ? (
-                                      <input
-                                        type="text"
-                                        value={editingName[p.id] ?? p.displayName}
-                                        onChange={e => setEditingName(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                        onBlur={e => {
-                                          const val = e.target.value.trim();
-                                          if (val && val !== p.displayName) {
-                                            handleRenameParticipant(p.id, val);
-                                          } else {
-                                            setEditingName(prev => { const next = { ...prev }; delete next[p.id]; return next; });
-                                          }
-                                        }}
-                                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                                        className="bg-transparent text-white font-medium border-b border-transparent hover:border-gray-600 focus:border-purple-500 focus:outline-none px-0 py-0 w-full"
-                                      />
-                                    ) : (
-                                      <span className="text-white font-medium">{p.displayName}</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                      p.participantType === 'PLAYER'
-                                        ? 'bg-blue-900/50 text-blue-400'
-                                        : 'bg-red-900/50 text-red-400'
-                                    }`}>
-                                      {p.participantType}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-gray-300">{p.hpCurrent}/{p.hpMax}</td>
-                                  <td className="px-4 py-3 text-gray-300">{p.armourClass}</td>
-                                  <td className="px-4 py-3">
-                                    {selectedEncounter.status === 'PREPARING' ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <input
-                                          type="number"
-                                          value={editingInitiative[p.id] ?? (p.initiative != null ? String(p.initiative) : '')}
-                                          onChange={e => setEditingInitiative(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                          onBlur={e => {
-                                            const val = e.target.value;
-                                            if (val && !isNaN(parseInt(val))) {
-                                              handleSetInitiative(p.id, val);
-                                            } else {
-                                              setEditingInitiative(prev => { const next = { ...prev }; delete next[p.id]; return next; });
-                                            }
-                                          }}
-                                          onKeyDown={e => {
-                                            if (e.key === 'Enter') {
-                                              (e.target as HTMLInputElement).blur();
-                                            }
-                                          }}
-                                          placeholder="—"
-                                          className="w-16 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder-gray-600"
-                                        />
-                                        {p.initiativeModifier != null && (
-                                          <span className="text-gray-500 text-xs whitespace-nowrap">
-                                            ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-gray-300">
-                                        {p.initiative != null ? p.initiative : <span className="text-gray-600">—</span>}
-                                        {p.initiativeModifier != null && (
-                                          <span className="text-gray-500 text-xs ml-1">
-                                            ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
-                                          </span>
-                                        )}
-                                      </span>
-                                    )}
-                                  </td>
-                                  {selectedEncounter.status === 'PREPARING' && (
+                              {selectedEncounter.participants.map((p: EncounterParticipant) => {
+                                const isMonster = p.participantType === 'MONSTER';
+                                const pColour = getParticipantColour(isMonster, (p as any).characterClass);
+                                return (
+                                  <tr key={p.id} className="border-b border-rule-light">
                                     <td className="px-4 py-3">
-                                      <button
-                                        onClick={() => handleRemoveParticipant(p.id)}
-                                        className="text-gray-500 hover:text-red-400 transition-colors"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
+                                      {selectedEncounter.status === 'PREPARING' ? (
+                                        <input
+                                          type="text"
+                                          value={editingName[p.id] ?? p.displayName}
+                                          onChange={e => setEditingName(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                          onBlur={e => {
+                                            const val = e.target.value.trim();
+                                            if (val && val !== p.displayName) {
+                                              handleRenameParticipant(p.id, val);
+                                            } else {
+                                              setEditingName(prev => { const next = { ...prev }; delete next[p.id]; return next; });
+                                            }
+                                          }}
+                                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                          className="bg-transparent font-heading text-[13px] font-semibold border-b border-transparent hover:border-muted focus:border-ink focus:outline-none px-0 py-0 w-full"
+                                          style={{ color: pColour }}
+                                        />
+                                      ) : (
+                                        <span className="font-heading text-[13px] font-semibold" style={{ color: pColour }}>{p.displayName}</span>
+                                      )}
                                     </td>
-                                  )}
-                                </tr>
-                              ))}
+                                    <td className="px-4 py-3">
+                                      <span
+                                        className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 border"
+                                        style={isMonster
+                                          ? { color: '#991B1B', backgroundColor: '#FEF2F2', borderColor: '#FECACA' }
+                                          : { color: '#4F46E5', backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }
+                                        }
+                                      >
+                                        {p.participantType}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 font-heading text-[12px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</td>
+                                    <td className="px-4 py-3 font-heading text-[12px] font-semibold text-ink">{p.armourClass}</td>
+                                    <td className="px-4 py-3">
+                                      {selectedEncounter.status === 'PREPARING' ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <input
+                                            type="number"
+                                            value={editingInitiative[p.id] ?? (p.initiative != null ? String(p.initiative) : '')}
+                                            onChange={e => setEditingInitiative(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                            onBlur={e => {
+                                              const val = e.target.value;
+                                              if (val && !isNaN(parseInt(val))) {
+                                                handleSetInitiative(p.id, val);
+                                              } else {
+                                                setEditingInitiative(prev => { const next = { ...prev }; delete next[p.id]; return next; });
+                                              }
+                                            }}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') {
+                                                (e.target as HTMLInputElement).blur();
+                                              }
+                                            }}
+                                            placeholder="—"
+                                            className="w-16 px-2 py-1 bg-page border border-rule font-heading text-[14px] font-bold text-ink text-center focus:outline-none focus:border-muted placeholder-faint"
+                                          />
+                                          {p.initiativeModifier != null && (
+                                            <span className="font-body text-[11px] font-medium text-faint whitespace-nowrap">
+                                              ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="font-heading text-[14px] font-bold text-ink">
+                                          {p.initiative != null ? p.initiative : <span className="text-faint">—</span>}
+                                          {p.initiativeModifier != null && (
+                                            <span className="font-body text-[11px] font-medium text-faint ml-1">
+                                              ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
+                                            </span>
+                                          )}
+                                        </span>
+                                      )}
+                                    </td>
+                                    {selectedEncounter.status === 'PREPARING' && (
+                                      <td className="px-4 py-3">
+                                        <button
+                                          onClick={() => handleRemoveParticipant(p.id)}
+                                          className="text-faint hover:text-debuff transition-colors"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </td>
+                                    )}
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>

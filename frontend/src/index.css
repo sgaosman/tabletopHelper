@@ -1,11 +1,120 @@
 @import "tailwindcss";
 
 @theme {
-  --color-gray-400: #d5dbe6;
-  --color-gray-500: #b8c1d1;
-  --color-gray-600: #949eb2;
-  --font-size-xs: 1.125rem;
-  --font-size-xs--line-height: 1.625rem;
-  --font-size-sm: 1.25rem;
-  --font-size-sm--line-height: 1.75rem;
+  /* Surfaces */
+  --color-page: #F5F5F0;
+  --color-card: #FAFAF5;
+  --color-page-alt: #F8F7F2;
+
+  /* Text */
+  --color-ink: #292524;
+  --color-muted: #78716C;
+  --color-faint: #A8A29E;
+
+  /* Borders */
+  --color-rule: #E7E5E4;
+  --color-rule-light: #EEECE8;
+
+  /* Class colours */
+  --color-cls-barbarian: #DC2626;
+  --color-cls-barbarian-bg: #FEF2F2;
+  --color-cls-bard: #DB2777;
+  --color-cls-bard-bg: #FDF2F8;
+  --color-cls-cleric: #B8860B;
+  --color-cls-cleric-bg: #FBF6EB;
+  --color-cls-druid: #059669;
+  --color-cls-druid-bg: #ECFDF5;
+  --color-cls-fighter: #92400E;
+  --color-cls-fighter-bg: #FFF7ED;
+  --color-cls-monk: #CA8A04;
+  --color-cls-monk-bg: #FFFBEB;
+  --color-cls-paladin: #A16207;
+  --color-cls-paladin-bg: #FFFBEB;
+  --color-cls-ranger: #166534;
+  --color-cls-ranger-bg: #F0FDF4;
+  --color-cls-rogue: #374151;
+  --color-cls-rogue-bg: #F9FAFB;
+  --color-cls-sorcerer: #9333EA;
+  --color-cls-sorcerer-bg: #FAF5FF;
+  --color-cls-warlock: #7C3AED;
+  --color-cls-warlock-bg: #F5F3FF;
+  --color-cls-wizard: #4F46E5;
+  --color-cls-wizard-bg: #EEF2FF;
+  --color-cls-artificer: #B45309;
+  --color-cls-artificer-bg: #FFF7ED;
+
+  /* Monster */
+  --color-monster: #991B1B;
+  --color-monster-bg: #FEF2F2;
+
+  /* Status */
+  --color-buff: #166534;
+  --color-buff-bg: #F0FDF4;
+  --color-buff-border: #BBF7D0;
+  --color-debuff: #991B1B;
+  --color-debuff-bg: #FEF2F2;
+  --color-debuff-border: #FECACA;
+  --color-hp-healthy: #166534;
+  --color-hp-wounded: #B45309;
+  --color-hp-critical: #991B1B;
+  --color-active: #059669;
+
+  /* Spell schools */
+  --color-evo: #DC2626;
+  --color-evo-bg: #FEF2F2;
+  --color-evo-border: #FECACA;
+  --color-abj: #4F46E5;
+  --color-abj-bg: #EEF2FF;
+  --color-abj-border: #C7D2FE;
+  --color-conj: #059669;
+  --color-conj-bg: #ECFDF5;
+  --color-conj-border: #A7F3D0;
+  --color-ench: #DB2777;
+  --color-ench-bg: #FDF2F8;
+  --color-ench-border: #FBCFE8;
+  --color-necro: #374151;
+  --color-necro-bg: #F9FAFB;
+  --color-necro-border: #D1D5DB;
+  --color-div: #CA8A04;
+  --color-div-bg: #FFFBEB;
+  --color-div-border: #FDE68A;
+  --color-trans: #B45309;
+  --color-trans-bg: #FFFBEB;
+  --color-trans-border: #FDE68A;
+  --color-illu: #7C3AED;
+  --color-illu-bg: #FAF5FF;
+  --color-illu-border: #D8B4FE;
+
+  /* Fonts */
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'Cormorant Garamond', serif;
+}
+
+/* Base styles */
+html {
+  background-color: #F5F5F0;
+}
+
+body {
+  font-family: 'Cormorant Garamond', serif;
+  color: #292524;
+  background-color: #F5F5F0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Remove all border-radius globally */
+*, *::before, *::after {
+  border-radius: 0 !important;
+}
+
+/* Inputs and buttons base */
+input, select, textarea, button {
+  font-family: inherit;
+}
+
+/* Focus ring override */
+*:focus-visible {
+  outline: 1.5px solid #78716C;
+  outline-offset: 1px;
 }

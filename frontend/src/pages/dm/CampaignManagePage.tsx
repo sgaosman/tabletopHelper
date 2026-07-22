@@ -1,8 +1,9 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Copy, Users, Check } from 'lucide-react';
+import { Plus, Copy, Users, Check } from 'lucide-react';
 import { campaignApi } from '../../api/campaignApi';
 import type { Campaign } from '../../types/campaign';
+import NavBar from '../../components/common/NavBar';
 
 export default function CampaignManagePage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -14,9 +15,7 @@ export default function CampaignManagePage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadCampaigns();
-  }, []);
+  useEffect(() => { loadCampaigns(); }, []);
 
   async function loadCampaigns() {
     try {
@@ -50,101 +49,95 @@ export default function CampaignManagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <button onClick={() => navigate('/dm')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-        </button>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors"
-        >
-          <Plus className="w-4 h-4" /> New Campaign
-        </button>
-      </header>
+    <div className="min-h-screen bg-page">
+      <NavBar />
 
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-white mb-6">Campaigns</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink">Campaigns</h1>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> New Campaign
+          </button>
+        </div>
 
         {error && (
-          <div className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 mb-4 text-sm">{error}</div>
+          <div className="bg-debuff-bg border border-debuff-border text-debuff font-body text-[13px] p-3 mb-4">{error}</div>
         )}
 
         {showCreate && (
-          <form onSubmit={handleCreate} className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Create Campaign</h2>
+          <form onSubmit={handleCreate} className="bg-card border border-rule p-6 mb-6 space-y-4">
+            <h2 className="font-heading text-[15px] font-semibold text-ink">Create Campaign</h2>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Campaign Name</label>
+              <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">Campaign Name</label>
               <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                maxLength={200}
-                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200}
+                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
                 placeholder="e.g. Curse of Strahd"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Description <span className="text-gray-500">(optional)</span></label>
+              <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
+                Description <span className="text-faint normal-case tracking-normal font-body">(optional)</span>
+              </label>
               <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none resize-none"
                 placeholder="A brief description of your campaign"
               />
             </div>
             <div className="flex gap-3">
-              <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm transition-colors">Create</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[13px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors">Create</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-page border border-rule font-body text-[13px] font-medium text-muted hover:border-muted transition-colors">Cancel</button>
             </div>
           </form>
         )}
 
         {loading ? (
-          <p className="text-gray-400">Loading campaigns...</p>
+          <p className="font-body text-[14px] text-muted">Loading campaigns...</p>
         ) : campaigns.length === 0 ? (
           <div className="text-center py-16">
-            <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 mb-2">No campaigns yet</p>
-            <p className="text-gray-500 text-sm">Create your first campaign to get started</p>
+            <Users className="w-10 h-10 text-faint mx-auto mb-4" />
+            <p className="font-body text-[14px] text-muted mb-1">No campaigns yet</p>
+            <p className="font-body text-[12px] text-faint">Create your first campaign to get started</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {campaigns.map((campaign) => (
-              <div key={campaign.id} className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <div key={campaign.id} className="bg-card border border-rule p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-white">{campaign.name}</h3>
-                    {campaign.description && <p className="text-gray-400 text-sm mt-1">{campaign.description}</p>}
+                    <h3 className="font-heading text-[15px] font-semibold text-ink">{campaign.name}</h3>
+                    {campaign.description && <p className="font-body text-[13px] font-medium text-muted mt-1">{campaign.description}</p>}
                   </div>
                   <button
                     onClick={() => navigate(`/dm/campaigns/${campaign.id}`)}
-                    className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors"
+                    className="font-body text-[13px] font-semibold text-ink hover:text-muted transition-colors"
                   >
                     View Details
                   </button>
                 </div>
 
                 <div className="flex items-center gap-4 mt-4">
-                  <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-lg">
-                    <span className="text-gray-400 text-xs">INVITE CODE</span>
-                    <span className="text-white font-mono font-bold tracking-wider">{campaign.inviteCode}</span>
-                    <button onClick={() => copyInviteCode(campaign.inviteCode)} className="text-gray-400 hover:text-white transition-colors">
-                      {copiedCode === campaign.inviteCode ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  <div className="flex items-center gap-2 bg-page border border-rule px-3 py-1.5">
+                    <span className="font-heading text-[9px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
+                    <span className="font-heading text-[13px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
+                    <button onClick={() => copyInviteCode(campaign.inviteCode)} className="text-faint hover:text-ink transition-colors">
+                      {copiedCode === campaign.inviteCode ? <Check className="w-3.5 h-3.5 text-buff" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  <span className="text-gray-500 text-sm">
+                  <span className="font-body text-[12px] font-medium text-muted">
                     {campaign.members.length} member{campaign.members.length !== 1 ? 's' : ''}
                   </span>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {campaign.members.map((m) => (
-                    <span key={m.userId} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-800 rounded-md text-xs">
-                      <span className="text-white">{m.displayName}</span>
-                      <span className={`${m.role === 'DM' ? 'text-amber-400' : 'text-indigo-400'}`}>{m.role}</span>
+                    <span key={m.userId} className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-page border border-rule">
+                      <span className="font-body text-[11px] font-medium text-ink">{m.displayName}</span>
+                      <span className={`font-heading text-[9px] font-medium ${m.role === 'DM' ? 'text-cls-cleric' : 'text-cls-wizard'}`}>{m.role}</span>
                     </span>
                   ))}
                 </div>

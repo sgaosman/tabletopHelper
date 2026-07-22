@@ -48,8 +48,8 @@ export default function ClassStep({
 }: ClassStepProps) {
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-white">Choose a Class</h2>
-      <p className="text-gray-400 text-sm">Select your primary class{level >= 2 ? '. You can optionally multiclass below.' : '.'}</p>
+      <h2 className="font-heading text-[15px] font-semibold text-ink">Choose a Class</h2>
+      <p className="font-body text-[13px] font-medium text-muted">Select your primary class{level >= 2 ? '. You can optionally multiclass below.' : '.'}</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {classes.map(cls => {
@@ -59,19 +59,19 @@ export default function ClassStep({
             <button
               key={cls.id}
               onClick={() => onSelectClass(isSelected ? null : cls)}
-              className={`p-4 rounded-lg border text-left transition-colors ${
+              className={`p-4 border text-left transition-colors ${
                 isSelected
-                  ? 'bg-indigo-900/30 border-indigo-500'
-                  : 'bg-gray-900 border-gray-800 hover:border-gray-600'
+                  ? 'bg-page-alt border-ink'
+                  : 'bg-card border-rule hover:border-muted'
               }`}
             >
               <div className="flex items-start justify-between">
-                <h3 className="text-white font-medium text-sm">{cls.name}</h3>
-                <span className="text-gray-500 text-xs">d{cls.hitDice}</span>
+                <h3 className="font-heading text-[13px] font-semibold text-ink">{cls.name}</h3>
+                <span className="font-body text-[11px] text-faint">d{cls.hitDice}</span>
               </div>
-              <p className="text-gray-400 text-xs mt-1">Primary: {cls.primaryAbility}</p>
-              {saves.length > 0 && <p className="text-cyan-400 text-xs">Saves: {saves.join(', ')}</p>}
-              {cls.isSpellcaster && <p className="text-purple-400 text-xs mt-0.5">Spellcaster ({cls.spellcastingAbility})</p>}
+              <p className="font-body text-[11px] font-medium text-muted mt-1">Primary: {cls.primaryAbility}</p>
+              {saves.length > 0 && <p className="font-body text-[11px] font-medium text-cls-druid">Saves: {saves.join(', ')}</p>}
+              {cls.isSpellcaster && <p className="font-body text-[11px] font-medium text-cls-sorcerer mt-0.5">Spellcaster ({cls.spellcastingAbility})</p>}
             </button>
           );
         })}
@@ -79,22 +79,22 @@ export default function ClassStep({
 
       {/* Multiclass section */}
       {selectedClass && level >= 2 && (
-        <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <div className="mt-6 bg-card border border-rule overflow-hidden">
           <button
             onClick={() => setMulticlassExpanded(prev => !prev)}
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/50 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-page-alt transition-colors"
           >
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-300">Multiclassing Options</h3>
+              <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-muted">Multiclassing Options</h3>
               {classEntries.length > 1 && (
-                <span className="text-xs text-emerald-400">({classEntries.length - 1} added)</span>
+                <span className="font-heading text-[9px] font-medium text-buff">({classEntries.length - 1} added)</span>
               )}
             </div>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${multiclassExpanded ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-faint transition-transform ${multiclassExpanded ? 'rotate-180' : ''}`} />
           </button>
           {multiclassExpanded && (
-            <div className="px-4 pb-4 border-t border-gray-800">
-              <p className="text-gray-500 text-xs my-3">
+            <div className="px-4 pb-4 border-t border-rule">
+              <p className="font-body text-[11px] text-faint my-3">
                 PHB rule: you must meet the ability score prerequisites for both your current class and the new class.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -118,26 +118,26 @@ export default function ClassStep({
                         }
                       }}
                       disabled={!canMulticlass && !isAdded}
-                      className={`p-3 rounded-lg border text-left transition-colors ${
+                      className={`p-3 border text-left transition-colors ${
                         isAdded
-                          ? 'bg-emerald-900/30 border-emerald-500'
+                          ? 'bg-buff-bg border-buff-border'
                           : !canMulticlass
-                          ? 'bg-gray-900/50 border-gray-800 opacity-50 cursor-not-allowed'
-                          : 'bg-gray-900 border-gray-800 hover:border-gray-600 cursor-pointer'
+                          ? 'bg-page border-rule opacity-50 cursor-not-allowed'
+                          : 'bg-card border-rule hover:border-muted cursor-pointer'
                       }`}
                     >
                       <div className="flex items-start justify-between">
-                        <h4 className="text-white font-medium text-sm">{cls.name}</h4>
-                        <span className="text-gray-500 text-xs">d{cls.hitDice}</span>
+                        <h4 className="font-heading text-[13px] font-semibold text-ink">{cls.name}</h4>
+                        <span className="font-body text-[11px] text-faint">d{cls.hitDice}</span>
                       </div>
-                      {saves.length > 0 && <p className="text-cyan-400 text-xs">Saves: {saves.join(', ')}</p>}
-                      {cls.isSpellcaster && <p className="text-purple-400 text-xs">Spellcaster ({cls.spellcastingAbility})</p>}
+                      {saves.length > 0 && <p className="font-body text-[11px] font-medium text-cls-druid">Saves: {saves.join(', ')}</p>}
+                      {cls.isSpellcaster && <p className="font-body text-[11px] font-medium text-cls-sorcerer">Spellcaster ({cls.spellcastingAbility})</p>}
                       {!canMulticlass && (
-                        <p className="text-red-400 text-xs mt-1">
+                        <p className="font-body text-[11px] font-medium text-debuff mt-1">
                           {!exitEligibility.eligible ? `Exit: ${exitEligibility.reason}` : entryEligibility.reason}
                         </p>
                       )}
-                      {isAdded && <p className="text-emerald-400 text-xs mt-1">Added to multiclass</p>}
+                      {isAdded && <p className="font-body text-[11px] font-medium text-buff mt-1">Added to multiclass</p>}
                     </button>
                   );
                 })}
@@ -149,9 +149,9 @@ export default function ClassStep({
 
       {/* Level allocation sliders */}
       {classEntries.length > 1 && (
-        <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-1">Level Allocation</h3>
-          <p className="text-gray-500 text-xs mb-3">
+        <div className="mt-4 bg-card border border-rule p-4">
+          <h3 className="font-heading text-[15px] font-semibold text-ink mb-1">Level Allocation</h3>
+          <p className="font-body text-[11px] text-faint mb-3">
             Distribute your {level} character levels across classes.
           </p>
           <div className="space-y-3">
@@ -160,16 +160,16 @@ export default function ClassStep({
               const maxForThis = level - otherTotal;
               return (
                 <div key={entry.cls.id} className="flex items-center gap-3">
-                  <span className="text-white text-sm font-medium w-24 shrink-0">{entry.cls.name}</span>
+                  <span className="font-heading text-[13px] font-semibold text-ink w-24 shrink-0">{entry.cls.name}</span>
                   <input
                     type="range"
                     min={1}
                     max={Math.max(1, maxForThis)}
                     value={entry.level}
                     onChange={e => handleClassLevelChange(entry.cls.id, Number(e.target.value))}
-                    className="flex-1 accent-indigo-500"
+                    className="flex-1 accent-ink"
                   />
-                  <span className="text-white font-bold text-sm w-6 text-center">{entry.level}</span>
+                  <span className="font-heading text-[14px] font-bold text-ink w-6 text-center">{entry.level}</span>
                 </div>
               );
             })}
@@ -177,7 +177,7 @@ export default function ClassStep({
           {(() => {
             const total = classEntries.reduce((s, e) => s + e.level, 0);
             return total !== level && (
-              <p className="text-red-400 text-xs mt-2">Total levels: {total}/{level} — must equal character level</p>
+              <p className="font-body text-[11px] font-medium text-debuff mt-2">Total levels: {total}/{level} — must equal character level</p>
             );
           })()}
         </div>
@@ -192,7 +192,7 @@ export default function ClassStep({
           <div key={`sc-${entry.cls.id}`}>
             {needsSubclass && (
               <div className="mt-4">
-                <h3 className="text-lg font-semibold text-white mb-3">
+                <h3 className="font-heading text-[15px] font-semibold text-ink mb-3">
                   {classEntries.length > 1 ? `${entry.cls.name} Subclass` : 'Choose a Subclass'}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
@@ -200,24 +200,24 @@ export default function ClassStep({
                     <button
                       key={sc.id}
                       onClick={() => handleEntrySubclass(entry.cls.id, entry.subclass?.id === sc.id ? null : sc)}
-                      className={`p-3 rounded-lg border text-left transition-colors ${
+                      className={`p-3 border text-left transition-colors ${
                         entry.subclass?.id === sc.id
-                          ? 'bg-purple-900/30 border-purple-500'
-                          : 'bg-gray-900 border-gray-800 hover:border-gray-600'
+                          ? 'bg-page-alt border-ink'
+                          : 'bg-card border-rule hover:border-muted'
                       }`}
                     >
-                      <h4 className="text-white text-sm font-medium">{sc.name}</h4>
-                      <p className="text-gray-500 text-xs">{sc.source}</p>
+                      <h4 className="font-heading text-[13px] font-semibold text-ink">{sc.name}</h4>
+                      <p className="font-body text-[11px] text-faint">{sc.source}</p>
                     </button>
                   ))}
                 </div>
                 {!entry.subclass && (
-                  <p className="text-amber-400 text-sm mt-2">Subclass selection required at {entry.cls.name} level {subclassLvl}+</p>
+                  <p className="font-body text-[12px] font-medium text-hp-wounded mt-2">Subclass selection required at {entry.cls.name} level {subclassLvl}+</p>
                 )}
               </div>
             )}
             {belowSubclass && classEntries.length <= 1 && (
-              <p className="text-gray-500 text-sm mt-2">Subclass available at level {subclassLvl}</p>
+              <p className="font-body text-[12px] text-faint mt-2">Subclass available at level {subclassLvl}</p>
             )}
           </div>
         );
@@ -237,11 +237,11 @@ export default function ClassStep({
           return levels;
         });
         return (
-          <div className="mt-4 bg-amber-900/20 border border-amber-800/50 rounded-lg p-4">
-            <h3 className="text-amber-400 font-medium text-sm">
+          <div className="mt-4 bg-cls-monk-bg border border-[#FDE68A] p-4">
+            <h3 className="font-heading text-[12px] font-semibold text-cls-monk">
               {asiCount} Ability Score Improvement{asiCount > 1 ? 's' : ''}
             </h3>
-            <p className="text-gray-400 text-xs mt-1">
+            <p className="font-body text-[11px] font-medium text-muted mt-1">
               ASI at: {asiDetails.join(', ')}. You'll choose ability increases or feats after creation.
             </p>
           </div>
@@ -250,12 +250,12 @@ export default function ClassStep({
 
       {/* Class skill proficiency selection */}
       {selectedClass && classSkillChoices.count > 0 && (
-        <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <div className="mt-4 bg-card border border-rule p-4">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-white font-medium text-sm">Class Skill Proficiencies</h3>
-            <span className="text-xs text-gray-400">{selectedClassSkills.length}/{classSkillChoices.count} selected</span>
+            <h3 className="font-heading text-[13px] font-semibold text-ink">Class Skill Proficiencies</h3>
+            <span className="font-heading text-[9px] font-medium text-faint">{selectedClassSkills.length}/{classSkillChoices.count} selected</span>
           </div>
-          <p className="text-gray-500 text-xs mb-3">
+          <p className="font-body text-[11px] text-faint mb-3">
             Choose {classSkillChoices.count} skill{classSkillChoices.count > 1 ? 's' : ''} from the {selectedClass.name} class list.
           </p>
           <div className="flex gap-1.5 flex-wrap">
@@ -275,14 +275,14 @@ export default function ClassStep({
                     }
                   }}
                   disabled={disabled && !isSelected}
-                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                  className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
                     alreadyFromRace
-                      ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed line-through'
+                      ? 'bg-page text-faint cursor-not-allowed line-through border-rule'
                       : isSelected
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-ink text-card border-ink'
                       : disabled
-                      ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      ? 'bg-page text-faint cursor-not-allowed border-rule'
+                      : 'bg-page text-muted border-rule hover:border-muted'
                   }`}
                   title={alreadyFromRace ? 'Already granted by race' : undefined}
                 >
@@ -293,7 +293,7 @@ export default function ClassStep({
             })}
           </div>
           {selectedClassSkills.length < classSkillChoices.count && (
-            <p className="text-amber-400 text-xs mt-3">Select {classSkillChoices.count - selectedClassSkills.length} more skill{classSkillChoices.count - selectedClassSkills.length > 1 ? 's' : ''} to continue</p>
+            <p className="font-body text-[11px] font-medium text-hp-wounded mt-3">Select {classSkillChoices.count - selectedClassSkills.length} more skill{classSkillChoices.count - selectedClassSkills.length > 1 ? 's' : ''} to continue</p>
           )}
         </div>
       )}
@@ -309,12 +309,12 @@ export default function ClassStep({
           ...Object.entries(mcSkillSelections).filter(([k]) => k !== clsId).flatMap(([, v]) => v.map(s => s.toLowerCase())),
         ]);
         return (
-          <div key={clsId} className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+          <div key={clsId} className="mt-4 bg-card border border-rule p-4">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-white font-medium text-sm">{entry.cls.name} Multiclass Skills</h3>
-              <span className="text-xs text-gray-400">{selected.length}/{choices.count} selected</span>
+              <h3 className="font-heading text-[13px] font-semibold text-ink">{entry.cls.name} Multiclass Skills</h3>
+              <span className="font-heading text-[9px] font-medium text-faint">{selected.length}/{choices.count} selected</span>
             </div>
-            <p className="text-gray-500 text-xs mb-3">
+            <p className="font-body text-[11px] text-faint mb-3">
               Choose {choices.count} skill{choices.count > 1 ? 's' : ''} from the {entry.cls.name} multiclass list.
             </p>
             <div className="flex gap-1.5 flex-wrap">
@@ -334,11 +334,11 @@ export default function ClassStep({
                       }
                     }}
                     disabled={disabled && !isSelected}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      alreadyTaken ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed line-through'
-                        : isSelected ? 'bg-indigo-600 text-white'
-                        : disabled ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
+                      alreadyTaken ? 'bg-page text-faint cursor-not-allowed line-through border-rule'
+                        : isSelected ? 'bg-ink text-card border-ink'
+                        : disabled ? 'bg-page text-faint cursor-not-allowed border-rule'
+                        : 'bg-page text-muted border-rule hover:border-muted'
                     }`}
                     title={alreadyTaken ? 'Already proficient' : undefined}
                   >
@@ -354,12 +354,12 @@ export default function ClassStep({
 
       {/* Expertise picker */}
       {expertiseCount > 0 && (
-        <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <div className="mt-4 bg-card border border-rule p-4">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-white font-medium text-sm">Expertise</h3>
-            <span className="text-xs text-gray-400">{selectedExpertise.length}/{expertiseCount} selected</span>
+            <h3 className="font-heading text-[13px] font-semibold text-ink">Expertise</h3>
+            <span className="font-heading text-[9px] font-medium text-faint">{selectedExpertise.length}/{expertiseCount} selected</span>
           </div>
-          <p className="text-gray-500 text-xs mb-3">
+          <p className="font-body text-[11px] text-faint mb-3">
             Choose {expertiseCount} skill{expertiseCount > 1 ? 's' : ''} to gain expertise in (double proficiency bonus).
           </p>
           <div className="flex gap-1.5 flex-wrap">
@@ -379,10 +379,10 @@ export default function ClassStep({
                       }
                     }}
                     disabled={disabled}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      isSelected ? 'bg-yellow-600 text-white'
-                        : disabled ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
+                      isSelected ? 'bg-cls-monk text-white border-cls-monk'
+                        : disabled ? 'bg-page text-faint cursor-not-allowed border-rule'
+                        : 'bg-page text-muted border-rule hover:border-muted'
                     }`}
                   >
                     {skill}
@@ -391,7 +391,7 @@ export default function ClassStep({
               })}
           </div>
           {selectedExpertise.length < expertiseCount && (
-            <p className="text-amber-400 text-xs mt-3">Select {expertiseCount - selectedExpertise.length} more skill{expertiseCount - selectedExpertise.length > 1 ? 's' : ''}</p>
+            <p className="font-body text-[11px] font-medium text-hp-wounded mt-3">Select {expertiseCount - selectedExpertise.length} more skill{expertiseCount - selectedExpertise.length > 1 ? 's' : ''}</p>
           )}
         </div>
       )}

@@ -20,7 +20,7 @@ export default function AbilityScoresStep({
 }: AbilityScoresStepProps) {
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">Ability Scores</h2>
+      <h2 className="font-heading text-[15px] font-semibold text-ink">Ability Scores</h2>
 
       <div className="flex gap-2">
         {(['standard', 'pointbuy', 'manual'] as const).map(m => (
@@ -36,8 +36,8 @@ export default function AbilityScoresStep({
                 });
               }
             }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              abilityMethod === m ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            className={`px-4 py-2 font-heading text-[11px] font-semibold tracking-[0.04em] transition-colors border ${
+              abilityMethod === m ? 'bg-ink text-card border-ink' : 'bg-card text-muted border-rule hover:border-muted'
             }`}
           >
             {m === 'standard' ? 'Standard Array' : m === 'pointbuy' ? 'Point Buy' : 'Manual'}
@@ -47,36 +47,36 @@ export default function AbilityScoresStep({
 
       {abilityMethod === 'standard' && (
         <div>
-          <p className="text-gray-400 text-sm mb-4">Assign each value to an ability: {STANDARD_ARRAY.join(', ')}</p>
+          <p className="font-body text-[13px] font-medium text-muted mb-4">Assign each value to an ability: {STANDARD_ARRAY.join(', ')}</p>
           <StandardArrayAssigner assignments={standardAssignments} onChange={setStandardAssignments} racialBonuses={racialBonuses} />
         </div>
       )}
 
       {abilityMethod === 'pointbuy' && (
         <div>
-          <p className="text-gray-400 text-sm mb-2">Points spent: <span className={pointBuyTotal > 27 ? 'text-red-400' : 'text-cyan-400'}>{pointBuyTotal}/27</span></p>
+          <p className="font-body text-[13px] font-medium text-muted mb-2">Points spent: <span className={pointBuyTotal > 27 ? 'text-debuff' : 'text-cls-druid'}>{pointBuyTotal}/27</span></p>
           {pointBuyTotal < 27 && pointBuyTotal > 0 && (
-            <p className="text-amber-400 text-xs mb-2">You have {27 - pointBuyTotal} unspent point{27 - pointBuyTotal !== 1 ? 's' : ''}. You can still proceed.</p>
+            <p className="font-body text-[11px] font-medium text-hp-wounded mb-2">You have {27 - pointBuyTotal} unspent point{27 - pointBuyTotal !== 1 ? 's' : ''}. You can still proceed.</p>
           )}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {ABILITIES.map(a => (
-              <div key={a} className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-center">
-                <label className="text-gray-400 text-xs font-medium block mb-2">{ABILITY_LABELS[a]}</label>
+              <div key={a} className="bg-card border border-rule p-4 text-center">
+                <label className="font-heading text-[9px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
                 <div className="flex items-center justify-center gap-3">
                   <button
                     onClick={() => setScores(s => ({ ...s, [a]: Math.max(8, s[a] - 1) }))}
-                    className="w-8 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-700 flex items-center justify-center"
+                    className="w-8 h-8 bg-page border border-rule text-muted hover:border-muted flex items-center justify-center font-heading text-[14px] font-bold"
                   >-</button>
-                  <span className="text-white text-xl font-bold w-8 text-center">{scores[a]}</span>
+                  <span className="font-heading text-[17px] font-bold text-ink w-8 text-center">{scores[a]}</span>
                   <button
                     onClick={() => setScores(s => ({ ...s, [a]: Math.min(15, s[a] + 1) }))}
-                    className="w-8 h-8 rounded bg-gray-800 text-gray-400 hover:bg-gray-700 flex items-center justify-center"
+                    className="w-8 h-8 bg-page border border-rule text-muted hover:border-muted flex items-center justify-center font-heading text-[14px] font-bold"
                   >+</button>
                 </div>
                 {racialBonuses[a] && (
-                  <p className="text-green-400 text-xs mt-1">+{racialBonuses[a]} racial</p>
+                  <p className="font-body text-[11px] font-medium text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
                 )}
-                <p className="text-gray-500 text-xs mt-1">
+                <p className="font-body text-[11px] font-medium text-faint mt-1">
                   Final: {scores[a] + (racialBonuses[a] || 0)} ({formatMod(abilityMod(scores[a] + (racialBonuses[a] || 0)))})
                 </p>
               </div>
@@ -88,20 +88,20 @@ export default function AbilityScoresStep({
       {abilityMethod === 'manual' && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {ABILITIES.map(a => (
-            <div key={a} className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-center">
-              <label className="text-gray-400 text-xs font-medium block mb-2">{ABILITY_LABELS[a]}</label>
+            <div key={a} className="bg-card border border-rule p-4 text-center">
+              <label className="font-heading text-[9px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
               <input
                 type="number"
                 min={1}
                 max={30}
                 value={scores[a]}
                 onChange={e => setScores(s => ({ ...s, [a]: Math.min(30, Math.max(1, parseInt(e.target.value) || 1)) }))}
-                className="w-full text-center text-xl font-bold bg-gray-800 border border-gray-700 rounded-lg py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full text-center font-heading text-[17px] font-bold bg-page border border-rule py-2 text-ink focus:border-muted focus:outline-none"
               />
               {racialBonuses[a] && (
-                <p className="text-green-400 text-xs mt-1">+{racialBonuses[a]} racial</p>
+                <p className="font-body text-[11px] font-medium text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
               )}
-              <p className="text-gray-500 text-xs mt-1">
+              <p className="font-body text-[11px] font-medium text-faint mt-1">
                 Final: {scores[a] + (racialBonuses[a] || 0)} ({formatMod(abilityMod(scores[a] + (racialBonuses[a] || 0)))})
               </p>
             </div>
@@ -131,15 +131,15 @@ function StandardArrayAssigner({
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       {ABILITIES.map(a => (
-        <div key={a} className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-center">
-          <label className="text-gray-400 text-xs font-medium block mb-2">{ABILITY_LABELS[a]}</label>
+        <div key={a} className="bg-card border border-rule p-4 text-center">
+          <label className="font-heading text-[9px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
           <select
             value={assignments[a] ?? ''}
             onChange={e => {
               const val = e.target.value ? parseInt(e.target.value) : null;
               onChange({ ...assignments, [a]: val });
             }}
-            className="w-full text-center text-lg font-bold bg-gray-800 border border-gray-700 rounded-lg py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full text-center font-heading text-[15px] font-bold bg-page border border-rule py-2 text-ink focus:border-muted focus:outline-none"
           >
             <option value="">—</option>
             {STANDARD_ARRAY.map(v => {
@@ -151,10 +151,10 @@ function StandardArrayAssigner({
             })}
           </select>
           {racialBonuses[a] && (
-            <p className="text-green-400 text-xs mt-1">+{racialBonuses[a]} racial</p>
+            <p className="font-body text-[11px] font-medium text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
           )}
           {assignments[a] !== null && (
-            <p className="text-gray-500 text-xs mt-1">
+            <p className="font-body text-[11px] font-medium text-faint mt-1">
               Final: {(assignments[a] ?? 0) + (racialBonuses[a] || 0)} ({formatMod(abilityMod((assignments[a] ?? 0) + (racialBonuses[a] || 0)))})
             </p>
           )}

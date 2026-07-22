@@ -148,7 +148,7 @@ export function parseFeatEffects(feat: Feat): FeatEffects | null {
 
 export interface AbilityScoreIncrease {
   fixed: Record<string, number>;
-  choose: { from: string[]; amount: number } | null;
+  choose?: { from: string[]; amount: number };
 }
 
 export function parseAbilityScoreIncrease(feat: Feat): AbilityScoreIncrease | null {
@@ -158,7 +158,7 @@ export function parseAbilityScoreIncrease(feat: Feat): AbilityScoreIncrease | nu
       ? JSON.parse(feat.abilityScoreIncrease) : feat.abilityScoreIncrease;
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
 
-    const result: AbilityScoreIncrease = { fixed: {}, choose: null };
+    const result: AbilityScoreIncrease = { fixed: {} };
     for (const entry of parsed) {
       if (entry.choose) {
         result.choose = { from: entry.choose.from || [], amount: entry.choose.amount || 1 };

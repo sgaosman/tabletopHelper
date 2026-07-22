@@ -53,15 +53,15 @@ export default function BackgroundStep({
 }: BackgroundStepProps) {
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-white">Choose a Background</h2>
+      <h2 className="font-heading text-[15px] font-semibold text-ink">Choose a Background</h2>
       <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
         <input
           type="text"
           value={bgSearch}
           onChange={e => setBgSearch(e.target.value)}
           placeholder="Search backgrounds..."
-          className="w-full pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
         />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -74,21 +74,21 @@ export default function BackgroundStep({
             <button
               key={bg.id}
               onClick={() => setSelectedBackground(selectedBackground?.id === bg.id ? null : bg)}
-              className={`p-4 rounded-lg border text-left transition-colors ${
+              className={`p-4 border text-left transition-colors ${
                 selectedBackground?.id === bg.id
-                  ? 'bg-indigo-900/30 border-indigo-500'
-                  : 'bg-gray-900 border-gray-800 hover:border-gray-600'
+                  ? 'bg-page-alt border-ink'
+                  : 'bg-card border-rule hover:border-muted'
               }`}
             >
               <div className="flex items-start justify-between">
-                <h3 className="text-white font-medium text-sm">{bg.name}</h3>
-                <span className="text-gray-500 text-xs">{bg.source}</span>
+                <h3 className="font-heading text-[13px] font-semibold text-ink">{bg.name}</h3>
+                <span className="font-body text-[11px] text-faint">{bg.source}</span>
               </div>
               <div className="mt-1 space-y-0.5">
-                {skills.length > 0 && <p className="text-cyan-400 text-xs">Skills: {skills.join(', ')}</p>}
-                {tools.length > 0 && <p className="text-gray-400 text-xs">Tools: {tools.join(', ')}</p>}
-                {langs.length > 0 && <p className="text-gray-400 text-xs">Languages: {langs.join(', ')}</p>}
-                {feats.length > 0 && <p className="text-amber-400 text-xs">Feat: {feats.join(', ')}</p>}
+                {skills.length > 0 && <p className="font-body text-[11px] font-medium text-cls-druid">Skills: {skills.join(', ')}</p>}
+                {tools.length > 0 && <p className="font-body text-[11px] font-medium text-muted">Tools: {tools.join(', ')}</p>}
+                {langs.length > 0 && <p className="font-body text-[11px] font-medium text-muted">Languages: {langs.join(', ')}</p>}
+                {feats.length > 0 && <p className="font-body text-[11px] font-medium text-buff">Feat: {feats.join(', ')}</p>}
               </div>
             </button>
           );
@@ -98,13 +98,13 @@ export default function BackgroundStep({
         <BackgroundDetail bg={selectedBackground} />
       )}
       {selectedBackground && bgChoiceReqs.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mt-4 space-y-4">
-          <h3 className="text-white font-medium">Choose Your Proficiencies</h3>
+        <div className="bg-card border border-rule p-4 mt-4 space-y-4">
+          <h3 className="font-heading text-[13px] font-semibold text-ink">Choose Your Proficiencies</h3>
           {bgChoiceReqs.map(req => (
             <div key={req.key}>
               {req.type === 'choose' && (
                 <div>
-                  <p className="text-gray-400 text-xs mb-2">
+                  <p className="font-body text-[11px] font-medium text-muted mb-2">
                     {req.label}: choose {req.count} from the options below
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
@@ -112,10 +112,10 @@ export default function BackgroundStep({
                       <button
                         key={option}
                         onClick={() => handleBgProfChoice(req.key, option, req.count)}
-                        className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
                           (bgProfChoices[req.key] ?? []).includes(option)
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                            ? 'bg-ink text-card border-ink'
+                            : 'bg-page text-muted border-rule hover:border-muted'
                         }`}
                       >
                         {option}
@@ -126,7 +126,7 @@ export default function BackgroundStep({
               )}
               {req.type === 'chooseSet' && (
                 <div>
-                  <p className="text-gray-400 text-xs mb-2">
+                  <p className="font-body text-[11px] font-medium text-muted mb-2">
                     {req.label}: choose one set
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -134,10 +134,10 @@ export default function BackgroundStep({
                       <button
                         key={i}
                         onClick={() => handleBgSetChoice(req.key, i)}
-                        className={`px-3 py-2 rounded border text-xs text-left transition-colors ${
+                        className={`px-3 py-2 border font-body text-[11px] font-medium text-left transition-colors ${
                           bgSetChoices[req.key] === i
-                            ? 'bg-indigo-900/30 border-indigo-500 text-white'
-                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                            ? 'bg-page-alt border-ink text-ink'
+                            : 'bg-page border-rule text-muted hover:border-muted'
                         }`}
                       >
                         {set.join(', ')}
@@ -149,26 +149,26 @@ export default function BackgroundStep({
             </div>
           ))}
           {!bgChoicesComplete && (
-            <p className="text-amber-400 text-xs">Complete all selections to continue</p>
+            <p className="font-body text-[11px] font-medium text-hp-wounded">Complete all selections to continue</p>
           )}
         </div>
       )}
       {selectedBackground && bgSkillConflicts.length > 0 && (
-        <div className="bg-amber-900/20 border border-amber-800/50 rounded-lg p-4 mt-4">
-          <h3 className="text-amber-400 font-medium text-sm">Skill Proficiency Overlap</h3>
-          <p className="text-gray-400 text-xs mt-1">
-            The following background skill{bgSkillConflicts.length > 1 ? 's are' : ' is'} already granted by your race or class: <span className="text-amber-300 font-medium">{bgSkillConflicts.join(', ')}</span>.
+        <div className="bg-buff-bg border border-buff-border p-4 mt-4">
+          <h3 className="font-heading text-[13px] font-semibold text-hp-wounded">Skill Proficiency Overlap</h3>
+          <p className="font-body text-[11px] font-medium text-muted mt-1">
+            The following background skill{bgSkillConflicts.length > 1 ? 's are' : ' is'} already granted by your race or class: <span className="font-semibold text-buff">{bgSkillConflicts.join(', ')}</span>.
             Per PHB rules, you may choose a different skill proficiency instead. You can adjust this from the character sheet after creation.
           </p>
         </div>
       )}
       {selectedBackground && bgFeatNames.length > 0 && (
-        <div className="bg-gray-900 border border-amber-800/50 rounded-lg p-4 mt-4 space-y-4">
-          <h3 className="text-white font-medium">Background Feat</h3>
+        <div className="bg-card border border-buff-border p-4 mt-4 space-y-4">
+          <h3 className="font-heading text-[13px] font-semibold text-ink">Background Feat</h3>
 
           {bgFeatNames.length > 1 ? (
             <div>
-              <p className="text-gray-400 text-xs mb-2">Choose one feat granted by this background:</p>
+              <p className="font-body text-[11px] font-medium text-muted mb-2">Choose one feat granted by this background:</p>
               <div className="flex gap-1.5 flex-wrap">
                 {bgFeatNames.map(fn => (
                   <button
@@ -181,10 +181,10 @@ export default function BackgroundStep({
                       setFeatCantrips([]);
                       setFeatSpells([]);
                     }}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
                       selectedBgFeat?.toLowerCase() === fn.toLowerCase()
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        ? 'bg-ink text-card border-ink'
+                        : 'bg-page text-muted border-rule hover:border-muted'
                     }`}
                   >
                     {fn}
@@ -193,28 +193,28 @@ export default function BackgroundStep({
               </div>
             </div>
           ) : (
-            <p className="text-amber-400 text-sm">
+            <p className="font-body text-[13px] font-medium text-buff">
               This background grants: <span className="font-semibold">{bgFeatNames[0]}</span>
             </p>
           )}
 
           {selectedFeatObj && parsedFeatOptions.length > 1 && (
             <div>
-              <p className="text-gray-400 text-xs mb-2">Choose an option for {selectedFeatObj.name}:</p>
+              <p className="font-body text-[11px] font-medium text-muted mb-2">Choose an option for {selectedFeatObj.name}:</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
                 {parsedFeatOptions.map((opt, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedFeatOptionIdx(selectedFeatOptionIdx === i ? null : i)}
-                    className={`px-3 py-2 rounded border text-xs text-left transition-colors ${
+                    className={`px-3 py-2 border font-body text-[11px] text-left transition-colors ${
                       selectedFeatOptionIdx === i
-                        ? 'bg-amber-900/30 border-amber-500 text-white'
-                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                        ? 'bg-page-alt border-ink text-ink font-medium'
+                        : 'bg-page border-rule text-muted hover:border-muted'
                     }`}
                   >
                     <span className="font-medium">{opt.name}</span>
                     {opt.fixedCantrips.length > 0 && (
-                      <span className="block text-gray-500 mt-0.5">{opt.fixedCantrips.join(', ')}</span>
+                      <span className="block text-faint mt-0.5">{opt.fixedCantrips.join(', ')}</span>
                     )}
                   </button>
                 ))}
@@ -224,16 +224,16 @@ export default function BackgroundStep({
 
           {selectedFeatOption?.abilityChoices && (
             <div>
-              <p className="text-gray-400 text-xs mb-2">Spellcasting Ability:</p>
+              <p className="font-body text-[11px] font-medium text-muted mb-2">Spellcasting Ability:</p>
               <div className="flex gap-1.5">
                 {selectedFeatOption.abilityChoices.map(a => (
                   <button
                     key={a}
                     onClick={() => setSelectedFeatAbility(selectedFeatAbility === a ? null : a)}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
                       selectedFeatAbility === a
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        ? 'bg-ink text-card border-ink'
+                        : 'bg-page text-muted border-rule hover:border-muted'
                     }`}
                   >
                     {a}
@@ -245,7 +245,7 @@ export default function BackgroundStep({
 
           {selectedFeatObj && featAsi?.choose && (
             <div>
-              <p className="text-gray-400 text-xs mb-2">
+              <p className="font-body text-[11px] font-medium text-muted mb-2">
                 Ability Score Increase (+{featAsi.choose.amount}):
               </p>
               <div className="flex gap-1.5">
@@ -253,10 +253,10 @@ export default function BackgroundStep({
                   <button
                     key={a}
                     onClick={() => setSelectedFeatAsiAbility(selectedFeatAsiAbility === a ? null : a)}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
                       selectedFeatAsiAbility === a
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        ? 'bg-cls-druid text-white border-cls-druid'
+                        : 'bg-page text-muted border-rule hover:border-muted'
                     }`}
                   >
                     {a}
@@ -267,13 +267,13 @@ export default function BackgroundStep({
           )}
 
           {selectedFeatObj && featAsi && Object.keys(featAsi.fixed).length > 0 && (
-            <div className="text-xs text-green-400">
+            <div className="font-body text-[11px] font-medium text-cls-druid">
               {Object.entries(featAsi.fixed).map(([k, v]) => `+${v} ${k}`).join(', ')}
             </div>
           )}
 
           {selectedFeatOption && (
-            <div className="text-xs text-gray-500 space-y-0.5">
+            <div className="font-body text-[11px] font-medium text-faint space-y-0.5">
               {selectedFeatOption.fixedCantrips.length > 0 && (
                 <p>Cantrips: {selectedFeatOption.fixedCantrips.join(', ')}</p>
               )}
@@ -299,7 +299,7 @@ export default function BackgroundStep({
           )}
 
           {!featConfigComplete && (
-            <p className="text-amber-400 text-xs">Complete all feat selections to continue</p>
+            <p className="font-body text-[11px] font-medium text-hp-wounded">Complete all feat selections to continue</p>
           )}
         </div>
       )}
@@ -310,11 +310,11 @@ export default function BackgroundStep({
 function ChooseSetPicker({ label, sets, colorClass }: { label: string; sets: ProfEntry[][]; colorClass: string }) {
   return (
     <div className="md:col-span-2">
-      <p className="text-gray-500 text-xs font-medium mb-1">{label} (choose one set)</p>
+      <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint mb-1">{label} (choose one set)</p>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {sets.map((set, i) => (
-          <div key={i} className="bg-gray-800 rounded px-3 py-1.5 border border-gray-700">
-            <p className={`${colorClass} text-xs`}>{set.map(formatProfEntry).filter(Boolean).join(', ')}</p>
+          <div key={i} className="bg-page border border-rule px-3 py-1.5">
+            <p className={`${colorClass} font-body text-[11px] font-medium`}>{set.map(formatProfEntry).filter(Boolean).join(', ')}</p>
           </div>
         ))}
       </div>
@@ -400,52 +400,52 @@ function BackgroundDetail({ bg }: { bg: Background }) {
   const LEVEL_LABELS: Record<string, string> = { s1: '1st', s2: '2nd', s3: '3rd', s4: '4th', s5: '5th' };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mt-4">
-      <h3 className="text-white font-medium mb-3">{bg.name} — Summary</h3>
+    <div className="bg-card border border-rule p-4 mt-4">
+      <h3 className="font-heading text-[13px] font-semibold text-ink mb-3">{bg.name} — Summary</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
         {!skillSets && skills.length > 0 && (
           <div>
-            <p className="text-gray-500 text-xs font-medium">Skill Proficiencies</p>
-            <p className="text-cyan-400 text-sm">{skills.join(', ')}</p>
+            <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Skill Proficiencies</p>
+            <p className="font-body text-[13px] font-medium text-cls-druid">{skills.join(', ')}</p>
           </div>
         )}
-        {skillSets && <ChooseSetPicker label="Skill Proficiencies" sets={skillSets} colorClass="text-cyan-400" />}
+        {skillSets && <ChooseSetPicker label="Skill Proficiencies" sets={skillSets} colorClass="text-cls-druid" />}
         {!toolSets && tools.length > 0 && (
           <div>
-            <p className="text-gray-500 text-xs font-medium">Tool Proficiencies</p>
-            <p className="text-gray-300 text-sm">{tools.join(', ')}</p>
+            <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Tool Proficiencies</p>
+            <p className="font-body text-[13px] font-medium text-muted">{tools.join(', ')}</p>
           </div>
         )}
-        {toolSets && <ChooseSetPicker label="Tool Proficiencies" sets={toolSets} colorClass="text-gray-300" />}
+        {toolSets && <ChooseSetPicker label="Tool Proficiencies" sets={toolSets} colorClass="text-muted" />}
         {!langSets && langs.length > 0 && (
           <div>
-            <p className="text-gray-500 text-xs font-medium">Languages</p>
-            <p className="text-gray-300 text-sm">{langs.join(', ')}</p>
+            <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Languages</p>
+            <p className="font-body text-[13px] font-medium text-muted">{langs.join(', ')}</p>
           </div>
         )}
-        {langSets && <ChooseSetPicker label="Languages" sets={langSets} colorClass="text-gray-300" />}
+        {langSets && <ChooseSetPicker label="Languages" sets={langSets} colorClass="text-muted" />}
         {feats.length > 0 && (
           <div>
-            <p className="text-gray-500 text-xs font-medium">Feat</p>
-            <p className="text-amber-400 text-sm">{feats.join(', ')}</p>
+            <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Feat</p>
+            <p className="font-body text-[13px] font-medium text-buff">{feats.join(', ')}</p>
           </div>
         )}
         {allEquip.length > 0 && (
           <div className="md:col-span-2">
-            <p className="text-gray-500 text-xs font-medium">Equipment</p>
-            <p className="text-gray-300 text-sm">{allEquip.join('; ')}</p>
+            <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Equipment</p>
+            <p className="font-body text-[13px] font-medium text-muted">{allEquip.join('; ')}</p>
           </div>
         )}
       </div>
       {spells.length > 0 && (
         <div className="mt-3">
-          <p className="text-gray-500 text-xs font-medium mb-1">Expanded Spell List</p>
+          <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint mb-1">Expanded Spell List</p>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {spells.map((levelMap, i) =>
               Object.entries(levelMap).map(([level, names]) => (
                 <div key={`${i}-${level}`}>
-                  <p className="text-gray-500 text-xs">{LEVEL_LABELS[level] ?? level} level</p>
-                  <p className="text-purple-400 text-xs">{(names as string[]).join(', ')}</p>
+                  <p className="font-body text-[11px] text-faint">{LEVEL_LABELS[level] ?? level} level</p>
+                  <p className="font-body text-[11px] font-medium text-cls-sorcerer">{(names as string[]).join(', ')}</p>
                 </div>
               ))
             )}
@@ -453,9 +453,9 @@ function BackgroundDetail({ bg }: { bg: Background }) {
         </div>
       )}
       {feature && (
-        <div className="mt-3 pt-3 border-t border-gray-800">
-          <p className="text-gray-300 text-sm font-medium">Feature: {feature.name}</p>
-          <p className="text-gray-500 text-xs mt-1 line-clamp-4">{feature.description}</p>
+        <div className="mt-3 pt-3 border-t border-rule">
+          <p className="font-body text-[13px] font-semibold text-ink">Feature: {feature.name}</p>
+          <p className="font-body text-[11px] font-medium text-faint mt-1 line-clamp-4">{feature.description}</p>
         </div>
       )}
     </div>

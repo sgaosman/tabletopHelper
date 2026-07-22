@@ -24,17 +24,17 @@ export default function JoinEncounterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <header className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-6 py-4">
-        <button onClick={() => navigate('/player')} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+    <div className="min-h-screen bg-page">
+      <header className="sticky top-0 z-10 bg-card border-b border-rule px-6 py-4">
+        <button onClick={() => navigate('/player')} className="flex items-center gap-2 text-muted hover:text-ink font-body text-[13px] font-medium transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
       </header>
 
       <main className="max-w-md mx-auto px-6 py-16 text-center">
-        <Swords className="w-12 h-12 text-orange-400 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-white mb-2">Join Encounter</h1>
-        <p className="text-gray-400 text-sm mb-8">Enter the session code from your DM to join a live encounter.</p>
+        <Swords className="w-12 h-12 text-cls-fighter mx-auto mb-4" />
+        <h1 className="font-heading text-[20px] font-bold tracking-[0.02em] text-ink mb-2">Join Encounter</h1>
+        <p className="font-body text-[13px] font-medium text-muted mb-8">Enter the session code from your DM to join a live encounter.</p>
 
         <form onSubmit={handleJoin} className="space-y-4">
           <input
@@ -44,13 +44,13 @@ export default function JoinEncounterPage() {
             placeholder="Session code"
             required
             maxLength={8}
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-center font-mono text-xl tracking-widest placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 uppercase"
+            className="w-full px-4 py-3 bg-page-alt border border-rule text-ink text-center font-heading text-[20px] font-bold tracking-[0.2em] placeholder-faint focus:outline-none focus:border-muted uppercase"
           />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="font-body text-[12px] text-debuff">{error}</p>}
           <button
             type="submit"
             disabled={loading || !code.trim()}
-            className="w-full px-4 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-3 bg-ink text-card font-body text-[14px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
           >
             {loading ? 'Joining...' : 'Join'}
           </button>

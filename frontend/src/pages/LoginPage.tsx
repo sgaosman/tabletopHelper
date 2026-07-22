@@ -26,20 +26,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950 px-4">
-      <div className="w-full max-w-md bg-gray-900 rounded-2xl p-8 shadow-xl border border-gray-800">
-        <h1 className="text-3xl font-bold text-white text-center mb-2">TabletopHelper</h1>
-        <p className="text-gray-400 text-center mb-8">Sign in to your account</p>
+    <div className="min-h-screen flex items-center justify-center bg-page px-4">
+      <div className="w-full max-w-md bg-card border border-rule p-8">
+        <h1 className="font-heading text-[20px] font-semibold tracking-[0.02em] text-ink text-center mb-1">
+          Tabletop Helper
+        </h1>
+        <p className="font-body text-[14px] font-medium text-muted text-center mb-8">
+          Sign in to your account
+        </p>
 
         {error && (
-          <div role="alert" className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 mb-4 text-sm">
+          <div role="alert" className="bg-debuff-bg border border-debuff-border text-debuff text-[13px] font-body p-3 mb-4">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="username" className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
               Username
             </label>
             <input
@@ -48,13 +52,13 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="Enter your username"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="password" className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
               Password
             </label>
             <input
@@ -63,7 +67,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="Enter your password"
             />
           </div>
@@ -71,15 +75,15 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+            className="w-full py-2.5 bg-ink text-card font-body text-[14px] font-medium border border-ink hover:bg-muted hover:border-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="text-gray-400 text-sm text-center mt-6">
+        <p className="font-body text-[13px] font-medium text-muted text-center mt-6">
           Don't have an account?{' '}
-          <Link to="/register" className="text-indigo-400 hover:text-indigo-300">
+          <Link to="/register" className="text-ink font-semibold hover:text-muted">
             Sign up
           </Link>
         </p>
