@@ -17,6 +17,7 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 │ updated_at   │   │   │ created_at        │   │   │ hp_max, hp_cur   │
 └──────────────┘   │   │ updated_at        │   │   │ armour_class     │
                    │   └───────────────────┘   │   │ [JSON fields]    │
+                   │            │               │   │ resource_pools   │── NEW
                    │            │               │   │ user_id (FK) ────┤──► users
                    │            │               │   │ campaign_id (FK) ┤──► campaigns
                    │   ┌────────▼──────────┐   │   │ created_at       │
@@ -29,8 +30,6 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
                    │   │ joined_at         │   │
                    │   │ UNIQUE(camp, user)│   │
                    │   └──────────────────-┘   │
-                   │                           │
-                   │   (Future: Milestones 3-5)│
                    │                           │
                    │   ┌───────────────────┐   │
                    │   │    encounters     │   │
@@ -53,6 +52,7 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
                    │   │ participant_type       │
                    │   │ initiative, hp, ac     │
                    │   │ active_conditions JSON │
+                   │   │ resource_pools_current │── NEW
                    │   │ controlled_by (FK) ────┤──► users
                    │   └───────────────────────┘
                    │
@@ -121,8 +121,8 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | hp_max | INTEGER | NOT NULL | |
 | hp_current | INTEGER | NOT NULL | |
 | hp_temp | INTEGER | DEFAULT 0 | |
-| hit_dice_total | VARCHAR(20) | | e.g. "8d10" |
-| hit_dice_remaining | VARCHAR(20) | | |
+| hit_dice_total | VARCHAR(20) | | e.g. "8d10" — **DEPRECATED**, superseded by `resource_pools` |
+| hit_dice_remaining | VARCHAR(20) | | **DEPRECATED**, superseded by `resource_pools` |
 | armour_class | INTEGER | NOT NULL | |
 | initiative_bonus | INTEGER | DEFAULT 0 | |
 | speed | INTEGER | DEFAULT 30 | |
@@ -163,29 +163,41 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | prepared_spells | JSONB | DEPRECATED — not used by DTOs | Legacy column, superseded by `spells_known[].prepared` |
 | attuned_items | JSONB | | Array of attuned item names |
 | equipped_items | JSONB | | Array of equipped item names |
-| hit_dice_map | JSONB | | Per-class hit dice: {className: {total, remaining, faces}} |
-| level_history | JSONB | | Array of per-level entries for deterministic rollback: [{characterLevel, classId, className, classLevel, hpGained, featuresGained, choices}]. ASI choices with `featId` record `appliedEffects` for deterministic feat reversal. |
-| feat_resources | JSONB | | Array of feat-granted limited-use resources: [{featName, name, maxUses, currentUses, resetOn}]. e.g. Lucky's 3 Luck Points per long rest. Reset on long rest handled by frontend. |
+| hit_dice_map | JSONB | **DEPRECATED** — superseded by `resource_pools` | Per-class hit dice: {className: {total, remaining, faces}} |
+| level_history | JSONB | | Array of per-level entries for deterministic rollback |
+| feat_resources | JSONB | **DEPRECATED** — superseded by `resource_pools` | Array of feat resource entries |
+| **resource_pools** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. See the [Resource Pool reference tables](#resource-pool-tables-m245) section for schema. Subsumes `feat_resources` and `hit_dice_map`. |
 | is_active | BOOLEAN | DEFAULT TRUE | Soft delete |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
 
-### JSONB Serialization Behavior
+### player_characters resource_pools Format
 
-There is a critical difference in how JSONB fields are handled between `player_characters` and reference tables:
+An array of ResourcePoolEntry objects. Each entry:
 
-**PlayerCharacter JSONB fields** are stored as Java `String` fields. They arrive on the frontend as **JSON strings** that need `JSON.parse()` (or `safeJsonParse()` from `utils/dndRules.ts`). Example: `character.features` is `'[{"name":"Extra Attack","description":"..."}]'` — a string, not an array.
+```json
+{
+  "poolId": "class:monk-ki",
+  "displayName": "Ki Points",
+  "sourceType": "CLASS",
+  "sourceName": "Monk",
+  "maxUses": 5,
+  "currentUses": 3,
+  "resetOn": "shortRest",
+  "resetAmount": null,
+  "resetCheck": null,
+  "spendActionType": "FREE",
+  "icon": "zap",
+  "metadata": {}
+}
+```
 
-**Reference entity JSONB fields** (monsters, spells, races, classes, etc.) use `@JsonRawValue` on the Java side. This means they arrive on the frontend as **pre-parsed JavaScript objects** — they are already arrays/objects, NOT strings. Calling `JSON.parse()` on them will throw.
+- `maxUses` is the evaluated integer (evaluated from `maxUsesFormula` at creation/level-up).
+- `maxUsesFormula` is the raw expression (stored for reference, not used at read time).
+- `resetAmount` is an expression string for partial recovery: `"ceil(level/2)"`, `"floor(maxUses/2)"`, `"1"`. NULL = full reset to maxUses.
+- `resetCheck` is a recharge expression: `"1d6>=5"` for probabilistic recovery.
 
-The `safeJsonParse()` utility handles both cases: if the input is already an object, it returns it as-is; if it's a string, it parses it. **Always use `safeJsonParse()` for any JSONB field to avoid this trap.**
-
-Typed records for PlayerCharacter JSONB structures:
-- `LevelHistoryEntry` — level history entries
-- `MulticlassEntry` — multiclass class/level tracking
-- `HitDiceEntry` — per-class hit dice (total, remaining, faces)
-- `SpellSlotEntry` — spell slot tracking (total, used)
-- `FeatResourceEntry` — feat-granted limited-use resources
+---
 
 ## Reference Tables (Milestone 3 — Seeded from 5e.tools)
 
@@ -233,7 +245,7 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | description, higher_levels | TEXT | |
 | classes | JSONB | `@JsonRawValue` — array including subclass entries like "Cleric (Knowledge)" |
 | damage_type, damage_dice, save_ability | VARCHAR | |
-| effect_template | JSONB | `@JsonRawValue` — structured spell effect definition from M7/M8 data. Contains deliveryMethod, patternCategory, effects array, cantripScaling, upcastScaling, requiresManualResolution flag. ~184 spells have auto-resolvable templates. |
+| effect_template | JSONB | `@JsonRawValue` — structured spell effect definition |
 | source | VARCHAR | |
 | created_at | TIMESTAMPTZ | |
 
@@ -292,12 +304,12 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | proficiencies | JSONB | `@JsonRawValue` — {skills, languages, weapons, armor, tools} |
 | resistances | JSONB | `@JsonRawValue` — [string] |
 | race_choices | JSONB | `@JsonRawValue` — structured race choice options |
-| additional_spells | JSONB | `@JsonRawValue` — normalized race spellcasting data: `{ability, abilityChoices, fixedSpells: [{name, level, atWill, unlocksAtLevel, castLevel?, usesPerLongRest?}], spellChoices: [{fromClass, level, count}], expandedList, options?}`. 76/226 races populated. |
+| additional_spells | JSONB | `@JsonRawValue` — normalized race spellcasting data |
 | base_race_name | VARCHAR(200) | Set for subraces (e.g. "Elf") |
 | description | TEXT | |
 | created_at | TIMESTAMPTZ | |
 
-**Count:** 226 races (base races + subraces merged from all sources)
+**Count:** 226 races
 
 ### character_classes
 
@@ -308,22 +320,22 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | source | VARCHAR(100) | |
 | hit_dice | INTEGER | e.g. 8, 10, 12 |
 | primary_ability | VARCHAR(50) | |
-| saving_throw_proficiencies | JSONB | `@JsonRawValue` — ["STR", "CON"] |
+| saving_throw_proficiencies | JSONB | `@JsonRawValue` |
 | armor_proficiencies | JSONB | `@JsonRawValue` |
 | weapon_proficiencies | JSONB | `@JsonRawValue` |
 | tool_proficiencies | JSONB | `@JsonRawValue` |
 | skill_choices | JSONB | `@JsonRawValue` — {count, from: []} |
 | spellcasting_ability | VARCHAR(20) | null for non-casters |
 | is_spellcaster | BOOLEAN | |
-| is_prepared_caster | BOOLEAN | Cleric, Druid, Paladin, Wizard, Artificer |
-| is_known_caster | BOOLEAN | Bard, Ranger, Sorcerer, Warlock |
-| is_pact_magic | BOOLEAN | Warlock only |
-| spell_slot_progression | JSONB | `@JsonRawValue` — {level: {slotLevel: count}} |
+| is_prepared_caster | BOOLEAN | |
+| is_known_caster | BOOLEAN | |
+| is_pact_magic | BOOLEAN | |
+| spell_slot_progression | JSONB | `@JsonRawValue` |
 | features | JSONB | `@JsonRawValue` — [{level, name, description}] |
 | starting_equipment | JSONB | `@JsonRawValue` |
 | subclass_level | INTEGER | Level at which subclass is chosen |
-| multiclass_requirements | JSONB | PHB multiclass prerequisites: [{ability, minimum, operator}]. operator defaults to AND; OR for classes like Fighter (STR 13 OR DEX 13) |
-| multiclass_proficiencies | JSONB | Proficiencies gained when multiclassing into this class (reduced set vs full class): {armor, weapons, tools, skills} |
+| multiclass_requirements | JSONB | PHB multiclass prerequisites |
+| multiclass_proficiencies | JSONB | |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 13 classes
@@ -337,8 +349,8 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | source | VARCHAR(100) | |
 | character_class_id | UUID | FK → character_classes, NOT NULL |
 | features | JSONB | `@JsonRawValue` — [{level, name, description}] |
-| always_prepared_spells | JSONB | `@JsonRawValue` — {level: [spellName]} — spells auto-prepared at class level |
-| expanded_spell_list | JSONB | `@JsonRawValue` — {sN: [spellName]} — spells added to class list for selection |
+| always_prepared_spells | JSONB | `@JsonRawValue` |
+| expanded_spell_list | JSONB | `@JsonRawValue` |
 | additional_proficiencies | JSONB | `@JsonRawValue` |
 | created_at | TIMESTAMPTZ | |
 
@@ -356,7 +368,7 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | language_proficiencies | JSONB | `@JsonRawValue` |
 | starting_equipment | JSONB | `@JsonRawValue` |
 | feature | JSONB | `@JsonRawValue` — {name, description} |
-| feats | JSONB | `@JsonRawValue` — array of feat name strings, e.g. `["Magic initiate"]`. 15 backgrounds have feats. |
+| feats | JSONB | `@JsonRawValue` — array of feat name strings |
 | description | TEXT | |
 | created_at | TIMESTAMPTZ | |
 
@@ -373,7 +385,7 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | description | TEXT | |
 | ability_score_increase | JSONB | `@JsonRawValue` |
 | grants_features | JSONB | `@JsonRawValue` |
-| effects | JSONB | `@JsonRawValue` — structured mechanical effects. Contains any of: `resistances`, `expertise`, `armorProficiencies`, `weaponProficiencies`, `toolProficiencies`, `skillProficiencies`, `languageProficiencies`, `savingThrowProficiencies`, `optionalFeatureProgression`, `speedBonus`, `initiativeBonus`, `hpPerLevel`, `passivePerceptionBonus`, `passiveInvestigationBonus`, `resource` (with `name`, `maxUses`, `resetOn`). 29/108 feats have effects. Hand-authored templates for Tough, Alert, Observant, Mobile, Squat Nimbleness, Lucky. |
+| effects | JSONB | `@JsonRawValue` — structured mechanical effects. Contains any of: `resistances`, `expertise`, `armorProficiencies`, `weaponProficiencies`, `toolProficiencies`, `skillProficiencies`, `languageProficiencies`, `savingThrowProficiencies`, `optionalFeatureProgression`, `speedBonus`, `initiativeBonus`, `hpPerLevel`, `passivePerceptionBonus`, `passiveInvestigationBonus`, `resource` (with `name`, `maxUses`, `resetOn`). |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 108 feats
@@ -390,7 +402,7 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | prerequisite | JSONB | `@JsonRawValue` |
 | created_at | TIMESTAMPTZ | |
 
-**Count:** 114 optional features (54 Eldritch Invocations, 23 Battle Maneuvers, 27 Fighting Styles, 10 Metamagic)
+**Count:** 114 optional features
 
 ## Encounter Tables (Milestone 4)
 
@@ -426,16 +438,17 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | hp_current | INTEGER | NOT NULL | |
 | hp_temp | INTEGER | DEFAULT 0 | |
 | armour_class | INTEGER | NOT NULL | |
-| active_conditions | JSONB | | Array of condition objects: `[{"name":"blinded","duration":3,"appliedRound":1,"sourceSpellName":"Blindness/Deafness","sourceParticipantId":"uuid","sourceRequiresConcentration":false}]`. Duration null = indefinite. Source fields nullable (null for manually added conditions). Legacy string arrays are auto-migrated on read. |
+| active_conditions | JSONB | | Array of condition objects |
 | concentration_spell | VARCHAR(200) | | Name of spell being concentrated on |
-| concentration_slot_level | INTEGER | | Slot level used to cast the concentration spell (for upcast scaling on repeat effects) |
-| active_spell | VARCHAR(200) | | Non-concentration persistent spell (e.g., Spiritual Weapon) |
-| active_spell_slot_level | INTEGER | | Slot level used to cast the active spell (for upcast scaling) |
-| spell_slots_current | JSONB | | Copied from character on encounter join. Format: `{"1":{"max":4,"remaining":3},...}` |
-| spell_attack_bonus | INTEGER | | Copied from character on encounter join. Used by SpellResolverEngine. |
-| spell_save_dc | INTEGER | | Copied from character on encounter join. Used by SpellResolverEngine. |
-| spellcasting_ability | VARCHAR(20) | | Copied from character on encounter join. |
-| spells_known | JSONB | | Copied from character on encounter join. Array of spell entries with name, level, prepared status. |
+| concentration_slot_level | INTEGER | | Slot level used to cast the concentration spell |
+| active_spell | VARCHAR(200) | | Non-concentration persistent spell |
+| active_spell_slot_level | INTEGER | | Slot level used to cast the active spell |
+| spell_slots_current | JSONB | | Copied from character on encounter join. |
+| spell_attack_bonus | INTEGER | | Copied from character on encounter join |
+| spell_save_dc | INTEGER | | Copied from character on encounter join |
+| spellcasting_ability | VARCHAR(20) | | Copied from character on encounter join |
+| spells_known | JSONB | | Copied from character on encounter join |
+| **resource_pools_current** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. Copied from character sheet on join for PCs; generated from monster pool triggers for monsters. |
 | is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
 | is_alive | BOOLEAN | DEFAULT TRUE | |
 | is_current_turn | BOOLEAN | DEFAULT FALSE | |
@@ -443,8 +456,66 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 | death_save_successes | INTEGER | DEFAULT 0 | |
 | death_save_failures | INTEGER | DEFAULT 0 | |
 | notes | TEXT | | DM-only notes |
+| action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
+| bonus_action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
+| reaction_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
+
+### encounter_participants resource_pools_current Format
+
+Same `ResourcePoolEntry` JSONB array format as `player_characters.resource_pools`. During combat, `currentUses` is tracked independently from the character sheet. Per-turn resets (`resetOn == "turn"`) and recharge checks (`resetCheck`) are evaluated by `advanceTurn()`. On encounter COMPLETED, currentUses values are synced back to the character sheet for matching `poolId`s.
+
+## Resource Pool Tables (M24.5)
+
+Seeded reference tables populated on startup by `ResourcePoolSeeder`. These define what resource pools exist and which class features / monster abilities grant them.
+
+### resource_pool_definitions
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| pool_id | VARCHAR(64) | PK | e.g. "monk-ki", "barbarian-rage", "dragonborn-breath" |
+| display_name | VARCHAR(100) | NOT NULL | e.g. "Ki Points", "Rage" |
+| source_type | VARCHAR(20) | NOT NULL | CLASS, RACE, FEAT, MONSTER, MAGIC_ITEM, BACKGROUND |
+| max_uses_formula | VARCHAR(100) | | Expression for dynamic max, e.g. "monkLevel", "proficiencyBonus". NULL = use `max_uses` constant. |
+| reset_on | VARCHAR(20) | NOT NULL | shortRest, longRest, turn, dawn, never |
+| reset_amount | VARCHAR(100) | | Expression for partial recovery; NULL = full reset to maxUses |
+| reset_check | VARCHAR(20) | | Probabilistic recharge: "1d6>=5", "1d6>=6" |
+| spend_action_type | VARCHAR(30) | | ACTION, BONUS_ACTION, REACTION, FREE, REPLACE_ATTACK |
+| description | TEXT | | Human-readable rules explanation |
+| icon | VARCHAR(30) | | lucide-react icon name |
+| metadata | JSONB | | Extra properties (hitDie faces, breath shape, etc.) |
+| created_at | TIMESTAMPTZ | | |
+
+### class_feature_pools
+
+Links character classes and subclasses to the resource pool definitions they grant.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | |
+| class_id | UUID | FK → character_classes, NOT NULL | |
+| subclass_id | UUID | FK → subclasses, NULLABLE | NULL = base class feature |
+| min_level | INTEGER | NOT NULL | Minimum class level to gain the pool |
+| pool_id | VARCHAR(64) | FK → resource_pool_definitions, NOT NULL | |
+| created_at | TIMESTAMPTZ | | |
+
+### monster_pool_triggers
+
+Defines conditions under which a monster automatically receives a resource pool when added to an encounter.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | |
+| pool_id | VARCHAR(64) | FK → resource_pool_definitions, NOT NULL | |
+| trigger_condition | JSONB | NOT NULL | Condition expression, e.g. `{"hasField": "legendary"}`, `{"hasRecharge": true}` |
+| priority | INTEGER | DEFAULT 0 | Evaluation order when multiple triggers match |
+| created_at | TIMESTAMPTZ | | |
+
+The `trigger_condition` JSONB supports these expressions:
+- `{"hasField": "legendary"}` — monster has the `legendary` field (legendary actions)
+- `{"hasRecharge": true}` — monster has any action with a `recharge` property
+- `{"hasFeature": "legendary_resistance"}` — monster has the legendary resistance trait
 
 ## Combat Tables (Milestone 5)
 
@@ -482,15 +553,11 @@ Append-only log of every combat action in an encounter. One row per action.
 | encounter_participants | character_id | idx_ep_character_id | FK lookup for "is this character in combat" checks |
 | combat_logs | encounter_id | idx_cl_encounter_id | FK lookup for combat log retrieval |
 
-These are created automatically by Hibernate `ddl-auto: update` from `@Table(indexes = @Index(...))` annotations on the JPA entities.
-
 ### SQL-Managed Indexes (`schema.sql`)
 
-| Table | Column | Index Name | Type | Notes |
-|-------|--------|------------|------|-------|
+| Table | Column(s) | Index Name | Type | Notes |
+|-------|-----------|------------|------|-------|
 | spells | classes | idx_spells_classes_gin | GIN | Supports JSONB containment queries for filtering spells by class |
-
-Created via `CREATE INDEX IF NOT EXISTS` in `backend/src/main/resources/schema.sql`, run on startup with `sql.init.mode: always` and `defer-datasource-initialization: true`.
 
 ## Querying the Database Directly
 
@@ -511,4 +578,14 @@ FROM campaigns c JOIN users u ON c.dm_user_id = u.id;
 # Show characters with owner
 SELECT pc.name, pc.race, pc.character_class, pc.level, u.display_name AS player
 FROM player_characters pc JOIN users u ON pc.user_id = u.id;
+
+# Show resource pool definitions (M24.5)
+SELECT * FROM resource_pool_definitions;
+
+# Show which pools a class gets at which level (M24.5)
+SELECT c.name AS class, rpd.display_name, cfp.min_level
+FROM class_feature_pools cfp
+JOIN character_classes c ON c.id = cfp.class_id
+JOIN resource_pool_definitions rpd ON rpd.pool_id = cfp.pool_id
+ORDER BY c.name, cfp.min_level;
 ```
