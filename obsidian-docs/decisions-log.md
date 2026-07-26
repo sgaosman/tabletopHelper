@@ -1421,3 +1421,49 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Trade-offs:** Serif fonts have slightly lower information density than sans-serif at small sizes — mitigated by using Cormorant Garamond at 13-15px for body text. Square corners lose visual softness but reinforce the medieval/parchment aesthetic. Light mode may strain eyes in dark rooms during evening game sessions — a future dark theme toggle could address this.
 
 **Key files:** `frontend/src/index.css` (@theme block), `frontend/src/components/common/NavBar.tsx`, `frontend/src/utils/classColours.ts`, `.claude/DESIGN_SYSTEM.md`
+
+## D125: Generic Resource Pool System — M24.5
+
+**Date:** 2026-07-26
+**Status:** Accepted
+
+**Decision:** Implement a unified `resource_pools` JSONB system to replace `feat_resources` and `hit_dice_map` on `player_characters`, and add `resource_pools_current` to `encounter_participants`. Three new reference tables (`resource_pool_definitions`, `class_feature_pools`, `monster_pool_triggers`) are seeded on startup. An expression evaluator handles `maxUsesFormula`, `resetAmount`, and `resetCheck` values for dynamic pool sizing and partial/probabilistic recovery.
+
+**Rationale:** The application currently has 20+ class features, race traits, feats, and monster abilities that need resource tracking (Ki, Sorcery Points, Rage, Channel Divinity, Bardic Inspiration, Wild Shape, etc.) with no unified system. Only `feat_resources` (1 feat: Lucky) and `hit_dice_map` exist as ad-hoc JSONB columns. M12 (monster actions), M17 (class features), and M18 (sorcerer metamagic) all depend on this infrastructure. A unified schema avoids having 5+ separate JSONB columns doing the same thing.
+
+**Details of the design (resolved through domain-modeling session on 2026-07-26):**
+
+1. **Schema:** `ResourcePoolEntry` record with fields: `poolId`, `displayName`, `sourceType`, `sourceName`, `maxUses`, `maxUsesFormula`, `currentUses`, `resetOn`, `resetAmount`, `resetCheck`, `spendActionType`, `icon`, `metadata` (JSONB).
+
+2. **Reference tables (seeded on startup):**
+   - `resource_pool_definitions` — pool templates (what pools exist)
+   - `class_feature_pools` — which class/subclass gets which pool at which level
+   - `monster_pool_triggers` — conditions that auto-create pools for monsters on encounter join
+
+3. **Spell slots remain separate** — their unique upcasting, pact magic, and Flexible Casting mechanics don't fit the pool model. Action economy (action/bonus action/reaction used) stays as dedicated columns for performance. HP, death saves, conditions, concentration stay as columns per the rule: "willing spend = pool, uncontrollable loss = column."
+
+4. **Pool lifecycle:**
+   - **Creation:** Post-hoc `syncPoolsForCharacter()` reconciles pools against definitions after creation, level-up, feat application, or feature change. Idempotent — safe to call on any mutation.
+   - **Encounter join:** PCs copy `currentUses` as-is from character sheet. Monsters create pools fresh at `maxUses`.
+   - **During encounter:** Pools tracked independently on `encounter_participants.resource_pools_current`. Turn advance handles per-turn resets and probabilistic recharge checks.
+   - **Sync-back:** On COMPLETED status, `currentUses` written back to character sheet for matching `poolId`s. Monsters are not synced.
+   - **Rest:** Short rest resets `resetOn == "shortRest" || "longRest"`. Long rest resets all pools fully. `resetAmount` expression supports partial recovery (e.g., `"floor(maxUses/2)"` for hit dice).
+   - **Level-down:** Pool deleted entirely. Re-sync cleans up orphans.
+
+5. **Expression evaluator** supports: `proficiencyBonus`, `totalLevel`, `{className}Level`, `{ability}Modifier`, basic arithmetic (`+`, `-`, `*`, `/`), `ceil()`, `floor()`, `maxUses` (self-reference for `resetAmount`), and `"1d6>=N"` syntax for probabilistic recharge checks.
+
+6. **Frontend display:** Resources display at source — on feature cards (Features tab), on item rows (Inventory tab), on action buttons (Actions tab). Actions tab allows spend/recover outside encounters. Encounter view shows current/max pills on participant rows.
+
+**Trade-offs:**
+- Three new reference tables add schema complexity over a hardcoded approach, but future-proof against homebrew classes and monsters where pool definitions must be data-driven.
+- The expression evaluator adds ~50 lines of tested code for a capability that could be deferred to level-up time. Accepted because monsters don't have a level-up pipeline — they need formula evaluation at runtime.
+- `maxUses` and `maxUsesFormula` as dual fields (constant vs expression) adds a conditional path in the evaluator but keeps the common case (constant) simple.
+
+**Alternatives considered:**
+- **Hardcoded pool definitions in Java** — rejected because homebrew class/monster creator (future roadmap) would require a migration from code to data.
+- **Action economy in resource_pools** — rejected for performance reasons (JSONB access overhead on near-every-turn checks).
+- **Spell slots in resource_pools** — rejected because upcasting (selecting from higher pools), pact magic (parallel slot tracks), and Flexible Casting (dynamic pool creation) don't fit the simple decrement model.
+
+**Related decisions:** D024 (spell slot copy-on-join pattern), D044 (proficiency collection), D054 (server-side leveling), D083 (short rest hit dice), D099 (feat resources)
+
+**Key files:** `CLAUDE.md`, `CONTEXT.md`, `obsidian-docs/database-schema.md` (resource pool tables section), `obsidian-docs/decisions-log.md` (this entry), `backend/src/main/resources/db/migration/V8__resource_pool_system.sql` (future)
