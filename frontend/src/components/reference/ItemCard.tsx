@@ -17,7 +17,7 @@ export default function ItemCard({ item }: { item: Item }) {
     <div className="max-w-2xl bg-card border border-rule overflow-hidden" style={{ borderLeftWidth: '3px', borderLeftColor: accent }}>
       <div className="px-5 py-3 border-b border-rule">
         <h2 className="font-heading text-[17px] font-bold" style={{ color: accent }}>{item.name}</h2>
-        <p className="font-body text-[12px] font-medium text-muted italic">
+        <p className="font-body text-[12px] font-semibold text-muted italic">
           {[item.type, item.subtype].filter(Boolean).join(' — ')}
           {item.rarity && `, ${item.rarity}`}
           {item.requiresAttunement && (
@@ -31,31 +31,31 @@ export default function ItemCard({ item }: { item: Item }) {
           {item.cost && (
             <p className="font-body text-[12px]">
               <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Cost</span><br/>
-              <span className="text-ink font-medium">{item.cost}</span>
+              <span className="text-ink font-bold">{item.cost}</span>
             </p>
           )}
           {item.weight != null && (
             <p className="font-body text-[12px]">
               <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Weight</span><br/>
-              <span className="text-ink font-medium">{item.weight} lb.</span>
+              <span className="text-ink font-bold">{item.weight} lb.</span>
             </p>
           )}
           {item.damageDice && (
             <p className="font-body text-[12px]">
               <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Damage</span><br/>
-              <span className="text-ink font-medium">{item.damageDice} {item.damageType}</span>
+              <span className="text-ink font-bold">{item.damageDice} {item.damageType}</span>
             </p>
           )}
           {item.properties?.ac != null && (
             <p className="font-body text-[12px]">
               <span className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">AC</span><br/>
-              <span className="text-ink font-medium">{String(item.properties.ac)}</span>
+              <span className="text-ink font-bold">{String(item.properties.ac)}</span>
             </p>
           )}
         </div>
 
         {item.description && (
-          <div className="font-body text-[13px] font-medium text-muted whitespace-pre-line leading-relaxed">
+          <div className="font-body text-[13px] font-semibold text-muted whitespace-pre-line leading-relaxed">
             {item.description}
           </div>
         )}

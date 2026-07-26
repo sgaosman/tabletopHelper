@@ -52,7 +52,7 @@ function RichText({ text }: { text: string }) {
 
 function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number }) {
   if (typeof entry === 'string') {
-    return <p className="font-body text-[13px] font-medium text-muted leading-relaxed mb-2"><RichText text={entry} /></p>;
+    return <p className="font-body text-[13px] font-semibold text-muted leading-relaxed mb-2"><RichText text={entry} /></p>;
   }
 
   if (!entry || typeof entry !== 'object') return null;
@@ -80,7 +80,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
         <ul className={`mb-3 ${cols > 1 ? 'grid gap-x-4 gap-y-1' : 'space-y-1'}`}
           style={cols > 1 ? { gridTemplateColumns: `repeat(${Math.min(cols, 3)}, minmax(0, 1fr))` } : undefined}>
           {(e.items ?? []).map((item, i) => (
-            <li key={i} className="flex gap-2 font-body text-[12px] font-medium text-muted">
+            <li key={i} className="flex gap-2 font-body text-[12px] font-semibold text-muted">
               <span className="text-faint mt-0.5 flex-shrink-0">&bull;</span>
               <span>{typeof item === 'string' ? <RichText text={item} /> : <EntryRenderer entry={item} depth={depth + 1} />}</span>
             </li>
@@ -111,7 +111,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
                 return (
                   <tr key={i} className="border-b border-rule-light">
                     {row.map((cell, j) => (
-                      <td key={j} className="px-3 py-1.5 font-body text-[12px] font-medium text-muted">
+                      <td key={j} className="px-3 py-1.5 font-body text-[12px] font-semibold text-muted">
                         {typeof cell === 'string' ? <RichText text={cell} /> : <EntryRenderer entry={cell} depth={depth + 1} />}
                       </td>
                     ))}
@@ -138,7 +138,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
     case 'item': {
       const dot = e.nameDot !== false ? '.' : '';
       return (
-        <p className="font-body text-[12px] font-medium text-muted mb-2">
+        <p className="font-body text-[12px] font-semibold text-muted mb-2">
           <strong className="text-ink">{e.name}{dot}</strong>{' '}
           {e.entry && <RichText text={e.entry} />}
           {e.entries?.map((sub, i) => (
@@ -150,7 +150,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
 
     case 'abilityGeneric': {
       return (
-        <p className="font-body text-[12px] font-medium text-muted mb-2 bg-page px-3 py-2 border border-rule">
+        <p className="font-body text-[12px] font-semibold text-muted mb-2 bg-page px-3 py-2 border border-rule">
           <RichText text={e.text ?? ''} />
         </p>
       );
@@ -159,7 +159,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
     case 'row': {
       if (!e.row) return null;
       return (
-        <div className="flex gap-4 font-body text-[12px] font-medium text-muted pl-4 py-0.5">
+        <div className="flex gap-4 font-body text-[12px] font-semibold text-muted pl-4 py-0.5">
           {e.row.map((cell, i) => (
             <span key={i} className={i === 0 ? 'flex-1' : 'w-20 text-right text-faint'}>
               <RichText text={cell} />

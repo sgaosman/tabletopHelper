@@ -71,26 +71,26 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
         <div className="px-5 py-4 border-b border-rule flex items-center justify-between shrink-0">
           <div>
             <h2 id="asi-title" className="font-heading text-[17px] font-bold text-ink">Ability Score Improvement</h2>
-            <p className="font-body text-[11px] font-medium text-muted mt-0.5">Level {character.level}</p>
+            <p className="font-body text-[11px] font-semibold text-muted mt-0.5">Level {character.level}</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
           {error && (
-            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[13px] font-medium">{error}</div>
+            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[13px] font-semibold">{error}</div>
           )}
 
           <div className="flex gap-2">
             <button
               onClick={() => { setMode('ability'); setFeatSelection(null); }}
-              className={`flex-1 py-2 font-body text-[14px] font-medium transition-colors ${
+              className={`flex-1 py-2 font-body text-[14px] font-semibold transition-colors ${
                 mode === 'ability' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
               }`}
             >Ability Scores</button>
             <button
               onClick={() => { setMode('feat'); setIncreases({}); }}
-              className={`flex-1 py-2 font-body text-[14px] font-medium transition-colors ${
+              className={`flex-1 py-2 font-body text-[14px] font-semibold transition-colors ${
                 mode === 'feat' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
               }`}
             >Feat</button>
@@ -98,7 +98,7 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
 
           {mode === 'ability' && (
             <>
-              <p className="font-body text-[13px] font-medium text-muted">
+              <p className="font-body text-[13px] font-semibold text-muted">
                 Distribute 2 points across your ability scores. No score can exceed 20.
               </p>
               <div className="space-y-2">
@@ -111,7 +111,7 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
                       <div className="flex items-center gap-3">
                         <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted w-8">{label}</span>
                         <span className="font-heading text-[17px] font-bold text-ink">{base}</span>
-                        {bonus > 0 && <span className="font-body text-[13px] font-medium text-buff">+{bonus}</span>}
+                        {bonus > 0 && <span className="font-body text-[13px] font-semibold text-buff">+{bonus}</span>}
                       </div>
                       <div className="flex items-center gap-1">
                         <button onClick={() => adjustAbility(key, -1)} disabled={bonus <= 0}
@@ -127,7 +127,7 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
                   );
                 })}
               </div>
-              <p className="text-center font-body text-[13px] font-medium">
+              <p className="text-center font-body text-[13px] font-semibold">
                 <span className={pointsRemaining === 0 ? 'text-buff' : 'text-cls-monk'}>
                   {pointsRemaining} point{pointsRemaining !== 1 ? 's' : ''} remaining
                 </span>
@@ -141,13 +141,13 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
         </div>
 
         <div className="px-5 py-4 border-t border-rule flex justify-end gap-3 shrink-0">
-          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-medium hover:bg-rule transition-colors">
+          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-semibold hover:bg-rule transition-colors">
             Skip
           </button>
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || submitting}
-            className="px-5 py-2 bg-ink text-card font-body text-[14px] font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-ink text-card font-body text-[14px] font-semibold hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Applying...' : 'Apply'}
           </button>

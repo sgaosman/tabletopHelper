@@ -23,7 +23,7 @@ export default function InventoryTab({ equipment, currency, saveField }: {
       <div className="bg-card border border-rule p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">Currency</h3>
-          <button onClick={() => editCurrency ? saveCurrency() : setEditCurrency(true)} className="font-body text-[12px] font-medium text-muted hover:text-ink transition-colors">
+          <button onClick={() => editCurrency ? saveCurrency() : setEditCurrency(true)} className="font-body text-[12px] font-semibold text-muted hover:text-ink transition-colors">
             {editCurrency ? 'Save' : 'Edit'}
           </button>
         </div>
@@ -54,8 +54,8 @@ export default function InventoryTab({ equipment, currency, saveField }: {
           <div className="space-y-0">
             {equipment.map((item, i) => (
               <div key={i} className="flex items-center gap-2 py-2 border-b border-rule-light last:border-0">
-                <span className="font-body text-[13px] font-medium text-ink flex-1">{item.name}</span>
-                {item.quantity && item.quantity > 1 && <span className="font-heading text-[9px] font-medium text-faint">x{item.quantity}</span>}
+                <span className="font-body text-[13px] font-semibold text-ink flex-1">{item.name}</span>
+                {item.quantity && item.quantity > 1 && <span className="font-heading text-[9px] font-semibold text-faint">x{item.quantity}</span>}
               </div>
             ))}
           </div>

@@ -54,18 +54,18 @@ export default function SubclassModal({ character, classId, className, onComplet
         <div className="px-5 py-4 border-b border-rule flex items-center justify-between">
           <div>
             <h2 id="subclass-title" className="font-heading text-[17px] font-bold text-ink">Choose Subclass</h2>
-            <p className="font-body text-[11px] font-medium text-muted mt-0.5">{className} specialization</p>
+            <p className="font-body text-[11px] font-semibold text-muted mt-0.5">{className} specialization</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {error && (
-            <div className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[13px] font-medium">{error}</div>
+            <div className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[13px] font-semibold">{error}</div>
           )}
 
           {loading ? (
-            <p className="text-muted font-body text-[13px] font-medium text-center py-8">Loading subclasses...</p>
+            <p className="text-muted font-body text-[13px] font-semibold text-center py-8">Loading subclasses...</p>
           ) : (
             <div className="space-y-2">
               {subclasses.map(sc => (
@@ -80,7 +80,7 @@ export default function SubclassModal({ character, classId, className, onComplet
                 >
                   <div className="flex-1 min-w-0">
                     <span className="font-heading text-[14px] font-semibold text-ink">{sc.name}</span>
-                    <p className="font-body text-[11px] font-medium text-faint mt-0.5">{sc.source}</p>
+                    <p className="font-body text-[11px] font-semibold text-faint mt-0.5">{sc.source}</p>
                   </div>
                   <ChevronRight className={`w-4 h-4 ${selectedId === sc.id ? 'text-ink' : 'text-faint'}`} />
                 </button>
@@ -94,7 +94,7 @@ export default function SubclassModal({ character, classId, className, onComplet
               {selectedFeatures.map((f, i) => (
                 <div key={i}>
                   <p className="font-heading text-[14px] font-semibold text-ink">{f.name}</p>
-                  <p className="font-body text-[11px] font-medium text-muted mt-0.5 line-clamp-2">{f.description}</p>
+                  <p className="font-body text-[11px] font-semibold text-muted mt-0.5 line-clamp-2">{f.description}</p>
                 </div>
               ))}
             </div>
@@ -102,13 +102,13 @@ export default function SubclassModal({ character, classId, className, onComplet
         </div>
 
         <div className="px-5 py-4 border-t border-rule flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-medium hover:bg-rule transition-colors">
+          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-semibold hover:bg-rule transition-colors">
             Skip
           </button>
           <button
             onClick={handleConfirm}
             disabled={!selectedId || submitting}
-            className="px-5 py-2 bg-ink text-card font-body text-[14px] font-medium hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-ink text-card font-body text-[14px] font-semibold hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Selecting...' : 'Confirm'}
           </button>

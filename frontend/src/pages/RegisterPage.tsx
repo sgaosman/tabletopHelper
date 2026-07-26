@@ -38,7 +38,7 @@ export default function RegisterPage() {
         <h1 className="font-heading text-[20px] font-semibold tracking-[0.02em] text-ink text-center mb-1">
           Tabletop Helper
         </h1>
-        <p className="font-body text-[14px] font-medium text-muted text-center mb-8">
+        <p className="font-body text-[14px] font-semibold text-muted text-center mb-8">
           Create your account
         </p>
 
@@ -61,7 +61,7 @@ export default function RegisterPage() {
               required
               minLength={3}
               maxLength={50}
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="Choose a username"
             />
           </div>
@@ -76,7 +76,7 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="you@example.com"
             />
           </div>
@@ -91,7 +91,7 @@ export default function RegisterPage() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={100}
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="How others see you"
             />
           </div>
@@ -107,7 +107,7 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="At least 8 characters"
             />
           </div>
@@ -115,13 +115,13 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-ink text-card font-body text-[14px] font-medium border border-ink hover:bg-muted hover:border-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2.5 bg-ink text-card font-body text-[14px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
 
-        <p className="font-body text-[13px] font-medium text-muted text-center mt-6">
+        <p className="font-body text-[13px] font-semibold text-muted text-center mt-6">
           Already have an account?{' '}
           <Link to="/login" className="text-ink font-semibold hover:text-muted">
             Sign in

@@ -31,13 +31,13 @@ function formatDescription(text: string) {
 
     if (isBullet) {
       return (
-        <li key={i} className="flex gap-2 font-body text-[12px] font-medium text-muted leading-relaxed">
+        <li key={i} className="flex gap-2 font-body text-[12px] font-semibold text-muted leading-relaxed">
           <span className="text-debuff mt-0.5 flex-shrink-0">&bull;</span>
           <span>{rendered}</span>
         </li>
       );
     }
-    return <p key={i} className="font-body text-[12px] font-medium text-muted leading-relaxed">{rendered}</p>;
+    return <p key={i} className="font-body text-[12px] font-semibold text-muted leading-relaxed">{rendered}</p>;
   });
 }
 
@@ -58,7 +58,7 @@ export default function ConditionsPage() {
 
       <div className="max-w-4xl mx-auto px-6 py-8">
         <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">Conditions</h1>
-        <p className="font-body text-[13px] font-medium text-muted mb-6">Reference conditions and their effects</p>
+        <p className="font-body text-[13px] font-semibold text-muted mb-6">Reference conditions and their effects</p>
 
         {loading ? (
           <div className="text-center py-12 font-body text-[14px] text-muted">Loading...</div>
@@ -86,7 +86,7 @@ export default function ConditionsPage() {
                             .replace(/\b(incapacitated)\b/gi, '**$1**')
                             .split(/(\*\*[^*]+\*\*)/);
                           return (
-                            <li key={i} className="flex gap-2 font-body text-[12px] font-medium text-muted leading-relaxed">
+                            <li key={i} className="flex gap-2 font-body text-[12px] font-semibold text-muted leading-relaxed">
                               <span className="text-debuff mt-0.5 flex-shrink-0">&bull;</span>
                               <span>
                                 {parts.map((part, j) => {

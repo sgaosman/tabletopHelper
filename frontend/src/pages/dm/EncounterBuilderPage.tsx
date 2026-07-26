@@ -204,7 +204,7 @@ export default function EncounterBuilderPage() {
               <select
                 value={selectedCampaignId}
                 onChange={e => { setSelectedCampaignId(e.target.value); setSelectedEncounter(null); }}
-                className="px-4 py-2.5 bg-card border border-rule font-body text-[14px] font-medium text-ink focus:outline-none focus:border-muted"
+                className="px-4 py-2.5 bg-card border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted"
               >
                 <option value="">Select a campaign...</option>
                 {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -219,7 +219,7 @@ export default function EncounterBuilderPage() {
                     <h2 className="font-heading text-[14px] font-semibold text-ink">Encounters</h2>
                     <button
                       onClick={() => setShowCreateForm(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium transition-colors hover:opacity-90"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-semibold transition-colors hover:opacity-90"
                     >
                       <Plus className="w-4 h-4" /> New
                     </button>
@@ -233,18 +233,18 @@ export default function EncounterBuilderPage() {
                         onChange={e => setNewName(e.target.value)}
                         placeholder="Encounter name"
                         required
-                        className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-medium text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted"
+                        className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-semibold text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted"
                       />
                       <textarea
                         value={newDesc}
                         onChange={e => setNewDesc(e.target.value)}
                         placeholder="Description (optional)"
                         rows={2}
-                        className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-medium text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted resize-none"
+                        className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-semibold text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted resize-none"
                       />
                       <div className="flex gap-2">
-                        <button type="submit" className="px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium">Create</button>
-                        <button type="button" onClick={() => setShowCreateForm(false)} className="px-3 py-1.5 bg-page border border-rule font-body text-[13px] font-medium text-muted hover:border-muted">Cancel</button>
+                        <button type="submit" className="px-3 py-1.5 bg-ink text-card font-body text-[13px] font-semibold">Create</button>
+                        <button type="button" onClick={() => setShowCreateForm(false)} className="px-3 py-1.5 bg-page border border-rule font-body text-[13px] font-semibold text-muted hover:border-muted">Cancel</button>
                       </div>
                     </form>
                   )}
@@ -264,14 +264,14 @@ export default function EncounterBuilderPage() {
                             <span className="font-heading text-[13px] font-semibold text-ink truncate">{enc.name}</span>
                             {status && (
                               <span
-                                className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 border"
+                                className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 border"
                                 style={{ color: status.text, backgroundColor: status.bg, borderColor: status.border }}
                               >
                                 {enc.status}
                               </span>
                             )}
                           </div>
-                          <p className="font-body text-[11px] font-medium text-faint">{enc.participants.length} participants</p>
+                          <p className="font-body text-[11px] font-semibold text-faint">{enc.participants.length} participants</p>
                         </button>
                       );
                     })}
@@ -288,7 +288,7 @@ export default function EncounterBuilderPage() {
                       <div>
                         <h2 className="font-heading text-[19px] font-semibold text-ink">{selectedEncounter.name}</h2>
                         {selectedEncounter.description && (
-                          <p className="font-body text-[13px] font-medium text-muted mt-1">{selectedEncounter.description}</p>
+                          <p className="font-body text-[13px] font-semibold text-muted mt-1">{selectedEncounter.description}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -304,7 +304,7 @@ export default function EncounterBuilderPage() {
                         {selectedEncounter.status === 'ACTIVE' && (
                           <button
                             onClick={() => navigate(`/dm/encounter/${selectedEncounter.id}/session`)}
-                            className="px-4 py-2 font-body text-[13px] font-medium text-white flex items-center gap-2"
+                            className="px-4 py-2 font-body text-[13px] font-semibold text-white flex items-center gap-2"
                             style={{ backgroundColor: '#166534' }}
                           >
                             <Swords className="w-4 h-4" /> Go to Session
@@ -341,14 +341,14 @@ export default function EncounterBuilderPage() {
                                     <div key={c.id} className="flex items-center justify-between bg-page border border-rule-light px-3 py-2">
                                       <div>
                                         <span className="font-heading text-[12px] font-semibold" style={{ color: classClr }}>{c.name}</span>
-                                        <span className="font-body text-[11px] font-medium text-muted ml-2">
+                                        <span className="font-body text-[11px] font-semibold text-muted ml-2">
                                           Lv{c.level} {c.characterClass} — HP {c.hpMax} AC {c.armourClass}
                                         </span>
                                       </div>
                                       <button
                                         onClick={() => handleAddPlayer(c)}
                                         disabled={added}
-                                        className={`px-2.5 py-1 font-heading text-[9px] font-medium tracking-[0.02em] border transition-colors ${
+                                        className={`px-2.5 py-1 font-heading text-[9px] font-semibold tracking-[0.02em] border transition-colors ${
                                           added
                                             ? 'bg-page-alt text-faint border-rule cursor-not-allowed'
                                             : 'text-white border-transparent'
@@ -376,7 +376,7 @@ export default function EncounterBuilderPage() {
                                 value={monsterSearch}
                                 onChange={e => setMonsterSearch(e.target.value)}
                                 placeholder="Search monsters (fuzzy)..."
-                                className="w-full pl-9 pr-3 py-1.5 bg-page border border-rule font-body text-[13px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
+                                className="w-full pl-9 pr-3 py-1.5 bg-page border border-rule font-body text-[13px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
                               />
                             </div>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -388,7 +388,7 @@ export default function EncounterBuilderPage() {
                                 <div key={m.id} className="flex items-center justify-between bg-page border border-rule-light px-3 py-2">
                                   <div>
                                     <span className="font-heading text-[12px] font-semibold text-monster">{m.name}</span>
-                                    <span className="font-body text-[11px] font-medium text-muted ml-2">
+                                    <span className="font-body text-[11px] font-semibold text-muted ml-2">
                                       CR {m.challengeRating} — HP {m.hitPoints} AC {m.armourClass}
                                     </span>
                                   </div>
@@ -399,11 +399,11 @@ export default function EncounterBuilderPage() {
                                       max={20}
                                       value={monsterQuantities[m.id] || 1}
                                       onChange={e => setMonsterQuantities(q => ({ ...q, [m.id]: parseInt(e.target.value) || 1 }))}
-                                      className="w-12 px-2 py-1 bg-card border border-rule font-body text-[13px] font-medium text-ink text-center focus:outline-none focus:border-muted"
+                                      className="w-12 px-2 py-1 bg-card border border-rule font-body text-[13px] font-semibold text-ink text-center focus:outline-none focus:border-muted"
                                     />
                                     <button
                                       onClick={() => handleAddMonster(m)}
-                                      className="px-2.5 py-1 text-white font-heading text-[9px] font-medium tracking-[0.02em]"
+                                      className="px-2.5 py-1 text-white font-heading text-[9px] font-semibold tracking-[0.02em]"
                                       style={{ backgroundColor: '#991B1B' }}
                                     >
                                       Add
@@ -420,20 +420,20 @@ export default function EncounterBuilderPage() {
                           <div className="flex items-center gap-3 mb-6">
                             <button
                               onClick={handleRollInitiative}
-                              className="flex items-center gap-2 px-4 py-2 bg-page border border-rule font-body text-[13px] font-medium text-ink hover:border-muted transition-colors"
+                              className="flex items-center gap-2 px-4 py-2 bg-page border border-rule font-body text-[13px] font-semibold text-ink hover:border-muted transition-colors"
                             >
                               <Dice5 className="w-4 h-4 text-muted" /> Roll All Initiative
                             </button>
                             <button
                               onClick={handleStartEncounter}
                               disabled={!allHaveInitiative}
-                              className="flex items-center gap-2 px-4 py-2 font-body text-[13px] font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="flex items-center gap-2 px-4 py-2 font-body text-[13px] font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               style={{ backgroundColor: '#166534' }}
                             >
                               <Play className="w-4 h-4" /> Start Encounter
                             </button>
                             {!allHaveInitiative && hasParticipants && (
-                              <span className="font-body text-[12px] font-medium" style={{ color: '#B45309' }}>Set initiative for all participants before starting</span>
+                              <span className="font-body text-[12px] font-semibold" style={{ color: '#B45309' }}>Set initiative for all participants before starting</span>
                             )}
                           </div>
                         )}
@@ -490,7 +490,7 @@ export default function EncounterBuilderPage() {
                                     </td>
                                     <td className="px-4 py-3">
                                       <span
-                                        className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 border"
+                                        className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 border"
                                         style={isMonster
                                           ? { color: '#991B1B', backgroundColor: '#FEF2F2', borderColor: '#FECACA' }
                                           : { color: '#4F46E5', backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' }
@@ -525,7 +525,7 @@ export default function EncounterBuilderPage() {
                                             className="w-16 px-2 py-1 bg-page border border-rule font-heading text-[14px] font-bold text-ink text-center focus:outline-none focus:border-muted placeholder-faint"
                                           />
                                           {p.initiativeModifier != null && (
-                                            <span className="font-body text-[11px] font-medium text-faint whitespace-nowrap">
+                                            <span className="font-body text-[11px] font-semibold text-faint whitespace-nowrap">
                                               ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
                                             </span>
                                           )}
@@ -534,7 +534,7 @@ export default function EncounterBuilderPage() {
                                         <span className="font-heading text-[14px] font-bold text-ink">
                                           {p.initiative != null ? p.initiative : <span className="text-faint">—</span>}
                                           {p.initiativeModifier != null && (
-                                            <span className="font-body text-[11px] font-medium text-faint ml-1">
+                                            <span className="font-body text-[11px] font-semibold text-faint ml-1">
                                               ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
                                             </span>
                                           )}

@@ -32,7 +32,7 @@ export default function JournalTab({ char, saveField }: {
                 if (editing === key) { save(key); }
                 else { setEditing(key); setEditValue((char[key] as string) || ''); }
               }}
-              className="font-body text-[12px] font-medium text-muted hover:text-ink transition-colors"
+              className="font-body text-[12px] font-semibold text-muted hover:text-ink transition-colors"
             >
               {editing === key ? 'Save' : 'Edit'}
             </button>
@@ -42,11 +42,11 @@ export default function JournalTab({ char, saveField }: {
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-medium text-ink resize-none focus:outline-none focus:border-muted"
+              className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-semibold text-ink resize-none focus:outline-none focus:border-muted"
               autoFocus
             />
           ) : (
-            <p className="font-body text-[13px] font-medium text-muted whitespace-pre-line">
+            <p className="font-body text-[13px] font-semibold text-muted whitespace-pre-line">
               {(char[key] as string) || <span className="text-faint italic">Not set</span>}
             </p>
           )}

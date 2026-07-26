@@ -34,7 +34,7 @@ export default function DmDashboard() {
                 style={{ color: card.colour }}
               />
               <h3 className="font-heading text-[14px] font-semibold text-ink mb-1">{card.title}</h3>
-              <p className="font-body text-[13px] font-medium text-muted">{card.description}</p>
+              <p className="font-body text-[13px] font-semibold text-muted">{card.description}</p>
             </button>
           ))}
         </div>

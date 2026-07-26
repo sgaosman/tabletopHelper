@@ -53,7 +53,7 @@ export default function MultiSelect({
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-card border border-rule text-left hover:border-muted transition-colors font-body text-[14px] font-medium ${selected.length > 0 ? 'text-ink' : 'text-faint'}`}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-card border border-rule text-left hover:border-muted transition-colors font-body text-[14px] font-semibold ${selected.length > 0 ? 'text-ink' : 'text-faint'}`}
       >
         <span className="truncate">
           {selected.length === 0
@@ -90,7 +90,7 @@ export default function MultiSelect({
                 placeholder="Search..."
                 aria-label="Filter options"
                 autoFocus
-                className="w-full px-3 py-1.5 bg-page border border-rule font-body text-[13px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full px-3 py-1.5 bg-page border border-rule font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
           )}
@@ -103,7 +103,7 @@ export default function MultiSelect({
                 return (
                   <label
                     key={option}
-                    className="flex items-center gap-3 px-4 py-1.5 hover:bg-page-alt cursor-pointer font-body text-[13px] font-medium"
+                    className="flex items-center gap-3 px-4 py-1.5 hover:bg-page-alt cursor-pointer font-body text-[13px] font-semibold"
                   >
                     <input
                       type="checkbox"
@@ -123,7 +123,7 @@ export default function MultiSelect({
             <div className="border-t border-rule px-4 py-1.5">
               <button
                 onClick={() => { onChange([]); setSearch(''); }}
-                className="font-heading text-[9px] font-medium tracking-[0.04em] text-faint hover:text-ink transition-colors"
+                className="font-heading text-[9px] font-semibold tracking-[0.04em] text-faint hover:text-ink transition-colors"
               >
                 Clear all ({selected.length})
               </button>

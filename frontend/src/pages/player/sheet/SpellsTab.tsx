@@ -172,11 +172,11 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
             />
           )
         )}
-        <span className="font-body text-[13px] font-medium text-ink group-hover:text-muted transition-colors">{spell.name}</span>
-        {spell.atWill && <span className="font-heading text-[9px] font-medium text-buff ml-auto">At will</span>}
-        {spell.usesPerLongRest && <span className="font-heading text-[9px] font-medium text-cls-cleric ml-auto">{spell.usesPerLongRest}/long rest</span>}
+        <span className="font-body text-[13px] font-semibold text-ink group-hover:text-muted transition-colors">{spell.name}</span>
+        {spell.atWill && <span className="font-heading text-[9px] font-semibold text-buff ml-auto">At will</span>}
+        {spell.usesPerLongRest && <span className="font-heading text-[9px] font-semibold text-cls-cleric ml-auto">{spell.usesPerLongRest}/long rest</span>}
         {spell.unlocksAtLevel && spell.unlocksAtLevel > char.level && (
-          <span className="font-heading text-[9px] font-medium text-faint ml-auto">Lv {spell.unlocksAtLevel}</span>
+          <span className="font-heading text-[9px] font-semibold text-faint ml-auto">Lv {spell.unlocksAtLevel}</span>
         )}
       </button>
     );
@@ -196,7 +196,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
                 onClick={() => useSlot(level)}
                 className="bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors"
               >
-                <p className="font-heading text-[9px] font-medium text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
+                <p className="font-heading text-[9px] font-semibold text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
                 <p className="font-heading text-[15px] font-bold text-ink">{slot.total - slot.used}/{slot.total}</p>
               </button>
             );
@@ -299,19 +299,19 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
                   <>
                     <button
                       onClick={() => setManageModal({ type: 'spellbook', className })}
-                      className="font-body text-[12px] font-medium text-buff hover:text-ink transition-colors"
+                      className="font-body text-[12px] font-semibold text-buff hover:text-ink transition-colors"
                     >
                       + Spellbook
                     </button>
                     <button
                       onClick={() => setManageModal({ type: 'remove-spellbook', className })}
-                      className="font-body text-[12px] font-medium text-debuff hover:text-ink transition-colors"
+                      className="font-body text-[12px] font-semibold text-debuff hover:text-ink transition-colors"
                     >
                       - Spellbook
                     </button>
                   </>
                 )}
-                <span className={`font-heading text-[9px] font-medium tracking-[0.02em] px-2 py-0.5 border ${
+                <span className={`font-heading text-[9px] font-semibold tracking-[0.02em] px-2 py-0.5 border ${
                   info.isPrepared ? 'text-cls-wizard bg-cls-wizard-bg border-[#C7D2FE]' : 'text-cls-warlock bg-[#F5F3FF] border-[#DDD6FE]'
                 }`}>
                   {info.isPrepared ? 'Prepared' : 'Known'}
@@ -336,7 +336,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
                   </h4>
                   <button
                     onClick={() => setManageModal({ type: 'prepared', className })}
-                    className="font-body text-[12px] font-medium text-muted hover:text-ink transition-colors"
+                    className="font-body text-[12px] font-semibold text-muted hover:text-ink transition-colors"
                   >
                     Change Prepared
                   </button>
@@ -357,7 +357,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
                   </h4>
                   <button
                     onClick={() => setManageModal({ type: 'known', className, spellListClass, classLevel })}
-                    className="font-body text-[12px] font-medium text-muted hover:text-ink transition-colors"
+                    className="font-body text-[12px] font-semibold text-muted hover:text-ink transition-colors"
                   >
                     Manage Known
                   </button>
@@ -378,7 +378,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
         <div key={group.subclassName} className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-heading text-[14px] font-semibold text-ink">{group.subclassName} Spells</h3>
-            <span className="font-heading text-[9px] font-medium tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]">Always Prepared</span>
+            <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]">Always Prepared</span>
           </div>
           <div className="space-y-0.5">
             {group.spells.map(s => (
@@ -388,8 +388,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
                 className="flex items-center gap-2 py-1.5 px-2 hover:bg-page-alt transition-colors w-full text-left group"
               >
                 <Lock className="w-3 h-3 text-cls-cleric flex-shrink-0" />
-                <span className="font-body text-[13px] font-medium text-ink group-hover:text-muted transition-colors">{s.name}</span>
-                <span className="font-heading text-[9px] font-medium text-faint ml-auto">Lv {s.classLevel}</span>
+                <span className="font-body text-[13px] font-semibold text-ink group-hover:text-muted transition-colors">{s.name}</span>
+                <span className="font-heading text-[9px] font-semibold text-faint ml-auto">Lv {s.classLevel}</span>
               </button>
             ))}
           </div>
@@ -401,7 +401,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
         <div key={raceName} className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-heading text-[14px] font-semibold text-ink">{raceName} Spells</h3>
-            <span className="font-heading text-[9px] font-medium tracking-[0.02em] px-2 py-0.5 border text-cls-druid bg-cls-druid-bg border-[#A7F3D0]">Innate</span>
+            <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-druid bg-cls-druid-bg border-[#A7F3D0]">Innate</span>
           </div>
           <div className="space-y-0.5">{spells.map(s => renderSpellRow(s, false))}</div>
         </div>
@@ -413,7 +413,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="font-heading text-[14px] font-semibold text-ink">{featName}</h3>
-              <span className="font-heading text-[9px] font-medium tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]">Feat</span>
+              <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]">Feat</span>
             </div>
             <button
               onClick={() => setConfirmRemoveFeat(confirmRemoveFeat === source ? null : source)}
@@ -425,16 +425,16 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
           </div>
           {confirmRemoveFeat === source && (
             <div className="flex items-center gap-2 bg-debuff-bg border border-debuff/30 px-3 py-2">
-              <p className="font-body text-[12px] font-medium text-debuff flex-1">Remove all {featName} spells?</p>
+              <p className="font-body text-[12px] font-semibold text-debuff flex-1">Remove all {featName} spells?</p>
               <button
                 onClick={() => { removeFeatSpells(source); setConfirmRemoveFeat(null); }}
-                className="px-2 py-1 bg-debuff text-card font-body text-[12px] font-medium transition-colors hover:opacity-80"
+                className="px-2 py-1 bg-debuff text-card font-body text-[12px] font-semibold transition-colors hover:opacity-80"
               >
                 Remove
               </button>
               <button
                 onClick={() => setConfirmRemoveFeat(null)}
-                className="px-2 py-1 font-body text-[12px] font-medium text-muted hover:text-ink transition-colors"
+                className="px-2 py-1 font-body text-[12px] font-semibold text-muted hover:text-ink transition-colors"
               >
                 Cancel
               </button>
@@ -447,7 +447,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
       {/* Add Feat button */}
       <button
         onClick={() => setShowAddFeat(true)}
-        className="w-full py-2 border border-dashed border-cls-cleric/30 font-body text-[13px] font-medium text-cls-cleric hover:bg-cls-cleric-bg transition-colors flex items-center justify-center gap-2"
+        className="w-full py-2 border border-dashed border-cls-cleric/30 font-body text-[13px] font-semibold text-cls-cleric hover:bg-cls-cleric-bg transition-colors flex items-center justify-center gap-2"
       >
         <Plus className="w-4 h-4" /> Add Feat Spells
       </button>
@@ -675,7 +675,7 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
         <div className="px-4 py-3 border-b border-rule flex items-center justify-between">
           <div>
             <h2 id="manage-spells-title" className="font-heading text-[15px] font-semibold text-ink">{modalTitle}</h2>
-            <p className="font-body text-[11px] font-medium text-faint mt-0.5">{modalSubtitle}</p>
+            <p className="font-body text-[11px] font-semibold text-faint mt-0.5">{modalSubtitle}</p>
           </div>
           <button onClick={onClose} className="text-faint hover:text-ink"><X className="w-5 h-5" /></button>
         </div>
@@ -690,14 +690,14 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
                 onChange={e => setSearchQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && needsApiSearch && doSearch()}
                 placeholder={needsApiSearch ? "Search spells..." : "Filter spellbook..."}
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
               />
             </div>
             {(isWizardPrepared || isRemoveSpellbook) && (
               <select
                 value={selectedLevel}
                 onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
-                className="bg-page border border-rule px-2 py-1.5 font-body text-[13px] font-medium text-ink focus:outline-none focus:border-muted"
+                className="bg-page border border-rule px-2 py-1.5 font-body text-[13px] font-semibold text-ink focus:outline-none focus:border-muted"
               >
                 <option value="">All Levels</option>
                 {validLevels.filter(l => l > 0).map(l => (
@@ -710,14 +710,14 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
                 <select
                   value={selectedLevel}
                   onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
-                  className="bg-page border border-rule px-2 py-1.5 font-body text-[13px] font-medium text-ink focus:outline-none focus:border-muted"
+                  className="bg-page border border-rule px-2 py-1.5 font-body text-[13px] font-semibold text-ink focus:outline-none focus:border-muted"
                 >
                   <option value="">All Levels</option>
                   {validLevels.map(l => (
                     <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
                   ))}
                 </select>
-                <button onClick={doSearch} className="bg-ink text-card font-body text-[13px] font-medium px-3 hover:opacity-80 transition-colors">
+                <button onClick={doSearch} className="bg-ink text-card font-body text-[13px] font-semibold px-3 hover:opacity-80 transition-colors">
                   Search
                 </button>
               </>
@@ -760,7 +760,7 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
                     key={spell.id}
                     onClick={() => !disabled && toggleSpell(spell)}
                     disabled={disabled}
-                    className={`w-full flex items-center justify-between py-2 px-3 font-body text-[13px] font-medium transition-colors ${
+                    className={`w-full flex items-center justify-between py-2 px-3 font-body text-[13px] font-semibold transition-colors ${
                       isAlwaysPrep && (type === 'prepared' || isWizardPrepared)
                         ? 'bg-cls-cleric-bg text-cls-cleric cursor-not-allowed'
                         : disabled
@@ -819,13 +819,13 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-rule flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-1.5 font-body text-[13px] font-medium text-muted hover:text-ink transition-colors">
+          <button onClick={onClose} className="px-3 py-1.5 font-body text-[13px] font-semibold text-muted hover:text-ink transition-colors">
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-1.5 bg-ink text-card font-body text-[13px] font-medium hover:opacity-80 transition-colors disabled:opacity-50"
+            className="px-4 py-1.5 bg-ink text-card font-body text-[13px] font-semibold hover:opacity-80 transition-colors disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
@@ -994,7 +994,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
                   value={featSearch}
                   onChange={e => setFeatSearch(e.target.value)}
                   placeholder="Search spell-granting feats..."
-                  className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-medium text-ink placeholder-faint focus:outline-none focus:border-muted"
+                  className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
                 />
               </div>
               <div className="space-y-1">
@@ -1002,7 +1002,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
                   <button
                     key={feat.id}
                     onClick={() => selectFeat(feat)}
-                    className="w-full flex items-center justify-between py-2 px-3 font-body text-[13px] font-medium text-muted hover:bg-page-alt transition-colors"
+                    className="w-full flex items-center justify-between py-2 px-3 font-body text-[13px] font-semibold text-muted hover:bg-page-alt transition-colors"
                   >
                     <span>{feat.name}</span>
                     <span className="text-[11px] text-faint">{feat.source}</span>
@@ -1036,7 +1036,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
                             : 'bg-page border-rule text-muted hover:border-muted'
                         }`}
                       >
-                        <span className="font-medium">{opt.name}</span>
+                        <span className="font-semibold">{opt.name}</span>
                         {opt.fixedCantrips.length > 0 && (
                           <span className="block text-faint mt-0.5">{opt.fixedCantrips.join(', ')}</span>
                         )}
@@ -1070,7 +1070,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
                   <p className="font-body text-[12px] text-muted mb-1">Granted cantrips:</p>
                   <div className="flex flex-wrap gap-1">
                     {selectedOption.fixedCantrips.map(name => (
-                      <span key={name} className="bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-medium">{name}</span>
+                      <span key={name} className="bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-semibold">{name}</span>
                     ))}
                   </div>
                 </div>
@@ -1085,7 +1085,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
                   {chosenCantrips.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {chosenCantrips.map(s => (
-                        <span key={s.name} className="flex items-center gap-1 bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-medium">
+                        <span key={s.name} className="flex items-center gap-1 bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-semibold">
                           {s.name}
                           <button onClick={() => toggleCantrip(s)} className="text-cls-cleric hover:text-ink"><X className="w-3 h-3" /></button>
                         </span>
@@ -1119,7 +1119,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
                   <p className="font-body text-[12px] text-muted mb-1">Granted spells:</p>
                   <div className="flex flex-wrap gap-1">
                     {selectedOption.fixedSpells.map(s => (
-                      <span key={s.name} className="bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-medium">{s.name} ({s.usesPerDay}/day)</span>
+                      <span key={s.name} className="bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-semibold">{s.name} ({s.usesPerDay}/day)</span>
                     ))}
                   </div>
                 </div>
@@ -1136,7 +1136,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
                   {chosenSpells.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {chosenSpells.map(s => (
-                        <span key={s.name} className="flex items-center gap-1 bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-medium">
+                        <span key={s.name} className="flex items-center gap-1 bg-cls-cleric-bg border border-[#E8DCC4] text-cls-cleric px-2 py-1 font-body text-[11px] font-semibold">
                           {s.name}
                           <button onClick={() => toggleSpell(s)} className="text-cls-cleric hover:text-ink"><X className="w-3 h-3" /></button>
                         </span>
@@ -1173,11 +1173,11 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
 
         {step === 'configure' && (
           <div className="px-4 py-3 border-t border-rule flex justify-end gap-2">
-            <button onClick={onClose} className="px-3 py-1.5 font-body text-[13px] font-medium text-muted hover:text-ink transition-colors">Cancel</button>
+            <button onClick={onClose} className="px-3 py-1.5 font-body text-[13px] font-semibold text-muted hover:text-ink transition-colors">Cancel</button>
             <button
               onClick={handleSave}
               disabled={!canSave || saving}
-              className="px-4 py-1.5 bg-ink text-card font-body text-[13px] font-medium hover:opacity-80 transition-colors disabled:opacity-50"
+              className="px-4 py-1.5 bg-ink text-card font-body text-[13px] font-semibold hover:opacity-80 transition-colors disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Add Feat Spells'}
             </button>

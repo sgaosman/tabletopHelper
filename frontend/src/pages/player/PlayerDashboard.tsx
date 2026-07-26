@@ -81,9 +81,9 @@ export default function PlayerDashboard() {
               required
               maxLength={8}
               placeholder="Enter invite code"
-              className="flex-1 max-w-xs px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink tracking-wider placeholder-faint focus:border-muted focus:outline-none uppercase"
+              className="flex-1 max-w-xs px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink tracking-wider placeholder-faint focus:border-muted focus:outline-none uppercase"
             />
-            <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[14px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors">
+            <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[14px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors">
               Join
             </button>
           </form>
@@ -101,7 +101,7 @@ export default function PlayerDashboard() {
             style={{ borderLeftWidth: '3px', borderLeftColor: '#DC2626' }}
           >
             <p className="font-heading text-[13px] font-semibold text-ink">Join Encounter</p>
-            <p className="font-body text-[12px] font-medium text-muted mt-0.5">Enter a session code from your DM</p>
+            <p className="font-body text-[12px] font-semibold text-muted mt-0.5">Enter a session code from your DM</p>
           </button>
         </section>
 
@@ -120,7 +120,7 @@ export default function PlayerDashboard() {
                 <div key={c.id} className="bg-card border border-rule p-4 flex items-center justify-between">
                   <div>
                     <h3 className="font-heading text-[13px] font-semibold text-ink">{c.name}</h3>
-                    <p className="font-body text-[12px] font-medium text-muted">DM: {c.dmDisplayName} &middot; {c.members.length} members</p>
+                    <p className="font-body text-[12px] font-semibold text-muted">DM: {c.dmDisplayName} &middot; {c.members.length} members</p>
                   </div>
                 </div>
               ))}
@@ -136,7 +136,7 @@ export default function PlayerDashboard() {
             </h2>
             <button
               onClick={() => navigate('/player/characters/new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors"
             >
               <Plus className="w-3.5 h-3.5" /> New Character
             </button>
@@ -149,7 +149,7 @@ export default function PlayerDashboard() {
               className="bg-page border border-dashed border-rule hover:border-muted p-6 flex flex-col items-center gap-1.5 w-full transition-colors"
             >
               <Plus className="w-6 h-6 text-faint" />
-              <span className="font-heading text-[12px] font-medium text-faint">Create New Character</span>
+              <span className="font-heading text-[12px] font-semibold text-faint">Create New Character</span>
             </button>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -174,7 +174,7 @@ export default function PlayerDashboard() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="font-heading text-[14px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
-                          <p className="font-body text-[11px] font-medium text-muted">
+                          <p className="font-body text-[11px] font-semibold text-muted">
                             Level {c.level} {c.race} {c.characterClass}
                           </p>
                         </div>
@@ -199,7 +199,7 @@ export default function PlayerDashboard() {
                 className="bg-page border border-dashed border-rule hover:border-muted p-6 flex flex-col items-center justify-center gap-1.5 transition-colors"
               >
                 <Plus className="w-5 h-5 text-faint" />
-                <span className="font-heading text-[11px] font-medium text-faint">Create New</span>
+                <span className="font-heading text-[11px] font-semibold text-faint">Create New</span>
               </button>
             </div>
           )}
@@ -211,7 +211,7 @@ export default function PlayerDashboard() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => { if (!deleting) { setDeleteTarget(null); setDeleteConfirmName(''); } }}>
           <div role="dialog" aria-modal="true" aria-labelledby="delete-title" className="bg-card border border-rule p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
             <h3 id="delete-title" className="font-heading text-[15px] font-semibold text-ink mb-2">Delete Character</h3>
-            <p className="font-body text-[13px] font-medium text-muted mb-1">
+            <p className="font-body text-[13px] font-semibold text-muted mb-1">
               Are you sure you want to delete <span className="text-ink font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
             </p>
             <p className="font-body text-[12px] text-faint mb-4">
@@ -222,7 +222,7 @@ export default function PlayerDashboard() {
               value={deleteConfirmName}
               onChange={e => setDeleteConfirmName(e.target.value)}
               placeholder={deleteTarget.name}
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none mb-4"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none mb-4"
               autoFocus
             />
             {deleteError && <p role="alert" className="text-debuff font-body text-[13px] mb-3">{deleteError}</p>}
@@ -230,14 +230,14 @@ export default function PlayerDashboard() {
               <button
                 onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}
                 disabled={deleting}
-                className="flex-1 px-4 py-2 bg-page border border-rule font-body text-[14px] font-medium text-muted hover:border-muted transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-page border border-rule font-body text-[14px] font-semibold text-muted hover:border-muted transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleteConfirmName !== deleteTarget.name || deleting}
-                className="flex-1 px-4 py-2 bg-debuff text-white font-body text-[14px] font-medium border border-debuff hover:opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-debuff text-white font-body text-[14px] font-semibold border border-debuff hover:opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>

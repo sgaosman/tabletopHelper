@@ -275,7 +275,7 @@ export default function CharacterSheetPage() {
           </button>
           <div className="text-center">
             <h1 className="font-heading text-[17px] font-bold" style={{ color: classAccent }}>{char.name}</h1>
-            <p className="font-body text-[12px] font-medium text-muted">
+            <p className="font-body text-[12px] font-semibold text-muted">
               Level {char.level} {char.race}{' '}
               {(() => {
                 const entries = safeJsonParse<Array<{ className: string; level: number }>>(char.multiclassEntries, []);
@@ -320,7 +320,7 @@ export default function CharacterSheetPage() {
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-debuff" />
             <span className="font-heading text-[12px] font-bold text-ink">{char.hpCurrent}/{char.hpMax}</span>
-            {char.hpTemp > 0 && <span className="font-heading text-[11px] font-medium text-cls-wizard">+{char.hpTemp} temp</span>}
+            {char.hpTemp > 0 && <span className="font-heading text-[11px] font-semibold text-cls-wizard">+{char.hpTemp} temp</span>}
           </div>
           <div className="flex-1 h-2 bg-rule overflow-hidden">
             <div
@@ -341,7 +341,7 @@ export default function CharacterSheetPage() {
           <div className="flex items-center gap-4 mt-2 flex-wrap">
             {featResources.map((r, i) => (
               <div key={i} className="flex items-center gap-2 bg-page-alt border border-rule px-3 py-1">
-                <span className="font-heading text-[9px] font-medium tracking-[0.02em]" style={{ color: classAccent }}>{r.name}</span>
+                <span className="font-heading text-[9px] font-semibold tracking-[0.02em]" style={{ color: classAccent }}>{r.name}</span>
                 <div className="flex gap-1">
                   {Array.from({ length: r.maxUses }).map((_, j) => (
                     <button key={j}
@@ -370,7 +370,7 @@ export default function CharacterSheetPage() {
                   saveField({ hpTemp: newTemp });
                 }
               }}
-              className="font-body text-[12px] font-medium text-cls-wizard hover:text-ink bg-page-alt border border-rule px-2 py-1 transition-colors"
+              className="font-body text-[12px] font-semibold text-cls-wizard hover:text-ink bg-page-alt border border-rule px-2 py-1 transition-colors"
             >+ Temp HP</button>
           </div>
         )}
@@ -387,7 +387,7 @@ export default function CharacterSheetPage() {
                 aria-selected={activeTab === key}
                 aria-controls={`tabpanel-${key}`}
                 onClick={() => setActiveTab(key)}
-                className={`flex items-center gap-1.5 px-3 py-2 font-body text-[13px] font-medium transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3 py-2 font-body text-[13px] font-semibold transition-colors whitespace-nowrap ${
                   activeTab === key ? 'text-ink border-b-2' : 'text-faint hover:text-muted'
                 }`}
                 style={activeTab === key ? { borderBottomColor: classAccent } : undefined}
@@ -399,7 +399,7 @@ export default function CharacterSheetPage() {
           <select
             value={char.campaignId ?? ''}
             onChange={e => handleCampaignChange(e.target.value)}
-            className="ml-2 px-2 py-1.5 bg-page-alt border border-rule font-body text-[12px] font-medium text-muted focus:outline-none focus:border-muted shrink-0"
+            className="ml-2 px-2 py-1.5 bg-page-alt border border-rule font-body text-[12px] font-semibold text-muted focus:outline-none focus:border-muted shrink-0"
           >
             <option value="">No campaign</option>
             {campaigns.map(c => (
@@ -411,8 +411,8 @@ export default function CharacterSheetPage() {
 
       {/* Error / Success */}
       <div className="max-w-5xl mx-auto px-4">
-        {error && <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 mt-4 font-body text-[13px] font-medium">{error}</div>}
-        {success && <div role="status" className="bg-buff-bg border border-buff text-buff p-3 mt-4 font-body text-[13px] font-medium">{success}</div>}
+        {error && <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 mt-4 font-body text-[13px] font-semibold">{error}</div>}
+        {success && <div role="status" className="bg-buff-bg border border-buff text-buff p-3 mt-4 font-body text-[13px] font-semibold">{success}</div>}
       </div>
 
       {/* Tab Content */}
@@ -439,7 +439,7 @@ export default function CharacterSheetPage() {
 
       {/* Level Up Banner */}
       {levelUpBanner && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-buff-bg border border-buff text-buff px-6 py-3 shadow-lg font-body text-[14px] font-medium animate-pulse">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-buff-bg border border-buff text-buff px-6 py-3 shadow-lg font-body text-[14px] font-semibold animate-pulse">
           {levelUpBanner}
         </div>
       )}
@@ -498,14 +498,14 @@ export default function CharacterSheetPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setLevelDownConfirm(false)}>
           <div role="dialog" aria-modal="true" aria-labelledby="level-down-title" className="bg-card border border-rule p-6 max-w-sm w-full shadow-lg" onClick={e => e.stopPropagation()}>
             <h3 id="level-down-title" className="font-heading text-[17px] font-bold text-ink mb-2">Level Down</h3>
-            <p className="font-body text-[13px] font-medium text-muted mb-4">
+            <p className="font-body text-[13px] font-semibold text-muted mb-4">
               Remove level {char.level}? This will reverse HP, features, and any ASI choices made at that level.
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setLevelDownConfirm(false)} className="flex-1 px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-medium hover:bg-rule transition-colors">
+              <button onClick={() => setLevelDownConfirm(false)} className="flex-1 px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-semibold hover:bg-rule transition-colors">
                 Cancel
               </button>
-              <button onClick={handleLevelDown} className="flex-1 px-4 py-2 bg-debuff text-white font-body text-[13px] font-medium hover:opacity-90 transition-colors">
+              <button onClick={handleLevelDown} className="flex-1 px-4 py-2 bg-debuff text-white font-body text-[13px] font-semibold hover:opacity-90 transition-colors">
                 Remove Level
               </button>
             </div>
@@ -522,14 +522,14 @@ export default function CharacterSheetPage() {
             </h3>
             {restModal === 'short' ? (
               <>
-                <p className="font-body text-[13px] font-medium text-muted mb-3">
+                <p className="font-body text-[13px] font-semibold text-muted mb-3">
                   Spend hit dice to regain hit points. For each die spent, regain 1d{Object.values(hitDiceMap)[0]?.faces ?? 8} + CON modifier HP.
                   {Object.keys(spellSlots).some(k => k.startsWith('pact_')) ? ' Warlock pact slots will be restored.' : ''}
                 </p>
                 <div className="space-y-2 mb-4">
                   {Object.entries(hitDiceMap).map(([cls, hd]) => (
                     <div key={cls} className="flex items-center justify-between bg-page-alt border border-rule px-3 py-2">
-                      <span className="font-body text-[13px] font-medium text-ink">{cls} (d{hd.faces})</span>
+                      <span className="font-body text-[13px] font-semibold text-ink">{cls} (d{hd.faces})</span>
                       <div className="flex items-center gap-2">
                         <span className="font-body text-[11px] text-faint">{hd.remaining}/{hd.total} remaining</span>
                         <button
@@ -548,22 +548,22 @@ export default function CharacterSheetPage() {
                   ))}
                 </div>
                 {Object.keys(spellSlots).some(k => k.startsWith('pact_')) && (
-                  <p className="font-body text-[11px] font-medium text-cls-warlock mb-3">Warlock pact slots will be restored on short rest.</p>
+                  <p className="font-body text-[11px] font-semibold text-cls-warlock mb-3">Warlock pact slots will be restored on short rest.</p>
                 )}
                 {featResources.some(r => r.resetOn === 'shortRest') && (
-                  <p className="font-body text-[11px] font-medium text-cls-monk mb-3">Short rest abilities will be restored.</p>
+                  <p className="font-body text-[11px] font-semibold text-cls-monk mb-3">Short rest abilities will be restored.</p>
                 )}
               </>
             ) : (
-              <p className="font-body text-[13px] font-medium text-muted mb-4">
+              <p className="font-body text-[13px] font-semibold text-muted mb-4">
                 Regain all hit points, reset spell slots, and regain half your total hit dice (minimum 1).
               </p>
             )}
             <div className="flex gap-3">
-              <button onClick={() => { setRestModal(null); setShortRestDice({}); }} className="flex-1 px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-medium hover:bg-rule transition-colors">Cancel</button>
+              <button onClick={() => { setRestModal(null); setShortRestDice({}); }} className="flex-1 px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-semibold hover:bg-rule transition-colors">Cancel</button>
               <button
                 onClick={restModal === 'short' ? handleShortRest : handleLongRest}
-                className="flex-1 px-4 py-2 bg-ink text-card font-body text-[13px] font-medium hover:opacity-90 transition-colors"
+                className="flex-1 px-4 py-2 bg-ink text-card font-body text-[13px] font-semibold hover:opacity-90 transition-colors"
               >
                 {restModal === 'short' ? 'Short Rest' : 'Long Rest'}
               </button>

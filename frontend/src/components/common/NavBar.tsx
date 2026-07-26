@@ -67,7 +67,7 @@ export default function NavBar() {
             <button
               key={link.path}
               onClick={() => navigate(link.path)}
-              className={`px-2.5 py-1 font-body text-[14px] font-medium transition-colors ${
+              className={`px-2.5 py-1 font-body text-[14px] font-semibold transition-colors ${
                 isActive(link.path)
                   ? 'text-ink font-semibold border-b-2 border-ink'
                   : 'text-muted hover:text-ink'
@@ -81,13 +81,13 @@ export default function NavBar() {
 
           <button
             onClick={() => navigate('/select-role')}
-            className="px-2.5 py-1 font-body text-[14px] font-medium text-muted hover:text-ink transition-colors"
+            className="px-2.5 py-1 font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors"
           >
             Switch Role
           </button>
           <button
             onClick={logout}
-            className="px-2.5 py-1 font-body text-[14px] font-medium text-muted hover:text-ink transition-colors"
+            className="px-2.5 py-1 font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors"
           >
             Sign Out
           </button>

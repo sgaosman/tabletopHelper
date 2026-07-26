@@ -88,14 +88,14 @@ export default function ItemsPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">Items</h1>
-        <p className="font-body text-[13px] font-medium text-muted mb-6">Browse weapons, armour, and magic items</p>
+        <p className="font-body text-[13px] font-semibold text-muted mb-6">Browse weapons, armour, and magic items</p>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-faint" size={16} />
             <input type="text" placeholder="Search items..."
               value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none" />
+              className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none" />
           </div>
           <MultiSelect options={types} selected={typeFilter} onChange={setTypeFilter} placeholder="All Types" accentColor="emerald" />
           <MultiSelect options={rarities} selected={rarityFilter} onChange={setRarityFilter} placeholder="All Rarities" accentColor="emerald" />
@@ -103,10 +103,10 @@ export default function ItemsPage() {
         </div>
 
         <div className="flex items-center justify-between mb-4">
-          <p className="font-body text-[12px] font-medium text-muted">{totalElements} items found</p>
+          <p className="font-body text-[12px] font-semibold text-muted">{totalElements} items found</p>
           {hasFilters && (
             <button onClick={clearFilters}
-              className="flex items-center gap-1.5 px-3 py-1 font-heading text-[9px] font-medium tracking-[0.04em] text-muted hover:text-ink transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1 font-heading text-[9px] font-semibold tracking-[0.04em] text-muted hover:text-ink transition-colors">
               <RotateCcw size={12} /> Clear Filters
             </button>
           )}
@@ -142,20 +142,20 @@ export default function ItemsPage() {
                             className={`border-b border-rule-light hover:bg-page-alt cursor-pointer transition-colors ${selectedItem?.id === item.id ? 'bg-page-alt' : ''}`}>
                             <td className="px-3 py-2">
                               <span className="font-heading text-[13px] font-bold text-ink">{item.name}</span>
-                              {item.requiresAttunement && <span className="ml-2 font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 text-cls-warlock border border-illu-border bg-illu-bg">A</span>}
+                              {item.requiresAttunement && <span className="ml-2 font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-cls-warlock border border-illu-border bg-illu-bg">A</span>}
                             </td>
-                            <td className="px-3 py-2 font-body text-[13px] font-medium text-muted hidden md:table-cell">{item.type}</td>
+                            <td className="px-3 py-2 font-body text-[13px] font-semibold text-muted hidden md:table-cell">{item.type}</td>
                             <td className="px-3 py-2 hidden md:table-cell">
                               {rarity ? (
-                                <span className="font-heading text-[9px] font-medium tracking-[0.02em] px-1.5 py-0.5 capitalize" style={{ color: rarity.text, backgroundColor: rarity.bg, border: `1px solid ${rarity.border}` }}>
+                                <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 capitalize" style={{ color: rarity.text, backgroundColor: rarity.bg, border: `1px solid ${rarity.border}` }}>
                                   {item.rarity}
                                 </span>
                               ) : (
                                 <span className="font-body text-[13px] text-faint">-</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 font-body text-[13px] font-medium text-muted hidden lg:table-cell">{item.cost || '-'}</td>
-                            <td className="px-3 py-2 font-body text-[13px] font-medium text-faint hidden lg:table-cell">{sourceName(item.source || '')}</td>
+                            <td className="px-3 py-2 font-body text-[13px] font-semibold text-muted hidden lg:table-cell">{item.cost || '-'}</td>
+                            <td className="px-3 py-2 font-body text-[13px] font-semibold text-faint hidden lg:table-cell">{sourceName(item.source || '')}</td>
                           </tr>
                         );
                       })}
@@ -169,7 +169,7 @@ export default function ItemsPage() {
                       className="p-2 bg-card border border-rule hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       <ChevronLeft size={18} className="text-muted" />
                     </button>
-                    <span className="font-body text-[13px] font-medium text-muted">Page {page + 1} of {totalPages}</span>
+                    <span className="font-body text-[13px] font-semibold text-muted">Page {page + 1} of {totalPages}</span>
                     <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                       className="p-2 bg-card border border-rule hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       <ChevronRight size={18} className="text-muted" />
@@ -200,7 +200,7 @@ export default function ItemsPage() {
         {selectedItem && (
           <div className="md:hidden fixed inset-0 z-50 bg-page overflow-y-auto p-4">
             <button onClick={() => setSelectedItem(null)}
-              className="flex items-center gap-2 font-body text-[14px] font-medium text-muted hover:text-ink mb-4">
+              className="flex items-center gap-2 font-body text-[14px] font-semibold text-muted hover:text-ink mb-4">
               <ChevronLeft size={18} /> Back to Items
             </button>
             <ItemCard item={selectedItem} />

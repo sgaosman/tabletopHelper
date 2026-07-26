@@ -47,16 +47,16 @@ export default function AbilityScoresStep({
 
       {abilityMethod === 'standard' && (
         <div>
-          <p className="font-body text-[13px] font-medium text-muted mb-4">Assign each value to an ability: {STANDARD_ARRAY.join(', ')}</p>
+          <p className="font-body text-[13px] font-semibold text-muted mb-4">Assign each value to an ability: {STANDARD_ARRAY.join(', ')}</p>
           <StandardArrayAssigner assignments={standardAssignments} onChange={setStandardAssignments} racialBonuses={racialBonuses} />
         </div>
       )}
 
       {abilityMethod === 'pointbuy' && (
         <div>
-          <p className="font-body text-[13px] font-medium text-muted mb-2">Points spent: <span className={pointBuyTotal > 27 ? 'text-debuff' : 'text-cls-druid'}>{pointBuyTotal}/27</span></p>
+          <p className="font-body text-[13px] font-semibold text-muted mb-2">Points spent: <span className={pointBuyTotal > 27 ? 'text-debuff' : 'text-cls-druid'}>{pointBuyTotal}/27</span></p>
           {pointBuyTotal < 27 && pointBuyTotal > 0 && (
-            <p className="font-body text-[11px] font-medium text-hp-wounded mb-2">You have {27 - pointBuyTotal} unspent point{27 - pointBuyTotal !== 1 ? 's' : ''}. You can still proceed.</p>
+            <p className="font-body text-[11px] font-semibold text-hp-wounded mb-2">You have {27 - pointBuyTotal} unspent point{27 - pointBuyTotal !== 1 ? 's' : ''}. You can still proceed.</p>
           )}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {ABILITIES.map(a => (
@@ -74,9 +74,9 @@ export default function AbilityScoresStep({
                   >+</button>
                 </div>
                 {racialBonuses[a] && (
-                  <p className="font-body text-[11px] font-medium text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
+                  <p className="font-body text-[11px] font-semibold text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
                 )}
-                <p className="font-body text-[11px] font-medium text-faint mt-1">
+                <p className="font-body text-[11px] font-semibold text-faint mt-1">
                   Final: {scores[a] + (racialBonuses[a] || 0)} ({formatMod(abilityMod(scores[a] + (racialBonuses[a] || 0)))})
                 </p>
               </div>
@@ -99,9 +99,9 @@ export default function AbilityScoresStep({
                 className="w-full text-center font-heading text-[17px] font-bold bg-page border border-rule py-2 text-ink focus:border-muted focus:outline-none"
               />
               {racialBonuses[a] && (
-                <p className="font-body text-[11px] font-medium text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
+                <p className="font-body text-[11px] font-semibold text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
               )}
-              <p className="font-body text-[11px] font-medium text-faint mt-1">
+              <p className="font-body text-[11px] font-semibold text-faint mt-1">
                 Final: {scores[a] + (racialBonuses[a] || 0)} ({formatMod(abilityMod(scores[a] + (racialBonuses[a] || 0)))})
               </p>
             </div>
@@ -151,10 +151,10 @@ function StandardArrayAssigner({
             })}
           </select>
           {racialBonuses[a] && (
-            <p className="font-body text-[11px] font-medium text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
+            <p className="font-body text-[11px] font-semibold text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
           )}
           {assignments[a] !== null && (
-            <p className="font-body text-[11px] font-medium text-faint mt-1">
+            <p className="font-body text-[11px] font-semibold text-faint mt-1">
               Final: {(assignments[a] ?? 0) + (racialBonuses[a] || 0)} ({formatMod(abilityMod((assignments[a] ?? 0) + (racialBonuses[a] || 0)))})
             </p>
           )}
