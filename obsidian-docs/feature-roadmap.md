@@ -9,14 +9,15 @@
 | 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
 | 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
 | 5 | Combat Engine | Complete | Full combat: damage, healing, conditions (with duration tracking), death saves, concentration, attack rolls, spell slot tracking, turn-based auto-expiry |
-| 6 | Polish, Mobile & Deployment | Deferred | Will be done after M14 when combat UI has stabilised |
+| 6 | Polish, Mobile & Deployment | Deferred | Trigger: full session playable with L5 chars vs CR15 monsters, M12/M12.5/M13 complete |
 | 7 | Data Gathering & Spell Effect Schema | Complete | 288 spells, 104 items, 2,357 monsters, class/race analysis — data files and review docs produced |
 | 8 | Spell Effect Data Population & Review Cycle | Complete | All data files validated and approved — 2 critical, 2 moderate, 48 markup fixes applied |
 | 9 | Character Builder Overhaul | Complete | Reference data entities, 5etools seeders, 6-step creation wizard, 6-tab character sheet, rest mechanics, proficiency display, character deletion, campaign assignment |
 | 10 | Character Leveling & Multiclass | Complete | Create at any level (1-20), level up/down with multiclass support, PHB prerequisite validation, ASI/feat/subclass choices, deterministic rollback via levelHistory |
 | 11 | Spell Resolver Engine & Encounter Spellcasting | Complete | Cast Spell action, auto-resolution for ~184 spells, source-tracked conditions, concentration cascade, silence check, cantrip/upcast scaling |
-| 26 | UI Redesign: Tourmaline Theme | Complete | Light mode, square corners, Cinzel + Cormorant Garamond fonts, tourmaline gradient nav accent, class-colored accents, warm parchment surfaces |
+| 24 | UI Redesign: Tourmaline Theme | Complete | Light mode, square corners, Cinzel + Cormorant Garamond fonts, tourmaline gradient nav accent, class-colored accents, warm parchment surfaces |
 | 12 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
+| 12.5 | CR 11-15 Monster Data Expansion | Not started | Extend structured monster actions from CR 10 to CR 15, required for M6 release trigger |
 | 13 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
@@ -28,6 +29,7 @@
 | 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
 | 22 | Architecture Review Action Plan | Complete | 6-way review, 2-week action plan: exception logging, short rest fix, concentration save fix, typed JSONB records, input validation, wizard draft saving, shared utils, wizard split, DB indexes + GIN, caching, CharacterService extraction, 38 tests |
 | 23 | Architecture Review 2 Action Plan | Complete | IDOR fix, long rest resource reset, unconscious auto-crit, ErrorBoundary, CombatService dedup, CharacterSheetPage split, HikariCP, @EntityGraph, Flyway, ARIA, FeatPicker extraction |
+| 24.5 | Generic Resource Pool System | Not started | Unified resource schema for Ki, Sorcery Points, Channel Divinity, legendary actions, breath weapons, etc. |
 | 25 | Comprehensive Testing Suite | Complete | 330 tests (220 backend + 110 frontend) across all services, utilities, and domain logic — see detailed breakdown below |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
@@ -145,7 +147,7 @@
 
 ## Milestone 6: Polish, Mobile & Deployment (DEFERRED)
 
-**Status:** Deferred — will be done after M14 when combat UI has stabilised. The encounter session UI will be substantially rebuilt by M11–M13, making early polish work throwaway.
+**Status:** Deferred — trigger is when the DM and players can play a full session of D&D with up to 5th level characters (and up to CR 15 monsters) at minimum, with any combination of character classes and enemies and only occasionally (fewer than 5 unique instances per combat session) have to manually adjudicate rulings. Requires M12 (CR 0-10 monsters), M12.5 (CR 11-15 expansion), and M13 (action economy for reactions) at minimum before the combat UI is stable enough to polish.
 
 **Tasks:**
 - [ ] Mobile-responsive encounter screens
@@ -364,7 +366,7 @@ Phase 3 — Multiclass at creation:
 - `V2__spell_resolver_fields.sql`, `V4__add_concentration_slot_level.sql`, `V5__add_spell_effect_repeat_action_type.sql` — Flyway migrations
 - `SpellResolverEngineTest.java` — 40 unit tests
 
-## Milestone 26: UI Redesign — Tourmaline Theme (Complete)
+## Milestone 24: UI Redesign — Tourmaline Theme (Complete)
 
 **Goal:** Complete visual overhaul from the default dark AI-generated look to a distinctive, fantasy-themed light UI.
 
@@ -411,12 +413,13 @@ Phase 3 — Multiclass at creation:
 - `frontend/src/utils/classColours.ts` — class color utility
 - `.claude/DESIGN_SYSTEM.md` — full design system reference
 
-## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions
+## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions (CR 0-10)
 
-**Goal:** DM can click monster stat block actions and have them auto-resolve against targets.
+**Goal:** DM can click monster stat block actions and have them auto-resolve against targets. Covers CR 0-10 monsters (~1,200-1,500 structured action definitions from M7 data). CR 11-15 expansion is M12.5.
 
 **Backend tasks:**
-- [ ] Parse monster stat block actions from M7 structured data (~1,300–1,600 monsters) into `MonsterActionTemplate` entities
+- [ ] Parse monster stat block actions from M7 structured data (~1,200-1,500 monsters, CR 0-10) into `MonsterActionTemplate` entities
+- [ ] Use generic `ResourcePoolEntry` schema for legendary action/resistance tracking on `EncounterParticipant`
 - [ ] `MonsterActionResolverEngine` — interprets action templates (same effect engine as spells)
 - [ ] `POST /api/encounters/{id}/combat/monster-action` endpoint: monsterParticipantId, actionName, targetParticipantIds
 - [ ] Legendary action pool tracking: `legendaryActionsRemaining` field on `EncounterParticipant`, resets at start of monster's turn, decremented on use
@@ -434,6 +437,18 @@ Phase 3 — Multiclass at creation:
 - [ ] Recharge indicator on actions (available / needs recharge)
 - [ ] Monster spellcasting panel (separate from action panel, shows available spells and slots — slots visible to DM only)
 - [ ] Attack source selector: when DM attacks, optionally select which creature is doing the attack for clearer combat log entries
+
+## Milestone 12.5: CR 11-15 Monster Data Expansion
+
+**Goal:** Extend structured monster action data from CR 0-10 to cover CR 11-15 (~200-300 additional monsters), enabling the M6 release trigger (any combination of up to CR 15 monsters).
+
+**Backend tasks:**
+- [ ] Parse and validate structured action data for all CR 11-15 monsters from M7 raw data
+- [ ] Add to existing `MonsterActionTemplate` entities / data files
+- [ ] Re-run validation checks across the expanded dataset
+- [ ] Regression test M12 resolver engine against expanded data
+
+**Dependencies:** M12 (resolver engine must be built first for validation), M24.5 (generic resource pools for legendary actions/resistances).
 
 ## Milestone 13: Enhanced Action Economy
 
@@ -489,12 +504,14 @@ Phase 3 — Multiclass at creation:
 
 ## Milestone 15: Persistent Spell Effects as Companion Participants
 
-**Goal:** Spells like Spiritual Weapon, Flaming Sphere, and summoned creatures appear as sub-cards beneath the caster in the initiative order.
+**Goal:** Persistent AoE zone effects (Hunger of Hadar, Cloud of Daggers, Spirit Guardians, Moonbeam, etc.) and non-concentration persistent effects (Spiritual Weapon) appear as sub-cards beneath the caster in the initiative order. **Note:** Summoning creatures (Conjure Animals, Find Familiar) are handled in M26 — this milestone covers persistent *effects* that do not make independent decisions.
 
 **Backend tasks:**
 - [ ] New `ParticipantType`: `COMPANION`
 - [ ] `summonedByParticipantId` FK on `EncounterParticipant` linking companion to caster
-- [ ] Auto-create companion participant when a SUMMON spell is cast
+- [ ] Auto-create companion participant when a persistent zone/concentration effect spell is cast
+- [ ] **Extend `dropConcentrationCascade()` to also remove COMPANION participants** (not just conditions). When a caster drops concentration, all COMPANIONs `summonedByParticipantId` matching that caster are removed.
+- [ ] **Cascade companion effects:** If a COMPANION applied conditions to other participants (e.g., a summoned fey's charm), those conditions are also removed when the COMPANION is removed.
 - [ ] Auto-remove companion when concentration drops or duration ends
 - [ ] Companion actions resolve through the same effect engine
 - [ ] Companion initiative: acts on caster's turn (or specific initiative as defined by spell)
@@ -521,10 +538,11 @@ Phase 3 — Multiclass at creation:
 
 ## Milestone 17: Class Feature Automation
 
-**Goal:** Automate common class features used in combat encounters.
+**Goal:** Automate common class features used in combat encounters. Builds on M24.5 (Generic Resource Pool) for resource tracking and M13 (action economy) for spend action type validation.
 
 **Backend tasks:**
 - [ ] Feature action endpoints: `POST /api/encounters/{id}/combat/use-feature`
+- [ ] Seed class feature resource pools from M7 class feature analysis data into `resource_pools`
 - [ ] Fighter: Second Wind (bonus action heal), Action Surge (extra action)
 - [ ] Cleric: Channel Divinity (class + subclass options), Turn Undead
 - [ ] Rogue: Cunning Action (bonus action Dash/Disengage/Hide), Sneak Attack (extra damage, once per turn)
@@ -534,36 +552,61 @@ Phase 3 — Multiclass at creation:
 - [ ] Monk: Ki Points, Flurry of Blows, Patient Defense, Step of the Wind
 - [ ] Druid: Wild Shape (stat block swap)
 - [ ] Wizard: Arcane Recovery (recover spell slots on short rest)
-- [ ] Use/recharge tracking per feature
 
 **Frontend tasks:**
 - [ ] Feature buttons in encounter action panel (context-aware: show on correct turn, check uses remaining)
-- [ ] Feature resource counters (Ki points, Bardic Inspiration uses, Channel Divinity uses, etc.)
+- [ ] Feature resource counters from `resource_pools_current` (Ki points, Bardic Inspiration uses, Channel Divinity uses, etc.)
 - [ ] Divine Smite prompt on hit (choose spell slot level for extra damage)
+
+**Dependencies:** M24.5 (resource pools), M13 (action economy), M7 class feature analysis data.
 
 ## Milestone 18: Sorcerer Metamagic
 
-**Goal:** Implement Sorcerer-specific metamagic options with Sorcery Point tracking.
+**Goal:** Implement Sorcerer-specific metamagic options with Sorcery Point tracking. Builds on M24.5 (Generic Resource Pool) for Sorcery Points and M13 (action economy) for Quickened Spell interaction.
 
 **Backend tasks:**
-- [ ] Sorcery Point tracking (pool size = sorcerer level)
+- [ ] Sorcery Points via `resource_pools` with `sourceType="CLASS"`, `resetOn="longRest"`
 - [ ] Metamagic options:
   - Twinned Spell: spend sorcery points = spell level to target a second creature
-  - Quickened Spell: spend 2 points to cast as bonus action instead of action
+  - Quickened Spell: spend 2 points to cast as bonus action instead of action (validated by M13 action economy)
   - Subtle Spell: spend 1 point to cast without verbal/somatic components
   - Heightened Spell: spend 3 points to give one target disadvantage on save
   - Other metamagic options as needed
-- [ ] Font of Magic: convert sorcery points ↔ spell slots
+- [ ] Font of Magic: convert sorcery points ↔ spell slots (exchanges between resource pool and spell slot systems)
 - [ ] Validation: correct sorcery point cost, eligible spells for each metamagic
+- [ ] **Full testing against all currently implemented spells** to verify metamagic interactions
 
 **Frontend tasks:**
 - [ ] Metamagic toggle buttons when casting a spell (show eligible options)
-- [ ] Sorcery Point counter on character sheet and in encounter panel
+- [ ] Sorcery Point counter from `resource_pools` on character sheet and encounter panel
 - [ ] Font of Magic UI: convert points to slots or slots to points
+
+**Dependencies:** M24.5 (resource pools), M13 (action economy), M11 (spell resolver)
 
 ---
 
-**Parallelism note:** M7 (data gathering) and the non-spell parts of M9 (character builder) can run in parallel — they have no dependencies on each other. M9's Spells tab is blocked by M7/M8 completion. M10 (character leveling) depends on M9 (character builder) and the M7 class feature analysis (levels 1–5, to be extended to 1–20). M11 depends on M7/M8 (spell data) and M9 (character with spell lists). M12 depends on M7 (monster action data). M13 and M14 depend on M11/M12. M15–M18 depend on M11 being complete. M10 and M11 have no dependency on each other and can run in parallel. M19 (glossary tooltips) has no dependencies and can be done at any time. M20 (feat automation) depends on M10.
+**Dependency chain (post-grilling 2026-07-26):**
+- M7 (data gathering) and non-spell parts of M9 (character builder) — parallel, no dependency
+- M9's Spells tab ← M7/M8 (spell data)
+- M10 (character leveling) ← M9, M7 class feature analysis
+- M11 (spell resolver) ← M7/M8 (spell data), M9 (character spell lists)
+- M10 and M11 — parallel, no dependency on each other
+- **M24.5 (Generic Resource Pool)** — foundation for M12, M17, M18; no dependencies, can be done first
+- **M24 (Tourmaline Theme)** — no dependencies, complete
+- **M12 (Monster Actions CR 0-10)** ← M7 (monster action data), M24.5 (resource pools for legendary actions/resistances)
+- **M12.5 (CR 11-15 Expansion)** ← M12 (resolver engine), M24.5 (resource pools)
+- **M13 (Enhanced Action Economy)** ← M11, M12 (monster actions trigger reactions), M24.5 (spendActionType validation)
+- **M14 (Undo)** ← M11, M12 (must capture all action types), M13 (action economy actions)
+- **M15 (Persistent Effects)** ← M11 (spell automation)
+- **M17 (Class Feature Automation)** ← M24.5 (resource pools), M13 (action economy), M11
+- **M18 (Sorcerer Metamagic)** ← M24.5 (resource pools), M13 (action economy), M11 (spell resolver)
+- **M19 (Glossary Tooltips)** — no dependencies, can be done at any time
+- **M20 (Feat Automation)** ← M10 (leveling)
+- **M21 (Wizard Spellbook)** ← M9, M10
+- **M22/M23 (Architecture Reviews)** — parallel to feature work
+- **M25 (Testing)** — comprehensive, done
+- **M26 (Summoning Spells)** ← M15 (COMPANION system), M24.5 (resource pools), M12 (monster stat blocks)
+- **M6 (Polish & Deployment)** ← M12, M12.5 (CR 15 trigger), M13 (stable combat UI)
 
 ## Milestone 19: Glossary Tooltips
 
@@ -684,6 +727,68 @@ Phase 3 — Multiclass at creation:
 - `sheet/` — 8 extracted tab components
 - `FeatPicker.tsx` — extracted from AsiModal
 
+## Milestone 24.5: Generic Resource Pool System
+
+**Goal:** A unified, extensible resource pool schema that replaces the fragmented `feat_resources`, `hit_dice_map` patterns and provides shared infrastructure for M12 (legendary actions/resistances), M17 (class features), M18 (sorcerer metamagic), and monster recharge abilities.
+
+**Design:**
+
+A `resource_pools` JSONB column on `player_characters` and `resource_pools_current` JSONB on `encounter_participants` stores an array of `ResourcePoolEntry` objects:
+
+```json
+{
+  "poolId": "class:monk-ki",
+  "displayName": "Ki Points",
+  "sourceType": "CLASS",
+  "sourceName": "Monk",
+  "maxUses": 5,
+  "currentUses": 3,
+  "resetOn": "shortRest",
+  "spendActionType": "BONUS_ACTION",
+  "icon": "zap",
+  "metadata": {}
+}
+```
+
+**What it consolidates:**
+
+| Existing | Old format | New home |
+|----------|-----------|----------|
+| Feat resources (Lucky, Battle Master) | `feat_resources` JSONB | `resource_pools` with `sourceType="FEAT"` |
+| Hit dice | `hit_dice_map` JSONB | `resource_pools` with `sourceType="CLASS"`, `metadata.faces=10` |
+| Legendary actions (monster) | Not tracked yet | `resource_pools_current` on encounter with `resetOn="turn"` |
+| Legendary resistance | Not tracked yet | `resource_pools_current` with `resetOn="longRest"` |
+| Channel Divinity, Ki, Rage, etc. | Not tracked yet | `resource_pools` with `sourceType="CLASS"` |
+| Sorcery Points | Not tracked yet | `resource_pools` with `sourceType="CLASS"` |
+| Breath weapon recharge | Not tracked yet | `resource_pools_current` with `resetOn="shortRest"` |
+
+**Spell slots** remain separate — they have unique UI (9 levels, upcasting, pact magic split) that doesn't fit the pool model.
+
+**Rest system integration:**
+- `shortRest()`: resets all pools where `resetOn == "shortRest" || "longRest"`
+- `longRest()`: resets all pools where `resetOn == "longRest"` + hit dice recovery
+- `advanceTurn()`: resets all pools where `resetOn == "turn"` (legendary actions)
+
+**Backend tasks:**
+- [ ] Add `ResourcePoolEntry` Java record matching the schema above
+- [ ] Add `resource_pools` JSONB column to `player_characters` (Flyway V8)
+- [ ] Add `resource_pools_current` JSONB column to `encounter_participants` (Flyway V8)
+- [ ] Migrate existing `feat_resources` and `hit_dice_map` into `resource_pools`
+- [ ] Update `resetFeatResources()` → `resetResourcePools()` with shared logic
+- [ ] Update encounter join to copy resource pools to participant (like HP/AC)
+- [ ] Wire `advanceTurn()` to reset per-round pools
+- [ ] Wire M13 action economy validation to check `spendActionType`
+- [ ] Deprecate old `feat_resources` and `hit_dice_map` columns
+- [ ] Tests: pool migration, reset logic, encounter copy, per-round reset
+
+**Frontend tasks:**
+- [ ] Resource pool display component (pill/badge with current/max)
+- [ ] Integration into character sheet Stats tab (replace hit dice + feat resources displays)
+- [ ] Integration into encounter participant display
+- [ ] Per-round reset visual indicator
+
+**Dependencies:** None (foundational infrastructure). Should be completed before or alongside M12.
+
 ## Milestone 25: Comprehensive Testing Suite — COMPLETE
 
 **Goal:** Full test coverage across every unique functionality pattern in the application.
@@ -750,7 +855,7 @@ Phase 3 — Multiclass at creation:
 **Spells in scope (levels 0–3 in current definitions):**
 Conjure Animals (L3), Summon Beast (L2), Summon Fey (L3), Summon Shadowspawn (L3), Summon Undead (L3), Summon Lesser Demons (L3), Find Familiar (L1), Find Steed (L2), Flock of Familiars (L2), Animate Dead (L3), Tiny Servant (L3)
 
-**Dependencies:** Monster reference data (M7/M8 complete), encounter participant system (existing).
+**Dependencies:** M15 (COMPANION participant system, concentration-linked removal), M24.5 (resource pools for summoned creature features), M12 (monster stat blocks for base creature data).
 
 ---
 
