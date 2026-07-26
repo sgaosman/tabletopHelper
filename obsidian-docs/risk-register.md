@@ -35,7 +35,7 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Category:** Feature
 **Severity:** Low — incomplete character sheet is annoying but not blocking
 **Likelihood:** Low — core functionality now in place
-**Status:** Largely mitigated (M9, M10, M20, M21, M24 complete)
+**Status:** Largely mitigated (M9, M10, M20, M21, M24/Tourmaline Theme complete)
 
 **Current state:** Character creation uses guided 7-step wizard (split into modular step components) with seeded reference data, localStorage draft saving, and beforeunload guard. Race/class/subclass/background selected from dropdowns. Ability scores via standard array, point buy, or manual entry. Derived stats auto-calculated. Six-tab character sheet with Stats, Actions, Spells, Inventory, Features, Journal. Proficiency collection from race + class + background. Short rest with multi-dice spending and warlock pact slot reset. Long rest mechanics. Campaign assignment. Character deletion with soft-delete. Spells tab fully functional: source-grouped boxes (per-class, race, feat), spell detail modal, preparation/known spell management modals, auto-calculated spell slots/DC/attack bonus. Wizard spellbook management (add/remove, prepare from spellbook only). Character leveling with level up/down, multiclass support, PHB prerequisite validation, ASI/feat/subclass choices, deterministic rollback via levelHistory. Feat automation with full mechanical effects (ability scores, proficiencies, resistances, speed, resources, spells).
 
@@ -145,7 +145,7 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Category:** Feature / Scope
 **Severity:** Low — core builder shipped, remaining items are enhancements
-**Likelihood:** Low — M9/M10/M20/M21/M24 delivered the full creation wizard, leveling, feat automation, and spellbook management
+**Likelihood:** Low — M9/M10/M20/M21/M24/Tourmaline Theme delivered the full creation wizard, leveling, feat automation, and spellbook management
 **Status:** Largely mitigated
 
 **Current state:** 7-step guided creation wizard (split into modular step components with draft saving) with 226 races, 13 classes, 124 subclasses, 101 backgrounds. All ability score methods implemented. Multiclass support with PHB spell slot calculation and prerequisite validation. Pact Magic handled. Short rest with multi-dice spending and warlock pact slot reset. Long rest mechanics. Background equipment and proficiency rendering. Campaign assignment and character deletion. Level up/down with multiclass support, ASI/feat/subclass choices, and deterministic rollback. Feat effect automation (29 feats with structured effects). Wizard spellbook management. 1/3 caster support (Eldritch Knight, Arcane Trickster).
@@ -177,7 +177,7 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Category:** Reliability
 **Severity:** Critical — character data silently corrupted with no error logged
 **Likelihood:** High — 18+ `catch (Exception ignored) {}` blocks in the most-used service
-**Status:** Resolved (M24)
+**Status:** Resolved (M22 — Architecture Review Action Plan)
 
 **Resolution:** All 18 silent catch blocks replaced with `log.error()` calls. Critical operations (`recalculateSpellSlots`, `appendLevelHistory`) now re-throw after logging so the transaction rolls back on failure.
 
@@ -186,9 +186,9 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Category:** Quality
 **Severity:** High — regressions in level up/down, spell slots, feat effects go undetected
 **Likelihood:** High — no tests existed anywhere in the project
-**Status:** Partially mitigated (M24)
+**Status:** Resolved (M25 — Comprehensive Testing Suite)
 
-**Resolution:** 39 backend unit tests added covering `SpellSlotCalculator` (12 tests), `LevelUpCalculator` (10 tests), `MulticlassValidator` (9 tests), and `CharacterService` static methods (8 tests). Frontend tests still not present.
+**Resolution:** 330 tests (220 backend + 110 frontend) added covering all services, utilities, and domain logic. See [[feature-roadmap#Milestone 25: Comprehensive Testing Suite]] for full breakdown.
 
 **Remaining:** No frontend tests (React Testing Library). No integration tests hitting a real database. No end-to-end tests.
 
