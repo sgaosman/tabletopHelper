@@ -196,7 +196,7 @@ export default function ReviewStep({
                 {spellGroups.map(g => (
                   <div key={g.label}>
                     <p className="font-body text-[11px] text-faint">{g.label}</p>
-                    <p className="font-body text-[13px] font-medium text-ink">{g.spells.join(', ')}</p>
+                    <p className="font-body text-[13px] font-semibold text-ink">{g.spells.join(', ')}</p>
                   </div>
                 ))}
               </div>
@@ -225,7 +225,7 @@ export default function ReviewStep({
                 {groups.map(g => (
                   <div key={g.scName}>
                     <p className="font-body text-[11px] text-faint">{g.scName}</p>
-                    <p className="font-body text-[13px] font-medium text-buff">{g.spells.join(', ')}</p>
+                    <p className="font-body text-[13px] font-semibold text-buff">{g.spells.join(', ')}</p>
                   </div>
                 ))}
               </div>
@@ -240,14 +240,14 @@ export default function ReviewStep({
               <div key={a} className="text-center bg-page py-2">
                 <p className="font-heading text-[8px] font-semibold tracking-[0.1em] uppercase text-faint">{ABILITY_LABELS[a]}</p>
                 <p className="font-heading text-[17px] font-bold text-ink">{finalScores[a]}</p>
-                <p className="font-body text-[11px] font-medium text-muted">{formatMod(abilityMod(finalScores[a]))}</p>
+                <p className="font-body text-[11px] font-semibold text-muted">{formatMod(abilityMod(finalScores[a]))}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {error && <p className="font-body text-[13px] font-medium text-debuff">{error}</p>}
+      {error && <p className="font-body text-[13px] font-semibold text-debuff">{error}</p>}
     </div>
   );
 }
@@ -256,7 +256,7 @@ function ReviewField({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">{label}</p>
-      <p className="font-body text-[13px] font-medium text-ink">{value}</p>
+      <p className="font-body text-[13px] font-semibold text-ink">{value}</p>
     </div>
   );
 }

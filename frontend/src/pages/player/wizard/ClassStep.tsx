@@ -49,7 +49,7 @@ export default function ClassStep({
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-[15px] font-semibold text-ink">Choose a Class</h2>
-      <p className="font-body text-[13px] font-medium text-muted">Select your primary class{level >= 2 ? '. You can optionally multiclass below.' : '.'}</p>
+      <p className="font-body text-[13px] font-semibold text-muted">Select your primary class{level >= 2 ? '. You can optionally multiclass below.' : '.'}</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {classes.map(cls => {
@@ -69,9 +69,9 @@ export default function ClassStep({
                 <h3 className="font-heading text-[13px] font-semibold text-ink">{cls.name}</h3>
                 <span className="font-body text-[11px] text-faint">d{cls.hitDice}</span>
               </div>
-              <p className="font-body text-[11px] font-medium text-muted mt-1">Primary: {cls.primaryAbility}</p>
-              {saves.length > 0 && <p className="font-body text-[11px] font-medium text-cls-druid">Saves: {saves.join(', ')}</p>}
-              {cls.isSpellcaster && <p className="font-body text-[11px] font-medium text-cls-sorcerer mt-0.5">Spellcaster ({cls.spellcastingAbility})</p>}
+              <p className="font-body text-[11px] font-semibold text-muted mt-1">Primary: {cls.primaryAbility}</p>
+              {saves.length > 0 && <p className="font-body text-[11px] font-semibold text-cls-druid">Saves: {saves.join(', ')}</p>}
+              {cls.isSpellcaster && <p className="font-body text-[11px] font-semibold text-cls-sorcerer mt-0.5">Spellcaster ({cls.spellcastingAbility})</p>}
             </button>
           );
         })}
@@ -87,7 +87,7 @@ export default function ClassStep({
             <div className="flex items-center gap-2">
               <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-muted">Multiclassing Options</h3>
               {classEntries.length > 1 && (
-                <span className="font-heading text-[9px] font-medium text-buff">({classEntries.length - 1} added)</span>
+                <span className="font-heading text-[9px] font-semibold text-buff">({classEntries.length - 1} added)</span>
               )}
             </div>
             <ChevronDown className={`w-4 h-4 text-faint transition-transform ${multiclassExpanded ? 'rotate-180' : ''}`} />
@@ -130,14 +130,14 @@ export default function ClassStep({
                         <h4 className="font-heading text-[13px] font-semibold text-ink">{cls.name}</h4>
                         <span className="font-body text-[11px] text-faint">d{cls.hitDice}</span>
                       </div>
-                      {saves.length > 0 && <p className="font-body text-[11px] font-medium text-cls-druid">Saves: {saves.join(', ')}</p>}
-                      {cls.isSpellcaster && <p className="font-body text-[11px] font-medium text-cls-sorcerer">Spellcaster ({cls.spellcastingAbility})</p>}
+                      {saves.length > 0 && <p className="font-body text-[11px] font-semibold text-cls-druid">Saves: {saves.join(', ')}</p>}
+                      {cls.isSpellcaster && <p className="font-body text-[11px] font-semibold text-cls-sorcerer">Spellcaster ({cls.spellcastingAbility})</p>}
                       {!canMulticlass && (
-                        <p className="font-body text-[11px] font-medium text-debuff mt-1">
+                        <p className="font-body text-[11px] font-semibold text-debuff mt-1">
                           {!exitEligibility.eligible ? `Exit: ${exitEligibility.reason}` : entryEligibility.reason}
                         </p>
                       )}
-                      {isAdded && <p className="font-body text-[11px] font-medium text-buff mt-1">Added to multiclass</p>}
+                      {isAdded && <p className="font-body text-[11px] font-semibold text-buff mt-1">Added to multiclass</p>}
                     </button>
                   );
                 })}
@@ -177,7 +177,7 @@ export default function ClassStep({
           {(() => {
             const total = classEntries.reduce((s, e) => s + e.level, 0);
             return total !== level && (
-              <p className="font-body text-[11px] font-medium text-debuff mt-2">Total levels: {total}/{level} — must equal character level</p>
+              <p className="font-body text-[11px] font-semibold text-debuff mt-2">Total levels: {total}/{level} — must equal character level</p>
             );
           })()}
         </div>
@@ -212,7 +212,7 @@ export default function ClassStep({
                   ))}
                 </div>
                 {!entry.subclass && (
-                  <p className="font-body text-[12px] font-medium text-hp-wounded mt-2">Subclass selection required at {entry.cls.name} level {subclassLvl}+</p>
+                  <p className="font-body text-[12px] font-semibold text-hp-wounded mt-2">Subclass selection required at {entry.cls.name} level {subclassLvl}+</p>
                 )}
               </div>
             )}
@@ -241,7 +241,7 @@ export default function ClassStep({
             <h3 className="font-heading text-[12px] font-semibold text-cls-monk">
               {asiCount} Ability Score Improvement{asiCount > 1 ? 's' : ''}
             </h3>
-            <p className="font-body text-[11px] font-medium text-muted mt-1">
+            <p className="font-body text-[11px] font-semibold text-muted mt-1">
               ASI at: {asiDetails.join(', ')}. You'll choose ability increases or feats after creation.
             </p>
           </div>
@@ -253,7 +253,7 @@ export default function ClassStep({
         <div className="mt-4 bg-card border border-rule p-4">
           <div className="flex items-center justify-between mb-1">
             <h3 className="font-heading text-[13px] font-semibold text-ink">Class Skill Proficiencies</h3>
-            <span className="font-heading text-[9px] font-medium text-faint">{selectedClassSkills.length}/{classSkillChoices.count} selected</span>
+            <span className="font-heading text-[9px] font-semibold text-faint">{selectedClassSkills.length}/{classSkillChoices.count} selected</span>
           </div>
           <p className="font-body text-[11px] text-faint mb-3">
             Choose {classSkillChoices.count} skill{classSkillChoices.count > 1 ? 's' : ''} from the {selectedClass.name} class list.
@@ -275,7 +275,7 @@ export default function ClassStep({
                     }
                   }}
                   disabled={disabled && !isSelected}
-                  className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
+                  className={`px-3 py-1.5 font-heading text-[9px] font-semibold tracking-[0.02em] transition-colors border ${
                     alreadyFromRace
                       ? 'bg-page text-faint cursor-not-allowed line-through border-rule'
                       : isSelected
@@ -293,7 +293,7 @@ export default function ClassStep({
             })}
           </div>
           {selectedClassSkills.length < classSkillChoices.count && (
-            <p className="font-body text-[11px] font-medium text-hp-wounded mt-3">Select {classSkillChoices.count - selectedClassSkills.length} more skill{classSkillChoices.count - selectedClassSkills.length > 1 ? 's' : ''} to continue</p>
+            <p className="font-body text-[11px] font-semibold text-hp-wounded mt-3">Select {classSkillChoices.count - selectedClassSkills.length} more skill{classSkillChoices.count - selectedClassSkills.length > 1 ? 's' : ''} to continue</p>
           )}
         </div>
       )}
@@ -312,7 +312,7 @@ export default function ClassStep({
           <div key={clsId} className="mt-4 bg-card border border-rule p-4">
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-heading text-[13px] font-semibold text-ink">{entry.cls.name} Multiclass Skills</h3>
-              <span className="font-heading text-[9px] font-medium text-faint">{selected.length}/{choices.count} selected</span>
+              <span className="font-heading text-[9px] font-semibold text-faint">{selected.length}/{choices.count} selected</span>
             </div>
             <p className="font-body text-[11px] text-faint mb-3">
               Choose {choices.count} skill{choices.count > 1 ? 's' : ''} from the {entry.cls.name} multiclass list.
@@ -334,7 +334,7 @@ export default function ClassStep({
                       }
                     }}
                     disabled={disabled && !isSelected}
-                    className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
+                    className={`px-3 py-1.5 font-heading text-[9px] font-semibold tracking-[0.02em] transition-colors border ${
                       alreadyTaken ? 'bg-page text-faint cursor-not-allowed line-through border-rule'
                         : isSelected ? 'bg-ink text-card border-ink'
                         : disabled ? 'bg-page text-faint cursor-not-allowed border-rule'
@@ -357,7 +357,7 @@ export default function ClassStep({
         <div className="mt-4 bg-card border border-rule p-4">
           <div className="flex items-center justify-between mb-1">
             <h3 className="font-heading text-[13px] font-semibold text-ink">Expertise</h3>
-            <span className="font-heading text-[9px] font-medium text-faint">{selectedExpertise.length}/{expertiseCount} selected</span>
+            <span className="font-heading text-[9px] font-semibold text-faint">{selectedExpertise.length}/{expertiseCount} selected</span>
           </div>
           <p className="font-body text-[11px] text-faint mb-3">
             Choose {expertiseCount} skill{expertiseCount > 1 ? 's' : ''} to gain expertise in (double proficiency bonus).
@@ -379,7 +379,7 @@ export default function ClassStep({
                       }
                     }}
                     disabled={disabled}
-                    className={`px-3 py-1.5 font-heading text-[9px] font-medium tracking-[0.02em] transition-colors border ${
+                    className={`px-3 py-1.5 font-heading text-[9px] font-semibold tracking-[0.02em] transition-colors border ${
                       isSelected ? 'bg-cls-monk text-white border-cls-monk'
                         : disabled ? 'bg-page text-faint cursor-not-allowed border-rule'
                         : 'bg-page text-muted border-rule hover:border-muted'
@@ -391,7 +391,7 @@ export default function ClassStep({
               })}
           </div>
           {selectedExpertise.length < expertiseCount && (
-            <p className="font-body text-[11px] font-medium text-hp-wounded mt-3">Select {expertiseCount - selectedExpertise.length} more skill{expertiseCount - selectedExpertise.length > 1 ? 's' : ''}</p>
+            <p className="font-body text-[11px] font-semibold text-hp-wounded mt-3">Select {expertiseCount - selectedExpertise.length} more skill{expertiseCount - selectedExpertise.length > 1 ? 's' : ''}</p>
           )}
         </div>
       )}

@@ -28,7 +28,7 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
             <div key={ability} className="bg-card border border-rule p-3 text-center">
               <p className="font-heading text-[8px] font-semibold tracking-[0.1em] uppercase text-faint">{ABILITY_ABBR[ability]}</p>
               <p className="font-heading text-[20px] font-bold text-ink mt-1">{score}</p>
-              <p className="font-body text-[12px] font-medium text-muted">{formatMod(mod)}</p>
+              <p className="font-body text-[12px] font-semibold text-muted">{formatMod(mod)}</p>
             </div>
           );
         })}
@@ -45,7 +45,7 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
             return (
               <div key={ability} className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${isProficient ? 'bg-buff' : 'bg-rule'}`} />
-                <span className="font-heading text-[11px] font-medium text-muted">{ABILITY_ABBR[ability]}</span>
+                <span className="font-heading text-[11px] font-semibold text-muted">{ABILITY_ABBR[ability]}</span>
                 <span className="font-heading text-[12px] font-bold text-ink ml-auto">{formatMod(total)}</span>
               </div>
             );
@@ -69,7 +69,7 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
                 ) : (
                   <div className={`w-2.5 h-2.5 rounded-full border-2 ${isProficient ? 'bg-buff border-buff' : 'bg-transparent border-rule'}`} />
                 )}
-                <span className={`font-body text-[13px] flex-1 ${isProficient || isExpert ? 'font-semibold text-ink' : 'font-medium text-muted'}`}>
+                <span className={`font-body text-[13px] flex-1 ${isProficient || isExpert ? 'font-semibold text-ink' : 'font-semibold text-muted'}`}>
                   {skill.name} <span className="text-faint text-[11px]">({ABILITY_ABBR[skill.ability]})</span>
                 </span>
                 <span className={`font-heading text-[12px] font-bold ${isProficient || isExpert ? 'text-ink' : 'text-faint'}`}>{formatMod(bonus)}</span>
@@ -99,25 +99,25 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
             {armorProfs.length > 0 && (
               <div>
                 <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Armor: </span>
-                <span className="font-body text-[13px] font-medium text-muted">{armorProfs.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}</span>
+                <span className="font-body text-[13px] font-semibold text-muted">{armorProfs.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}</span>
               </div>
             )}
             {weaponProfs.length > 0 && (
               <div>
                 <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Weapons: </span>
-                <span className="font-body text-[13px] font-medium text-muted">{weaponProfs.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(', ')}</span>
+                <span className="font-body text-[13px] font-semibold text-muted">{weaponProfs.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(', ')}</span>
               </div>
             )}
             {toolProfs.length > 0 && (
               <div>
                 <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Tools: </span>
-                <span className="font-body text-[13px] font-medium text-muted">{toolProfs.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}</span>
+                <span className="font-body text-[13px] font-semibold text-muted">{toolProfs.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}</span>
               </div>
             )}
             {languageProfs.length > 0 && (
               <div>
                 <span className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint">Languages: </span>
-                <span className="font-body text-[13px] font-medium text-muted">{languageProfs.join(', ')}</span>
+                <span className="font-body text-[13px] font-semibold text-muted">{languageProfs.join(', ')}</span>
               </div>
             )}
           </div>
@@ -129,7 +129,7 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
           <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-2">Resistances & Immunities</h3>
           <div className="flex flex-wrap gap-2">
             {resistances.map((r, i) => (
-              <span key={i} className="px-2 py-1 bg-page-alt border border-rule font-body text-[11px] font-medium text-muted">{r}</span>
+              <span key={i} className="px-2 py-1 bg-page-alt border border-rule font-body text-[11px] font-semibold text-muted">{r}</span>
             ))}
           </div>
         </div>

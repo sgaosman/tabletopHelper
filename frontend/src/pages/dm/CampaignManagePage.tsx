@@ -57,7 +57,7 @@ export default function CampaignManagePage() {
           <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink">Campaigns</h1>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> New Campaign
           </button>
@@ -74,7 +74,7 @@ export default function CampaignManagePage() {
               <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">Campaign Name</label>
               <input
                 type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200}
-                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
                 placeholder="e.g. Curse of Strahd"
               />
             </div>
@@ -84,13 +84,13 @@ export default function CampaignManagePage() {
               </label>
               <textarea
                 value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none resize-none"
+                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none resize-none"
                 placeholder="A brief description of your campaign"
               />
             </div>
             <div className="flex gap-3">
-              <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[13px] font-medium border border-ink hover:bg-muted hover:border-muted transition-colors">Create</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-page border border-rule font-body text-[13px] font-medium text-muted hover:border-muted transition-colors">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[13px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors">Create</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-page border border-rule font-body text-[13px] font-semibold text-muted hover:border-muted transition-colors">Cancel</button>
             </div>
           </form>
         )}
@@ -110,7 +110,7 @@ export default function CampaignManagePage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-heading text-[15px] font-semibold text-ink">{campaign.name}</h3>
-                    {campaign.description && <p className="font-body text-[13px] font-medium text-muted mt-1">{campaign.description}</p>}
+                    {campaign.description && <p className="font-body text-[13px] font-semibold text-muted mt-1">{campaign.description}</p>}
                   </div>
                   <button
                     onClick={() => navigate(`/dm/campaigns/${campaign.id}`)}
@@ -128,7 +128,7 @@ export default function CampaignManagePage() {
                       {copiedCode === campaign.inviteCode ? <Check className="w-3.5 h-3.5 text-buff" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  <span className="font-body text-[12px] font-medium text-muted">
+                  <span className="font-body text-[12px] font-semibold text-muted">
                     {campaign.members.length} member{campaign.members.length !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -136,8 +136,8 @@ export default function CampaignManagePage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {campaign.members.map((m) => (
                     <span key={m.userId} className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-page border border-rule">
-                      <span className="font-body text-[11px] font-medium text-ink">{m.displayName}</span>
-                      <span className={`font-heading text-[9px] font-medium ${m.role === 'DM' ? 'text-cls-cleric' : 'text-cls-wizard'}`}>{m.role}</span>
+                      <span className="font-body text-[11px] font-semibold text-ink">{m.displayName}</span>
+                      <span className={`font-heading text-[9px] font-semibold ${m.role === 'DM' ? 'text-cls-cleric' : 'text-cls-wizard'}`}>{m.role}</span>
                     </span>
                   ))}
                 </div>

@@ -53,7 +53,7 @@ export default function CampaignDetailPage() {
       <main className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">{campaign.name}</h1>
-          {campaign.description && <p className="font-body text-[13px] font-medium text-muted">{campaign.description}</p>}
+          {campaign.description && <p className="font-body text-[13px] font-semibold text-muted">{campaign.description}</p>}
 
           <div className="flex items-center gap-2 mt-4 bg-card border border-rule px-4 py-2.5 w-fit">
             <span className="font-heading text-[9px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
@@ -72,10 +72,10 @@ export default function CampaignDetailPage() {
             {campaign.members.map((m) => (
               <div key={m.userId} className="bg-card border border-rule p-3 flex items-center justify-between">
                 <div>
-                  <p className="font-heading text-[13px] font-semibold text-ink">{m.displayName}</p>
-                  <p className="font-body text-[11px] font-medium text-faint">@{m.username}</p>
+                  <p className="font-heading text-[13px] font-bold text-ink">{m.displayName}</p>
+                  <p className="font-body text-[11px] font-semibold text-faint">@{m.username}</p>
                 </div>
-                <span className={`font-heading text-[9px] font-medium tracking-[0.04em] px-2 py-0.5 border ${m.role === 'DM' ? 'text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]' : 'text-cls-wizard bg-cls-wizard-bg border-abj-border'}`}>
+                <span className={`font-heading text-[9px] font-semibold tracking-[0.04em] px-2 py-0.5 border ${m.role === 'DM' ? 'text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]' : 'text-cls-wizard bg-cls-wizard-bg border-abj-border'}`}>
                   {m.role}
                 </span>
               </div>
@@ -99,7 +99,7 @@ export default function CampaignDetailPage() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <h3 className="font-heading text-[14px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
-                        <p className="font-body text-[12px] font-medium text-muted">
+                        <p className="font-body text-[12px] font-semibold text-muted">
                           Level {c.level} {c.race} {c.characterClass}{c.subclass ? ` (${c.subclass})` : ''}
                           <span className="text-faint"> — played by {c.ownerDisplayName}</span>
                         </p>

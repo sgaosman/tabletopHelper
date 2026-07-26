@@ -12,7 +12,7 @@ export default function RoleSelectPage() {
         <h1 className="font-heading text-[20px] font-semibold tracking-[0.02em] text-ink mb-1">
           Welcome, {user?.displayName}
         </h1>
-        <p className="font-body text-[14px] font-medium text-muted">Choose your role for this session</p>
+        <p className="font-body text-[14px] font-semibold text-muted">Choose your role for this session</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl">
@@ -22,7 +22,7 @@ export default function RoleSelectPage() {
         >
           <Shield className="w-14 h-14 mx-auto mb-4 text-cls-cleric group-hover:scale-105 transition-transform" />
           <h2 className="font-heading text-[15px] font-semibold text-ink mb-2">Dungeon Master</h2>
-          <p className="font-body text-[13px] font-medium text-muted">
+          <p className="font-body text-[13px] font-semibold text-muted">
             Create campaigns, build encounters, and run combat sessions
           </p>
         </button>
@@ -33,7 +33,7 @@ export default function RoleSelectPage() {
         >
           <Swords className="w-14 h-14 mx-auto mb-4 text-cls-wizard group-hover:scale-105 transition-transform" />
           <h2 className="font-heading text-[15px] font-semibold text-ink mb-2">Player</h2>
-          <p className="font-body text-[13px] font-medium text-muted">
+          <p className="font-body text-[13px] font-semibold text-muted">
             Manage your characters, join campaigns, and play in encounters
           </p>
         </button>
@@ -41,7 +41,7 @@ export default function RoleSelectPage() {
 
       <button
         onClick={logout}
-        className="mt-10 font-body text-[13px] font-medium text-faint hover:text-muted transition-colors"
+        className="mt-10 font-body text-[13px] font-semibold text-faint hover:text-muted transition-colors"
       >
         Sign out
       </button>

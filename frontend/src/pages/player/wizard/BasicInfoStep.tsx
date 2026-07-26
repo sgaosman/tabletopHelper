@@ -24,7 +24,7 @@ export default function BasicInfoStep({
           onChange={e => setName(e.target.value)}
           maxLength={200}
           autoFocus
-          className="w-full max-w-md px-3 py-2 bg-card border border-rule font-body text-[14px] font-medium text-ink placeholder-faint focus:border-muted focus:outline-none"
+          className="w-full max-w-md px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
           placeholder="Enter character name"
         />
       </div>
@@ -35,7 +35,7 @@ export default function BasicInfoStep({
             <button
               key={a}
               onClick={() => setAlignment(alignment === a ? '' : a)}
-              className={`px-3 py-2 font-heading text-[9px] font-medium tracking-[0.04em] transition-colors border ${
+              className={`px-3 py-2 font-heading text-[9px] font-semibold tracking-[0.04em] transition-colors border ${
                 alignment === a
                   ? 'bg-ink text-card border-ink'
                   : 'bg-card text-muted border-rule hover:border-muted'
@@ -57,7 +57,7 @@ export default function BasicInfoStep({
           />
           <span className="font-heading text-[17px] font-bold text-ink w-8 text-center">{level}</span>
         </div>
-        <p className="font-body text-[11px] font-medium text-faint mt-1">
+        <p className="font-body text-[11px] font-semibold text-faint mt-1">
           Proficiency bonus: +{proficiencyBonusForLevel(level)}
           {level > 1 && ` · HP, features, and spell slots auto-calculated`}
         </p>

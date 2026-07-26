@@ -756,7 +756,7 @@ export default function CharacterCreateWizard() {
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <button onClick={() => navigate('/player')} className="flex items-center gap-2 font-body text-[13px] font-medium text-muted hover:text-ink transition-colors">
+          <button onClick={() => navigate('/player')} className="flex items-center gap-2 font-body text-[13px] font-semibold text-muted hover:text-ink transition-colors">
             <ChevronLeft className="w-4 h-4" /> Back
           </button>
           <h1 className="font-heading text-[17px] font-semibold tracking-[0.02em] text-ink">Create Character</h1>
@@ -767,7 +767,7 @@ export default function CharacterCreateWizard() {
       {showDraftBanner && (
         <div className="max-w-3xl mx-auto px-6 pt-4">
           <div className="bg-cls-wizard-bg border border-abj-border px-4 py-3 flex items-center justify-between">
-            <span className="font-body text-[13px] font-medium text-cls-wizard">You have an unsaved character draft. Restore it?</span>
+            <span className="font-body text-[13px] font-semibold text-cls-wizard">You have an unsaved character draft. Restore it?</span>
             <div className="flex gap-2">
               <button onClick={dismissDraft} className="px-3 py-1 font-body text-[12px] text-muted hover:text-ink transition-colors">Discard</button>
               <button onClick={restoreDraft} className="px-3 py-1 font-body text-[12px] bg-ink text-card hover:bg-muted transition-colors">Restore</button>
@@ -785,7 +785,7 @@ export default function CharacterCreateWizard() {
               }`}>
                 {i < step ? <Check className="w-3.5 h-3.5" /> : i + 1}
               </div>
-              <span className={`font-heading text-[9px] font-medium tracking-[0.04em] mt-1 hidden sm:block ${i === step ? 'text-ink' : 'text-faint'}`}>{label}</span>
+              <span className={`font-heading text-[9px] font-semibold tracking-[0.04em] mt-1 hidden sm:block ${i === step ? 'text-ink' : 'text-faint'}`}>{label}</span>
             </div>
           ))}
         </div>
@@ -879,15 +879,15 @@ export default function CharacterCreateWizard() {
         )}
 
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-rule">
-          <button onClick={() => step > 0 ? setStep(step - 1) : navigate('/player')} className="flex items-center gap-2 px-4 py-2 font-body text-[14px] font-medium text-muted hover:text-ink transition-colors">
+          <button onClick={() => step > 0 ? setStep(step - 1) : navigate('/player')} className="flex items-center gap-2 px-4 py-2 font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors">
             <ArrowLeft className="w-4 h-4" /> {step > 0 ? 'Previous' : 'Cancel'}
           </button>
           {step < steps.length - 1 ? (
-            <button onClick={() => setStep(step + 1)} disabled={!canAdvance()} className="flex items-center gap-2 px-5 py-2 bg-ink text-card font-body text-[14px] font-medium border border-ink hover:bg-muted hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            <button onClick={() => setStep(step + 1)} disabled={!canAdvance()} className="flex items-center gap-2 px-5 py-2 bg-ink text-card font-body text-[14px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               Next <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={handleCreate} disabled={submitting} className="flex items-center gap-2 px-5 py-2 bg-buff text-white font-body text-[14px] font-medium border border-buff hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            <button onClick={handleCreate} disabled={submitting} className="flex items-center gap-2 px-5 py-2 bg-buff text-white font-body text-[14px] font-semibold border border-buff hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               {submitting ? 'Creating...' : 'Create Character'} <Check className="w-4 h-4" />
             </button>
           )}
