@@ -30,7 +30,7 @@
 | 22 | Architecture Review Action Plan | Complete | 6-way review, 2-week action plan: exception logging, short rest fix, concentration save fix, typed JSONB records, input validation, wizard draft saving, shared utils, wizard split, DB indexes + GIN, caching, CharacterService extraction, 38 tests |
 | 23 | Architecture Review 2 Action Plan | Complete | IDOR fix, long rest resource reset, unconscious auto-crit, ErrorBoundary, CombatService dedup, CharacterSheetPage split, HikariCP, @EntityGraph, Flyway, ARIA, FeatPicker extraction |
 | 24.5 | Generic Resource Pool System | Not started | Unified resource schema for Ki, Sorcery Points, Channel Divinity, legendary actions, breath weapons, etc. |
-| 25 | Comprehensive Testing Suite | Complete | 330 tests (220 backend + 110 frontend) across all services, utilities, and domain logic — see detailed breakdown below |
+| 25 | Comprehensive Testing Suite | Complete | 529 tests (276 backend + 253 frontend) — expanded from 330 with MSW infrastructure, component tests (14 files), integration tests (3 files), and backend additions (MonsterService, spell targeting) |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 

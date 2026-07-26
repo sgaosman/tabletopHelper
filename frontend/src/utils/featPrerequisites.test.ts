@@ -198,7 +198,7 @@ describe('featPrerequisites', () => {
       const result = parseAbilityScoreIncrease(feat);
       expect(result).not.toBeNull();
       expect(result!.fixed).toEqual({ strength: 1 });
-      expect(result!.choose).toBeNull();
+      expect(result!.choose).toBeUndefined();
     });
 
     it('parses choice-based ASI (Resilient: choose one ability +1)', () => {

@@ -1467,3 +1467,48 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Related decisions:** D024 (spell slot copy-on-join pattern), D044 (proficiency collection), D054 (server-side leveling), D083 (short rest hit dice), D099 (feat resources)
 
 **Key files:** `CLAUDE.md`, `CONTEXT.md`, `obsidian-docs/database-schema.md` (resource pool tables section), `obsidian-docs/decisions-log.md` (this entry), `backend/src/main/resources/db/migration/V8__resource_pool_system.sql` (future)
+
+## D126: Frontend Test Infrastructure & Expanded Coverage
+
+**Date:** 2026-07-26
+**Status:** Accepted
+
+**Decision:** Installed MSW 2 (Mock Service Worker) for API-level mocking, built a custom test render wrapper (`src/test/test-utils.tsx`) that wraps components in BrowserRouter + AuthProvider, created MSW handlers with complete Campaign/Monster/Character data factories (`makeMockCharacter`, `makeMockParticipant`, `makeMockMonster`), and added 63 new frontend tests across 16 files plus 16 new backend tests across 2 files. Total test count: 253 frontend (up from 110) + 276 backend (up from 260) = 529 tests.
+
+**Rationale:** The frontend had zero component or integration tests before this session. Every UI change was a leap of faith. Adding 47 component tests across the most-used pages (LoginPage, RegisterPage, PlayerDashboard, CampaignManage, BestiaryPage, AsiModal, EncounterBuilder) plus 6 integration tests (auth flow, campaign CRUD, player dashboard flow) provides a safety net for UI development. Backend gains tests for MonsterService search/filter parsing (8 tests) and ReferenceController spell-targeting endpoint (8 tests), which were the two largest untested backend subsystems.
+
+**Test infrastructure details:**
+- **MSW handlers** cover all 7 API modules: auth (login/register/refresh), campaigns (CRUD + join), characters (CRUD + level-up + eligible classes), encounters (CRUD + participants + initiatives + start), combat (damage/heal/log), reference (spells/races/classes/filters), monsters (search/filters/pagination). Complete Campaign objects include `dmDisplayName`, `members[]`, and `createdAt` — previously missing, causing crashes in PlayerDashboard and CampaignManagePage.
+- **Custom render** (test-utils.tsx) re-exports all `@testing-library/react` functions so tests import from a single source.
+- **vitest.setup.ts** auto-starts MSW before all tests, resets handlers and localStorage after each, and auto-closes after all.
+- **`@testing-library/user-event`** installed for realistic interaction simulation (userEvent.setup() pattern).
+
+**Component tests (14 files, 47 tests):**
+- LoginPage, RegisterPage — form rendering, validation, error states, redirects
+- MultiSelect — open/close, filtering, select/deselect, clear-all, ARIA
+- LevelUpModal, SubclassModal, ExpertiseModal — loading states, selection, confirmation, error display
+- AsiModal — ability score allocation, point tracking, Apply button flow
+- FormattedDescription — markup cleaning, text bolding, tag conversion
+- StatsTab, ActionsTab, FeaturesTab, InventoryTab — character sheet tab rendering
+- BestiaryPage, SpellsPage, ItemsPage — table rendering, pagination, search
+- EncounterBuilderPage — encounter list, create form
+- PlayerDashboard — campaign/character display, delete flow, join campaign
+- CampaignManagePage — campaign list, create form, empty state
+
+**Integration tests (3 files, 11 tests):**
+- Auth flow: login → role select, protected/unprotected route guards
+- DM campaign flow: page rendering, form toggle
+- Player dashboard flow: character display, delete confirmation, join campaign
+- Navigation: DM/player role routes, 404 handling
+
+**Backend tests (2 files, 16 tests):**
+- MonsterServiceTest — filter parsing (no/single/multi/combined filters, blank name, fuzzy search edge cases, unknown ID)
+- ReferenceControllerTargetingTest — targeting endpoint (single-target, self-only, upcast scaling, area spells, 404 cases, repeat effect flag)
+
+**Deliberately skipped:**
+- EncounterSessionPage (DM/Player) — WebSocket dependency makes unit testing impractical
+- CharacterCreateWizard — 902 lines, 7-step wizard with interdependent API calls; needs dedicated integration test setup
+- SpellCastModal — 4-step modal with encounter context
+- Snapshot tests — not written, per project policy
+
+**Related decisions:** D102 (M25 initial test suite), D124 (Tourmaline design system)
