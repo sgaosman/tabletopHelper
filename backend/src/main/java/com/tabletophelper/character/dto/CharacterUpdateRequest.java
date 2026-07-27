@@ -95,4 +95,5 @@ public class CharacterUpdateRequest {
     private String hitDiceMap;
     private String levelHistory;
     private String featResources;
+    private String resourcePools;
 }

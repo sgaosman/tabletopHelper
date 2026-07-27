@@ -9,6 +9,7 @@ import com.tabletophelper.character.dto.MulticlassEntry;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.reference.*;
+import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class CharacterService {
     private final CharacterMapper characterMapper;
     private final CharacterJsonHelper jsonHelper;
     private final ObjectMapper objectMapper;
+    private final ResourcePoolService resourcePoolService;
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
@@ -331,6 +333,7 @@ public class CharacterService {
             character.setHitDiceRemaining(character.getHitDiceTotal());
         }
 
+        resourcePoolService.syncPoolsForCharacter(character);
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
     }
@@ -431,6 +434,7 @@ public class CharacterService {
         if (request.getHitDiceMap() != null) character.setHitDiceMap(request.getHitDiceMap());
         if (request.getLevelHistory() != null) character.setLevelHistory(request.getLevelHistory());
         if (request.getFeatResources() != null) character.setFeatResources(request.getFeatResources());
+        if (request.getResourcePools() != null) character.setResourcePools(request.getResourcePools());
 
         if (Boolean.TRUE.equals(request.getClearCampaign())) {
             character.setCampaign(null);
@@ -450,6 +454,7 @@ public class CharacterService {
             character.setSpellAttackBonus(profBonus + abilityModVal);
         }
 
+        resourcePoolService.syncPoolsForCharacter(character);
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
     }
@@ -543,6 +548,7 @@ public class CharacterService {
             applyMulticlassProficiencies(character, levelClass);
         }
 
+        resourcePoolService.syncPoolsForCharacter(character);
         character = characterRepository.save(character);
 
         boolean isCasterClass = Boolean.TRUE.equals(levelClass.getIsSpellcaster());
@@ -684,6 +690,7 @@ public class CharacterService {
 
             recalculateSpellSlots(character);
 
+            resourcePoolService.syncPoolsForCharacter(character);
             character = characterRepository.save(character);
             return characterMapper.toResponse(character);
         } catch (IllegalArgumentException e) {
@@ -917,8 +924,9 @@ public class CharacterService {
         // Reset pact slots
         resetPactSlots(character);
 
-        // Reset short rest feat resources
+        // Reset short rest resource pools (and keep feat_resources for backward compat)
         resetFeatResources(character, true);
+        resetResourcePools(character, "shortRest");
 
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
@@ -940,8 +948,9 @@ public class CharacterService {
         // Recover hit dice: floor(total/2), min 1
         recoverHitDice(character);
 
-        // Reset all feat resources
+        // Reset all feat resources (backward compat) and resource pools
         resetFeatResources(character, false);
+        resetResourcePools(character, "longRest");
 
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
@@ -1031,6 +1040,22 @@ public class CharacterService {
             character.setFeatResources(objectMapper.writeValueAsString(updated));
         } catch (Exception e) {
             log.warn("Failed to reset feat resources for character {}", character.getId(), e);
+        }
+    }
+
+    /**
+     * Resets resource pools matching the given trigger (shortRest / longRest).
+     * Operates on the character's {@code resource_pools} JSONB column.
+     */
+    private void resetResourcePools(PlayerCharacter character, String resetTrigger) {
+        try {
+            List<ResourcePoolEntry> pools = resourcePoolService.parsePools(character.getResourcePools());
+            if (pools.isEmpty()) return;
+            Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
+            List<ResourcePoolEntry> reset = resourcePoolService.resetPools(pools, resetTrigger, context);
+            character.setResourcePools(objectMapper.writeValueAsString(reset));
+        } catch (Exception e) {
+            log.warn("Failed to reset resource pools for character {}", character.getId(), e);
         }
     }
 

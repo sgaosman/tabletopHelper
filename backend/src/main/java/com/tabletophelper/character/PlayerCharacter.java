@@ -257,7 +257,11 @@ public class PlayerCharacter {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "feat_resources", columnDefinition = "jsonb")
-    private String featResources;
+    private String featResources; // DEPRECATED — superseded by resource_pools
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "resource_pools", columnDefinition = "jsonb")
+    private String resourcePools;
 
     @Column(name = "is_active")
     @Builder.Default

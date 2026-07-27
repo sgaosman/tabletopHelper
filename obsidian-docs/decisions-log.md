@@ -1447,7 +1447,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
    - **Encounter join:** PCs copy `currentUses` as-is from character sheet. Monsters create pools fresh at `maxUses`.
    - **During encounter:** Pools tracked independently on `encounter_participants.resource_pools_current`. Turn advance handles per-turn resets and probabilistic recharge checks.
    - **Sync-back:** On COMPLETED status, `currentUses` written back to character sheet for matching `poolId`s. Monsters are not synced.
-   - **Rest:** Short rest resets `resetOn == "shortRest" || "longRest"`. Long rest resets all pools fully. `resetAmount` expression supports partial recovery (e.g., `"floor(maxUses/2)"` for hit dice).
+   - **Rest:** Short rest resets `resetOn == "shortRest"` only. Long rest resets all pools fully (superset of short rest). `resetAmount` expression supports partial recovery (e.g., `"floor(maxUses/2)"` for hit dice, `"1d6+1"` for magic items). See D127 for corrected semantics.
    - **Level-down:** Pool deleted entirely. Re-sync cleans up orphans.
 
 5. **Expression evaluator** supports: `proficiencyBonus`, `totalLevel`, `{className}Level`, `{ability}Modifier`, basic arithmetic (`+`, `-`, `*`, `/`), `ceil()`, `floor()`, `maxUses` (self-reference for `resetAmount`), and `"1d6>=N"` syntax for probabilistic recharge checks.
@@ -1512,3 +1512,59 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 - Snapshot tests — not written, per project policy
 
 **Related decisions:** D102 (M25 initial test suite), D124 (Tourmaline design system)
+
+## D127: Rest Reset Semantics for Resource Pools
+
+**Date:** 2026-07-27
+**Status:** Accepted
+
+**Decision:** Short rests reset only pools whose `resetOn` field is `"shortRest"`. Long rests reset ALL pools (both `"shortRest"` and `"longRest"`). A pool with `resetOn: "longRest"` means "only on a long rest" — it does NOT also reset on a short rest. This is the opposite of the D&D 5e interpretation where short reset abilities are a subset: short-rest features recover on both rests, long-rest features recover only on a long rest.
+
+**Rationale:** The original implementation (both in `ResourcePoolService.resetPools()` and the frontend `handleShortRest()`) incorrectly treated short rest as resetting `resetOn === "shortRest" || resetOn === "longRest"`, causing Barbarian Rage, Sorcerer Sorcery Points, Bardic Inspiration, and Lucky Luck Points to all regenerate on a 1-hour short rest. This violated the D&D 5e resting rules.
+
+Three locations were fixed:
+- `ResourcePoolService.resetPools()` line 240: `case "shortRest"` now matches only `"shortRest"` pools
+- `CharacterSheetPage.tsx` `handleShortRest()`: resourcePools and featResources now reset only `resetOn === "shortRest"`
+- `CharacterSheetPage.tsx` `handleLongRest()`: unchanged — always resets everything (already correct)
+
+The existing `resetFeatResources()` in `CharacterService` was already correct (line 1034: `!shortRestOnly || "shortRest".equals(r.resetOn())`) and required no changes.
+
+**Pool reset matrix (post-fix):**
+
+| Pool | resetOn | Short Rest | Long Rest |
+|---|---|---|---|
+| Monk — Ki Points | shortRest | ✓ | ✓ |
+| Cleric — Channel Divinity | shortRest | ✓ | ✓ |
+| Paladin — Channel Divinity | shortRest | ✓ | ✓ |
+| Druid — Wild Shape | shortRest | ✓ | ✓ |
+| Fighter — Second Wind | shortRest | ✓ | ✓ |
+| Fighter — Action Surge | shortRest | ✓ | ✓ |
+| Sorcerer — Sorcery Points | longRest | ✗ | ✓ |
+| Bard — Bardic Inspiration | longRest | ✗ | ✓ |
+| Barbarian — Rage | longRest | ✗ | ✓ |
+| Lucky feat (3 Luck Points) | longRest | ✗ | ✓ |
+
+**Dice notation for partial resets:** `ExpressionEvaluator` was extended to support dice-roll expressions in `resetAmount` (e.g., `1d6+1`, `2d4`). This enables magic item charge recovery and other partial-regeneration use cases. Dice are rolled after variable substitution and before integer arithmetic. The `resolveDice()` method handles `NdM±C` patterns with ThreadLocalRandom.
+
+**Related decisions:** D125 (resource pool design), D083 (short rest hit dice)
+
+**Key files:** `ResourcePoolService.java:240`, `CharacterSheetPage.tsx` (short rest handlers), `ExpressionEvaluator.java` (resolveDice), `CharacterService.java:1034`
+
+## D128: Known Issue — Missing Second ASI Prompt on Multi-Level Character Creation
+
+**Date:** 2026-07-27
+**Status:** Accepted (Known Issue — not yet resolved)
+
+**Issue:** When a character is created at level 8 or above, the character creation wizard only triggers one post-creation ASI flow (e.g., the level 4 ASI). The second ASI at level 8 is silently skipped. The ASI is only offered if the player manually levels the character down and back up from the character sheet, which retriggers the `pendingChoices.asiAvailable` check.
+
+**Root cause:** The `findNextAsiEntry()` method in `CharacterService` returns only the first unrecorded ASI level from `levelHistory`. After the first ASI is applied post-creation, the method is not called again to check for additional pending ASI entries. The post-creation ASI flow (`AsiModal` → `handleAsiComplete` → check for subclass/expertise/spells) has no loop or recurrence to handle multiple pending ASIs.
+
+**Impact:** Characters created at level 8, 12, 16, or 19 miss their second (or third) ASI/feat choice. Fighters at level 6+ miss their bonus ASI. This affects any class with multiple ASI thresholds within the created level range.
+
+**Expected behavior:** After applying the first ASI, the post-creation flow should check `findNextAsiEntry()` again and present another `AsiModal` for each pending ASI entry, looping until all ASI entries in `levelHistory` are recorded.
+
+**Workaround:** Manually level down once (removes the last level) then level up again — this retriggers the ASI check for the missing threshold.
+
+**Related decisions:** D054 (server-side leveling), D058 (ASI history recording)
+
+**Key files:** `CharacterService.java` (`findNextAsiEntry()`, post-creation ASI flow), `CharacterCreateWizard.tsx`, `AsiModal.tsx`

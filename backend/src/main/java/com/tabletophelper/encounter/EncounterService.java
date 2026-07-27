@@ -11,6 +11,7 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.resourcepool.ResourcePoolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class EncounterService {
     private final CharacterRepository characterRepository;
     private final MonsterRepository monsterRepository;
     private final ObjectMapper objectMapper;
+    private final ResourcePoolService resourcePoolService;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -107,6 +109,7 @@ public class EncounterService {
                 .spellsKnown(character.getSpellsKnown())
                 .build();
 
+        resourcePoolService.copyToParticipant(participant, character);
         encounter.getParticipants().add(participant);
     }
 
@@ -137,6 +140,7 @@ public class EncounterService {
                     .armourClass(monster.getArmourClass())
                     .build();
 
+            resourcePoolService.createForMonster(participant, monster);
             encounter.getParticipants().add(participant);
         }
     }
@@ -246,6 +250,14 @@ public class EncounterService {
         Encounter encounter = loadEncounter(encounterId);
         verifyDmOwnership(encounter.getCampaign(), userId);
         encounter.setStatus(EncounterStatus.COMPLETED);
+
+        // Sync resource pool currentUses back to character sheets
+        for (EncounterParticipant p : encounter.getParticipants()) {
+            if (p.getParticipantType() == ParticipantType.PLAYER && p.getCharacter() != null) {
+                resourcePoolService.syncBackToCharacter(p, p.getCharacter());
+            }
+        }
+
         return toResponse(encounterRepository.save(encounter));
     }
 
@@ -344,6 +356,10 @@ public class EncounterService {
                         .spellSaveDc(p.getSpellSaveDc())
                         .spellcastingAbility(p.getSpellcastingAbility())
                         .spellsKnown(p.getSpellsKnown())
+                        .resourcePoolsCurrent(p.getResourcePoolsCurrent())
+                        .actionUsed(p.getActionUsed())
+                        .bonusActionUsed(p.getBonusActionUsed())
+                        .reactionUsed(p.getReactionUsed())
                         .build())
                 .toList();
 

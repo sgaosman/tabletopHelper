@@ -6,6 +6,7 @@ import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../typ
 import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
+import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import { getParticipantColour } from '../../utils/classColours';
 import {
   ArrowLeft, Wifi, WifiOff, Heart, Shield, Skull, Copy,
@@ -554,6 +555,9 @@ function PlayerSessionView() {
         {myCharacter && myCharacter.isAlive && myCharacter.spellSlotsCurrent && (
           <PlayerSpellSlots participant={myCharacter} encounterId={encounter.id} onUpdate={refreshEncounter} />
         )}
+
+        {/* Resource pools (M24.5) */}
+        {myCharacter && <ResourcePoolDisplay pools={myCharacter.resourcePoolsCurrent} />}
 
         {/* Player self-action buttons */}
         {myCharacter && myCharacter.isAlive && (

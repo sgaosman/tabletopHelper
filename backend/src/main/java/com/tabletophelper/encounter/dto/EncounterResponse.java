@@ -55,5 +55,9 @@ public class EncounterResponse {
         private Integer spellSaveDc;
         private String spellcastingAbility;
         private String spellsKnown;
+        private String resourcePoolsCurrent;
+        private Boolean actionUsed;
+        private Boolean bonusActionUsed;
+        private Boolean reactionUsed;
     }
 }

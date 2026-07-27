@@ -47,6 +47,27 @@ export interface EncounterParticipant {
   spellSaveDc?: number;
   spellcastingAbility?: string;
   spellsKnown?: string;
+  resourcePoolsCurrent?: string;
+  actionUsed?: boolean;
+  bonusActionUsed?: boolean;
+  reactionUsed?: boolean;
+}
+
+/** A single resource pool entry (matches backend ResourcePoolEntry record). */
+export interface ResourcePoolEntry {
+  poolId: string;
+  displayName: string;
+  sourceType: string;
+  sourceName: string;
+  maxUses: number;
+  maxUsesFormula?: string;
+  currentUses: number;
+  resetOn: string;
+  resetAmount?: string;
+  resetCheck?: string;
+  spendActionType?: string;
+  icon?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Encounter {

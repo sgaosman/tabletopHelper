@@ -92,6 +92,7 @@ public class CharacterMapper {
                 .hitDiceMap(c.getHitDiceMap())
                 .levelHistory(c.getLevelHistory())
                 .featResources(c.getFeatResources())
+                .resourcePools(c.getResourcePools())
                 .isActive(c.getIsActive())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
