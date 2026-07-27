@@ -108,6 +108,23 @@ public class EncounterParticipant {
     @Column(name = "spells_known", columnDefinition = "jsonb")
     private String spellsKnown;
 
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "resource_pools_current", columnDefinition = "jsonb")
+    private String resourcePoolsCurrent;
+
+    @Column(name = "action_used")
+    @Builder.Default
+    private Boolean actionUsed = false;
+
+    @Column(name = "bonus_action_used")
+    @Builder.Default
+    private Boolean bonusActionUsed = false;
+
+    @Column(name = "reaction_used")
+    @Builder.Default
+    private Boolean reactionUsed = false;
+
     @Column(name = "is_visible_to_players")
     @Builder.Default
     private Boolean isVisibleToPlayers = true;

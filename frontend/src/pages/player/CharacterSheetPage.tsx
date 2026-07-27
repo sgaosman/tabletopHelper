@@ -18,6 +18,7 @@ import ActionsTab from './sheet/ActionsTab';
 import SpellsTab from './sheet/SpellsTab';
 import InventoryTab from './sheet/InventoryTab';
 import FeaturesTab from './sheet/FeaturesTab';
+import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import JournalTab from './sheet/JournalTab';
 
 type Tab = 'Stats' | 'Actions' | 'Spells' | 'Inventory' | 'Features' | 'Journal';
@@ -99,6 +100,19 @@ export default function CharacterSheetPage() {
   const resistances = useMemo(() => safeJsonParse<string[]>(char?.damageResistances, []), [char?.damageResistances]);
   const hitDiceMap = useMemo(() => safeJsonParse<Record<string, { total: number; remaining: number; faces: number }>>(char?.hitDiceMap, {}), [char?.hitDiceMap]);
   const featResources = useMemo(() => safeJsonParse<Array<{ featName: string; name: string; maxUses: number; currentUses: number; resetOn: string }>>(char?.featResources, []), [char?.featResources]);
+  const resourcePools = useMemo(() => safeJsonParse<import('../../types/encounter').ResourcePoolEntry[]>(char?.resourcePools, []), [char?.resourcePools]);
+
+  // Pre-compute rest modal contents (avoids IIFE parse errors in JSX)
+  const shortRestPools = useMemo(() => resourcePools.filter(p => p.resetOn === 'shortRest' && p.currentUses < p.maxUses),
+    [resourcePools]);
+  const shortRestFeats = useMemo(() => featResources.filter(r => r.resetOn === 'shortRest' && r.currentUses < r.maxUses),
+    [featResources]);
+  const hasPactSlots = useMemo(() => Object.keys(spellSlots).some(k => k.startsWith('pact_')), [spellSlots]);
+  const showShortRestAbilities = shortRestPools.length > 0 || shortRestFeats.length > 0 || hasPactSlots;
+
+  const longRestPools = useMemo(() => resourcePools.filter(p => p.currentUses < p.maxUses), [resourcePools]);
+  const longRestFeats = useMemo(() => featResources.filter(r => r.currentUses < r.maxUses), [featResources]);
+  const showLongRestAbilities = longRestPools.length > 0 || longRestFeats.length > 0;
 
   const classAccent = getClassColour(char?.characterClass);
 
@@ -134,7 +148,10 @@ export default function CharacterSheetPage() {
       }
     }
     const resetResources = featResources.map(r =>
-      r.resetOn === 'shortRest' || r.resetOn === 'longRest' ? { ...r, currentUses: r.maxUses } : r
+      r.resetOn === 'shortRest' ? { ...r, currentUses: r.maxUses } : r
+    );
+    const resetPools = resourcePools.map(p =>
+      p.resetOn === 'shortRest' ? { ...p, currentUses: p.maxUses } : p
     );
 
     const updates: Record<string, unknown> = {
@@ -143,6 +160,7 @@ export default function CharacterSheetPage() {
     };
     if (Object.keys(resetSlots).length > 0) updates.spellSlots = JSON.stringify(resetSlots);
     if (resetResources.length > 0) updates.featResources = JSON.stringify(resetResources);
+    if (resetPools.length > 0) updates.resourcePools = JSON.stringify(resetPools);
     await saveField(updates as Record<string, string | number | undefined>);
     setShortRestDice({});
     setRestModal(null);
@@ -162,6 +180,7 @@ export default function CharacterSheetPage() {
     const resetResources = featResources.map(r =>
       r.resetOn === 'shortRest' || r.resetOn === 'longRest' ? { ...r, currentUses: r.maxUses } : r
     );
+    const resetPools = resourcePools.map(p => ({ ...p, currentUses: p.maxUses }));
 
     await saveField({
       hpCurrent: char.hpMax,
@@ -169,6 +188,7 @@ export default function CharacterSheetPage() {
       hitDiceMap: JSON.stringify(updated),
       spellSlots: Object.keys(resetSlots).length > 0 ? JSON.stringify(resetSlots) : undefined,
       featResources: resetResources.length > 0 ? JSON.stringify(resetResources) : undefined,
+      resourcePools: resetPools.length > 0 ? JSON.stringify(resetPools) : undefined,
     });
     setRestModal(null);
   }
@@ -374,6 +394,25 @@ export default function CharacterSheetPage() {
             >+ Temp HP</button>
           </div>
         )}
+
+        {/* Resource Pools (M24.5) */}
+        <ResourcePoolDisplay
+          pools={char.resourcePools}
+          editable
+          onSpend={(poolId) => {
+            const updated = resourcePools.map(p =>
+              p.poolId === poolId ? { ...p, currentUses: Math.max(0, p.currentUses - 1) } : p
+            );
+            saveField({ resourcePools: JSON.stringify(updated) });
+          }}
+          onRecover={(poolId) => {
+            const updated = resourcePools.map(p =>
+              p.poolId === poolId ? { ...p, currentUses: Math.min(p.maxUses, p.currentUses + 1) } : p
+            );
+            saveField({ resourcePools: JSON.stringify(updated) });
+          }}
+        />
+
       </div>
 
       {/* Tabs */}
@@ -524,7 +563,6 @@ export default function CharacterSheetPage() {
               <>
                 <p className="font-body text-[13px] font-semibold text-muted mb-3">
                   Spend hit dice to regain hit points. For each die spent, regain 1d{Object.values(hitDiceMap)[0]?.faces ?? 8} + CON modifier HP.
-                  {Object.keys(spellSlots).some(k => k.startsWith('pact_')) ? ' Warlock pact slots will be restored.' : ''}
                 </p>
                 <div className="space-y-2 mb-4">
                   {Object.entries(hitDiceMap).map(([cls, hd]) => (
@@ -547,17 +585,44 @@ export default function CharacterSheetPage() {
                     </div>
                   ))}
                 </div>
-                {Object.keys(spellSlots).some(k => k.startsWith('pact_')) && (
-                  <p className="font-body text-[11px] font-semibold text-cls-warlock mb-3">Warlock pact slots will be restored on short rest.</p>
-                )}
-                {featResources.some(r => r.resetOn === 'shortRest') && (
-                  <p className="font-body text-[11px] font-semibold text-cls-monk mb-3">Short rest abilities will be restored.</p>
+                {showShortRestAbilities && (
+                  <div className="mb-3 space-y-1">
+                    <p className="font-body text-[11px] font-semibold text-cls-monk">Restored on short rest:</p>
+                    {hasPactSlots && <p className="font-body text-[11px] text-faint ml-2">• Warlock pact slots</p>}
+                    {shortRestPools.map(p => (
+                      <p key={p.poolId} className="font-body text-[11px] text-faint ml-2">
+                        • {p.displayName} ({p.currentUses}/{p.maxUses} → {p.maxUses}/{p.maxUses})
+                      </p>
+                    ))}
+                    {shortRestFeats.map(r => (
+                      <p key={r.featName + r.name} className="font-body text-[11px] text-faint ml-2">
+                        • {r.name} ({r.currentUses}/{r.maxUses} → {r.maxUses}/{r.maxUses})
+                      </p>
+                    ))}
+                  </div>
                 )}
               </>
             ) : (
-              <p className="font-body text-[13px] font-semibold text-muted mb-4">
-                Regain all hit points, reset spell slots, and regain half your total hit dice (minimum 1).
-              </p>
+              <>
+                <p className="font-body text-[13px] font-semibold text-muted mb-3">
+                  Regain all hit points, reset spell slots, and regain half your total hit dice (minimum 1).
+                </p>
+                {showLongRestAbilities && (
+                  <div className="mb-3 space-y-1">
+                    <p className="font-body text-[11px] font-semibold text-cls-monk">All features restored:</p>
+                    {longRestPools.map(p => (
+                      <p key={p.poolId} className="font-body text-[11px] text-faint ml-2">
+                        • {p.displayName} ({p.currentUses}/{p.maxUses} → {p.maxUses}/{p.maxUses})
+                      </p>
+                    ))}
+                    {longRestFeats.map(r => (
+                      <p key={r.featName + r.name} className="font-body text-[11px] text-faint ml-2">
+                        • {r.name} ({r.currentUses}/{r.maxUses} → {r.maxUses}/{r.maxUses})
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
             <div className="flex gap-3">
               <button onClick={() => { setRestModal(null); setShortRestDice({}); }} className="flex-1 px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-semibold hover:bg-rule transition-colors">Cancel</button>

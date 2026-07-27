@@ -32,6 +32,7 @@ class EncounterServiceTest {
     @Mock private CampaignMemberRepository campaignMemberRepository;
     @Mock private CharacterRepository characterRepository;
     @Mock private MonsterRepository monsterRepository;
+    @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
 
     @InjectMocks private EncounterService encounterService;
 

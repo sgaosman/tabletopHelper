@@ -178,6 +178,7 @@ export interface PlayerCharacter {
   hitDiceMap?: string;
   levelHistory?: string;
   featResources?: string;
+  resourcePools?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

@@ -6,6 +6,7 @@ import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../typ
 import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
+import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import { getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
@@ -855,6 +856,9 @@ function DmSessionView() {
                     {p.isAlive && p.spellSlotsCurrent && (
                       <SpellSlotDisplay participant={p} encounterId={encounter.id} onUpdate={refreshEncounter} />
                     )}
+
+                    {/* Resource pools (M24.5) */}
+                    <ResourcePoolDisplay pools={p.resourcePoolsCurrent} />
                   </div>
 
                   {/* HP bar + values */}

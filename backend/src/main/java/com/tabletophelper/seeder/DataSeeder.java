@@ -20,6 +20,7 @@ public class DataSeeder implements CommandLineRunner {
     private final BackgroundSeeder backgroundSeeder;
     private final FeatSeeder featSeeder;
     private final OptionalFeatureSeeder optionalFeatureSeeder;
+    private final ResourcePoolSeeder resourcePoolSeeder;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
@@ -88,6 +89,12 @@ public class DataSeeder implements CommandLineRunner {
             optionalFeatureSeeder.seed();
         } catch (Exception e) {
             log.error("Failed to seed optional features: {}", e.getMessage(), e);
+        }
+
+        try {
+            resourcePoolSeeder.seed();
+        } catch (Exception e) {
+            log.error("Failed to seed resource pools: {}", e.getMessage(), e);
         }
 
         long elapsed = System.currentTimeMillis() - start;

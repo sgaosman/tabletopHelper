@@ -29,7 +29,7 @@
 | 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
 | 22 | Architecture Review Action Plan | Complete | 6-way review, 2-week action plan: exception logging, short rest fix, concentration save fix, typed JSONB records, input validation, wizard draft saving, shared utils, wizard split, DB indexes + GIN, caching, CharacterService extraction, 38 tests |
 | 23 | Architecture Review 2 Action Plan | Complete | IDOR fix, long rest resource reset, unconscious auto-crit, ErrorBoundary, CombatService dedup, CharacterSheetPage split, HikariCP, @EntityGraph, Flyway, ARIA, FeatPicker extraction |
-| 24.5 | Generic Resource Pool System | Not started | Unified resource schema for Ki, Sorcery Points, Channel Divinity, legendary actions, breath weapons, etc. |
+| 24.5 | Generic Resource Pool System | Complete | Unified resource schema for Ki, Sorcery Points, Channel Divinity, legendary actions, breath weapons, etc. |
 | 25 | Comprehensive Testing Suite | Complete | 529 tests (276 backend + 253 frontend) — expanded from 330 with MSW infrastructure, component tests (14 files), integration tests (3 files), and backend additions (MonsterService, spell targeting) |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
@@ -770,24 +770,62 @@ A `resource_pools` JSONB column on `player_characters` and `resource_pools_curre
 - `advanceTurn()`: resets all pools where `resetOn == "turn"` (legendary actions)
 
 **Backend tasks:**
-- [ ] Add `ResourcePoolEntry` Java record matching the schema above
-- [ ] Add `resource_pools` JSONB column to `player_characters` (Flyway V8)
-- [ ] Add `resource_pools_current` JSONB column to `encounter_participants` (Flyway V8)
-- [ ] Migrate existing `feat_resources` and `hit_dice_map` into `resource_pools`
-- [ ] Update `resetFeatResources()` → `resetResourcePools()` with shared logic
-- [ ] Update encounter join to copy resource pools to participant (like HP/AC)
-- [ ] Wire `advanceTurn()` to reset per-round pools
-- [ ] Wire M13 action economy validation to check `spendActionType`
-- [ ] Deprecate old `feat_resources` and `hit_dice_map` columns
-- [ ] Tests: pool migration, reset logic, encounter copy, per-round reset
+- [x] Add `ResourcePoolEntry` Java record matching the schema above
+- [x] Flyway V8 migration: `resource_pool_definitions`, `class_feature_pools`, `monster_pool_triggers` reference tables
+- [x] Flyway V8 migration: `resource_pools` JSONB on `player_characters`, `resource_pools_current` + action economy booleans on `encounter_participants`
+- [x] `ResourcePoolSeeder` — 13 definitions (9 class features + 4 monster abilities), 9 class-feature-pool mappings, 3 monster triggers
+- [x] `ExpressionEvaluator` — variable substitution, arithmetic, `ceil()`/`floor()`, dice notation (`1d6+1`, `2d4`), `1d6>=N` recharge checks
+- [x] `ResourcePoolService` — full lifecycle: `syncPoolsForCharacter()`, `copyToParticipant()`, `createForMonster()`, `syncBackToCharacter()`, `spendPool()`, `recoverPool()`, `resetPools()`
+- [x] Wire `syncPoolsForCharacter()` into `createCharacter()` and `updateCharacter()`
+- [x] Wire pool copy/create into `addPlayerParticipant()` and `addMonsterParticipants()` in `EncounterService`
+- [x] Wire `syncBackToCharacter()` into `endEncounter()` in `EncounterService`
+- [x] Wire per-turn reset into `advanceTurn()` in `CombatService`
+- [x] Rest reset: `shortRest()` and `longRest()` in `CharacterService` call `resetResourcePools()`
+- [x] Correct reset semantics: short rest resets only `resetOn="shortRest"` pools; long rest resets all (D127)
+- [x] `CharacterUpdateRequest.resourcePools` field for frontend → backend persistence
+- [x] Tests: all 315 backend tests passing
 
 **Frontend tasks:**
-- [ ] Resource pool display component (pill/badge with current/max)
-- [ ] Integration into character sheet Stats tab (replace hit dice + feat resources displays)
-- [ ] Integration into encounter participant display
-- [ ] Per-round reset visual indicator
+- [x] `ResourcePoolDisplay.tsx` — pill/badge component with icon, display name, current/max, spend/recover buttons, source type filtering
+- [x] Integration into `CharacterSheetPage.tsx` — editable display with spend/recover wired to `saveField`
+- [x] Integration into DM `EncounterSessionPage.tsx` — per-participant pool display
+- [x] Integration into Player `EncounterSessionPage.tsx` — own character pool display
+- [x] `ResourcePoolEntry` TypeScript interface on `EncounterParticipant`
+- [x] Rest modal text dynamically lists which pools will reset (short rest: shortRest pools; long rest: all pools)
+- [x] Short rest handler correctly resets only `resetOn="shortRest"` pools (not longRest)
+- [x] Long rest handler resets all pools unconditionally
+- [x] TypeScript compilation: 0 errors
 
-**Dependencies:** None (foundational infrastructure). Should be completed before or alongside M12.
+**Key files:** `ResourcePoolService.java`, `ExpressionEvaluator.java`, `ResourcePoolSeeder.java`, `ResourcePoolEntry.java`, `ResourcePoolDisplay.tsx`, `CharacterSheetPage.tsx`, `EncounterSessionPage.tsx` (DM + player), `V8__resource_pool_system.sql`
+
+**Dependencies:** None (foundational infrastructure). Required by M12, M17, M18.
+
+## Milestone 24.5b: Racial Resource Pools
+
+**Goal:** Extend the M24.5 resource pool system to cover racial features with limited uses (Dragonborn Breath Weapon, Firbolg Hidden Step, Eladrin Fey Step, etc.), bringing them into the same unified pool lifecycle as class features.
+
+**Backend tasks:**
+- [ ] Add `race_feature_pools` junction table (mirrors `class_feature_pools` but links to `races` table) — Flyway V9
+- [ ] Seed 8–12 racial resource pool definitions from M7 race-trait analysis data:
+  - Dragonborn Breath Weapon (metallic/chromatic/gem variants use `metadata` for damage type/shape)
+  - Firbolg Hidden Step and Firbolg Magic
+  - Aasimar Healing Hands and Radiant Soul/Necrotic Shroud/Radiant Consumption
+  - Eladrin Fey Step
+  - Shadar-Kai Blessing of the Raven Queen
+  - Goliath Stone's Endurance
+  - Aarakocra Gust of Wind
+  - Genasi racial spells (if tracked as pools)
+- [ ] Extend `syncPoolsForCharacter()` to merge race-origin pools alongside class-origin pools (union of both junction tables)
+- [ ] Handle race reassignment: orphaned pools removed on race change, new race's pools added
+- [ ] Tests: racial pool seeding, sync with race present, race-swap cleanup
+
+**Frontend tasks:**
+- [ ] ResourcePoolDisplay shows `sourceType="RACE"` pools alongside class pools on character sheet
+- [ ] Race pools surface on encounter participant cards
+
+**Scope boundary:** Subrace variants (e.g., different dragonborn ancestries with different breath shapes) use `metadata` on the same `poolId` to store variant-specific config rather than separate pool definitions. Racial spellcasting (Drow innate spells, Tiefling Hellish Rebuke) stays in `spellsKnown` per existing precedent — limited-use spells are not pools.
+
+**Dependencies:** M24.5 (resource pool infrastructure), M7 (race trait analysis data).
 
 ## Milestone 25: Comprehensive Testing Suite — COMPLETE
 

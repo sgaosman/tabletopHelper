@@ -3,9 +3,11 @@ package com.tabletophelper.encounter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ public class CombatService {
     private final EncounterService encounterService;
     private final ObjectMapper objectMapper;
     private final SpellResolverEngine spellResolverEngine;
+    private final ResourcePoolService resourcePoolService;
     private final SpellRepository spellRepository;
 
     @Transactional
@@ -718,7 +721,15 @@ public class CombatService {
         EncounterParticipant next = sorted.get(nextIndex);
         next.setIsCurrentTurn(true);
 
+        // Reset action economy for the new turn
+        next.setActionUsed(false);
+        next.setBonusActionUsed(false);
+        next.setReactionUsed(false);
+
         expireConditions(encounter, next);
+
+        // Per-turn resource pool resets and recharge checks
+        resetTurnPools(next);
 
         logAction(encounter, null, next, CombatActionType.TURN_ADVANCE,
                 "Turn passes to " + next.getDisplayName() + " (Round " + encounter.getRoundNumber() + ")",
@@ -1129,6 +1140,24 @@ public class CombatService {
                 logAction(encounter, null, participant, CombatActionType.CONDITION_REMOVE,
                         c.name + " expires on " + participant.getDisplayName(), null, null, null, null);
             }
+        }
+    }
+
+    /**
+     * Resets per-turn resource pools and rolls recharge checks for
+     * the participant whose turn just started.
+     */
+    private void resetTurnPools(EncounterParticipant participant) {
+        try {
+            List<ResourcePoolEntry> pools = resourcePoolService.parsePools(
+                    participant.getResourcePoolsCurrent());
+            if (pools.isEmpty()) return;
+            // Use an empty context — per-turn resets are maxUses-based, not formula-based
+            List<ResourcePoolEntry> reset = resourcePoolService.resetPools(
+                    pools, "turn", Map.of());
+            participant.setResourcePoolsCurrent(objectMapper.writeValueAsString(reset));
+        } catch (Exception e) {
+            // Non-critical; combat continues even if pool reset fails
         }
     }
 

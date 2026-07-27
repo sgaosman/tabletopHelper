@@ -28,6 +28,7 @@ class CombatServiceTest {
     @Mock private EncounterService encounterService;
     @Mock private SpellResolverEngine spellResolverEngine;
     @Mock private com.tabletophelper.reference.SpellRepository spellRepository;
+    @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
 
     private CombatService combatService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -38,7 +39,7 @@ class CombatServiceTest {
 
     @BeforeEach
     void setUp() {
-        combatService = new CombatService(encounterRepository, combatLogRepository, encounterService, objectMapper, spellResolverEngine, spellRepository);
+        combatService = new CombatService(encounterRepository, combatLogRepository, encounterService, objectMapper, spellResolverEngine, resourcePoolService, spellRepository);
 
         dmUserId = UUID.randomUUID();
         encounterId = UUID.randomUUID();

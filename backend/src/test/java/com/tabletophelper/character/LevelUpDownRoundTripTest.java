@@ -41,6 +41,7 @@ class LevelUpDownRoundTripTest {
     @Mock EncounterParticipantRepository encounterParticipantRepository;
     @Mock FeatRepository featRepository;
     @Mock SpellRepository spellRepository;
+    @Mock com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
 
     ObjectMapper objectMapper = new ObjectMapper();
     CharacterMapper characterMapper;
@@ -64,7 +65,8 @@ class LevelUpDownRoundTripTest {
                 characterRepository, userRepository, campaignRepository,
                 campaignMemberRepository, raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
-                featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper);
+                featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,
+                resourcePoolService);
 
         user = User.builder().id(userId).displayName("Test").build();
 

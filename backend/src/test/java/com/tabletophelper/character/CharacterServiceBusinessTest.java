@@ -41,6 +41,7 @@ class CharacterServiceBusinessTest {
     @Mock EncounterParticipantRepository encounterParticipantRepository;
     @Mock FeatRepository featRepository;
     @Mock SpellRepository spellRepository;
+    @Mock com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
 
     ObjectMapper objectMapper = new ObjectMapper();
     CharacterMapper characterMapper;
@@ -90,7 +91,8 @@ class CharacterServiceBusinessTest {
                 characterRepository, userRepository, campaignRepository,
                 campaignMemberRepository, raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
-                featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper);
+                featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,
+                resourcePoolService);
 
         user = User.builder().id(userId).username("testuser").email("test@test.com")
                 .passwordHash("hash").displayName("Test User").build();

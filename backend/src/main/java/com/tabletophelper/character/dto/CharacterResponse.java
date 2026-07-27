@@ -90,6 +90,7 @@ public class CharacterResponse {
     private String hitDiceMap;
     private String levelHistory;
     private String featResources;
+    private String resourcePools;
 
     private Boolean isActive;
     private Instant createdAt;
