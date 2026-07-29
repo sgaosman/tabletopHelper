@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
 import { encounterApi } from '../../api/encounterApi';
@@ -11,7 +12,7 @@ import { getParticipantColour, getParticipantBg } from '../../utils/classColours
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
   ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
-  Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles, RotateCw
+  Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles, RotateCw, Castle
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 
@@ -490,6 +491,13 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
       case 'SPELL_SLOT_USE': return 'text-ink';
       case 'SPELL_SLOT_RESTORE': return 'text-ink';
       case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-faint';
+      // M12 action types
+      case 'MONSTER_ACTION': return 'text-monster';
+      case 'LEGENDARY_ACTION': return 'text-cls-monk';
+      case 'LAIR_ACTION': return 'text-cls-warlock';
+      case 'LEGENDARY_RESISTANCE_USED': return 'text-cls-monk';
+      case 'RECHARGE_SUCCESS': return 'text-buff';
+      case 'RECHARGE_FAILURE': return 'text-faint';
       default: return 'text-muted';
     }
   }
@@ -501,6 +509,12 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
         return 'border-debuff';
       case 'HEAL': case 'REVIVE': case 'STABILIZE': case 'CONDITION_REMOVE':
         return 'border-buff';
+      // M12 action types
+      case 'MONSTER_ACTION': return 'border-monster';
+      case 'LEGENDARY_ACTION': case 'LEGENDARY_RESISTANCE_USED': return 'border-cls-monk';
+      case 'LAIR_ACTION': return 'border-cls-warlock';
+      case 'RECHARGE_SUCCESS': return 'border-buff';
+      case 'RECHARGE_FAILURE': return 'border-rule';
       default:
         return 'border-muted';
     }
@@ -552,6 +566,18 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
                     {!isTurnChange && (
                       <div className={`bg-page-alt border-l-2 ${getLogBorderColor(log.actionType)} px-2 py-0.5`}>
                         <span className={`font-body text-[13px] font-semibold ${getLogColor(log.actionType)}`}>{log.description}</span>
+                        {log.legendaryResistanceEligible && !log.lrResolved && (
+                          <button
+                            className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[9px] font-semibold tracking-[0.02em]"
+                            onClick={() => {
+                              combatApi.useLegendaryResistance(encounterId, log.id).then(() => {
+                                combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
+                              });
+                            }}
+                          >
+                            Use Legendary Resistance
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -574,12 +600,284 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
   );
 }
 
+// ── M12 Inline Monster Actions ────────────────────────────────────────
+
+function InlineMonsterActions({
+  encounterId, participant, participants, inlineTargets, inlineResult,
+  inlineExecuting, onToggleTarget, onExecute, onRefresh,
+}: {
+  encounterId: string;
+  participant: EncounterParticipant;
+  participants: EncounterParticipant[];
+  inlineTargets: string[];
+  inlineResult: any;
+  inlineExecuting: boolean;
+  onToggleTarget: (id: string) => void;
+  onExecute: (participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR') => void;
+  onRefresh: () => void;
+}) {
+  const [templates, setTemplates] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'actions' | 'legendary' | 'lair'>('actions');
+  const [selectedAction, setSelectedAction] = useState<any>(null);
+
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setFetchError(null);
+    combatApi.getMonsterActions(encounterId, participant.id)
+      .then(res => { setTemplates(res.data); setLoading(false); })
+      .catch(err => { setFetchError(err.response?.data?.message || err.response?.status + ' ' + (err.response?.data?.error || err.message)); setLoading(false); });
+  }, [encounterId, participant.id]);
+
+  if (loading) return <div className="px-4 py-2 font-body text-[13px] font-semibold text-muted">Loading actions...</div>;
+  if (fetchError) return <div className="px-4 py-2 font-body text-[13px] font-semibold text-debuff">{fetchError}</div>;
+  if (!templates || templates.error) return <div className="px-4 py-2 font-body text-[13px] font-semibold text-debuff">{templates?.error || 'No data'}</div>;
+
+  const actions: any[] = templates.actions || [];
+  const legendary: any[] = templates.legendaryActions || [];
+  const lair: any[] = templates.lairActions || [];
+  const pools: Record<string, any> = templates.resourcePools || {};
+  const hasLegendary = legendary.length > 0;
+  const hasLair = lair.length > 0;
+  const legendaryRemaining = pools['monster:legendary-actions']?.currentUses ?? templates.legendaryActionCount ?? 0;
+
+  const currentActions = tab === 'legendary' ? legendary : tab === 'lair' ? lair : actions;
+
+  const isRecharged = (action: any) => {
+    if (!action.recharge) return true;
+    const kebab = action.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const poolId = `monster:recharge:${kebab}`;
+    return !pools[poolId] || pools[poolId].currentUses > 0;
+  };
+
+  const formatActionLabel = (a: any) => {
+    const parts = [a.name];
+    if (a.attackBonus != null) parts.push(`+${a.attackBonus}`);
+    if (a.saveDC) parts.push(`DC${a.saveDC}`);
+    if (a.effects?.find((e: any) => e.effectType === 'DAMAGE' && e.damageDice)) {
+      const dmg = a.effects.find((e: any) => e.effectType === 'DAMAGE' && e.damageDice);
+      parts.push(dmg.damageDice);
+    }
+    return parts.join(' · ');
+  };
+
+  return (
+    <div className="px-4 py-2 border-t border-rule-light bg-page">
+      {/* Tabs */}
+      {(hasLegendary || hasLair) && (
+        <div className="flex gap-2 mb-2">
+          <TabBtn active={tab === 'actions'} onClick={() => { setTab('actions'); setSelectedAction(null); }} label={`Actions (${actions.length})`} />
+          {hasLegendary && <TabBtn active={tab === 'legendary'} onClick={() => { setTab('legendary'); setSelectedAction(null); }} label={`Legendary (${legendaryRemaining})`} />}
+          {hasLair && <TabBtn active={tab === 'lair'} onClick={() => { setTab('lair'); setSelectedAction(null); }} label={`Lair (${lair.length})`} />}
+        </div>
+      )}
+
+      {/* Action list — lair actions get full cards, others get compact buttons */}
+      {tab === 'lair' ? (
+        <div className="space-y-2 mb-2">
+          {currentActions.map((a: any) => {
+            const isNonAutomatable = a.automatable === false || (!a.deliveryMethod && !a.effects);
+            return (
+              <div
+                key={a.name}
+                className={`border p-3 cursor-pointer transition-colors ${
+                  selectedAction?.name === a.name
+                    ? 'border-ink bg-page-alt'
+                    : 'border-rule-light bg-card hover:bg-page-alt'
+                }`}
+                onClick={() => {
+                  if (isNonAutomatable) {
+                    onExecute(participant.id, a.name, 'LAIR');
+                  } else {
+                    setSelectedAction(selectedAction?.name === a.name ? null : a);
+                  }
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Castle className="w-4 h-4 text-cls-warlock flex-shrink-0" />
+                  <span className="font-heading text-[13px] font-semibold tracking-[0.01em] text-ink">{a.name}</span>
+                  {a.saveDC && <span className="font-heading text-[9px] font-semibold tracking-[0.02em] text-muted">DC {a.saveDC} {a.saveAbility?.toUpperCase()}</span>}
+                  {a.effects?.find((e: any) => e.effectType === 'DAMAGE' && e.damageDice) && (
+                    <span className="font-heading text-[9px] font-semibold tracking-[0.02em] text-muted">
+                      {a.effects.find((e: any) => e.effectType === 'DAMAGE').damageDice} {a.effects.find((e: any) => e.effectType === 'DAMAGE').damageType}
+                    </span>
+                  )}
+                  {isNonAutomatable && (
+                    <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-cls-monk-bg text-cls-monk border border-cls-monk/30 ml-auto">Manual</span>
+                  )}
+                  {!isNonAutomatable && selectedAction?.name === a.name && (
+                    <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-ink text-card ml-auto">Selected</span>
+                  )}
+                </div>
+                <p className="font-body text-[13px] font-semibold text-muted leading-snug">{a.description}</p>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {currentActions.filter((a: any) => !a.isMultiattack).map((a: any) => {
+            const recharged = isRecharged(a);
+            const isNonAutomatable = a.automatable === false || (!a.deliveryMethod && !a.effects);
+            const isLegendary = tab === 'legendary';
+            const actionCost = a.cost || 1;
+            const legendaryDepleted = isLegendary && legendaryRemaining < actionCost;
+            return (
+              <button
+                key={a.name}
+                disabled={!recharged || inlineExecuting || legendaryDepleted}
+                onClick={() => {
+                  if (legendaryDepleted || !recharged) return;
+                  if (isNonAutomatable) {
+                    onExecute(participant.id, a.name, tab === 'legendary' ? 'LEGENDARY' : 'ACTION');
+                  } else {
+                    setSelectedAction(selectedAction?.name === a.name ? null : a);
+                  }
+                }}
+                className={`px-2 py-1 font-heading text-[10px] font-semibold tracking-[0.02em] border transition-colors
+                  ${!recharged || legendaryDepleted ? 'opacity-40 cursor-not-allowed border-rule-light bg-card text-muted' :
+                    isNonAutomatable ? 'border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20' :
+                    selectedAction?.name === a.name ? 'border-ink bg-ink text-card' :
+                    'border-monster bg-monster-bg text-monster hover:bg-monster/20'}`}
+                title={legendaryDepleted ? `Not enough legendary actions (need ${actionCost}, have ${legendaryRemaining})` : (a.description || formatActionLabel(a))}
+              >
+                {a.name}
+                {a.cost > 0 && <span className="ml-1 text-[9px] opacity-70">({a.cost})</span>}
+                {a.recharge && !recharged && <span className="ml-1 text-[9px]">↻</span>}
+                {a.recharge && recharged && <span className="ml-1 text-[9px] text-buff">✓</span>}
+                {legendaryDepleted && <span className="ml-1 text-[9px]">✗</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Multiattack buttons */}
+      {tab === 'actions' && actions.filter((a: any) => a.isMultiattack).map((a: any) => (
+        <button
+          key={a.name}
+          disabled={inlineExecuting}
+          onClick={() => onExecute(participant.id, a.name, 'ACTION')}
+          className="px-2 py-1 font-heading text-[10px] font-semibold tracking-[0.02em] border border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20 mr-1 mb-1"
+        >
+          ⚔ {a.name}
+        </button>
+      ))}
+
+      {/* Target selector for automatable actions */}
+      <div className="flex flex-wrap gap-1 mt-2">
+        {participants.filter(t => t.id !== participant.id && t.isAlive).map(t => (
+          <button
+            key={t.id}
+            onClick={() => onToggleTarget(t.id)}
+            className={`px-2 py-0.5 font-heading text-[9px] font-semibold tracking-[0.02em] border transition-colors
+              ${inlineTargets.includes(t.id)
+                ? 'bg-monster text-card border-monster'
+                : 'bg-card border-rule-light hover:bg-monster-bg'}`}
+          >
+            {t.displayName}
+          </button>
+        ))}
+      </div>
+
+      {/* Execute button for selected automatable action */}
+      {selectedAction && (
+        <div className="mt-2">
+          <button
+            disabled={inlineTargets.length === 0 || inlineExecuting || (tab === 'legendary' && legendaryRemaining < (selectedAction.cost || 1))}
+            onClick={() => {
+              if (tab === 'legendary' && legendaryRemaining < (selectedAction.cost || 1)) return;
+              onExecute(participant.id, selectedAction.name, tab === 'legendary' ? 'LEGENDARY' : tab === 'lair' ? 'LAIR' : 'ACTION');
+              setSelectedAction(null);
+            }}
+            className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[10px] font-semibold tracking-[0.02em]"
+          >
+            {inlineExecuting ? 'Executing...' : `Execute ${selectedAction.name}${inlineTargets.length > 0 ? ` (${inlineTargets.length} target${inlineTargets.length !== 1 ? 's' : ''})` : ''}`}
+          </button>
+        </div>
+      )}
+
+      {/* Execute + result */}
+      {inlineResult && (
+        <div className={`mt-2 p-3 border font-body text-[13px] font-semibold ${inlineResult.error ? 'bg-debuff-bg border-debuff text-debuff' : 'bg-buff-bg border-buff text-buff'}`}>
+          {inlineResult.error || inlineResult.description}
+          {inlineResult.targetResults?.map((tr: any) => (
+            <div key={tr.targetId}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${tr.damage} ${tr.damageType}` : ''}{tr.conditionsApplied?.length > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
+          ))}
+          <button className="mt-1 font-body text-[13px] font-semibold text-muted underline hover:text-ink" onClick={onRefresh}>Clear</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabBtn({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2 py-0.5 font-heading text-[9px] font-semibold tracking-[0.02em] transition-colors
+        ${active ? 'bg-monster text-card' : 'bg-card border border-rule-light text-muted hover:text-ink'}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ── DmSessionView ──────────────────────────────────────────────────────
+
 function DmSessionView() {
   const { encounter, isConnected, error, refreshEncounter } = useEncounter();
   const navigate = useNavigate();
   const [copiedCode, setCopiedCode] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [actionMode, setActionMode] = useState<ActionMode>(null);
+  const [expandedMonsterId, setExpandedMonsterId] = useState<string | null>(null);
+  const [inlineTargets, setInlineTargets] = useState<string[]>([]);
+  const [inlineResult, setInlineResult] = useState<any>(null);
+  const [inlineExecuting, setInlineExecuting] = useState(false);
+
+  async function executeInlineAction(participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR') {
+    if (inlineTargets.length === 0) return;
+    setInlineExecuting(true);
+    try {
+      const res = await combatApi.monsterAction(encounter!.id, {
+        monsterParticipantId: participantId,
+        actionName,
+        actionSource: source,
+        targetParticipantIds: inlineTargets,
+      });
+      setInlineResult(res.data);
+      refreshEncounter();
+    } catch (err: any) {
+      const msg = err.response?.data?.message
+          || err.response?.data?.error
+          || (typeof err.response?.data === 'string' ? err.response.data : null)
+          || err.message;
+      setInlineResult({ error: msg });
+    } finally {
+      setInlineExecuting(false);
+    }
+  }
+
+  async function toggleMonsterActions(participantId: string) {
+    if (expandedMonsterId === participantId) {
+      setExpandedMonsterId(null);
+      setInlineTargets([]);
+      setInlineResult(null);
+    } else {
+      setExpandedMonsterId(participantId);
+      setInlineTargets([]);
+      setInlineResult(null);
+    }
+  }
+
+  function toggleInlineTarget(targetId: string) {
+    setInlineTargets(prev =>
+      prev.includes(targetId) ? prev.filter(t => t !== targetId) : [...prev, targetId]
+    );
+  }
 
   if (!encounter) {
     return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[13px] font-semibold">Loading encounter...</p></div>;
@@ -763,8 +1061,8 @@ function DmSessionView() {
             const isMonster = p.participantType === 'MONSTER';
 
             return (
+              <Fragment key={p.id}>
               <div
-                key={p.id}
                 className={`bg-card border border-l-[3px] px-4 py-3 transition-all ${
                   p.isCurrentTurn ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
                   isSelected ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
@@ -786,9 +1084,11 @@ function DmSessionView() {
                   {/* Name + info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={`font-heading text-[13px] font-semibold tracking-[0.01em] text-ink ${!p.isAlive ? 'line-through' : ''}`}>{p.displayName}</span>
                       <span
-                        className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5"
+                        className={`font-heading text-[13px] font-semibold tracking-[0.01em] text-ink ${!p.isAlive ? 'line-through' : ''}`}
+                      >{p.displayName}</span>
+                      <span
+                        className={`font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5`}
                         style={{ color: getParticipantColour(isMonster), backgroundColor: getParticipantBg(isMonster) }}
                       >
                         {p.participantType}
@@ -880,6 +1180,16 @@ function DmSessionView() {
                   {/* Quick action buttons */}
                   {(isActive || encounter.status === 'PAUSED') && (
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                      {/* Monster actions toggle (M12) */}
+                      {isMonster && (
+                        <button
+                          onClick={() => toggleMonsterActions(p.id)}
+                          className={`p-1.5 ${expandedMonsterId === p.id ? 'bg-monster/20 text-monster' : 'bg-monster/10 hover:bg-monster/20 text-monster'}`}
+                          title="Monster actions"
+                        >
+                          <Swords className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {(p.isAlive || (p.participantType === 'PLAYER' && p.deathSaveFailures < 3)) && (
                         <button
                           onClick={() => selectTarget(p.id, 'attack')}
@@ -934,6 +1244,22 @@ function DmSessionView() {
                   )}
                 </div>
               </div>
+
+              {/* M12 Inline monster action panel */}
+              {expandedMonsterId === p.id && isMonster && (
+                <InlineMonsterActions
+                  encounterId={encounter.id}
+                  participant={p}
+                  participants={sorted}
+                  inlineTargets={inlineTargets}
+                  inlineResult={inlineResult}
+                  inlineExecuting={inlineExecuting}
+                  onToggleTarget={toggleInlineTarget}
+                  onExecute={executeInlineAction}
+                  onRefresh={refreshEncounter}
+                />
+              )}
+            </Fragment>
             );
           })}
         </div>

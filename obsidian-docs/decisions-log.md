@@ -1568,3 +1568,240 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 **Related decisions:** D054 (server-side leveling), D058 (ASI history recording)
 
 **Key files:** `CharacterService.java` (`findNextAsiEntry()`, post-creation ASI flow), `CharacterCreateWizard.tsx`, `AsiModal.tsx`
+
+## D129: M12 Scope Expansion — All CRs, M12.5 Eliminated
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** M12 covers all 2,357 monsters across all CRs, not just CR 0-10. M12.5 is eliminated as a separate milestone. The monster action resolver engine handles all CRs because the data patterns are identical (same delivery methods, effect types, and action structures at all tiers). Only 4 fields are unique to CR 11+ (`isEyeRays`, `rayCount`, `variableCost`, `autoHit`) and all are tractable edge cases.
+
+**Related:** D033
+
+## D130: Monster Action Panel UI — Expandable Accordion on Participant Row
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** When the DM clicks on a monster participant in the encounter session, the monster's row expands downward (accordion-style) to show its available actions inline in the initiative order. Actions are grouped into sections: Actions (with individual attacks and multiattack combos listed as separate lines), Spells (if the monster has spellcasting), and Legendary Actions (with remaining count and cost per action). Non-automatable actions show their description text and log to the combat log when clicked. The DM adjudicates effects manually using existing damage/heal/condition tools.
+
+**Related:** D033, D104
+
+## D131: Monster Spellcasting — Option B with Editable Overrides
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Monster spells appear as buttons in the monster action accordion panel (not through the player SpellCastModal). Clicking a spell opens a simplified flow: target selection only (since slot level, save DC, and attack bonus are known from the structured data). The save DC and attack bonus fields are shown as pre-populated editable text boxes so the DM can override them if needed. Monster spells resolve through the existing SpellResolverEngine. Innate spellcasting (per-spell usage limits like "1/day", "3/day") is modelled as ResourcePoolEntry records (e.g., poolId `"innate:dispel-magic"`, maxUses 1, resetOn `"longRest"`). "At will" spells get no pool (unlimited use).
+
+**Related:** D104, D125
+
+## D132: Multiattack — Component Lines with Combo Options
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** The monster action panel shows both individual component attacks AND multiattack combos as separate clickable lines. Example: a monster with "Multiattack: Longsword + Dagger" shows 3 lines: "Longsword", "Dagger", "Multiattack: Longsword + Dagger". This allows the DM to execute the full multiattack against one target, or split attacks across targets by clicking individual components. When a multiattack has options (e.g., "two longsword OR two longbow attacks"), each option appears as a separate multiattack line.
+
+**Related:** D033
+
+## D133: Legendary Actions — Persistent Panel, Usable Any Time
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** If a monster has legendary actions, its expandable accordion panel always shows a "Legendary Actions" section with the remaining count badge. The DM can click a legendary action at any time during combat (they are not gated by turn). Each legendary action shows its cost. The legendary action pool resets at the start of the monster's turn via the existing ResourcePoolEntry turn-reset mechanism. Legendary actions that reference spellcasting open the monster's spell panel. Non-automatable legendary actions log to combat log with description.
+
+**Related:** D125, D127
+
+## D134: Legendary Resistance — Inline Prompt on Failed Save
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** When a monster with legendary resistance remaining fails a saving throw (from a spell or save-forcing ability), the system returns the failure result along with a prompt: "Use Legendary Resistance? (X remaining)". This prompt appears inline in the combat result (in the response payload). If the DM clicks "Use Legendary Resistance", the save is converted to a success, the resistance count is decremented (via `ResourcePoolService.spendPool`), and the combat log records both the original failure and the legendary resistance use.
+
+**Related:** D125
+
+## D135: Recharge — ResourcePoolEntry with Auto-Roll on Turn Start
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Each rechargeable monster action is modelled as a ResourcePoolEntry with maxUses 1, resetOn `"turn"`, and resetCheck matching the recharge range (e.g., `"1d6>=5"` for Recharge 5–6). When `advanceTurn()` is called and it becomes a monster's turn, the existing pool reset logic rolls the recharge check automatically. The result is logged to the combat log: `"[Monster Name]'s [Action Name] recharges! (rolled X)"` on success, `"[Monster Name]'s [Action Name] does not recharge (rolled X)"` on failure. The recharge pool is created per-action (not per-monster) using the action name in the poolId (e.g., `"monster:recharge:fire-breath"`).
+
+**Related:** D125, D127
+
+## D136: Lair Actions — Synthetic Participant at Initiative 20
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** When a lair-capable monster is added to an encounter and the encounter is started, the DM is prompted "Is [Monster Name] fighting in its lair?" If yes, a synthetic "Lair Actions" participant is inserted into the initiative order at initiative 20 (losing ties, i.e., sorted after any creature that also has initiative 20). When the turn reaches this participant, the DM sees the available lair actions. The combat log attributes lair actions to the monster: `"[Monster Name]'s Lair Action activates! [description]"`. The system enforces the 5e rule that the same lair action cannot be used two rounds in a row (the previously used action is greyed out). Lair action data is pre-structured in `monster-action-definitions.json`.
+
+**Related:** D033
+
+## D137: Non-Automatable Actions — Log and Manual Adjudication
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Actions marked `automatable: false` (or lacking structured effects) display their description text in the accordion panel. When clicked, they log to the combat log as `"[Monster Name] uses [Action Name]"` with the description. The DM then uses existing manual tools (damage, heal, condition buttons) to adjudicate effects. Categories: teleports, shape change, detect/perception, movement actions, and unique abilities all follow this pattern. Monster summoning is deferred to M26 and just logged for now.
+
+**Related:** D033, D036
+
+## D138: Monster Reactions and Bonus Actions — Deferred to M13
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Although the `monster-action-definitions.json` contains reactions (311 monsters) and bonusActions (192 monsters) data, these are not displayed or usable in M12. M13 (Enhanced Action Economy) will implement reactions and bonus actions for both monsters and players together.
+
+**Related:** D033
+
+## D139: Monster Action Data Seeding — action_templates Column on Monster Entity
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** A new `action_templates` JSONB column is added to the `monsters` table. The structured action data from `monster-action-definitions.json` is seeded into this column by a `MonsterActionSeeder` (following the same pattern as `SpellSeeder.seedEffectTemplates()` which loads `spell-effect-definitions.json` into the `effect_template` column on spells). The resolver reads action templates from the Monster entity at runtime.
+
+**Related:** D033, D030
+
+## D140: M12 Test Suite — Full Coverage
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** M12 includes a full test suite: unit tests for MonsterActionResolverEngine (all delivery methods, multiattack, recharge, legendary actions, lair actions, spellcasting), integration tests for new endpoints, and frontend component tests for the accordion action panel. Target: 60-100+ new tests.
+
+**Related:** D102, D126
+
+## D141: M12 Frontend Styling — Tourmaline Token Consistency
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** The InlineMonsterActions and MonsterActionPanel components created during M12 used CSS variable references (e.g., `bg-[--surface-page]`, `text-[--text-muted]`) that did not correspond to any tokens in the Tourmaline design system (which uses `--color-page` → `bg-page`, `--color-muted` → `text-muted`). Additionally, default Tailwind colour classes (`bg-amber-50`, `text-green-600`) were used instead of Tourmaline semantic tokens. All class names were replaced with the correct Tourmaline utility classes and semantic colour tokens.
+
+**Why:** The mismatched variable names resolved to `var(--surface-page)` which does not exist — the theme defines `--color-page`. This caused most elements in the inline monster action panel to render without backgrounds, borders, or text colour, appearing flat and invisible against the page.
+
+**How to apply:** All new frontend components must use the Tourmaline utility classes defined in `frontend/src/index.css` (`bg-page`, `text-muted`, `border-rule`, `font-heading`, `font-body`, etc.). CSS variable references via Tailwind arbitrary syntax (`bg-[--...]`) are allowed but must reference actual theme variables. Semantic colours (`bg-buff`, `text-debuff`, `bg-monster`, `text-cls-monk`) must be used instead of raw Tailwind colours (`bg-green-50`, `text-red-600`).
+
+**Related:** D141, [[Tourmaline Design System]]
+
+## D142: Monster Action Execution Flow — Selected-Action Pattern
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** The InlineMonsterActions component was missing an Execute button for automatable actions. The onClick handler only fired for non-automatable actions; for automatable actions (those with a delivery method and effects), clicking the action button did nothing. Added a `selectedAction` state so that clicking an automatable action highlights it, and a separate "Execute" button appears between the target selector and result display to trigger the API call. Multiattack and non-automatable actions call onExecute directly without the intermediate selection step.
+
+**Why:** Without the selected-action pattern, users could select targets but had no way to trigger execution for automatable actions. The flow is now: click action → highlight → select targets → click Execute → see result.
+
+**How to apply:** The three flows are: (1) Multiattack/non-automatable → click calls onExecute directly; (2) Automatable (actions/legendary) → click selects, user picks targets, Execute button calls onExecute; (3) Lair → same as #2 but rendered as full-width description cards instead of compact buttons.
+
+**Related:** D141, [[M12 Monster Actions]]
+
+## D143: Multiattack Resolution — Nested Template Object
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** The `resolveMultiattack` method in `MonsterActionResolverEngine` was checking `fullTemplates.isArray()` but the `action_templates` JSONB column stores a definition **object** with nested `actions`, `legendaryActions`, and `lairActions` arrays — not a flat array. This caused every component action lookup to return null with the error "Component 'X' not found". Fixed by making `resolveMultiattack` detect whether `fullTemplates` is an array or an object, and if an object, search across all nested action arrays (`actions`, `legendaryActions`, `lairActions`, `bonusActions`, `reactions`, `traits`).
+
+**Why:** `action_templates` was seeded as `objectMapper.writeValueAsString(definition)` where definition is the per-monster entry from `monster-action-definitions.json` — an object, not the flat actions array.
+
+**How to apply:** When `MonsterActionResolverEngine.resolveAction` receives `fullTemplates`, it may be either a flat array (legacy behaviour) or a definition object. Multiattack resolution must handle both forms.
+
+**Related:** D139, [[M12 Monster Actions]]
+
+## D144: Lair Action Rendering — Description Cards
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Lair actions in the monster action panel are rendered as full-width description cards instead of compact buttons. Each card shows the action name as a `Cinzel` heading with a `Castle` icon, the full description as body text, key stats (save DC, damage dice, damage type) as pills, and a "Manual" badge for non-automatable actions. Additionally, 68 lair action names across ~40 monsters that were auto-generated sentence fragments (e.g., "The aboleth casts", "Pools of water", "Water in the") were renamed to proper descriptive labels (e.g., "Phantasmal Force", "Grasping Tide", "Psychic Conduit"). The data was fixed in `monster-action-definitions.json` and re-seeded to 2,357 monsters.
+
+**Why:** Lair actions are complex, narrative abilities with long descriptions. Sentence-fragment names like "The dragon creates" or "A wall of" are unhelpful as UI labels. The card layout lets DMs read the full description in-panel before deciding to use the action, while proper names make the action list scannable.
+
+**How to apply:** The lair tab uses a dedicated rendering path (`tab === 'lair'` conditional) with full card markup. New lair action definitions must have concise descriptive names rather than sentence fragments. To re-seed action_templates after data changes, null out the column on monsters (`UPDATE monsters SET action_templates = NULL`) and restart the backend to trigger `MonsterActionSeeder`.
+
+**Related:** D141, [[M12 Monster Actions]], [[lair actions]]
+
+## D145: Legendary Resistance — Combat Log Based Undo System
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Legendary Resistance (LR) was completely reworked from an inline prompt in the monster action result panel to a combat-log-based system with full undo capability. Key changes:
+
+1. **V10 migration** adds 5 columns to `combat_logs`: `legendary_resistance_eligible`, `lr_target_id`, `lr_damage_dealt`, `lr_conditions_applied`, `lr_resolved`.
+
+2. **Per-target logging**: `monsterAction()` now logs one combat log entry per target instead of a single summary. Failed saves against LR-eligible targets store the damage amount and condition names in the log entry.
+
+3. **Undo on LR use**: `useLegendaryResistance()` now accepts a `combatLogId` rather than `participantId`. It finds the combat log entry, reverts the damage (heals the target), removes the conditions that were applied, decrements the **target's** LR pool, and marks the entry as resolved.
+
+4. **UI relocation**: The "Use Legendary Resistance" button appears in the `CombatLogPanel` on eligible log entries instead of inline in the monster action result panel. The `confirm-failed-save` endpoint and `Accept` button were removed (effects apply immediately; LR is the undo mechanism).
+
+5. **LogAction refactoring**: An overloaded `logAction` method accepts optional LR metadata fields. The original `logAction` delegates to the overloaded version with null LR fields. This ensures all combat log entries go through the same proven code path.
+
+**Why:** The old implementation had three bugs: (a) the frontend sent the attacker's participant ID instead of the target's when calling `useLegendaryResistance`; (b) LR only decremented the pool without undoing the damage or conditions that were already applied; (c) the LR prompt appeared in the wrong location (action result panel instead of combat log).
+
+**How to apply:** When a save fails against a monster with LR available, the combat log entry carries `legendaryResistanceEligible: true` with the target's ID, damage dealt, and conditions applied. The DM clicks "Use Legendary Resistance" on the log entry → damage is healed, conditions removed, LR pool decremented, entry marked resolved. Button disappears after click.
+
+**Related:** D127, D128, [[M12 Monster Actions]], [[Legendary Resistance]]
+
+## D146: Recharge Pool Configuration — resetOn Must Be Null for Probabilistic Reset
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Recharge action pools (e.g., Fire Breath `1d6>=5`) were incorrectly configured with `resetOn: "turn"` in `createForMonster`, which caused `resetPools` to unconditionally reset them to maxUses every turn — bypassing the probabilistic recharge check entirely. The recharge check only runs when `shouldReset` is false, so pools intended to use probabilistic recharge must have `resetOn: null`. Fixed by setting `resetOn` to `null` for recharge pools during monster creation.
+
+Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and the combat log message format improved from `"Monster's Fire Breath recharges! (rolled 5)"` to `"Adult Red Dragon rolls 1d6 (5). Adult Red Dragon recharges Fire Breath!"`.
+
+**Why:** The `resetPools` logic evaluates `shouldReset` based on `resetOn` matching the trigger. Pools with `resetOn: "turn"` always get fully reset to maxUses, skipping the `resetCheck` evaluation. Pools with `resetOn: null` (no automatic reset) fall into the `!shouldReset` branch where the recharge check is evaluated.
+
+**How to apply:** Monster pools that use probabilistic recharge (`resetCheck` like `"1d6>=5"`) must set `resetOn` to `null`. Pools that reset fully every turn (like legendary actions) use `resetOn: "turn"`. The `RechargeLogEntry` constructor now requires 5 args: `(poolId, displayName, success, rollValue, checkExpression)`.
+
+**Related:** D127, D145, [[M12 Monster Actions]], [[Resource Pools]]
+
+## D147: Legendary Action Depletion — Dual-Layer Enforcement
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Legendary action cost enforcement requires both frontend and backend layers. The frontend disables action buttons and the Execute button when `legendaryRemaining < actionCost` (greyed out, shows ✗, tooltip explains deficit). The backend `spendPool()` method now checks `currentUses >= amount` and returns `false` when insufficient — previously it only checked pool existence and clamped to 0, always returning `true`. The `monsterAction()` pre-validation uses this to throw `IllegalStateException` with a clear message.
+
+**Why:** The frontend disabled state alone is unreliable (React disabled buttons can still receive clicks in some edge cases, and stale state after spending). The backend check is essential but was ineffective because `spendPool` returned `true` as long as the pool existed, regardless of remaining uses.
+
+**How to apply:** All callers of `spendPool` already check the return value and throw on `false`. The return value now correctly reflects sufficiency: `found && hadEnough`. Monster creation in `createForMonster` sets `resetOn: "turn"` for legendary actions (full reset each turn) and `resetOn: null` for recharge actions (probabilistic reset).
+
+**Related:** D145, D146, [[M12 Monster Actions]], [[Resource Pools]]
+
+## D148: Combat Log Description Format — Action Name Required
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Combat log entries for monster actions must include the action name in the description. Changed `buildTargetDescription` from the format `"Adult Red Dragon vs Target: HIT (14+9=23) for 18 slashing"` to `"Adult Red Dragon uses Bite vs Target: HIT (14+9=23) for 18 slashing damage"`. The method signature changed to accept `String actionName` as a parameter.
+
+**Why:** Without the action name, combat log entries were ambiguous ("Adult Red Dragon vs asdasd: FAILED_SAVE (2) — frightened") — the DM couldn't tell which action caused the effect.
+
+**How to apply:** `buildTargetDescription(EncounterParticipant monster, String actionName, MonsterActionResolverEngine.TargetResult tr)` — the action name is extracted from `actionTemplate.path("name").asText("Unknown Action")` in `monsterAction()`.
+
+**Related:** D145, [[M12 Monster Actions]], [[Combat Log]]
+
+## D149: Spring Boot Error Messages — include-message Always
+
+**Date:** 2026-07-29
+**Status:** Accepted
+
+**Decision:** Added `server.error.include-message: always` and `server.error.include-binding-errors: always` to `application.yml`. The frontend error handler was updated to try `err.response?.data?.message`, `err.response?.data?.error`, raw response body, and finally `err.message` (Axios generic text) in that order.
+
+**Why:** Spring Boot's default `include-message: never` stripped exception messages from error responses, causing the frontend to show unhelpful generic text like "Request failed with status code 409" instead of the actual error like "Not enough legendary actions remaining (need 2)".
+
+**How to apply:** All backend exception messages now reach the frontend. New error handlers should follow the same fallback chain pattern.
+
+**Related:** D147, [[Error Handling]]

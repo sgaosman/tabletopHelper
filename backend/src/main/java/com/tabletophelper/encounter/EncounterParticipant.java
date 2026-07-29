@@ -148,6 +148,9 @@ public class EncounterParticipant {
     @Builder.Default
     private Integer deathSaveFailures = 0;
 
+    @Column(name = "last_lair_action_used", length = 200)
+    private String lastLairActionUsed;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

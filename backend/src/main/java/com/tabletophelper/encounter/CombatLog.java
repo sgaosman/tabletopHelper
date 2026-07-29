@@ -63,6 +63,21 @@ public class CombatLog {
     @Column(name = "turn_participant_name", length = 200)
     private String turnParticipantName;
 
+    @Column(name = "legendary_resistance_eligible")
+    private Boolean legendaryResistanceEligible;
+
+    @Column(name = "lr_target_id")
+    private UUID lrTargetId;
+
+    @Column(name = "lr_damage_dealt")
+    private Integer lrDamageDealt;
+
+    @Column(name = "lr_conditions_applied", length = 500)
+    private String lrConditionsApplied;
+
+    @Column(name = "lr_resolved")
+    private Boolean lrResolved;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

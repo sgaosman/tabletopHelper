@@ -5,11 +5,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CombatService {
 
     private final EncounterRepository encounterRepository;
@@ -25,6 +28,8 @@ public class CombatService {
     private final EncounterService encounterService;
     private final ObjectMapper objectMapper;
     private final SpellResolverEngine spellResolverEngine;
+    private final MonsterActionResolverEngine monsterActionResolverEngine;
+    private final MonsterSpellCastService monsterSpellCastService;
     private final ResourcePoolService resourcePoolService;
     private final SpellRepository spellRepository;
 
@@ -692,6 +697,374 @@ public class CombatService {
                 .build();
     }
 
+    // ── M12 Request/Response records ─────────────────────────────
+
+    public record MonsterActionRequest(
+            UUID monsterParticipantId,
+            String actionName,
+            String actionSource,  // "ACTION", "LEGENDARY", "LAIR"
+            List<UUID> targetParticipantIds,
+            Integer overrideAttackBonus,
+            Integer overrideSaveDC,
+            Boolean advantage
+    ) {}
+
+    public record MonsterActionResponse(
+            boolean resolved,
+            String description,
+            int totalDamage,
+            int totalHealing,
+            List<TargetResult> targetResults,
+            boolean requiresManualResolution,
+            String manualResolutionReason,
+            List<String> conditionsInflicted,
+            boolean legendaryResistanceAvailable,
+            int legendaryResistanceRemaining,
+            EncounterResponse encounterState
+    ) {}
+
+    public record TargetResult(
+            UUID targetId,
+            String targetName,
+            int damage,
+            int healing,
+            boolean savedSuccessfully,
+            List<String> conditionsApplied,
+            String attackOutcome,
+            Integer rollValue,
+            Integer rollTotal,
+            String damageType,
+            boolean legendaryResistanceAvailable,
+            int legendaryResistanceRemaining
+    ) {}
+
+    public record MonsterSpellRequest(
+            UUID monsterParticipantId,
+            String spellName,
+            int slotLevel,
+            List<UUID> targetParticipantIds,
+            Integer overrideAttackBonus,
+            Integer overrideSaveDC,
+            Boolean advantage
+    ) {}
+
+    // ── M12 Monster action flow (mirrors castSpell) ──────────────
+
+    @Transactional
+    public MonsterActionResponse monsterAction(UUID encounterId, MonsterActionRequest request,
+                                               UUID actorParticipantId, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDm(encounter, userId);
+
+        EncounterParticipant monster = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(request.monsterParticipantId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Monster participant not found"));
+
+        // Load action templates from the monster entity
+        Monster monsterEntity = monster.getMonster();
+        if (monsterEntity == null || monsterEntity.getActionTemplates() == null) {
+            throw new IllegalArgumentException("Monster has no action templates");
+        }
+
+        JsonNode templates;
+        try {
+            templates = objectMapper.readTree(monsterEntity.getActionTemplates());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse monster action templates", e);
+        }
+
+        // Find the requested action
+        JsonNode actionTemplate = findActionByName(templates, request.actionName(), request.actionSource());
+        if (actionTemplate == null) {
+            throw new IllegalArgumentException("Action '" + request.actionName() + "' not found in monster's action templates (source: " + request.actionSource() + ")");
+        }
+
+        // Pre-validation for legendary and recharge actions
+        if ("LEGENDARY".equals(request.actionSource())) {
+            int cost = actionTemplate.has("cost") ? actionTemplate.get("cost").asInt() : 1;
+            if (!resourcePoolService.spendPool(monster, "monster:legendary-actions", cost)) {
+                throw new IllegalStateException("Not enough legendary actions remaining (need " + cost + ")");
+            }
+        }
+
+        // Check recharge pool
+        if (actionTemplate.has("recharge")) {
+            String recharge = actionTemplate.get("recharge").asText();
+            if (recharge.matches("^[4-6]-[5-6]$") || recharge.matches("^[4-6]$")) {
+                String actionName = actionTemplate.get("name").asText();
+                String kebab = actionName.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");
+                String poolId = "monster:recharge:" + kebab;
+                List<ResourcePoolEntry> pools = resourcePoolService.parsePools(monster.getResourcePoolsCurrent());
+                boolean available = pools.stream().anyMatch(p -> p.poolId().equals(poolId) && p.currentUses() > 0);
+                if (!available) {
+                    throw new IllegalStateException("Recharge action '" + actionName + "' is not yet recharged");
+                }
+            }
+        }
+
+        // For LAIR: check no-repeat rule
+        if ("LAIR".equals(request.actionSource())) {
+            String actionName = actionTemplate.get("name").asText();
+            if (actionName.equals(monster.getLastLairActionUsed())) {
+                throw new IllegalStateException("Lair action '" + actionName + "' cannot be used two rounds in a row");
+            }
+            monster.setLastLairActionUsed(actionName);
+        }
+
+        // Resolve the action
+        MonsterActionResolverEngine.MonsterActionResult result = monsterActionResolverEngine.resolveAction(
+                encounter, monster, actionTemplate, templates,
+                request.targetParticipantIds(), request.overrideAttackBonus(),
+                request.overrideSaveDC(), request.advantage());
+
+        // Apply results to targets
+        for (MonsterActionResolverEngine.TargetResult tr : result.targetResults()) {
+            EncounterParticipant target = encounter.getParticipants().stream()
+                    .filter(p -> p.getId().equals(tr.targetId()))
+                    .findFirst().orElse(null);
+            if (target == null) continue;
+
+            if (tr.damage() > 0) {
+                applyDamageToTarget(encounter, target, tr.damage(), tr.damageType());
+            }
+            if (tr.healing() > 0) {
+                int newHp = Math.min(target.getHpMax(), target.getHpCurrent() + tr.healing());
+                target.setHpCurrent(newHp);
+                if (newHp > 0 && !target.getIsAlive()) {
+                    target.setIsAlive(true);
+                    target.setDeathSaveSuccesses(0);
+                    target.setDeathSaveFailures(0);
+                }
+            }
+            // Apply conditions
+            if (!tr.conditionsApplied().isEmpty()) {
+                applyConditions(encounter, target, tr.conditionsApplied(), monster,
+                        actionTemplate.has("saveToEndEachTurn") && actionTemplate.get("saveToEndEachTurn").asBoolean(false),
+                        actionTemplate.has("saveToEndDC") ? actionTemplate.get("saveToEndDC").asInt() : 0,
+                        actionTemplate.has("saveToEndAbility") ? actionTemplate.get("saveToEndAbility").asText() : null);
+            }
+        }
+
+        // Spend recharge pool after successful use
+        if (actionTemplate.has("recharge")) {
+            String recharge = actionTemplate.get("recharge").asText();
+            if (recharge.matches("^[4-6]-[5-6]$") || recharge.matches("^[4-6]$")) {
+                String actionName = actionTemplate.get("name").asText();
+                String kebab = actionName.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");
+                String poolId = "monster:recharge:" + kebab;
+                resourcePoolService.spendPool(monster, poolId, 1);
+            }
+        }
+
+        // Log to combat log — per-target entries with LR metadata
+        CombatActionType logType = switch (request.actionSource()) {
+            case "LEGENDARY" -> CombatActionType.LEGENDARY_ACTION;
+            case "LAIR" -> CombatActionType.LAIR_ACTION;
+            default -> CombatActionType.MONSTER_ACTION;
+        };
+
+        String actionName = actionTemplate.path("name").asText("Unknown Action");
+
+        for (var tr : result.targetResults()) {
+            EncounterParticipant target = findParticipant(encounter, tr.targetId());
+            String desc = buildTargetDescription(monster, actionName, tr);
+
+            if (tr.legendaryResistanceAvailable() && !tr.savedSuccessfully()) {
+                logAction(encounter, monster, target, logType, desc,
+                        tr.rollValue(), tr.rollTotal(), tr.damage(), tr.healing(),
+                        true, target.getId(), tr.damage(),
+                        String.join(",", tr.conditionsApplied()));
+            } else {
+                logAction(encounter, monster, target, logType, desc,
+                        tr.rollValue(), tr.rollTotal(), tr.damage(), tr.healing());
+            }
+        }
+
+        if (result.targetResults().isEmpty()) {
+            logAction(encounter, monster, null, logType, result.description(),
+                    null, null, result.totalDamage(), result.totalHealing());
+        }
+
+        EncounterResponse response = encounterService.toResponse(encounterRepository.save(encounter));
+
+        return new MonsterActionResponse(
+                result.resolved(), result.description(), result.totalDamage(),
+                result.totalHealing(),
+                result.targetResults().stream().map(tr -> new TargetResult(
+                        tr.targetId(), tr.targetName(), tr.damage(), tr.healing(),
+                        tr.savedSuccessfully(), tr.conditionsApplied(), tr.attackOutcome(),
+                        tr.rollValue(), tr.rollTotal(), tr.damageType(),
+                        tr.legendaryResistanceAvailable(), tr.legendaryResistanceRemaining()
+                )).toList(),
+                result.requiresManualResolution(), result.manualResolutionReason(),
+                result.conditionsInflicted(),
+                result.legendaryResistanceAvailable(), result.legendaryResistanceRemaining(),
+                response
+        );
+    }
+
+    @Transactional
+    public CastSpellResponse monsterSpell(UUID encounterId, CombatService.MonsterSpellRequest request,
+                                          UUID actorParticipantId, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDm(encounter, userId);
+
+        EncounterParticipant monster = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(request.monsterParticipantId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Monster participant not found"));
+
+        // Populate spellcasting data if not already set
+        if ((monster.getSpellSlotsCurrent() == null || monster.getSpellSlotsCurrent().isBlank())
+                && monster.getMonster() != null && monster.getMonster().getActionTemplates() != null) {
+            monsterSpellCastService.populateMonsterSpellcasting(monster,
+                    monster.getMonster().getActionTemplates());
+            monsterSpellCastService.populateInnateSpellPools(monster,
+                    monster.getMonster().getActionTemplates());
+        }
+
+        SpellResolverEngine.SpellCastResult result = monsterSpellCastService.castMonsterSpell(
+                encounter, monster, request.spellName(), request.slotLevel(),
+                request.targetParticipantIds(),
+                request.overrideAttackBonus(), request.overrideSaveDC(), request.advantage());
+
+        // Apply spell results to targets
+        for (SpellResolverEngine.TargetResult tr : result.targetResults()) {
+            EncounterParticipant target = encounter.getParticipants().stream()
+                    .filter(p -> p.getId().equals(tr.targetId()))
+                    .findFirst().orElse(null);
+            if (target == null) continue;
+            if (tr.damage() > 0) {
+                applyDamageToTarget(encounter, target, tr.damage(), tr.damageType());
+            }
+            if (tr.healing() > 0) {
+                int newHp = Math.min(target.getHpMax(), target.getHpCurrent() + tr.healing());
+                target.setHpCurrent(newHp);
+                if (newHp > 0 && !target.getIsAlive()) {
+                    target.setIsAlive(true);
+                    target.setDeathSaveSuccesses(0);
+                    target.setDeathSaveFailures(0);
+                }
+            }
+            if (!tr.conditionsApplied().isEmpty()) {
+                List<ConditionEntry> existing = parseConditionEntries(target);
+                int rn = encounter.getRoundNumber();
+                for (String cond : tr.conditionsApplied()) {
+                    existing.add(new ConditionEntry(cond, null, rn,
+                            monster.getDisplayName(), monster.getId(), false));
+                }
+                try {
+                    target.setActiveConditions(objectMapper.writeValueAsString(existing));
+                } catch (Exception e) {
+                    // skip
+                }
+            }
+        }
+
+        logAction(encounter, monster, null, CombatActionType.SPELL_CAST,
+                result.description(), null, null, result.totalDamage(), result.totalHealing());
+
+        EncounterResponse response = encounterService.toResponse(encounterRepository.save(encounter));
+
+        List<CastSpellResponse.TargetOutcome> outcomes = result.targetResults().stream()
+                .map(tr -> CastSpellResponse.TargetOutcome.builder()
+                        .targetId(tr.targetId())
+                        .targetName(tr.targetName())
+                        .outcome(tr.attackOutcome() != null ? tr.attackOutcome() : "resolved")
+                        .damage(tr.damage())
+                        .healing(tr.healing())
+                        .conditionsApplied(tr.conditionsApplied())
+                        .attackRoll(tr.rollValue())
+                        .saveRoll(tr.rollTotal())
+                        .build())
+                .toList();
+
+        return CastSpellResponse.builder()
+                .encounterState(response)
+                .spellName(request.spellName())
+                .slotLevelUsed(request.slotLevel())
+                .autoResolved(result.resolved())
+                .resultSummary(result.description())
+                .targets(outcomes)
+                .manualResolutionReason(result.requiresManualResolution() ? result.manualResolutionReason() : null)
+                .build();
+    }
+
+    @Transactional
+    public EncounterResponse useLegendaryResistance(UUID encounterId, UUID combatLogId, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDm(encounter, userId);
+
+        // Find the combat log entry
+        CombatLog logEntry = combatLogRepository.findById(combatLogId)
+                .orElseThrow(() -> new IllegalArgumentException("Combat log entry not found"));
+
+        if (logEntry.getLrResolved() != null && logEntry.getLrResolved()) {
+            throw new IllegalStateException("Legendary Resistance already resolved for this entry");
+        }
+
+        if (!Boolean.TRUE.equals(logEntry.getLegendaryResistanceEligible())) {
+            throw new IllegalStateException("This combat log entry is not eligible for Legendary Resistance");
+        }
+
+        // Find the TARGET participant (the one who failed the save)
+        EncounterParticipant target = findParticipant(encounter, logEntry.getLrTargetId());
+
+        // 1. Decrement target's legendary resistance pool
+        if (!resourcePoolService.spendPool(target, "monster:legendary-resistance", 1)) {
+            throw new IllegalStateException("No legendary resistance remaining");
+        }
+
+        // 2. Revert damage (heal the target by the damage that was dealt)
+        if (logEntry.getLrDamageDealt() != null && logEntry.getLrDamageDealt() > 0) {
+            int newHp = Math.min(target.getHpMax(), target.getHpCurrent() + logEntry.getLrDamageDealt());
+            target.setHpCurrent(newHp);
+            if (newHp > 0 && !target.getIsAlive()) {
+                target.setIsAlive(true);
+                target.setDeathSaveSuccesses(0);
+                target.setDeathSaveFailures(0);
+            }
+        }
+
+        // 3. Remove conditions that were applied
+        if (logEntry.getLrConditionsApplied() != null && !logEntry.getLrConditionsApplied().isBlank()) {
+            String[] conditions = logEntry.getLrConditionsApplied().split(",");
+            for (String condName : conditions) {
+                removeConditionByName(target, condName.trim());
+            }
+        }
+
+        // 4. Mark the log entry as resolved (prevents double-click)
+        logEntry.setLrResolved(true);
+        combatLogRepository.save(logEntry);
+
+        // 5. Get remaining LR count for the log message
+        List<ResourcePoolEntry> pools = resourcePoolService.parsePools(target.getResourcePoolsCurrent());
+        int remaining = pools.stream()
+                .filter(p -> "monster:legendary-resistance".equals(p.poolId()))
+                .findFirst().map(ResourcePoolEntry::currentUses).orElse(0);
+
+        // 6. Log the LR use
+        logAction(encounter, target, target, CombatActionType.LEGENDARY_RESISTANCE_USED,
+                target.getDisplayName() + " uses Legendary Resistance! (" + remaining + " remaining)",
+                null, null, null, null);
+
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    @Transactional
+    public EncounterResponse setLairStatus(UUID encounterId, List<UUID> monsterIds, UUID userId) {
+        Encounter encounter = loadActiveEncounter(encounterId);
+        verifyDm(encounter, userId);
+        try {
+            encounter.setMonstersInLair(objectMapper.writeValueAsString(monsterIds));
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize monstersInLair", e);
+        }
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
     @Transactional
     public EncounterResponse advanceTurn(UUID encounterId, UUID userId) {
         Encounter encounter = loadActiveEncounter(encounterId);
@@ -797,6 +1170,11 @@ public class CombatService {
                         .damageDealt(log.getDamageDealt())
                         .healingDone(log.getHealingDone())
                         .turnParticipantName(log.getTurnParticipantName())
+                        .legendaryResistanceEligible(log.getLegendaryResistanceEligible())
+                        .lrTargetId(log.getLrTargetId())
+                        .lrDamageDealt(log.getLrDamageDealt())
+                        .lrConditionsApplied(log.getLrConditionsApplied())
+                        .lrResolved(log.getLrResolved())
                         .createdAt(log.getCreatedAt())
                         .build())
                 .toList();
@@ -899,6 +1277,40 @@ public class CombatService {
         }
     }
 
+    private JsonNode findActionByName(JsonNode templates, String actionName, String source) {
+        String arrayName = switch (source) {
+            case "LEGENDARY" -> "legendaryActions";
+            case "LAIR" -> "lairActions";
+            default -> "actions";
+        };
+        JsonNode array = templates.get(arrayName);
+        if (array == null || !array.isArray()) return null;
+        for (JsonNode action : array) {
+            if (action.has("name") && action.get("name").asText().equals(actionName)) {
+                return action;
+            }
+        }
+        return null;
+    }
+
+    private void applyConditions(Encounter encounter, EncounterParticipant target,
+                                  List<String> conditionNames, EncounterParticipant source,
+                                  boolean saveToEndEachTurn, int saveToEndDC, String saveToEndAbility) {
+        List<ConditionEntry> existing = parseConditionEntries(target);
+        int roundNumber = encounter.getRoundNumber();
+        for (String name : conditionNames) {
+            // Parse duration from action template if available; default to null (manual removal)
+            Integer duration = null;
+            existing.add(new ConditionEntry(name, duration, roundNumber, source.getDisplayName(),
+                    source.getId(), false));
+        }
+        try {
+            target.setActiveConditions(objectMapper.writeValueAsString(existing));
+        } catch (Exception e) {
+            log.warn("Failed to serialize conditions for participant {}", target.getId(), e);
+        }
+    }
+
     private void checkConcentration(Encounter encounter, EncounterParticipant participant, int damage) {
         int dc = Math.max(10, damage / 2);
         int conMod = 0;
@@ -990,14 +1402,17 @@ public class CombatService {
     private void logAction(Encounter encounter, EncounterParticipant actor, EncounterParticipant target,
                            CombatActionType actionType, String description,
                            Integer rollValue, Integer rollTotal, Integer damageDealt, Integer healingDone) {
-        String turnName = null;
-        List<EncounterParticipant> sorted = encounter.getParticipants().stream()
-                .sorted((a, b) -> (a.getSortOrder() != null ? a.getSortOrder() : 999) - (b.getSortOrder() != null ? b.getSortOrder() : 999))
-                .toList();
-        int turnIdx = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
-        if (!sorted.isEmpty() && turnIdx < sorted.size()) {
-            turnName = sorted.get(turnIdx).getDisplayName();
-        }
+        logAction(encounter, actor, target, actionType, description,
+                rollValue, rollTotal, damageDealt, healingDone,
+                null, null, null, null);
+    }
+
+    private void logAction(Encounter encounter, EncounterParticipant actor, EncounterParticipant target,
+                           CombatActionType actionType, String description,
+                           Integer rollValue, Integer rollTotal, Integer damageDealt, Integer healingDone,
+                           Boolean legendaryResistanceEligible, UUID lrTargetId,
+                           Integer lrDamageDealt, String lrConditionsApplied) {
+        String turnName = getCurrentTurnName(encounter);
 
         CombatLog log = CombatLog.builder()
                 .encounter(encounter)
@@ -1013,6 +1428,11 @@ public class CombatService {
                 .rollTotal(rollTotal)
                 .damageDealt(damageDealt)
                 .healingDone(healingDone)
+                .legendaryResistanceEligible(legendaryResistanceEligible)
+                .lrTargetId(lrTargetId)
+                .lrDamageDealt(lrDamageDealt)
+                .lrConditionsApplied(lrConditionsApplied)
+                .lrResolved(legendaryResistanceEligible != null && legendaryResistanceEligible ? false : null)
                 .build();
         combatLogRepository.save(log);
     }
@@ -1031,6 +1451,49 @@ public class CombatService {
                 .filter(p -> p.getId().equals(participantId))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Participant not found"));
+    }
+
+    private String getCurrentTurnName(Encounter encounter) {
+        List<EncounterParticipant> sorted = encounter.getParticipants().stream()
+                .sorted((a, b) -> (a.getSortOrder() != null ? a.getSortOrder() : 999)
+                        - (b.getSortOrder() != null ? b.getSortOrder() : 999))
+                .toList();
+        int turnIdx = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
+        if (!sorted.isEmpty() && turnIdx < sorted.size()) {
+            return sorted.get(turnIdx).getDisplayName();
+        }
+        return null;
+    }
+
+    private String buildTargetDescription(EncounterParticipant monster, String actionName,
+                                          MonsterActionResolverEngine.TargetResult tr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(tr.attackOutcome());
+        if (tr.rollValue() != null) {
+            sb.append(" (").append(tr.rollValue());
+            if (tr.rollTotal() != null && tr.rollTotal() != tr.rollValue()) {
+                int mod = tr.rollTotal() - tr.rollValue();
+                sb.append("+").append(mod).append("=").append(tr.rollTotal());
+            }
+            sb.append(")");
+        }
+        if (tr.damage() > 0) {
+            sb.append(" for ").append(tr.damage()).append(" ").append(tr.damageType() != null ? tr.damageType() : "damage");
+        }
+        if (tr.savedSuccessfully()) {
+            sb.append(" (half)");
+        }
+        if (!tr.conditionsApplied().isEmpty()) {
+            sb.append(" — ").append(String.join(", ", tr.conditionsApplied()));
+        }
+        return monster.getDisplayName() + " uses " + actionName + " vs " + tr.targetName() + ": " + sb.toString();
+    }
+
+    private void removeConditionByName(EncounterParticipant target, String conditionName) {
+        if (target.getActiveConditions() == null || target.getActiveConditions().isBlank()) return;
+        List<ConditionEntry> conditions = parseConditionEntries(target);
+        conditions.removeIf(c -> c.name.equalsIgnoreCase(conditionName.trim()));
+        target.setActiveConditions(conditions.isEmpty() ? null : serializeConditionEntries(conditions));
     }
 
     private void validateTargetCount(CastSpellRequest request) {
@@ -1145,17 +1608,34 @@ public class CombatService {
 
     /**
      * Resets per-turn resource pools and rolls recharge checks for
-     * the participant whose turn just started.
+     * the participant whose turn just started. Logs recharge success
+     * and failure entries to the combat log (M12).
      */
     private void resetTurnPools(EncounterParticipant participant) {
         try {
             List<ResourcePoolEntry> pools = resourcePoolService.parsePools(
                     participant.getResourcePoolsCurrent());
             if (pools.isEmpty()) return;
-            // Use an empty context — per-turn resets are maxUses-based, not formula-based
-            List<ResourcePoolEntry> reset = resourcePoolService.resetPools(
+            ResourcePoolService.ResetPoolsResult resetResult = resourcePoolService.resetPools(
                     pools, "turn", Map.of());
-            participant.setResourcePoolsCurrent(objectMapper.writeValueAsString(reset));
+            participant.setResourcePoolsCurrent(objectMapper.writeValueAsString(resetResult.pools()));
+
+            // Log recharge results to combat log
+            for (ResourcePoolService.RechargeLogEntry r : resetResult.rechargeResults()) {
+                String diceNotation = r.checkExpression() != null ? r.checkExpression() : "1d6";
+                String dicePart = diceNotation.replaceAll(">=.*", "");
+                String desc = participant.getDisplayName() + " rolls " + dicePart + " (" + r.rollValue() + "). ";
+                if (r.success()) {
+                    desc += participant.getDisplayName() + " recharges " + r.displayName() + "!";
+                } else {
+                    desc += participant.getDisplayName() + " fails to recharge " + r.displayName() + ".";
+                }
+                CombatActionType actionType = r.success()
+                        ? CombatActionType.RECHARGE_SUCCESS
+                        : CombatActionType.RECHARGE_FAILURE;
+                logAction(participant.getEncounter(), participant, participant, actionType,
+                        desc, r.rollValue(), null, null, null);
+            }
         } catch (Exception e) {
             // Non-critical; combat continues even if pool reset fails
         }

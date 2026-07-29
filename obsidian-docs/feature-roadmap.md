@@ -16,8 +16,8 @@
 | 10 | Character Leveling & Multiclass | Complete | Create at any level (1-20), level up/down with multiclass support, PHB prerequisite validation, ASI/feat/subclass choices, deterministic rollback via levelHistory |
 | 11 | Spell Resolver Engine & Encounter Spellcasting | Complete | Cast Spell action, auto-resolution for ~184 spells, source-tracked conditions, concentration cascade, silence check, cantrip/upcast scaling |
 | 24 | UI Redesign: Tourmaline Theme | Complete | Light mode, square corners, Cinzel + Cormorant Garamond fonts, tourmaline gradient nav accent, class-colored accents, warm parchment surfaces |
-| 12 | Monster Actions, Legendary Actions & Resistance | Not started | Structured action data, DM action panel, legendary action pool, legendary resistance, lair actions |
-| 12.5 | CR 11-15 Monster Data Expansion | Not started | Extend structured monster actions from CR 10 to CR 15, required for M6 release trigger |
+| 12 | Monster Actions, Legendary Actions & Resistance | Complete | All CRs, lair actions, structured action data, DM action panel, legendary action pool, combat-log-based legendary resistance undo, recharge logging, lair action cards |
+| 12.5 | CR 11-15 Monster Data Expansion | Eliminated — merged into M12 (D129) | Extend structured monster actions from CR 10 to CR 15, required for M6 release trigger |
 | 13 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
@@ -413,40 +413,56 @@ Phase 3 — Multiclass at creation:
 - `frontend/src/utils/classColours.ts` — class color utility
 - `.claude/DESIGN_SYSTEM.md` — full design system reference
 
-## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions (CR 0-10)
+## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions (ALL CRs)
 
-**Goal:** DM can click monster stat block actions and have them auto-resolve against targets. Covers CR 0-10 monsters (~1,200-1,500 structured action definitions from M7 data). CR 11-15 expansion is M12.5.
+**Goal:** DM can click monster stat block actions and have them auto-resolve against targets. Covers ALL 2,357 monsters across all CRs (scope expanded via D129 to include CR 11-15, absorbing M12.5).
+
+**Status: Complete** (2026-07-29)
 
 **Backend tasks:**
-- [ ] Parse monster stat block actions from M7 structured data (~1,200-1,500 monsters, CR 0-10) into `MonsterActionTemplate` entities
-- [ ] Use generic `ResourcePoolEntry` schema for legendary action/resistance tracking on `EncounterParticipant`
-- [ ] `MonsterActionResolverEngine` — interprets action templates (same effect engine as spells)
-- [ ] `POST /api/encounters/{id}/combat/monster-action` endpoint: monsterParticipantId, actionName, targetParticipantIds
-- [ ] Legendary action pool tracking: `legendaryActionsRemaining` field on `EncounterParticipant`, resets at start of monster's turn, decremented on use
-- [ ] Legendary resistance tracking: `legendaryResistancesRemaining` field, DM can use to auto-succeed a failed save (inline override)
-- [ ] Lair actions: auto-prompt at initiative count 20 (losing ties), DM selects from available lair actions
-- [ ] Recharge mechanics: track which actions are available, roll recharge at start of monster's turn
-- [ ] Multiattack: execute multiple actions in sequence from a single button press
-- [ ] Monster spellcasting: extract spell lists and slots from stat block, use same SpellResolverEngine
+- [x] Parse monster stat block actions from M7 structured data (ALL 2,357 monsters across all CRs) into `MonsterActionTemplate` entities
+- [x] Use generic `ResourcePoolEntry` schema for legendary action/resistance tracking on `EncounterParticipant`
+- [x] `MonsterActionResolverEngine` — interprets action templates (same effect engine as spells)
+- [x] `POST /api/encounters/{id}/combat/monster-action` endpoint: monsterParticipantId, actionName, targetParticipantIds
+- [x] Legendary action pool tracking: resource pool "monster:legendary-actions", resets at start of monster's turn, decremented on use
+- [x] Legendary resistance tracking: two-step flow with resource pool "monster:legendary-resistance", inline prompt
+- [x] Lair actions: synthetic lair participant at initiative 20, no-repeat rule enforced
+- [x] Recharge mechanics: ResourcePoolEntry with resetCheck "1d6>=N", combat log entries for RECHARGE_SUCCESS/FAILURE
+- [x] Multiattack: execute multiple component actions sequentially, aggregated results
+- [x] Monster spellcasting: MonsterSpellCastService wrapping SpellResolverEngine, innate spell pools
 
 **Frontend tasks:**
-- [ ] DM monster action panel: list all actions from stat block with one-click resolve
-- [ ] Legendary action buttons (with remaining count display, cost per action)
-- [ ] Legendary resistance inline button: when a monster fails a save, show "Use Legendary Resistance?" prompt with remaining count
-- [ ] Lair action prompt at initiative 20
-- [ ] Recharge indicator on actions (available / needs recharge)
-- [ ] Monster spellcasting panel (separate from action panel, shows available spells and slots — slots visible to DM only)
-- [ ] Attack source selector: when DM attacks, optionally select which creature is doing the attack for clearer combat log entries
+- [x] DM monster action panel: MonsterActionPanel.tsx with tabbed accordion (Actions/Spells/Legendary/Lair)
+- [x] Legendary action buttons (with remaining count display, cost per action)
+- [x] Legendary resistance inline button: when a monster fails a save, show "Use Legendary Resistance?" prompt with remaining count
+- [x] Lair actions display in monster panel under Lair tab
+- [x] Recharge indicator on actions (Available / Recharging)
+- [x] Monster spellcasting panel with slot tracking, innate spell usage, editable save DC and attack bonus
+- [x] Monster action accordion on participant click with full action list
+
+**Implementation summary (2026-07-29):**
+- Database: V9 migration (action_templates JSONB, combat log type expansion, lair columns)
+- Backend: CombatActionType enum expanded (+6 types), Monster entity + actionTemplates JSONB field, EncounterParticipant + lastLairActionUsed, Encounter + monstersInLair
+- New files: MonsterActionResolverEngine (5 delivery methods, multiattack, eye rays), MonsterSpellCastService (slot + innate spellcasting), MonsterActionSeeder (idempotent batch seeding)
+- Enhanced: ResourcePoolService.createForMonster() reads actionTemplates for legendary/resistance/recharge/innate pools, ExpressionEvaluator.evaluateRechargeCheckWithRoll() returns roll value
+- Updated: CombatService (monsterAction, monsterSpell, useLegendaryResistance, confirmFailedSave, setLairStatus, getMonsterActions + recharge combat log entries), CombatController (+6 endpoints)
+- Frontend: MonsterActionPanel.tsx (tabbed accordion with target selector, override fields, legendary resistance prompt), new types (MonsterAction*, MonsterSpellcasting), new API methods
+- Tests: 315 backend tests pass; frontend TypeScript compiles clean
+
+**Post-implementation fixes (2026-07-29):**
+- [x] Tourmaline token consistency — fixed CSS variable mismatches in InlineMonsterActions (D141)
+- [x] Selected-action execution pattern — added Execute button for automatable actions (D142)
+- [x] Multiattack component lookup — fixed nested template object resolution (D143)
+- [x] Lair action description cards — full-text cards replacing sentence-fragment buttons, 68 lair names cleaned up, data re-seeded to 2,357 monsters (D144)
+- [x] Legendary resistance overhaul — combat-log-based undo system with V10 migration, per-target logging, damage/condition revert, LR button in combat log, confirmFailedSave removed (D145)
+- [x] Recharge pool configuration — resetOn set to null for probabilistic recharge, RechargeLogEntry extended with checkExpression, improved log message format (D146)
+- [x] Legendary action depletion — dual-layer enforcement: frontend disabled states + backend spendPool sufficiency check (D147)
+- [x] Combat log description format — action name included in log entries (D148)
+- [x] Error message propagation — server.error.include-message: always, frontend multi-path error extraction (D149)
 
 ## Milestone 12.5: CR 11-15 Monster Data Expansion
 
-**Goal:** Extend structured monster action data from CR 0-10 to cover CR 11-15 (~200-300 additional monsters), enabling the M6 release trigger (any combination of up to CR 15 monsters).
-
-**Backend tasks:**
-- [ ] Parse and validate structured action data for all CR 11-15 monsters from M7 raw data
-- [ ] Add to existing `MonsterActionTemplate` entities / data files
-- [ ] Re-run validation checks across the expanded dataset
-- [ ] Regression test M12 resolver engine against expanded data
+**Status:** Eliminated — merged into M12 via D129. CR 11-15 monsters are included in the 2,357-monster dataset.
 
 **Dependencies:** M12 (resolver engine must be built first for validation), M24.5 (generic resource pools for legendary actions/resistances).
 

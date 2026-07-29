@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +30,8 @@ class CombatServiceTest {
     @Mock private SpellResolverEngine spellResolverEngine;
     @Mock private com.tabletophelper.reference.SpellRepository spellRepository;
     @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
+    @Mock private com.tabletophelper.encounter.MonsterActionResolverEngine monsterActionResolverEngine;
+    @Mock private com.tabletophelper.encounter.MonsterSpellCastService monsterSpellCastService;
 
     private CombatService combatService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -39,7 +42,7 @@ class CombatServiceTest {
 
     @BeforeEach
     void setUp() {
-        combatService = new CombatService(encounterRepository, combatLogRepository, encounterService, objectMapper, spellResolverEngine, resourcePoolService, spellRepository);
+        combatService = new CombatService(encounterRepository, combatLogRepository, encounterService, objectMapper, spellResolverEngine, monsterActionResolverEngine, monsterSpellCastService, resourcePoolService, spellRepository);
 
         dmUserId = UUID.randomUUID();
         encounterId = UUID.randomUUID();
@@ -879,5 +882,173 @@ class CombatServiceTest {
         assertTrue(fighter.getIsCurrentTurn());
         assertFalse(wizard.getIsCurrentTurn());
         assertEquals(0, encounter.getCurrentTurnIndex());
+    }
+
+    // ================================================================
+    // Legendary Resistance (M12)
+    // ================================================================
+
+    @Test
+    @DisplayName("LR: reverts damage on the target when legendary resistance is used")
+    void legendaryResistanceRevertsDamage() {
+        EncounterParticipant dragon = addMonster("Adult Red Dragon", 200, 19);
+        dragon.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
+
+        UUID logId = UUID.randomUUID();
+        CombatLog logEntry = CombatLog.builder()
+                .id(logId)
+                .encounter(encounter)
+                .roundNumber(1)
+                .actorName("Aboleth")
+                .targetId(dragon.getId())
+                .targetName(dragon.getDisplayName())
+                .actionType(CombatActionType.MONSTER_ACTION)
+                .description("Aboleth vs Adult Red Dragon: FAILED_SAVE for 30 psychic")
+                .damageDealt(30)
+                .legendaryResistanceEligible(true)
+                .lrTargetId(dragon.getId())
+                .lrDamageDealt(30)
+                .lrConditionsApplied("charmed")
+                .lrResolved(false)
+                .build();
+
+        when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
+        when(resourcePoolService.spendPool(dragon, "monster:legendary-resistance", 1)).thenReturn(true);
+        when(resourcePoolService.parsePools(any())).thenReturn(List.of(
+                new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Adult Red Dragon",
+                        3, "3", 2, "longRest", null, null, "REACTION", "shield", null)));
+        when(encounterRepository.save(any())).thenReturn(encounter);
+        when(encounterService.toResponse(any())).thenReturn(EncounterResponse.builder().build());
+
+        dragon.setHpCurrent(170); // 30 damage already applied
+        combatService.useLegendaryResistance(encounterId, logId, dmUserId);
+
+        assertEquals(200, dragon.getHpCurrent()); // Damage reverted
+        assertTrue(logEntry.getLrResolved());
+        verify(combatLogRepository).save(logEntry);
+    }
+
+    @Test
+    @DisplayName("LR: removes conditions applied from the failed save")
+    void legendaryResistanceRemovesConditions() throws Exception {
+        EncounterParticipant dragon = addMonster("Adult Red Dragon", 200, 19);
+        dragon.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
+        dragon.setActiveConditions("[{\"name\":\"charmed\",\"duration\":null,\"appliedRound\":1}]");
+
+        UUID logId = UUID.randomUUID();
+        CombatLog logEntry = CombatLog.builder()
+                .id(logId)
+                .encounter(encounter)
+                .roundNumber(1)
+                .actorName("Aboleth")
+                .targetId(dragon.getId())
+                .targetName(dragon.getDisplayName())
+                .actionType(CombatActionType.MONSTER_ACTION)
+                .description("Aboleth vs Adult Red Dragon: FAILED_SAVE")
+                .legendaryResistanceEligible(true)
+                .lrTargetId(dragon.getId())
+                .lrDamageDealt(0)
+                .lrConditionsApplied("charmed")
+                .lrResolved(false)
+                .build();
+
+        when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
+        when(resourcePoolService.spendPool(dragon, "monster:legendary-resistance", 1)).thenReturn(true);
+        when(resourcePoolService.parsePools(any())).thenReturn(List.of(
+                new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Adult Red Dragon", 3, "3", 2, "longRest", null, null, "REACTION", "shield", null)));
+        when(encounterRepository.save(any())).thenReturn(encounter);
+        when(encounterService.toResponse(any())).thenReturn(EncounterResponse.builder().build());
+
+        combatService.useLegendaryResistance(encounterId, logId, dmUserId);
+
+        assertNull(dragon.getActiveConditions());
+    }
+
+    @Test
+    @DisplayName("LR: decrements the TARGET's LR pool, not the attacker's")
+    void legendaryResistanceDecrementsTargetPool() {
+        EncounterParticipant attacker = addMonster("Aboleth", 150, 17);
+        EncounterParticipant target = addMonster("Adult Red Dragon", 200, 19);
+        target.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
+
+        UUID logId = UUID.randomUUID();
+        CombatLog logEntry = CombatLog.builder()
+                .id(logId)
+                .encounter(encounter)
+                .roundNumber(1)
+                .actorId(attacker.getId())
+                .actorName(attacker.getDisplayName())
+                .targetId(target.getId())
+                .targetName(target.getDisplayName())
+                .actionType(CombatActionType.MONSTER_ACTION)
+                .description("Aboleth vs Adult Red Dragon: FAILED_SAVE")
+                .legendaryResistanceEligible(true)
+                .lrTargetId(target.getId())
+                .lrDamageDealt(20)
+                .lrConditionsApplied("")
+                .lrResolved(false)
+                .build();
+
+        when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
+        when(resourcePoolService.spendPool(target, "monster:legendary-resistance", 1)).thenReturn(true);
+        when(resourcePoolService.parsePools(any())).thenReturn(List.of(
+                new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Adult Red Dragon", 3, "3", 2, "longRest", null, null, "REACTION", "shield", null)));
+        when(encounterRepository.save(any())).thenReturn(encounter);
+        when(encounterService.toResponse(any())).thenReturn(EncounterResponse.builder().build());
+
+        combatService.useLegendaryResistance(encounterId, logId, dmUserId);
+
+        // Verify spendPool was called on the TARGET, not the attacker
+        verify(resourcePoolService).spendPool(target, "monster:legendary-resistance", 1);
+    }
+
+    @Test
+    @DisplayName("LR: throws error when called twice on the same log entry")
+    void legendaryResistanceThrowsOnDoubleUse() {
+        EncounterParticipant dragon = addMonster("Adult Red Dragon", 200, 19);
+        dragon.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
+
+        UUID logId = UUID.randomUUID();
+        CombatLog logEntry = CombatLog.builder()
+                .id(logId)
+                .encounter(encounter)
+                .roundNumber(1)
+                .actorName("Aboleth")
+                .targetId(dragon.getId())
+                .targetName(dragon.getDisplayName())
+                .actionType(CombatActionType.MONSTER_ACTION)
+                .description("Test")
+                .legendaryResistanceEligible(true)
+                .lrTargetId(dragon.getId())
+                .lrDamageDealt(10)
+                .lrConditionsApplied("")
+                .lrResolved(true) // Already resolved
+                .build();
+
+        when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
+
+        assertThrows(IllegalStateException.class, () ->
+                combatService.useLegendaryResistance(encounterId, logId, dmUserId));
+    }
+
+    @Test
+    @DisplayName("LR: throws error when log entry is not LR-eligible")
+    void legendaryResistanceThrowsOnNonEligible() {
+        UUID logId = UUID.randomUUID();
+        CombatLog logEntry = CombatLog.builder()
+                .id(logId)
+                .encounter(encounter)
+                .roundNumber(1)
+                .actorName("Fighter")
+                .actionType(CombatActionType.ATTACK)
+                .description("Fighter attacks Goblin: HIT")
+                .legendaryResistanceEligible(false)
+                .lrResolved(false)
+                .build();
+
+        when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
+
+        assertThrows(IllegalStateException.class, () ->
+                combatService.useLegendaryResistance(encounterId, logId, dmUserId));
     }
 }

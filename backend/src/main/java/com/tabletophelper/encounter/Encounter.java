@@ -1,10 +1,13 @@
 package com.tabletophelper.encounter;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.tabletophelper.campaign.Campaign;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -52,6 +55,11 @@ public class Encounter {
 
     @Column(name = "session_code", length = 8, unique = true)
     private String sessionCode;
+
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "monsters_in_lair", columnDefinition = "jsonb")
+    private String monstersInLair;
 
     @OneToMany(mappedBy = "encounter", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

@@ -23,5 +23,10 @@ public class CombatLogResponse {
     private Integer damageDealt;
     private Integer healingDone;
     private String turnParticipantName;
+    private Boolean legendaryResistanceEligible;
+    private UUID lrTargetId;
+    private Integer lrDamageDealt;
+    private String lrConditionsApplied;
+    private Boolean lrResolved;
     private Instant createdAt;
 }

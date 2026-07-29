@@ -1052,7 +1052,7 @@ public class CharacterService {
             List<ResourcePoolEntry> pools = resourcePoolService.parsePools(character.getResourcePools());
             if (pools.isEmpty()) return;
             Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
-            List<ResourcePoolEntry> reset = resourcePoolService.resetPools(pools, resetTrigger, context);
+            List<ResourcePoolEntry> reset = resourcePoolService.resetPools(pools, resetTrigger, context).pools();
             character.setResourcePools(objectMapper.writeValueAsString(reset));
         } catch (Exception e) {
             log.warn("Failed to reset resource pools for character {}", character.getId(), e);

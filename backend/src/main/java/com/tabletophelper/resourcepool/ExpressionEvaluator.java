@@ -63,18 +63,36 @@ public final class ExpressionEvaluator {
     }
 
     /**
+     * Result of a probabilistic recharge check, containing both the
+     * success flag and the actual d6 roll value for combat log display.
+     */
+    public record RechargeResult(boolean success, int rollValue) {}
+
+    /**
      * Rolls a d6 and checks if the result &gt;= threshold.
      *
      * @param rechargeExpression e.g. "1d6>=5"
      * @return true if the recharge succeeds
      */
     public static boolean evaluateRechargeCheck(String rechargeExpression) {
-        if (rechargeExpression == null) return false;
+        RechargeResult result = evaluateRechargeCheckWithRoll(rechargeExpression);
+        return result != null && result.success();
+    }
+
+    /**
+     * Rolls a d6 and checks if the result &gt;= threshold.
+     * Returns both the success flag and the actual roll value for logging.
+     *
+     * @param rechargeExpression e.g. "1d6>=5"
+     * @return RechargeResult with success and rollValue, or null if the expression is invalid
+     */
+    public static RechargeResult evaluateRechargeCheckWithRoll(String rechargeExpression) {
+        if (rechargeExpression == null) return null;
         Matcher m = RECHARGE_PATTERN.matcher(rechargeExpression.trim());
-        if (!m.matches()) return false;
+        if (!m.matches()) return null;
         int threshold = Integer.parseInt(m.group(1));
         int roll = ThreadLocalRandom.current().nextInt(1, 7);
-        return roll >= threshold;
+        return new RechargeResult(roll >= threshold, roll);
     }
 
     // ---- private helpers ----

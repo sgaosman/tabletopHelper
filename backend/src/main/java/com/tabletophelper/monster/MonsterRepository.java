@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface MonsterRepository extends JpaRepository<Monster, UUID> {
@@ -53,4 +54,9 @@ public interface MonsterRepository extends JpaRepository<Monster, UUID> {
 
     @Query("SELECT DISTINCT m.challengeRating FROM Monster m WHERE m.challengeRating IS NOT NULL ORDER BY m.challengeRating")
     java.util.List<String> findDistinctChallengeRatings();
+
+    Optional<Monster> findByNameIgnoreCaseAndSource(String name, String source);
+
+    @Query("SELECT m FROM Monster m WHERE m.actionTemplates IS NULL")
+    List<Monster> findAllWithoutActionTemplates(Pageable pageable);
 }

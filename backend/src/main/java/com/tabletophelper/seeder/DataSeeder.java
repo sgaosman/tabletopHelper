@@ -21,6 +21,7 @@ public class DataSeeder implements CommandLineRunner {
     private final FeatSeeder featSeeder;
     private final OptionalFeatureSeeder optionalFeatureSeeder;
     private final ResourcePoolSeeder resourcePoolSeeder;
+    private final MonsterActionSeeder monsterActionSeeder;
     private final JdbcTemplate jdbcTemplate;
 
     @Override
@@ -95,6 +96,12 @@ public class DataSeeder implements CommandLineRunner {
             resourcePoolSeeder.seed();
         } catch (Exception e) {
             log.error("Failed to seed resource pools: {}", e.getMessage(), e);
+        }
+
+        try {
+            monsterActionSeeder.seed();
+        } catch (Exception e) {
+            log.error("Failed to seed monster action templates: {}", e.getMessage(), e);
         }
 
         long elapsed = System.currentTimeMillis() - start;

@@ -132,6 +132,11 @@ public class Monster {
     @Column(name = "lair_actions", columnDefinition = "jsonb")
     private String lairActions;
 
+    @JsonRawValue
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "action_templates", columnDefinition = "jsonb")
+    private String actionTemplates;
+
     @Column(length = 100)
     private String source;
 

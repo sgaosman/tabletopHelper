@@ -1,6 +1,15 @@
 import api from './axiosConfig';
 import type { Encounter } from '../types/encounter';
-import type { CombatLogEntry, CastSpellRequest, CastSpellResponse, RepeatSpellEffectRequest } from '../types/combat';
+import type {
+  CombatLogEntry,
+  CastSpellRequest,
+  CastSpellResponse,
+  RepeatSpellEffectRequest,
+  MonsterActionRequest,
+  MonsterActionResponse,
+  MonsterSpellRequest,
+  MonsterActionTemplate,
+} from '../types/combat';
 
 export const combatApi = {
   rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, forceCrit?: boolean, actorId?: string, isRanged?: boolean) {
@@ -72,5 +81,31 @@ export const combatApi = {
 
   getCombatLog(encounterId: string) {
     return api.get<CombatLogEntry[]>(`/encounters/${encounterId}/combat/log`);
+  },
+
+  // ── M12 Monster Actions ─────────────────────────────────────────
+
+  monsterAction(encounterId: string, request: MonsterActionRequest, actorId?: string) {
+    return api.post<MonsterActionResponse>(`/encounters/${encounterId}/combat/monster-action`, request, {
+      params: actorId ? { actorId } : undefined,
+    });
+  },
+
+  monsterSpell(encounterId: string, request: MonsterSpellRequest, actorId?: string) {
+    return api.post<CastSpellResponse>(`/encounters/${encounterId}/combat/monster-spell`, request, {
+      params: actorId ? { actorId } : undefined,
+    });
+  },
+
+  useLegendaryResistance(encounterId: string, combatLogId: string) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/legendary-resistance`, { combatLogId });
+  },
+
+  getMonsterActions(encounterId: string, participantId: string) {
+    return api.get<MonsterActionTemplate>(`/encounters/${encounterId}/participants/${participantId}/actions`);
+  },
+
+  setLairStatus(encounterId: string, monsterIds: string[]) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/lair-status`, { monsterIds });
   },
 };

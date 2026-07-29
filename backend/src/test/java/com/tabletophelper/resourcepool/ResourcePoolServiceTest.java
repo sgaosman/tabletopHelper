@@ -37,17 +37,17 @@ class ResourcePoolServiceTest {
     // ── Pool reset: full reset ────────────────────────────────────
 
     @Test
-    @DisplayName("shortRest resets pools with resetOn=shortRest and longRest")
+    @DisplayName("shortRest resets only pools with resetOn=shortRest (D127)")
     void shortRestResetsShortAndLongRestPools() {
         List<ResourcePoolEntry> pools = List.of(
                 entry("ki", 5, 1, "shortRest", null),
                 entry("rage", 2, 0, "longRest", null),
                 entry("channelDivinity", 1, 0, "shortRest", null));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of());
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of()).pools();
 
         assertEquals(5, findPool(reset, "ki").currentUses(), "Ki should reset to full");
-        assertEquals(2, findPool(reset, "rage").currentUses(), "Rage (longRest) should also reset on short");
+        assertEquals(0, findPool(reset, "rage").currentUses(), "Rage (longRest) should NOT reset on short rest per D127");
         assertEquals(1, findPool(reset, "channelDivinity").currentUses(), "CD should reset to full");
     }
 
@@ -57,7 +57,7 @@ class ResourcePoolServiceTest {
         List<ResourcePoolEntry> pools = List.of(
                 entry("legendaryActions", 3, 0, "turn", null));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of());
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of()).pools();
 
         assertEquals(0, findPool(reset, "legendaryActions").currentUses(),
                 "Turn pools should not reset on short rest");
@@ -71,7 +71,7 @@ class ResourcePoolServiceTest {
                 entry("rage", 2, 0, "longRest", null),
                 entry("legendaryActions", 3, 0, "turn", null));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "longRest", Map.of());
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "longRest", Map.of()).pools();
 
         assertEquals(5, findPool(reset, "ki").currentUses());
         assertEquals(2, findPool(reset, "rage").currentUses());
@@ -85,7 +85,7 @@ class ResourcePoolServiceTest {
                 entry("ki", 5, 1, "shortRest", null),
                 entry("legendaryActions", 3, 1, "turn", null));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "turn", Map.of());
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "turn", Map.of()).pools();
 
         assertEquals(1, findPool(reset, "ki").currentUses(), "Ki should NOT reset on turn");
         assertEquals(3, findPool(reset, "legendaryActions").currentUses(),
@@ -100,7 +100,7 @@ class ResourcePoolServiceTest {
         List<ResourcePoolEntry> pools = List.of(
                 entryWithResetAmount("hitDice", 8, 3, "longRest", "floor(maxUses/2)"));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "longRest", Map.of());
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "longRest", Map.of()).pools();
 
         assertEquals(4, findPool(reset, "hitDice").currentUses(),
                 "floor(8/2) = 4 hit dice recovered (not reset to 8)");
@@ -112,7 +112,7 @@ class ResourcePoolServiceTest {
         List<ResourcePoolEntry> pools = List.of(
                 entryWithResetAmount("psionicEnergy", 4, 0, "shortRest", "1"));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of());
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of()).pools();
 
         assertEquals(1, findPool(reset, "psionicEnergy").currentUses(),
                 "Should recover exactly 1 use per short rest");
@@ -124,7 +124,7 @@ class ResourcePoolServiceTest {
         List<ResourcePoolEntry> pools = List.of(
                 entryWithResetAmount("arcaneRecovery", 10, 0, "shortRest", "ceil(level/2)"));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of("level", 5));
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "shortRest", Map.of("level", 5)).pools();
 
         assertEquals(3, findPool(reset, "arcaneRecovery").currentUses(), "ceil(5/2) = 3");
     }
@@ -143,7 +143,7 @@ class ResourcePoolServiceTest {
         for (int i = 0; i < 500; i++) {
             List<ResourcePoolEntry> poolsCopy = List.of(
                     entryWithResetCheck("breathWeapon", 1, 0, "shortRest", "1d6>=5"));
-            List<ResourcePoolEntry> result = service.resetPools(poolsCopy, "turn", Map.of());
+            List<ResourcePoolEntry> result = service.resetPools(poolsCopy, "turn", Map.of()).pools();
             if (findPool(result, "breathWeapon").currentUses() > 0) recharges++;
         }
 
@@ -158,7 +158,7 @@ class ResourcePoolServiceTest {
         List<ResourcePoolEntry> pools = List.of(
                 entryWithResetCheck("breathWeapon", 1, 1, "shortRest", "1d6>=5"));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "turn", Map.of());
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "turn", Map.of()).pools();
 
         // currentUses should stay at 1 since pool wasn't empty
         assertEquals(1, findPool(reset, "breathWeapon").currentUses());
@@ -201,7 +201,7 @@ class ResourcePoolServiceTest {
         List<ResourcePoolEntry> pools = List.of(
                 entryWithResetAmount("inspiration", 5, 0, "longRest", "charismaModifier"));
 
-        List<ResourcePoolEntry> reset = service.resetPools(pools, "longRest", ctx);
+        List<ResourcePoolEntry> reset = service.resetPools(pools, "longRest", ctx).pools();
         assertEquals(2, findPool(reset, "inspiration").currentUses());
     }
 

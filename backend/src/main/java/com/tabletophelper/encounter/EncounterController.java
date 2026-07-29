@@ -9,6 +9,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -152,6 +153,15 @@ public class EncounterController {
         EncounterResponse response = encounterService.endEncounter(encounterId, userId);
         broadcastState(response);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{encounterId}/participants/{participantId}/actions")
+    public ResponseEntity<Map<String, Object>> getMonsterActions(
+            @PathVariable UUID encounterId,
+            @PathVariable UUID participantId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(encounterService.getMonsterActionTemplates(encounterId, participantId, userId));
     }
 
     @GetMapping("/join/{sessionCode}")

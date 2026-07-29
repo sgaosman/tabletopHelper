@@ -1,6 +1,7 @@
 package com.tabletophelper.resourcepool;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.MulticlassEntry;
@@ -37,6 +38,26 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ResourcePoolService {
+
+    /**
+     * Result of resetting pools, containing both the updated pool list
+     * and details of any recharge rolls that were evaluated.
+     */
+    public record ResetPoolsResult(
+            List<ResourcePoolEntry> pools,
+            List<RechargeLogEntry> rechargeResults
+    ) {}
+
+    /**
+     * Details of a single recharge roll, used for combat log entries.
+     */
+    public record RechargeLogEntry(
+            String poolId,
+            String displayName,
+            boolean success,
+            int rollValue,
+            String checkExpression
+    ) {}
 
     private final ClassFeaturePoolRepository classFeaturePoolRepository;
     private final MonsterPoolTriggerRepository monsterPoolTriggerRepository;
@@ -149,9 +170,10 @@ public class ResourcePoolService {
      */
     public void createForMonster(EncounterParticipant participant, Monster monster) {
         try {
-            List<MonsterPoolTrigger> triggers = monsterPoolTriggerRepository.findAllByOrderByPriorityAsc();
             List<ResourcePoolEntry> pools = new ArrayList<>();
 
+            // 1. Seed from monster_pool_triggers reference table (existing behaviour)
+            List<MonsterPoolTrigger> triggers = monsterPoolTriggerRepository.findAllByOrderByPriorityAsc();
             for (MonsterPoolTrigger trigger : triggers) {
                 if (matchesTrigger(trigger, monster)) {
                     ResourcePoolDefinition def = trigger.getPoolDefinition();
@@ -164,9 +186,113 @@ public class ResourcePoolService {
                 }
             }
 
+            // 2. Enhance from action_templates JSONB (M12)
+            if (monster.getActionTemplates() != null && !monster.getActionTemplates().isBlank()) {
+                JsonNode templates = objectMapper.readTree(monster.getActionTemplates());
+
+                // Legendary action count from data overrides trigger-based pool
+                if (templates.has("legendaryActionCount")) {
+                    int count = templates.get("legendaryActionCount").asInt();
+                    // Remove any existing legendary-actions pool and re-add with correct count
+                    pools.removeIf(p -> "monster:legendary-actions".equals(p.poolId()));
+                    pools.add(new ResourcePoolEntry(
+                            "monster:legendary-actions", "Legendary Actions",
+                            "MONSTER", monster.getName(),
+                            count, null, count,
+                            "turn", null, null, "FREE", "crown", Map.of()));
+                }
+
+                // Legendary resistance count from data
+                if (templates.has("legendaryResistanceCount")) {
+                    int count = templates.get("legendaryResistanceCount").asInt();
+                    pools.removeIf(p -> "monster:legendary-resistance".equals(p.poolId()));
+                    pools.add(new ResourcePoolEntry(
+                            "monster:legendary-resistance", "Legendary Resistance",
+                            "MONSTER", monster.getName(),
+                            count, null, count,
+                            "longRest", null, null, "FREE", "shield", Map.of()));
+                }
+
+                // Rechargeable actions
+                JsonNode actions = templates.get("actions");
+                if (actions != null && actions.isArray()) {
+                    for (JsonNode action : actions) {
+                        if (action.has("recharge")) {
+                            String recharge = action.get("recharge").asText();
+                            // Only create recharge pools for per-turn recharge (5-6, 6, 4-6)
+                            if (recharge.matches("^[4-6]-[5-6]$") || recharge.matches("^[4-6]$")) {
+                                String actionName = action.get("name").asText();
+                                String kebab = actionName.toLowerCase().replaceAll("[^a-z0-9]+", "-")
+                                        .replaceAll("-+", "-").replaceAll("^-|-$", "");
+                                String poolId = "monster:recharge:" + kebab;
+                                String resetCheck = recharge.contains("-")
+                                        ? "1d6>=" + recharge.split("-")[0]
+                                        : "1d6>=" + recharge;
+
+                                // Don't duplicate if already present
+                                if (pools.stream().noneMatch(p -> p.poolId().equals(poolId))) {
+                                    pools.add(new ResourcePoolEntry(
+                                            poolId, actionName,
+                                            "MONSTER", monster.getName(),
+                                            1, null, 1,
+                                            null, null, resetCheck,
+                                            "ACTION", "zap", Map.of()));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Innate spell uses
+                JsonNode spellcasting = templates.get("spellcasting");
+                if (spellcasting != null && spellcasting.has("innateSpells")
+                        && spellcasting.get("innateSpells").asBoolean(false)
+                        && spellcasting.has("dailySpells")) {
+                    JsonNode dailySpells = spellcasting.get("dailySpells");
+                    var fields = dailySpells.fields();
+                    while (fields.hasNext()) {
+                        var entry = fields.next();
+                        String usageKey = entry.getKey(); // e.g. "1e", "1/day", "2/day", "3/day"
+                        int dailyLimit = parseDailyLimit(usageKey);
+                        if (dailyLimit > 0 && entry.getValue().isArray()) {
+                            for (JsonNode spellNameNode : entry.getValue()) {
+                                String spellName = spellNameNode.asText();
+                                String kebab = spellName.toLowerCase().replaceAll("[^a-z0-9]+", "-")
+                                        .replaceAll("-+", "-").replaceAll("^-|-$", "");
+                                String poolId = "innate:" + kebab;
+
+                                if (pools.stream().noneMatch(p -> p.poolId().equals(poolId))) {
+                                    pools.add(new ResourcePoolEntry(
+                                            poolId, spellName,
+                                            "MONSTER", monster.getName(),
+                                            dailyLimit, null, dailyLimit,
+                                            "longRest", null, null,
+                                            "ACTION", "sparkles", Map.of()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             participant.setResourcePoolsCurrent(serializePools(pools));
         } catch (Exception e) {
             log.error("Failed to create resource pools for monster participant {}", participant.getId(), e);
+        }
+    }
+
+    /**
+     * Parses the daily usage limit from an innate spellcasting usage key.
+     * "1e" or "1/day" → 1, "2/day" → 2, "3/day" → 3.
+     */
+    private int parseDailyLimit(String usageKey) {
+        if (usageKey == null) return 0;
+        try {
+            // "1e" or "1e/day" or just "1"
+            String num = usageKey.replaceAll("[^0-9]", "");
+            return num.isEmpty() ? 0 : Integer.parseInt(num);
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 
@@ -181,11 +307,13 @@ public class ResourcePoolService {
         try {
             List<ResourcePoolEntry> pools = parsePools(participant.getResourcePoolsCurrent());
             boolean found = false;
+            boolean hadEnough = false;
             List<ResourcePoolEntry> updated = new ArrayList<>();
 
             for (ResourcePoolEntry e : pools) {
                 if (e.poolId().equals(poolId)) {
                     found = true;
+                    hadEnough = e.currentUses() >= amount;
                     int newUses = Math.max(0, e.currentUses() - amount);
                     updated.add(e.withCurrentUses(newUses));
                 } else {
@@ -194,7 +322,7 @@ public class ResourcePoolService {
             }
 
             participant.setResourcePoolsCurrent(serializePools(updated));
-            return found;
+            return found && hadEnough;
         } catch (Exception e) {
             log.error("Failed to spend pool {} on participant {}", poolId, participant.getId(), e);
             return false;
@@ -240,9 +368,10 @@ public class ResourcePoolService {
      * @param context      variable context for evaluating resetAmount expressions
      * @return the mutated pool list (convenience)
      */
-    public List<ResourcePoolEntry> resetPools(List<ResourcePoolEntry> pools, String resetTrigger,
+    public ResetPoolsResult resetPools(List<ResourcePoolEntry> pools, String resetTrigger,
                                               Map<String, Integer> context) {
         List<ResourcePoolEntry> updated = new ArrayList<>();
+        List<RechargeLogEntry> rechargeResults = new ArrayList<>();
 
         for (ResourcePoolEntry e : pools) {
             boolean shouldReset = switch (resetTrigger) {
@@ -255,10 +384,19 @@ public class ResourcePoolService {
             if (!shouldReset) {
                 // Check probabilistic recharge
                 if ("turn".equals(resetTrigger) && e.resetCheck() != null && e.currentUses() == 0) {
-                    if (ExpressionEvaluator.evaluateRechargeCheck(e.resetCheck())) {
-                        int recoverAmount = resolveResetAmount(e, context);
-                        updated.add(e.withCurrentUses(Math.min(e.maxUses(), recoverAmount)));
-                        continue;
+                    ExpressionEvaluator.RechargeResult recharge =
+                            ExpressionEvaluator.evaluateRechargeCheckWithRoll(e.resetCheck());
+                    if (recharge != null) {
+                        if (recharge.success()) {
+                            int recoverAmount = resolveResetAmount(e, context);
+                            updated.add(e.withCurrentUses(Math.min(e.maxUses(), recoverAmount)));
+                            rechargeResults.add(new RechargeLogEntry(
+                                    e.poolId(), e.displayName(), true, recharge.rollValue(), e.resetCheck()));
+                            continue;
+                        } else {
+                            rechargeResults.add(new RechargeLogEntry(
+                                    e.poolId(), e.displayName(), false, recharge.rollValue(), e.resetCheck()));
+                        }
                     }
                 }
                 updated.add(e);
@@ -276,7 +414,7 @@ public class ResourcePoolService {
             updated.add(e.withCurrentUses(Math.min(e.maxUses(), Math.max(0, newUses))));
         }
 
-        return updated;
+        return new ResetPoolsResult(updated, rechargeResults);
     }
 
     // ── Internal helpers ─────────────────────────────────────────

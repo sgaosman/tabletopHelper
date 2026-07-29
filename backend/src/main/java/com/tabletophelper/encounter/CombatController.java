@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -176,6 +177,55 @@ public class CombatController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/monster-action")
+    public ResponseEntity<CombatService.MonsterActionResponse> monsterAction(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody CombatService.MonsterActionRequest request,
+            @RequestParam(required = false) UUID actorId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        CombatService.MonsterActionResponse response = combatService.monsterAction(
+                encounterId, request, actorId, userId);
+        broadcastState(response.encounterState());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/monster-spell")
+    public ResponseEntity<CastSpellResponse> monsterSpell(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody CombatService.MonsterSpellRequest request,
+            @RequestParam(required = false) UUID actorId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        CastSpellResponse response = combatService.monsterSpell(encounterId, request, actorId, userId);
+        broadcastState(response.getEncounterState());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/legendary-resistance")
+    public ResponseEntity<EncounterResponse> useLegendaryResistance(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody LegendaryResistanceRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = combatService.useLegendaryResistance(
+                encounterId, request.combatLogId(), userId);
+        broadcastState(response);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/lair-status")
+    public ResponseEntity<EncounterResponse> setLairStatus(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody LairStatusRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = combatService.setLairStatus(
+                encounterId, request.monsterIds(), userId);
+        broadcastState(response);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/log")
     public ResponseEntity<List<CombatLogResponse>> getCombatLog(
             @PathVariable UUID encounterId,
@@ -189,4 +239,7 @@ public class CombatController {
         messagingTemplate.convertAndSend(
                 "/topic/encounter/" + response.getId() + "/state", response);
     }
+
+    public record LegendaryResistanceRequest(UUID combatLogId) {}
+    public record LairStatusRequest(List<UUID> monsterIds) {}
 }

@@ -8,6 +8,7 @@ import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -35,6 +36,7 @@ public class EncounterService {
     private final MonsterRepository monsterRepository;
     private final ObjectMapper objectMapper;
     private final ResourcePoolService resourcePoolService;
+    private final MonsterSpellCastService monsterSpellCastService;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -141,7 +143,58 @@ public class EncounterService {
                     .build();
 
             resourcePoolService.createForMonster(participant, monster);
+
+            // M12: Populate monster spellcasting data from action templates
+            if (monster.getActionTemplates() != null && !monster.getActionTemplates().isBlank()) {
+                try {
+                    monsterSpellCastService.populateMonsterSpellcasting(participant,
+                            monster.getActionTemplates());
+                    monsterSpellCastService.populateInnateSpellPools(participant,
+                            monster.getActionTemplates());
+                } catch (Exception e) {
+                    log.warn("Failed to populate monster spellcasting for {}: {}",
+                            participant.getDisplayName(), e.getMessage());
+                }
+            }
+
             encounter.getParticipants().add(participant);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getMonsterActionTemplates(UUID encounterId, UUID participantId, UUID userId) {
+        Encounter encounter = loadEncounter(encounterId);
+        verifyMembership(encounter.getCampaign().getId(), userId);
+
+        EncounterParticipant participant = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Participant not found"));
+
+        if (participant.getMonster() == null || participant.getMonster().getActionTemplates() == null) {
+            return Map.of("error", "No action templates available for this monster");
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> templates = objectMapper.readValue(
+                    participant.getMonster().getActionTemplates(), Map.class);
+
+            // Attach current resource pool states
+            List<ResourcePoolEntry> pools = resourcePoolService.parsePools(
+                    participant.getResourcePoolsCurrent());
+            Map<String, Object> poolStates = new LinkedHashMap<>();
+            for (ResourcePoolEntry p : pools) {
+                poolStates.put(p.poolId(), Map.of(
+                        "currentUses", p.currentUses(),
+                        "maxUses", p.maxUses(),
+                        "displayName", p.displayName()
+                ));
+            }
+            templates.put("resourcePools", poolStates);
+
+            return templates;
+        } catch (Exception e) {
+            return Map.of("error", "Failed to parse action templates: " + e.getMessage());
         }
     }
 
