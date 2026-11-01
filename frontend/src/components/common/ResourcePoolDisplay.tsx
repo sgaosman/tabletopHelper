@@ -1,6 +1,6 @@
 import type { ResourcePoolEntry } from '../../types/encounter';
 
-function safeParsePools(json?: string): ResourcePoolEntry[] {
+function safeParsePools(json?: string | null): ResourcePoolEntry[] {
   if (!json) return [];
   try {
     const parsed = JSON.parse(json);
@@ -11,7 +11,7 @@ function safeParsePools(json?: string): ResourcePoolEntry[] {
 }
 
 interface ResourcePoolDisplayProps {
-  pools?: string; // JSON string of ResourcePoolEntry[]
+  pools?: string | null; // JSON string of ResourcePoolEntry[]
   /** Only show pools matching these sourceTypes (e.g. ['CLASS', 'FEAT']) */
   filterSourceType?: string[];
   /** Enable increment/decrement buttons for out-of-encounter management */

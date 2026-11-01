@@ -452,6 +452,34 @@ class CharacterServiceBusinessTest {
         }
     }
 
+    @Nested
+    @DisplayName("Character Creation Validation")
+    class CharacterCreationValidation {
+
+        @Test
+        @DisplayName("Creating a character without a race is rejected (D152)")
+        void createWithoutRaceRejected() {
+            Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+            CharacterCreateRequest req = baseCreateRequest("NoRace", fighterId, null);
+
+            Set<String> violatedPaths = new HashSet<>();
+            for (ConstraintViolation<CharacterCreateRequest> v : validator.validate(req)) {
+                violatedPaths.add(v.getPropertyPath().toString());
+            }
+            assertThat(violatedPaths).contains("raceId");
+        }
+
+        @Test
+        @DisplayName("A character with a race passes the race check")
+        void createWithRaceAccepted() {
+            Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+            CharacterCreateRequest req = baseCreateRequest("WithRace", fighterId, humanId);
+
+            assertThat(validator.validate(req))
+                    .noneMatch(v -> v.getPropertyPath().toString().equals("raceId"));
+        }
+    }
+
     // ========================================================================
     // Character Update (2 tests)
     // ========================================================================

@@ -133,7 +133,7 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Mitigations:**
 - Human review of every spell definition before use in implementation
-- `docs/spell-effect-review.md` summary table for efficient review (pattern category, delivery method, manual resolution flag, review notes)
+- `obsidian-docs/archive/spell-effect-review.md` summary table for efficient review (pattern category, delivery method, manual resolution flag, review notes)
 - "REVIEW:" notes on any definition where the AI is uncertain about a field
 - Cross-validation against 5e.tools structured metadata (conditionInflict, savingThrow, spellAttack, damageInflict)
 - `requiresManualResolution` flag for complex spells — better to fall back to manual DM resolution than automate incorrectly
@@ -167,7 +167,7 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 - Fallback to manual damage/condition tools for any monster without structured action data (existing functionality, already tested)
 - "REVIEW:" notes on any monster where structured extraction is uncertain
 - `automatable: false` flag on individual actions that are too contextual to automate (e.g., "Detect" — makes a Perception check)
-- `docs/monster-action-review.md` summary table for human review
+- `obsidian-docs/archive/monster-action-review.md` summary table for human review
 - Progressive enhancement: CR 16+ monsters can be added later without system changes
 
 **Risk areas:** Inconsistent 5e.tools markup across source books, multiattack descriptions that reference other actions by name (need parsing), recharge mechanics, spellcasting blocks with varying formats (innate vs prepared vs known), higher-CR monsters with multi-phase actions and aura effects.

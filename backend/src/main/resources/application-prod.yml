@@ -17,6 +17,13 @@ spring:
   flyway:
     baseline-on-migrate: false
 
+# API docs and Swagger UI are for development only (D154)
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 logging:
   level:
     com.tabletophelper: INFO

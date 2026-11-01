@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -22,30 +23,47 @@ import java.util.Map;
 @Slf4j
 public class FeatSeeder {
 
+    private static final String EMPTY_EFFECTS = "{}";
+
     private final FeatRepository featRepository;
     private final ObjectMapper objectMapper;
 
     public void seed() throws Exception {
-        long existingCount = featRepository.count();
-        if (existingCount > 0) {
-            boolean needsEffectsBackfill = featRepository.findAllByOrderByNameAsc().stream()
-                    .anyMatch(f -> f.getEffects() == null);
-            if (needsEffectsBackfill) {
-                log.info("Feats exist but effects column needs backfill, re-seeding...");
-                featRepository.deleteAll();
-            } else {
-                log.info("Feats already seeded, skipping");
-                return;
-            }
+        List<Feat> existing = featRepository.findAllByOrderByNameAsc();
+        boolean needsEffectsBackfill = existing.stream().anyMatch(f -> f.getEffects() == null);
+        if (!existing.isEmpty() && !needsEffectsBackfill) {
+            log.info("Feats already seeded, skipping");
+            return;
         }
 
+        List<Feat> parsed = parseFeatsFile();
+        if (existing.isEmpty()) {
+            featRepository.saveAll(parsed);
+            log.info("Feat seeding complete: {} feats", parsed.size());
+            return;
+        }
+
+        // Backfill in place instead of deleting and reloading, so feat IDs stay stable (D169)
+        Map<String, String> effectsByFeat = new HashMap<>();
+        for (Feat feat : parsed) effectsByFeat.put(featKey(feat), feat.getEffects());
+        int backfilled = 0;
+        for (Feat feat : existing) {
+            if (feat.getEffects() != null) continue;
+            feat.setEffects(effectsByFeat.getOrDefault(featKey(feat), EMPTY_EFFECTS));
+            backfilled++;
+        }
+        featRepository.saveAll(existing);
+        log.info("Backfilled effects on {} existing feats", backfilled);
+    }
+
+    private List<Feat> parseFeatsFile() throws Exception {
         ClassPathResource resource = new ClassPathResource("data/5etools/feats.json");
         try (InputStream is = resource.getInputStream()) {
             JsonNode root = objectMapper.readTree(is);
             JsonNode feats = root.get("feat");
-            if (feats == null || !feats.isArray()) return;
-
             List<Feat> batch = new ArrayList<>();
+            if (feats == null || !feats.isArray()) return batch;
+
             for (JsonNode feat : feats) {
                 try {
                     Feat entity = parseFeat(feat);
@@ -54,10 +72,12 @@ public class FeatSeeder {
                     log.warn("Failed to parse feat {}: {}", feat.path("name").asText("unknown"), e.getMessage());
                 }
             }
-
-            featRepository.saveAll(batch);
-            log.info("Feat seeding complete: {} feats", batch.size());
+            return batch;
         }
+    }
+
+    private static String featKey(Feat feat) {
+        return feat.getName() + "|" + feat.getSource();
     }
 
     private Feat parseFeat(JsonNode feat) throws Exception {
@@ -266,7 +286,8 @@ public class FeatSeeder {
             }
         }
 
-        return effects.isEmpty() ? null : objectMapper.writeValueAsString(effects);
+        // Always an object, never null: a null here used to make seed() delete and reload every feat (D169)
+        return objectMapper.writeValueAsString(effects);
     }
 
     private String flattenEntries(JsonNode entries) {

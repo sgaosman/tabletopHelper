@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.tabletophelper.character.SpellSlotTables;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Subclass;
@@ -634,11 +635,10 @@ public class CharacterClassSeeder {
     private String buildSpellSlotProgression(String className, String casterProgression) {
         if (casterProgression == null) return null;
         try {
+            // Shared with SpellSlotCalculator (D153); 5etools names the half-caster progression "1/2"
             Map<String, Map<String, Integer>> table = switch (casterProgression) {
-                case "full" -> buildFullCasterTable();
-                case "1/2" -> buildHalfCasterTable();
-                case "pact" -> buildPactMagicTable();
-                case "artificer" -> buildArtificerTable();
+                case "full", "pact", "artificer" -> SpellSlotTables.progression(casterProgression);
+                case "1/2" -> SpellSlotTables.progression("half");
                 default -> null;
             };
             if (table == null) return null;
@@ -646,105 +646,6 @@ public class CharacterClassSeeder {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private Map<String, Map<String, Integer>> buildFullCasterTable() {
-        Map<String, Map<String, Integer>> t = new LinkedHashMap<>();
-        t.put("1",  Map.of("1",2));
-        t.put("2",  Map.of("1",3));
-        t.put("3",  Map.of("1",4, "2",2));
-        t.put("4",  Map.of("1",4, "2",3));
-        t.put("5",  Map.of("1",4, "2",3, "3",2));
-        t.put("6",  Map.of("1",4, "2",3, "3",3));
-        t.put("7",  Map.of("1",4, "2",3, "3",3, "4",1));
-        t.put("8",  Map.of("1",4, "2",3, "3",3, "4",2));
-        t.put("9",  Map.of("1",4, "2",3, "3",3, "4",3, "5",1));
-        t.put("10", Map.of("1",4, "2",3, "3",3, "4",3, "5",2));
-        t.put("11", Map.of("1",4, "2",3, "3",3, "4",3, "5",2, "6",1));
-        t.put("12", Map.of("1",4, "2",3, "3",3, "4",3, "5",2, "6",1));
-        t.put("13", Map.of("1",4, "2",3, "3",3, "4",3, "5",2, "6",1, "7",1));
-        t.put("14", Map.of("1",4, "2",3, "3",3, "4",3, "5",2, "6",1, "7",1));
-        t.put("15", Map.of("1",4, "2",3, "3",3, "4",3, "5",2, "6",1, "7",1, "8",1));
-        t.put("16", Map.of("1",4, "2",3, "3",3, "4",3, "5",2, "6",1, "7",1, "8",1));
-        t.put("17", Map.of("1",4, "2",3, "3",3, "4",3, "5",2, "6",1, "7",1, "8",1, "9",1));
-        t.put("18", Map.of("1",4, "2",3, "3",3, "4",3, "5",3, "6",1, "7",1, "8",1, "9",1));
-        t.put("19", Map.of("1",4, "2",3, "3",3, "4",3, "5",3, "6",2, "7",1, "8",1, "9",1));
-        t.put("20", Map.of("1",4, "2",3, "3",3, "4",3, "5",3, "6",2, "7",2, "8",1, "9",1));
-        return t;
-    }
-
-    private Map<String, Map<String, Integer>> buildHalfCasterTable() {
-        Map<String, Map<String, Integer>> t = new LinkedHashMap<>();
-        t.put("2",  Map.of("1",2));
-        t.put("3",  Map.of("1",3));
-        t.put("4",  Map.of("1",3));
-        t.put("5",  Map.of("1",4, "2",2));
-        t.put("6",  Map.of("1",4, "2",2));
-        t.put("7",  Map.of("1",4, "2",3));
-        t.put("8",  Map.of("1",4, "2",3));
-        t.put("9",  Map.of("1",4, "2",3, "3",2));
-        t.put("10", Map.of("1",4, "2",3, "3",2));
-        t.put("11", Map.of("1",4, "2",3, "3",3));
-        t.put("12", Map.of("1",4, "2",3, "3",3));
-        t.put("13", Map.of("1",4, "2",3, "3",3, "4",1));
-        t.put("14", Map.of("1",4, "2",3, "3",3, "4",1));
-        t.put("15", Map.of("1",4, "2",3, "3",3, "4",2));
-        t.put("16", Map.of("1",4, "2",3, "3",3, "4",2));
-        t.put("17", Map.of("1",4, "2",3, "3",3, "4",3, "5",1));
-        t.put("18", Map.of("1",4, "2",3, "3",3, "4",3, "5",1));
-        t.put("19", Map.of("1",4, "2",3, "3",3, "4",3, "5",2));
-        t.put("20", Map.of("1",4, "2",3, "3",3, "4",3, "5",2));
-        return t;
-    }
-
-    private Map<String, Map<String, Integer>> buildArtificerTable() {
-        Map<String, Map<String, Integer>> t = new LinkedHashMap<>();
-        t.put("1",  Map.of("1",2));
-        t.put("2",  Map.of("1",2));
-        t.put("3",  Map.of("1",3));
-        t.put("4",  Map.of("1",3));
-        t.put("5",  Map.of("1",4, "2",2));
-        t.put("6",  Map.of("1",4, "2",2));
-        t.put("7",  Map.of("1",4, "2",3));
-        t.put("8",  Map.of("1",4, "2",3));
-        t.put("9",  Map.of("1",4, "2",3, "3",2));
-        t.put("10", Map.of("1",4, "2",3, "3",2));
-        t.put("11", Map.of("1",4, "2",3, "3",3));
-        t.put("12", Map.of("1",4, "2",3, "3",3));
-        t.put("13", Map.of("1",4, "2",3, "3",3, "4",1));
-        t.put("14", Map.of("1",4, "2",3, "3",3, "4",1));
-        t.put("15", Map.of("1",4, "2",3, "3",3, "4",2));
-        t.put("16", Map.of("1",4, "2",3, "3",3, "4",2));
-        t.put("17", Map.of("1",4, "2",3, "3",3, "4",3, "5",1));
-        t.put("18", Map.of("1",4, "2",3, "3",3, "4",3, "5",1));
-        t.put("19", Map.of("1",4, "2",3, "3",3, "4",3, "5",2));
-        t.put("20", Map.of("1",4, "2",3, "3",3, "4",3, "5",2));
-        return t;
-    }
-
-    private Map<String, Map<String, Integer>> buildPactMagicTable() {
-        Map<String, Map<String, Integer>> t = new LinkedHashMap<>();
-        t.put("1",  Map.of("1",1));
-        t.put("2",  Map.of("1",2));
-        t.put("3",  Map.of("2",2));
-        t.put("4",  Map.of("2",2));
-        t.put("5",  Map.of("3",2));
-        t.put("6",  Map.of("3",2));
-        t.put("7",  Map.of("4",2));
-        t.put("8",  Map.of("4",2));
-        t.put("9",  Map.of("5",2));
-        t.put("10", Map.of("5",2));
-        t.put("11", Map.of("5",3));
-        t.put("12", Map.of("5",3));
-        t.put("13", Map.of("5",3));
-        t.put("14", Map.of("5",3));
-        t.put("15", Map.of("5",3));
-        t.put("16", Map.of("5",3));
-        t.put("17", Map.of("5",4));
-        t.put("18", Map.of("5",4));
-        t.put("19", Map.of("5",4));
-        t.put("20", Map.of("5",4));
-        return t;
     }
 
     private static String titleCase(String s) {

@@ -3,10 +3,14 @@ package com.tabletophelper.seeder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+// Runs before any other startup runner, so maintenance jobs see fully seeded reference data
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 @Slf4j
 public class DataSeeder implements CommandLineRunner {
@@ -33,8 +37,6 @@ public class DataSeeder implements CommandLineRunner {
         jdbcTemplate.execute("CREATE EXTENSION IF NOT EXISTS fuzzystrmatch");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_monsters_name_trgm ON monsters USING gin (LOWER(name) gin_trgm_ops)");
         log.info("PostgreSQL extensions and indexes ensured");
-
-        cleanupLegacyCharacters();
 
         try {
             conditionSeeder.seed();
@@ -106,26 +108,5 @@ public class DataSeeder implements CommandLineRunner {
 
         long elapsed = System.currentTimeMillis() - start;
         log.info("=== 5e data seeding complete in {}s ===", elapsed / 1000);
-    }
-
-    private void cleanupLegacyCharacters() {
-        try {
-            boolean hasRaceIdColumn = Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-                    "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'player_characters' AND column_name = 'race_id')",
-                    Boolean.class));
-
-            String countQuery = hasRaceIdColumn
-                    ? "SELECT COUNT(*) FROM player_characters WHERE race_id IS NULL"
-                    : "SELECT COUNT(*) FROM player_characters";
-
-            Integer charCount = jdbcTemplate.queryForObject(countQuery, Integer.class);
-            if (charCount != null && charCount > 0) {
-                jdbcTemplate.execute("DELETE FROM encounter_participants WHERE character_id IS NOT NULL");
-                jdbcTemplate.execute("DELETE FROM player_characters");
-                log.info("Deleted {} legacy free-text characters and their encounter participant references", charCount);
-            }
-        } catch (Exception e) {
-            log.warn("Legacy character cleanup skipped: {}", e.getMessage());
-        }
     }
 }

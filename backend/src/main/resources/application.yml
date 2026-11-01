@@ -19,3 +19,13 @@ app:
     secret: ${JWT_SECRET:default-dev-secret-that-should-be-changed-in-production-at-least-64-bytes-long-for-hs512}
     access-token-expiration-ms: 3600000
     refresh-token-expiration-ms: 604800000
+
+# Only the health endpoint is exposed, without details; Caddy does not proxy /actuator (D154)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

@@ -11,6 +11,14 @@ import { ABILITY_FROM_ABBR, abilityMod, formatMod, safeJsonParse } from '../../.
 import type { SpellEntry } from './types';
 import StatCard from './StatCard';
 
+const CASTER_ABILITY: Record<string, string> = {
+  Bard: 'CHA', Cleric: 'WIS', Druid: 'WIS', Paladin: 'CHA', Ranger: 'WIS',
+  Sorcerer: 'CHA', Warlock: 'CHA', Wizard: 'INT', Artificer: 'INT',
+};
+const THIRD_CASTER_ABILITY_MAP: Record<string, string> = {
+  'Eldritch Knight': 'INT', 'Arcane Trickster': 'INT',
+};
+
 export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pendingSpellManage, onSpellManageHandled }: {
   char: PlayerCharacter;
   spellsKnown: SpellEntry[];
@@ -55,6 +63,29 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     }
     return groups;
   }, [char.subclassAlwaysPreparedSpells, char.multiclassEntries, char.level]);
+
+  const multiclassSpellStats = useMemo(() => {
+    const entries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+    if (entries.length <= 1) return [];
+    const stats: Array<{ className: string; ability: string; saveDc: number; attackBonus: number }> = [];
+    const seen = new Set<string>();
+    for (const e of entries) {
+      let ability = CASTER_ABILITY[e.className];
+      if (!ability && e.subclassName) ability = THIRD_CASTER_ABILITY_MAP[e.subclassName];
+      if (!ability || seen.has(ability)) continue;
+      seen.add(ability);
+      const abilityKey = ABILITY_FROM_ABBR[ability] as keyof PlayerCharacter;
+      const score = (char[abilityKey] as number) || 10;
+      const mod = abilityMod(score);
+      stats.push({
+        className: e.className,
+        ability,
+        saveDc: 8 + char.proficiencyBonus + mod,
+        attackBonus: char.proficiencyBonus + mod,
+      });
+    }
+    return stats.length > 1 ? stats : [];
+  }, [char.multiclassEntries, char.proficiencyBonus, char.strength, char.dexterity, char.constitution, char.intelligence, char.wisdom, char.charisma]);
 
   const hasSpells = char.spellcastingAbility || spellsKnown.length > 0 || subclassAlwaysPreparedGroups.length > 0;
   if (!hasSpells) {
@@ -111,7 +142,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     .filter(([k]) => k.startsWith('pact_'))
     .sort((a, b) => parseInt(a[0].replace('pact_', '')) - parseInt(b[0].replace('pact_', '')));
 
-  async function useSlot(level: string) {
+  async function spendSlot(level: string) {
     const slot = spellSlots[level];
     if (!slot || slot.used >= slot.total) return;
     const updated = { ...spellSlots, [level]: { ...slot, used: slot.used + 1 } };
@@ -193,7 +224,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
             return (
               <button
                 key={level}
-                onClick={() => useSlot(level)}
+                onClick={() => spendSlot(level)}
                 className="bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors"
               >
                 <p className="font-heading text-[9px] font-semibold text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
@@ -205,37 +236,6 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
       </div>
     );
   }
-
-  const CASTER_ABILITY: Record<string, string> = {
-    Bard: 'CHA', Cleric: 'WIS', Druid: 'WIS', Paladin: 'CHA', Ranger: 'WIS',
-    Sorcerer: 'CHA', Warlock: 'CHA', Wizard: 'INT', Artificer: 'INT',
-  };
-  const THIRD_CASTER_ABILITY_MAP: Record<string, string> = {
-    'Eldritch Knight': 'INT', 'Arcane Trickster': 'INT',
-  };
-
-  const multiclassSpellStats = useMemo(() => {
-    const entries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
-    if (entries.length <= 1) return [];
-    const stats: Array<{ className: string; ability: string; saveDc: number; attackBonus: number }> = [];
-    const seen = new Set<string>();
-    for (const e of entries) {
-      let ability = CASTER_ABILITY[e.className];
-      if (!ability && e.subclassName) ability = THIRD_CASTER_ABILITY_MAP[e.subclassName];
-      if (!ability || seen.has(ability)) continue;
-      seen.add(ability);
-      const abilityKey = ABILITY_FROM_ABBR[ability] as keyof PlayerCharacter;
-      const score = (char[abilityKey] as number) || 10;
-      const mod = abilityMod(score);
-      stats.push({
-        className: e.className,
-        ability,
-        saveDc: 8 + char.proficiencyBonus + mod,
-        attackBonus: char.proficiencyBonus + mod,
-      });
-    }
-    return stats.length > 1 ? stats : [];
-  }, [char.multiclassEntries, char.proficiencyBonus, char.strength, char.dexterity, char.constitution, char.intelligence, char.wisdom, char.charisma]);
 
   return (
     <div className="space-y-6">

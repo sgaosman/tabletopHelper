@@ -11,7 +11,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   backend:
@@ -27,6 +28,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # Startup includes reference data seeding, so allow a generous start period
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
     restart: unless-stopped
 
   db:

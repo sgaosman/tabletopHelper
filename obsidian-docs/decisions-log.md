@@ -35,7 +35,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D003: JWT Over Session Cookies
 
 **Date:** 2026-07-17
-**Status:** Accepted
+**Status:** Superseded by D156
 
 **Decision:** Use JWT tokens for authentication (stored in localStorage).
 
@@ -110,7 +110,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D010: @JsonRawValue for JSONB String Fields
 
 **Date:** 2026-07-17
-**Status:** Accepted
+**Status:** Superseded by D168
 
 **Decision:** Use Jackson's `@JsonRawValue` annotation on all entity fields that store JSONB data as Java `String` types.
 
@@ -181,7 +181,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D017: Silent JWT Refresh via Axios Interceptor
 
 **Date:** 2026-07-18
-**Status:** Accepted
+**Status:** Superseded by D155 and D156
 
 **Decision:** Catch both 401 and 403 responses in the Axios response interceptor. When a request that carried a Bearer token receives either status, use the stored refresh token to obtain a new access token, then retry the original request. Queue concurrent failing requests to avoid duplicate refresh calls.
 
@@ -243,7 +243,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D022: Server-Side Dice Rolling for Attack Rolls
 
 **Date:** 2026-07-18
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D164)
 
 **Decision:** Attack rolls (d20 + modifier vs AC) and damage dice are rolled server-side using `ThreadLocalRandom`. The DM inputs the attack bonus and damage dice expression (e.g. "2d6+3"); the server handles the full flow: roll d20, compare vs AC, roll damage on hit, apply damage through the existing damage pipeline.
 
@@ -254,7 +254,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D023: Condition Duration as Object Array with Auto-Expiry
 
 **Date:** 2026-07-18
-**Status:** Accepted
+**Status:** Superseded by D162
 
 **Decision:** Changed `activeConditions` from a string array (`["blinded","prone"]`) to an object array (`[{"name":"blinded","duration":3,"appliedRound":1}]`). Conditions with a non-null `duration` are automatically removed at the start of the affected creature's turn when `currentRound - appliedRound >= duration`.
 
@@ -265,7 +265,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D024: Spell Slot Tracking via Encounter Participant Copy
 
 **Date:** 2026-07-18
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D166)
 
 **Decision:** Added `spell_slots_current` JSONB field to `encounter_participants`, auto-populated from the character's `spell_slots` when a player is added to an encounter. Slots are tracked per-encounter independently of the character sheet.
 
@@ -276,7 +276,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D025: Unconscious Combat Mechanics (PHB Faithful)
 
 **Date:** 2026-07-18
-**Status:** Accepted
+**Status:** Superseded by D161
 
 **Decision:** Implemented PHB-faithful combat rules for unconscious/downed characters: attacks auto-hit (no d20 roll), damage causes death save failures (1 normal, 2 on crit), massive damage (>= max HP) causes instant death. Added `forceCrit` field to attack rolls for the DM to manually mark within-5-feet melee attacks as crits (PHB Unconscious condition, pg.292). Frontend defaults to advantage when targeting downed PCs. Downed PCs can also receive direct damage and conditions.
 
@@ -287,7 +287,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D026: Resurrection via Healing
 
 **Date:** 2026-07-18
-**Status:** Accepted
+**Status:** Superseded by D161
 
 **Decision:** Dead player characters (3 death save failures) can be healed back to life, representing resurrection spells like Revivify. Healing a dead PC sets them alive, resets death saves, removes the Unconscious condition, and auto-applies Prone. The combat log distinguishes "resurrected" (from dead) vs "revived" (from dying).
 
@@ -438,7 +438,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D040: Hardcoded Spell Slot Progression Tables
 
 **Date:** 2026-07-19
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D153 and D169)
 
 **Decision:** Spell slot progression tables (full caster, half caster, pact magic, artificer) are hardcoded as static arrays in both CharacterClassSeeder (backend) and SpellSlotCalculator rather than derived from 5etools data. Multiclass spell slot calculation follows PHB 2014 rules: sum effective caster levels (full=level, half=level/2 round down, artificer=level/2 round up), look up the full caster table for the combined level. Warlock pact slots are tracked separately.
 
@@ -449,7 +449,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D041: Legacy Character Cleanup on Startup
 
 **Date:** 2026-07-19
-**Status:** Accepted
+**Status:** Superseded by D152
 
 **Decision:** The DataSeeder deletes all existing player characters that lack race_id FK references (legacy free-text characters) on startup. This runs before the new reference data seeders. Encounter participants referencing deleted characters are also cleaned up.
 
@@ -570,7 +570,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D049: Auto-Calculate Spell Slots and Derived Stats at Character Creation
 
 **Date:** 2026-07-19
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D158)
 
 **Decision:** `CharacterService.createCharacter()` now auto-calculates `spellSlots`, `spellSaveDc`, and `spellAttackBonus` for spellcaster classes if they weren't provided in the request. Uses the existing `SpellSlotCalculator` (which handles multiclass and pact magic) and derives caster type from the class name (Paladin/Ranger = half, Artificer = artificer, Warlock = pact, all others = full).
 
@@ -603,7 +603,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D052: Level History JSONB for Deterministic Rollback
 
 **Date:** 2026-07-19
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D167)
 
 **Decision:** A `level_history` JSONB column on `player_characters` stores a per-level array recording exactly what was gained at each level: HP, features, ASI/feat choices, and which class the level was taken in. Level-down pops the last entry and reverses every change deterministically.
 
@@ -658,7 +658,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D057: Multiclass Character Creation with Post-Creation ASI Flow
 
 **Date:** 2026-07-19
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D159)
 
 **Decision:** Multiclass character creation sends a `multiclassClassEntries` JSON array to the server, which builds the full multi-class progression via `LevelUpCalculator.buildMulticlassProgression()`. ASI choices are applied post-creation by showing `AsiModal` sequentially for each pending ASI level, calling the existing `applyChoices` endpoint.
 
@@ -669,7 +669,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D058: ASI History Recording Targets First Unrecorded ASI Level
 
 **Date:** 2026-07-19
-**Status:** Accepted
+**Status:** Superseded by D159
 
 **Decision:** `recordAsiInHistory` and `recordFeatInHistory` find the target level history entry via `findNextAsiEntry()` — scanning forward through the history for the first entry where `LevelUpCalculator.isAsiLevel(className, classLevel)` is true and `choices.asi` is absent — rather than always targeting the last entry.
 
@@ -713,7 +713,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D062: Per-Class Multiclass Spellcasting Stats
 
 **Date:** 2026-07-19
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D158 and D167)
 
 **Decision:** When a multiclass character has spellcasting classes with different abilities, the Spells tab shows per-class spell save DC and attack bonus instead of the single global values. The frontend computes these from the character's ability scores, proficiency bonus, and the known spellcasting ability mapping (`CASTER_ABILITY`). The backend's `CharacterService` iterates all class entries in `multiclassEntries` to find the first spellcasting class for the global spell stats (for backwards compatibility).
 
@@ -856,7 +856,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D075: Handle @JsonRawValue Pre-Parsed Fields in Frontend
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Superseded by D168
 
 **Decision:** Frontend parsing functions for `@JsonRawValue` JSONB fields (`abilityScoreIncrease`, `effects`, `grantsFeatures`, `prerequisite`) must check `typeof value === 'string'` before calling `JSON.parse()`. Jackson's `@JsonRawValue` outputs raw JSON without quoting, so the browser's JSON parser converts these to native JS objects/arrays before the frontend code runs.
 
@@ -867,7 +867,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D076: Replace Silent Exception Swallowing with Logging
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Superseded by D155
 
 **Decision:** Replace all `catch (Exception ignored) {}` blocks across CharacterService and FeatEffectResolver with `log.warn`/`log.error`. Critical operations (`recalculateSpellSlots`, `appendLevelHistory`) now re-throw after logging.
 
@@ -911,7 +911,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D080: FK Indexes and GIN Index for Query Performance
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Superseded by D170
 
 **Decision:** Add `@Index` annotations on FK columns (`user_id`, `campaign_id` on `PlayerCharacter`; `encounter_id`, `character_id` on `EncounterParticipant`; `encounter_id` on `CombatLog`). Add a GIN index on `spells.classes` JSONB column via `schema.sql`.
 
@@ -933,7 +933,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D082: Input Validation on Character Update Endpoint
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Superseded by D158
 
 **Decision:** Add `@Valid` to the `updateCharacter` endpoint and Jakarta validation constraints on `CharacterUpdateRequest` fields: `@Min/@Max` on level (1-20), ability scores (1-30), HP, AC, speed, proficiency bonus; `@Size(max=100)` on name.
 
@@ -944,7 +944,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D083: Short Rest Hit Dice Spending and Warlock Pact Slot Reset
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D158)
 
 **Decision:** Replace the single-die short rest with a multi-die spending UI (per-class +/- buttons with remaining dice tracking). Add warlock pact slot reset on short rest. Add short-rest feat resource resets.
 
@@ -1010,7 +1010,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D089: Database Indexes on Foreign Keys and GIN on spells.classes
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Superseded by D170
 
 **Decision:** Add JPA `@Table(indexes)` on `player_characters.user_id`, `player_characters.campaign_id`, `encounter_participants.encounter_id`, `encounter_participants.character_id`, and `combat_logs.encounter_id`. Add a PostgreSQL GIN index on `spells.classes` via `schema.sql`.
 
@@ -1054,7 +1054,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D093: Unconscious Attack Auto-Crit with isRanged Override
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Superseded by D161
 
 **Decision:** Attacks against downed targets auto-crit by default (PHB p.292: melee attacks against unconscious creatures are critical hits). Added `isRanged` field to `AttackRollRequest` — when true, the auto-crit is suppressed (ranged attacks don't auto-crit). UI shows a "Ranged" toggle button next to "Crit" on both DM and player encounter pages.
 
@@ -1186,7 +1186,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D105: Concentration Cascade via Source-Tracked Conditions
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D162)
 
 **Decision:** `dropConcentrationCascade()` iterates ALL encounter participants and removes any condition where `sourceRequiresConcentration=true` AND `sourceSpellName` and `sourceParticipantId` match the concentrating caster. This method is wired into all three concentration-loss paths: `dropConcentrationOnZeroHp()`, `checkConcentration()` on failed save, and `setConcentration()` when replacing with a new spell. Each removed condition is logged to the combat log.
 
@@ -1208,7 +1208,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D107: Spell Slot Format Conversion at Encounter Join
 
 **Date:** 2026-07-20
-**Status:** Accepted
+**Status:** Superseded by D168
 
 **Decision:** `EncounterService.addPlayerParticipant()` converts spell slots from `{used, total}` (PlayerCharacter format) to `{remaining, max}` (encounter format) via `convertSpellSlotsFormat()`. The conversion is idempotent — it handles both formats as input.
 
@@ -1274,7 +1274,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D112: Damage Resistance/Immunity/Vulnerability Handling
 
 **Date:** 2026-07-21
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D161)
 
 **Decision:** `CombatService.applyDamageToTarget()` now checks the target's damage immunities, resistances, and vulnerabilities before applying damage. Immune → 0, resistant → half (rounded down), vulnerable → double. Data is read from Monster (`damageResistances`, `damageImmunities`, `damageVulnerabilities`) and PlayerCharacter entities. Complex conditional resistances (objects with `cond: true`) are skipped — only simple string entries are matched.
 
@@ -1319,7 +1319,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D116: MOD Placeholder Substitution in Spell Resolver
 
 **Date:** 2026-07-21
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D165)
 
 **Decision:** Added `substituteModPlaceholders()` method to `SpellResolverEngine` that replaces both `SPELL_MOD` and `MOD` placeholders in dice expressions with the caster's spellcasting ability modifier (derived from `spellAttackBonus - proficiencyBonus`). Applied to damage dice, healing dice, and repeat effect dice paths. MOD substitution now runs before upcast scaling so `parseDiceExpression` can correctly parse the numeric modifier.
 
@@ -1381,7 +1381,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D122: HTTP-Only Caddy for IP Access
 
 **Date:** 2026-07-21
-**Status:** Accepted (temporary)
+**Status:** Superseded by D154
 
 **Decision:** The Caddyfile uses `auto_https off` and listens on `:80` only. No HTTPS is configured while the app is accessed by IP address.
 
@@ -1403,7 +1403,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D123: Planned Migration from Hetzner to DigitalOcean
 
 **Date:** 2026-07-21
-**Status:** Proposed
+**Status:** Withdrawn — the Hetzner server and account were closed in November 2026; the next host is chosen in the Hosting step (D154)
 
 **Decision:** Migrate from Hetzner CPX22 (~EUR 24/month) to DigitalOcean Basic Droplet ($12/month, 1 vCPU, 2GB RAM) after the initial Hetzner credit (EUR 25) is consumed.
 
@@ -1425,7 +1425,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D125: Generic Resource Pool System — M24.5
 
 **Date:** 2026-07-26
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D169)
 
 **Decision:** Implement a unified `resource_pools` JSONB system to replace `feat_resources` and `hit_dice_map` on `player_characters`, and add `resource_pools_current` to `encounter_participants`. Three new reference tables (`resource_pool_definitions`, `class_feature_pools`, `monster_pool_triggers`) are seeded on startup. An expression evaluator handles `maxUsesFormula`, `resetAmount`, and `resetCheck` values for dynamic pool sizing and partial/probabilistic recovery.
 
@@ -1553,7 +1553,7 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D128: Known Issue — Missing Second ASI Prompt on Multi-Level Character Creation
 
 **Date:** 2026-07-27
-**Status:** Accepted (Known Issue — not yet resolved)
+**Status:** Accepted (Known Issue — to be resolved by D159)
 
 **Issue:** When a character is created at level 8 or above, the character creation wizard only triggers one post-creation ASI flow (e.g., the level 4 ASI). The second ASI at level 8 is silently skipped. The ASI is only offered if the player manually levels the character down and back up from the character sheet, which retriggers the `pendingChoices.asiAvailable` check.
 
@@ -1608,7 +1608,7 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D133: Legendary Actions — Persistent Panel, Usable Any Time
 
 **Date:** 2026-07-29
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D163)
 
 **Decision:** If a monster has legendary actions, its expandable accordion panel always shows a "Legendary Actions" section with the remaining count badge. The DM can click a legendary action at any time during combat (they are not gated by turn). Each legendary action shows its cost. The legendary action pool resets at the start of the monster's turn via the existing ResourcePoolEntry turn-reset mechanism. Legendary actions that reference spellcasting open the monster's spell panel. Non-automatable legendary actions log to combat log with description.
 
@@ -1617,7 +1617,7 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D134: Legendary Resistance — Inline Prompt on Failed Save
 
 **Date:** 2026-07-29
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D163)
 
 **Decision:** When a monster with legendary resistance remaining fails a saving throw (from a spell or save-forcing ability), the system returns the failure result along with a prompt: "Use Legendary Resistance? (X remaining)". This prompt appears inline in the combat result (in the response payload). If the DM clicks "Use Legendary Resistance", the save is converted to a success, the resistance count is decremented (via `ResourcePoolService.spendPool`), and the combat log records both the original failure and the legendary resistance use.
 
@@ -1662,7 +1662,7 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D139: Monster Action Data Seeding — action_templates Column on Monster Entity
 
 **Date:** 2026-07-29
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D169)
 
 **Decision:** A new `action_templates` JSONB column is added to the `monsters` table. The structured action data from `monster-action-definitions.json` is seeded into this column by a `MonsterActionSeeder` (following the same pattern as `SpellSeeder.seedEffectTemplates()` which loads `spell-effect-definitions.json` into the `effect_template` column on spells). The resolver reads action templates from the Monster entity at runtime.
 
@@ -1719,7 +1719,7 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D144: Lair Action Rendering — Description Cards
 
 **Date:** 2026-07-29
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D169)
 
 **Decision:** Lair actions in the monster action panel are rendered as full-width description cards instead of compact buttons. Each card shows the action name as a `Cinzel` heading with a `Castle` icon, the full description as body text, key stats (save DC, damage dice, damage type) as pills, and a "Manual" badge for non-automatable actions. Additionally, 68 lair action names across ~40 monsters that were auto-generated sentence fragments (e.g., "The aboleth casts", "Pools of water", "Water in the") were renamed to proper descriptive labels (e.g., "Phantasmal Force", "Grasping Tide", "Psychic Conduit"). The data was fixed in `monster-action-definitions.json` and re-seeded to 2,357 monsters.
 
@@ -1732,7 +1732,7 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D145: Legendary Resistance — Combat Log Based Undo System
 
 **Date:** 2026-07-29
-**Status:** Accepted
+**Status:** Accepted (partially superseded by D163)
 
 **Decision:** Legendary Resistance (LR) was completely reworked from an inline prompt in the monster action result panel to a combat-log-based system with full undo capability. Key changes:
 
@@ -1796,7 +1796,7 @@ Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and
 ## D149: Spring Boot Error Messages — include-message Always
 
 **Date:** 2026-07-29
-**Status:** Accepted
+**Status:** Superseded by D155
 
 **Decision:** Added `server.error.include-message: always` and `server.error.include-binding-errors: always` to `application.yml`. The frontend error handler was updated to try `err.response?.data?.message`, `err.response?.data?.error`, raw response body, and finally `err.message` (Axios generic text) in that order.
 
@@ -1805,3 +1805,865 @@ Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and
 **How to apply:** All backend exception messages now reach the frontend. New error handlers should follow the same fallback chain pattern.
 
 **Related:** D147, [[Error Handling]]
+
+## D150: Refactor Phase Before M13 — Phases R1–R8
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned
+
+**Decision:** Feature milestones (M13 onward) are paused until the refactor phase is complete. The phase runs in eight steps. Each step leaves the app deployable, with CI green and the project docs updated.
+
+| Phase | Scope | Decisions |
+|---|---|---|
+| R1 Safety and hygiene | Remove the startup character deletion. Fix spell slots and recompute stored maximums. Stop feat reseeding. Fix the rules-of-hooks errors. Move the lair and monster-spell UI out of the unused MonsterActionPanel, then delete it. Add CI and put the type check back in the production build. Turn on HTTPS. Add a health check, automated backups and non-root containers. Align Node versions. Harden production config. Archive stale docs and remove stray files. | D152, D153, D154, D165, D169 |
+| R2 Test harness | Testcontainers integration tier, golden rules tables, strict MSW, foreign-key indexes in Flyway. | D170, D172 |
+| R3 Access and auth | Access policy and error codes, shipped with the frontend refresh change. WebSocket subscription checks and DM/Player Views. Rotating refresh cookie. Module skeleton and boundary test. | D151, D155, D156, D157 |
+| R4 Frontend foundations | Generated API types, TanStack Query, shared UI primitives, route code splitting. | D171 |
+| R5 Combat pipeline | Single resolve/apply path, typed encounter state, combat rules fixes, server-calculated attacks, monster action fixes, encounter lifecycle. | D160–D166, D168 |
+| R6 Character authority | Command endpoints, typed character state, Pending Choices, server-side rests, derived progression, encounter Write-back. | D158, D159, D166, D167, D168 |
+| R7 Content | Game data files, hash-based idempotent seeding, pool level tables and expression parser. Remove deprecated columns and unused 5etools data. | D169 |
+| R8 Consolidation | Shared encounter components, single spell picker, wizard reducer, Spring Boot upgrade, remaining doc updates. | D154, D171 |
+
+Some migrations rewrite existing character data (D153, D167, D169). Each one first produces a dry-run report showing every character before and after, for maintainer approval. A database backup is taken before it runs in production.
+
+**Rationale:** The 2026-11-01 codebase review found:
+
+- a startup routine that can delete every character
+- game rules calculated in the browser and accepted unchecked by the server
+- authorization gaps on characters, encounters and WebSocket topics
+- about twenty combat and progression rules errors against the 2014 PHB
+- the logic that applies results to targets copied four times in CombatService
+- no tests against a real database
+
+M13 (action economy) changes the same combat code. Building it first would multiply the cost of every fix.
+
+**Trade-offs:** No new features until R8 finishes. The trigger for M6, which requires M13, moves further out.
+
+**Alternatives considered:**
+- **Fix bugs alongside M13** — rejected: M13 rewrites the turn and action code that the combat pipeline (D160) restructures.
+- **One big rewrite** — rejected: phases keep the live app working between steps and keep each change reviewable.
+
+**Related:** D029 (M6 deferral), D138 (M13 scope), D151–D172
+
+**Update (2026-11-01, R1 planning):** nothing is hosted (the Hetzner server was closed), so R1 no longer turns on HTTPS or installs automated backups. Those move to a Hosting step taken when a new host is chosen (D154). R1 moves only monster spellcasting out of `MonsterActionPanel` (D165).
+
+## D151: Modular Monolith — Microservices Rejected
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (skeleton in R3, then each phase)
+
+**Decision:** The backend stays a single deployable Spring Boot application, organised into modules with enforced boundaries:
+
+- `identity` — users and authentication
+- `campaign`
+- `content` — reference game data and its loading
+- `character`
+- `encounter`
+- `rules` — plain Java with no Spring or JPA: dice, expressions, ability scores, slot tables, effect resolution, damage maths
+
+Each module exposes a small public API (services and DTOs) and keeps everything else package-private. Modules affect each other through application events. For example, `EncounterCompleted` triggers the character module's Write-back (D166). A boundary test (Spring Modulith `ApplicationModules.verify()`, or ArchUnit) fails the build when one module reaches into another's internals. R3 creates the module skeleton and the test, and each later phase moves its area into its module.
+
+**Rationale:**
+1. **Core operations must be atomic across areas.** One spell cast reads content, spends a slot, damages several participants, may break concentration and writes the log. Ending an encounter writes back to characters. Split into services, each of these becomes a distributed transaction with compensating steps.
+2. **There is no scaling need.** A table is 4–7 users (D004 assumed about 9). If more than one backend instance is ever needed, the in-memory STOMP broker is replaced by an external broker relay inside the monolith.
+3. **There is one maintainer.** Microservices multiply what has to be run and debugged — separate databases, service-to-service auth, versioned internal APIs, tracing, more containers and VPS cost — for no benefit here.
+4. **The real problem is weak internal boundaries.** Classes do too much, packages use each other's repositories (e.g. `CharacterService` uses `EncounterParticipantRepository`), and rules are split between browser and server. Services would freeze those boundaries into network contracts. Enforced modules fix them and keep refactoring cheap.
+
+**Trade-offs:** Boundaries are enforced by a test rather than by process isolation. The whole application deploys together.
+
+**Alternatives considered:**
+- **Microservices per area** — rejected for the reasons above.
+- **Keep the current package-by-layer monolith** — rejected: nothing enforces boundaries, which is how the oversized classes and cross-package coupling arose.
+
+**Revisit when:** one area needs to scale or release independently. The likeliest candidate is `content`: it is read-only, cacheable and shares no transactions with the rest, so it could become a separate service or a static bundle.
+
+**Related:** D001, D004, D021, D166
+
+## D152: Remove Startup Character Cleanup
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R1)
+
+**Decision:** Delete `DataSeeder.cleanupLegacyCharacters()`. Make `raceId` required in `CharacterCreateRequest` (`@NotNull`), and add a Flyway migration making `player_characters.race_id` `NOT NULL`. If homebrew races are ever needed, they are added as race reference rows rather than left null.
+
+**Rationale:** D041 assumed "the app has no real users yet — all characters are development test data". That no longer holds now the app is deployed for real play (D119–D122).
+
+The method still runs on every boot. If any character has a null `race_id`, it runs `DELETE FROM player_characters` and also deletes every player encounter participant. `raceId` is optional in the API, so one request without it would wipe every character at the next restart.
+
+The one-off migration the method existed for is finished. No production row can have a null race, because the cleanup would already have deleted everything.
+
+**Trade-offs:** None in practice; the wizard always sends a race.
+
+**Alternatives considered:**
+- **Keep the method behind a one-time flag** — rejected: destructive code whose job is done has no reason to stay.
+- **Only make `raceId` required** — rejected: it leaves a mass delete at startup, one schema change away from firing.
+
+**Supersedes:** D041
+
+**Key files:** `DataSeeder.java:111-130`, `CharacterCreateRequest.java`
+
+**Related:** D039, D042 (soft delete)
+
+## D153: Spell Slots — A Single Spellcasting Class Uses Its Own Table
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R1)
+
+**Decision:**
+- `SpellSlotCalculator` uses the combined multiclass table only when a character has two or more Spellcasting Classes.
+- With exactly one, it uses that class's own progression. Paladin, Ranger, Artificer, Eldritch Knight and Arcane Trickster each have their own table.
+- Pact Magic is not a Spellcasting Class for this purpose, so a Paladin 5 / Warlock 2 uses the Paladin table plus pact slots.
+- `CharacterClassSeeder` and `SpellSlotCalculator` read the progression tables from one shared source, which moves to a data file in R7 (D169).
+- A golden test checks every class at levels 1–20 against the PHB tables, plus multiclass cases (e.g. Paladin 2 / Sorcerer 3 = caster level 4).
+- A one-off migration recomputes stored slot maximums for every character. It keeps the used count and caps it at the new maximum. A dry-run report comes first (D150).
+
+**Rationale:** PHB p.164 applies the multiclass spellcasting rules only once a character has the Spellcasting feature from more than one class. The current code applies multiclass rounding (level ÷ 2 or ÷ 3, rounded down) to everyone. As a result:
+
+- half casters are wrong at every odd level from 3. A Paladin 3 gets two 1st-level slots instead of three, and a Paladin 5 gets no 2nd-level slots.
+- third casters are wrong at every level from 4 that isn't divisible by 3.
+
+The frontend's `maxSpellLevel` is already correct, so affected players can currently learn spells they have no slots for.
+
+**Trade-offs:** Rewrites stored data for existing half and third casters. Characters already in an encounter keep their copied slots until re-added.
+
+**Alternatives considered:**
+- **A formula instead of tables** (half casters use the full-caster row at ceil(level ÷ 2) from level 2; third casters at ceil(level ÷ 3) from level 3) — gives the same results, but duplicates what the per-class tables already hold. Rejected in favour of the tables.
+
+**Partially supersedes:** D040 (single-class handling and where the tables live; D040's reason for writing the tables ourselves still stands)
+
+**Amends:** D049
+
+**Key files:** `SpellSlotCalculator.java:56-94`, `CharacterClassSeeder.java` (spell_slot_progression)
+
+**Related:** D060, D062, [[Spellcasting Class]]
+
+## D154: Production and Delivery Baseline — HTTPS, CI, Operations
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R1; HTTPS and backups in the Hosting step; Spring Boot upgrade in R8)
+
+**Decision:**
+- **HTTPS:** a domain name (bought, or a free dynamic-DNS subdomain) points at the server. Caddy provisions certificates automatically, HTTP redirects to HTTPS, and HSTS is enabled.
+- **CI:** a GitHub Actions workflow runs on every push and pull request. It runs the backend unit and integration tests, the frontend type check (`tsc -b`), oxlint, Vitest and the Vite build.
+- **Type check in the production build:** the production frontend Dockerfile goes back to running `npm run build`, which includes the type check. The 265 existing type errors are fixed first:
+  - the test tsconfig gains the jest-dom and Vitest types
+  - mocks use `null` where the API returns null
+  - the five production errors go away with the MonsterActionPanel removal (D165)
+- **Operations:**
+  - Spring Boot Actuator exposes only `/actuator/health` (public). `deploy.sh` and the Docker health checks use it.
+  - A nightly automated `pg_dump`, with retention, is copied off the server.
+  - Containers run as a non-root user.
+  - Node 24 LTS is pinned for Docker and local development (`.nvmrc`).
+  - Swagger UI and the API docs are turned off in the production profile.
+  - Spring Boot is upgraded in R8, once the integration tests (D172) exist. Its support status should be confirmed first.
+
+**Rationale:**
+- D122 accepted plain HTTP as temporary "until a custom domain is purchased", and said it must be resolved before any public deployment. Passwords and tokens currently travel unencrypted, and D156's secure cookies need HTTPS.
+- Without CI, nothing runs the 571 tests automatically.
+- Skipping `tsc` in the Docker build (commit 3d4373a) is how a call to an endpoint that doesn't exist reached production.
+- The deploy health check calls `GET /api/auth/login`, an endpoint that only accepts POST, so it can never succeed.
+- Backups are manual only.
+
+**Trade-offs:** A domain costs a small yearly fee; a dynamic-DNS subdomain is free. CI fails until the existing type errors are fixed. Players need the new address.
+
+**Alternatives considered:**
+- **A certificate for the bare IP address** — rejected for now: it depends on newer short-lived IP certificates and on Caddy support, both of which would need checking. A hostname is simpler and survives the planned move to DigitalOcean (D123).
+- **Keep skipping `tsc` in Docker for build speed** — rejected: type errors reach production.
+
+**Supersedes:** D122
+
+**Related:** D119, D120, D123, D156, D172
+
+**Update (2026-11-01, R1 planning):** the Hetzner server and account have been closed, and nothing is hosted. Turning on HTTPS, nightly backups with an off-server copy, and checking health on a live deploy move to a Hosting step taken when a new host is chosen. R1 keeps CI, the type-checked production build, the health endpoint itself, non-root containers, Node 24 and the production config changes.
+
+## D155: Access Policy and Error Handling
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R3)
+
+**Decision:**
+- **One access policy.** An `AccessPolicy` service provides `requireCampaignDm`, `requireCampaignMember`, `requireCharacterOwnerOrDm` and `requireControls(participant)`. Every command and query that touches campaign data calls it first, replacing the ownership checks copied into each service method. It also covers places that have no check today:
+  - reading the combat log
+  - looking up an encounter by session code
+  - adding a player participant (the character must belong to a campaign member)
+  - attaching a character to a campaign (the owner must be a member)
+  - using legendary resistance (the log entry must belong to the encounter)
+- **Error codes.** Domain exceptions map to HTTP codes:
+  - `NotFound` → 404
+  - `Forbidden` → 403
+  - `InvalidState` / `Conflict` → 409
+  - `Validation` → 400
+  - `OptimisticLockingFailureException` → 409
+  - request parameters of the wrong type (e.g. `?level=abc`) → 400
+- **401 for missing or expired tokens.** Spring Security gets an `HttpStatusEntryPoint(UNAUTHORIZED)`, and the frontend interceptor refreshes only on 401. Both changes ship in the same release.
+- **No catch-and-continue inside transactions.** Exceptions propagate and roll the transaction back. Catches remain only at boundaries: each seeder file, with a summary, and production startup fails if content cannot load.
+- **Messages.** Domain exceptions carry a message meant for users, and it is always returned. Unexpected exceptions return a generic message in production. `server.error.include-message: always` moves to the dev profile.
+
+**Rationale:**
+- Authorization is checked separately in each method, and several reads and writes have no check at all.
+- "Not found" and "not yours" both throw `IllegalArgumentException`, which returns 400.
+- D034 says optimistic-lock conflicts return 409, but no handler exists, so they come back as 500.
+- D017 refreshes the token on 403 because Spring answers an expired token with 403 when no entry point is configured. Once permission failures return 403, that would trigger pointless refreshes.
+- D076 replaced silent catches with logging, but 127 broad catches still carry on after a failure, so half-applied changes get saved. For example, a failed pool parse writes `[]` over a character's pools.
+- D149's goal, meaningful error text in the UI, is kept through domain messages without exposing internal exception text in production.
+
+**Trade-offs:** Errors that are swallowed today will show up as failed requests — existing bugs becoming visible. Frontend code that checks for 400 on ownership errors must handle 403 instead.
+
+**Alternatives considered:**
+- **`@PreAuthorize` annotations everywhere** — not ruled out. An explicit policy call is simpler to read and test first, and can be wrapped in annotations later.
+- **Keep refreshing on 403** — rejected: it treats "not allowed" as "session expired".
+
+**Supersedes:** D076, D149, and (together with D156) D017
+
+**Amends:** D028 (its permission methods move into the policy; the player permissions themselves are unchanged), D034 (adds the missing 409 handler), D092
+
+**Key files:** `GlobalExceptionHandler.java`, `SecurityConfig.java`, `frontend/src/api/axiosConfig.ts:33`
+
+**Related:** D156, D160, [[Error Handling]]
+
+## D156: Session Security — In-Memory Access Token, Rotating Refresh Cookie
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R3, after D154's HTTPS)
+
+**Decision:**
+- **Access tokens** last 15 minutes and are held in the frontend's memory, not localStorage.
+- **Refresh tokens:**
+  - sent as an httpOnly, Secure, SameSite=Strict cookie scoped to `/api/auth`
+  - stored hashed in a new `refresh_tokens` table
+  - replaced on every use and revoked on logout
+  - reusing a token that has already been replaced revokes that whole token family
+- **Token type:** every JWT carries a type claim, and refresh tokens are rejected when used as bearer tokens.
+- **Secret:** `application.yml` has no default JWT secret. A dev-only value lives in `application-dev.yml`, and startup fails if `JWT_SECRET` is missing or shorter than 256 bits.
+- **Getting a token:** on page load the app calls `/api/auth/refresh` to get an access token. The STOMP client fetches a fresh access token before every connect and reconnect (`beforeConnect`).
+
+**Rationale:**
+- D003 accepted localStorage tokens and no revocation for "a small trusted user group". The project now aims at online play beyond one trusted table, and D122 required hardening before any public deployment.
+- Today access and refresh tokens differ only in expiry, so the 7-day refresh token works as a bearer token. That undermines D003's "1-hour access token window".
+- The fallback secret in `application.yml` means any deployment without `JWT_SECRET` signs tokens with a key committed to the repo.
+- WebSocket reconnects reuse the token read on the first connect.
+
+**Trade-offs:** Everyone is logged out once when this is deployed. It requires HTTPS. It adds a table and a cookie flow, and logout becomes a server call.
+
+**Alternatives considered:**
+- **Keep localStorage with a shorter expiry** — rejected: a cross-site scripting attack could still steal the refresh token.
+- **Server-side sessions** — rejected: loses D003's stateless WebSocket authentication.
+
+**Supersedes:** D003 (token storage and the no-revocation trade-off; JWT access tokens remain), and (together with D155) D017
+
+**Related:** D015, D154, D155
+
+## D157: Encounter Visibility — Subscription Checks and DM/Player Views
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R3)
+
+**Decision:**
+- **Subscription checks.** The WebSocket channel interceptor checks SUBSCRIBE frames as well as CONNECT. Only campaign members may subscribe to an encounter, and only its DM may subscribe to the DM destination.
+- **Two views.** One broadcaster publishes two full-state views (D004):
+  - the DM View, with everything
+  - the Player View, which:
+    - removes hidden participants
+    - strips monster notes, spell lists and action templates
+    - shows monster HP as a Health Status, unless the campaign setting "show exact monster HP" is on
+    - redacts combat log entries about hidden participants
+- **Hiding participants.** A DM endpoint hides and reveals participants, so `isVisibleToPlayers` finally works.
+- **Membership for lookups.** Looking up an encounter by session code and reading its combat log require membership (D155).
+- **Allowed origins.** Allowed origins for `/ws` come from configuration instead of `*`.
+
+**Rationale:** Today, any logged-in user who knows an encounter ID can subscribe and receive monster HP, notes and spell lists. "Hidden" participants are filtered only in the player's browser, and no endpoint can set the flag. One unfiltered payload can't serve both roles.
+
+**Trade-offs:** The player session page changes from exact monster HP (`p.hpCurrent/p.hpMax`) to a status label unless the DM opts in. Players see a shorter initiative list while monsters are hidden. Each broadcast is serialised twice.
+
+**Alternatives considered:**
+- **Per-user destinations (`/user/queue/...`)** — workable, but rejected for now: every player receives the same Player View, so one shared topic is simpler.
+- **Filter in the browser** — rejected: the data still reaches the client.
+
+**Amends:** D004 (full-state broadcast kept, once per view), D015 (adds SUBSCRIBE checks)
+
+**Related:** D155, [[DM View]], [[Player View]], [[Health Status]]
+
+## D158: Server-Authoritative Character Commands and DM Adjustments
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R6)
+
+**Decision:**
+- **Intent endpoints.** `PUT /characters/{id}` is retired. Characters change only through intent endpoints:
+  - details (name, notes, appearance, personality, inventory)
+  - HP (damage, healing, temporary HP)
+  - spell slot spend and restore
+  - resource pool spend and recover
+  - short rest and long rest
+  - add feat
+  - the existing level-up, level-down and apply-choices
+- **Derived Stats.** The server calculates every Derived Stat and never accepts one from the client:
+  - proficiency bonus
+  - HP maximum
+  - spell slot maximums
+  - spell save DC and spell attack bonus for each class
+  - prepared-spell limits
+
+  Character creation sends the player's choices only.
+- **DM Adjustments.** A DM-only, logged endpoint records named modifiers (stat, amount, reason) that are added on top of Derived Stats. This is how magic items, boons and homebrew are represented until they are modelled properly.
+- **Rests** (reset rules per D127):
+  - A short rest spends the hit dice the player chooses for each class. The server rolls them, or the player enters their own rolls. Each die heals its roll plus CON modifier. It also resets short-rest pools and pact slots.
+  - A long rest restores HP to maximum, regains spent hit dice up to half the character's total (minimum one), restores all spell slots, resets short- and long-rest pools, and clears temporary HP.
+  - Resting while the character is in an Active or Paused encounter returns 409.
+
+**Rationale:**
+- The catch-all PUT accepts any level, HP, slots, pools or level history, so every rule the server enforces can be bypassed. The browser currently works out rests and slot use itself and writes the results back.
+- The backend's own rest methods have no endpoint and disagree with the browser: hit dice per class versus the total, and temporary HP not cleared.
+- Short-rest healing uses a fixed value instead of a roll.
+- Multiclass long rests regain half the dice of each class, minimum one each, which restores too many.
+
+**Trade-offs:** Every character sheet edit is rewired; all tabs currently save through `saveField` → `characterApi.update`. Players can no longer edit stats by hand. Anything they used to edit for magic items or homebrew goes through DM Adjustments, which needs a small UI.
+
+**Alternatives considered:**
+- **Keep PUT with stricter validation (the D082 approach)** — rejected: validation can limit a value's range, but it can't tell whether a level, slot count or HP total is legitimate.
+- **Let players apply their own adjustments** — rejected for now; it could be added later as a campaign setting.
+
+**Supersedes:** D082
+
+**Partially supersedes:**
+- D049 — derived values are always calculated by the server, never accepted from the client
+- D062 — the server calculates spell stats for each class
+- D083 — rest logic moves to the server, and hit dice are rolled
+
+**Key files:** `CharacterService.java` (`updateCharacter`, `shortRest`, `longRest`), `CharacterSheetPage.tsx:127-194`
+
+**Related:** D054, D127, D159, D166, D167, [[Derived Stat]], [[DM Adjustment]]
+
+## D159: Pending Choices
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R6)
+
+**Decision:**
+- **Recording.** When a level grants a choice — ability score increase or feat, subclass, expertise, fighting style, cantrips or spells — the server stores a Pending Choice. It holds an ID, its type, the class and class level it came from, and any limits on the options.
+- **Applying.** `apply-choices` must name a Pending Choice ID. Applying it records the result in that level's history entry and removes it. A request with no matching Pending Choice returns 409.
+- **Creation above level 1.** Creating a character at level N generates every Pending Choice for levels 1 to N. The wizard and the character sheet resolve them in order until none are left.
+
+**Rationale:** `apply-choices` never checks that an ability score increase is actually owed, so unlimited increases are possible. `findNextAsiEntry()` (D058) guesses the target history entry by scanning, which can attach a choice to the wrong level and then break level-down. D128's missing second increase for characters created at level 8 or above comes from the same flow.
+
+**Trade-offs:** The level-up pop-up chain (`pendingLevelClass` in `CharacterSheetPage`) is rebuilt around the server's list. The wizard must handle several ability score increases in a row.
+
+**Alternatives considered:**
+- **Loop `findNextAsiEntry()` (the fix D128 expected)** — rejected: it still guesses, and still allows unlimited increases.
+
+**Supersedes:** D058
+
+**Partially supersedes:** D057 (post-creation ability score flow)
+
+**Amends:** D054 (`pendingChoices` becomes a stored list)
+
+**Resolves:** D128
+
+**Related:** D052, D158, D167, [[Pending Choice]]
+
+## D160: Combat Pipeline — A Single Resolve/Apply Path
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R5)
+
+**Decision:** Every combat command follows one path:
+
+1. authorize (D155)
+2. lock the encounter row (pessimistic write lock)
+3. resolve
+4. apply
+5. commit
+6. broadcast after the commit
+
+The pieces:
+
+- **Resolve:** one resolver in the `rules` module handles weapon attacks, spells and monster actions, all modelled as Effects (D030). It returns outcomes and changes nothing. Outcomes are enums (`HIT`, `MISS`, `CRITICAL`, `SAVE_SUCCESS`, `SAVE_FAIL`, …).
+- **Apply:** one `EffectApplier` makes every state change, following the rules in D161–D163:
+  - temporary HP and damage types
+  - dropping to 0, damage at 0, death and healing
+  - concentration and conditions
+  - legendary resistance eligibility
+  - combat log entries
+- **Service split:** `CombatService` is split into turn, attack, spellcasting, monster action, legendary resistance and condition services.
+- **Broadcast timing:** broadcasts run in `@TransactionalEventListener(phase = AFTER_COMMIT)`, so clients never see state that was rolled back.
+- **Settling disagreements:** where the current copies behave differently, the behaviour is settled to the 2014 rules and pinned by a test before the switch.
+
+**Rationale:**
+- The "apply results to targets" loop exists four times in `CombatService` (attack, spell, repeat effect, monster action and spell). Each copy handles concentration, duplicate conditions and revival differently, and that is where most combat bugs come from.
+- `SpellResolverEngine` and `MonsterActionResolverEngine` duplicate the save, attack and formatting logic, and spell outcomes differently.
+- Broadcasting inside the transaction can publish state that is then rolled back.
+- Optimistic locking on its own turns two simultaneous actions into a failed request.
+
+**Trade-offs:** Some actions behave differently after the switch, which is intended. Combat log wording may change; D148's rule that log entries name the action is kept. Legendary resistance undo won't work on log entries written before the switch, so deploy between sessions.
+
+**Alternatives considered:**
+- **Fix each copy in place** — rejected: the copies would drift apart again.
+- **Optimistic locking with automatic retry** — rejected: retrying a resolved action can re-roll its dice. Queuing behind a lock keeps results stable.
+
+**Amends:** D021 (broadcast timing), D030, D034 (adds the lock; `@Version` stays as a backstop), D101 (`applyDamageToTarget` generalised), D106 (the resolvers are merged)
+
+**Key files:** `CombatService.java` (apply loops at about :528, :637, :822, :933), `SpellResolverEngine.java`, `MonsterActionResolverEngine.java`
+
+**Related:** D161, D162, D163, D164, D165, D168, [[Effect]]
+
+## D161: Damage, Dying and Downed-Target Rules (2014 PHB)
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R5)
+
+**Decision:** The `EffectApplier` (D160) applies these rules on every path: weapon attacks, spells, monster actions, monster spells and manual DM damage.
+
+Terms used below:
+- **Dying** — at 0 HP, unconscious and making death saves.
+- **Stable** — at 0 HP and unconscious, but no longer making death saves.
+- **Dead** — failed three death saves, died instantly from massive damage, or, for a monster, reduced to 0 HP.
+
+| Situation | Rule |
+|---|---|
+| Damage types | Immunity → 0. Otherwise apply other modifiers first, then resistance (halve, round down), then vulnerability (double). Several resistances to the same type count once. A PC's resistances, immunities and vulnerabilities come from race and feature data; a monster's from its stat block. |
+| Halving (resistance, save for half) | Round down with no minimum, so half of 1 is 0. |
+| Area or multi-target effect | Roll damage once per effect, then apply each target's save and resistances separately. |
+| Temporary HP | Absorbs damage first. New temporary HP don't stack: keep the higher amount (the PHB lets the creature choose; higher is the default). |
+| PC drops to 0 from positive HP | Falls unconscious and prone; death saves reset; concentration ends. If the damage left over after reaching 0 is at least the PC's HP maximum, the PC dies instantly. |
+| PC at 0 HP takes damage (dying or stable) | One failed death save, or two if from a critical hit. A stable PC stops being stable. If the damage is at least the PC's HP maximum, the PC dies. |
+| Monster drops to 0 | Dead. |
+| Healing a dying or stable creature | It regains the HP and consciousness, and its death saves reset. It stays prone. (PCs already work this way today; unchanged.) |
+| Healing a dead creature | No effect. Only revival effects (Revivify, Raise Dead, Resurrection and similar) bring it back, with the HP that spell gives. Time limits, such as Revivify's one minute, stay with the DM. |
+| Attacking an unconscious or paralyzed target | Within 5 ft: advantage, and a hit is a critical hit. Beyond 5 ft: a paralyzed target gives advantage but no automatic critical. An unconscious target is also prone, so advantage and disadvantage cancel and it's a normal roll. Attacks never hit automatically. |
+| Saving throws while unconscious, paralyzed, stunned or petrified | STR and DEX saves fail automatically. |
+| Dead creatures | Can't be targeted by attacks. |
+
+Other changes:
+
+- Attacks carry a "within 5 ft" flag, replacing `isRanged`. It defaults to on for melee and off for ranged, since there is no map.
+- `forceCrit` becomes an override only the DM can use.
+- A logged DM "set HP / revive" action covers corrections.
+- Manual DM damage gets an optional damage type. The default is untyped, meaning no resistances are applied.
+
+**Rationale:** Current behaviour departs from the PHB in several places:
+
+- Damage from spells and monsters resets a dying PC's death saves.
+- Massive damage from positive HP isn't checked.
+- Weapon and manual damage skip resistances.
+- Halving uses a minimum of 1.
+- Area damage is rolled separately for each target.
+- Healing a dying PC already works correctly, but D026 also lets ordinary healing bring back a PC who has died (three failed death saves or massive damage), and it revives dead monsters too.
+- The resolvers auto-hit downed targets without a critical, while `rollAttack` auto-hits and auto-crits every melee attack.
+
+D025 called the auto-hit "PHB faithful", but the Unconscious condition grants advantage, not an automatic hit.
+
+**Trade-offs:** Combat becomes more lethal in places (massive damage, concentration loss) and less in others (attacks on downed targets can miss). D026's convenience of "any healing resurrects" is replaced by revival effects and the DM override.
+
+**Alternatives considered:**
+- **Keep "healing resurrects" (D026)** — rejected: a potion or Healing Word shouldn't bring back a character who has died, and it currently revives dead monsters too. Healing a dying character still works as it does now.
+- **Keep auto-hit on downed targets** — rejected: it isn't the 2014 rule.
+
+**Supersedes:** D025, D026, D093
+
+**Partially supersedes:** D112 (Damage Resistance/Immunity/Vulnerability Handling — the order of steps, rounding, coverage of every damage path, PC vulnerabilities)
+
+**Key files:** `CombatService.java` (`applyDamageToTarget` :1189-1230, `rollAttack` :37-162, `applyHealing`)
+
+**Related:** D101, D160, D162, [[Dying]], [[Stable]], [[Dead]]
+
+## D162: Concentration Instances and Condition End Rules
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R5)
+
+**Decision:**
+- **Concentration Instances.** Each casting of a concentration spell creates a Concentration Instance: caster, spell, slot level and the round it started. Conditions and ongoing effects it creates are tied to that instance, and ending the instance removes exactly what it created.
+- **When concentration ends.** Starting a new concentration spell ends the caster's current instance first. Concentration also ends:
+  - on a failed CON save (DC 10 or half the damage, whichever is higher; one save per separate damage application)
+  - when the caster becomes incapacitated (including unconscious) or dies
+  - when the duration runs out
+
+  Monsters use the same model as PCs.
+- **Condition End Rules.** Each condition has one of:
+  - after N rounds
+  - at the start or end of a named creature's turn
+  - when its Concentration Instance ends
+  - on a successful Repeat Save
+  - manual removal only
+
+  The turn service processes them at the right turn boundary. Monster Repeat Saves are rolled automatically; PCs are prompted or rolled for automatically, as the DM prefers.
+- **Existing conditions.** Conditions created before this change have no end rule and are treated as manual.
+- **D028 stays.** Players may still add and remove conditions on their own character, and every removal by a player is written to the combat log.
+
+**Rationale:**
+- Matching conditions by spell name means recasting the same concentration spell wipes the conditions it just applied.
+- Monster spells tag conditions with the monster's name and `sourceRequiresConcentration=false`, so they never end.
+- Monster damage never triggers concentration checks.
+- D023's round-difference expiry ignores whether an effect ends at the start or the end of a turn.
+- The save-to-end parameters passed to `applyConditions` are ignored.
+
+**Trade-offs:** New prompts appear on both session pages, and some conditions end slightly earlier or later than today. Spell and monster data need duration and repeat-save information, and gaps in the existing data must be filled. PCs now lose concentration when monsters damage them, a real increase in difficulty.
+
+**Alternatives considered:**
+- **Keep matching by spell name plus caster** — rejected: it can't tell two castings of the same spell apart.
+- **Make condition removal DM-only** — rejected in favour of D028's table practice, with logging so the DM can see removals.
+
+**Supersedes:** D023
+
+**Partially supersedes:** D105 (the cascade matches by instance, not spell name)
+
+**Amends:** D032 (adds the instance reference)
+
+**Related:** D028, D113, D114, D160, D161, [[Concentration Instance]], [[Condition End Rule]], [[Repeat Save]]
+
+## D163: Legendary, Lair and Turn-Order Rules
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R5)
+
+**Decision:**
+- **Legendary Resistance:** using it turns the failed save into a success. The creature takes the effect's success outcome (half damage or none, as the Effect specifies), and only the conditions from that save are removed. It is offered for every failed save by a creature with uses left, whatever caused the save, including player spells. D145's log-based mechanism stays.
+- **Legendary actions:** they stay usable throughout the round, on other creatures' turns. The only change from D133 is that they can't be used during the legendary creature's own turn, when it takes its normal actions instead. The DM decides the exact moment, because the app can't detect the end of a turn. Spent actions return at the start of the creature's turn, as now.
+- **Lair actions:** D136 is completed. The "fighting in its lair" toggle moves to the live DM page (D165), and the Lair row appears at initiative 20, losing ties. The rule against repeating a lair action two rounds running stays.
+- **Turn order:**
+  - `currentTurnIndex` is the single source of truth, and `isCurrentTurn` is calculated in responses.
+  - Initiative ties default to the higher DEX score. That's a common convention: the PHB leaves ties to the DM and players. The DM can reorder tied creatures.
+  - Dead monsters are skipped.
+  - Dying PCs keep their turns and are prompted for a death save at the start of each.
+- **Monster proficiency:** CR 0 gives +2 (CR 0–4 → +2).
+
+**Rationale:**
+- D145 refunds all the damage when legendary resistance is used, but a creature that succeeds on a save-for-half effect still takes half.
+- `SpellResolverEngine` results carry no legendary resistance data, so player spells never offer it.
+- The PHB allows legendary actions only at the end of another creature's turn, which never falls on the creature's own turn.
+- Lair status can currently be set only from the unused `MonsterActionPanel`, and `monstersInLair` is never read.
+- Whose turn it is lives in two places (`currentTurnIndex` and `isCurrentTurn`), which sort missing initiatives differently.
+
+**Trade-offs:** DMs can't use legendary actions on the monster's own turn (D133 allowed them at any time). New legendary resistance prompts appear on player spell results.
+
+**Alternatives considered:**
+- **Enforce "end of another creature's turn" exactly, with a legendary-action window after every turn** — rejected: it adds a step to every turn for little benefit.
+- **Leave D133 unchanged** — rejected: it allows a clear rules violation.
+
+**Partially supersedes:** D133 (timing), D134 and D145 (what legendary resistance undoes, and offering it for every source)
+
+**Amends:** D136 (completes it)
+
+**Related:** D135, D146, D147, D160, D165, [[Legendary Resistance]], [[Legendary Action]], [[Lair Action]]
+
+## D164: Attacks and Spells Calculated and Validated by the Server
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R5)
+
+**Decision:**
+- **Weapon attacks.** A player's weapon attack names the weapon and any declared options: advantage or disadvantage, within 5 ft, Great Weapon Master or Sharpshooter. The server calculates:
+  - the attack bonus: the ability modifier the weapon allows (STR for melee, DEX for ranged, either for finesse), plus proficiency if proficient, plus any magic bonus
+  - the damage: weapon dice plus the ability modifier and any magic bonus
+
+  This needs inventory items to link to item reference rows. That is to be checked during R5 planning, and a migration may be needed.
+- **Spell casts.** A spell cast names the spell and the slot. The server uses that class's spellcasting ability for the attack bonus and save DC, and checks that:
+  - the spell is known, prepared or granted (by race, feat or subclass)
+  - the slot is at least the spell's level and is available
+  - a levelled spell uses a slot
+
+  Cantrips scale with character level.
+- **Manual Modifiers.** A campaign setting, on by default, lets players enter a manual attack bonus, damage dice, save DC or forced critical. Each use appears in the combat log with its value. The DM can always enter them. DM overrides for monsters are unchanged (D104, D131).
+
+**Rationale:** The server currently takes the attack bonus, damage dice, `forceCrit` and spell attack and DC overrides from the player's browser. It doesn't check that a spell is known, and a levelled spell sent with slot level 0 costs nothing.
+
+**Trade-offs:** Until class features (M17) and magic items are modelled, some legitimate attacks can't be calculated (the Archery fighting style, Hunter's Mark damage, a magic weapon that isn't listed). That is why the Manual Modifier setting defaults to on. The player's attack form changes from typing numbers to picking a weapon.
+
+**Alternatives considered:**
+- **Server-calculated only, with no manual input** — rejected: it would block legitimate play until M17.
+- **Keep trusting client values** — rejected: the rules can't be enforced.
+
+**Partially supersedes:** D022 (nobody types the attack bonus and dice for PC attacks any more)
+
+**Amends:** D028 (the on-turn attack permission is unchanged)
+
+**Related:** D104, D131, D158, D160, [[Manual Modifier]]
+
+## D165: Monster Action and Spellcasting Fixes
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R1 for moving the panel's UI; R5 for the rest)
+
+**Decision:**
+- **One spellcasting path** for PCs and monsters, paid from a Spell Source: a spell slot, a pact slot, an innate use, or nothing (at will).
+- **Innate uses live only in resource pools:**
+  - spell slot fields hold real slots only, so the `{"innate": true, ...}` blob goes
+  - innate spells are cast at their base level unless the stat block says otherwise
+  - one builder creates innate pools, and the duplicate in `MonsterSpellCastService` is removed
+- **The DM's monster spellcasting uses `/combat/monster-spell`.** In R1, three things move from the unused `MonsterActionPanel` into the live DM page: the lair toggle, monster spellcasting and the legendary resistance prompt. The panel is then deleted, along with its call to `confirmFailedSave`, which doesn't exist.
+- **Multiattack:** the DM picks a target for each component attack, and every damage part is applied with its own type (e.g. piercing plus poison).
+- **Feature triggers** match exact feature names. Text that merely mentions "legendary" no longer grants unrelated pools such as Legendary Resistance.
+- **Dice are structured values** (count, sides, modifier). Negative modifiers such as `1d8-2` work.
+
+**Rationale:**
+- The DM page currently casts monster spells through the player endpoint, which can't read innate data.
+- Innate "X/day" keys are read as spell levels.
+- `parseSpellSlots` silently returns nothing for the innate blob.
+- Multiattack resolves every component against every selected target and drops extra damage.
+- `hasFeature` returns true for any monster whose legendary actions text contains "legendary".
+- MOD substitution can produce `"1d8+-2"`, which `DiceRoller` rejects.
+
+**Trade-offs:** The DM's multiattack screen changes to choosing a target per attack. The monster action data must contain every damage part, which still needs checking. Monsters already in an encounter must be re-added after the innate change. Some monsters lose pools they were wrongly given.
+
+**Alternatives considered:**
+- **Keep `MonsterActionPanel` and wire it in** — rejected: it predates the current design system's styling and duplicates the live inline actions.
+
+**Partially supersedes:** D116 (string substitution replaced by structured dice)
+
+**Amends:** D104, D131, D132 (combo lines kept, with a target per component), D143
+
+**Related:** D136, D145, D160, D163, [[Spell Source]]
+
+**Correction (2026-11-01, R1 planning):** `MonsterActionPanel` has no lair toggle (`setLairStatus` is never called anywhere), and the legendary resistance prompt already lives in the DM combat log (D145). R1 therefore moves only monster spellcasting. The lair toggle is built in R5 with D163, when the backend starts reading it.
+
+## D166: Encounter Lifecycle and Write-Back
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (lifecycle in R5; Write-back in R6)
+
+**Decision:**
+- **Lifecycle.** Encounters move Preparing → Active ⇄ Paused → Completed. Any other transition returns 409, and Completed is final.
+- **Applying results.** Completing an encounter asks the DM whether to apply its results to the character sheets. Applying is the default.
+- **Write-back applies changes, not final values.** For each player character, what changed during the encounter is applied to the sheet as it stands at that moment:
+  - HP lost or regained
+  - spell slots and resource pool uses spent or recovered
+  - hit dice spent
+  - death: a PC who died is marked dead
+
+  Values stay within limits: HP between 0 and maximum, uses between 0 and maximum. Temporary HP is set to whatever was left. Conditions are not written back.
+- **Several encounters at once.** A character can be in more than one encounter at a time. Each encounter's changes are applied when it completes, so the results add up.
+- **Blocked during an encounter.** While a character is in an Active or Paused encounter, rests and level changes return 409. Other sheet changes are allowed.
+
+**Rationale:**
+- `pause`, `resume` and `end` skip status checks, so a Completed encounter can be resumed and ended again, syncing pools twice.
+- HP and spell slots spent in combat never reach the character sheet. D024 listed sync-back as a future improvement.
+- D024's original aim was to allow several combat sessions at once, each working on its own copy of the character, with an option to update the main sheet afterwards. Applying changes rather than copying final values keeps that aim: concurrent encounters combine without anyone choosing which copy wins, and the sheet doesn't need locking during combat.
+- The choice at completion keeps the option to update the sheet, but gives it to the DM, who adjudicates, rather than to the player.
+
+**Trade-offs:** Character sheets now change after every fight, as 5e expects, and players will notice. A character in two encounters at once starts each with the same resources, so the same last spell slot could be spent in both; when both are applied, the sheet stops at zero. Rests and level-ups wait until the character's encounters have ended.
+
+**Alternatives considered:**
+- **One active encounter per character, with final values copied back** (the first draft of this decision) — rejected: it blocks concurrent sessions and needs the sheet locked during combat.
+- **The player chooses whether to apply results** (D024's original intent) — rejected: players would have a reason to decline damage. The DM decides.
+- **Keep combat separate from the sheet** — rejected: resources spent in combat must carry over through the adventuring day.
+- **Write back conditions too** — rejected: most combat conditions end with the encounter, and long-lasting ones can be re-applied.
+
+**Partially supersedes:** D024 (combat results now reach the character record; the per-encounter copies stay)
+
+**Related:** D125, D158, [[Encounter Lifecycle]], [[Write-back]]
+
+## D167: Character Progression — Derived HP and Exact Reversal
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R6)
+
+**Decision:**
+- **HP maximum is derived** from:
+  - the sum of each level's recorded hit die result (the maximum die at level 1)
+  - total level × CON modifier
+  - per-level bonuses: Tough +2, Hill Dwarf +1, Draconic Resilience +1 per sorcerer level
+  - DM Adjustments
+
+  CON changes apply retroactively, as the PHB says. Level history records the hit die result, the class, the choices made, and the ability score increase actually applied.
+- **Levelling down** removes the last history entry and recalculates, with no reverse arithmetic. D056's record of applied effects for feats stays.
+- **The ability score maximum** is set per character (default 20; Barbarian Primal Champion raises STR and CON to 24) and checked in one place.
+- **One modifier function**, `floorDiv(score − 10, 2)`, replaces five copies.
+- **Levelling up adds one hit die** of that class to both the maximum and the remaining count. Spent dice stay spent.
+- **Multiclass prerequisites** are checked only when adding a new class, against every current class and the new one (PHB p.163).
+- **Other fixes:**
+  - resource pools re-sync after levelling down
+  - Eldritch Knights and Arcane Tricksters get spell prompts from their own tables
+  - spell save DC and attack bonus are calculated for each Spellcasting Class
+- **Existing characters** are recalculated after a dry-run report and a backup (D150).
+
+**Rationale:** Current problems:
+
+- Levelling down reverses ability increases after lowering the level, so a CON change adjusts HP for the wrong number of levels.
+- Undoing an increase near 20 loses points, because increases are capped and reversals are not.
+- Tough adds +2 only on the level it is taken.
+- The feat resolver's modifier truncates, which gives odd scores below 10 the wrong modifier.
+- Levelling up refills spent hit dice.
+- The check for adding a new class looks only at the primary class.
+- Third casters are never prompted for spells.
+
+Deriving whatever can be derived removes the reversal arithmetic where these bugs live, while history still records every non-repeatable choice — the concern behind D052.
+
+**Trade-offs:** Some characters' HP maximum will change when recalculated. History entries written before the change have no record of the increase actually applied, so they fall back to today's logic. Multiclass casters see a separate DC for each class.
+
+**Alternatives considered:**
+- **Patch each reversal step** — rejected: the reversal arithmetic is where these bugs keep coming from.
+
+**Partially supersedes:** D052 (reversal by recalculation instead of arithmetic), D062 (the server calculates spell stats for each class)
+
+**Amends:** D053 (when prerequisites are checked), D056, D060
+
+**Related:** D054, D158, D159, [[Derived Stat]], [[Spellcasting Class]]
+
+## D168: Typed JSON End-to-End
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (encounter tables in R5; character tables in R6)
+
+**Decision:**
+- Every JSONB column maps to typed Java records through Hibernate's JSON support (`@JdbcTypeCode(SqlTypes.JSON)`). The API returns structured JSON rather than JSON inside strings, and the frontend never calls `JSON.parse` on API fields.
+- Each concept has one shape. Spell slots are `{max, used}` everywhere, for both characters and participants.
+- Each column is converted by a Flyway data migration that normalises existing rows, with a check before deploying that every row still loads.
+- Typing happens area by area, as each area is rewritten, not as a separate pass.
+
+**Rationale:** About 27 JSONB columns on `PlayerCharacter` and several on `EncounterParticipant` are plain strings, parsed by hand on both sides. Their shapes drift (`{total, used}` versus `{max, remaining}`, bridged by D107's conversion). Parse failures are swallowed, and invalid JSON reaches Postgres and comes back as a 500. D078 typed some fields inside the backend but stopped at the API.
+
+**Trade-offs:** The API contract changes for every JSON field, so frontend parse sites and MSW mocks change, and data migrations touch existing rows. `{max, used}` was chosen over D107's suggested `{remaining, max}` because raising a maximum (on level-up, or D153's recalculation) then needs no change to `used`.
+
+**Alternatives considered:**
+- **Normalise into tables** — rejected: D009's reasons still hold.
+- **Keep strings with stricter validation** — rejected: the types are lost at every boundary.
+
+**Supersedes:** D010, D075, D107
+
+**Amends:** D078 (extended to every column and to the API)
+
+**Related:** D009, D160, D171
+
+## D169: Game Content as Data Files with Idempotent Seeding
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R7; feat reseeding fix in R1)
+
+**Decision:**
+- **Data files.** Game data we write ourselves lives in JSON files under `backend/src/main/resources/data/`, and the seeders become generic loaders. That covers:
+  - race traits
+  - class feature tables (ASI levels, expertise levels, subclass levels)
+  - spell slot tables
+  - resource pool definitions
+  - monster action templates
+  - spell effect templates
+- **Stable IDs.** Loaders update rows by natural key (name and source) and never delete and reload, so row IDs stay the same.
+- **Change detection.** Each file's content hash is stored in a new content version table, and a loader re-runs only when its file changes. This replaces "null the column and restart" re-seeding (D144) and migrations that null columns to force re-seeding (V4, V6).
+- **Pool sizes.** Resource pool sizes use level tables wherever the PHB uses level thresholds, and a pool's reset type can change by level. A proper expression parser handles the genuine formulas. It supports operator precedence, brackets, minus signs, `min`, `max`, `floor`, `ceil`, dice and `NdM>=X`.
+- **Pool corrections:**
+  - Battle Master superiority dice 4, 5 and 6 at Fighter 3, 7 and 15 (die size d8, d10 and d12 at 3, 10 and 18)
+  - Bardic Inspiration uses `max(1, CHA mod)` and recharges on a short rest from Bard 5
+  - Cleric Channel Divinity 1, 2 and 3 uses at levels 2, 6 and 18
+  - Action Surge 2 uses at level 17
+
+  Every existing pool definition is re-checked against the PHB.
+- **R1 fix.** Feats without effect keys get an empty effect list instead of `null`; the `null` is what makes `FeatSeeder` delete and reload on every boot. `featId` values in level history are re-linked by feat name.
+- **Clean-up.** Unused 5etools `adventure/` and `book/` data (about 60 MB) comes out of the build. `DataSeeder` stops creating extensions and indexes that V0 already creates.
+- **Proof.** The move is checked by snapshotting the reference tables before and after and comparing them.
+
+**Rationale:**
+- Most seeders skip when `count() > 0`, so data fixes never reach existing databases.
+- `FeatSeeder` deletes and reseeds on every boot, changing every feat ID.
+- `RaceSeeder` (1,142 lines) and `ResourcePoolSeeder` (581 lines) are game data written as Java.
+- Caster tables are duplicated in the seeder and `SpellSlotCalculator`.
+- `ExpressionEvaluator` works strictly left to right, which breaks the Battle Master formula at level 14, gives `2*-1 = 1`, and has no `max`.
+
+**Trade-offs:** Corrected pool definitions change existing characters' pool maximums at their next sync (current uses are capped at the new maximum). The seeder diff is large, so equivalence has to be shown by the table comparison.
+
+**Alternatives considered:**
+- **Flyway Java migrations for reference data** — rejected: ties game data edits to schema versions.
+- **Keep the formulas and only fix the evaluator** — rejected: level tables say exactly what the PHB says, while formulas hide off-by-one errors.
+
+**Partially supersedes:** D040 (the tables move from Java arrays into a data file), D125 (pool sizing), D139 and D144 (the re-seed workflow)
+
+**Related:** D045, D127, D146, D153, [[Content]], [[Resource Pools]]
+
+## D170: Indexes Managed Only by Flyway
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R2)
+
+**Decision:** All indexes are created in Flyway migrations, and JPA `@Index` annotations are removed. A new migration adds indexes on the foreign keys used in lookups and joins. These include at least:
+
+- `player_characters(user_id)`
+- `player_characters(campaign_id)`
+- `encounter_participants(encounter_id)`
+- `encounter_participants(character_id)`
+- `combat_logs(encounter_id)`
+
+The full list is settled during R2 planning.
+
+**Rationale:** D080 and D089 added these indexes through `@Index` with `ddl-auto: update`. Since D097 switched to Flyway with `ddl-auto: validate`, Hibernate no longer creates them. The migrations contain only two indexes: the monster-name trigram index (V0) and the `spells.classes` GIN index (V1). So any database built by Flyway, including production, has no foreign-key indexes.
+
+**Trade-offs:** A brief lock while the indexes are built (the tables are small).
+
+**Alternatives considered:**
+- **Keep the annotations as documentation** — rejected: they suggest indexes that don't exist.
+
+**Supersedes:** D080, D089
+
+**Related:** D097, D121
+
+## D171: Frontend Architecture — Query Cache, Generated Types, Shared Components
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (foundations in R4; consolidation in R8)
+
+**Decision:**
+- **Server data:** TanStack Query.
+  - WebSocket messages write straight into the query cache, and mutation responses update it.
+  - Actions no longer trigger an extra GET.
+  - The combat log arrives over the WebSocket instead of being polled every 3 seconds.
+- **API contract:** the springdoc OpenAPI spec is the source of truth. TypeScript types are generated from it (openapi-typescript), replacing hand-written copies, and `api-reference.md` becomes an overview that points to the spec.
+- **UI primitives:** shared components:
+  - Button
+  - IconButton (requires a label)
+  - Input
+  - Modal (keeps focus inside, closes on Escape, accessible markup)
+- **Bundles:** each route's code loads separately.
+- **Linting:** oxlint adds the exhaustive-deps and unused-variable rules.
+- **R8 consolidation:**
+  - shared encounter components (HP bar, death saves, conditions, combat log, attack form, participant row) used by both session pages
+  - one `SpellPicker` replacing the four copies in `SpellsStep` and the one in `SpellsTab`
+  - wizard state in one reducer with derived values, instead of effects that reset other state
+  - feats parsed once, on the server
+  - one choose-targets → confirm → result flow for both spell pop-ups
+
+**Rationale:**
+- Each page manages its own fetching, error and loading state; there are 62 `.then()` calls with no `.catch`.
+- A combat action updates state in three different ways.
+- Types drift from the backend; for example, participant `className` is read through `as any`.
+- About 350 lines are duplicated between the DM and player session pages.
+- The single 762 KB bundle triggers Vite's size warning.
+
+**Trade-offs:** Every page's data loading is touched, one page at a time. Generated types will turn existing mismatches into compile errors.
+
+**Alternatives considered:**
+- **Redux Toolkit / RTK Query** — rejected: heavier than needed. TanStack Query covers server data, and local state stays in components.
+- **Keep hand-written types** — rejected: the drift is already causing bugs.
+
+**Amends:** D081 and D087 (the shared rules utilities shrink as rules move to the server), D088, D096, D100
+
+**Related:** D004, D168, D172
+
+## D172: Testing Strategy — Three Tiers and Golden Rules Tables
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (R2, extended in every phase)
+
+**Decision:**
+- **Unit tier:** the `rules` module and services, with plain JUnit and Mockito, as today.
+- **Integration tier:** a real PostgreSQL database via Testcontainers, covering:
+  - Flyway from an empty database, with schema validation
+  - repository and custom search queries
+  - the HTTP security cases (401, 403, 404, 409) through the full stack
+  - WebSocket subscription checks
+
+  It runs as a separate Gradle task so `./gradlew test` stays fast; CI runs both.
+- **Golden rules tables:** spell slots for every class at levels 1–20, proficiency by level and by CR, pool sizes by level, and D161's damage and dying table.
+- **Frontend:** Vitest, with MSW set to `onUnhandledRequest: 'error'` and a mock STOMP client for the session pages. New tests cover the shared encounter components, refresh on 401 and the wizard reducer.
+- **D140:** its M12 coverage target was never met, and the combat pipeline's tests (D160) meet it.
+
+**Rationale:**
+- All 318 backend tests are Mockito unit tests. Nothing exercises migrations, custom SQL, the security filter chain, controllers or STOMP.
+- `MonsterActionResolverEngine` and `MonsterSpellCastService` have no tests.
+- MSW's `bypass` mode lets mocks drift from the real API silently; two mock paths already differ from it.
+
+**Trade-offs:** Docker must be running for the integration tier. Some existing frontend tests will fail once strict MSW mode exposes requests they weren't mocking.
+
+**Alternatives considered:**
+- **An H2 in-memory database** — rejected: no JSONB, `pg_trgm` or GIN support.
+
+**Amends:** D085, D102, D126
+
+**Related:** D140, D154, D161, D170

@@ -41,7 +41,7 @@ public class PlayerCharacter {
     private Campaign campaign;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "race_id")
+    @JoinColumn(name = "race_id", nullable = false)
     private Race raceRef;
 
     @ManyToOne(fetch = FetchType.LAZY)

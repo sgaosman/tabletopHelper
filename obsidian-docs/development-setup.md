@@ -5,7 +5,7 @@
 | Tool | Version | Notes |
 |------|---------|-------|
 | Java | 21 (JDK) | e.g. Eclipse Temurin via SDKMAN |
-| Node.js | 20 LTS | |
+| Node.js | 24 LTS | Pinned in `frontend/.nvmrc`; Docker and CI use the same version |
 | Docker | Latest | Docker Desktop on macOS |
 | Git | Latest | |
 
@@ -85,6 +85,18 @@ Hibernate `ddl-auto: update` creates and alters tables automatically when entiti
 | `DATABASE_URL` | `jdbc:postgresql://localhost:5432/tabletophelper` | Yes | PostgreSQL JDBC URL |
 | `DATABASE_USERNAME` | `tabletophelper` | Yes | |
 | `DATABASE_PASSWORD` | `tabletophelper` | Yes | |
+
+## Continuous Integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request:
+
+- **Backend tests:** `./gradlew test` on Java 21.
+- **Frontend:** `npm run lint`, `npm run build` (type check plus bundle) and `npm test`.
+- **Docker smoke test:** builds and starts the production stack, then checks that the frontend responds, the backend health endpoint reports UP, and both containers run as non-root users.
+
+To run the same checks locally before pushing:
+- `cd backend && ./gradlew test`
+- `cd frontend && npm run lint && npm run build && npm test`
 
 ## Troubleshooting
 

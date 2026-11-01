@@ -797,38 +797,57 @@ public class CharacterService {
     }
 
 
-    private void recalculateSpellSlots(PlayerCharacter character) {
-        try {
-            List<MulticlassEntry> entries = character.getMulticlassEntries() != null
-                    ? objectMapper.readValue(character.getMulticlassEntries(),
-                    new com.fasterxml.jackson.core.type.TypeReference<List<MulticlassEntry>>() {})
-                    : List.of();
+    /**
+     * Calculator entries for each of the character's casting classes, read from its class entries.
+     * Shared by level changes and the recompute-spell-slots maintenance job (D153).
+     */
+    public Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries(PlayerCharacter character)
+            throws com.fasterxml.jackson.core.JsonProcessingException {
+        return collectSlotEntries(character).entries();
+    }
 
-            Map<String, SpellSlotCalculator.ClassEntry> slotEntries = new LinkedHashMap<>();
-            boolean hasAnyCaster = false;
-            String primaryCastingAbility = character.getSpellcastingAbility();
+    private record SlotEntries(Map<String, SpellSlotCalculator.ClassEntry> entries, String firstCastingAbility) {}
 
-            for (MulticlassEntry entry : entries) {
-                String classId = entry.classId();
-                int classLevel = entry.level();
-                String subclassName = entry.subclassName();
-                CharacterClass cc = characterClassRepository.findById(UUID.fromString(classId)).orElse(null);
-                if (cc == null) continue;
-                boolean isClassCaster = Boolean.TRUE.equals(cc.getIsSpellcaster());
-                boolean isThirdCaster = subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName) && classLevel >= 3;
-                if (isClassCaster || isThirdCaster) {
-                    String casterType = deriveCasterType(cc, subclassName);
-                    if (!"none".equals(casterType)) {
-                        slotEntries.put(cc.getName(), new SpellSlotCalculator.ClassEntry(classLevel, casterType));
-                        hasAnyCaster = true;
-                    }
-                    if (primaryCastingAbility == null) {
-                        primaryCastingAbility = isClassCaster ? cc.getSpellcastingAbility() : "INT";
-                    }
+    private SlotEntries collectSlotEntries(PlayerCharacter character)
+            throws com.fasterxml.jackson.core.JsonProcessingException {
+        List<MulticlassEntry> entries = character.getMulticlassEntries() != null
+                ? objectMapper.readValue(character.getMulticlassEntries(),
+                new com.fasterxml.jackson.core.type.TypeReference<List<MulticlassEntry>>() {})
+                : List.of();
+
+        Map<String, SpellSlotCalculator.ClassEntry> slotEntries = new LinkedHashMap<>();
+        String firstCastingAbility = null;
+
+        for (MulticlassEntry entry : entries) {
+            String classId = entry.classId();
+            int classLevel = entry.level();
+            String subclassName = entry.subclassName();
+            CharacterClass cc = characterClassRepository.findById(UUID.fromString(classId)).orElse(null);
+            if (cc == null) continue;
+            boolean isClassCaster = Boolean.TRUE.equals(cc.getIsSpellcaster());
+            boolean isThirdCaster = subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName) && classLevel >= 3;
+            if (isClassCaster || isThirdCaster) {
+                String casterType = deriveCasterType(cc, subclassName);
+                if (!"none".equals(casterType)) {
+                    slotEntries.put(cc.getName(), new SpellSlotCalculator.ClassEntry(classLevel, casterType));
+                }
+                if (firstCastingAbility == null) {
+                    firstCastingAbility = isClassCaster ? cc.getSpellcastingAbility() : "INT";
                 }
             }
+        }
+        return new SlotEntries(slotEntries, firstCastingAbility);
+    }
 
-            if (hasAnyCaster) {
+    private void recalculateSpellSlots(PlayerCharacter character) {
+        try {
+            SlotEntries collected = collectSlotEntries(character);
+            Map<String, SpellSlotCalculator.ClassEntry> slotEntries = collected.entries();
+            String primaryCastingAbility = character.getSpellcastingAbility() != null
+                    ? character.getSpellcastingAbility()
+                    : collected.firstCastingAbility();
+
+            if (!slotEntries.isEmpty()) {
                 character.setSpellSlots(buildSpellSlotsJson(slotEntries));
                 character.setSpellcastingAbility(primaryCastingAbility);
                 if (primaryCastingAbility != null) {

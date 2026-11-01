@@ -100,7 +100,7 @@ export function checkFeatPrerequisites(feat: Feat, character: PlayerCharacter): 
 
 function hasProficiency(character: PlayerCharacter, prof: string): boolean {
   const lower = prof.toLowerCase();
-  const checkList = (json: string | undefined) => {
+  const checkList = (json: string | null | undefined) => {
     if (!json) return false;
     try {
       const list: string[] = JSON.parse(json);

@@ -14,12 +14,12 @@ docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
 
 echo "==> Waiting for backend health..."
-for i in $(seq 1 30); do
-    if docker compose -f docker-compose.prod.yml exec -T backend curl -sf http://localhost:8080/api/auth/login > /dev/null 2>&1; then
+for i in $(seq 1 90); do
+    if docker compose -f docker-compose.prod.yml exec -T backend curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
         echo "==> Backend is healthy."
         break
     fi
-    if [ "$i" -eq 30 ]; then
+    if [ "$i" -eq 90 ]; then
         echo "WARNING: Backend health check timed out. Check logs with: docker compose -f docker-compose.prod.yml logs backend"
     fi
     sleep 2

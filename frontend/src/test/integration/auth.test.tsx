@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render, clearAuthToken, setupAuthToken } from '../../test/test-utils';
-import { makeMockCharacter } from '../../test/mocks/handlers';
 import App from '../../App';
 
 describe('Auth Integration', () => {

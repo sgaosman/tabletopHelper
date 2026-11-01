@@ -166,19 +166,19 @@
 **Sub-tasks:**
 - [x] **Task 1: Spell Effect Definitions (Levels 0–3)** — Structured JSON definition for every spell at levels 0–3 (~294 spells). Each spell classified into a pattern category (ATTACK_DAMAGE, SAVE_DAMAGE, SAVE_CONDITION, HEAL, BUFF_NO_ROLL, etc.) with delivery method, targeting, effects array, upcast scaling, cantrip scaling, and `requiresManualResolution` flag for complex spells.
   - Output: `backend/src/main/resources/data/spell-effects/spell-effect-definitions.json`
-  - Review: `docs/spell-effect-review.md`
+  - Review: `obsidian-docs/archive/spell-effect-review.md`
 - [x] **Task 2: Class Feature Analysis (Levels 1–5)** — Every class and subclass feature at levels 1–5, categorised as COMBAT_ACTIVE, COMBAT_PASSIVE, COMBAT_MODIFIER, RESOURCE, FLAVOUR, or SPELLCASTING. Includes uses, recharge period, and combat notes.
-  - Output: `docs/class-feature-analysis.md`
+  - Output: `obsidian-docs/archive/class-feature-analysis.md`
 - [x] **Task 3: Race Trait Analysis** — Every racial trait categorised as STAT_BONUS, COMBAT_ACTIVE, COMBAT_PASSIVE, PROFICIENCY, MOVEMENT, SENSE, RESISTANCE, or FLAVOUR.
-  - Output: `docs/race-trait-analysis.md`
+  - Output: `obsidian-docs/archive/race-trait-analysis.md`
 - [x] **Task 4: Item Effect Analysis** — Combat-relevant items (potions, wands, staves, scrolls) with structured effect definitions. ~50–80 items.
   - Output: `backend/src/main/resources/data/item-effects/item-effect-definitions.json`
-  - Review: `docs/item-effect-review.md`
+  - Review: `obsidian-docs/archive/item-effect-review.md`
 - [x] **Task 5: Monster Action Structured Data** — Structured action templates for ~1,300–1,600 monsters: all CR 0–10 (~1,200–1,500), all legendary/lair monsters at any CR (~60–80 additional), and CR 11–15 as secondary priority if time permits (~200–300 additional). Parses attack bonuses, damage dice, save DCs, conditions, recharge, legendary action costs, spellcasting blocks from raw 5e.tools JSON.
   - Output: `backend/src/main/resources/data/monster-actions/monster-action-definitions.json`
-  - Review: `docs/monster-action-review.md`
+  - Review: `obsidian-docs/archive/monster-action-review.md`
 - [x] **Task 6: Validation Summary** — Cross-check all definitions against 5e.tools metadata, report data quality issues and recommended review priorities.
-  - Output: `docs/data-gathering-summary.md`
+  - Output: `obsidian-docs/archive/data-gathering-summary.md`
 
 **Critical rules:** No implementation code. No modifications to existing source code, entities, database schema, or database data. Flag uncertainty with "REVIEW:" notes. Be conservative about automation — mark complex spells as manual resolution.
 
@@ -187,11 +187,11 @@
 **Goal:** Human review and finalisation of all 294 spell effect definitions from M7.
 
 **Tasks:**
-- [x] Human reviews `docs/spell-effect-review.md` and flags corrections
+- [x] Human reviews `obsidian-docs/archive/spell-effect-review.md` and flags corrections
 - [x] Corrections applied to `spell-effect-definitions.json` (Snare/Earthbind saveToEndEachTurn fixed, 48 markup tags stripped)
 - [x] Re-run validation checks (25/25 passed — cross-reference 5e.tools metadata, cantrip scaling, delivery methods, type checks, structural integrity)
-- [x] Final sign-off on all spell definitions — see `docs/m8-final-signoff.md`
-- [x] Human reviews `docs/class-feature-analysis.md`, `docs/race-trait-analysis.md`, `docs/item-effect-review.md`, `docs/monster-action-review.md`
+- [x] Final sign-off on all spell definitions — see `obsidian-docs/archive/m8-final-signoff.md`
+- [x] Human reviews `obsidian-docs/archive/class-feature-analysis.md`, `obsidian-docs/archive/race-trait-analysis.md`, `obsidian-docs/archive/item-effect-review.md`, `obsidian-docs/archive/monster-action-review.md`
 - [x] Corrections applied to all data files (Mummy Lord damage + LR fixed, markup cleaned)
 - [x] All data files approved for use in subsequent milestones
 

@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import type { CampaignMember } from '../../types/campaign';
 
 const BASE = '/api';
 
@@ -30,8 +31,8 @@ export const authHandlers = [
 
 // --- Shared data builders ---
 function makeCampaign(id: string, name: string, dmUserId = 'user-001', membersCount = 1) {
-  const members = [
-    { userId: dmUserId, username: 'testuser', displayName: 'Test User', role: 'DM' as const, joinedAt: makeTimestamp() },
+  const members: CampaignMember[] = [
+    { userId: dmUserId, username: 'testuser', displayName: 'Test User', role: 'DM', joinedAt: makeTimestamp() },
   ];
   for (let i = 1; i < membersCount; i++) {
     members.push({ userId: `plr-00${i}`, username: `player${i}`, displayName: `Player ${i}`, role: 'PLAYER' as const, joinedAt: makeTimestamp() });

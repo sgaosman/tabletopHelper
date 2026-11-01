@@ -142,15 +142,28 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
     setError('');
 
     try {
-      const res = await combatApi.castSpell(encounterId, {
-        spellName: selectedSpell.name,
-        slotLevel: selectedSlotLevel,
-        targetIds: selectedTargets,
-        advantage,
-        usePactSlot: usePactSlot || undefined,
-        overrideSpellAttackBonus: overrideAttackBonus ? parseInt(overrideAttackBonus) : undefined,
-        overrideSpellSaveDC: overrideSaveDC ? parseInt(overrideSaveDC) : undefined,
-      }, caster.id);
+      const attackOverride = overrideAttackBonus ? parseInt(overrideAttackBonus) : undefined;
+      const saveDcOverride = overrideSaveDC ? parseInt(overrideSaveDC) : undefined;
+      // Monsters cast through their own endpoint so their slots and innate uses are spent (D165)
+      const res = isMonster
+        ? await combatApi.monsterSpell(encounterId, {
+            monsterParticipantId: caster.id,
+            spellName: selectedSpell.name,
+            slotLevel: selectedSlotLevel,
+            targetParticipantIds: selectedTargets,
+            advantage,
+            overrideAttackBonus: attackOverride,
+            overrideSaveDC: saveDcOverride,
+          }, caster.id)
+        : await combatApi.castSpell(encounterId, {
+            spellName: selectedSpell.name,
+            slotLevel: selectedSlotLevel,
+            targetIds: selectedTargets,
+            advantage,
+            usePactSlot: usePactSlot || undefined,
+            overrideSpellAttackBonus: attackOverride,
+            overrideSpellSaveDC: saveDcOverride,
+          }, caster.id);
 
       setResult(res.data);
       onUpdate(res.data.encounterState);

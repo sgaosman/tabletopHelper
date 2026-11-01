@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '../../test/test-utils';
-import userEvent from '@testing-library/user-event';
 import { render, setupAuthToken } from '../../test/test-utils';
 import App from '../../App';
 

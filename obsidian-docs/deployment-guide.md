@@ -2,6 +2,8 @@
 
 ## Current Environment
 
+> **Update (2026-11-01):** the Hetzner server and account have been closed, and the app is not hosted anywhere. The details below describe the last deployment and are kept for reference until a new host is chosen (D154's Hosting step).
+
 **Active deployment:** Hetzner Cloud CPX22 VPS (2 vCPU, 4GB RAM, 80GB SSD) at ~EUR 23.39/month. Falkenstein datacentre.
 
 **Server IP:** 167.233.219.230
@@ -123,6 +125,12 @@ yourdomain.com {
 ```
 3. Rebuild frontend: `docker compose -f docker-compose.prod.yml up -d --build frontend`
 4. Caddy auto-provisions Let's Encrypt SSL — no certbot, no cron jobs
+
+## Runtime Hardening (R1)
+
+- **Health endpoint:** the backend exposes `GET /actuator/health`, which reports status only, with no details. It needs no login, but Caddy doesn't proxy it, so it is reachable only inside the Docker network. `docker-compose.prod.yml` uses it as the backend healthcheck, with a 3-minute start period to allow for reference data seeding. The frontend waits for it, and `deploy.sh` polls it after deploying.
+- **Non-root containers:** the backend runs as user `app`. Caddy also runs as `app`, relying on the official binary's permission to bind ports 80 and 443; its `/data` and `/config` volumes are owned by that user.
+- **Production profile:** API docs and Swagger UI are turned off in `prod`.
 
 ## Updating
 

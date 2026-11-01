@@ -5,92 +5,58 @@ import java.util.Map;
 
 public class SpellSlotCalculator {
 
-    private static final int[][] FULL_CASTER_TABLE = {
-            {},
-            {2},
-            {3},
-            {4, 2},
-            {4, 3},
-            {4, 3, 2},
-            {4, 3, 3},
-            {4, 3, 3, 1},
-            {4, 3, 3, 2},
-            {4, 3, 3, 3, 1},
-            {4, 3, 3, 3, 2},
-            {4, 3, 3, 3, 2, 1},
-            {4, 3, 3, 3, 2, 1},
-            {4, 3, 3, 3, 2, 1, 1},
-            {4, 3, 3, 3, 2, 1, 1},
-            {4, 3, 3, 3, 2, 1, 1, 1},
-            {4, 3, 3, 3, 2, 1, 1, 1},
-            {4, 3, 3, 3, 2, 1, 1, 1, 1},
-            {4, 3, 3, 3, 3, 1, 1, 1, 1},
-            {4, 3, 3, 3, 3, 2, 1, 1, 1},
-            {4, 3, 3, 3, 3, 2, 2, 1, 1},
-    };
-
-    private static final int[][] PACT_MAGIC_TABLE = {
-            {},
-            {1},
-            {2},
-            {0, 2},
-            {0, 2},
-            {0, 0, 2},
-            {0, 0, 2},
-            {0, 0, 0, 2},
-            {0, 0, 0, 2},
-            {0, 0, 0, 0, 2},
-            {0, 0, 0, 0, 2},
-            {0, 0, 0, 0, 3},
-            {0, 0, 0, 0, 3},
-            {0, 0, 0, 0, 3},
-            {0, 0, 0, 0, 3},
-            {0, 0, 0, 0, 3},
-            {0, 0, 0, 0, 3},
-            {0, 0, 0, 0, 4},
-            {0, 0, 0, 0, 4},
-            {0, 0, 0, 0, 4},
-            {0, 0, 0, 0, 4},
-    };
-
     public static Map<String, Integer> calculateSlots(Map<String, ClassEntry> classEntries) {
         int multiclassCasterLevel = 0;
+        int spellcastingClasses = 0;
+        ClassEntry onlySpellcastingClass = null;
         int warlockLevel = 0;
 
-        for (var entry : classEntries.entrySet()) {
-            ClassEntry ce = entry.getValue();
-            int level = ce.level();
-            switch (ce.casterType()) {
-                case "full" -> multiclassCasterLevel += level;
-                case "half" -> multiclassCasterLevel += level / 2;
-                case "artificer" -> multiclassCasterLevel += (level + 1) / 2;
-                case "third" -> multiclassCasterLevel += level / 3;
-                case "pact" -> warlockLevel = level;
+        for (ClassEntry ce : classEntries.values()) {
+            if ("pact".equals(ce.casterType())) {
+                warlockLevel = ce.level();
+                continue;
+            }
+            // A class has the Spellcasting feature once it contributes: Paladin and Ranger from
+            // 2nd level, Eldritch Knight and Arcane Trickster from 3rd
+            int contribution = multiclassContribution(ce);
+            if (contribution > 0) {
+                multiclassCasterLevel += contribution;
+                spellcastingClasses++;
+                onlySpellcastingClass = ce;
             }
         }
+
+        // PHB p.164: the multiclass table applies only with two or more Spellcasting classes;
+        // a single one uses its own progression (D153)
+        int[] row = spellcastingClasses == 1
+                ? SpellSlotTables.ownTable(onlySpellcastingClass.casterType(), onlySpellcastingClass.level())
+                : SpellSlotTables.multiclassRow(multiclassCasterLevel);
 
         Map<String, Integer> slots = new LinkedHashMap<>();
-
-        if (multiclassCasterLevel > 0 && multiclassCasterLevel <= 20) {
-            int[] row = FULL_CASTER_TABLE[multiclassCasterLevel];
-            for (int i = 0; i < row.length; i++) {
-                if (row[i] > 0) {
-                    slots.put(String.valueOf(i + 1), row[i]);
-                }
+        for (int i = 0; i < row.length; i++) {
+            if (row[i] > 0) {
+                slots.put(String.valueOf(i + 1), row[i]);
             }
         }
 
-        if (warlockLevel > 0 && warlockLevel <= 20) {
-            int[] pactRow = PACT_MAGIC_TABLE[warlockLevel];
-            for (int i = 0; i < pactRow.length; i++) {
-                if (pactRow[i] > 0) {
-                    String key = "pact_" + (i + 1);
-                    slots.put(key, pactRow[i]);
-                }
+        int[] pactRow = SpellSlotTables.pactMagicRow(warlockLevel);
+        for (int i = 0; i < pactRow.length; i++) {
+            if (pactRow[i] > 0) {
+                slots.put("pact_" + (i + 1), pactRow[i]);
             }
         }
 
         return slots;
+    }
+
+    static int multiclassContribution(ClassEntry entry) {
+        return switch (entry.casterType()) {
+            case "full" -> entry.level();
+            case "half" -> entry.level() / 2;
+            case "artificer" -> (entry.level() + 1) / 2;
+            case "third" -> entry.level() / 3;
+            default -> 0;
+        };
     }
 
     public record ClassEntry(int level, String casterType) {}
