@@ -7,7 +7,7 @@ import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
-import type { EncounterParticipant } from '../../types/encounter';
+import type { Encounter, EncounterParticipant } from '../../types/encounter';
 import EncounterSessionPage from './EncounterSessionPage';
 
 const NAMES = /^(Test Goblin|Gimli|Hidden Bugbear)$/;
@@ -240,6 +240,135 @@ describe('DM EncounterSessionPage', () => {
       act(() => MockStompClient.latest().emit(DM_LOG_TOPIC, [{ ...unresolved, lrResolved: true }]));
       await waitFor(() => expect(screen.queryByRole('button', { name: 'Use Legendary Resistance' })).not.toBeInTheDocument());
       expect(logRequests).toBe(1);
+    });
+  });
+
+  describe('lifecycle (D166)', () => {
+    const PAUSED_NOTICE = 'Paused — resume to continue';
+
+    // A downed Gimli, a prone and concentrating goblin, and a bugbear with spell slots, so every kind of
+    // combat control has something to show for
+    const busyTable = (status: Encounter['status']) => makeMockEncounter({
+      status,
+      participants: [
+        gimli({ isAlive: false, hpCurrent: 0, deathSaveFailures: 1 }),
+        goblin({
+          activeConditions: JSON.stringify([{ name: 'prone', duration: null, appliedRound: 1 }]),
+          concentrationSpell: 'Bless',
+        }),
+        bugbear({ spellSlotsCurrent: JSON.stringify({ 1: { remaining: 2, max: 3 } }) }),
+      ],
+    });
+
+    const COMBAT_CONTROLS: (string | RegExp)[] = [
+      'Previous turn', /Next Turn/, 'Attack roll', 'Deal damage', 'Heal', 'Add condition', 'Set concentration',
+      'Cast spell', 'Monster actions', 'Repeat spell effect', 'Roll', /level 1 slot/, /prone/,
+    ];
+
+    function expectNoCombatControls() {
+      for (const name of COMBAT_CONTROLS) {
+        expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+      }
+    }
+
+    it('shows every combat control while the encounter is Active', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))));
+      await renderLoaded();
+
+      for (const name of COMBAT_CONTROLS) {
+        expect(screen.getAllByRole('button', { name }).length).toBeGreaterThan(0);
+      }
+      expect(screen.queryByText(PAUSED_NOTICE)).not.toBeInTheDocument();
+    });
+
+    it('while Paused, hides every combat control, keeps the table readable and says to resume', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('PAUSED'))));
+      await renderLoaded();
+
+      expect(screen.getByText(PAUSED_NOTICE)).toBeInTheDocument();
+      expectNoCombatControls();
+      expect(screen.getByRole('button', { name: /Resume/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /End/ })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Pause/ })).not.toBeInTheDocument();
+      // Conditions, concentration and spell slots still show, read-only
+      expect(screen.getByText('prone')).toBeInTheDocument();
+      expect(screen.getByText('Concentrating: Bless')).toBeInTheDocument();
+      expect(screen.getByText('2 of 3 left')).toBeInTheDocument();
+      // Hiding a monster from players is not combat, so it stays available
+      expect(screen.getByRole('button', { name: 'Show to players' })).toBeInTheDocument();
+    });
+
+    it('pausing hides the open action panel along with the combat controls', async () => {
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))),
+        http.post('/api/encounters/:id/pause', () => HttpResponse.json(busyTable('PAUSED'))),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+      await user.click(screen.getAllByRole('button', { name: 'Deal damage' })[0]);
+      expect(screen.getByRole('heading', { name: 'Damage Test Goblin' })).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /Pause/ }));
+
+      expect(await screen.findByText(PAUSED_NOTICE)).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Damage Test Goblin' })).not.toBeInTheDocument();
+      expectNoCombatControls();
+    });
+
+    it('a pause pushed over the WebSocket, as from another DM tab, hides the combat controls', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))));
+      await renderLoaded();
+
+      act(() => MockStompClient.latest().emit(DM_STATE_TOPIC, busyTable('PAUSED')));
+
+      expect(await screen.findByText(PAUSED_NOTICE)).toBeInTheDocument();
+      expectNoCombatControls();
+    });
+
+    it('resuming brings the combat controls back', async () => {
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('PAUSED'))),
+        http.post('/api/encounters/:id/resume', () => HttpResponse.json(busyTable('ACTIVE'))),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: /Resume/ }));
+
+      expect(await screen.findByRole('button', { name: /Next Turn/ })).toBeInTheDocument();
+      expect(screen.queryByText(PAUSED_NOTICE)).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Deal damage' })).toHaveLength(3);
+    });
+
+    it('offers Legendary Resistance from the log only while the encounter is Active', async () => {
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('PAUSED'))),
+        http.get('/api/encounters/:id/combat/log', () => HttpResponse.json([
+          makeMockLogEntry('log-lr', 'Gimli\'s Hold Person paralyzes Test Goblin.', {
+            legendaryResistanceEligible: true, lrResolved: false, lrTargetId: 'part-goblin',
+          }),
+        ])),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+      expect(await screen.findByText('(1 entries)')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /Combat Log/ }));
+
+      expect(screen.getByText('Gimli\'s Hold Person paralyzes Test Goblin.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Use Legendary Resistance' })).not.toBeInTheDocument();
+    });
+
+    it('a Completed encounter shows no combat controls and no pause, resume or end', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('COMPLETED'))));
+      await renderLoaded();
+
+      expect(screen.getByText('Complete')).toBeInTheDocument();
+      expectNoCombatControls();
+      for (const name of [/Pause/, /Resume/, /End/]) {
+        expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+      }
+      expect(screen.queryByText(PAUSED_NOTICE)).not.toBeInTheDocument();
     });
   });
 });

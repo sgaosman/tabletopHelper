@@ -4,11 +4,13 @@ import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
+import jakarta.persistence.LockTimeoutException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.web.ErrorProperties;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -31,6 +33,7 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     static final String UNEXPECTED_ERROR = "Something went wrong. Please try again.";
+    static final String LOCK_TIMEOUT = "Another change is still in progress. Please try again in a moment.";
 
     private final boolean includeMessage;
 
@@ -89,6 +92,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> handleOptimisticLock(OptimisticLockingFailureException ex) {
         return error(HttpStatus.CONFLICT, "Someone else changed this at the same time. Please try again.");
+    }
+
+    /**
+     * A lock wait ran out: an encounter command waited more than five seconds for the one before it
+     * (D160), or two transactions deadlocked. The transaction rolled back, so trying again is safe.
+     */
+    @ExceptionHandler({PessimisticLockingFailureException.class, LockTimeoutException.class})
+    public ResponseEntity<Map<String, String>> handleLockTimeout(RuntimeException ex) {
+        return error(HttpStatus.CONFLICT, LOCK_TIMEOUT);
     }
 
     /**

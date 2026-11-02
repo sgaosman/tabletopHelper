@@ -4,12 +4,15 @@ import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
+import jakarta.persistence.LockTimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.web.ErrorProperties;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -120,6 +123,18 @@ class GlobalExceptionHandlerTest {
 
         assertError(handler.handleOptimisticLock(ex), HttpStatus.CONFLICT,
                 "Someone else changed this at the same time. Please try again.");
+    }
+
+    @Test
+    @DisplayName("A lock wait that runs out, or a deadlock, returns 409 so the user can try again (D160)")
+    void handleLockTimeout_returns409() {
+        var lockTimeout = new PessimisticLockingFailureException("canceling statement due to lock timeout");
+        var deadlock = new CannotAcquireLockException("deadlock detected");
+        var jpaLockTimeout = new LockTimeoutException("Lock timeout");
+
+        assertError(handler.handleLockTimeout(lockTimeout), HttpStatus.CONFLICT, GlobalExceptionHandler.LOCK_TIMEOUT);
+        assertError(handler.handleLockTimeout(deadlock), HttpStatus.CONFLICT, GlobalExceptionHandler.LOCK_TIMEOUT);
+        assertError(handler.handleLockTimeout(jpaLockTimeout), HttpStatus.CONFLICT, GlobalExceptionHandler.LOCK_TIMEOUT);
     }
 
     @Test

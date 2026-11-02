@@ -17,9 +17,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -41,6 +43,7 @@ class CombatServiceTest {
     @Mock private com.tabletophelper.encounter.MonsterSpellCastService monsterSpellCastService;
     @Mock private CampaignRepository campaignRepository;
     @Mock private CampaignMemberRepository campaignMemberRepository;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private CombatService combatService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -51,9 +54,10 @@ class CombatServiceTest {
 
     @BeforeEach
     void setUp() {
+        AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
         combatService = new CombatService(encounterRepository, combatLogRepository, new CombatLogReader(combatLogRepository),
                 encounterService, objectMapper, spellResolverEngine, monsterActionResolverEngine, monsterSpellCastService, resourcePoolService, spellRepository,
-                new AccessPolicy(campaignRepository, campaignMemberRepository));
+                accessPolicy, new EncounterCommands(encounterRepository, accessPolicy, eventPublisher));
 
         dmUserId = UUID.randomUUID();
         encounterId = UUID.randomUUID();
@@ -83,7 +87,12 @@ class CombatServiceTest {
                 .build();
 
         lenient().when(campaignRepository.findById(campaign.getId())).thenReturn(Optional.of(campaign));
+        // The DM is a member of their own campaign, as CampaignService records on creation
+        lenient().when(campaignMemberRepository.existsByCampaignIdAndUserId(campaign.getId(), dmUserId)).thenReturn(true);
         lenient().when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        // Commands find the campaign, then lock the encounter's row (D160)
+        lenient().when(encounterRepository.findCampaignIdById(encounterId)).thenReturn(Optional.of(campaign.getId()));
+        lenient().when(encounterRepository.lockById(encounterId)).thenReturn(Optional.of(encounter));
         lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(encounterService.toResponse(any(Encounter.class))).thenReturn(EncounterResponse.builder().build());
         lenient().when(combatLogRepository.save(any(CombatLog.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -1104,9 +1113,12 @@ class CombatServiceTest {
     // Access (D028, D155)
     // ================================================================
 
+    // A player controls only a character of a campaign they belong to
     private EncounterParticipant addPlayerControlledBy(String name, UUID controllerId) {
         EncounterParticipant p = addPlayer(name, 20, 14);
         p.setControlledByUserId(controllerId);
+        lenient().when(campaignMemberRepository.existsByCampaignIdAndUserId(encounter.getCampaign().getId(), controllerId))
+                .thenReturn(true);
         return p;
     }
 
@@ -1230,8 +1242,80 @@ class CombatServiceTest {
     @DisplayName("An unknown encounter is a NotFoundException")
     void unknownEncounterIsNotFound() {
         UUID unknownId = UUID.randomUUID();
-        when(encounterRepository.findById(unknownId)).thenReturn(Optional.empty());
+        when(encounterRepository.findCampaignIdById(unknownId)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> combatService.advanceTurn(unknownId, dmUserId));
+        verify(encounterRepository, never()).lockById(any());
+    }
+
+    // ================================================================
+    // Lifecycle and locking (D160, D166)
+    // ================================================================
+
+    @Test
+    @DisplayName("Combat in a Paused encounter is a 409 that changes nothing; the DM resumes it first (D166)")
+    void combatInPausedEncounterIsRefused() {
+        EncounterParticipant goblin = addMonster("Goblin", 7, 15);
+        encounter.setStatus(EncounterStatus.PAUSED);
+        DamageRequest request = new DamageRequest();
+        request.setTargetId(goblin.getId());
+        request.setAmount(3);
+
+        ConflictException ex = assertThrows(ConflictException.class, () ->
+                combatService.applyDamage(encounterId, request, null, dmUserId));
+
+        assertEquals("The encounter is paused until the DM resumes it", ex.getMessage());
+        assertEquals(7, goblin.getHpCurrent());
+        verify(combatLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Combat in a Completed or Preparing encounter is a 409")
+    void combatOutsideActiveEncounterIsRefused() {
+        addMonster("Goblin", 7, 15);
+
+        encounter.setStatus(EncounterStatus.COMPLETED);
+        ConflictException completed = assertThrows(ConflictException.class, () ->
+                combatService.advanceTurn(encounterId, dmUserId));
+        encounter.setStatus(EncounterStatus.PREPARING);
+        ConflictException preparing = assertThrows(ConflictException.class, () ->
+                combatService.advanceTurn(encounterId, dmUserId));
+
+        assertEquals("The encounter has ended", completed.getMessage());
+        assertEquals("The encounter hasn't started yet", preparing.getMessage());
+        assertEquals(1, encounter.getRoundNumber());
+    }
+
+    @Test
+    @DisplayName("A user outside the campaign is refused before the encounter's row is locked")
+    void nonMemberLocksNothing() {
+        EncounterParticipant goblin = addMonster("Goblin", 7, 15);
+        DamageRequest request = new DamageRequest();
+        request.setTargetId(goblin.getId());
+        request.setAmount(3);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                combatService.applyDamage(encounterId, request, null, UUID.randomUUID()));
+
+        assertEquals("You are not a member of this campaign", ex.getMessage());
+        verify(encounterRepository, never()).lockById(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("A combat command locks the encounter and announces the change, which is broadcast once it commits")
+    void combatCommandLocksAndAnnounces() {
+        EncounterParticipant goblin = addMonster("Goblin", 7, 15);
+        DamageRequest request = new DamageRequest();
+        request.setTargetId(goblin.getId());
+        request.setAmount(3);
+
+        combatService.applyDamage(encounterId, request, null, dmUserId);
+
+        InOrder inOrder = inOrder(encounterRepository, eventPublisher);
+        inOrder.verify(encounterRepository).limitLockWaits();
+        inOrder.verify(encounterRepository).lockById(encounterId);
+        inOrder.verify(eventPublisher).publishEvent(new EncounterChanged(encounterId));
+        verify(encounterRepository, never()).findById(any());
     }
 }

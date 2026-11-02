@@ -19,8 +19,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.*;
 
@@ -39,6 +41,7 @@ class EncounterServiceTest {
     @Mock private MonsterRepository monsterRepository;
     @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
     @Mock private MonsterSpellCastService monsterSpellCastService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private EncounterService encounterService;
 
@@ -49,9 +52,11 @@ class EncounterServiceTest {
 
     @BeforeEach
     void setUp() {
+        AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
                 characterRepository, monsterRepository, new ObjectMapper(), resourcePoolService,
-                monsterSpellCastService, new AccessPolicy(campaignRepository, campaignMemberRepository));
+                monsterSpellCastService, accessPolicy,
+                new EncounterCommands(encounterRepository, accessPolicy, eventPublisher));
 
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();
@@ -74,6 +79,12 @@ class EncounterServiceTest {
 
         // The access policy looks the campaign up to find its DM
         lenient().when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+    }
+
+    /** A command finds the encounter's campaign, then locks its row (D160); both find this encounter. */
+    private void stubLock(Encounter encounter) {
+        lenient().when(encounterRepository.findCampaignIdById(encounter.getId())).thenReturn(Optional.of(campaignId));
+        lenient().when(encounterRepository.lockById(encounter.getId())).thenReturn(Optional.of(encounter));
     }
 
     @Test
@@ -126,7 +137,7 @@ class EncounterServiceTest {
         request.setDisplayName("Goblin");
         request.setQuantity(3);
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(monsterRepository.findById(monsterId)).thenReturn(Optional.of(goblin));
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -182,7 +193,7 @@ class EncounterServiceTest {
         request.setCharacterId(characterId);
         request.setDisplayName("Thorin");
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(characterRepository.findById(characterId)).thenReturn(Optional.of(thorin));
         when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -228,7 +239,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>(List.of(toRemove, toKeep)))
                 .build();
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EncounterResponse response = encounterService.removeParticipant(encounterId, participantToRemoveId, dmUserId);
@@ -262,7 +273,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>(List.of(participant)))
                 .build();
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EncounterResponse response = encounterService.renameParticipant(encounterId, participantId, "Snaggle the Goblin", dmUserId);
@@ -311,7 +322,7 @@ class EncounterServiceTest {
         BulkInitiativeRequest request = new BulkInitiativeRequest();
         request.setInitiatives(List.of(fighterInit, wizardInit));
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EncounterResponse response = encounterService.setInitiatives(encounterId, request, dmUserId);
@@ -353,7 +364,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>(List.of(fighter, wizard)))
                 .build();
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EncounterResponse response = encounterService.rollAllInitiatives(encounterId, dmUserId);
@@ -404,7 +415,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>(List.of(wizard, fighter, goblin)))
                 .build();
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(encounterRepository.findBySessionCode(anyString())).thenReturn(Optional.empty());
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -438,7 +449,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>(List.of(noInitiative)))
                 .build();
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
 
         ConflictException ex = assertThrows(ConflictException.class,
                 () -> encounterService.startEncounter(encounterId, dmUserId));
@@ -461,7 +472,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>())
                 .build();
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Pause
@@ -491,7 +502,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>())
                 .build();
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EncounterResponse response = encounterService.endEncounter(encounterId, dmUserId);
@@ -576,7 +587,7 @@ class EncounterServiceTest {
         request.setCharacterId(stray.getId());
         request.setDisplayName("Stray");
 
-        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         when(characterRepository.findById(stray.getId())).thenReturn(Optional.of(stray));
 
         ForbiddenException ex = assertThrows(ForbiddenException.class,
@@ -630,6 +641,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>(List.of(participants)))
                 .build();
         lenient().when(encounterRepository.findById(encounter.getId())).thenReturn(Optional.of(encounter));
+        stubLock(encounter);
         lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
         return encounter;
     }
@@ -707,5 +719,156 @@ class EncounterServiceTest {
 
         assertEquals(dmUserId, response.getDmUserId());
         assertTrue(response.isShowExactMonsterHp());
+    }
+
+    // ── Lifecycle and locking (D160, D166) ──────────────────────
+
+    private Encounter encounterIn(EncounterStatus status, EncounterParticipant... participants) {
+        Encounter encounter = Encounter.builder()
+                .id(UUID.randomUUID())
+                .campaign(campaign)
+                .name("Test Encounter")
+                .status(status)
+                .participants(new ArrayList<>(List.of(participants)))
+                .build();
+        stubLock(encounter);
+        lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        return encounter;
+    }
+
+    @Test
+    @DisplayName("Completing an encounter syncs its pools back once; completing it again is a 409 that syncs nothing")
+    void endEncounter_syncsPoolsBackOnce() {
+        PlayerCharacter thorin = PlayerCharacter.builder().id(UUID.randomUUID()).name("Thorin").build();
+        EncounterParticipant participant = EncounterParticipant.builder()
+                .id(UUID.randomUUID())
+                .participantType(ParticipantType.PLAYER)
+                .character(thorin)
+                .displayName("Thorin")
+                .hpMax(45).hpCurrent(45).armourClass(18)
+                .build();
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, participant);
+
+        encounterService.endEncounter(encounter.getId(), dmUserId);
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> encounterService.endEncounter(encounter.getId(), dmUserId));
+
+        assertEquals("The encounter is already completed", ex.getMessage());
+        assertEquals(EncounterStatus.COMPLETED, encounter.getStatus());
+        verify(resourcePoolService, times(1)).syncBackToCharacter(participant, thorin);
+    }
+
+    @Test
+    @DisplayName("A Paused encounter can be completed without resuming it")
+    void endEncounter_completesPausedEncounter() {
+        Encounter encounter = encounterIn(EncounterStatus.PAUSED);
+
+        EncounterResponse response = encounterService.endEncounter(encounter.getId(), dmUserId);
+
+        assertEquals("COMPLETED", response.getStatus());
+    }
+
+    @Test
+    @DisplayName("A Completed encounter is final: resuming, pausing or starting it again is a 409")
+    void completedEncounterIsFinal() {
+        UUID encounterId = encounterIn(EncounterStatus.COMPLETED).getId();
+
+        ConflictException resume = assertThrows(ConflictException.class,
+                () -> encounterService.resumeEncounter(encounterId, dmUserId));
+        ConflictException pause = assertThrows(ConflictException.class,
+                () -> encounterService.pauseEncounter(encounterId, dmUserId));
+        ConflictException start = assertThrows(ConflictException.class,
+                () -> encounterService.startEncounter(encounterId, dmUserId));
+
+        assertEquals("Cannot resume an encounter that is completed", resume.getMessage());
+        assertEquals("Cannot pause an encounter that is completed", pause.getMessage());
+        assertEquals("Cannot start an encounter that is completed", start.getMessage());
+        verify(encounterRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Resume continues only a Paused encounter: it never starts a Preparing one")
+    void resumeEncounter_onlyContinuesPausedEncounter() {
+        Encounter preparing = encounterIn(EncounterStatus.PREPARING);
+        Encounter active = encounterIn(EncounterStatus.ACTIVE);
+
+        ConflictException fromPreparing = assertThrows(ConflictException.class,
+                () -> encounterService.resumeEncounter(preparing.getId(), dmUserId));
+        ConflictException fromActive = assertThrows(ConflictException.class,
+                () -> encounterService.resumeEncounter(active.getId(), dmUserId));
+
+        assertEquals("Cannot resume an encounter that is still being prepared", fromPreparing.getMessage());
+        assertEquals("The encounter is already active", fromActive.getMessage());
+        assertEquals(EncounterStatus.PREPARING, preparing.getStatus());
+        assertNull(preparing.getSessionCode());
+    }
+
+    @Test
+    @DisplayName("Only an Active encounter can be paused")
+    void pauseEncounter_onlyPausesActiveEncounter() {
+        Encounter preparing = encounterIn(EncounterStatus.PREPARING);
+        Encounter paused = encounterIn(EncounterStatus.PAUSED);
+
+        ConflictException fromPreparing = assertThrows(ConflictException.class,
+                () -> encounterService.pauseEncounter(preparing.getId(), dmUserId));
+        ConflictException fromPaused = assertThrows(ConflictException.class,
+                () -> encounterService.pauseEncounter(paused.getId(), dmUserId));
+
+        assertEquals("Cannot pause an encounter that is still being prepared", fromPreparing.getMessage());
+        assertEquals("The encounter is already paused", fromPaused.getMessage());
+        assertEquals(EncounterStatus.PREPARING, preparing.getStatus());
+    }
+
+    @Test
+    @DisplayName("Starting an encounter that is already running is a 409, checked before its initiatives")
+    void startEncounter_onlyStartsPreparingEncounter() {
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, participant("Goblin", ParticipantType.MONSTER));
+        encounter.setSessionCode("ABC12345");
+
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> encounterService.startEncounter(encounter.getId(), dmUserId));
+
+        assertEquals("The encounter is already active", ex.getMessage());
+        assertEquals("ABC12345", encounter.getSessionCode());
+    }
+
+    @Test
+    @DisplayName("Access is checked by campaign ID before the row is locked, so a player locks nothing")
+    void command_checksAccessBeforeLocking() {
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> encounterService.pauseEncounter(encounter.getId(), UUID.randomUUID()));
+
+        assertEquals("Only the DM can perform this action", ex.getMessage());
+        verify(encounterRepository, never()).lockById(any());
+        verifyNoInteractions(eventPublisher);
+        assertEquals(EncounterStatus.ACTIVE, encounter.getStatus());
+    }
+
+    @Test
+    @DisplayName("A command on an unknown encounter is a NotFoundException and locks nothing")
+    void command_unknownEncounterIsNotFound() {
+        UUID unknownId = UUID.randomUUID();
+
+        NotFoundException ex = assertThrows(NotFoundException.class,
+                () -> encounterService.pauseEncounter(unknownId, dmUserId));
+
+        assertEquals("Encounter not found", ex.getMessage());
+        verify(encounterRepository, never()).lockById(any());
+    }
+
+    @Test
+    @DisplayName("A command limits its lock wait, locks the encounter, then announces the change to the broadcaster")
+    void command_locksThenAnnouncesTheChange() {
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE);
+
+        encounterService.pauseEncounter(encounter.getId(), dmUserId);
+
+        InOrder inOrder = inOrder(encounterRepository, eventPublisher);
+        inOrder.verify(encounterRepository).findCampaignIdById(encounter.getId());
+        inOrder.verify(encounterRepository).limitLockWaits();
+        inOrder.verify(encounterRepository).lockById(encounter.getId());
+        inOrder.verify(eventPublisher).publishEvent(new EncounterChanged(encounter.getId()));
     }
 }

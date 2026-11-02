@@ -21,7 +21,6 @@ import java.util.UUID;
 public class EncounterController {
 
     private final EncounterService encounterService;
-    private final EncounterBroadcaster broadcaster;
 
     @PostMapping
     public ResponseEntity<EncounterResponse> createEncounter(
@@ -68,7 +67,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.addParticipant(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -84,7 +82,6 @@ public class EncounterController {
             throw new ValidationException("displayName is required");
         }
         EncounterResponse response = encounterService.renameParticipant(encounterId, participantId, newName, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -97,7 +94,6 @@ public class EncounterController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.setParticipantVisibility(
                 encounterId, participantId, request.visible(), userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -108,7 +104,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.removeParticipant(encounterId, participantId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -119,7 +114,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.setInitiatives(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -129,7 +123,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.rollAllInitiatives(encounterId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -139,7 +132,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.startEncounter(encounterId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -149,7 +141,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.pauseEncounter(encounterId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -159,7 +150,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.resumeEncounter(encounterId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -169,7 +159,6 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.endEncounter(encounterId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

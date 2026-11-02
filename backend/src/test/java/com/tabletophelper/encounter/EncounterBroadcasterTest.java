@@ -3,22 +3,38 @@ package com.tabletophelper.encounter;
 import com.tabletophelper.encounter.dto.CombatLogResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
@@ -30,6 +46,8 @@ class EncounterBroadcasterTest {
 
     @Mock private SimpMessagingTemplate messagingTemplate;
     @Mock private CombatLogRepository combatLogRepository;
+    @Mock private EncounterRepository encounterRepository;
+    @Mock private EncounterService encounterService;
 
     private EncounterBroadcaster broadcaster;
 
@@ -40,7 +58,8 @@ class EncounterBroadcasterTest {
 
     @BeforeEach
     void setUp() {
-        broadcaster = new EncounterBroadcaster(messagingTemplate, new CombatLogReader(combatLogRepository));
+        broadcaster = new EncounterBroadcaster(messagingTemplate, new CombatLogReader(combatLogRepository),
+                encounterRepository, encounterService);
         lenient().when(combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId)).thenReturn(List.of(
                 logEntry("Aria hits Goblin", ariaId, goblinId),
                 logEntry("Bugbear hits Aria", bugbearId, ariaId)));
@@ -187,5 +206,166 @@ class EncounterBroadcasterTest {
                 .lrConditionsApplied("prone").lrResolved(false)
                 .createdAt(createdAt)
                 .build(), dmLog.getFirst());
+    }
+
+    // ── Broadcasting after commit (D160) ────────────────────────
+
+    /** The committed encounter the listener reloads, which toResponse turns into the DM View. */
+    private void stubCommittedEncounter(boolean bugbearVisible) {
+        Encounter committed = Encounter.builder().id(encounterId).build();
+        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(committed));
+        when(encounterService.toResponse(committed)).thenReturn(dmView(bugbearVisible));
+    }
+
+    private List<String> sentDestinations() {
+        var destinations = ArgumentCaptor.forClass(String.class);
+        verify(messagingTemplate, atLeastOnce()).convertAndSend(destinations.capture(), any(Object.class));
+        return destinations.getAllValues();
+    }
+
+    @Test
+    @DisplayName("After a change, reloads the committed encounter and publishes both views and both logs")
+    void encounterChangedPublishesCommittedState() {
+        stubCommittedEncounter(false);
+
+        broadcaster.encounterChanged(new EncounterChanged(encounterId));
+
+        assertEquals(List.of(
+                EncounterBroadcaster.dmStateDestination(encounterId),
+                EncounterBroadcaster.stateDestination(encounterId),
+                EncounterBroadcaster.dmLogDestination(encounterId),
+                EncounterBroadcaster.logDestination(encounterId)), sentDestinations());
+    }
+
+    @Test
+    @DisplayName("An encounter deleted by the change has nothing to publish")
+    void deletedEncounterPublishesNothing() {
+        when(encounterRepository.findById(encounterId)).thenReturn(Optional.empty());
+
+        broadcaster.encounterChanged(new EncounterChanged(encounterId));
+
+        verifyNoInteractions(messagingTemplate);
+    }
+
+    @Test
+    @DisplayName("A messaging failure after the commit is logged rather than thrown, so the request still succeeds")
+    void messagingFailureIsNotThrown() {
+        stubCommittedEncounter(false);
+        doThrow(new MessageDeliveryException("Broker unavailable"))
+                .when(messagingTemplate).convertAndSend(anyString(), any(Object.class));
+
+        assertDoesNotThrow(() -> broadcaster.encounterChanged(new EncounterChanged(encounterId)));
+    }
+
+    /**
+     * The broadcaster in a bare Spring context (no Spring Boot) with a transaction manager that changes
+     * nothing but runs Spring's transaction synchronization as a real one does, so the after-commit listener
+     * and its own transaction behave as they do in the application.
+     */
+    @Nested
+    class InTransactions {
+
+        private final RecordingTransactionManager transactionManager = new RecordingTransactionManager();
+        private AnnotationConfigApplicationContext context;
+        private TransactionTemplate transaction;
+
+        @BeforeEach
+        void startContext() {
+            context = new AnnotationConfigApplicationContext();
+            context.register(TransactionManagement.class);
+            context.registerBean("transactionManager", PlatformTransactionManager.class, () -> transactionManager);
+            context.registerBean("encounterBroadcaster", EncounterBroadcaster.class, () -> broadcaster);
+            context.refresh();
+            transaction = new TransactionTemplate(transactionManager);
+        }
+
+        @AfterEach
+        void closeContext() {
+            context.close();
+        }
+
+        @Test
+        @DisplayName("Nothing is published when the transaction rolls back, whether marked for rollback or failing")
+        void rollbackPublishesNothing() {
+            transaction.executeWithoutResult(status -> {
+                context.publishEvent(new EncounterChanged(encounterId));
+                status.setRollbackOnly();
+            });
+            assertThrows(IllegalStateException.class, () -> transaction.executeWithoutResult(status -> {
+                context.publishEvent(new EncounterChanged(encounterId));
+                throw new IllegalStateException("Command failed after announcing its change");
+            }));
+
+            verifyNoInteractions(messagingTemplate);
+            verify(encounterRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("Publishes only after the commit, on the committing thread, before the committing call returns")
+        void publishesAfterCommitBeforeReturning() {
+            Thread committingThread = Thread.currentThread();
+            List<Thread> reloadThreads = new ArrayList<>();
+            when(encounterRepository.findById(encounterId)).thenAnswer(invocation -> {
+                reloadThreads.add(Thread.currentThread());
+                return Optional.of(Encounter.builder().id(encounterId).build());
+            });
+            when(encounterService.toResponse(any(Encounter.class))).thenReturn(dmView(false));
+
+            transaction.executeWithoutResult(status -> {
+                context.publishEvent(new EncounterChanged(encounterId));
+                verifyNoInteractions(messagingTemplate);
+            });
+
+            // The service call that committed has returned to its controller, which has not answered yet
+            assertEquals(4, sentDestinations().size());
+            assertEquals(List.of(committingThread), reloadThreads);
+        }
+
+        @Test
+        @DisplayName("Reloads the committed state in a read-only transaction of its own")
+        void reloadsInItsOwnReadOnlyTransaction() {
+            List<Boolean> readOnlyDuringReload = new ArrayList<>();
+            when(encounterRepository.findById(encounterId)).thenAnswer(invocation -> {
+                readOnlyDuringReload.add(TransactionSynchronizationManager.isCurrentTransactionReadOnly());
+                return Optional.empty();
+            });
+
+            transaction.executeWithoutResult(status -> context.publishEvent(new EncounterChanged(encounterId)));
+
+            assertEquals(List.of(true), readOnlyDuringReload);
+            assertEquals(2, transactionManager.begun.size());
+            TransactionDefinition reload = transactionManager.begun.get(1);
+            assertEquals(TransactionDefinition.PROPAGATION_REQUIRES_NEW, reload.getPropagationBehavior());
+            assertTrue(reload.isReadOnly());
+        }
+    }
+
+    @Configuration
+    @EnableTransactionManagement
+    static class TransactionManagement {
+    }
+
+    /** Begins, commits and rolls back nothing, and records each transaction it is asked to begin. */
+    private static final class RecordingTransactionManager extends AbstractPlatformTransactionManager {
+
+        private final List<TransactionDefinition> begun = new ArrayList<>();
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+            begun.add(definition);
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {
+        }
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {
+        }
     }
 }

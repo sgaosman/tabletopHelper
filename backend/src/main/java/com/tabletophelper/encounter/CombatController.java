@@ -19,7 +19,6 @@ import java.util.UUID;
 public class CombatController {
 
     private final CombatService combatService;
-    private final EncounterBroadcaster broadcaster;
 
     @PostMapping("/attack")
     public ResponseEntity<EncounterResponse> rollAttack(
@@ -29,7 +28,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.rollAttack(encounterId, request, actorId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -41,7 +39,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.applyDamage(encounterId, request, actorId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -53,7 +50,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.applyHealing(encounterId, request, actorId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -64,7 +60,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.setHp(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -75,7 +70,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.addCondition(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -86,7 +80,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.removeCondition(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -97,7 +90,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.rollDeathSave(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -108,7 +100,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.setConcentration(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -119,7 +110,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.useSpellSlot(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -130,7 +120,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.restoreSpellSlot(encounterId, request, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -142,7 +131,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         CastSpellResponse response = combatService.castSpell(encounterId, request, actorId, userId);
-        broadcaster.publish(response.getEncounterState());
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -154,7 +142,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         CastSpellResponse response = combatService.repeatSpellEffect(encounterId, request, actorId, userId);
-        broadcaster.publish(response.getEncounterState());
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -164,7 +151,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.advanceTurn(encounterId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -174,7 +160,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.previousTurn(encounterId, userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -187,7 +172,6 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         CombatService.MonsterActionResponse response = combatService.monsterAction(
                 encounterId, request, actorId, userId);
-        broadcaster.publish(response.encounterState());
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -199,7 +183,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         CastSpellResponse response = combatService.monsterSpell(encounterId, request, actorId, userId);
-        broadcaster.publish(response.getEncounterState());
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -211,7 +194,6 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.useLegendaryResistance(
                 encounterId, request.combatLogId(), userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -223,7 +205,6 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = combatService.setLairStatus(
                 encounterId, request.monsterIds(), userId);
-        broadcaster.publish(response);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

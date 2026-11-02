@@ -43,10 +43,11 @@ public class CombatService {
     private final ResourcePoolService resourcePoolService;
     private final SpellRepository spellRepository;
     private final AccessPolicy accessPolicy;
+    private final EncounterCommands encounterCommands;
 
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControlsOnTurn(encounter, actorParticipantId, userId);
         requireActive(encounter);
 
@@ -175,7 +176,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse applyDamage(UUID encounterId, DamageRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControls(encounter, actorParticipantId, userId);
         requireActive(encounter);
 
@@ -238,7 +239,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse applyHealing(UUID encounterId, HealRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControls(encounter, actorParticipantId, userId);
         requireActive(encounter);
 
@@ -280,8 +281,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse setHp(UUID encounterId, SetHpRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
@@ -314,7 +314,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse addCondition(UUID encounterId, ConditionRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControls(encounter, request.getTargetId(), userId);
         requireActive(encounter);
 
@@ -336,7 +336,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse removeCondition(UUID encounterId, ConditionRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControls(encounter, request.getTargetId(), userId);
         requireActive(encounter);
 
@@ -357,7 +357,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse rollDeathSave(UUID encounterId, DeathSaveRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControls(encounter, request.getParticipantId(), userId);
         requireActive(encounter);
 
@@ -417,7 +417,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse setConcentration(UUID encounterId, ConcentrationRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControls(encounter, request.getParticipantId(), userId);
         requireActive(encounter);
 
@@ -437,7 +437,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse useSpellSlot(UUID encounterId, SpellSlotRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControls(encounter, request.getParticipantId(), userId);
         requireActive(encounter);
 
@@ -469,8 +469,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse restoreSpellSlot(UUID encounterId, SpellSlotRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
 
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
@@ -507,7 +506,7 @@ public class CombatService {
 
     @Transactional
     public CastSpellResponse castSpell(UUID encounterId, CastSpellRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControlsOnTurn(encounter, actorParticipantId, userId);
         requireActive(encounter);
 
@@ -625,7 +624,7 @@ public class CombatService {
     @Transactional
     public CastSpellResponse repeatSpellEffect(UUID encounterId, RepeatSpellEffectRequest request,
                                                 UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         requireControlsOnTurn(encounter, actorParticipantId, userId);
         requireActive(encounter);
 
@@ -782,8 +781,7 @@ public class CombatService {
     @Transactional
     public MonsterActionResponse monsterAction(UUID encounterId, MonsterActionRequest request,
                                                UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
 
         EncounterParticipant monster = encounter.getParticipants().stream()
@@ -937,8 +935,7 @@ public class CombatService {
     @Transactional
     public CastSpellResponse monsterSpell(UUID encounterId, CombatService.MonsterSpellRequest request,
                                           UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
 
         EncounterParticipant monster = encounter.getParticipants().stream()
@@ -1024,8 +1021,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse useLegendaryResistance(UUID encounterId, UUID combatLogId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
 
         // Find the combat log entry; an entry from another encounter counts as missing
@@ -1088,8 +1084,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse setLairStatus(UUID encounterId, List<UUID> monsterIds, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
         try {
             encounter.setMonstersInLair(objectMapper.writeValueAsString(monsterIds));
@@ -1101,8 +1096,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse advanceTurn(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
 
         List<EncounterParticipant> sorted = encounter.getParticipants().stream()
@@ -1148,8 +1142,7 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse previousTurn(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(campaignId(encounter), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
 
         List<EncounterParticipant> sorted = encounter.getParticipants().stream()
@@ -1468,11 +1461,10 @@ public class CombatService {
                 .orElseThrow(() -> new NotFoundException("Encounter not found"));
     }
 
-    // Checked after the access policy, so only campaign members learn an encounter's status
+    // Checked after the access policy, so only campaign members learn an encounter's status. Combat needs an
+    // Active encounter: a Paused one can only resume or complete (D166)
     private void requireActive(Encounter encounter) {
-        if (encounter.getStatus() != EncounterStatus.ACTIVE && encounter.getStatus() != EncounterStatus.PAUSED) {
-            throw new ConflictException("Encounter is not active");
-        }
+        EncounterLifecycle.requireActive(encounter);
     }
 
     // Combat requests name participants in the body or query string, never the path, so an unknown one is a 400

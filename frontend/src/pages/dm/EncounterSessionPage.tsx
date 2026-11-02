@@ -49,7 +49,8 @@ function HpBar({ participant }: { participant: EncounterParticipant }) {
   );
 }
 
-function DeathSaves({ participant }: { participant: EncounterParticipant }) {
+// The Roll button shows only while the encounter is Active, since combat needs it (D166)
+function DeathSaves({ participant, canRoll }: { participant: EncounterParticipant; canRoll: boolean }) {
   const actions = useEncounterAction();
   const [rolling, setRolling] = useState(false);
 
@@ -76,18 +77,21 @@ function DeathSaves({ participant }: { participant: EncounterParticipant }) {
           <div key={`f${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveFailures ? 'bg-debuff border-debuff' : 'border-rule-light'}`} />
         ))}
       </div>
-      <button
-        onClick={handleRoll}
-        disabled={rolling}
-        className="px-2 py-0.5 font-body text-[16px] font-semibold bg-page-alt hover:bg-rule text-muted disabled:opacity-50"
-      >
-        {rolling ? '...' : 'Roll'}
-      </button>
+      {canRoll && (
+        <button
+          onClick={handleRoll}
+          disabled={rolling}
+          className="px-2 py-0.5 font-body text-[16px] font-semibold bg-page-alt hover:bg-rule text-muted disabled:opacity-50"
+        >
+          {rolling ? '...' : 'Roll'}
+        </button>
+      )}
     </div>
   );
 }
 
-function SpellSlotDisplay({ participant }: { participant: EncounterParticipant }) {
+// Slots are spent and restored only while the encounter is Active; otherwise they are shown read-only (D166)
+function SpellSlotDisplay({ participant, canChange }: { participant: EncounterParticipant; canChange: boolean }) {
   const actions = useEncounterAction();
   const slots = parseSpellSlots(participant);
   if (!slots) return null;
@@ -112,7 +116,7 @@ function SpellSlotDisplay({ participant }: { participant: EncounterParticipant }
           <div key={lvl} className="flex items-center gap-0.5">
             <span className="font-heading text-[12px] font-semibold tracking-[0.1em] text-faint">{lvl}:</span>
             <div className="flex gap-0.5">
-              {Array.from({ length: s.max }).map((_, i) => (
+              {Array.from({ length: s.max }).map((_, i) => canChange ? (
                 <IconButton
                   key={i}
                   label={i < s.remaining ? `Use level ${lvl} slot` : `Restore level ${lvl} slot`}
@@ -123,7 +127,14 @@ function SpellSlotDisplay({ participant }: { participant: EncounterParticipant }
                       : 'border-rule-light hover:border-ink'
                   }`}
                 />
+              ) : (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className={`w-2.5 h-2.5 rounded-full border ${i < s.remaining ? 'bg-ink border-ink' : 'border-rule-light'}`}
+                />
               ))}
+              {!canChange && <span className="sr-only">{`${s.remaining} of ${s.max} left`}</span>}
             </div>
           </div>
         );
@@ -424,7 +435,7 @@ function ActionPanel({
   );
 }
 
-function CombatLogPanel() {
+function CombatLogPanel({ canUseLegendaryResistance }: { canUseLegendaryResistance: boolean }) {
   // The server sends the whole log after every change (D171)
   const logs = useCombatLog();
   const actions = useEncounterAction();
@@ -557,7 +568,7 @@ function CombatLogPanel() {
                     {!isTurnChange && (
                       <div className={`bg-page-alt border-l-2 ${getLogBorderColor(log.actionType)} px-2 py-0.5`}>
                         <span className={`font-body text-[15px] font-semibold ${getLogColor(log.actionType)}`}>{log.description}</span>
-                        {log.legendaryResistanceEligible && !log.lrResolved && (
+                        {canUseLegendaryResistance && log.legendaryResistanceEligible && !log.lrResolved && (
                           <button
                             className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[11px] font-semibold tracking-[0.02em]"
                             onClick={() => { void actions.spendLegendaryResistance(log.id); }}
@@ -921,7 +932,10 @@ function DmSessionView() {
 
   const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
   const selectedTarget = sorted.find(p => p.id === selectedTargetId) ?? null;
+  // Combat controls show only while the encounter is Active: a Paused one can only resume or end, and a
+  // Completed one is final (D166)
   const isActive = encounter.status === 'ACTIVE';
+  const isPaused = encounter.status === 'PAUSED';
 
   return (
     <div className="min-h-screen bg-page">
@@ -991,8 +1005,15 @@ function DmSessionView() {
           </div>
         </div>
 
+        {isPaused && (
+          <div role="status" className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-cls-monk/10 border border-cls-monk/30">
+            <Pause className="w-4 h-4 text-cls-monk" />
+            <p className="text-cls-monk font-heading text-[15px] font-semibold tracking-[0.01em]">Paused — resume to continue</p>
+          </div>
+        )}
+
         {/* Spell cast modal */}
-        {actionMode === 'spell' && selectedTarget && (
+        {isActive && actionMode === 'spell' && selectedTarget && (
           <SpellCastModal
             caster={selectedTarget}
             participants={encounter.participants}
@@ -1002,7 +1023,7 @@ function DmSessionView() {
         )}
 
         {/* Repeat spell effect modal */}
-        {actionMode === 'repeat-effect' && selectedTarget && (selectedTarget.concentrationSpell || selectedTarget.activeSpell) && (
+        {isActive && actionMode === 'repeat-effect' && selectedTarget && (selectedTarget.concentrationSpell || selectedTarget.activeSpell) && (
           <RepeatEffectModal
             caster={selectedTarget}
             participants={encounter.participants}
@@ -1013,7 +1034,7 @@ function DmSessionView() {
         )}
 
         {/* Action panel */}
-        {actionMode !== 'spell' && (
+        {isActive && actionMode !== 'spell' && (
           <ActionPanel
             selectedTarget={selectedTarget}
             actionMode={actionMode}
@@ -1073,15 +1094,24 @@ function DmSessionView() {
                       <div className="flex gap-1 mt-1 flex-wrap">
                         {conditions.map(c => {
                           const remaining = c.duration != null ? Math.max(0, c.duration - (encounter.roundNumber - c.appliedRound)) : null;
-                          return (
+                          const label = `${c.name}${c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}${remaining != null ? ` (${remaining})` : ''}`;
+                          return isActive ? (
                             <button
                               key={c.name}
                               onClick={() => handleRemoveCondition(p.id, c.name)}
                               className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff hover:opacity-75 cursor-pointer"
                               title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}`}
                             >
-                              {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''} <X className="w-2.5 h-2.5 inline" />
+                              {label} <X className="w-2.5 h-2.5 inline" />
                             </button>
+                          ) : (
+                            <span
+                              key={c.name}
+                              className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff"
+                              title={remaining != null ? `${remaining} rounds left` : undefined}
+                            >
+                              {label}
+                            </span>
                           );
                         })}
                       </div>
@@ -1093,13 +1123,15 @@ function DmSessionView() {
                         <p className="text-cls-warlock font-body text-[15px] font-semibold">
                           Concentrating: {p.concentrationSpell}
                         </p>
-                        <IconButton
-                          label="Repeat spell effect"
-                          onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
-                          className="p-0.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock"
-                        >
-                          <RotateCw className="w-3 h-3" />
-                        </IconButton>
+                        {isActive && (
+                          <IconButton
+                            label="Repeat spell effect"
+                            onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
+                            className="p-0.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </IconButton>
+                        )}
                       </div>
                     )}
 
@@ -1109,24 +1141,26 @@ function DmSessionView() {
                         <p className="text-cls-monk font-body text-[15px] font-semibold">
                           Active: {p.activeSpell}
                         </p>
-                        <IconButton
-                          label="Repeat spell effect"
-                          onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
-                          className="p-0.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk"
-                        >
-                          <RotateCw className="w-3 h-3" />
-                        </IconButton>
+                        {isActive && (
+                          <IconButton
+                            label="Repeat spell effect"
+                            onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
+                            className="p-0.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </IconButton>
+                        )}
                       </div>
                     )}
 
                     {/* Death saves for downed players */}
                     {!p.isAlive && p.participantType === 'PLAYER' && p.deathSaveFailures < 3 && (
-                      <DeathSaves participant={p} />
+                      <DeathSaves participant={p} canRoll={isActive} />
                     )}
 
                     {/* Spell slots */}
                     {p.isAlive && p.spellSlotsCurrent && (
-                      <SpellSlotDisplay participant={p} />
+                      <SpellSlotDisplay participant={p} canChange={isActive} />
                     )}
 
                     {/* Resource pools (M24.5) */}
@@ -1150,7 +1184,7 @@ function DmSessionView() {
                   </div>
 
                   {/* Quick action buttons */}
-                  {(isActive || encounter.status === 'PAUSED') && (
+                  {isActive && (
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                       {/* Monster actions toggle (M12) */}
                       {isMonster && (
@@ -1219,7 +1253,7 @@ function DmSessionView() {
               </div>
 
               {/* M12 Inline monster action panel */}
-              {expandedMonsterId === p.id && isMonster && (
+              {isActive && expandedMonsterId === p.id && isMonster && (
                 <InlineMonsterActions
                   participant={p}
                   participants={sorted}
@@ -1237,7 +1271,7 @@ function DmSessionView() {
         </div>
 
         {/* Combat log */}
-        <CombatLogPanel />
+        <CombatLogPanel canUseLegendaryResistance={isActive} />
       </main>
     </div>
   );

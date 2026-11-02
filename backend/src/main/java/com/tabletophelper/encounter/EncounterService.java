@@ -9,6 +9,7 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -40,6 +41,7 @@ public class EncounterService {
     private final ResourcePoolService resourcePoolService;
     private final MonsterSpellCastService monsterSpellCastService;
     private final AccessPolicy accessPolicy;
+    private final EncounterCommands encounterCommands;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -77,8 +79,7 @@ public class EncounterService {
 
     @Transactional
     public EncounterResponse addParticipant(UUID encounterId, AddParticipantRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         verifyStatus(encounter, EncounterStatus.PREPARING);
 
         ParticipantType type = parseParticipantType(request.getParticipantType());
@@ -210,8 +211,7 @@ public class EncounterService {
 
     @Transactional
     public EncounterResponse renameParticipant(UUID encounterId, UUID participantId, String newName, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
 
         encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(participantId))
@@ -226,8 +226,7 @@ public class EncounterService {
     @Transactional
     public EncounterResponse setParticipantVisibility(UUID encounterId, UUID participantId, boolean visible,
                                                       UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
 
         EncounterParticipant participant = encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(participantId))
@@ -243,8 +242,7 @@ public class EncounterService {
 
     @Transactional
     public EncounterResponse removeParticipant(UUID encounterId, UUID participantId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         verifyStatus(encounter, EncounterStatus.PREPARING);
 
         encounter.getParticipants().removeIf(p -> p.getId().equals(participantId));
@@ -253,8 +251,7 @@ public class EncounterService {
 
     @Transactional
     public EncounterResponse setInitiatives(UUID encounterId, BulkInitiativeRequest request, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
 
         Map<UUID, Integer> initiativeMap = request.getInitiatives().stream()
                 .collect(Collectors.toMap(SetInitiativeRequest::getParticipantId, SetInitiativeRequest::getInitiative));
@@ -272,8 +269,7 @@ public class EncounterService {
 
     @Transactional
     public EncounterResponse rollAllInitiatives(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
 
         for (EncounterParticipant p : encounter.getParticipants()) {
             int mod = p.getInitiativeModifier() != null ? p.getInitiativeModifier() : 0;
@@ -287,9 +283,8 @@ public class EncounterService {
 
     @Transactional
     public EncounterResponse startEncounter(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
-        verifyStatus(encounter, EncounterStatus.PREPARING);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
+        EncounterLifecycle.require(encounter, Transition.START);
 
         boolean allHaveInitiative = encounter.getParticipants().stream()
                 .allMatch(p -> p.getInitiative() != null);
@@ -313,25 +308,23 @@ public class EncounterService {
 
     @Transactional
     public EncounterResponse pauseEncounter(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
-        encounter.setStatus(EncounterStatus.PAUSED);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
+        EncounterLifecycle.apply(encounter, Transition.PAUSE);
         return toResponse(encounterRepository.save(encounter));
     }
 
     @Transactional
     public EncounterResponse resumeEncounter(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
-        encounter.setStatus(EncounterStatus.ACTIVE);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
+        EncounterLifecycle.apply(encounter, Transition.RESUME);
         return toResponse(encounterRepository.save(encounter));
     }
 
     @Transactional
     public EncounterResponse endEncounter(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
-        encounter.setStatus(EncounterStatus.COMPLETED);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
+        // Completed is final and the row is locked, so the pools below sync back once (D166)
+        EncounterLifecycle.apply(encounter, Transition.COMPLETE);
 
         // Sync resource pool currentUses back to character sheets
         for (EncounterParticipant p : encounter.getParticipants()) {
@@ -345,8 +338,7 @@ public class EncounterService {
 
     @Transactional
     public void deleteEncounter(UUID encounterId, UUID userId) {
-        Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         verifyStatus(encounter, EncounterStatus.PREPARING);
         encounterRepository.delete(encounter);
     }
