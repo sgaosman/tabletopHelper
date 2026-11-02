@@ -34,6 +34,12 @@ export const queryKeys = {
     /** What a participant can cast now and what pays for each spell: the DM's for anyone, a player's for their own. */
     spellOptions: (encounterId: string, view: EncounterView, participantId: string) =>
       ['encounters', encounterId, view, 'participants', participantId, 'spell-options'] as const,
+    /** The weapons a participant can attack with and their numbers: the DM's for anyone, a player's for their own. */
+    attackOptions: (encounterId: string, view: EncounterView, participantId: string) =>
+      ['encounters', encounterId, view, 'participants', participantId, 'attack-options'] as const,
+    /** A monster's multiattacks and the attacks each makes, which only the DM may read (D157, D165). */
+    multiattackOptions: (encounterId: string, participantId: string) =>
+      ['encounters', encounterId, 'dm', 'participants', participantId, 'multiattack-options'] as const,
   },
   monsters: {
     all: () => ['monsters'] as const,

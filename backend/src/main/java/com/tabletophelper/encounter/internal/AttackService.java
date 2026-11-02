@@ -1,33 +1,46 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.campaign.AccessPolicy;
+import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
+import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.WeaponRules;
+import com.tabletophelper.shared.NotFoundException;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Weapon attacks with the numbers the attacker gives (D022, until R5 workstream G calculates them). An attack
- * on an unconscious or paralyzed target has advantage, and a hit from within 5 feet is a critical hit; attacks
- * never hit automatically, and the dead can't be attacked (D161). A forced critical hit is a Manual Modifier
- * (D164).
+ * Weapon attacks (D164). A player character attacks with a weapon from their inventory, or an unarmed strike, and the
+ * server works out the ability, proficiency, attack bonus and damage, with Great Weapon Master's or Sharpshooter's
+ * trade when the character may take it. A magic weapon's bonus is added by hand as a Manual Modifier, and so is a
+ * forced critical hit; an attack entered by hand, for a weapon the server doesn't know, is a Manual Modifier
+ * altogether. The DM may always enter them, a player while the campaign allows it.
+ *
+ * <p>An attack on an unconscious or paralyzed target has advantage, and a hit from within 5 feet is a critical hit;
+ * attacks never hit automatically, and the dead can't be attacked (D161).
  */
 @Service
 @RequiredArgsConstructor
 public class AttackService {
 
     private final CombatAccess access;
+    private final AccessPolicy accessPolicy;
+    private final CharacterWeapons characterWeapons;
     private final Resolver resolver;
     private final CreatureStats stats;
     private final EffectApplier effectApplier;
@@ -35,36 +48,159 @@ public class AttackService {
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
+    // An attack ready to resolve: its Effect, how its entry reads, and the Manual Modifiers it uses
+    private record Prepared(Effect effect, String action, String preposition, String subject,
+                            List<ManualModifiers.Use> modifiers) {
+    }
+
     /**
-     * An attack by the actor, or by the DM as no one when actorParticipantId is null. A player attacks only
-     * with their own character on its turn (D028), and forces a critical hit only while the campaign allows
-     * players Manual Modifiers; the DM always may (D164).
+     * An attack by the actor, or by the DM as no one when actorParticipantId is null. A player attacks only with
+     * their own character on its turn (D028), and enters Manual Modifiers only while the campaign allows players
+     * them; the DM always may (D164). Everything is checked before anything rolls.
      */
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId,
                                         UUID userId) {
         Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
-        boolean forcedCritical = Boolean.TRUE.equals(request.getForceCrit());
-        List<ManualModifiers.Use> modifiers = ManualModifiers.forAttack(forcedCritical);
-        manualModifiers.require(encounter, userId, modifiers);
         EncounterParticipant actor = actorParticipantId != null
                 ? CombatAccess.participant(encounter, actorParticipantId) : null;
+        Prepared attack = request.getWeapon() != null ? weaponAttack(actor, request) : enteredAttack(actor, request);
+        manualModifiers.require(encounter, userId, attack.modifiers());
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
         CombatAccess.requireNotDead(List.of(target));
 
+        EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
+                CombatActionType.ATTACK, attack.action(), attack.preposition(), "", null);
+        manualModifiers.log(encounter, CombatActionType.ATTACK, actor, attack.subject(), userId, attack.modifiers());
+        effectApplier.apply(encounter, use, attack.effect(),
+                resolver.resolve(attack.effect(), List.of(stats.target(target, attack.effect()))));
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * The weapons a participant can attack with now, with the numbers the server works out (D164): a player
+     * character's inventory weapons and unarmed strike; none for a monster, whose attacks are its actions. The DM
+     * may read anyone's, a player only their own character's. It changes nothing, so it needs no lock and any
+     * status will do.
+     */
+    @Transactional(readOnly = true)
+    public List<AttackOption> attackOptions(UUID encounterId, UUID participantId, UUID userId) {
+        Encounter encounter = encounterRepository.findById(encounterId)
+                .orElseThrow(() -> new NotFoundException("Encounter not found"));
+        UUID campaignId = encounter.getCampaign().getId();
+        accessPolicy.requireMember(campaignId, userId);
+        EncounterParticipant participant = CombatAccess.target(encounter, participantId, userId);
+        accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
+        PlayerCharacter character = participant.getCharacter();
+        if (character == null) {
+            return List.of();
+        }
+        return characterWeapons.of(character).stream().map(held -> option(character, held)).toList();
+    }
+
+    private AttackOption option(PlayerCharacter character, CharacterWeapons.Held held) {
+        WeaponRules.Weapon weapon = held.weapon();
+        WeaponRules.Numbers numbers = characterWeapons.numbers(character, held, false);
+        AttackOption.PowerAttackOption powerAttack = null;
+        if (held.powerAttack() != null) {
+            WeaponRules.Numbers traded = characterWeapons.numbers(character, held, true);
+            powerAttack = new AttackOption.PowerAttackOption(held.powerAttack().featName(), traded.attackBonus(),
+                    traded.damage().toString());
+        }
+        return new AttackOption(weapon.name(), numbers.ability(), held.proficient(), numbers.attackBonus(),
+                numbers.damage().toString(), weapon.damageType(), weapon.ranged(), powerAttack);
+    }
+
+    // A player character's attack with a weapon they hold: the numbers are the server's, and what is added to them
+    // by hand is a Manual Modifier
+    private Prepared weaponAttack(EncounterParticipant actor, AttackRollRequest request) {
+        if (request.getAttackBonus() != null || request.getDamageDice() != null || request.getDamageType() != null) {
+            throw new ValidationException("A weapon attack takes its numbers from the weapon: add a magic bonus as an "
+                    + "extra attack bonus or extra damage");
+        }
+        if (actor == null || actor.getCharacter() == null) {
+            throw new ValidationException("Only a player character attacks with a weapon from their inventory");
+        }
+        PlayerCharacter character = actor.getCharacter();
+        CharacterWeapons.Held held = characterWeapons.find(character, request.getWeapon())
+                .orElseThrow(() -> new ValidationException(actor.getDisplayName() + " has no "
+                        + request.getWeapon().trim() + " to attack with"));
+        WeaponRules.Weapon weapon = held.weapon();
+        boolean powerAttack = Boolean.TRUE.equals(request.getPowerAttack());
+        if (powerAttack && held.powerAttack() == null) {
+            throw new ValidationException(powerAttackRefusal(actor, held));
+        }
+
+        WeaponRules.Numbers numbers = characterWeapons.numbers(character, held, powerAttack);
+        Dice extraDamage = extraDamage(request);
+        String extraType = extraDamage == null ? null
+                : request.getExtraDamageType() != null && !request.getExtraDamageType().isBlank()
+                        ? request.getExtraDamageType().trim().toLowerCase() : weapon.damageType();
+        List<Effect.DamagePart> damage = new ArrayList<>(List.of(new Effect.DamagePart(numbers.damage(),
+                weapon.damageType())));
+        if (extraDamage != null) {
+            damage.add(new Effect.DamagePart(extraDamage, extraType));
+        }
+        int attackBonus = numbers.attackBonus()
+                + (request.getExtraAttackBonus() != null ? request.getExtraAttackBonus() : 0);
+        // There is no map: a melee weapon attacks from within 5 feet, and a ranged one from beyond (D161)
+        boolean withinFiveFeet = request.getWithin5Ft() != null ? request.getWithin5Ft() : !weapon.ranged();
+        boolean forcedCritical = Boolean.TRUE.equals(request.getForceCrit());
+        String label = weapon.name() + (powerAttack ? " (" + held.powerAttack().featName() + ")" : "");
+
+        Effect effect = new Effect(label, new Effect.Attack(attackBonus, SpellEffects.rollMode(request.getAdvantage()),
+                withinFiveFeet, forcedCritical), damage, null, List.of(), false, null);
+        return new Prepared(effect, "uses " + label, "on", actor.getDisplayName() + "'s " + weapon.name() + " attack",
+                ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical));
+    }
+
+    // An attack whose numbers are all entered by hand: a Manual Modifier as a whole
+    private Prepared enteredAttack(EncounterParticipant actor, AttackRollRequest request) {
+        if (request.getAttackBonus() == null || request.getDamageDice() == null || request.getDamageDice().isBlank()) {
+            throw new ValidationException("Choose a weapon, or enter the attack bonus and damage dice");
+        }
+        if (request.getPowerAttack() != null || request.getExtraAttackBonus() != null
+                || request.getExtraDamageDice() != null || request.getExtraDamageType() != null) {
+            throw new ValidationException("Great Weapon Master, Sharpshooter and extra bonuses go with a weapon attack; "
+                    + "an attack entered by hand includes them in its numbers");
+        }
+        Dice damage = Dice.parse(request.getDamageDice());
         String damageType = request.getDamageType() != null && !request.getDamageType().isBlank()
                 ? request.getDamageType().trim().toLowerCase() : null;
+        boolean forcedCritical = Boolean.TRUE.equals(request.getForceCrit());
         Effect effect = new Effect("Attack",
                 new Effect.Attack(request.getAttackBonus(), SpellEffects.rollMode(request.getAdvantage()),
                         !Boolean.FALSE.equals(request.getWithin5Ft()), forcedCritical),
-                List.of(new Effect.DamagePart(Dice.parse(request.getDamageDice()), damageType)),
-                null, List.of(), false, null);
+                List.of(new Effect.DamagePart(damage, damageType)), null, List.of(), false, null);
+        String subject = actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack";
+        return new Prepared(effect, "attacks", "", subject,
+                ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical));
+    }
 
-        EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
-                CombatActionType.ATTACK, "attacks", "", null, null);
-        manualModifiers.log(encounter, CombatActionType.ATTACK, actor,
-                actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack", userId, modifiers);
-        effectApplier.apply(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))));
-        return encounterService.toResponse(encounterRepository.save(encounter));
+    // The extra damage entered for a weapon attack, such as "1d6" or "+1"; a type alone is a 400
+    private static Dice extraDamage(AttackRollRequest request) {
+        String dice = request.getExtraDamageDice();
+        if (dice == null || dice.isBlank()) {
+            if (request.getExtraDamageType() != null && !request.getExtraDamageType().isBlank()) {
+                throw new ValidationException("Enter the extra damage's dice along with its type");
+            }
+            return null;
+        }
+        String trimmed = dice.trim();
+        return Dice.parse(trimmed.startsWith("+") ? trimmed.substring(1).trim() : trimmed);
+    }
+
+    // Why the character can't take the trade with this weapon: the weapon allows neither, or they lack the feat or
+    // proficiency it needs
+    private String powerAttackRefusal(EncounterParticipant actor, CharacterWeapons.Held held) {
+        WeaponRules.Weapon weapon = held.weapon();
+        return WeaponRules.powerAttackFor(weapon)
+                .map(trade -> characterWeapons.feats(actor.getCharacter()).contains(trade)
+                        ? trade.featName() + " needs a weapon " + actor.getDisplayName() + " is proficient with, and "
+                                + actor.getDisplayName() + " isn't proficient with the " + weapon.name()
+                        : actor.getDisplayName() + " doesn't have the " + trade.featName() + " feat")
+                .orElse("Great Weapon Master needs a heavy melee weapon and Sharpshooter a ranged weapon, and "
+                        + (weapon == WeaponRules.UNARMED_STRIKE ? "an unarmed strike" : "the " + weapon.name())
+                        + " is neither");
     }
 }

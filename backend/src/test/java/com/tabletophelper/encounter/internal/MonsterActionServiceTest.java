@@ -6,6 +6,7 @@ import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
+import com.tabletophelper.encounter.dto.MultiattackOption;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -22,8 +23,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Monster actions (M12, D160). The old CombatServiceTest had no monster action cases; these cover the legendary,
- * recharge and lair rules it kept, and the monster paths through the EffectApplier, whose rules EffectApplierTest
- * runs on every path. Monster spells moved to SpellcastingServiceTest when they joined the one cast path (D165).
+ * recharge and lair rules it kept, the monster paths through the EffectApplier, whose rules EffectApplierTest runs on
+ * every path, and a multiattack's target per attack (D165). Monster spells moved to SpellcastingServiceTest when they
+ * joined the one cast path (D165).
  */
 class MonsterActionServiceTest {
 
@@ -64,7 +66,16 @@ class MonsterActionServiceTest {
     private MonsterActionResponse act(String action, String source, List<EncounterParticipant> targets, int... rolls) {
         f.dice.script(rolls);
         return f.monsterActions.monsterAction(f.encounterId(), new MonsterActionRequest(dragon.getId(), action, source,
-                targets.stream().map(EncounterParticipant::getId).toList(), null, null, null), f.dmUserId);
+                targets.stream().map(EncounterParticipant::getId).toList(), null, null, null, null), f.dmUserId);
+    }
+
+    // The dragon's multiattack with a list of targets for each of its attacks (D165)
+    private MonsterActionResponse multiattack(List<List<EncounterParticipant>> targets, int... rolls) {
+        f.dice.script(rolls);
+        return f.monsterActions.monsterAction(f.encounterId(), new MonsterActionRequest(dragon.getId(), "Multiattack",
+                "ACTION", List.of(), null, null, null,
+                targets.stream().map(each -> each.stream().map(EncounterParticipant::getId).toList()).toList()),
+                f.dmUserId);
     }
 
     private int pool(EncounterParticipant participant, String poolId) {
@@ -115,6 +126,108 @@ class MonsterActionServiceTest {
         assertEquals(LifeState.DEAD, goblin.getLifeState());
         assertEquals(1, response.targetResults().size());
         assertEquals(0, f.dice.remaining());
+    }
+
+    @Test
+    @DisplayName("A multiattack's attacks each go to the target chosen for them, each logged on its own entry (D165)")
+    void multiattackSplitAcrossTargets() {
+        EncounterParticipant goblin = f.monster("Goblin", 30, 12);
+
+        // Each claw hits for a flat 10: 15 + 10 against AC 18, then against AC 12
+        MonsterActionResponse response = multiattack(List.of(List.of(fighter), List.of(goblin)), 15, 15);
+
+        assertEquals(30, fighter.getHpCurrent());
+        assertEquals(20, goblin.getHpCurrent());
+        assertEquals(List.of(fighter.getId(), goblin.getId()), response.targetResults().stream()
+                .map(MonsterActionResponse.TargetResult::targetId).toList());
+        assertEquals(List.of("Young Dragon uses Multiattack.",
+                "Young Dragon uses Multiattack (Claw) on Fighter: d20(15) + 10 = 25 vs AC 18 — hit, 10 slashing damage.",
+                "Young Dragon uses Multiattack (Claw) on Goblin: d20(15) + 10 = 25 vs AC 12 — hit, 10 slashing damage."),
+                f.descriptions());
+    }
+
+    @Test
+    @DisplayName("A later attack skips a creature an earlier one killed, rolling nothing, and an empty list skips an attack")
+    void multiattackSkipsTheKilled() {
+        EncounterParticipant goblin = f.monster("Goblin", 7, 12);
+
+        MonsterActionResponse first = multiattack(List.of(List.of(goblin), List.of(goblin)), 15);
+        assertEquals(LifeState.DEAD, goblin.getLifeState());
+        assertEquals(1, first.targetResults().size());
+        assertEquals(0, f.dice.remaining());
+
+        MonsterActionResponse second = multiattack(List.of(List.of(), List.of(fighter)), 3);
+        assertEquals(List.of("MISS"), second.targetResults().stream()
+                .map(MonsterActionResponse.TargetResult::attackOutcome).toList());
+    }
+
+    @Test
+    @DisplayName("Targets per attack are a 400 unless one list each, within what each attack takes, with a target in "
+            + "all; more than one target for the whole multiattack is a 400 too, and nothing is spent or logged")
+    void multiattackTargetRefusals() {
+        EncounterParticipant goblin = f.monster("Goblin", 30, 12);
+        UUID fighterId = fighter.getId();
+        UUID goblinId = goblin.getId();
+
+        ValidationException tooFew = assertThrows(ValidationException.class,
+                () -> multiattack(List.of(List.of(fighter))));
+        ValidationException tooMany = assertThrows(ValidationException.class,
+                () -> multiattack(List.of(List.of(fighter, goblin), List.of())));
+        ValidationException none = assertThrows(ValidationException.class,
+                () -> multiattack(List.of(List.of(), List.of())));
+        ValidationException notMultiattack = assertThrows(ValidationException.class, () -> f.monsterActions
+                .monsterAction(f.encounterId(), new MonsterActionRequest(dragon.getId(), "Bite", "ACTION", List.of(),
+                        null, null, null, List.of(List.of(fighterId))), f.dmUserId));
+        ValidationException both = assertThrows(ValidationException.class, () -> f.monsterActions
+                .monsterAction(f.encounterId(), new MonsterActionRequest(dragon.getId(), "Multiattack", "ACTION",
+                        List.of(fighterId), null, null, null, List.of(List.of(fighterId), List.of(goblinId))),
+                        f.dmUserId));
+        ValidationException everyAttackAtEveryone = assertThrows(ValidationException.class,
+                () -> act("Multiattack", "ACTION", List.of(fighter, goblin)));
+
+        assertEquals("Multiattack makes 2 attacks, but targets were given for 1", tooFew.getMessage());
+        assertEquals("Claw can target 1 creature, but 2 were chosen", tooMany.getMessage());
+        assertEquals("Choose a target for at least one of Multiattack's attacks", none.getMessage());
+        assertEquals("Only a multiattack takes a target for each attack, and Bite isn't one", notMultiattack.getMessage());
+        assertEquals("Give Multiattack's targets attack by attack or for the whole action, not both", both.getMessage());
+        assertEquals("Multiattack makes its attacks one target at a time: choose a target for each attack",
+                everyAttackAtEveryone.getMessage());
+        assertEquals(40, fighter.getHpCurrent());
+        assertTrue(f.log.isEmpty());
+    }
+
+    @Test
+    @DisplayName("A multiattack the stat block doesn't let the server read is the DM's, and takes no targets per attack")
+    void unreadableMultiattack() {
+        dragon.getMonster().setActionTemplates("""
+                {"actions": [{"name": "Multiattack", "isMultiattack": true, "multiattackComponents": [],
+                  "multiattackDescription": "The dragon makes two melee attacks."}]}""");
+
+        MonsterActionResponse response = act("Multiattack", "ACTION", List.of(fighter));
+        ValidationException perAttack = assertThrows(ValidationException.class,
+                () -> multiattack(List.of(List.of(fighter))));
+
+        assertTrue(response.requiresManualResolution());
+        assertEquals("Multiattack has no components defined", response.manualResolutionReason());
+        assertEquals(List.of("Young Dragon uses Multiattack — Multiattack has no components defined"), f.descriptions());
+        assertEquals("Multiattack has no components defined, so its attacks can't take targets one by one",
+                perAttack.getMessage());
+    }
+
+    @Test
+    @DisplayName("The DM reads each multiattack's attacks for a target picker per attack; a player can't (D157)")
+    void multiattackOptions() {
+        UUID playerUserId = f.playerControlling(fighter);
+
+        List<MultiattackOption> options = f.monsterActions.multiattackOptions(f.encounterId(), dragon.getId(),
+                f.dmUserId);
+
+        assertEquals(List.of(new MultiattackOption("Multiattack", null, List.of(
+                new MultiattackOption.ComponentOption("Claw", true, null, 1),
+                new MultiattackOption.ComponentOption("Claw", true, null, 1)), null)), options);
+        assertTrue(f.monsterActions.multiattackOptions(f.encounterId(), fighter.getId(), f.dmUserId).isEmpty());
+        assertThrows(ForbiddenException.class,
+                () -> f.monsterActions.multiattackOptions(f.encounterId(), dragon.getId(), playerUserId));
     }
 
     @Test
@@ -228,7 +341,7 @@ class MonsterActionServiceTest {
 
         assertThrows(ValidationException.class, () -> act("Tail Swipe", "ACTION", List.of(fighter)));
         assertThrows(ForbiddenException.class, () -> f.monsterActions.monsterAction(f.encounterId(),
-                new MonsterActionRequest(dragon.getId(), "Bite", "ACTION", List.of(fighter.getId()), null, null, null),
-                playerUserId));
+                new MonsterActionRequest(dragon.getId(), "Bite", "ACTION", List.of(fighter.getId()), null, null, null,
+                        null), playerUserId));
     }
 }

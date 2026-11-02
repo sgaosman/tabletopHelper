@@ -188,6 +188,32 @@ export function useMonsterActionTemplates(participantId: string) {
 }
 
 /**
+ * A monster's multiattacks and the attacks each makes, for a target per attack; DM only (D157, D165). The stat block
+ * doesn't change during an encounter, so they load once.
+ */
+export function useMultiattackOptions(participantId: string) {
+  const { encounterId } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.multiattackOptions(encounterId, participantId),
+    queryFn: async () => (await combatApi.getMultiattackOptions(encounterId, participantId)).data,
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * The weapons a participant can attack with, with the numbers the server works out (D164). The sheet behind them
+ * can change between turns, so they load again each time they are shown.
+ */
+export function useAttackOptions(participantId: string) {
+  const { encounterId, view } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.attackOptions(encounterId, view, participantId),
+    queryFn: async () => (await combatApi.getAttackOptions(encounterId, participantId)).data,
+    staleTime: 0,
+  });
+}
+
+/**
  * The spells a participant can cast now, with what can pay for each (D164, D165). Casting spends slots and uses,
  * so the options load again each time they are shown.
  */

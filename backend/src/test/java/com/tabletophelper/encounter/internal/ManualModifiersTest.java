@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.rules.Dice;
 import com.tabletophelper.shared.ForbiddenException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,14 +50,32 @@ class ManualModifiersTest {
         assertEquals(List.of(new ManualModifiers.Use("uses spell attack bonus -1")),
                 ManualModifiers.forSpell(wizard, -1, null));
         assertTrue(ManualModifiers.forSpell(wizard, null, null).isEmpty());
-        assertTrue(ManualModifiers.forAttack(false).isEmpty());
+    }
+
+    @Test
+    @DisplayName("A weapon attack's additions are each a use, a bonus of 0 none; an attack entered by hand is one whole")
+    void attackUses() {
+        assertEquals(List.of(new ManualModifiers.Use("adds +1 to the attack roll"),
+                        new ManualModifiers.Use("adds 2d6 fire damage"),
+                        new ManualModifiers.Use("is a critical hit")),
+                ManualModifiers.forWeaponAttack(1, Dice.parse("2d6"), "fire", true));
+        assertEquals(List.of(new ManualModifiers.Use("adds -2 to the attack roll")),
+                ManualModifiers.forWeaponAttack(-2, null, null, false));
+        assertTrue(ManualModifiers.forWeaponAttack(0, null, null, false).isEmpty());
+        assertTrue(ManualModifiers.forWeaponAttack(null, null, null, false).isEmpty());
+
+        assertEquals(List.of(new ManualModifiers.Use("uses attack bonus +7 and 1d8 + 4 slashing damage")),
+                ManualModifiers.forEnteredAttack(7, Dice.parse("1d8+4"), "slashing", false));
+        assertEquals(List.of(new ManualModifiers.Use("uses attack bonus -1 and 3 damage"),
+                        new ManualModifiers.Use("is a critical hit")),
+                ManualModifiers.forEnteredAttack(-1, Dice.parse("3"), null, true));
     }
 
     @Test
     @DisplayName("A player is refused with a 403 only when the campaign disallows them and something was entered")
     void requireForPlayers() {
         UUID playerUserId = f.playerControlling(wizard);
-        List<ManualModifiers.Use> crit = ManualModifiers.forAttack(true);
+        List<ManualModifiers.Use> crit = ManualModifiers.forWeaponAttack(null, null, null, true);
 
         f.manualModifiers.require(f.encounter, playerUserId, crit);
         f.campaign.setAllowPlayerManualModifiers(false);

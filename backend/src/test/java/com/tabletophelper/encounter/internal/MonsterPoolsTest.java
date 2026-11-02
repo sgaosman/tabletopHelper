@@ -260,8 +260,8 @@ class MonsterPoolsTest {
     @DisplayName("Reading the stat block's spells")
     class Spellbook {
 
-        private MonsterSpellbook read(String templates) throws Exception {
-            return MonsterSpellbook.read(objectMapper.readTree(templates));
+        private MonsterSpellbook read(String templates) {
+            return MonsterSpellbook.read(MonsterTemplates.parse(objectMapper, templates, "The templates"));
         }
 
         @Test
@@ -308,7 +308,7 @@ class MonsterPoolsTest {
         @DisplayName("A monster without a spellcasting block has none")
         void none() throws Exception {
             assertFalse(read("{\"actions\": []}").present());
-            assertFalse(MonsterSpellbook.read(null).present());
+            assertFalse(MonsterSpellbook.read(MonsterTemplates.NONE).present());
             assertTrue(read("{\"spellcasting\": {}}").present());
         }
 

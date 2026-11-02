@@ -33,6 +33,7 @@ public class CombatController {
     private final HitPointService hitPointService;
     private final EncounterService encounterService;
 
+    // A weapon attack the server works out, or an attack entered by hand, which is a Manual Modifier (D164)
     @PostMapping("/attack")
     public ResponseEntity<EncounterResponse> rollAttack(
             @PathVariable UUID encounterId,
@@ -42,6 +43,17 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = attackService.rollAttack(encounterId, request, actorId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The weapons the participant can attack with and the numbers for each: the DM's for anyone, a player's for
+    // their own character (D164)
+    @GetMapping("/attack-options")
+    public ResponseEntity<List<AttackOption>> getAttackOptions(
+            @PathVariable UUID encounterId,
+            @RequestParam UUID participantId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(attackService.attackOptions(encounterId, participantId, userId));
     }
 
     // The DM's alone (D028, D161)
@@ -200,6 +212,16 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = turnService.previousTurn(encounterId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // A monster's multiattacks and the attacks each makes, for a target per attack: the DM's alone (D157, D165)
+    @GetMapping("/multiattack-options")
+    public ResponseEntity<List<MultiattackOption>> getMultiattackOptions(
+            @PathVariable UUID encounterId,
+            @RequestParam UUID participantId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(monsterActionService.multiattackOptions(encounterId, participantId, userId));
     }
 
     // actorId stays in the API but goes unused: the request names the monster

@@ -239,7 +239,7 @@ class EffectApplierTest {
     // The ogre's action against the targets
     private MonsterActionRequest monsterAction(String name, EncounterParticipant... targets) {
         return new MonsterActionRequest(ogre.getId(), name, "ACTION",
-                Arrays.stream(targets).map(EncounterParticipant::getId).toList(), null, null, null);
+                Arrays.stream(targets).map(EncounterParticipant::getId).toList(), null, null, null, null);
     }
 
     private void ogreAction(String action) {
@@ -822,7 +822,8 @@ class EffectApplierTest {
         }
 
         @Test
-        @DisplayName("A weapon attack and the DM's damage write one entry about their target")
+        @DisplayName("An attack entered by hand and the DM's damage write one entry about their target, and the "
+                + "attack's Manual Modifier entry names none (D164)")
         void singleTargetPathsWriteOneEntry() {
             EncounterParticipant goblin = f.monster("Goblin", 30, 15);
 
@@ -830,8 +831,10 @@ class EffectApplierTest {
             damage(Path.MANUAL, goblin, 3, null);
 
             assertEquals(List.of(
+                    "Manual Modifier (DM): Rogue's attack uses attack bonus +30 and 4 slashing damage.",
                     "Rogue attacks Goblin: d20(15) + 30 = 45 vs AC 15 — hit, 4 slashing damage.",
                     "DM deals 3 damage to Goblin"), f.descriptions());
+            assertEquals(2, f.entriesAbout(goblin).size());
         }
     }
 }

@@ -796,6 +796,49 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/attack-options": {
+      "get": {
+        "operationId": "getAttackOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttackOption"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/cast-spell": {
       "post": {
         "operationId": "castSpell",
@@ -1306,6 +1349,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MonsterActionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/multiattack-options": {
+      "get": {
+        "operationId": "getMultiattackOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MultiattackOption"
+                  }
                 }
               }
             },
@@ -3279,10 +3365,60 @@
           }
         }
       },
+      "AttackOption": {
+        "required": [
+          "ability",
+          "attackBonus",
+          "damage",
+          "proficient",
+          "ranged",
+          "weapon"
+        ],
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string",
+            "enum": [
+              "STR",
+              "DEX",
+              "CON",
+              "INT",
+              "WIS",
+              "CHA"
+            ]
+          },
+          "attackBonus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "damage": {
+            "type": "string"
+          },
+          "damageType": {
+            "type": "string",
+            "nullable": true
+          },
+          "powerAttack": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PowerAttackOption"
+              }
+            ]
+          },
+          "proficient": {
+            "type": "boolean"
+          },
+          "ranged": {
+            "type": "boolean"
+          },
+          "weapon": {
+            "type": "string"
+          }
+        }
+      },
       "AttackRollRequest": {
         "required": [
-          "attackBonus",
-          "damageDice",
           "targetId"
         ],
         "type": "object",
@@ -3293,12 +3429,27 @@
           },
           "attackBonus": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
           "damageDice": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "damageType": {
+            "type": "string",
+            "nullable": true
+          },
+          "extraAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "extraDamageDice": {
+            "type": "string",
+            "nullable": true
+          },
+          "extraDamageType": {
             "type": "string",
             "nullable": true
           },
@@ -3306,9 +3457,17 @@
             "type": "boolean",
             "nullable": true
           },
+          "powerAttack": {
+            "type": "boolean",
+            "nullable": true
+          },
           "targetId": {
             "type": "string",
             "format": "uuid"
+          },
+          "weapon": {
+            "type": "string",
+            "nullable": true
           },
           "within5Ft": {
             "type": "boolean",
@@ -4697,6 +4856,30 @@
           }
         }
       },
+      "ComponentOption": {
+        "required": [
+          "automated",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "automated": {
+            "type": "boolean"
+          },
+          "manualReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "maxTargets": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ConcentrationRequest": {
         "required": [
           "participantId"
@@ -5512,6 +5695,17 @@
             "type": "boolean",
             "nullable": true
           },
+          "componentTargetIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
           "monsterParticipantId": {
             "type": "string",
             "format": "uuid"
@@ -5592,6 +5786,32 @@
           "totalHealing": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "MultiattackOption": {
+        "required": [
+          "components",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComponentOption"
+            }
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "manualReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -6125,6 +6345,26 @@
           },
           "subclassRequired": {
             "type": "boolean"
+          }
+        }
+      },
+      "PowerAttackOption": {
+        "required": [
+          "attackBonus",
+          "damage",
+          "feat"
+        ],
+        "type": "object",
+        "properties": {
+          "attackBonus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "damage": {
+            "type": "string"
+          },
+          "feat": {
+            "type": "string"
           }
         }
       },

@@ -1,12 +1,12 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.RollMode;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,7 +16,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Reading monster action templates into Effects (D160). The old MonsterActionResolverEngine had no tests of
- * its own; these cover what it read, and every DAMAGE part, which it cut to the first.
+ * its own; these cover what it read, and every DAMAGE part, which it cut to the first. The multiattack cases read
+ * the seeded data of the Adult Red Dragon (MM), Tashlyn Yafeera, Orcus, the Cult Fanatic and the Scion of Thrym
+ * (D165).
  */
 class MonsterEffectsTest {
 
@@ -25,22 +27,32 @@ class MonsterEffectsTest {
     private final MonsterEffects monsterEffects = new MonsterEffects(dice);
     private final UUID aria = UUID.randomUUID();
     private final UUID bram = UUID.randomUUID();
+    private final UUID cass = UUID.randomUUID();
 
-    private JsonNode json(String text) throws Exception {
-        return objectMapper.readTree(text);
+    private MonsterTemplates templates(String json) {
+        return MonsterTemplates.parse(objectMapper, json, "The templates");
     }
 
-    private MonsterEffects.MonsterAction plan(String action, String templates, List<UUID> targets) throws Exception {
-        return monsterEffects.plan(json(action), json(templates), targets, null, null, null);
+    // The action, read as the only one in a monster's actions
+    private MonsterTemplates.Action action(String json) {
+        return templates("{\"actions\": [" + json + "]}").actions().getFirst();
+    }
+
+    private MonsterEffects.MonsterAction plan(String action, List<UUID> targets) {
+        return monsterEffects.plan(action(action), MonsterTemplates.NONE, targets, MonsterEffects.Overrides.NONE);
+    }
+
+    private MonsterEffects.MonsterAction plan(String action, List<UUID> targets, MonsterEffects.Overrides overrides) {
+        return monsterEffects.plan(action(action), MonsterTemplates.NONE, targets, overrides);
     }
 
     @Test
     @DisplayName("Every DAMAGE part counts, each with its own damage type")
-    void everyDamagePart() throws Exception {
+    void everyDamagePart() {
         var plan = plan("""
                 {"name": "Bite", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 8, "attackType": "MELEE_WEAPON",
                  "effects": [{"effectType": "DAMAGE", "damageDice": "2d10 + 6", "damageType": "piercing"},
-                             {"effectType": "DAMAGE", "damageDice": "2d6", "damageType": "Fire"}]}""", "{}", List.of(aria));
+                             {"effectType": "DAMAGE", "damageDice": "2d6", "damageType": "Fire"}]}""", List.of(aria));
 
         Effect effect = plan.steps().getFirst().effect();
         assertEquals(List.of(new Effect.DamagePart(Dice.parse("2d10+6"), "piercing"),
@@ -50,11 +62,12 @@ class MonsterEffectsTest {
     }
 
     @Test
-    @DisplayName("A ranged attack counts as beyond 5 feet; a flat amount is damage too")
-    void rangedAttackAndFlatDamage() throws Exception {
+    @DisplayName("A ranged attack counts as beyond 5 feet; a flat amount, as an octopus deals, is damage too")
+    void rangedAttackAndFlatDamage() {
         var plan = plan("""
                 {"name": "Spit", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 4, "attackType": "RANGED_WEAPON",
-                 "effects": [{"effectType": "DAMAGE", "flatDamage": 1, "damageType": "acid"}]}""", "{}", List.of(aria));
+                 "effects": [{"damageDice": "1", "damageType": "acid", "effectType": "DAMAGE", "flatDamage": true}]}""",
+                List.of(aria));
 
         Effect effect = plan.steps().getFirst().effect();
         assertFalse(((Effect.Attack) effect.delivery()).withinFiveFeet());
@@ -63,11 +76,11 @@ class MonsterEffectsTest {
 
     @Test
     @DisplayName("A saving throw reads its ability, DC and half on a success, and its conditions")
-    void savingThrow() throws Exception {
+    void savingThrow() {
         var plan = plan("""
                 {"name": "Fire Breath", "deliveryMethod": "SAVING_THROW", "saveDC": 21, "saveAbility": "DEX",
                  "halfOnSave": true, "effects": [{"effectType": "DAMAGE", "damageDice": "18d6", "damageType": "fire"},
-                 {"effectType": "CONDITION", "condition": "Frightened"}]}""", "{}", List.of(aria, bram));
+                 {"effectType": "CONDITION", "condition": "Frightened"}]}""", List.of(aria, bram));
 
         Effect effect = plan.steps().getFirst().effect();
         assertEquals(new Effect.Save(Ability.DEX, 21, true), effect.delivery());
@@ -77,7 +90,7 @@ class MonsterEffectsTest {
 
     @Test
     @DisplayName("A condition keeps its rounds and its Repeat Save, whose DC and ability default to the action's (D162)")
-    void conditionEnds() throws Exception {
+    void conditionEnds() {
         var plan = plan("""
                 {"name": "Chilling Gaze", "deliveryMethod": "SAVING_THROW", "saveDC": 18, "saveAbility": "CON",
                  "effects": [{"effectType": "CONDITION", "condition": "paralyzed", "durationRounds": 10,
@@ -85,8 +98,7 @@ class MonsterEffectsTest {
                              {"effectType": "CONDITION", "condition": "frightened", "durationRounds": 10,
                               "saveToEndEachTurn": true, "saveToEndDC": 15, "saveToEndAbility": "WIS"},
                              {"effectType": "CONDITION", "condition": "stunned", "durationRounds": 1},
-                             {"effectType": "CONDITION", "condition": "grappled", "escapeDC": 14}]}""",
-                "{}", List.of(aria));
+                             {"effectType": "CONDITION", "condition": "grappled", "escapeDC": 14}]}""", List.of(aria));
 
         Effect effect = plan.steps().getFirst().effect();
         assertEquals(new Effect.ConditionEnd(10, new Effect.RepeatSave(Ability.CON, 18)),
@@ -99,11 +111,11 @@ class MonsterEffectsTest {
 
     @Test
     @DisplayName("The DM's override of the DC is the Repeat Save's DC too")
-    void overrideRepeatSaveDc() throws Exception {
-        var plan = monsterEffects.plan(json("""
+    void overrideRepeatSaveDc() {
+        var plan = plan("""
                 {"name": "Gaze", "deliveryMethod": "SAVING_THROW", "saveDC": 12, "saveAbility": "WIS",
                  "effects": [{"effectType": "CONDITION", "condition": "charmed", "saveToEndEachTurn": true,
-                              "saveToEndDC": 12}]}"""), json("{}"), List.of(aria), null, 16, null);
+                              "saveToEndDC": 12}]}""", List.of(aria), new MonsterEffects.Overrides(null, 16, null));
 
         assertEquals(new Effect.RepeatSave(Ability.WIS, 16),
                 plan.steps().getFirst().effect().conditionEnds().get("charmed").repeatSave());
@@ -111,15 +123,15 @@ class MonsterEffectsTest {
 
     @Test
     @DisplayName("The DM's override replaces the template's attack bonus or DC")
-    void overrides() throws Exception {
-        var attack = monsterEffects.plan(json("""
+    void overrides() {
+        var attack = plan("""
                 {"name": "Claw", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 4,
-                 "effects": [{"effectType": "DAMAGE", "damageDice": "1d6", "damageType": "slashing"}]}"""),
-                json("{}"), List.of(aria), 9, null, true);
-        var save = monsterEffects.plan(json("""
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "1d6", "damageType": "slashing"}]}""",
+                List.of(aria), new MonsterEffects.Overrides(9, null, true));
+        var save = plan("""
                 {"name": "Gaze", "deliveryMethod": "SAVING_THROW", "saveDC": 12, "saveAbility": "WIS",
-                 "effects": [{"effectType": "CONDITION", "condition": "charmed"}]}"""),
-                json("{}"), List.of(aria), null, 16, null);
+                 "effects": [{"effectType": "CONDITION", "condition": "charmed"}]}""",
+                List.of(aria), new MonsterEffects.Overrides(null, 16, null));
 
         assertEquals(new Effect.Attack(9, RollMode.ADVANTAGE, true, false), attack.steps().getFirst().effect().delivery());
         assertEquals(16, ((Effect.Save) save.steps().getFirst().effect().delivery()).dc());
@@ -127,13 +139,13 @@ class MonsterEffectsTest {
 
     @Test
     @DisplayName("AUTO_DAMAGE applies its damage without its conditions, and AUTO_HIT with them")
-    void automaticDeliveries() throws Exception {
+    void automaticDeliveries() {
         String effects = "[{\"effectType\": \"DAMAGE\", \"damageDice\": \"2d6\", \"damageType\": \"poison\"},"
                 + " {\"effectType\": \"CONDITION\", \"condition\": \"poisoned\"}]";
 
         var autoDamage = plan("{\"name\": \"Aura\", \"deliveryMethod\": \"AUTO_DAMAGE\", \"effects\": " + effects + "}",
-                "{}", List.of(aria));
-        var autoHit = plan("{\"name\": \"Cloud\", \"effects\": " + effects + "}", "{}", List.of(aria));
+                List.of(aria));
+        var autoHit = plan("{\"name\": \"Cloud\", \"effects\": " + effects + "}", List.of(aria));
 
         assertTrue(autoDamage.steps().getFirst().effect().conditions().isEmpty());
         assertInstanceOf(Effect.Automatic.class, autoHit.steps().getFirst().effect().delivery());
@@ -142,29 +154,29 @@ class MonsterEffectsTest {
 
     @Test
     @DisplayName("Actions the template leaves to the DM come back with the reason and no steps")
-    void manualActions() throws Exception {
+    void manualActions() {
         assertEquals("Change Shape description", plan("""
                 {"name": "Change Shape", "automatable": false, "description": "Change Shape description"}""",
-                "{}", List.of()).manualReason());
+                List.of()).manualReason());
         assertEquals("Delivery method 'NONE' requires DM adjudication", plan("""
                 {"name": "Frightful Presence", "deliveryMethod": "NONE",
-                 "effects": [{"effectType": "CONDITION", "condition": "frightened"}]}""", "{}", List.of()).manualReason());
+                 "effects": [{"effectType": "CONDITION", "condition": "frightened"}]}""", List.of()).manualReason());
         assertEquals("Action contains BUFF effect type requiring DM adjudication", plan("""
                 {"name": "Roar", "effects": [{"effectType": "BUFF", "description": "Allies gain advantage"}]}""",
-                "{}", List.of()).manualReason());
+                List.of()).manualReason());
         assertEquals("Bad's damage dice can't be rolled automatically", plan("""
                 {"name": "Bad", "deliveryMethod": "ATTACK_ROLL",
                  "effects": [{"effectType": "DAMAGE", "damageDice": "lots", "damageType": "fire"}]}""",
-                "{}", List.of()).manualReason());
+                List.of()).manualReason());
     }
 
     @Test
     @DisplayName("Healing is left to the DM, with a note, and the rest of the action still resolves")
-    void healingIsLeftToTheDm() throws Exception {
+    void healingIsLeftToTheDm() {
         var plan = plan("""
                 {"name": "Drain", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 5,
                  "effects": [{"effectType": "DAMAGE", "damageDice": "1d8", "damageType": "necrotic"},
-                             {"effectType": "HEAL", "healingDice": "1d8"}]}""", "{}", List.of(aria));
+                             {"effectType": "HEAL", "healingDice": "1d8"}]}""", List.of(aria));
 
         assertTrue(plan.automated());
         assertEquals(List.of("Drain's healing is left to the DM."), plan.notes());
@@ -172,28 +184,8 @@ class MonsterEffectsTest {
     }
 
     @Test
-    @DisplayName("A multiattack becomes one step per component, found in any of the monster's action lists")
-    void multiattack() throws Exception {
-        String templates = """
-                {"actions": [{"name": "Bite", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 7,
-                              "effects": [{"effectType": "DAMAGE", "damageDice": "1d10", "damageType": "piercing"}]},
-                             {"name": "Claw", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 7,
-                              "effects": [{"effectType": "DAMAGE", "damageDice": "1d6", "damageType": "slashing"}]}],
-                 "legendaryActions": [{"name": "Tail", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 7,
-                              "effects": [{"effectType": "DAMAGE", "damageDice": "2d8", "damageType": "bludgeoning"}]}]}""";
-
-        var plan = plan("""
-                {"name": "Multiattack", "isMultiattack": true,
-                 "multiattackComponents": ["Bite", "claw", "Claw", "Tail", "Wing"]}""", templates, List.of(aria));
-
-        assertEquals(List.of("Bite", "Claw", "Claw", "Tail"), plan.steps().stream().map(MonsterEffects.Step::label).toList());
-        assertEquals(List.of("Component 'Wing' not found."), plan.notes());
-        assertTrue(plan.automated());
-    }
-
-    @Test
     @DisplayName("Eye Rays fire rayCount rays chosen by the dice, each a save against the next target in turn")
-    void eyeRays() throws Exception {
+    void eyeRays() {
         dice.script(1, 1);
         var plan = plan("""
                 {"name": "Eye Rays", "isEyeRays": true, "rayCount": 2, "rays": [
@@ -203,7 +195,7 @@ class MonsterEffectsTest {
                    "effects": [{"effectType": "CONDITION", "condition": "paralyzed"}]},
                   {"name": "Death Ray", "saveDC": 16, "halfOnSave": true,
                    "effects": [{"effectType": "DAMAGE", "damageDice": "10d10", "damageType": "necrotic"}]}]}""",
-                "{}", List.of(aria, bram));
+                List.of(aria, bram));
 
         // Shuffling with 1, 1 swaps the last ray to the front, then swaps the first two
         assertEquals(List.of("Paralyzing Ray", "Death Ray"),
@@ -217,10 +209,145 @@ class MonsterEffectsTest {
 
     @Test
     @DisplayName("Eye Rays without targets or rays are left to the DM")
-    void eyeRaysWithoutTargets() throws Exception {
+    void eyeRaysWithoutTargets() {
         assertEquals("No valid targets for eye rays", plan("""
-                {"name": "Eye Rays", "isEyeRays": true, "rays": [{"name": "Ray"}]}""", "{}", List.of()).manualReason());
+                {"name": "Eye Rays", "isEyeRays": true, "rays": [{"name": "Ray"}]}""", List.of()).manualReason());
         assertEquals("Eye Rays has no rays defined", plan("""
-                {"name": "Eye Rays", "isEyeRays": true, "rays": []}""", "{}", List.of(aria)).manualReason());
+                {"name": "Eye Rays", "isEyeRays": true, "rays": []}""", List.of(aria)).manualReason());
+    }
+
+    @Nested
+    @DisplayName("Multiattack (D165)")
+    class Multiattacks {
+
+        private final MonsterTemplates dragon = templates(MonsterTemplatesTest.ADULT_RED_DRAGON);
+
+        private MonsterEffects.Multiattack read(MonsterTemplates monster) {
+            MonsterTemplates.Action multiattack = monster.actions().stream()
+                    .filter(MonsterTemplates.Action::multiattack).findFirst().orElseThrow();
+            return monsterEffects.multiattack(multiattack, monster, MonsterEffects.Overrides.NONE);
+        }
+
+        @Test
+        @DisplayName("The Adult Red Dragon's components are its Frightful Presence, which takes any number of "
+                + "targets, then a bite and two claws, one target each")
+        void adultRedDragon() {
+            MonsterEffects.Multiattack multiattack = read(dragon);
+
+            assertTrue(multiattack.readable());
+            assertEquals("The dragon can use its Frightful Presence. It then makes three attacks: one with its bite "
+                    + "and two with its claws.", multiattack.description());
+            assertEquals(List.of("Frightful Presence", "Bite", "Claw", "Claw"),
+                    multiattack.components().stream().map(MonsterEffects.MultiattackComponent::name).toList());
+            assertEquals(java.util.Arrays.asList(null, 1, 1, 1),
+                    multiattack.components().stream().map(MonsterEffects.MultiattackComponent::maxTargets).toList());
+            assertTrue(multiattack.components().stream().allMatch(MonsterEffects.MultiattackComponent::automated));
+            assertEquals(new Effect.Save(Ability.WIS, 19, false),
+                    multiattack.components().getFirst().effect().delivery());
+            assertEquals(new Effect.Attack(14, RollMode.NORMAL, true, false),
+                    multiattack.components().get(1).effect().delivery());
+        }
+
+        @Test
+        @DisplayName("Each component goes to the targets chosen for it, an empty list skipping it")
+        void targetsPerComponent() {
+            var plan = monsterEffects.multiattack(read(dragon),
+                    List.of(List.of(aria, bram), List.of(aria), List.of(), List.of(cass)));
+
+            assertTrue(plan.automated());
+            assertEquals(List.of("Frightful Presence", "Bite", "Claw"),
+                    plan.steps().stream().map(MonsterEffects.Step::label).toList());
+            assertEquals(List.of(List.of(aria, bram), List.of(aria), List.of(cass)),
+                    plan.steps().stream().map(MonsterEffects.Step::targetIds).toList());
+        }
+
+        @Test
+        @DisplayName("Without targets per component, every component goes to the same targets, as before")
+        void sameTargets() {
+            MonsterTemplates.Action multiattack = dragon.actions().getFirst();
+
+            var plan = monsterEffects.plan(multiattack, dragon, List.of(aria), MonsterEffects.Overrides.NONE);
+
+            assertEquals(4, plan.steps().size());
+            assertTrue(plan.steps().stream().allMatch(step -> step.targetIds().equals(List.of(aria))));
+        }
+
+        @Test
+        @DisplayName("Tashlyn's choice of three greatsword or three shortbow attacks reads as the components listed")
+        void optionsReadAsListed() {
+            MonsterTemplates tashlyn = templates("""
+                    {"actions": [
+                      {"name": "Multiattack", "actionType": "ACTION", "isMultiattack": true,
+                       "multiattackOptions": [{"name": "Greatsword", "count": 3}, {"name": "Shortbow", "count": 3}],
+                       "multiattackComponents": ["Greatsword", "Greatsword", "Greatsword"],
+                       "multiattackDescription": "Tashlyn makes three attacks with her greatsword or her shortbow."},
+                      {"name": "Greatsword", "reach": 5, "effects": [{"damageDice": "2d6 + 4", "damageType": "slashing",
+                        "effectType": "DAMAGE"}], "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 8,
+                       "targetCount": 1, "deliveryMethod": "ATTACK_ROLL"}]}""");
+
+            MonsterEffects.Multiattack multiattack = read(tashlyn);
+
+            assertTrue(multiattack.readable());
+            assertEquals(3, multiattack.components().size());
+        }
+
+        @Test
+        @DisplayName("Without components, with one naming no action, as Orcus's fragment does, or with an and/or "
+                + "pattern the data leaves to review, a multiattack is the DM's")
+        void unreadable() {
+            MonsterTemplates fanatic = templates("""
+                    {"actions": [{"name": "Multiattack", "actionType": "ACTION", "isMultiattack": true,
+                      "multiattackComponents": [], "multiattackDescription": "The fanatic makes two melee attacks."}]}""");
+            MonsterTemplates orcus = templates("""
+                    {"actions": [{"name": "Multiattack", "actionType": "ACTION", "isMultiattack": true,
+                      "multiattackComponents": ["Of Orcus"], "multiattackDescription": "Orcus makes two Wand of Orcus attacks.",
+                      "hasUnresolvedComponents": true}]}""");
+            MonsterTemplates scion = templates("""
+                    {"actions": [{"name": "Multiattack", "actionType": "ACTION", "isMultiattack": true,
+                      "_multiattackNote": " REVIEW: Complex multiattack with and/or pattern",
+                      "multiattackComponents": ["Glacier Throw", "Ice Axe", "Slam"],
+                      "multiattackDescription": "The scion makes one Ice Axe and two Slam attacks, or it makes two Glacier Throw attacks."},
+                      {"name": "Slam", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 17,
+                       "effects": [{"damageDice": "4d10 + 10", "damageType": "force", "effectType": "DAMAGE"}]}]}""");
+            MonsterTemplates unnamed = templates("""
+                    {"actions": [{"name": "Multiattack", "isMultiattack": true, "multiattackComponents": ["Bite", "Wing"]},
+                      {"name": "Bite", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 4,
+                       "effects": [{"damageDice": "1d6", "damageType": "piercing", "effectType": "DAMAGE"}]}]}""");
+
+            assertEquals("Multiattack has no components defined", read(fanatic).unreadable());
+            assertEquals("Multiattack names Of Orcus, which isn't one of its actions", read(orcus).unreadable());
+            assertEquals("Multiattack's attacks can't be read from its stat block", read(scion).unreadable());
+            assertEquals("Multiattack names Wing, which isn't one of its actions", read(unnamed).unreadable());
+            assertTrue(read(unnamed).components().isEmpty());
+            assertEquals("Orcus makes two Wand of Orcus attacks.", read(orcus).description());
+
+            var plan = monsterEffects.plan(orcus.actions().getFirst(), orcus, List.of(aria),
+                    MonsterEffects.Overrides.NONE);
+            assertFalse(plan.automated());
+            assertTrue(plan.steps().isEmpty());
+        }
+
+        @Test
+        @DisplayName("A component the DM resolves takes no targets and is noted once; the overrides reach every component")
+        void manualComponentAndOverrides() {
+            MonsterTemplates monster = templates("""
+                    {"actions": [{"name": "Multiattack", "isMultiattack": true,
+                       "multiattackComponents": ["Pacify", "Claw", "Claw"]},
+                      {"name": "Pacify", "automatable": false, "description": "The psurlon calms a creature."},
+                      {"name": "Claw", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 5,
+                       "effects": [{"damageDice": "1d6", "damageType": "slashing", "effectType": "DAMAGE"},
+                                   {"effectType": "HEAL", "healingDice": "1d4"}]}]}""");
+            MonsterEffects.Multiattack multiattack = monsterEffects.multiattack(monster.actions().getFirst(), monster,
+                    new MonsterEffects.Overrides(9, null, null));
+
+            var plan = monsterEffects.multiattack(multiattack, List.of(List.of(aria), List.of(aria), List.of(bram)));
+
+            assertFalse(multiattack.components().getFirst().automated());
+            assertNull(multiattack.components().getFirst().maxTargets());
+            assertEquals(List.of("Claw", "Claw"), plan.steps().stream().map(MonsterEffects.Step::label).toList());
+            assertEquals(new Effect.Attack(9, RollMode.NORMAL, true, false), plan.steps().getFirst().effect().delivery());
+            assertEquals(List.of("Pacify: The psurlon calms a creature.", "Claw's healing is left to the DM."),
+                    plan.notes());
+        }
     }
 }

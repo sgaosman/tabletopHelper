@@ -324,6 +324,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/attack-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAttackOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/cast-spell": {
         parameters: {
             query?: never;
@@ -510,6 +526,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["monsterAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/multiattack-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMultiattackOptions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1386,15 +1418,33 @@ export interface components {
             type?: "ability" | "feat" | null;
             weaponChoices?: string[] | null;
         };
+        AttackOption: {
+            /** @enum {string} */
+            ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+            /** Format: int32 */
+            attackBonus: number;
+            damage: string;
+            damageType?: string | null;
+            powerAttack?: components["schemas"]["PowerAttackOption"] | null;
+            proficient: boolean;
+            ranged: boolean;
+            weapon: string;
+        };
         AttackRollRequest: {
             advantage?: boolean | null;
             /** Format: int32 */
-            attackBonus: number;
-            damageDice: string;
+            attackBonus?: number | null;
+            damageDice?: string | null;
             damageType?: string | null;
+            /** Format: int32 */
+            extraAttackBonus?: number | null;
+            extraDamageDice?: string | null;
+            extraDamageType?: string | null;
             forceCrit?: boolean | null;
+            powerAttack?: boolean | null;
             /** Format: uuid */
             targetId: string;
+            weapon?: string | null;
             within5Ft?: boolean | null;
         };
         AuthResponse: {
@@ -1798,6 +1848,13 @@ export interface components {
             targetName?: string | null;
             turnParticipantName?: string | null;
         };
+        ComponentOption: {
+            automated: boolean;
+            manualReason?: string | null;
+            /** Format: int32 */
+            maxTargets?: number | null;
+            name: string;
+        };
         ConcentrationRequest: {
             /** Format: uuid */
             participantId: string;
@@ -2039,6 +2096,7 @@ export interface components {
             /** @enum {string} */
             actionSource: "ACTION" | "LEGENDARY" | "LAIR";
             advantage?: boolean | null;
+            componentTargetIds?: string[][] | null;
             /** Format: uuid */
             monsterParticipantId: string;
             /** Format: int32 */
@@ -2062,6 +2120,12 @@ export interface components {
             totalDamage: number;
             /** Format: int32 */
             totalHealing: number;
+        };
+        MultiattackOption: {
+            components: components["schemas"]["ComponentOption"][];
+            description?: string | null;
+            manualReason?: string | null;
+            name: string;
         };
         OptionalFeature: {
             /** Format: date-time */
@@ -2217,6 +2281,12 @@ export interface components {
             spellSelectionNeeded: boolean;
             spellSelectionType?: string | null;
             subclassRequired: boolean;
+        };
+        PowerAttackOption: {
+            /** Format: int32 */
+            attackBonus: number;
+            damage: string;
+            feat: string;
         };
         Race: {
             abilityScoreBonuses?: string | null;
@@ -3014,6 +3084,30 @@ export interface operations {
             };
         };
     };
+    getAttackOptions: {
+        parameters: {
+            query: {
+                participantId: string;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttackOption"][];
+                };
+            };
+        };
+    };
     castSpell: {
         parameters: {
             query?: {
@@ -3326,6 +3420,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MonsterActionResponse"];
+                };
+            };
+        };
+    };
+    getMultiattackOptions: {
+        parameters: {
+            query: {
+                participantId: string;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MultiattackOption"][];
                 };
             };
         };

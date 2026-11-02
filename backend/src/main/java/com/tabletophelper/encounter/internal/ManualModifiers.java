@@ -3,6 +3,7 @@ package com.tabletophelper.encounter.internal;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.rules.Dice;
 import com.tabletophelper.shared.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -12,9 +13,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Manual Modifiers (D164): numbers entered by hand in place of the server's, such as a spell attack bonus, a save
- * DC or a forced critical hit. The DM may always enter them, and a player while the campaign allows it, which it
- * does until the DM turns it off. Each use is logged with its value.
+ * Manual Modifiers (D164): numbers entered by hand in place of the server's or added to them, such as a spell attack
+ * bonus, a save DC, a magic weapon's bonus, a whole attack entered by hand or a forced critical hit. The DM may always
+ * enter them, and a player while the campaign allows it, which it does until the DM turns it off. Each use is logged
+ * with its value.
  */
 @Component
 @RequiredArgsConstructor
@@ -43,9 +45,39 @@ public class ManualModifiers {
         return uses;
     }
 
-    /** A forced critical hit, when the attack asks for one. */
-    static List<Use> forAttack(boolean forcedCritical) {
-        return forcedCritical ? List.of(new Use("is a critical hit")) : List.of();
+    /**
+     * What a weapon attack adds by hand to the numbers the server works out (D164): a bonus to the attack roll and
+     * damage of the attacker's choosing, such as a magic weapon's +1, which the sheet doesn't record, and a forced
+     * critical hit. A bonus of 0 is none.
+     */
+    static List<Use> forWeaponAttack(Integer extraAttackBonus, Dice extraDamage, String extraDamageType,
+                                     boolean forcedCritical) {
+        List<Use> uses = new ArrayList<>();
+        if (extraAttackBonus != null && extraAttackBonus != 0) {
+            uses.add(new Use("adds " + signed(extraAttackBonus) + " to the attack roll"));
+        }
+        if (extraDamage != null) {
+            uses.add(new Use("adds " + extraDamage + (extraDamageType != null ? " " + extraDamageType : "")
+                    + " damage"));
+        }
+        if (forcedCritical) {
+            uses.add(new Use("is a critical hit"));
+        }
+        return uses;
+    }
+
+    /**
+     * An attack whose numbers were all entered by hand, as for a weapon the server doesn't know: the attack bonus
+     * and damage together are one use, and a forced critical hit another.
+     */
+    static List<Use> forEnteredAttack(int attackBonus, Dice damage, String damageType, boolean forcedCritical) {
+        List<Use> uses = new ArrayList<>();
+        uses.add(new Use("uses attack bonus " + signed(attackBonus) + " and " + damage
+                + (damageType != null ? " " + damageType : "") + " damage"));
+        if (forcedCritical) {
+            uses.add(new Use("is a critical hit"));
+        }
+        return uses;
     }
 
     /** Whether a user may enter Manual Modifiers: the DM always, a player unless the campaign has turned them off. */

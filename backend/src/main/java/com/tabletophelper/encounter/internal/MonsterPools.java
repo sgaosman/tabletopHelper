@@ -61,7 +61,7 @@ public class MonsterPools {
 
     /** A monster joining an encounter: every pool at full uses, and its spellcasting. */
     public void setUp(EncounterParticipant participant, Monster monster) {
-        JsonNode templates = templates(monster);
+        MonsterTemplates templates = templates(monster);
         MonsterSpellbook book = MonsterSpellbook.read(templates);
         List<Resolved> spells = resolve(book);
         participant.setResourcePoolsCurrent(pools(monster, templates, spells));
@@ -124,11 +124,11 @@ public class MonsterPools {
 
     /** Every pool the monster starts with, full. */
     List<ResourcePoolEntry> pools(Monster monster) {
-        JsonNode templates = templates(monster);
+        MonsterTemplates templates = templates(monster);
         return pools(monster, templates, resolve(MonsterSpellbook.read(templates)));
     }
 
-    private List<ResourcePoolEntry> pools(Monster monster, JsonNode templates, List<Resolved> spells) {
+    private List<ResourcePoolEntry> pools(Monster monster, MonsterTemplates templates, List<Resolved> spells) {
         Map<String, ResourcePoolEntry> pools = new LinkedHashMap<>();
         for (MonsterPoolTrigger trigger : triggerRepository.findAllByOrderByPriorityAsc()) {
             ResourcePoolDefinition definition = trigger.getPoolDefinition();
@@ -138,21 +138,21 @@ public class MonsterPools {
         }
 
         // The action templates' counts replace the definitions' defaults
-        if (templates.path("legendaryActionCount").canConvertToInt()) {
-            int count = templates.path("legendaryActionCount").asInt();
+        if (templates.legendaryActionCount() != null) {
+            int count = templates.legendaryActionCount();
             pools.put(LEGENDARY_ACTIONS, new ResourcePoolEntry(LEGENDARY_ACTIONS, "Legendary Actions", "MONSTER",
                     monster.getName(), count, null, count, "turn", null, null, "FREE", "crown", Map.of()));
         }
-        if (templates.path("legendaryResistanceCount").canConvertToInt()) {
-            int count = templates.path("legendaryResistanceCount").asInt();
+        if (templates.legendaryResistanceCount() != null) {
+            int count = templates.legendaryResistanceCount();
             pools.put(EffectApplier.LEGENDARY_RESISTANCE_POOL, new ResourcePoolEntry(
                     EffectApplier.LEGENDARY_RESISTANCE_POOL, "Legendary Resistance", "MONSTER", monster.getName(),
                     count, null, count, "longRest", null, null, "FREE", "shield", Map.of()));
         }
 
-        for (JsonNode action : templates.path("actions")) {
-            Matcher recharge = RECHARGE.matcher(action.path("recharge").asText("").trim());
-            String name = action.path("name").asText("");
+        for (MonsterTemplates.Action action : templates.actions()) {
+            Matcher recharge = RECHARGE.matcher(action.recharge() != null ? action.recharge().trim() : "");
+            String name = action.name() != null ? action.name() : "";
             if (recharge.matches() && !name.isBlank()) {
                 String poolId = rechargePoolId(name);
                 pools.putIfAbsent(poolId, new ResourcePoolEntry(poolId, name, "MONSTER", monster.getName(), 1, null,
@@ -290,10 +290,7 @@ public class MonsterPools {
         return slots;
     }
 
-    // The action templates: a JSON object, or an array whose first entry counts
-    private JsonNode templates(Monster monster) {
-        JsonNode templates = StoredJson.read(objectMapper, monster.getActionTemplates(),
-                monster.getName() + "'s action templates");
-        return templates.isArray() && !templates.isEmpty() ? templates.get(0) : templates;
+    private MonsterTemplates templates(Monster monster) {
+        return MonsterTemplates.of(objectMapper, monster);
     }
 }

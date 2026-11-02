@@ -23,6 +23,8 @@ import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
+import com.tabletophelper.reference.Item;
+import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -34,6 +36,7 @@ import com.tabletophelper.rules.combat.Resolver;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -59,6 +62,7 @@ class CombatFixture {
     final SpellRepository spellRepository = mock(SpellRepository.class);
     final SubclassRepository subclassRepository = mock(SubclassRepository.class);
     final MonsterPoolTriggerRepository monsterPoolTriggerRepository = mock(MonsterPoolTriggerRepository.class);
+    final ItemRepository itemRepository = mock(ItemRepository.class);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final ScriptedDice dice = new ScriptedDice();
@@ -78,16 +82,17 @@ class CombatFixture {
     final ManualModifiers manualModifiers = new ManualModifiers(combatLog);
     final CasterSpells casterSpells = new CasterSpells(monsterPools, resourcePoolService, combatLog, spellRepository,
             subclassRepository, objectMapper);
+    final CharacterWeapons characterWeapons = new CharacterWeapons(itemRepository, objectMapper);
 
     final HitPointService hitPoints = new HitPointService(access, effectApplier, encounterRepository, encounterService);
     final ConditionService conditionService =
             new ConditionService(access, effectApplier, encounterRepository, encounterService);
-    final AttackService attacks = new AttackService(access, resolver, stats, effectApplier, manualModifiers,
-            encounterRepository, encounterService);
+    final AttackService attacks = new AttackService(access, accessPolicy, characterWeapons, resolver, stats,
+            effectApplier, manualModifiers, encounterRepository, encounterService);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, manualModifiers, combatLog, encounterRepository, encounterService);
-    final MonsterActionService monsterActions = new MonsterActionService(access, monsterEffects, resolver, stats,
-            effectApplier, resourcePoolService, objectMapper, encounterRepository, encounterService);
+    final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
+            stats, effectApplier, resourcePoolService, objectMapper, encounterRepository, encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatLog, encounterRepository, encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
@@ -254,6 +259,32 @@ class CombatFixture {
             spells.add(spell);
             participant.setSpellsKnown(spells);
         }
+    }
+
+    // ── Weapons ──────────────────────────────────────────────────
+
+    /** Makes the items table hold these mundane weapons (D164). */
+    void weapons(Item... items) {
+        lenient().when(itemRepository.findMundaneWeapons()).thenReturn(List.of(items));
+    }
+
+    /**
+     * A weapon row as ItemSeeder writes one from the 5etools base items: its type, category in subtype, damage, and
+     * property tags such as F (finesse), H (heavy) and AF|DMG (firearm ammunition).
+     */
+    static Item weapon(String name, String type, String category, String dice, String damageType, String... tags) {
+        String properties = tags.length == 0 ? null
+                : "{\"tags\": [" + String.join(", ", Arrays.stream(tags).map(tag -> "\"" + tag + "\"").toList()) + "]}";
+        return Item.builder().id(UUID.randomUUID()).name(name).type(type).subtype(category).damageDice(dice)
+                .damageType(damageType).properties(properties).source("PHB").build();
+    }
+
+    /** Gives a player character's sheet these inventory entries, by name, and these weapon proficiencies. */
+    static void carries(EncounterParticipant pc, List<String> proficiencies, String... weaponNames) {
+        pc.getCharacter().setEquipment("[" + String.join(", ", Arrays.stream(weaponNames)
+                .map(name -> "{\"name\": \"" + name + "\", \"quantity\": 1}").toList()) + "]");
+        pc.getCharacter().setWeaponProficiencies("[" + String.join(", ", proficiencies.stream()
+                .map(proficiency -> "\"" + proficiency + "\"").toList()) + "]");
     }
 
     // ── The log ──────────────────────────────────────────────────

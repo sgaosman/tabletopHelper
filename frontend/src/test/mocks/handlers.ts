@@ -3,7 +3,8 @@ import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
 import type {
-  CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, SpellOption,
+  AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
+  SpellOption,
 } from '../../types/combat';
 import type {
   ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, TurnEntry,
@@ -233,6 +234,11 @@ export const encounterBuilderHandlers = [
 // --- Combat ---
 export const combatHandlers = [
   http.post(`${BASE}/encounters/:id/combat/attack`, async () => HttpResponse.json(makeMockEncounter())),
+  // A character with a longsword and the unarmed strike everyone has; tests that attack serve what they need (D164)
+  http.get(`${BASE}/encounters/:id/combat/attack-options`, async () => HttpResponse.json([
+    makeMockAttackOption('Longsword'),
+    makeMockAttackOption('Unarmed Strike', { damage: '4', damageType: 'bludgeoning' }),
+  ] satisfies AttackOption[])),
   http.post(`${BASE}/encounters/:id/combat/damage`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/heal`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/hp`, async () => HttpResponse.json(makeMockEncounter())),
@@ -270,6 +276,8 @@ export const combatHandlers = [
     } satisfies MonsterActionTemplate);
   }),
   http.post(`${BASE}/encounters/:id/combat/lair-status`, async () => HttpResponse.json(makeMockEncounter())),
+  // A monster without a multiattack; tests that split one serve its attacks (D165)
+  http.get(`${BASE}/encounters/:id/combat/multiattack-options`, async () => HttpResponse.json([] satisfies MultiattackOption[])),
 ];
 
 // --- Reference Data ---
@@ -488,6 +496,15 @@ export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter
     createdAt: makeTimestamp(), allowPlayerManualModifiers: true,
   } satisfies Encounter;
   return { ...encounter, ...overrides };
+}
+
+/** A proficient STR melee weapon at +5 for 1d8 + 3 slashing, without Great Weapon Master or Sharpshooter. */
+export function makeMockAttackOption(weapon: string, overrides: Partial<AttackOption> = {}): AttackOption {
+  const option = {
+    weapon, ability: 'STR', proficient: true, attackBonus: 5, damage: '1d8 + 3', damageType: 'slashing',
+    ranged: false, powerAttack: null,
+  } satisfies AttackOption;
+  return { ...option, ...overrides };
 }
 
 export function makeMockCastSpellResponse(overrides: Partial<CastSpellResponse> = {}): CastSpellResponse {

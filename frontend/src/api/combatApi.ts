@@ -1,6 +1,8 @@
 import api from './axiosConfig';
 import type { Encounter } from '../types/encounter';
 import type {
+  AttackOption,
+  AttackRollRequest,
   CombatLogEntry,
   CastSpellRequest,
   CastSpellResponse,
@@ -8,18 +10,24 @@ import type {
   MonsterActionRequest,
   MonsterActionResponse,
   MonsterActionTemplate,
+  MultiattackOption,
   SpellOption,
 } from '../types/combat';
 
 export const combatApi = {
-  // forceCrit is a Manual Modifier, which a player may send only while the campaign allows it (D164); within5Ft
-  // decides whether a hit on an unconscious or paralyzed target is a critical hit, and there is no map, so it
-  // defaults to true
-  rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, forceCrit?: boolean, actorId?: string, within5Ft = true) {
-    return api.post<Encounter>(`/encounters/${encounterId}/combat/attack`,
-      { targetId, attackBonus, damageDice, damageType, advantage: advantage ?? undefined, forceCrit: forceCrit || undefined, within5Ft },
-      { params: actorId ? { actorId } : undefined },
-    );
+  // A weapon attack the server works out, or an attack entered by hand. Extra bonuses, a forced critical and an
+  // attack entered by hand are Manual Modifiers, which a player may send only while the campaign allows them
+  // (D164). within5Ft decides whether a hit on an unconscious or paralyzed target is a critical hit; left out, it
+  // is true, except for a ranged weapon
+  rollAttack(encounterId: string, request: AttackRollRequest, actorId?: string) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/attack`, request, {
+      params: actorId ? { actorId } : undefined,
+    });
+  },
+
+  // The weapons the participant can attack with, and the numbers for each (D164)
+  getAttackOptions(encounterId: string, participantId: string) {
+    return api.get<AttackOption[]>(`/encounters/${encounterId}/combat/attack-options`, { params: { participantId } });
   },
 
   applyDamage(encounterId: string, targetId: string, amount: number, damageType?: string, actorId?: string) {
@@ -112,6 +120,13 @@ export const combatApi = {
 
   getMonsterActions(encounterId: string, participantId: string) {
     return api.get<MonsterActionTemplate>(`/encounters/${encounterId}/participants/${participantId}/actions`);
+  },
+
+  // A monster's multiattacks and the attacks each makes, for a target per attack; DM only (D157, D165)
+  getMultiattackOptions(encounterId: string, participantId: string) {
+    return api.get<MultiattackOption[]>(`/encounters/${encounterId}/combat/multiattack-options`, {
+      params: { participantId },
+    });
   },
 
   // Every monster participant fighting in its lair, which gives the Lair a turn on initiative 20 (D163)

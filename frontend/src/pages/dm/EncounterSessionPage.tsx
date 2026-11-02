@@ -4,11 +4,13 @@ import { EncounterProvider, useEncounter } from '../../context/EncounterContext'
 import { apiErrorMessage } from '../../api/errors';
 import { useCombatLog, useEncounterAction, useMonsterActionTemplates } from '../../queries/encounters';
 import type { EncounterParticipant } from '../../types/encounter';
+import type { MonsterActionRequest } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
 import LairToggle from '../../components/encounter/LairToggle';
 import LairTurnRow from '../../components/encounter/LairTurnRow';
+import MultiattackPicker from '../../components/encounter/MultiattackPicker';
 import RepeatSavePrompt from '../../components/encounter/RepeatSavePrompt';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import IconButton from '../../components/ui/IconButton';
@@ -33,7 +35,8 @@ const DAMAGE_TYPES = [
 
 type ActionMode = 'attack' | 'damage' | 'heal' | 'set-hp' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
 
-// A new attack row: within 5 feet by default, since there is no map (D161)
+// A new attack row: within 5 feet by default, since there is no map (D161). The DM's numbers entered by hand are
+// a Manual Modifier, which the combat log notes (D164)
 const NEW_ATTACK = { attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false, within5Ft: true };
 
 /** Dying, Stable or Dead, from the participant's life state (D161); nothing while it is up. */
@@ -220,7 +223,11 @@ function ActionPanel({
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await actions.rollAttack(selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, undefined, atk.within5Ft);
+            await actions.rollAttack({
+              targetId: selectedTarget.id, attackBonus: parseInt(atk.attackBonus), damageDice: atk.damageDice,
+              damageType: atk.damageType || undefined, advantage: atk.advantage ?? undefined,
+              forceCrit: atk.forceCrit || undefined, within5Ft: atk.within5Ft,
+            });
           }
         }
       } else if (actionMode === 'damage' && amount) {
@@ -668,7 +675,8 @@ function InlineMonsterActions({
   inlineResult: any;
   inlineExecuting: boolean;
   onToggleTarget: (id: string) => void;
-  onExecute: (participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR') => void;
+  onExecute: (participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR',
+    targets?: Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds'>) => void;
   onClearResult: () => void;
   isLairTurn: boolean;
   inLair: boolean;
@@ -676,6 +684,8 @@ function InlineMonsterActions({
   const templatesQuery = useMonsterActionTemplates(participant.id);
   const [tab, setTab] = useState<'actions' | 'legendary' | 'lair'>('actions');
   const [selectedAction, setSelectedAction] = useState<any>(null);
+  // The multiattack whose target per attack the DM is choosing (D165)
+  const [multiattackName, setMultiattackName] = useState<string | null>(null);
 
   if (templatesQuery.isPending) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-muted">Loading actions...</div>;
   if (templatesQuery.isError) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{apiErrorMessage(templatesQuery.error)}</div>;
@@ -714,14 +724,21 @@ function InlineMonsterActions({
     return parts.join(' · ');
   };
 
+  // A multiattack's attack, labelled with the numbers of the action it makes
+  const describeAction = (name: string) => {
+    const action = actions.find((a: any) => a.name?.toLowerCase() === name.toLowerCase());
+    if (!action) return undefined;
+    return formatActionLabel(action).split(' · ').slice(1).join(' · ') || undefined;
+  };
+
   return (
     <div className="px-4 py-2 border-t border-rule-light bg-page">
       {/* Tabs */}
       {(hasLegendary || hasLair) && (
         <div className="flex gap-2 mb-2">
-          <TabBtn active={tab === 'actions'} onClick={() => { setTab('actions'); setSelectedAction(null); }} label={`Actions (${actions.length})`} />
-          {hasLegendary && <TabBtn active={tab === 'legendary'} onClick={() => { setTab('legendary'); setSelectedAction(null); }} label={`Legendary (${legendaryRemaining})`} />}
-          {hasLair && <TabBtn active={tab === 'lair'} onClick={() => { setTab('lair'); setSelectedAction(null); }} label={`Lair (${lair.length})`} />}
+          <TabBtn active={tab === 'actions'} onClick={() => { setTab('actions'); setSelectedAction(null); setMultiattackName(null); }} label={`Actions (${actions.length})`} />
+          {hasLegendary && <TabBtn active={tab === 'legendary'} onClick={() => { setTab('legendary'); setSelectedAction(null); setMultiattackName(null); }} label={`Legendary (${legendaryRemaining})`} />}
+          {hasLair && <TabBtn active={tab === 'lair'} onClick={() => { setTab('lair'); setSelectedAction(null); setMultiattackName(null); }} label={`Lair (${lair.length})`} />}
         </div>
       )}
 
@@ -795,6 +812,7 @@ function InlineMonsterActions({
                 disabled={!recharged || inlineExecuting || legendaryDepleted || legendaryOnOwnTurn}
                 onClick={() => {
                   if (legendaryDepleted || legendaryOnOwnTurn || !recharged) return;
+                  setMultiattackName(null);
                   if (isNonAutomatable) {
                     onExecute(participant.id, a.name, tab === 'legendary' ? 'LEGENDARY' : 'ACTION');
                   } else {
@@ -821,20 +839,38 @@ function InlineMonsterActions({
         </div>
       )}
 
-      {/* Multiattack buttons */}
+      {/* Multiattack buttons: each opens a target picker per attack (D165) */}
       {tab === 'actions' && actions.filter((a: any) => a.isMultiattack).map((a: any) => (
         <button
           key={a.name}
           disabled={inlineExecuting}
-          onClick={() => onExecute(participant.id, a.name, 'ACTION')}
-          className="px-2 py-1 font-heading text-[12px] font-semibold tracking-[0.02em] border border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20 mr-1 mb-1"
+          aria-pressed={multiattackName === a.name}
+          onClick={() => { setSelectedAction(null); setMultiattackName(multiattackName === a.name ? null : a.name); }}
+          className={`px-2 py-1 font-heading text-[12px] font-semibold tracking-[0.02em] border mr-1 mb-1 ${
+            multiattackName === a.name ? 'border-ink bg-ink text-card' : 'border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20'}`}
         >
           ⚔ {a.name}
         </button>
       ))}
 
-      {/* Target selector for automatable actions */}
-      <div className="flex flex-wrap gap-1 mt-2">
+      {tab === 'actions' && multiattackName && (
+        <MultiattackPicker
+          monster={participant}
+          participants={participants}
+          actionName={multiattackName}
+          describe={describeAction}
+          executing={inlineExecuting}
+          onExecute={componentTargetIds => {
+            onExecute(participant.id, multiattackName, 'ACTION', componentTargetIds
+              ? { targetParticipantIds: [], componentTargetIds }
+              : { targetParticipantIds: [] });
+            setMultiattackName(null);
+          }}
+        />
+      )}
+
+      {/* Target selector for automatable actions; a multiattack has its own per attack */}
+      {!(tab === 'actions' && multiattackName) && <div className="flex flex-wrap gap-1 mt-2">
         {participants.filter(t => t.id !== participant.id && t.lifeState !== 'DEAD').map(t => (
           <button
             key={t.id}
@@ -847,7 +883,7 @@ function InlineMonsterActions({
             {t.displayName}
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Execute button for selected automatable action */}
       {selectedAction && (
@@ -873,8 +909,8 @@ function InlineMonsterActions({
       {inlineResult && (
         <div className={`mt-2 p-3 border font-body text-[15px] font-semibold ${inlineResult.error ? 'bg-debuff-bg border-debuff text-debuff' : 'bg-buff-bg border-buff text-buff'}`}>
           {inlineResult.error || inlineResult.description}
-          {inlineResult.targetResults?.map((tr: any) => (
-            <div key={tr.targetId}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${tr.damage} ${tr.damageType}` : ''}{tr.conditionsApplied?.length > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
+          {inlineResult.targetResults?.map((tr: any, i: number) => (
+            <div key={`${tr.targetId}-${i}`}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${tr.damage} ${tr.damageType}` : ''}{tr.conditionsApplied?.length > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
           ))}
           <button className="mt-1 font-body text-[15px] font-semibold text-muted underline hover:text-ink" onClick={onClearResult}>Clear</button>
         </div>
@@ -910,15 +946,18 @@ function DmSessionView() {
   const [inlineExecuting, setInlineExecuting] = useState(false);
   const [turnError, setTurnError] = useState('');
 
-  async function executeInlineAction(participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR') {
-    if (inlineTargets.length === 0) return;
+  // The targets chosen in the inline selector, unless the action brings its own, as a multiattack does (D165)
+  async function executeInlineAction(participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR',
+    targets?: Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds'>) {
+    if (!targets && inlineTargets.length === 0) return;
     setInlineExecuting(true);
     try {
       setInlineResult(await actions.monsterAction({
         monsterParticipantId: participantId,
         actionName,
         actionSource: source,
-        targetParticipantIds: inlineTargets,
+        targetParticipantIds: targets?.targetParticipantIds ?? inlineTargets,
+        ...(targets?.componentTargetIds ? { componentTargetIds: targets.componentTargetIds } : {}),
       }));
     } catch (err: any) {
       const msg = err.response?.data?.message

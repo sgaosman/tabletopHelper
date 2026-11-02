@@ -32,6 +32,15 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
             @Param("sourceList") List<String> sourceList,
             Pageable pageable);
 
+    /**
+     * The mundane weapons a character can carry and attack with (D164): every item with a weapon category and damage,
+     * and no rarity, or 5etools' "unknown" for mundane adventure gear. That is the base weapons, less the net, which
+     * deals no damage, and two mundane weapons from adventures. Their names are unique.
+     */
+    @Query("SELECT i FROM Item i WHERE i.subtype IN ('simple', 'martial') AND i.damageDice IS NOT NULL "
+            + "AND (i.rarity IS NULL OR i.rarity = 'unknown')")
+    List<Item> findMundaneWeapons();
+
     @Query("SELECT DISTINCT i.type FROM Item i WHERE i.type IS NOT NULL ORDER BY i.type")
     List<String> findDistinctTypes();
 

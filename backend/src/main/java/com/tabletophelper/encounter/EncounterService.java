@@ -13,6 +13,7 @@ import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.EncounterTurns;
 import com.tabletophelper.encounter.internal.MonsterPools;
+import com.tabletophelper.encounter.internal.MonsterTemplates;
 import com.tabletophelper.encounter.internal.StoredJson;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
@@ -555,12 +556,7 @@ public class EncounterService {
     // Whether the monster's action templates list any lair actions, so it can fight in its lair (D163)
     private boolean hasLairActions(EncounterParticipant participant) {
         Monster monster = participant.getMonster();
-        if (monster == null || monster.getActionTemplates() == null || monster.getActionTemplates().isBlank()) {
-            return false;
-        }
-        JsonNode lairActions = StoredJson.read(objectMapper, monster.getActionTemplates(),
-                monster.getName() + "'s action templates").path("lairActions");
-        return lairActions.isArray() && !lairActions.isEmpty();
+        return monster != null && MonsterTemplates.of(objectMapper, monster).hasLairActions();
     }
 
     /**

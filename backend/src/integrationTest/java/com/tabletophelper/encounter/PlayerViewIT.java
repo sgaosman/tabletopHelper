@@ -124,10 +124,9 @@ class PlayerViewIT extends IntegrationTest {
         expect(HttpStatus.OK, exchange(HttpMethod.PATCH, "/api/campaigns/" + campaignId + "/settings",
                 Map.of("allowPlayerManualModifiers", false), dm.accessToken()));
         var forced = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/attack?actorId=" + characterId,
-                Map.of("targetId", goblinId, "attackBonus", 0, "damageDice", "4", "forceCrit", true),
-                player.accessToken());
+                Map.of("targetId", goblinId, "weapon", "Unarmed Strike", "forceCrit", true), player.accessToken());
         var hidden = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/attack?actorId=" + characterId,
-                Map.of("targetId", bugbearId, "attackBonus", 0, "damageDice", "4"), player.accessToken());
+                Map.of("targetId", bugbearId, "weapon", "Unarmed Strike"), player.accessToken());
 
         assertThat(forced.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(json(forced).get("error").asText())

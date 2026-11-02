@@ -1,7 +1,5 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +10,8 @@ import java.util.regex.Pattern;
 
 /**
  * A monster's spellcasting as its action templates record it (D165): its spellcasting numbers, its spell slots,
- * and each spell with how it is cast. The seeded data comes in several shapes, all read here:
+ * and each spell with how it is cast, from the typed {@link MonsterTemplates.Spellcasting} block. The seeded data
+ * comes in several shapes, all read here:
  * <ul>
  *   <li>{@code spellsByLevel} lists spells under their level, "0" for cantrips, but sometimes under daily keys such
  *       as "1e/day" or an "at_will" key instead;</li>
@@ -77,29 +76,26 @@ record MonsterSpellbook(String ability, Integer attackBonus, Integer saveDc, Map
         return this != NONE;
     }
 
-    /** Reads the spellcasting block of a monster's action templates, a JSON object or an array whose first entry counts. */
-    static MonsterSpellbook read(JsonNode templates) {
-        JsonNode root = templates != null && templates.isArray() && !templates.isEmpty() ? templates.get(0) : templates;
-        JsonNode block = root != null ? root.path("spellcasting") : null;
-        if (block == null || !block.isObject()) {
+    /** Reads the spellcasting block of a monster's action templates. */
+    static MonsterSpellbook read(MonsterTemplates templates) {
+        MonsterTemplates.Spellcasting block = templates.spellcasting();
+        if (block == null) {
             return NONE;
         }
         List<Entry> spells = new ArrayList<>();
-        block.path("spellsByLevel").fields().forEachRemaining(group -> {
-            String key = group.getKey().trim();
+        block.spellsByLevel().forEach((group, names) -> {
+            String key = group.trim();
             if (LEVEL_KEY.matcher(key).matches()) {
-                addAll(spells, group.getValue(), Kind.LEVELLED, Integer.valueOf(key), 0);
+                addAll(spells, names, Kind.LEVELLED, Integer.valueOf(key), 0);
             } else {
-                addKeyed(spells, key, group.getValue());
+                addKeyed(spells, key, names);
             }
         });
-        block.path("dailySpells").fields().forEachRemaining(group -> addKeyed(spells, group.getKey(), group.getValue()));
-        addAll(spells, block.path("atWillSpells"), Kind.AT_WILL, null, 0);
-        if (block.path("innateSpells").isObject()) {
-            block.path("innateSpells").fields().forEachRemaining(group -> addKeyed(spells, group.getKey(), group.getValue()));
-        }
-        return new MonsterSpellbook(text(block.path("ability")), number(block.path("attackBonus")),
-                number(block.path("saveDC")), slots(block.path("slots")), spells);
+        block.dailySpells().forEach((key, names) -> addKeyed(spells, key, names));
+        addAll(spells, block.atWillSpells(), Kind.AT_WILL, null, 0);
+        block.innateLists().forEach((key, names) -> addKeyed(spells, key, names));
+        return new MonsterSpellbook(text(block.ability()), block.attackBonus(), block.saveDc(), slots(block.slots()),
+                spells);
     }
 
     /** The uses a daily key gives, such as 3 for "3e/day each"; empty for a key that isn't one. */
@@ -113,7 +109,7 @@ record MonsterSpellbook(String ability, Integer attackBonus, Integer saveDc, Map
     }
 
     // A group under a daily or at-will key; any other key is skipped
-    private static void addKeyed(List<Entry> spells, String key, JsonNode names) {
+    private static void addKeyed(List<Entry> spells, String key, List<String> names) {
         if (AT_WILL_KEY.matcher(key.trim()).matches()) {
             addAll(spells, names, Kind.AT_WILL, null, 0);
             return;
@@ -121,12 +117,12 @@ record MonsterSpellbook(String ability, Integer attackBonus, Integer saveDc, Map
         dailyUses(key).ifPresent(uses -> addAll(spells, names, Kind.DAILY, null, uses));
     }
 
-    private static void addAll(List<Entry> spells, JsonNode names, Kind kind, Integer listedLevel, int uses) {
-        for (JsonNode name : names) {
-            if (!name.isTextual() || name.asText().isBlank()) {
+    private static void addAll(List<Entry> spells, List<String> names, Kind kind, Integer listedLevel, int uses) {
+        for (String name : names != null ? names : List.<String>of()) {
+            if (name == null || name.isBlank()) {
                 continue;
             }
-            Entry entry = new Entry(name.asText().trim(), kind, listedLevel, uses);
+            Entry entry = new Entry(name.trim(), kind, listedLevel, uses);
             if (!spells.contains(entry)) {
                 spells.add(entry);
             }
@@ -134,22 +130,18 @@ record MonsterSpellbook(String ability, Integer attackBonus, Integer saveDc, Map
     }
 
     // Levels "1" to "9" with at least one slot, in level order
-    private static Map<String, Integer> slots(JsonNode slots) {
+    private static Map<String, Integer> slots(Map<String, Integer> slots) {
         Map<String, Integer> result = new LinkedHashMap<>();
         for (int level = 1; level <= 9; level++) {
-            JsonNode count = slots.path(String.valueOf(level));
-            if (count.canConvertToInt() && count.asInt() > 0) {
-                result.put(String.valueOf(level), count.asInt());
+            Integer count = slots.get(String.valueOf(level));
+            if (count != null && count > 0) {
+                result.put(String.valueOf(level), count);
             }
         }
         return result;
     }
 
-    private static String text(JsonNode node) {
-        return node.isTextual() && !node.asText().isBlank() ? node.asText().trim() : null;
-    }
-
-    private static Integer number(JsonNode node) {
-        return node.isNumber() ? node.asInt() : null;
+    private static String text(String value) {
+        return value != null && !value.isBlank() ? value.trim() : null;
     }
 }

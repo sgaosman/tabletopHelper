@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
+import type { MonsterActionResponse, MonsterActionTemplate, MultiattackOption } from '../../types/combat';
 import type { Encounter, EncounterParticipant, TurnEntry } from '../../types/encounter';
 import EncounterSessionPage from './EncounterSessionPage';
 
@@ -467,6 +468,122 @@ describe('DM EncounterSessionPage', () => {
         expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
       }
       expect(screen.queryByText(PAUSED_NOTICE)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('multiattack (D165)', () => {
+    const owlbear = makeMockParticipant('part-owlbear', 'Owlbear', 'MONSTER', { sortOrder: 0, initiative: 18, hpMax: 59, hpCurrent: 59, armourClass: 13 });
+    const tara = makeMockParticipant('part-tara', 'Tara', 'PLAYER', { sortOrder: 3, initiative: 8, controlledByUserId: 'user-003' });
+    const dead = makeMockParticipant('part-dead', 'Fallen Scout', 'PLAYER', { sortOrder: 4, initiative: 5, hpCurrent: 0, lifeState: 'DEAD' });
+    const owlbearTemplates = {
+      actions: [
+        { name: 'Multiattack', isMultiattack: true, multiattackComponents: ['Beak', 'Claw'],
+          multiattackDescription: 'The owlbear makes two attacks: one with its beak and one with its claws.' },
+        { name: 'Beak', deliveryMethod: 'ATTACK_ROLL', attackBonus: 7, effects: [{ effectType: 'DAMAGE', damageDice: '1d10 + 5', damageType: 'piercing' }] },
+        { name: 'Claw', deliveryMethod: 'ATTACK_ROLL', attackBonus: 7, effects: [{ effectType: 'DAMAGE', damageDice: '2d8 + 5', damageType: 'slashing' }] },
+      ],
+    } satisfies MonsterActionTemplate;
+
+    function owlbearFight(multiattack: MultiattackOption) {
+      const requests: unknown[] = [];
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({ participants: [owlbear, gimli(), tara, dead] }))),
+        http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json(owlbearTemplates)),
+        http.get('/api/encounters/:id/combat/multiattack-options', () => HttpResponse.json([multiattack])),
+        http.post('/api/encounters/:id/combat/monster-action', async ({ request }) => {
+          requests.push(await request.json());
+          return HttpResponse.json({
+            resolved: true, description: 'Owlbear uses Multiattack.', totalDamage: 20, totalHealing: 0,
+            targetResults: [], requiresManualResolution: false, conditionsInflicted: [],
+            legendaryResistanceAvailable: false, legendaryResistanceRemaining: 0,
+            encounterState: makeMockEncounter({ participants: [owlbear, gimli(), tara, dead] }),
+          } satisfies MonsterActionResponse);
+        }),
+      );
+      return requests;
+    }
+
+    it('sends each attack at the target chosen for it, offering only the living', async () => {
+      const requests = owlbearFight({
+        name: 'Multiattack', description: 'The owlbear makes two attacks: one with its beak and one with its claws.',
+        components: [
+          { name: 'Beak', automated: true, manualReason: null, maxTargets: 1 },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1 },
+        ],
+        manualReason: null,
+      });
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Monster actions' }));
+      await user.click(await screen.findByRole('button', { name: /Multiattack/ }));
+      const beak = await screen.findByRole('group', { name: 'Targets for 1. Beak' });
+      const claw = screen.getByRole('group', { name: 'Targets for 2. Claw' });
+      expect(screen.getByText('The owlbear makes two attacks: one with its beak and one with its claws.')).toBeInTheDocument();
+      expect(screen.getByText('+7 · 1d10 + 5')).toBeInTheDocument();
+      expect(within(beak).queryByRole('button', { name: 'Fallen Scout' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Execute Multiattack (0 attacks)' })).toBeDisabled();
+
+      await user.click(within(beak).getByRole('button', { name: 'Gimli' }));
+      await user.click(within(claw).getByRole('button', { name: 'Gimli' }));
+      // An attack that takes one target swaps it
+      await user.click(within(claw).getByRole('button', { name: 'Tara' }));
+      expect(within(claw).getByRole('button', { name: 'Gimli' })).toHaveAttribute('aria-pressed', 'false');
+      await user.click(screen.getByRole('button', { name: 'Execute Multiattack (2 attacks)' }));
+
+      await waitFor(() => expect(requests).toEqual([{
+        monsterParticipantId: 'part-owlbear', actionName: 'Multiattack', actionSource: 'ACTION',
+        targetParticipantIds: [], componentTargetIds: [['part-gimli'], ['part-tara']],
+      }]));
+      expect(await screen.findByText('Owlbear uses Multiattack.')).toBeInTheDocument();
+    });
+
+    it('sends every attack at one target in one click, and skips an attack the DM resolves', async () => {
+      const requests = owlbearFight({
+        name: 'Multiattack', description: null,
+        components: [
+          { name: 'Frightful Presence', automated: true, manualReason: null, maxTargets: null },
+          { name: 'Roar', automated: false, manualReason: 'The owlbear roars.', maxTargets: null },
+          { name: 'Claw', automated: true, manualReason: null, maxTargets: 1 },
+        ],
+        manualReason: null,
+      });
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Monster actions' }));
+      await user.click(await screen.findByRole('button', { name: /Multiattack/ }));
+      await user.click(within(await screen.findByRole('group', { name: 'Same target for every attack' }))
+        .getByRole('button', { name: 'Tara' }));
+      // An attack that takes any number adds another
+      await user.click(within(screen.getByRole('group', { name: 'Targets for 1. Frightful Presence' }))
+        .getByRole('button', { name: 'Gimli' }));
+      expect(screen.getByText('The DM resolves this: The owlbear roars.')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Execute Multiattack (2 attacks)' }));
+
+      await waitFor(() => expect(requests).toEqual([{
+        monsterParticipantId: 'part-owlbear', actionName: 'Multiattack', actionSource: 'ACTION',
+        targetParticipantIds: [], componentTargetIds: [['part-tara', 'part-gimli'], [], ['part-tara']],
+      }]));
+    });
+
+    it("shows why a multiattack can't be read, and logs it for the DM to resolve", async () => {
+      const requests = owlbearFight({
+        name: 'Multiattack', description: 'The owlbear makes two melee attacks.', components: [],
+        manualReason: 'Multiattack has no components defined',
+      });
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Monster actions' }));
+      await user.click(await screen.findByRole('button', { name: /Multiattack/ }));
+
+      expect(await screen.findByRole('note')).toHaveTextContent(
+        "Multiattack has no components defined: resolve it by hand, or use Owlbear's actions one at a time.");
+      await user.click(screen.getByRole('button', { name: 'Log Multiattack for the DM to resolve' }));
+      await waitFor(() => expect(requests).toEqual([{
+        monsterParticipantId: 'part-owlbear', actionName: 'Multiattack', actionSource: 'ACTION', targetParticipantIds: [],
+      }]));
     });
   });
 

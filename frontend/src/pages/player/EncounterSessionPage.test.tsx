@@ -5,9 +5,11 @@ import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
+import {
+  makeMockAttackOption, makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant,
+} from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
-import type { EncounterParticipant } from '../../types/encounter';
+import type { Encounter, EncounterParticipant } from '../../types/encounter';
 import PlayerEncounterSessionPage from './EncounterSessionPage';
 
 const NAMES = /^(Test Goblin|Hidden Bugbear|Gimli|Legolas)$/;
@@ -235,57 +237,106 @@ describe('Player EncounterSessionPage', () => {
       expect(screen.getByText('Stable')).toBeInTheDocument();
       expect(screen.getByText('Dead')).toBeInTheDocument();
     });
+  });
 
-    it('attacks from within 5 feet unless the player says otherwise, and offers no forced critical when the campaign disallows Manual Modifiers', async () => {
-      const attackRequests: unknown[] = [];
+  describe('weapon attacks (D164)', () => {
+    // Gimli's turn, and every attack he rolls is recorded
+    function attackTable(overrides: Partial<Encounter> = {}) {
+      const requests: unknown[] = [];
       server.use(
         http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
-          participants: [gimli({ isCurrentTurn: true }), goblin()], allowPlayerManualModifiers: false,
+          participants: [gimli({ isCurrentTurn: true }), goblin()], ...overrides,
         }))),
         http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
-          attackRequests.push(await request.json());
+          requests.push(await request.json());
           return HttpResponse.json(makeMockEncounter({ participants: [gimli({ isCurrentTurn: true }), goblin()] }));
         }),
       );
+      return requests;
+    }
+
+    it('attacks with a weapon the server works out, from within 5 feet unless the player says otherwise, with no Manual Modifiers when the campaign disallows them', async () => {
+      const requests = attackTable({ allowPlayerManualModifiers: false });
       const user = userEvent.setup();
       renderPage();
 
       await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      expect(await screen.findByText('+5 to hit · 1d8 + 3 slashing')).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Unarmed Strike' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /enter the numbers/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Crit' })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Extra +')).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Within 5 ft' }));
-      await user.type(screen.getByPlaceholderText('+5'), '5');
-      await user.type(screen.getByPlaceholderText('1d8+3'), '1d8+3');
       await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
 
-      await waitFor(() => expect(attackRequests).toEqual([
-        { targetId: 'part-goblin', attackBonus: 5, damageDice: '1d8+3', within5Ft: false },
+      await waitFor(() => expect(requests).toEqual([{ targetId: 'part-goblin', weapon: 'Longsword', within5Ft: false }]));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Roll Attack' })).not.toBeInTheDocument());
+    });
+
+    it('offers Manual Modifiers while the campaign allows them: a forced critical, a magic bonus and an attack entered by hand', async () => {
+      const requests = attackTable();
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      const first = await screen.findByRole('group', { name: 'Attack 1' });
+      await user.click(within(first).getByRole('button', { name: 'Crit' }));
+      expect(within(first).getByRole('button', { name: 'Crit' })).toHaveAttribute('aria-pressed', 'true');
+      await user.type(within(first).getByLabelText('Extra +'), '1');
+      await user.type(within(first).getByLabelText('Extra dmg'), '2d6');
+      await user.selectOptions(within(first).getByLabelText('Its type'), 'fire');
+      await user.click(screen.getByRole('button', { name: /Add attack/ }));
+      const second = screen.getByRole('group', { name: 'Attack 2' });
+      await user.selectOptions(within(second).getByLabelText('Weapon'), 'Other: enter the numbers');
+      await user.type(within(second).getByPlaceholderText('+5'), '7');
+      await user.type(within(second).getByPlaceholderText('1d8+3'), '1d8+4');
+      await user.click(screen.getByRole('button', { name: 'Roll 2 Attacks' }));
+
+      await waitFor(() => expect(requests).toEqual([
+        { targetId: 'part-goblin', weapon: 'Longsword', within5Ft: true, forceCrit: true, extraAttackBonus: 1, extraDamageDice: '2d6', extraDamageType: 'fire' },
+        { targetId: 'part-goblin', attackBonus: 7, damageDice: '1d8+4', within5Ft: true },
       ]));
     });
 
-    it('offers a forced critical as a Manual Modifier while the campaign allows them (D164)', async () => {
-      const attackRequests: unknown[] = [];
-      server.use(
-        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
-          participants: [gimli({ isCurrentTurn: true }), goblin()],
-        }))),
-        http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
-          attackRequests.push(await request.json());
-          return HttpResponse.json(makeMockEncounter({ participants: [gimli({ isCurrentTurn: true }), goblin()] }));
-        }),
-      );
+    it("offers Great Weapon Master's trade where the server allows it, with the traded numbers, and a ranged weapon attacks from beyond 5 feet", async () => {
+      const requests = attackTable({ allowPlayerManualModifiers: false });
+      server.use(http.get('/api/encounters/:id/combat/attack-options', () => HttpResponse.json([
+        makeMockAttackOption('Greatsword', { damage: '2d6 + 3', powerAttack: { feat: 'Great Weapon Master', attackBonus: 0, damage: '2d6 + 13' } }),
+        makeMockAttackOption('Longbow', { ability: 'DEX', proficient: false, attackBonus: 2, damage: '1d8 + 2', damageType: 'piercing', ranged: true }),
+      ])));
       const user = userEvent.setup();
       renderPage();
 
       await user.click(await screen.findByRole('button', { name: 'Attack' }));
-      await user.click(screen.getByRole('button', { name: 'Crit' }));
-      expect(screen.getByRole('button', { name: 'Crit' })).toHaveAttribute('aria-pressed', 'true');
-      await user.type(screen.getByPlaceholderText('+5'), '5');
-      await user.type(screen.getByPlaceholderText('1d8+3'), '1d8+3');
-      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+      const first = await screen.findByRole('group', { name: 'Attack 1' });
+      await user.click(within(first).getByRole('button', { name: 'Great Weapon Master: -5 to hit, +10 damage' }));
+      expect(within(first).getByText('+0 to hit · 2d6 + 13 slashing')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /Add attack/ }));
+      const second = screen.getByRole('group', { name: 'Attack 2' });
+      await user.selectOptions(within(second).getByLabelText('Weapon'), 'Longbow');
+      expect(within(second).getByText(/\+2 to hit · 1d8 \+ 2 piercing/)).toHaveTextContent('(not proficient)');
+      expect(within(second).getByRole('button', { name: 'Within 5 ft' })).toHaveAttribute('aria-pressed', 'false');
+      expect(within(second).queryByRole('button', { name: /Great Weapon Master/ })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Roll 2 Attacks' }));
 
-      await waitFor(() => expect(attackRequests).toEqual([
-        { targetId: 'part-goblin', attackBonus: 5, damageDice: '1d8+3', forceCrit: true, within5Ft: true },
+      await waitFor(() => expect(requests).toEqual([
+        { targetId: 'part-goblin', weapon: 'Greatsword', within5Ft: true, powerAttack: true },
+        { targetId: 'part-goblin', weapon: 'Longbow', within5Ft: false },
       ]));
+    });
+
+    it('shows why the server refused an attack, and keeps the form open', async () => {
+      attackTable();
+      server.use(http.post('/api/encounters/:id/combat/attack', () =>
+        HttpResponse.json({ error: "This campaign doesn't allow players to enter Manual Modifiers" }, { status: 403 })));
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      await user.click(await screen.findByRole('button', { name: 'Roll Attack' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("This campaign doesn't allow players to enter Manual Modifiers");
+      expect(screen.getByRole('button', { name: 'Roll Attack' })).toBeInTheDocument();
     });
   });
 

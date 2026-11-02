@@ -1,5 +1,17 @@
 import type { Schemas } from '../api/schema';
 
+/**
+ * An attack (D164): a weapon from the attacker's attack options, whose numbers the server works out, with any Manual
+ * Modifiers added; or an attack bonus and damage entered by hand, which is itself a Manual Modifier.
+ */
+export type AttackRollRequest = Schemas['AttackRollRequest'];
+
+/**
+ * A weapon a player character can attack with, with the attack bonus and damage the server works out, and Great
+ * Weapon Master's or Sharpshooter's trade when the character may take it (D164).
+ */
+export type AttackOption = Schemas['AttackOption'];
+
 export type CastSpellRequest = Schemas['CastSpellRequest'];
 
 export type TargetOutcome = Schemas['TargetOutcome'];
@@ -22,6 +34,15 @@ export type MonsterActionRequest = Schemas['MonsterActionRequest'];
 export type MonsterActionTargetResult = Schemas['TargetResult'];
 
 export type MonsterActionResponse = Schemas['MonsterActionResponse'];
+
+/**
+ * A monster's multiattack and the attacks it makes, each taking its own targets (D165). One the server can't read
+ * from the stat block has no components and a manualReason.
+ */
+export type MultiattackOption = Schemas['MultiattackOption'];
+
+/** One attack of a multiattack; maxTargets is null for any number. */
+export type MultiattackComponent = Schemas['ComponentOption'];
 
 /** What pays for a cast spell: a spell slot, a pact slot, an innate use, or nothing (D165). */
 export type SpellSource = Schemas['SourceOption']['source'];
