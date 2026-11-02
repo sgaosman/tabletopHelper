@@ -1985,7 +1985,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D155: Access Policy and Error Handling
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R3); catch-and-continue removal in R5–R7
+**Status:** Accepted — implemented (R3; combat code in R5); catch-and-continue removal in R6–R7 for the rest
 
 **Decision:**
 - **One access policy.** An `AccessPolicy` service provides `requireCampaignDm`, `requireCampaignMember`, `requireCharacterOwnerOrDm` and `requireControls(participant)`. Every command and query that touches campaign data calls it first, replacing the ownership checks copied into each service method. It also covers places that have no check today:
@@ -2029,6 +2029,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 
 **Update (2026-11-02, R3 planning):** `AccessPolicy` lives in `campaign` and takes IDs, so `campaign` depends on no other module (D151). It adds `requireCharacterOwner`: only the owner can change a character until D158. Reading a character becomes owner-or-DM, and the campaign's character list becomes DM-only. One `ConflictException` covers InvalidState and Conflict. Acting out of turn returns 403. A missing resource named in the URL returns 404; a missing ID in the request body returns 400. Wrong login details still return 400, and a bad refresh cookie returns 401. Error bodies keep the `{"error": ...}` shape.
 
+**Update (2026-11-02, R5 implementation):** the combat code's catch-and-continue blocks went with `CombatService` and both resolver engines (workstream D). The catches left in `encounter/` convert to domain exceptions (an unknown participant type answers 400; stored JSON that can't be read is logged and answers 409) or log a broadcast that failed after commit (D160).
+
 ## D156: Session Security — In-Memory Access Token, Rotating Refresh Cookie
 
 **Date:** 2026-11-01
@@ -2066,7 +2068,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D157: Encounter Visibility — Subscription Checks and DM/Player Views
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R3)
+**Status:** Accepted — implemented (R3, R5)
 
 **Decision:**
 - **Subscription checks.** The WebSocket channel interceptor checks SUBSCRIBE frames as well as CONNECT. Only campaign members may subscribe to an encounter, and only its DM may subscribe to the DM destination.
@@ -2096,6 +2098,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 **Update (2026-11-02, R3 planning):** the Player View is published on `/topic/encounter/{id}/state` and the DM View on `/topic/encounter/{id}/dm-state`. REST responses use the same split. The Player View also removes monster spell slots, spellcasting numbers and resource pools, and action templates become DM-only. Players' combat logs leave out entries whose actor or target is hidden, and drop the Legendary Resistance fields. Only monsters can be hidden. A subscription must name an exact destination, and clients may SEND only to `/app/**`. `/ws` takes its allowed origins from `CORS_ALLOWED_ORIGINS`. **Correction:** players saw exact monster HP in the spell target pickers, not in the initiative list.
 
 **Update (2026-11-02, R5 planning):** the Player View numbers `sortOrder` and `currentTurnIndex` over the participants players can see, and shows no current turn while a hidden participant acts **(choice)**. Spell log entries give each target its own entry, which the existing filter removes, so a multi-target spell no longer names hidden targets. A player who names a hidden participant as a target gets 400, as for an unknown one.
+
+**Update (2026-11-02, R5 implementation):** spell and monster-action log entries are written per target, so the Player View filter removes hidden targets' entries, and a player naming a hidden participant as a target gets 400 (workstream D). The Player View numbers `sortOrder` and `currentTurnIndex` over the turns players can see and shows no current turn while a hidden participant acts. The Lair's turn appears to players only while at least one lair monster is visible to them, because its log entry names one **(choice)** (workstream E, D163).
 
 ## D158: Server-Authoritative Character Commands and DM Adjustments
 
@@ -2178,7 +2182,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D160: Combat Pipeline — A Single Resolve/Apply Path
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R5)
+**Status:** Accepted — implemented (R5)
 
 **Decision:** Every combat command follows one path:
 
@@ -2221,6 +2225,8 @@ The pieces:
 **Related:** D161, D162, D163, D164, D165, D168, [[Effect]]
 
 **Update (2026-11-02, R5 planning):** the resolver is `rules.combat.Resolver`, with an injected `Rng` so tests can script dice. `EffectApplier` in `encounter.internal` is the only class that changes participants. A command checks access by campaign ID, then loads the encounter under `PESSIMISTIC_WRITE` with a 5-second timeout that answers 409 **(choice)**. Services publish `EncounterChanged`; `EncounterBroadcaster` handles it after commit and reloads the committed state, so a late broadcast never sends older state. Manual damage, healing, Set HP and death saves go to a seventh service, `HitPointService` **(choice)**.
+
+**Update (2026-11-02, R5 implementation):** built as planned. `rules.combat` holds the `Effect` model and `Resolver`. `encounter.internal` holds `EffectApplier`, the only class that changes participants; the template adapters `SpellEffects` and `MonsterEffects`; and seven services replacing `CombatService` and both resolver engines: `TurnService`, `AttackService`, `SpellcastingService`, `MonsterActionService`, `LegendaryResistanceService`, `ConditionService` and `HitPointService`. Turn boundaries run in one place, `TurnProcessor` (workstream E). `CombatAccess` checks access, then locks the encounter and requires it to be Active (workstream B). Area damage is rolled once and logged per target, with a summary entry.
 
 ## D161: Damage, Dying and Downed-Target Rules (2014 PHB)
 
@@ -2287,7 +2293,7 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 ## D162: Concentration Instances and Condition End Rules
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R5)
+**Status:** Accepted — implemented (R5); end rules missing from the data come with R7
 
 **Decision:**
 - **Concentration Instances.** Each casting of a concentration spell creates a Concentration Instance: caster, spell, slot level and the round it started. Conditions and ongoing effects it creates are tied to that instance, and ending the instance removes exactly what it created.
@@ -2331,10 +2337,12 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Update (2026-11-02, R5 planning):** a Concentration Instance is a `concentration` JSONB value `{id, spell, slotLevel, startedRound, durationRounds}`. Condition entries gain `id`, `concentrationInstanceId`, `endRule` and `repeatSave`; end rule types are `AFTER_ROUNDS`, `START_OF_TURN`, `END_OF_TURN`, `CONCENTRATION`, `REPEAT_SAVE` and `MANUAL`. End rules come only from data that already has them (43 spell conditions with durations, 7 with repeat saves, and the monster `saveToEnd*` fields); every other condition is manual until R7's data files fill the gaps **(choice)**. The DM's preference for PC Repeat Saves is the campaign setting `prompt_player_repeat_saves`, off by default, so the server rolls them **(choice)**. A spell's duration ends at the start of its caster's turn **(choice)**.
 
+**Update (2026-11-02, R5 implementation):** Concentration Instances are stored in `encounter_participants.concentration` (V16). Each damage application forces one concentration save, monster damage included. Concentration ends on incapacitation, 0 HP or death, a new casting ends the old instance first, and ending an instance removes exactly the conditions it created. Condition entries carry an `endRule` (the planned types plus HP_REGAINED, for the unconsciousness from dropping to 0 **(choice)**) and an optional `repeatSave` `{ability, dc, awaitingRoll}`, and `TurnProcessor` applies them at turn boundaries. A duration ends at the start of its caster's turn, or of the bearer's if the caster has left or is a dead monster **(choice)**. The server rolls Repeat Saves at the end of the creature's turn, unless the campaign's `prompt_player_repeat_saves` is on, when a PC's condition waits for the player to roll through `POST /api/encounters/{id}/combat/repeat-save`. A failed monster Repeat Save offers Legendary Resistance. A Repeat Save with its own condition, such as Fear's on losing sight of the caster, is left to the DM **(choice)**. Spell conditions stored as objects now apply with their own durations and Repeat Saves; workstream D had dropped them, so Hold Person didn't paralyze until workstream E. No data creates START_OF_TURN or END_OF_TURN rules yet; R7's data files add them.
+
 ## D163: Legendary, Lair and Turn-Order Rules
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R5)
+**Status:** Accepted — implemented (R5)
 
 **Decision:**
 - **Legendary Resistance:** using it turns the failed save into a success. The creature takes the effect's success outcome (half damage or none, as the Effect specifies), and only the conditions from that save are removed. It is offered for every failed save by a creature with uses left, whatever caused the save, including player spells. D145's log-based mechanism stays.
@@ -2367,6 +2375,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Related:** D135, D146, D147, D160, D165, [[Legendary Resistance]], [[Legendary Action]], [[Lair Action]]
 
 **Update (2026-11-02, R5 planning):** `rules.combat.TurnOrder` sorts by initiative, then higher DEX, then the DM's order for ties, kept in `sort_order`. The Lair is an entry in the turn order named "Lair Actions", at initiative 20 and losing ties, present while a monster listed in `monsters_in_lair` is alive; it is not a participant row **(choice)**. Lair actions run only on the Lair turn. Legendary Resistance log entries store the success-outcome damage and the IDs of the conditions that save applied. Using Legendary Resistance on the save that killed a monster brings it back with the refunded HP, because it undoes the save **(choice)**. CR 0 proficiency was already fixed in R2.
+
+**Update (2026-11-02, R5 implementation):** the encounter stores whose turn it is (`current_turn_participant_id`, or `is_lair_turn` for the Lair) rather than a position, because the order is computed, and a stored position drifts as DEX breaks ties, participants come and go and the Lair's turn appears and disappears **(choice)**. The API still returns `currentTurnIndex`, computed for each view (V17). A tie means equal initiative and equal DEX; the DM orders a tie group with `PUT /api/encounters/{id}/initiatives/tie-order`, while Preparing or Active. The Lair's turn is listed while a monster in `monsters_in_lair` is alive, and the DM sets that with an In lair toggle on monsters that have lair actions. Lair actions outside the Lair's turn, and legendary actions on the monster's own turn, answer 409. At the start of a turn a monster regains its legendary actions, spent Recharge abilities roll, and a Dying PC gets a death-save prompt, kept in `death_save_due` until it rolls **(choice)**. Dead monsters' turns are skipped, and Next Turn with nobody able to act answers 409. Legendary Resistance is offered on every failed save while uses remain; it refunds the difference from `lr_success_damage` and removes the conditions in `lr_condition_ids` (V16). Saves logged before V16 can't use it.
 
 ## D164: Attacks and Spells Calculated and Validated by the Server
 
@@ -2445,7 +2455,7 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 ## D166: Encounter Lifecycle and Write-Back
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (lifecycle in R5; Write-back in R6)
+**Status:** Accepted — lifecycle implemented (R5); Write-back in R6
 
 **Decision:**
 - **Lifecycle.** Encounters move Preparing → Active ⇄ Paused → Completed. Any other transition returns 409, and Completed is final.
@@ -2479,6 +2489,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Related:** D125, D158, [[Encounter Lifecycle]], [[Write-back]]
 
 **Update (2026-11-02, R5 planning):** combat commands need an Active encounter. A Paused encounter can only resume or complete **(choice)**. Completing an encounter still syncs pools back, but only once, because Completed is final. The apply-results question and Write-back come in R6.
+
+**Update (2026-11-02, R5 implementation):** combat commands need an Active encounter, and a Paused one can only resume or complete (workstream B). Removing a participant is also allowed while Active: it ends that creature's concentration and passes the turn on if it was theirs **(choice)**. Adding participants stays Preparing-only.
 
 ## D167: Character Progression — Derived HP and Exact Reversal
 
@@ -2530,7 +2542,7 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 ## D168: Typed JSON End-to-End
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (encounter tables in R5; character tables in R6)
+**Status:** Accepted — encounter tables implemented (R5); character tables in R6
 
 **Decision:**
 - Every JSONB column maps to typed Java records through Hibernate's JSON support (`@JdbcTypeCode(SqlTypes.JSON)`). The API returns structured JSON rather than JSON inside strings, and the frontend never calls `JSON.parse` on API fields.
@@ -2553,6 +2565,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 **Related:** D009, D160, D171
 
 **Update (2026-11-02, R5 planning):** R5 types these participant fields: conditions, spell slots (`{max, used}`, pact slots keyed `pact_N`), resource pools, known spells and the Concentration Instance, plus the encounter's `monsters_in_lair`. Spell and monster templates are read into the rules module's Effect model where they are used; their columns get record types with R7's data files **(choice)**. Before V15 or V16 runs, the `preview-migration` maintenance job runs it inside a transaction that is always rolled back, prints every changed row before and after, and checks that each converted row loads. A backup comes first.
+
+**Update (2026-11-02, R5 implementation):** V15 typed the participant columns (conditions, spell slots `{max, used}` with pact slots keyed `pact_N`, known spells and resource pools) and the encounter's `monsters_in_lair`; V16 added the Concentration Instance and condition IDs and end rules. `JsonColumnConfig` makes Hibernate use Spring's ObjectMapper, so unknown keys don't fail a load. The `preview-migration` job dry-ran V15, V16 and V17 against the local database before each was applied, and no row failed to load.
 
 ## D169: Game Content as Data Files with Idempotent Seeding
 

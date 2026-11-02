@@ -104,6 +104,7 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | invite_code | VARCHAR(8) | UNIQUE, NOT NULL | Random alphanumeric, excludes ambiguous chars (0/O, 1/I/L) |
 | is_active | BOOLEAN | DEFAULT TRUE | |
 | show_exact_monster_hp | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting. Off: the Player View shows each monster's HP as a Health Status instead of numbers. Set by the DM through `PATCH /api/campaigns/{id}/settings` (V14, D157). |
+| prompt_player_repeat_saves | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting. Off: the server rolls player characters' Repeat Saves, as it does monsters'. On: the condition waits for the player to roll (`repeatSave.awaitingRoll`) (V17, D162). |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
 
@@ -438,10 +439,11 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 | name | VARCHAR(200) | NOT NULL | |
 | description | TEXT | | |
 | status | VARCHAR | NOT NULL, DEFAULT 'PREPARING' | PREPARING, ACTIVE, PAUSED, COMPLETED |
-| current_turn_index | INTEGER | DEFAULT 0 | Index into sorted participants |
+| current_turn_participant_id | UUID | FK → encounter_participants ON DELETE SET NULL, NULLABLE | Whose turn it is (V17, D163). Replaced `current_turn_index` and `encounter_participants.is_current_turn`: the order is computed from initiative, DEX, the DM's tie order and the Lair's turn, so a stored position drifts. The API still returns `currentTurnIndex`, computed for each view. |
+| is_lair_turn | BOOLEAN | NOT NULL, DEFAULT FALSE | The Lair's turn is current (V17, D163). CHECK: never set together with `current_turn_participant_id`. |
 | round_number | INTEGER | DEFAULT 1 | |
 | session_code | VARCHAR(8) | UNIQUE, NULLABLE | Generated on start, same charset as invite codes |
-| monsters_in_lair | JSONB | | Array of monster IDs fighting in their lair (V9, D136). Written but never read by the backend; R5 completes it (D163). |
+| monsters_in_lair | JSONB | | Array of monster IDs fighting in their lair (V9, D136). While any of them is alive, the turn order includes the Lair's turn at initiative 20, losing ties. The DM sets it with the In lair toggle (R5, D163). |
 | version | BIGINT | | Optimistic locking (`@Version`, D034) |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
@@ -458,28 +460,27 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 | display_name | VARCHAR(200) | NOT NULL | e.g. "Goblin 2" |
 | initiative | INTEGER | NULLABLE | Set before encounter starts |
 | initiative_modifier | INTEGER | DEFAULT 0 | Auto-populated from entity |
-| sort_order | INTEGER | DEFAULT 0 | Based on initiative desc |
+| sort_order | INTEGER | DEFAULT 0 | The DM's order among ties, meaning equal initiative and DEX. The turn order is initiative, then DEX, then this (D163). |
 | hp_max | INTEGER | NOT NULL | |
 | hp_current | INTEGER | NOT NULL | |
 | hp_temp | INTEGER | DEFAULT 0 | |
 | armour_class | INTEGER | NOT NULL | |
-| active_conditions | JSONB | | Array of condition objects |
-| concentration_spell | VARCHAR(200) | | Name of spell being concentrated on |
-| concentration_slot_level | INTEGER | | Slot level used to cast the concentration spell |
+| active_conditions | JSONB | | Array of condition entries `{id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave}` (V15, V16, D162). `endRule` is `{type, participantId}`, with type AFTER_ROUNDS, START_OF_TURN, END_OF_TURN, CONCENTRATION, REPEAT_SAVE, HP_REGAINED or MANUAL; `participantId` names whose turn a turn-based rule counts. `repeatSave` is `{ability, dc, awaitingRoll}`. |
+| concentration | JSONB | | The Concentration Instance `{id, spell, slotLevel, startedRound, durationRounds}`, or NULL (V16, D162). Replaced `concentration_spell` and `concentration_slot_level`. Conditions it created carry its `id`. |
 | active_spell | VARCHAR(200) | | Non-concentration persistent spell |
 | active_spell_slot_level | INTEGER | | Slot level used to cast the active spell |
-| spell_slots_current | JSONB | | Copied from character on encounter join and converted to `{"1": {max, remaining}, …}` (D107). For monsters with innate spellcasting it currently holds an `{"innate": true, …}` object instead; R5 removes that (D165). **Planned (R5, D168):** `{max, used}`. |
+| spell_slots_current | JSONB | | Copied from character on encounter join as `{"1": {max, used}, …}`, with pact slots keyed `pact_N` (V15, D168). V15 removed the innate object that monsters with innate spellcasting held. |
 | spell_attack_bonus | INTEGER | | Copied from character on encounter join |
 | spell_save_dc | INTEGER | | Copied from character on encounter join |
 | spellcasting_ability | VARCHAR(20) | | Copied from character on encounter join |
 | spells_known | JSONB | | Copied from character on encounter join |
 | **resource_pools_current** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. Copied from character sheet on join for PCs; generated from monster pool triggers for monsters. |
 | is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
-| is_alive | BOOLEAN | DEFAULT TRUE | |
-| is_current_turn | BOOLEAN | DEFAULT FALSE | **Planned (R5, D163):** dropped. Whose turn it is comes from `encounters.current_turn_index`. |
+| life_state | VARCHAR(10) | NOT NULL, CHECK | ALIVE, DYING, STABLE or DEAD (V16, D161). Replaced `is_alive`, because a Stable PC's death saves are reset and can't otherwise be told from a Dying PC's. |
 | controlled_by_user_id | UUID | FK → users, NULLABLE | For PLAYER, set to character owner |
 | death_save_successes | INTEGER | DEFAULT 0 | |
 | death_save_failures | INTEGER | DEFAULT 0 | |
+| death_save_due | BOOLEAN | NOT NULL, DEFAULT FALSE | Set when a Dying PC's turn starts, until it rolls the death save or stops dying (V17, D163) |
 | notes | TEXT | | DM-only notes |
 | action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
 | bonus_action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
@@ -491,7 +492,7 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 
 ### encounter_participants resource_pools_current Format
 
-Same `ResourcePoolEntry` JSONB array format as `player_characters.resource_pools`. During combat, `currentUses` is tracked independently from the character sheet. Per-turn resets (`resetOn == "turn"`) and recharge checks (`resetCheck`) are evaluated by `advanceTurn()`. On encounter COMPLETED, currentUses values are synced back to the character sheet for matching `poolId`s.
+Same `ResourcePoolEntry` JSONB array format as `player_characters.resource_pools`. During combat, `currentUses` is tracked independently from the character sheet. Per-turn resets (`resetOn == "turn"`) and recharge checks (`resetCheck`) are evaluated at the start of the creature's turn by `TurnProcessor` (R5, D163). On encounter COMPLETED, currentUses values are synced back to the character sheet for matching `poolId`s.
 
 **Planned (R6, D166):** replaced by Write-back. When the DM applies results at completion, the *change* in uses during the encounter is applied to the sheet, along with HP, spell slots, hit dice and death, rather than copying final values over. This lets a character be in several encounters at once.
 
@@ -563,7 +564,7 @@ Append-only log of every combat action in an encounter. One row per action.
 | actor_name | VARCHAR(200) | | Display name snapshot at time of action |
 | target_id | UUID | | Participant affected |
 | target_name | VARCHAR(200) | | Display name snapshot at time of action |
-| action_type | VARCHAR(30) | NOT NULL, CHECK | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE, SPELL_SLOT_USE, SPELL_SLOT_RESTORE, SPELL_CAST, SPELL_EFFECT_REPEAT (V5), MONSTER_ACTION, LEGENDARY_ACTION, LAIR_ACTION, LEGENDARY_RESISTANCE_USED, RECHARGE_SUCCESS, RECHARGE_FAILURE (V9) |
+| action_type | VARCHAR(30) | NOT NULL, CHECK | ATTACK, DAMAGE, HEAL, CONDITION_ADD, CONDITION_REMOVE, DEATH_SAVE, CONCENTRATION_CHECK, CONCENTRATION_LOST, TURN_ADVANCE, TURN_BACK, STABILIZE, KILL, REVIVE, SPELL_SLOT_USE, SPELL_SLOT_RESTORE, SPELL_CAST, SPELL_EFFECT_REPEAT (V5), MONSTER_ACTION, LEGENDARY_ACTION, LAIR_ACTION, LEGENDARY_RESISTANCE_USED, RECHARGE_SUCCESS, RECHARGE_FAILURE (V9), HP_SET, REPEAT_SAVE (V16) |
 | description | TEXT | NOT NULL | Human-readable action description |
 | roll_value | INTEGER | | Raw d20 roll (before modifiers) |
 | roll_total | INTEGER | | Roll + modifiers |
@@ -572,9 +573,11 @@ Append-only log of every combat action in an encounter. One row per action.
 | turn_participant_name | VARCHAR(200) | | Display name of the participant whose turn it was when the action occurred |
 | legendary_resistance_eligible | BOOLEAN | DEFAULT FALSE | Failed save by a creature that could use Legendary Resistance (V10, D145) |
 | lr_target_id | UUID | | Participant who failed the save |
-| lr_damage_dealt | INTEGER | | Damage from the failed save, refunded if Legendary Resistance is used. **Planned (R5, D163):** only the difference from the success outcome is refunded. |
-| lr_conditions_applied | VARCHAR(500) | | Comma-separated conditions applied by the failed save, removed if Legendary Resistance is used |
+| lr_damage_dealt | INTEGER | | Damage from the failed save, refunded if Legendary Resistance is used. Since V16, only the difference from `lr_success_damage` is refunded (D163). |
+| lr_conditions_applied | VARCHAR(500) | | Comma-separated conditions applied by the failed save, removed if Legendary Resistance is used. Entries since V16 use `lr_condition_ids`. |
 | lr_resolved | BOOLEAN | DEFAULT FALSE | Set once Legendary Resistance is used or declined |
+| lr_success_damage | INTEGER | | Damage the target would have taken on a successful save (V16, D163) |
+| lr_condition_ids | JSONB | | IDs of the condition entries the failed save applied, removed if Legendary Resistance is used (V16, D163). Entries logged before V16 have neither column, so Legendary Resistance can't be used on them. |
 | created_at | TIMESTAMPTZ | | |
 
 ## Indexes
@@ -628,6 +631,9 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V12 | `V12__foreign_key_indexes.sql` | Indexes on the seven foreign keys used in lookups and joins, all `IF NOT EXISTS` (D170) |
 | V13 | `V13__refresh_tokens.sql` | `refresh_tokens` table with `idx_rt_user_id` and `idx_rt_family_id` (D156) |
 | V14 | `V14__campaign_show_exact_monster_hp.sql` | `campaigns.show_exact_monster_hp` BOOLEAN NOT NULL DEFAULT FALSE (D157) |
+| V15 | `V15__typed_encounter_json.sql` | Participant spell slots become `{max, used}`, with pact slots keyed `pact_N`; the innate slot object becomes NULL; conditions stored as strings become objects; values of the wrong JSON type become NULL (D168) |
+| V16 | `V16__combat_pipeline_state.sql` | `concentration` replaces the two concentration columns; `life_state` replaces `is_alive`; condition entries gain `id` and an end rule, and Dying and Stable PCs gain unconscious and prone; `combat_logs.lr_success_damage` and `lr_condition_ids`; `HP_SET` and `REPEAT_SAVE` action types (D160–D163) |
+| V17 | `V17__turn_order.sql` | `encounters.current_turn_participant_id` and `is_lair_turn` replace `current_turn_index` and `encounter_participants.is_current_turn`; `encounter_participants.death_save_due`; `campaigns.prompt_player_repeat_saves` (D157, D162, D163) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -639,9 +645,12 @@ One-off data corrections that run with the backend after reference data seeding,
 |-----|-----------------|----------|
 | `recompute-spell-slots` | Recomputes spell slot maximums in `player_characters.spell_slots`. Used counts are kept, capped at the new maximum. | D153 |
 | `relink-feat-ids` | Re-points `featId` in `level_history` feat records at the current feat with the same name. | D169 |
+| `preview-migration` | Nothing. Runs migration `--maintenance.version=N` inside a transaction that is always rolled back, prints every changed row before and after, and checks that each converted row loads. Pass `--spring.flyway.target=N-1 --spring.jpa.hibernate.ddl-auto=none` too, so Flyway doesn't apply the migration first. It splits the file into statements, so migrations it previews avoid DO blocks. | D168 |
 
 Run locally from `backend/`:
-`./gradlew bootRun --args="--maintenance.job=<name> --spring.main.web-application-type=none"`
+`./gradlew bootRun --args="--maintenance.job=<name> --server.port=0"`
+
+The app starts on a random free port and exits when the job is done. `--spring.main.web-application-type=none` no longer starts it, because the error handler reads the server settings (since R3).
 Add `--maintenance.apply=true` to write the changes.
 
 ## Planned Schema Changes (Refactor Phase, D150–D172)
@@ -680,11 +689,15 @@ The two data changes run with the dry-run report and backup that D150 requires. 
 | Migration | Lands in | Change |
 |---|---|---|
 | `V15__typed_encounter_json.sql` | C | `encounter_participants.spell_slots_current` changes from `{remaining, max}` to `{max, used}`; the innate object becomes NULL; `active_conditions` stored as string arrays become objects |
-| `V16__combat_pipeline_state.sql` | D | **Participants:** `concentration` JSONB replaces `concentration_spell` and `concentration_slot_level`; `life_state` VARCHAR(10) NOT NULL CHECK (ALIVE, DYING, STABLE, DEAD) replaces `is_alive`; condition entries gain `id` and a MANUAL `endRule`. **`combat_logs`:** adds `lr_success_damage` INTEGER and `lr_condition_ids` JSONB; `action_type` adds `HP_SET` and `REPEAT_SAVE` |
-| `V17__turn_order.sql` | E | Drops `encounter_participants.is_current_turn`; adds `campaigns.prompt_player_repeat_saves` BOOLEAN NOT NULL DEFAULT FALSE |
+| `V16__combat_pipeline_state.sql` | D | **Participants:** `concentration` JSONB replaces `concentration_spell` and `concentration_slot_level`; `life_state` VARCHAR(10) NOT NULL CHECK (ALIVE, DYING, STABLE, DEAD) replaces `is_alive`; condition entries gain `id` and a MANUAL `endRule`; Dying and Stable PCs gain prone and an unconscious condition that ends when they regain HP (end rule HP_REGAINED). **`combat_logs`:** adds `lr_success_damage` INTEGER and `lr_condition_ids` JSONB; `action_type` adds `HP_SET` and `REPEAT_SAVE` |
+| `V17__turn_order.sql` | E | **Encounters:** adds `current_turn_participant_id` (FK ON DELETE SET NULL, indexed) and `is_lair_turn`, never both set, filled from `is_current_turn` or else the turn index; drops `current_turn_index`. **Participants:** drops `is_current_turn`; adds `death_save_due` BOOLEAN NOT NULL DEFAULT FALSE. **Campaigns:** adds `prompt_player_repeat_saves` BOOLEAN NOT NULL DEFAULT FALSE |
 | `V18__manual_modifiers_and_monster_triggers.sql` | F | Adds `campaigns.allow_player_manual_modifiers` BOOLEAN NOT NULL DEFAULT TRUE; changes the Legendary Resistance trigger to `{"hasFeature": "Legendary Resistance"}`; deletes the breath-weapon trigger |
 
 V16 backfills existing rows: concentration is built from the old columns and the encounter's current round; a downed monster becomes DEAD; a downed PC becomes DEAD with three failures, STABLE with three successes (both counts reset), and DYING otherwise. Each of V15 and V16 gets a backup and a `preview-migration` dry run first (D168).
+
+V17 stores the current turn by participant rather than by position, because the order is computed from initiative, DEX, the DM's tie order and the Lair's turn, so a stored position drifts as participants come and go (D163).
+
+**Done (2026-11-02):** V15, V16 and V17 are applied to the local database, each after a backup in `tabletopHelper-backups/` and a `preview-migration` dry run. V15 converted 12 slot rows. V16 changed 246 of 261 rows, leaving 57 participants Alive, 1 Dead and 2 Dying. V17 changed 75 rows, and every encounter kept the same creature on its turn. No row failed to load.
 
 ### R3–R7 — Outline
 

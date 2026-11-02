@@ -19,8 +19,9 @@ import java.util.List;
  * Runs one maintenance job after reference data seeding, then exits. Does nothing unless
  * {@code --maintenance.job} is set. Dry run by default; {@code --maintenance.apply=true} writes.
  * <p>
- * Local example (no web server):
- * {@code ./gradlew bootRun --args="--maintenance.job=recompute-spell-slots --spring.main.web-application-type=none"}
+ * Local example, on a random free port (the error handler needs the web server's settings, so
+ * {@code --spring.main.web-application-type=none} doesn't start):
+ * {@code ./gradlew bootRun --args="--maintenance.job=recompute-spell-slots --server.port=0"}
  */
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE)
