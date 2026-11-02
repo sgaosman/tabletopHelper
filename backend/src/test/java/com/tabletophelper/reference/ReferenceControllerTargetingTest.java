@@ -1,6 +1,7 @@
 package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.reference.dto.SpellTargetingResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,7 +10,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
-import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,10 +50,9 @@ class ReferenceControllerTargetingTest {
         var response = controller.getSpellTargeting("Magic Missile", 0);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        SpellTargetingResponse body = response.getBody();
         assertNotNull(body);
-        assertEquals(1, body.get("maxTargets"));
+        assertEquals(1, body.maxTargets());
     }
 
     @Test
@@ -67,11 +66,10 @@ class ReferenceControllerTargetingTest {
         var response = controller.getSpellTargeting("Shield", 0);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        SpellTargetingResponse body = response.getBody();
         assertNotNull(body);
-        assertEquals(true, body.get("selfOnly"));
-        assertEquals(true, body.get("canTargetSelf"));
+        assertTrue(body.selfOnly());
+        assertTrue(body.canTargetSelf());
     }
 
     @Test
@@ -86,10 +84,9 @@ class ReferenceControllerTargetingTest {
         var response = controller.getSpellTargeting("Bless", 3);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        SpellTargetingResponse body = response.getBody();
         assertNotNull(body);
-        assertEquals(5, body.get("maxTargets")); // 3 base + 2 more from +2 levels above base
+        assertEquals(5, body.maxTargets()); // 3 base + 2 more from +2 levels above base
     }
 
     @Test
@@ -103,10 +100,9 @@ class ReferenceControllerTargetingTest {
         var response = controller.getSpellTargeting("Fireball", 0);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        SpellTargetingResponse body = response.getBody();
         assertNotNull(body);
-        assertEquals(-1, body.get("maxTargets"));
+        assertEquals(-1, body.maxTargets());
     }
 
     @Test
@@ -143,9 +139,26 @@ class ReferenceControllerTargetingTest {
         var response = controller.getSpellTargeting("Call Lightning", 0);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        SpellTargetingResponse body = response.getBody();
         assertNotNull(body);
-        assertEquals(true, body.get("hasRepeatEffect"));
+        assertTrue(body.hasRepeatEffect());
+    }
+
+    @Test
+    @DisplayName("The response has the same seven JSON fields as the map it replaced, with targetType defaulted")
+    void responseJsonMatchesTheFormerMap() throws Exception {
+        Spell spell = new Spell();
+        spell.setName("Bless");
+        spell.setEffectTemplate(
+            "{\"spellLevel\":1,\"targetCount\":3,\"targetCountUpcastScaling\":{\"additionalTargetsPerLevel\":1}}");
+        when(spellRepository.findByNameIgnoreCase("Bless")).thenReturn(Optional.of(spell));
+
+        var response = controller.getSpellTargeting("Bless", 2);
+
+        var expected = objectMapper.readTree("""
+                {"maxTargets": 4, "selfOnly": false, "canTargetSelf": false, "canTargetAllies": true,
+                 "canTargetEnemies": true, "targetType": "SINGLE_TARGET", "hasRepeatEffect": false}
+                """);
+        assertEquals(expected, objectMapper.valueToTree(response.getBody()));
     }
 }

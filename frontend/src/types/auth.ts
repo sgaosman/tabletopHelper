@@ -1,22 +1,12 @@
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
+import type { Schemas } from '../api/schema';
 
-export interface RegisterRequest {
-  username: string;
-  email: string;
-  password: string;
-  displayName?: string;
-}
+export type LoginRequest = Schemas['LoginRequest'];
+
+// Without a display name, the server uses the username
+export type RegisterRequest = Schemas['RegisterRequest'];
 
 // The refresh token never appears in a body: it travels in an httpOnly cookie (D156)
-export interface AuthResponse {
-  userId: string;
-  username: string;
-  displayName: string;
-  accessToken: string;
-}
+export type AuthResponse = Schemas['AuthResponse'];
 
 export interface AuthUser {
   userId: string;

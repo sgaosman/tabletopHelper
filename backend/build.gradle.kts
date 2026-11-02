@@ -79,6 +79,10 @@ testing {
                         // Testcontainers 1.20 asks for Docker API 1.32, which Docker Engine 29 and
                         // current Docker Desktop reject; 1.44 needs Docker 25 or later
                         systemProperty("api.version", "1.44")
+                        // OpenApiSpecIT compares the live spec with the one the frontend generates its
+                        // types from (D171)
+                        systemProperty("openapi.committed-spec",
+                            file("../frontend/src/api/generated/openapi.json").absolutePath)
                         // Never skipped, not even as up to date: a green run always means the tier ran,
                         // and without Docker it fails at once
                         outputs.upToDateWhen { false }

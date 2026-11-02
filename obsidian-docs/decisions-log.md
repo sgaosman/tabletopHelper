@@ -1139,6 +1139,8 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Focus trapping in modals is not yet implemented — just the semantic markup. Full keyboard accessibility would require a focus trap hook.
 
+**Update (2026-11-02, R4 planning):** the shared `Modal` (D171) traps focus, closes on Escape and returns focus to the opener. Every dialog uses it; icon-only buttons use `IconButton`, which requires a label.
+
 ## D101: CombatService Damage Deduplication
 
 **Date:** 2026-07-20
@@ -2647,6 +2649,8 @@ The full list is settled during R2 planning.
 **Amends:** D081 and D087 (the shared rules utilities shrink as rules move to the server), D088, D096, D100
 
 **Related:** D004, D168, D172
+
+**Update (2026-11-02, R4 planning):** springdoc writes OpenAPI 3.0, and a property is nullable unless marked required. The spec and generated types are committed under `frontend/src/api/generated/`, and CI fails when either is stale. After every change the server publishes the full combat log per view, on `/topic/encounter/{id}/log` and `/dm-log`. A mutation's response updates the cache unless a WebSocket message arrived meanwhile. The wizard, `SpellsTab` and `FeatPicker` keep their loading code until R8, and exhaustive-deps only warns there.
 
 ## D172: Testing Strategy — Three Tiers and Golden Rules Tables
 

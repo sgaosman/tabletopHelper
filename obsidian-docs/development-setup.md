@@ -94,6 +94,10 @@ Hibernate runs with `ddl-auto: validate` in every profile, dev included, and Fly
 - **Where the session lives.** The access token is only in memory, so DevTools shows nothing in localStorage. The `refresh_token` cookie (HttpOnly, SameSite=Strict, Path `/api/auth`) appears under the cookies for `localhost:5173`. Reloading a page shows "Loading..." briefly while the app trades the cookie for an access token. See [[auth-flow]].
 - **Error messages.** Only the dev profile shows the real message of an unexpected error (`server.error.include-message: always`); other profiles return "Something went wrong. Please try again." Status codes follow D155: 401 for a missing or expired token, 403 for "not allowed", 404 for a missing resource named in the URL, 409 for the wrong state. See [[api-reference#Error Response Format]].
 
+## Generated API types
+
+The frontend's API types come from the backend's OpenAPI spec (D171). After changing a controller or DTO, start the dev backend, run `cd frontend && npm run api:spec`, and commit `src/api/generated/`. `api:spec` saves the spec from `BACKEND_URL` (default `http://localhost:8080`) and regenerates the types; `npm run api:types` regenerates the types from the committed spec alone. CI fails when the committed types don't match the committed spec, and `OpenApiSpecIT` fails when the committed spec doesn't match the backend. A property is nullable unless its DTO marks it `@Schema(requiredMode = REQUIRED)`.
+
 ## Continuous Integration
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request:

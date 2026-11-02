@@ -1,35 +1,14 @@
-export interface CampaignCreateRequest {
-  name: string;
-  description?: string;
-}
+import type { Schemas } from '../api/schema';
 
-export interface CampaignJoinRequest {
-  inviteCode: string;
-}
+export type CampaignCreateRequest = Schemas['CampaignCreateRequest'];
 
-export interface CampaignMember {
-  userId: string;
-  username: string;
-  displayName: string;
-  role: 'DM' | 'PLAYER';
-  joinedAt: string;
-}
+export type CampaignJoinRequest = Schemas['CampaignJoinRequest'];
 
-export interface Campaign {
-  id: string;
-  name: string;
-  description?: string;
-  dmUserId: string;
-  dmDisplayName: string;
-  inviteCode: string;
-  isActive: boolean;
-  /** Off: players see each monster's HP as a Health Status instead of numbers (D157). */
-  showExactMonsterHp: boolean;
-  members: CampaignMember[];
-  createdAt: string;
-}
+// joinedAt is null for a member added by the response's own request
+export type CampaignMember = Schemas['MemberResponse'];
 
-/** The DM's campaign settings; a setting left out keeps its value. */
-export interface CampaignSettingsRequest {
-  showExactMonsterHp?: boolean;
-}
+// createdAt is null in the response that creates the campaign
+export type Campaign = Schemas['CampaignResponse'];
+
+/** The DM's campaign settings; a setting left out, or null, keeps its value. */
+export type CampaignSettingsRequest = Schemas['CampaignSettingsRequest'];

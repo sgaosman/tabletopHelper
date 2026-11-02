@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "api:spec": "node scripts/fetch-openapi.mjs && npm run api:types",
+    "api:types": "openapi-typescript src/api/generated/openapi.json -o src/api/generated/schema.d.ts"
   },
   "dependencies": {
     "@stomp/stompjs": "^7.3.0",
@@ -32,6 +34,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "jsdom": "^29.1.1",
     "msw": "^2.15.0",
+    "openapi-typescript": "^7.13.0",
     "oxlint": "^1.71.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
@@ -40,5 +43,10 @@
   },
   "allowScripts": {
     "msw@2.15.0": true
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

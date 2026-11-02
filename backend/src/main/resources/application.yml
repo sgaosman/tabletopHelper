@@ -23,6 +23,14 @@ app:
     # The refresh cookie is Secure everywhere except the dev profile, which runs on plain HTTP (D156)
     cookie-secure: true
 
+# The frontend generates its API types from this spec, so its output must be stable: OpenAPI 3.0
+# with nullable, keys in order and JSON responses (D171). The prod profile turns the docs off (D154)
+springdoc:
+  api-docs:
+    version: openapi_3_0
+  writer-with-order-by-keys: true
+  default-produces-media-type: application/json
+
 # Only the health endpoint is exposed, without details; Caddy does not proxy /actuator (D154)
 management:
   endpoints:

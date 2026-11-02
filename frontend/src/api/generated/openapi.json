@@ -1,0 +1,6300 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "refresh_token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "refresh_token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description": "A new access token; the rotated refresh token is in the cookie"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/campaigns": {
+      "get": {
+        "operationId": "getMyCampaigns",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampaignResponse"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "campaign-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createCampaign",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "campaign-controller"
+        ]
+      }
+    },
+    "/api/campaigns/join": {
+      "post": {
+        "operationId": "joinCampaign",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignJoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "campaign-controller"
+        ]
+      }
+    },
+    "/api/campaigns/{campaignId}": {
+      "get": {
+        "operationId": "getCampaign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaignId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "campaign-controller"
+        ]
+      }
+    },
+    "/api/campaigns/{campaignId}/settings": {
+      "patch": {
+        "operationId": "updateSettings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaignId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "campaign-controller"
+        ]
+      }
+    },
+    "/api/characters": {
+      "get": {
+        "operationId": "getMyCharacters",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterResponse"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createCharacter",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/campaign/{campaignId}": {
+      "get": {
+        "operationId": "getCharactersInCampaign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaignId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterResponse"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}": {
+      "delete": {
+        "operationId": "deleteCharacter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      },
+      "get": {
+        "operationId": "getCharacter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateCharacter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/apply-choices": {
+      "post": {
+        "operationId": "applyChoices",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyChoicesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/eligible-classes": {
+      "get": {
+        "operationId": "getEligibleClasses",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EligibleClassResponse"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/level-down": {
+      "post": {
+        "operationId": "levelDown",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/level-up": {
+      "post": {
+        "operationId": "levelUp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LevelUpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LevelUpResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/encounters": {
+      "post": {
+        "operationId": "createEncounter",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EncounterCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/campaign/{campaignId}": {
+      "get": {
+        "operationId": "getEncountersByCampaign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaignId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EncounterResponse"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/join/{sessionCode}": {
+      "get": {
+        "operationId": "getBySessionCode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}": {
+      "delete": {
+        "operationId": "deleteEncounter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      },
+      "get": {
+        "operationId": "getEncounter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/attack": {
+      "post": {
+        "operationId": "rollAttack",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttackRollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/cast-spell": {
+      "post": {
+        "operationId": "castSpell",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastSpellRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastSpellResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/concentration": {
+      "post": {
+        "operationId": "setConcentration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConcentrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/condition/add": {
+      "post": {
+        "operationId": "addCondition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConditionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/condition/remove": {
+      "post": {
+        "operationId": "removeCondition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConditionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/damage": {
+      "post": {
+        "operationId": "applyDamage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DamageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/death-save": {
+      "post": {
+        "operationId": "rollDeathSave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeathSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/heal": {
+      "post": {
+        "operationId": "applyHealing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/hp": {
+      "post": {
+        "operationId": "setHp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/lair-status": {
+      "post": {
+        "operationId": "setLairStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LairStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/legendary-resistance": {
+      "post": {
+        "operationId": "useLegendaryResistance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegendaryResistanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/log": {
+      "get": {
+        "operationId": "getCombatLog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CombatLogResponse"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/monster-action": {
+      "post": {
+        "operationId": "monsterAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonsterActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonsterActionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/monster-spell": {
+      "post": {
+        "operationId": "monsterSpell",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonsterSpellRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastSpellResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/repeat-spell-effect": {
+      "post": {
+        "operationId": "repeatSpellEffect",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepeatSpellEffectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CastSpellResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/spell-slot/restore": {
+      "post": {
+        "operationId": "restoreSpellSlot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpellSlotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/spell-slot/use": {
+      "post": {
+        "operationId": "useSpellSlot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpellSlotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/turn/next": {
+      "post": {
+        "operationId": "advanceTurn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/turn/previous": {
+      "post": {
+        "operationId": "previousTurn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/end": {
+      "post": {
+        "operationId": "endEncounter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/initiatives": {
+      "post": {
+        "operationId": "setInitiatives",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkInitiativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/initiatives/roll": {
+      "post": {
+        "operationId": "rollAllInitiatives",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/participants": {
+      "post": {
+        "operationId": "addParticipant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddParticipantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/participants/{participantId}": {
+      "delete": {
+        "operationId": "removeParticipant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/participants/{participantId}/actions": {
+      "get": {
+        "operationId": "getMonsterActions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/participants/{participantId}/name": {
+      "patch": {
+        "operationId": "renameParticipant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/participants/{participantId}/visibility": {
+      "patch": {
+        "operationId": "setParticipantVisibility",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisibilityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/pause": {
+      "post": {
+        "operationId": "pauseEncounter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/resume": {
+      "post": {
+        "operationId": "resumeEncounter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/start": {
+      "post": {
+        "operationId": "startEncounter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/monsters": {
+      "get": {
+        "operationId": "searchMonsters",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cr",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageable",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageMonster"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "monster-controller"
+        ]
+      }
+    },
+    "/api/monsters/filters/challenge-ratings": {
+      "get": {
+        "operationId": "getChallengeRatings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "monster-controller"
+        ]
+      }
+    },
+    "/api/monsters/filters/sources": {
+      "get": {
+        "operationId": "getSources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "monster-controller"
+        ]
+      }
+    },
+    "/api/monsters/filters/types": {
+      "get": {
+        "operationId": "getTypes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "monster-controller"
+        ]
+      }
+    },
+    "/api/monsters/search": {
+      "get": {
+        "operationId": "fuzzySearch",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maxResults",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Monster"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "monster-controller"
+        ]
+      }
+    },
+    "/api/monsters/{id}": {
+      "get": {
+        "operationId": "getMonster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Monster"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "monster-controller"
+        ]
+      }
+    },
+    "/api/reference/backgrounds": {
+      "get": {
+        "operationId": "getAllBackgrounds",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Background"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/backgrounds/{id}": {
+      "get": {
+        "operationId": "getBackground",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Background"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/classes": {
+      "get": {
+        "operationId": "getAllClasses",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterClass"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/classes/{id}": {
+      "get": {
+        "operationId": "getCharacterClass",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterClass"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/classes/{id}/subclasses": {
+      "get": {
+        "operationId": "getSubclassesForClass",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Subclass"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/conditions": {
+      "get": {
+        "operationId": "getAllConditions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Condition"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/conditions/{id}": {
+      "get": {
+        "operationId": "getCondition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Condition"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/feats": {
+      "get": {
+        "operationId": "getAllFeats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Feat"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/feats/{id}": {
+      "get": {
+        "operationId": "getFeat",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feat"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/items": {
+      "get": {
+        "operationId": "searchItems",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rarity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageable",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageItem"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/items/filters/rarities": {
+      "get": {
+        "operationId": "getItemRarities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/items/filters/sources": {
+      "get": {
+        "operationId": "getItemSources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/items/filters/types": {
+      "get": {
+        "operationId": "getItemTypes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/items/{id}": {
+      "get": {
+        "operationId": "getItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/optional-features": {
+      "get": {
+        "operationId": "getOptionalFeatures",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OptionalFeature"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/quickref": {
+      "get": {
+        "operationId": "getQuickReference",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonNode"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/races": {
+      "get": {
+        "operationId": "getAllRaces",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Race"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/races/filters/sources": {
+      "get": {
+        "operationId": "getRaceSources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/races/{id}": {
+      "get": {
+        "operationId": "getRace",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Race"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/spells": {
+      "get": {
+        "operationId": "searchSpells",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "school",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "className",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subclass",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "concentration",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ritual",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageable",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageSpell"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/spells/filters/classes": {
+      "get": {
+        "operationId": "getSpellClasses",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/spells/filters/schools": {
+      "get": {
+        "operationId": "getSpellSchools",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/spells/filters/sources": {
+      "get": {
+        "operationId": "getSpellSources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/spells/filters/subclasses": {
+      "get": {
+        "operationId": "getSpellSubclasses",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "className",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/spells/targeting": {
+      "get": {
+        "operationId": "getSpellTargeting",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slotLevel",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpellTargetingResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/spells/{id}": {
+      "get": {
+        "operationId": "getSpell",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spell"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AbilityIncrease": {
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string",
+            "nullable": true
+          },
+          "bonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "AddParticipantRequest": {
+        "required": [
+          "displayName",
+          "participantType"
+        ],
+        "type": "object",
+        "properties": {
+          "armourClass": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "controlledByUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "displayName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "hpMax": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "initiativeModifier": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "monsterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "participantType": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "ApplyChoicesRequest": {
+        "type": "object",
+        "properties": {
+          "asi": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AsiChoice"
+              }
+            ]
+          },
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "expertiseSkills": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "subclassId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "AsiChoice": {
+        "type": "object",
+        "properties": {
+          "expertiseSkillChoices": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "featAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "featId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "featName": {
+            "type": "string",
+            "nullable": true
+          },
+          "increases": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AbilityIncrease"
+            }
+          },
+          "languageChoices": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "optionalFeatureIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "resistanceChoice": {
+            "type": "string",
+            "nullable": true
+          },
+          "savingThrowChoice": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillProficiencyChoices": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "spellIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "toolProficiencyChoices": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "weaponChoices": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AttackRollRequest": {
+        "required": [
+          "attackBonus",
+          "damageDice",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "advantage": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "attackBonus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "damageDice": {
+            "type": "string"
+          },
+          "damageType": {
+            "type": "string",
+            "nullable": true
+          },
+          "forceCrit": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isRanged": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AuthResponse": {
+        "required": [
+          "accessToken",
+          "displayName",
+          "userId",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "Background": {
+        "type": "object",
+        "properties": {
+          "additionalSpells": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "feats": {
+            "type": "string",
+            "nullable": true
+          },
+          "feature": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "languageProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "startingEquipment": {
+            "type": "string",
+            "nullable": true
+          },
+          "toolProficiencies": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "BulkInitiativeRequest": {
+        "required": [
+          "initiatives"
+        ],
+        "type": "object",
+        "properties": {
+          "initiatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SetInitiativeRequest"
+            }
+          }
+        }
+      },
+      "CampaignCreateRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "CampaignJoinRequest": {
+        "required": [
+          "inviteCode"
+        ],
+        "type": "object",
+        "properties": {
+          "inviteCode": {
+            "type": "string"
+          }
+        }
+      },
+      "CampaignResponse": {
+        "required": [
+          "dmDisplayName",
+          "dmUserId",
+          "id",
+          "inviteCode",
+          "isActive",
+          "members",
+          "name",
+          "showExactMonsterHp"
+        ],
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "dmDisplayName": {
+            "type": "string"
+          },
+          "dmUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inviteCode": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberResponse"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "showExactMonsterHp": {
+            "type": "boolean",
+            "description": "Off: players see each monster's HP as a Health Status instead of numbers (D157)"
+          }
+        }
+      },
+      "CampaignSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "showExactMonsterHp": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "CastSpellRequest": {
+        "required": [
+          "slotLevel",
+          "spellName",
+          "targetIds"
+        ],
+        "type": "object",
+        "properties": {
+          "advantage": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "overrideSpellAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "overrideSpellSaveDC": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "spellName": {
+            "type": "string"
+          },
+          "targetIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "usePactSlot": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "CastSpellResponse": {
+        "type": "object",
+        "properties": {
+          "autoResolved": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "encounterState": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EncounterResponse"
+              }
+            ]
+          },
+          "manualResolutionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "resultSummary": {
+            "type": "string",
+            "nullable": true
+          },
+          "slotLevelUsed": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellName": {
+            "type": "string",
+            "nullable": true
+          },
+          "targets": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/TargetOutcome"
+            }
+          }
+        }
+      },
+      "CharacterClass": {
+        "type": "object",
+        "properties": {
+          "armorProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "features": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDice": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isKnownCaster": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isPactMagic": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isPreparedCaster": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isSpellcaster": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "multiclassProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "multiclassRequirements": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "primaryAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "savingThrowProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillChoices": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellSlotProgression": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellcastingAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "startingEquipment": {
+            "type": "string",
+            "nullable": true
+          },
+          "subclassLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "toolProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "weaponProficiencies": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CharacterCreateRequest": {
+        "required": [
+          "name",
+          "raceId"
+        ],
+        "type": "object",
+        "properties": {
+          "abilityScoreMethod": {
+            "type": "string",
+            "nullable": true
+          },
+          "alignment": {
+            "type": "string",
+            "nullable": true
+          },
+          "armorProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "armourClass": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "background": {
+            "type": "string",
+            "nullable": true
+          },
+          "backgroundId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "campaignId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "characterClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "charisma": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "constitution": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageResistances": {
+            "type": "string",
+            "nullable": true
+          },
+          "dexterity": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "equipment": {
+            "type": "string",
+            "nullable": true
+          },
+          "features": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDiceMap": {
+            "type": "string",
+            "nullable": true
+          },
+          "hpMax": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "initiativeBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "intelligence": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "languageProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "multiclassClassEntries": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "proficiencyBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "race": {
+            "type": "string",
+            "nullable": true
+          },
+          "raceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "racialAbilityBonuses": {
+            "type": "string",
+            "nullable": true
+          },
+          "savingThrowProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillExpertises": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "speed": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSaveDc": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSlots": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellcastingAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellsKnown": {
+            "type": "string",
+            "nullable": true
+          },
+          "strength": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "subclass": {
+            "type": "string",
+            "nullable": true
+          },
+          "subclassId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "toolProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "weaponProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "wisdom": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "CharacterResponse": {
+        "type": "object",
+        "properties": {
+          "abilityScoreMethod": {
+            "type": "string",
+            "nullable": true
+          },
+          "alignment": {
+            "type": "string",
+            "nullable": true
+          },
+          "armorProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "armourClass": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "attunedItems": {
+            "type": "string",
+            "nullable": true
+          },
+          "background": {
+            "type": "string",
+            "nullable": true
+          },
+          "backgroundId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "backgroundName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bonds": {
+            "type": "string",
+            "nullable": true
+          },
+          "campaignId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "characterClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "charisma": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "className": {
+            "type": "string",
+            "nullable": true
+          },
+          "conditionImmunities": {
+            "type": "string",
+            "nullable": true
+          },
+          "constitution": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageImmunities": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageResistances": {
+            "type": "string",
+            "nullable": true
+          },
+          "deathSaveFailures": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "deathSaveSuccesses": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "dexterity": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "equipment": {
+            "type": "string",
+            "nullable": true
+          },
+          "equippedItems": {
+            "type": "string",
+            "nullable": true
+          },
+          "experiencePoints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "featResources": {
+            "type": "string",
+            "nullable": true
+          },
+          "features": {
+            "type": "string",
+            "nullable": true
+          },
+          "flaws": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDiceMap": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDiceRemaining": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDiceTotal": {
+            "type": "string",
+            "nullable": true
+          },
+          "hpCurrent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hpMax": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hpTemp": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "ideals": {
+            "type": "string",
+            "nullable": true
+          },
+          "initiativeBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "intelligence": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "languageProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "levelHistory": {
+            "type": "string",
+            "nullable": true
+          },
+          "multiclassEntries": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "ownerDisplayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "personalityTraits": {
+            "type": "string",
+            "nullable": true
+          },
+          "portraitUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "proficiencyBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "race": {
+            "type": "string",
+            "nullable": true
+          },
+          "raceId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "raceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "racialAbilityBonuses": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourcePools": {
+            "type": "string",
+            "nullable": true
+          },
+          "savingThrowProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillExpertises": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "speed": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSaveDc": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSlots": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellcastingAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellsKnown": {
+            "type": "string",
+            "nullable": true
+          },
+          "strength": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "subclass": {
+            "type": "string",
+            "nullable": true
+          },
+          "subclassAlwaysPreparedSpells": {
+            "type": "string",
+            "nullable": true
+          },
+          "subclassId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "subclassName": {
+            "type": "string",
+            "nullable": true
+          },
+          "toolProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "weaponProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "wisdom": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "CharacterUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "abilityScoreMethod": {
+            "type": "string",
+            "nullable": true
+          },
+          "alignment": {
+            "type": "string",
+            "nullable": true
+          },
+          "armorProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "armourClass": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "attunedItems": {
+            "type": "string",
+            "nullable": true
+          },
+          "background": {
+            "type": "string",
+            "nullable": true
+          },
+          "backgroundId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "bonds": {
+            "type": "string",
+            "nullable": true
+          },
+          "campaignId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "characterClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "charisma": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "clearCampaign": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "conditionImmunities": {
+            "type": "string",
+            "nullable": true
+          },
+          "constitution": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageImmunities": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageResistances": {
+            "type": "string",
+            "nullable": true
+          },
+          "dexterity": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "equipment": {
+            "type": "string",
+            "nullable": true
+          },
+          "equippedItems": {
+            "type": "string",
+            "nullable": true
+          },
+          "experiencePoints": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "featResources": {
+            "type": "string",
+            "nullable": true
+          },
+          "features": {
+            "type": "string",
+            "nullable": true
+          },
+          "flaws": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDiceMap": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDiceRemaining": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitDiceTotal": {
+            "type": "string",
+            "nullable": true
+          },
+          "hpCurrent": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hpMax": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hpTemp": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "ideals": {
+            "type": "string",
+            "nullable": true
+          },
+          "initiativeBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "intelligence": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "languageProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "levelHistory": {
+            "type": "string",
+            "nullable": true
+          },
+          "multiclassEntries": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "personalityTraits": {
+            "type": "string",
+            "nullable": true
+          },
+          "portraitUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "proficiencyBonus": {
+            "maximum": 6,
+            "minimum": 2,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "race": {
+            "type": "string",
+            "nullable": true
+          },
+          "raceId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "racialAbilityBonuses": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourcePools": {
+            "type": "string",
+            "nullable": true
+          },
+          "savingThrowProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillExpertises": {
+            "type": "string",
+            "nullable": true
+          },
+          "skillProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "speed": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSaveDc": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSlots": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellcastingAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellsKnown": {
+            "type": "string",
+            "nullable": true
+          },
+          "strength": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "subclass": {
+            "type": "string",
+            "nullable": true
+          },
+          "subclassId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "toolProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "weaponProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "wisdom": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "CombatLogResponse": {
+        "type": "object",
+        "properties": {
+          "actionType": {
+            "type": "string",
+            "nullable": true
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "actorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "damageDealt": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "healingDone": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "legendaryResistanceEligible": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "lrConditionsApplied": {
+            "type": "string",
+            "nullable": true
+          },
+          "lrDamageDealt": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "lrResolved": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "lrTargetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "rollTotal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "rollValue": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "roundNumber": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "targetName": {
+            "type": "string",
+            "nullable": true
+          },
+          "turnParticipantName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConcentrationRequest": {
+        "required": [
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "spellName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Condition": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "effects": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ConditionRequest": {
+        "required": [
+          "condition",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "condition": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "DamageRequest": {
+        "required": [
+          "amount",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "damageType": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "DeathSaveRequest": {
+        "required": [
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "EligibleClassResponse": {
+        "type": "object",
+        "properties": {
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "className": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentClass": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "currentClassLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "meetsPrerequisites": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "prerequisiteDescription": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "EncounterCreateRequest": {
+        "required": [
+          "campaignId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "campaignId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "EncounterResponse": {
+        "type": "object",
+        "properties": {
+          "campaignId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "campaignName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "currentTurnIndex": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "participants": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ParticipantResponse"
+            }
+          },
+          "roundNumber": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sessionCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Feat": {
+        "type": "object",
+        "properties": {
+          "abilityScoreIncrease": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "effects": {
+            "type": "string",
+            "nullable": true
+          },
+          "grantsFeatures": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "prerequisite": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "HealRequest": {
+        "required": [
+          "amount",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "properties": {
+          "attunementCondition": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdByUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "damageDice": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageType": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isHomebrew": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "properties": {
+            "type": "string",
+            "nullable": true
+          },
+          "rarity": {
+            "type": "string",
+            "nullable": true
+          },
+          "requiresAttunement": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "subtype": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "weight": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "JsonNode": {
+        "type": "object"
+      },
+      "LairStatusRequest": {
+        "type": "object",
+        "properties": {
+          "monsterIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "LegendaryResistanceRequest": {
+        "required": [
+          "combatLogId"
+        ],
+        "type": "object",
+        "properties": {
+          "combatLogId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "LevelUpRequest": {
+        "type": "object",
+        "properties": {
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "LevelUpResponse": {
+        "type": "object",
+        "properties": {
+          "character": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CharacterResponse"
+              }
+            ]
+          },
+          "pendingChoices": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PendingChoices"
+              }
+            ]
+          }
+        }
+      },
+      "LoginRequest": {
+        "required": [
+          "password",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "MemberResponse": {
+        "required": [
+          "displayName",
+          "role",
+          "userId",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "DM",
+              "PLAYER"
+            ]
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "Monster": {
+        "type": "object",
+        "properties": {
+          "acType": {
+            "type": "string",
+            "nullable": true
+          },
+          "actionTemplates": {
+            "type": "string",
+            "nullable": true
+          },
+          "actions": {
+            "type": "string",
+            "nullable": true
+          },
+          "alignment": {
+            "type": "string",
+            "nullable": true
+          },
+          "armourClass": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "challengeRating": {
+            "type": "string",
+            "nullable": true
+          },
+          "charisma": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "conditionImmunities": {
+            "type": "string",
+            "nullable": true
+          },
+          "constitution": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdByUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "damageImmunities": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageResistances": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageVulnerabilities": {
+            "type": "string",
+            "nullable": true
+          },
+          "dexterity": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "experiencePoints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hitDice": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitPoints": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "intelligence": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "isHomebrew": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "lairActions": {
+            "type": "string",
+            "nullable": true
+          },
+          "languages": {
+            "type": "string",
+            "nullable": true
+          },
+          "legendaryActions": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "reactions": {
+            "type": "string",
+            "nullable": true
+          },
+          "savingThrows": {
+            "type": "string",
+            "nullable": true
+          },
+          "senses": {
+            "type": "string",
+            "nullable": true
+          },
+          "size": {
+            "type": "string",
+            "nullable": true
+          },
+          "skills": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "speed": {
+            "type": "string",
+            "nullable": true
+          },
+          "strength": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "subtype": {
+            "type": "string",
+            "nullable": true
+          },
+          "traits": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "wisdom": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "MonsterActionRequest": {
+        "type": "object",
+        "properties": {
+          "actionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "actionSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "advantage": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "monsterParticipantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "overrideAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "overrideSaveDC": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "targetParticipantIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "MonsterActionResponse": {
+        "type": "object",
+        "properties": {
+          "conditionsInflicted": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "encounterState": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EncounterResponse"
+              }
+            ]
+          },
+          "legendaryResistanceAvailable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "legendaryResistanceRemaining": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "manualResolutionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "requiresManualResolution": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "resolved": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "targetResults": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/TargetResult"
+            }
+          },
+          "totalDamage": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "totalHealing": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "MonsterSpellRequest": {
+        "type": "object",
+        "properties": {
+          "advantage": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "monsterParticipantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "overrideAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "overrideSaveDC": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "slotLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellName": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetParticipantIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "OptionalFeature": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "featureType": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "prerequisite": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PageItem": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            }
+          },
+          "empty": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "first": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "last": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageable": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PageableObject"
+              }
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sort": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SortObject"
+              }
+            ]
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "PageMonster": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Monster"
+            }
+          },
+          "empty": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "first": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "last": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageable": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PageableObject"
+              }
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sort": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SortObject"
+              }
+            ]
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "PageSpell": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Spell"
+            }
+          },
+          "empty": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "first": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "last": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageable": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PageableObject"
+              }
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sort": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SortObject"
+              }
+            ]
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "Pageable": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "size": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "sort": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PageableObject": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "paged": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "sort": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SortObject"
+              }
+            ]
+          },
+          "unpaged": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "ParticipantResponse": {
+        "type": "object",
+        "properties": {
+          "actionUsed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "activeConditions": {
+            "type": "string",
+            "nullable": true
+          },
+          "activeSpell": {
+            "type": "string",
+            "nullable": true
+          },
+          "activeSpellSlotLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "armourClass": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "bonusActionUsed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "concentrationSlotLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "concentrationSpell": {
+            "type": "string",
+            "nullable": true
+          },
+          "controlledByUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "deathSaveFailures": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "deathSaveSuccesses": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "healthStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "hpCurrent": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hpMax": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hpTemp": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "initiative": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "initiativeModifier": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "isAlive": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isCurrentTurn": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "isVisibleToPlayers": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "monsterId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "participantType": {
+            "type": "string",
+            "nullable": true
+          },
+          "reactionUsed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "resourcePoolsCurrent": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSaveDc": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellSlotsCurrent": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellcastingAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "spellsKnown": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PendingChoices": {
+        "type": "object",
+        "properties": {
+          "asiAvailable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "expertiseAvailable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "expertiseCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "maxSpellLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "newFeatures": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "spellSelectionNeeded": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "spellSelectionType": {
+            "type": "string",
+            "nullable": true
+          },
+          "subclassRequired": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "Race": {
+        "type": "object",
+        "properties": {
+          "abilityScoreBonuses": {
+            "type": "string",
+            "nullable": true
+          },
+          "additionalSpells": {
+            "type": "string",
+            "nullable": true
+          },
+          "baseRaceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "creatureType": {
+            "type": "string",
+            "nullable": true
+          },
+          "darkvision": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "proficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "raceChoices": {
+            "type": "string",
+            "nullable": true
+          },
+          "resistances": {
+            "type": "string",
+            "nullable": true
+          },
+          "size": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "speed": {
+            "type": "string",
+            "nullable": true
+          },
+          "traits": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RegisterRequest": {
+        "required": [
+          "email",
+          "password",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 100,
+            "minLength": 8,
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 50,
+            "minLength": 3,
+            "type": "string"
+          }
+        }
+      },
+      "RepeatSpellEffectRequest": {
+        "required": [
+          "targetIds"
+        ],
+        "type": "object",
+        "properties": {
+          "advantage": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "overrideSpellAttackBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "overrideSpellSaveDC": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "targetIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "SetHpRequest": {
+        "required": [
+          "hpCurrent",
+          "targetId"
+        ],
+        "type": "object",
+        "properties": {
+          "hpCurrent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hpTemp": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SetInitiativeRequest": {
+        "required": [
+          "initiative",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "initiative": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SortObject": {
+        "type": "object",
+        "properties": {
+          "empty": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "sorted": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "unsorted": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "Spell": {
+        "type": "object",
+        "properties": {
+          "castingTime": {
+            "type": "string",
+            "nullable": true
+          },
+          "classes": {
+            "type": "string",
+            "nullable": true
+          },
+          "components": {
+            "type": "string",
+            "nullable": true
+          },
+          "concentration": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "damageDice": {
+            "type": "string",
+            "nullable": true
+          },
+          "damageType": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "duration": {
+            "type": "string",
+            "nullable": true
+          },
+          "effectTemplate": {
+            "type": "string",
+            "nullable": true
+          },
+          "higherLevels": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "rangeDistance": {
+            "type": "string",
+            "nullable": true
+          },
+          "ritual": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "saveAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "school": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "SpellSlotRequest": {
+        "required": [
+          "participantId",
+          "slotLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SpellTargetingResponse": {
+        "required": [
+          "canTargetAllies",
+          "canTargetEnemies",
+          "canTargetSelf",
+          "hasRepeatEffect",
+          "maxTargets",
+          "selfOnly",
+          "targetType"
+        ],
+        "type": "object",
+        "properties": {
+          "canTargetAllies": {
+            "type": "boolean"
+          },
+          "canTargetEnemies": {
+            "type": "boolean"
+          },
+          "canTargetSelf": {
+            "type": "boolean"
+          },
+          "hasRepeatEffect": {
+            "type": "boolean"
+          },
+          "maxTargets": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "selfOnly": {
+            "type": "boolean"
+          },
+          "targetType": {
+            "type": "string"
+          }
+        }
+      },
+      "Subclass": {
+        "type": "object",
+        "properties": {
+          "additionalProficiencies": {
+            "type": "string",
+            "nullable": true
+          },
+          "alwaysPreparedSpells": {
+            "type": "string",
+            "nullable": true
+          },
+          "characterClass": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CharacterClass"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expandedSpellList": {
+            "type": "string",
+            "nullable": true
+          },
+          "features": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "TargetOutcome": {
+        "type": "object",
+        "properties": {
+          "attackRoll": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "conditionsApplied": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "damage": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "healing": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "outcome": {
+            "type": "string",
+            "nullable": true
+          },
+          "saveRoll": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "targetName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "TargetResult": {
+        "type": "object",
+        "properties": {
+          "attackOutcome": {
+            "type": "string",
+            "nullable": true
+          },
+          "conditionsApplied": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "damage": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "damageType": {
+            "type": "string",
+            "nullable": true
+          },
+          "healing": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "legendaryResistanceAvailable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "legendaryResistanceRemaining": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "rollTotal": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "rollValue": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "savedSuccessfully": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "targetName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "VisibilityRequest": {
+        "required": [
+          "visible"
+        ],
+        "type": "object",
+        "properties": {
+          "visible": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

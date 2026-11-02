@@ -56,6 +56,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # The types must be generated from the committed spec, which OpenApiSpecIT checks against the backend (D171)
+      - name: Generated API types match the committed spec
+        run: npm run api:types && git diff --exit-code src/api/generated
       - run: npm run lint
       - run: npm run build
       - run: npm test

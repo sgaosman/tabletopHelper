@@ -2,6 +2,7 @@ package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.reference.dto.SpellTargetingResponse;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
@@ -15,9 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -70,7 +69,7 @@ public class ReferenceController {
     }
 
     @GetMapping("/spells/targeting")
-    public ResponseEntity<?> getSpellTargeting(
+    public ResponseEntity<SpellTargetingResponse> getSpellTargeting(
             @RequestParam String name,
             @RequestParam(defaultValue = "0") int slotLevel) {
         var spellOpt = spellRepository.findByNameIgnoreCase(name);
@@ -101,15 +100,14 @@ public class ReferenceController {
             String targetType = template.path("targetType").asText(null);
             boolean hasRepeatEffect = template.has("repeatEffect") && !template.get("repeatEffect").isNull();
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("maxTargets", baseTargetCount != null ? maxTargets : -1);
-            result.put("selfOnly", selfOnly);
-            result.put("canTargetSelf", canTargetSelf);
-            result.put("canTargetAllies", canTargetAllies);
-            result.put("canTargetEnemies", canTargetEnemies);
-            result.put("targetType", targetType != null ? targetType : "SINGLE_TARGET");
-            result.put("hasRepeatEffect", hasRepeatEffect);
-            return ResponseEntity.ok(result);
+            return ResponseEntity.ok(new SpellTargetingResponse(
+                    baseTargetCount != null ? maxTargets : -1,
+                    selfOnly,
+                    canTargetSelf,
+                    canTargetAllies,
+                    canTargetEnemies,
+                    targetType != null ? targetType : "SINGLE_TARGET",
+                    hasRepeatEffect));
         } catch (Exception e) {
             return ResponseEntity.notFound().build();
         }

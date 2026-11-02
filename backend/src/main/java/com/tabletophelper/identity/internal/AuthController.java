@@ -3,6 +3,9 @@ package com.tabletophelper.identity.internal;
 import com.tabletophelper.identity.internal.dto.AuthResponse;
 import com.tabletophelper.identity.internal.dto.LoginRequest;
 import com.tabletophelper.identity.internal.dto.RegisterRequest;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -49,6 +52,8 @@ public class AuthController {
     }
 
     /** A missing, expired, revoked or reused cookie gets 401 (D155). */
+    @ApiResponse(responseCode = "200", description = "A new access token; the rotated refresh token is in the cookie",
+            content = @Content(schema = @Schema(implementation = AuthResponse.class)))
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
         Optional<AuthResult> result = authService.refresh(refreshToken);
