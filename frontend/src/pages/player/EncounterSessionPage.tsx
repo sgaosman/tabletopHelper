@@ -1,9 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
 import { useAuth } from '../../context/AuthContext';
-import { combatApi } from '../../api/combatApi';
+import { useCombatLog, useEncounterAction } from '../../queries/encounters';
 import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
-import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
@@ -49,14 +48,14 @@ function HpBar({ participant }: { participant: EncounterParticipant }) {
   );
 }
 
-function DeathSaves({ participant, encounterId, onUpdate }: { participant: EncounterParticipant; encounterId: string; onUpdate: () => void }) {
+function DeathSaves({ participant }: { participant: EncounterParticipant }) {
+  const actions = useEncounterAction();
   const [rolling, setRolling] = useState(false);
 
   async function handleRoll() {
     setRolling(true);
     try {
-      await combatApi.rollDeathSave(encounterId, participant.id);
-      onUpdate();
+      await actions.rollDeathSave(participant.id);
     } finally {
       setRolling(false);
     }
@@ -98,7 +97,8 @@ function parseSpellSlots(p: EncounterParticipant): SpellSlots | null {
   }
 }
 
-function PlayerSpellSlots({ participant, encounterId, onUpdate }: { participant: EncounterParticipant; encounterId: string; onUpdate: () => void }) {
+function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }) {
+  const actions = useEncounterAction();
   const slots = parseSpellSlots(participant);
   if (!slots) return null;
 
@@ -106,8 +106,7 @@ function PlayerSpellSlots({ participant, encounterId, onUpdate }: { participant:
   if (levels.length === 0) return null;
 
   async function handleUse(level: number) {
-    await combatApi.useSpellSlot(encounterId, participant.id, level);
-    onUpdate();
+    await actions.spendSpellSlot(participant.id, level);
   }
 
   return (
@@ -146,22 +145,15 @@ function PlayerSpellSlots({ participant, encounterId, onUpdate }: { participant:
   );
 }
 
-function CombatLogPanel({ encounterId }: { encounterId: string }) {
-  const [logs, setLogs] = useState<CombatLogEntry[]>([]);
+function CombatLogPanel() {
+  // The server sends the players' log after every change, without entries about hidden monsters (D157, D171)
+  const logs = useCombatLog();
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
   const prevLogCount = useRef(0);
   const isAtBottomRef = useRef(true);
-
-  useEffect(() => {
-    combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
-    const interval = setInterval(() => {
-      combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [encounterId]);
 
   useEffect(() => { isAtBottomRef.current = isAtBottom; }, [isAtBottom]);
 
@@ -280,14 +272,14 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
   );
 }
 
-function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionMode, onClose }: {
+function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClose }: {
   myCharacter: EncounterParticipant;
-  encounter: { id: string; roundNumber: number; participants: EncounterParticipant[] };
-  onUpdate: () => void;
+  encounter: { participants: EncounterParticipant[] };
   targetId: string | null;
   actionMode: PlayerAction;
   onClose: () => void;
 }) {
+  const actions = useEncounterAction();
   const [condition, setCondition] = useState('');
   const [conditionDuration, setConditionDuration] = useState('');
   const [spellName, setSpellName] = useState('');
@@ -325,15 +317,14 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await combatApi.rollAttack(encounter.id, targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, myCharacter.id, atk.isRanged || undefined);
+            await actions.rollAttack(targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, myCharacter.id, atk.isRanged || undefined);
           }
         }
       } else if (actionMode === 'condition' && condition) {
-        await combatApi.addCondition(encounter.id, targetId, condition, conditionDuration ? parseInt(conditionDuration) : undefined);
+        await actions.addCondition(targetId, condition, conditionDuration ? parseInt(conditionDuration) : undefined);
       } else if (actionMode === 'concentration') {
-        await combatApi.setConcentration(encounter.id, targetId, spellName || null);
+        await actions.setConcentration(targetId, spellName || null);
       }
-      onUpdate();
       onClose();
     } finally {
       setLoading(false);
@@ -465,14 +456,21 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
 }
 
 function PlayerSessionView() {
-  const { encounter, isConnected, error, refreshEncounter } = useEncounter();
+  const { encounter, isConnected, error } = useEncounter();
+  const actions = useEncounterAction();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [actionMode, setActionMode] = useState<PlayerAction>(null);
   const [attackTargetId, setAttackTargetId] = useState<string | null>(null);
 
   if (!encounter) {
-    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[15px] font-semibold">Loading encounter...</p></div>;
+    return (
+      <div className="min-h-screen bg-page flex items-center justify-center">
+        {error
+          ? <p role="alert" className="text-debuff font-body text-[15px] font-semibold">{error}</p>
+          : <p className="text-muted font-body text-[15px] font-semibold">Loading encounter...</p>}
+      </div>
+    );
   }
 
   function parseConditions(p: EncounterParticipant): ConditionEntry[] {
@@ -506,8 +504,7 @@ function PlayerSessionView() {
 
   async function removeCondition(condition: string) {
     if (!myCharacter) return;
-    await combatApi.removeCondition(encounter!.id, myCharacter.id, condition);
-    refreshEncounter();
+    await actions.removeCondition(myCharacter.id, condition);
   }
 
   return (
@@ -549,13 +546,13 @@ function PlayerSessionView() {
         {myCharacter && !myCharacter.isAlive && myCharacter.deathSaveFailures < 3 && (
           <div className="bg-debuff/10 border border-debuff/30 p-4 mb-4">
             <p className="text-debuff font-heading text-[15px] font-semibold tracking-[0.01em] mb-1">You are dying!</p>
-            <DeathSaves participant={myCharacter} encounterId={encounter.id} onUpdate={refreshEncounter} />
+            <DeathSaves participant={myCharacter} />
           </div>
         )}
 
         {/* Own character spell slots */}
         {myCharacter && myCharacter.isAlive && myCharacter.spellSlotsCurrent && (
-          <PlayerSpellSlots participant={myCharacter} encounterId={encounter.id} onUpdate={refreshEncounter} />
+          <PlayerSpellSlots participant={myCharacter} />
         )}
 
         {/* Resource pools (M24.5) */}
@@ -590,10 +587,8 @@ function PlayerSessionView() {
         {/* Spell cast modal */}
         {actionMode === 'spell' && myCharacter && (
           <SpellCastModal
-            encounterId={encounter.id}
             caster={myCharacter}
             participants={encounter.participants}
-            onUpdate={refreshEncounter}
             onClose={() => { setActionMode(null); setAttackTargetId(null); }}
           />
         )}
@@ -601,11 +596,9 @@ function PlayerSessionView() {
         {/* Repeat spell effect modal */}
         {actionMode === 'repeat-effect' && myCharacter && (myCharacter.concentrationSpell || myCharacter.activeSpell) && (
           <RepeatEffectModal
-            encounterId={encounter.id}
             caster={myCharacter}
             participants={encounter.participants}
             spellName={(myCharacter.concentrationSpell || myCharacter.activeSpell)!}
-            onUpdate={refreshEncounter}
             onClose={() => { setActionMode(null); setAttackTargetId(null); }}
           />
         )}
@@ -615,7 +608,6 @@ function PlayerSessionView() {
           <PlayerActionPanel
             myCharacter={myCharacter}
             encounter={encounter}
-            onUpdate={refreshEncounter}
             targetId={attackTargetId}
             actionMode={actionMode}
             onClose={() => { setActionMode(null); setAttackTargetId(null); }}
@@ -628,7 +620,7 @@ function PlayerSessionView() {
             const isOwn = p.controlledByUserId === user?.userId;
             const conditions = parseConditions(p);
             const isMonster = p.participantType === 'MONSTER';
-            const participantColour = getParticipantColour(isMonster, (p as any).className);
+            const participantColour = getParticipantColour(isMonster);
             const hpRatio = p.hpCurrent != null && p.hpMax ? p.hpCurrent / p.hpMax : 0;
             const monsterHealth = isMonster ? healthLabel(p) : null;
 
@@ -725,7 +717,7 @@ function PlayerSessionView() {
         </div>
 
         {/* Combat log */}
-        <CombatLogPanel encounterId={encounter.id} />
+        <CombatLogPanel />
       </main>
     </div>
   );

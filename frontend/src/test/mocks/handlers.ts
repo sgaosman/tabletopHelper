@@ -419,6 +419,7 @@ export function makeMockParticipant(
     hpMax: 30, hpCurrent: 30, hpTemp: 0, armourClass: 14,
     isVisibleToPlayers: true, isAlive: true, isCurrentTurn: false,
     deathSaveSuccesses: 0, deathSaveFailures: 0,
+    actionUsed: false, bonusActionUsed: false, reactionUsed: false,
   } satisfies EncounterParticipant;
   return { ...participant, ...overrides };
 }

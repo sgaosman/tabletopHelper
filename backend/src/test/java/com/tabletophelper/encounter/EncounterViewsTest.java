@@ -342,4 +342,23 @@ class EncounterViewsTest {
             assertEquals(2, EncounterViews.playerLog(log, Map.of()).size());
         }
     }
+
+    @Nested
+    @DisplayName("hiddenParticipants")
+    class HiddenParticipants {
+
+        @Test
+        @DisplayName("Maps each participant the DM View hides to its name; a null flag counts as visible")
+        void mapsHiddenParticipantsToTheirNames() {
+            var dmView = encounter(false, gimli(), goblin(7).toBuilder().isVisibleToPlayers(null).build(), bugbear(false));
+
+            assertEquals(Map.of(bugbearId, "Bugbear"), EncounterViews.hiddenParticipants(dmView));
+        }
+
+        @Test
+        @DisplayName("Is empty when nobody is hidden")
+        void emptyWhenNobodyIsHidden() {
+            assertTrue(EncounterViews.hiddenParticipants(encounter(false, gimli(), bugbear(true))).isEmpty());
+        }
+    }
 }

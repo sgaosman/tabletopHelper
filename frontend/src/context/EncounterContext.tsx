@@ -1,93 +1,60 @@
-import { createContext, useContext, useReducer, useCallback, useEffect, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiErrorMessage } from '../api/errors';
 import { useWebSocket } from '../hooks/useWebSocket';
-import { encounterApi } from '../api/encounterApi';
-import type { Encounter, EncounterView } from '../types/encounter';
+import { liveCombatLogQuery, liveEncounterQuery } from '../queries/encounters';
+import { queryKeys } from '../queries/keys';
+import type { CombatLogEntry } from '../types/combat';
+import type { EncounterView } from '../types/encounter';
+import { LiveEncounterContext, useLiveEncounter, type EncounterContextType, type LiveEncounter } from './liveEncounter';
 
-interface EncounterState {
-  encounter: Encounter | null;
-  isConnected: boolean;
-  error: string | null;
-}
+const NO_LOG: CombatLogEntry[] = [];
 
-type EncounterAction =
-  | { type: 'SET_ENCOUNTER'; payload: Encounter }
-  | { type: 'SET_CONNECTED'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string }
-  | { type: 'CLEAR' };
-
-const initialState: EncounterState = {
-  encounter: null,
-  isConnected: false,
-  error: null,
-};
-
-function encounterReducer(state: EncounterState, action: EncounterAction): EncounterState {
-  switch (action.type) {
-    case 'SET_ENCOUNTER':
-      return { ...state, encounter: action.payload, error: null };
-    case 'SET_CONNECTED':
-      return { ...state, isConnected: action.payload };
-    case 'SET_ERROR':
-      return { ...state, error: action.payload };
-    case 'CLEAR':
-      return initialState;
-    default:
-      return state;
-  }
-}
-
-interface EncounterContextType extends EncounterState {
-  refreshEncounter: () => void;
-  sendMessage: (destination: string, body: unknown) => void;
-}
-
-const EncounterContext = createContext<EncounterContextType | null>(null);
-
-/** `view` picks the WebSocket topic: the DM page asks for the DM View, every other page gets the Player View (D157). */
+/**
+ * Holds a live encounter for a session page. The encounter and its combat log are cached queries that the
+ * WebSocket's messages replace as they arrive (D171). `view` picks the WebSocket topics: the DM page asks
+ * for the DM View, every other page gets the Player View (D157).
+ */
 export function EncounterProvider({ encounterId, view = 'player', children }: { encounterId: string; view?: EncounterView; children: ReactNode }) {
-  const [state, dispatch] = useReducer(encounterReducer, initialState);
-
-  const handleStateUpdate = useCallback((encounter: Encounter) => {
-    dispatch({ type: 'SET_ENCOUNTER', payload: encounter });
-  }, []);
-
-  const handleError = useCallback((error: string) => {
-    dispatch({ type: 'SET_ERROR', payload: error });
-  }, []);
+  const queryClient = useQueryClient();
+  const socketMessages = useRef(0);
+  const [socketError, setSocketError] = useState<string | null>(null);
+  const encounterQuery = useQuery(liveEncounterQuery(encounterId, view, socketMessages));
+  const logQuery = useQuery(liveCombatLogQuery(encounterId, view, socketMessages));
 
   const { isConnected, sendMessage } = useWebSocket({
     encounterId,
     view,
-    onStateUpdate: handleStateUpdate,
-    onError: handleError,
-    enabled: true,
+    onStateUpdate: encounter => {
+      socketMessages.current += 1;
+      queryClient.setQueryData(queryKeys.encounters.detail(encounterId, view), encounter);
+      setSocketError(null);
+    },
+    onLogUpdate: log => {
+      socketMessages.current += 1;
+      queryClient.setQueryData(queryKeys.encounters.log(encounterId, view), log);
+    },
+    // Messages published while the connection was down never arrive, so both load again; the log's key
+    // starts with the encounter's
+    onReconnect: () => void queryClient.invalidateQueries({ queryKey: queryKeys.encounters.detail(encounterId, view) }),
+    onError: setSocketError,
   });
 
-  useEffect(() => {
-    dispatch({ type: 'SET_CONNECTED', payload: isConnected });
-  }, [isConnected]);
-
-  const refreshEncounter = useCallback(() => {
-    encounterApi.getById(encounterId).then(res => {
-      dispatch({ type: 'SET_ENCOUNTER', payload: res.data });
-    });
-  }, [encounterId]);
-
-  useEffect(() => {
-    refreshEncounter();
-  }, [refreshEncounter]);
+  const encounter = encounterQuery.data ?? null;
+  const log = logQuery.data ?? NO_LOG;
+  const error = socketError ?? (encounterQuery.error ? apiErrorMessage(encounterQuery.error) : null);
+  const value = useMemo<LiveEncounter>(
+    () => ({ encounter, log, isConnected, error, sendMessage, encounterId, view, socketMessages }),
+    [encounter, log, isConnected, error, sendMessage, encounterId, view],
+  );
 
   return (
-    <EncounterContext.Provider value={{ ...state, refreshEncounter, sendMessage }}>
+    <LiveEncounterContext.Provider value={value}>
       {children}
-    </EncounterContext.Provider>
+    </LiveEncounterContext.Provider>
   );
 }
 
-export function useEncounter() {
-  const context = useContext(EncounterContext);
-  if (!context) {
-    throw new Error('useEncounter must be used within an EncounterProvider');
-  }
-  return context;
+export function useEncounter(): EncounterContextType {
+  return useLiveEncounter();
 }

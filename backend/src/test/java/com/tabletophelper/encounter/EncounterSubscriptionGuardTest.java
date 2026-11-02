@@ -96,6 +96,48 @@ class EncounterSubscriptionGuardTest {
     }
 
     @Test
+    @DisplayName("A campaign member may subscribe to the players' combat log (D171)")
+    void memberSubscribesToLog() {
+        var message = frame(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/log");
+
+        assertSame(message, guard.preSend(message, null));
+        verify(accessPolicy).requireMember(campaignId, userId);
+        verify(accessPolicy, never()).requireDm(any(), any());
+    }
+
+    @Test
+    @DisplayName("Subscribing to the players' combat log is refused for a user outside the campaign")
+    void nonMemberIsRefusedOnLog() {
+        doThrow(new ForbiddenException("You are not a member of this campaign"))
+                .when(accessPolicy).requireMember(campaignId, userId);
+
+        var ex = assertThrows(ForbiddenException.class,
+                () -> send(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/log"));
+
+        assertEquals("You are not a member of this campaign", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("The whole combat log needs the campaign's DM, not just a member (D171)")
+    void dmLogNeedsTheDm() {
+        doThrow(new ForbiddenException("Only the DM can perform this action"))
+                .when(accessPolicy).requireDm(campaignId, userId);
+
+        assertThrows(ForbiddenException.class,
+                () -> send(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/dm-log"));
+        verify(accessPolicy, never()).requireMember(any(), any());
+    }
+
+    @Test
+    @DisplayName("The DM may subscribe to the whole combat log")
+    void dmSubscribesToDmLog() {
+        var message = frame(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/dm-log");
+
+        assertSame(message, guard.preSend(message, null));
+        verify(accessPolicy).requireDm(campaignId, userId);
+    }
+
+    @Test
     @DisplayName("Anyone signed in may subscribe to their own error queue")
     void errorQueueIsAllowed() {
         send(StompCommand.SUBSCRIBE, "/user/queue/encounter/errors");
@@ -119,9 +161,12 @@ class EncounterSubscriptionGuardTest {
             "/topic/**",
             "/topic/encounter/**",
             "/topic/encounter/*/state",
+            "/topic/encounter/*/log",
             "/topic/encounter/{id}/state",
             "/topic/encounter/not-a-uuid/state",
+            "/topic/encounter/not-a-uuid/dm-log",
             "/topic/encounter/state",
+            "/topic/encounter/log",
             "/queue/encounter/errors",
             "/user/queue/encounter/errors/**",
             "/app/encounter/join",
@@ -133,12 +178,18 @@ class EncounterSubscriptionGuardTest {
     }
 
     @Test
-    @DisplayName("A subscription must match exactly, so a trailing segment or an upper-case ID is refused")
+    @DisplayName("A subscription must match exactly, so a trailing segment, an upper-case ID or another topic is refused")
     void subscriptionMustMatchExactly() {
+        assertThrows(ForbiddenException.class,
+                () -> send(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/action"));
         assertThrows(ForbiddenException.class,
                 () -> send(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/state/extra"));
         assertThrows(ForbiddenException.class,
+                () -> send(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/log/extra"));
+        assertThrows(ForbiddenException.class,
                 () -> send(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId.toString().toUpperCase() + "/state"));
+        assertThrows(ForbiddenException.class,
+                () -> send(StompCommand.SUBSCRIBE, "/topic/encounter/" + encounterId + "/dm-actions"));
         verifyNoInteractions(encounterRepository, accessPolicy);
     }
 

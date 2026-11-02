@@ -1,25 +1,25 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { X, Target, RotateCw, AlertTriangle, Shield } from 'lucide-react';
-import { combatApi } from '../../api/combatApi';
 import { getSpellTargeting } from '../../api/referenceApi';
 import type { SpellTargetingInfo } from '../../api/referenceApi';
+import { useEncounterAction } from '../../queries/encounters';
 import type { EncounterParticipant } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
 import { healthLabel } from '../../utils/healthStatus';
 
 interface Props {
-  encounterId: string;
   caster: EncounterParticipant;
   participants: EncounterParticipant[];
   spellName: string;
-  onUpdate: (encounterState: any) => void;
   onClose: () => void;
   isMonster?: boolean;
 }
 
 type Step = 'target' | 'confirm';
 
-export default function RepeatEffectModal({ encounterId, caster, participants, spellName, onUpdate, onClose, isMonster }: Props) {
+/** Repeats a spell's effect in the live encounter of the surrounding EncounterProvider, whose state the result updates. */
+export default function RepeatEffectModal({ caster, participants, spellName, onClose, isMonster }: Props) {
+  const actions = useEncounterAction();
   const [step, setStep] = useState<Step>('target');
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
   const [advantage, setAdvantage] = useState<boolean | null>(null);
@@ -61,15 +61,12 @@ export default function RepeatEffectModal({ encounterId, caster, participants, s
     setError('');
 
     try {
-      const res = await combatApi.repeatSpellEffect(encounterId, {
+      setResult(await actions.repeatSpellEffect({
         targetIds: selectedTargets,
         advantage,
         overrideSpellAttackBonus: overrideAttackBonus ? parseInt(overrideAttackBonus) : undefined,
         overrideSpellSaveDC: overrideSaveDC ? parseInt(overrideSaveDC) : undefined,
-      }, caster.id);
-
-      setResult(res.data);
-      onUpdate(res.data.encounterState);
+      }, caster.id));
     } catch (err: any) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to repeat spell effect');
       setCasting(false);

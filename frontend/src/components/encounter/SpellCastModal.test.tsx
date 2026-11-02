@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import type { ComponentProps } from 'react';
@@ -7,6 +7,8 @@ import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCastSpellResponse, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
 import type { SpellTargetingInfo } from '../../api/referenceApi';
+import { EncounterProvider } from '../../context/EncounterContext';
+import { queryKeys } from '../../queries/keys';
 import SpellCastModal from './SpellCastModal';
 
 const wizard = makeMockParticipant('part-wizard', 'Elminster', 'PLAYER', {
@@ -42,13 +44,18 @@ function targeting(info: Partial<SpellTargetingInfo> = {}) {
   return lookups;
 }
 
-function renderModal(props: Partial<ComponentProps<typeof SpellCastModal>> = {}) {
-  const onUpdate = vi.fn();
+const ENCOUNTER_KEY = queryKeys.encounters.detail('enc-001', 'player');
+
+/** Renders the modal in the live encounter it casts in, once that encounter has loaded. */
+async function renderModal(props: Partial<ComponentProps<typeof SpellCastModal>> = {}) {
   const onClose = vi.fn();
-  render(
-    <SpellCastModal encounterId="enc-001" caster={wizard} participants={participants} onUpdate={onUpdate} onClose={onClose} {...props} />,
+  const { queryClient } = render(
+    <EncounterProvider encounterId="enc-001">
+      <SpellCastModal caster={wizard} participants={participants} onClose={onClose} {...props} />
+    </EncounterProvider>,
   );
-  return { onUpdate, onClose, user: userEvent.setup() };
+  await waitFor(() => expect(queryClient.getQueryData(ENCOUNTER_KEY)).toBeDefined());
+  return { onClose, cachedEncounter: () => queryClient.getQueryData(ENCOUNTER_KEY), user: userEvent.setup() };
 }
 
 describe('SpellCastModal', () => {
@@ -56,8 +63,8 @@ describe('SpellCastModal', () => {
     setupAuthToken();
   });
 
-  it('lists cantrips and prepared spells, leaving out unprepared ones', () => {
-    renderModal();
+  it('lists cantrips and prepared spells, leaving out unprepared ones', async () => {
+    await renderModal();
 
     expect(screen.getByRole('dialog', { name: 'Cast Spell' })).toBeInTheDocument();
     expect(screen.getByText('Cantrips')).toBeInTheDocument();
@@ -68,7 +75,7 @@ describe('SpellCastModal', () => {
   });
 
   it('filters the spell list as you type', async () => {
-    const { user } = renderModal();
+    const { user } = await renderModal();
 
     await user.type(screen.getByPlaceholderText('Search spells...'), 'missile');
 
@@ -91,7 +98,7 @@ describe('SpellCastModal', () => {
         }));
       }),
     );
-    const { user, onUpdate } = renderModal();
+    const { user, cachedEncounter } = await renderModal();
 
     await user.click(screen.getByRole('button', { name: /Magic Missile/ }));
     expect(screen.getByRole('button', { name: /^Level 1/ })).toHaveTextContent('2/4');
@@ -116,7 +123,8 @@ describe('SpellCastModal', () => {
       body: { spellName: 'Magic Missile', slotLevel: 3, targetIds: ['part-goblin'], advantage: true },
       actorId: 'part-wizard',
     });
-    expect(onUpdate).toHaveBeenCalledWith(encounterState);
+    // The encounter state in the result replaces the cached one
+    expect(cachedEncounter()).toEqual(encounterState);
   });
 
   it('casts a monster spell through the monster-spell endpoint, with its overrides', async () => {
@@ -139,7 +147,7 @@ describe('SpellCastModal', () => {
         return HttpResponse.json(makeMockCastSpellResponse());
       }),
     );
-    const { user } = renderModal({ caster: shaman, participants: [shaman, goblin, legolas], isMonster: true });
+    const { user } = await renderModal({ caster: shaman, participants: [shaman, goblin, legolas], isMonster: true });
 
     await user.click(screen.getByRole('button', { name: /Hold Person/ }));
     await user.click(screen.getByRole('button', { name: /^Level 2/ }));
@@ -159,7 +167,7 @@ describe('SpellCastModal', () => {
 
   it('goes straight to confirm when the spell takes no targets', async () => {
     targeting({ canTargetSelf: false, canTargetAllies: false, canTargetEnemies: false });
-    const { user } = renderModal();
+    const { user } = await renderModal();
 
     await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
 
@@ -169,7 +177,7 @@ describe('SpellCastModal', () => {
 
   it('stops adding targets once the spell limit is reached', async () => {
     targeting({ maxTargets: 1 });
-    const { user } = renderModal();
+    const { user } = await renderModal();
 
     await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
@@ -184,7 +192,7 @@ describe('SpellCastModal', () => {
     const hiddenHpOrc = makeMockParticipant('part-orc', 'Orc', 'MONSTER', {
       hpMax: null, hpCurrent: null, hpTemp: null, healthStatus: 'BLOODIED', armourClass: 13,
     });
-    const { user } = renderModal({ participants: [wizard, goblin, hiddenHpOrc, legolas] });
+    const { user } = await renderModal({ participants: [wizard, goblin, hiddenHpOrc, legolas] });
 
     await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
 
@@ -196,7 +204,7 @@ describe('SpellCastModal', () => {
 
   it('offers only the caster for a self-only spell', async () => {
     targeting({ selfOnly: true });
-    const { user } = renderModal();
+    const { user } = await renderModal();
 
     await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
 
@@ -212,7 +220,8 @@ describe('SpellCastModal', () => {
         HttpResponse.json({ error: 'No spell slots remaining' }, { status: 400 }),
       ),
     );
-    const { user, onUpdate } = renderModal();
+    const { user, cachedEncounter } = await renderModal();
+    const loaded = cachedEncounter();
 
     await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
@@ -221,11 +230,11 @@ describe('SpellCastModal', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No spell slots remaining');
     expect(screen.getByRole('button', { name: 'Cast Spell' })).toBeEnabled();
-    expect(onUpdate).not.toHaveBeenCalled();
+    expect(cachedEncounter()).toBe(loaded);
   });
 
   it('closes from the close button', async () => {
-    const { user, onClose } = renderModal();
+    const { user, onClose } = await renderModal();
 
     await user.click(screen.getByRole('button', { name: 'Close' }));
 

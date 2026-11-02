@@ -44,7 +44,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * STOMP over SockJS, connecting as the browser does. CONNECT needs an access token (D015, D156);
- * SUBSCRIBE and SEND go through EncounterSubscriptionGuard, and each view has its own topic (D157).
+ * SUBSCRIBE and SEND go through EncounterSubscriptionGuard, and each view has its own state topic
+ * (D157) and its own combat log topic (D171).
  */
 class EncounterWebSocketIT extends IntegrationTest {
 
@@ -108,7 +109,7 @@ class EncounterWebSocketIT extends IntegrationTest {
         StompSession session = connect(dm.accessToken());
         BlockingQueue<JsonNode> states = subscribe(session, EncounterBroadcaster.dmStateDestination(encounterId));
 
-        JsonNode state = joinUntilStateArrives(session, encounterId, states);
+        JsonNode state = joinUntilMessageArrives(session, encounterId, states);
 
         assertThat(state.get("id").asText()).isEqualTo(encounterId.toString());
         assertThat(state.get("status").asText()).isEqualTo("PREPARING");
@@ -123,11 +124,11 @@ class EncounterWebSocketIT extends IntegrationTest {
         startEncounter(dm.accessToken(), encounterId);
         StompSession session = connect(dm.accessToken());
         BlockingQueue<JsonNode> states = subscribe(session, EncounterBroadcaster.dmStateDestination(encounterId));
-        joinUntilStateArrives(session, encounterId, states);
+        joinUntilMessageArrives(session, encounterId, states);
 
         damage(dm.accessToken(), encounterId, goblinId, 3);
 
-        JsonNode state = awaitState(states, s -> hpOf(s, goblinId) != 7);
+        JsonNode state = awaitMessage(states, s -> hpOf(s, goblinId) != 7);
         assertThat(hpOf(state, goblinId)).isEqualTo(4);
     }
 
@@ -144,20 +145,58 @@ class EncounterWebSocketIT extends IntegrationTest {
 
         StompSession dmSession = connect(dm.accessToken());
         BlockingQueue<JsonNode> dmStates = subscribe(dmSession, EncounterBroadcaster.dmStateDestination(encounterId));
-        joinUntilStateArrives(dmSession, encounterId, dmStates);
+        joinUntilMessageArrives(dmSession, encounterId, dmStates);
         StompSession playerSession = connect(player.accessToken());
         BlockingQueue<JsonNode> playerStates = subscribe(playerSession, EncounterBroadcaster.stateDestination(encounterId));
-        joinUntilStateArrives(playerSession, encounterId, playerStates);
+        joinUntilMessageArrives(playerSession, encounterId, playerStates);
 
         damage(dm.accessToken(), encounterId, goblinId, 3);
 
-        JsonNode dmState = awaitState(dmStates, s -> hpOf(s, goblinId) == 4);
+        JsonNode dmState = awaitMessage(dmStates, s -> hpOf(s, goblinId) == 4);
         assertThat(hpOf(dmState, bugbearId)).isEqualTo(27);
-        JsonNode playerState = awaitState(playerStates,
+        JsonNode playerState = awaitMessage(playerStates,
                 s -> "INJURED".equals(participant(s, goblinId).path("healthStatus").asText()));
         assertThat(participantIds(playerState)).containsExactly(goblinId);
         assertThat(participant(playerState, goblinId).get("hpCurrent").isNull()).isTrue();
         assertThat(participant(playerState, goblinId).get("hpMax").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("After each change the DM receives the whole combat log, and players the log without the hidden "
+            + "monster's entries until the DM reveals it (D171)")
+    void eachSideReceivesItsOwnLog() throws Exception {
+        var dm = register("dungeonmaster");
+        var player = register("aria");
+        UUID encounterId = createEncounter(dm.accessToken(), joinedCampaign(dm, player));
+        String goblinId = addMonster(dm.accessToken(), encounterId, "Goblin", 7);
+        String bugbearId = addMonster(dm.accessToken(), encounterId, "Bugbear", 27);
+        hide(dm.accessToken(), encounterId, bugbearId);
+        startEncounter(dm.accessToken(), encounterId);
+
+        StompSession dmSession = connect(dm.accessToken());
+        BlockingQueue<JsonNode> dmLogs = subscribe(dmSession, EncounterBroadcaster.dmLogDestination(encounterId));
+        joinUntilMessageArrives(dmSession, encounterId, dmLogs);
+        StompSession playerSession = connect(player.accessToken());
+        BlockingQueue<JsonNode> playerLogs = subscribe(playerSession, EncounterBroadcaster.logDestination(encounterId));
+        joinUntilMessageArrives(playerSession, encounterId, playerLogs);
+
+        damage(dm.accessToken(), encounterId, goblinId, 3);
+        damage(dm.accessToken(), encounterId, bugbearId, 5);
+        // A later change the players see, so their log is published after the bugbear's entry exists
+        damage(dm.accessToken(), encounterId, goblinId, 1);
+
+        JsonNode dmLog = awaitMessage(dmLogs, log -> descriptions(log).contains("DM deals 1 damage to Goblin"));
+        assertThat(descriptions(dmLog)).containsExactly(
+                "DM deals 3 damage to Goblin", "DM deals 5 damage to Bugbear", "DM deals 1 damage to Goblin");
+        JsonNode playerLog = awaitMessage(playerLogs, log -> descriptions(log).contains("DM deals 1 damage to Goblin"));
+        assertThat(descriptions(playerLog)).containsExactly("DM deals 3 damage to Goblin", "DM deals 1 damage to Goblin");
+        assertThat(playerLog.get(0).get("actionType").asText()).isEqualTo("DAMAGE");
+
+        reveal(dm.accessToken(), encounterId, bugbearId);
+
+        JsonNode revealedLog = awaitMessage(playerLogs, log -> descriptions(log).contains("DM deals 5 damage to Bugbear"));
+        assertThat(descriptions(revealedLog)).containsExactly(
+                "DM deals 3 damage to Goblin", "DM deals 5 damage to Bugbear", "DM deals 1 damage to Goblin");
     }
 
     @Test
@@ -174,6 +213,19 @@ class EncounterWebSocketIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("A user outside the campaign is refused when subscribing to the players' combat log")
+    void nonMemberIsRefusedOnLog() throws Exception {
+        var dm = register("dungeonmaster");
+        var outsider = register("eavesdropper");
+        UUID encounterId = createEncounter(dm.accessToken(), campaignId(dm));
+        WatchedSession eavesdropper = connectWatchingErrors(outsider.accessToken());
+
+        eavesdropper.session().subscribe(EncounterBroadcaster.logDestination(encounterId), ignoreFrames());
+
+        assertRefused(eavesdropper);
+    }
+
+    @Test
     @DisplayName("A player is refused when subscribing to the DM View")
     void playerIsRefusedOnDmState() throws Exception {
         var dm = register("dungeonmaster");
@@ -182,6 +234,19 @@ class EncounterWebSocketIT extends IntegrationTest {
         WatchedSession watched = connectWatchingErrors(player.accessToken());
 
         watched.session().subscribe(EncounterBroadcaster.dmStateDestination(encounterId), ignoreFrames());
+
+        assertRefused(watched);
+    }
+
+    @Test
+    @DisplayName("A player is refused when subscribing to the whole combat log (D171)")
+    void playerIsRefusedOnDmLog() throws Exception {
+        var dm = register("dungeonmaster");
+        var player = register("aria");
+        UUID encounterId = createEncounter(dm.accessToken(), joinedCampaign(dm, player));
+        WatchedSession watched = connectWatchingErrors(player.accessToken());
+
+        watched.session().subscribe(EncounterBroadcaster.dmLogDestination(encounterId), ignoreFrames());
 
         assertRefused(watched);
     }
@@ -211,7 +276,7 @@ class EncounterWebSocketIT extends IntegrationTest {
         UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
         StompSession listener = connect(otherPlayer.accessToken());
         BlockingQueue<JsonNode> states = subscribe(listener, EncounterBroadcaster.stateDestination(encounterId));
-        joinUntilStateArrives(listener, encounterId, states);
+        joinUntilMessageArrives(listener, encounterId, states);
         WatchedSession forger = connectWatchingErrors(player.accessToken());
 
         forger.session().send(EncounterBroadcaster.stateDestination(encounterId),
@@ -293,9 +358,17 @@ class EncounterWebSocketIT extends IntegrationTest {
     }
 
     private void hide(String dmToken, UUID encounterId, String participantId) {
+        setVisibility(dmToken, encounterId, participantId, false);
+    }
+
+    private void reveal(String dmToken, UUID encounterId, String participantId) {
+        setVisibility(dmToken, encounterId, participantId, true);
+    }
+
+    private void setVisibility(String dmToken, UUID encounterId, String participantId, boolean visible) {
         expect(HttpStatus.OK, exchange(HttpMethod.PATCH,
                 "/api/encounters/" + encounterId + "/participants/" + participantId + "/visibility",
-                Map.of("visible", false), dmToken));
+                Map.of("visible", visible), dmToken));
     }
 
     private void damage(String dmToken, UUID encounterId, String targetId, int amount) {
@@ -357,7 +430,7 @@ class EncounterWebSocketIT extends IntegrationTest {
     }
 
     private BlockingQueue<JsonNode> subscribe(StompSession session, String destination) {
-        BlockingQueue<JsonNode> states = new LinkedBlockingQueue<>();
+        BlockingQueue<JsonNode> messages = new LinkedBlockingQueue<>();
         session.subscribe(destination, new StompFrameHandler() {
             @Override
             public Type getPayloadType(StompHeaders headers) {
@@ -366,37 +439,45 @@ class EncounterWebSocketIT extends IntegrationTest {
 
             @Override
             public void handleFrame(StompHeaders headers, Object payload) {
-                states.add((JsonNode) payload);
+                messages.add((JsonNode) payload);
             }
         });
-        return states;
+        return messages;
     }
 
     // The server handles inbound frames on a thread pool, so a SUBSCRIBE can still be in flight when
-    // the next frame is handled. Repeating the join until a state arrives proves the subscription is live.
-    private JsonNode joinUntilStateArrives(StompSession sender, UUID encounterId, BlockingQueue<JsonNode> states)
+    // the next frame is handled. Each join publishes both states and both logs, so repeating it until a
+    // message arrives proves the subscription is live.
+    private JsonNode joinUntilMessageArrives(StompSession sender, UUID encounterId, BlockingQueue<JsonNode> messages)
             throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
         while (System.nanoTime() < deadline) {
             sender.send("/app/encounter/" + encounterId + "/join", new byte[0]);
-            JsonNode state = states.poll(250, TimeUnit.MILLISECONDS);
-            if (state != null) {
-                return state;
+            JsonNode message = messages.poll(250, TimeUnit.MILLISECONDS);
+            if (message != null) {
+                return message;
             }
         }
-        throw new AssertionError("No encounter state arrived within " + TIMEOUT_SECONDS + "s");
+        throw new AssertionError("No encounter message arrived within " + TIMEOUT_SECONDS + "s");
     }
 
-    // Skips states queued by earlier joins until one matches
-    private JsonNode awaitState(BlockingQueue<JsonNode> states, Predicate<JsonNode> matches) throws InterruptedException {
+    // Skips messages queued by earlier joins and changes until one matches
+    private JsonNode awaitMessage(BlockingQueue<JsonNode> messages, Predicate<JsonNode> matches) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
         for (long left = deadline - System.nanoTime(); left > 0; left = deadline - System.nanoTime()) {
-            JsonNode state = states.poll(left, TimeUnit.NANOSECONDS);
-            if (state != null && matches.test(state)) {
-                return state;
+            JsonNode message = messages.poll(left, TimeUnit.NANOSECONDS);
+            if (message != null && matches.test(message)) {
+                return message;
             }
         }
-        throw new AssertionError("No matching encounter state arrived within " + TIMEOUT_SECONDS + "s");
+        throw new AssertionError("No matching encounter message arrived within " + TIMEOUT_SECONDS + "s");
+    }
+
+    // A log message is the whole log, oldest entry first
+    private static List<String> descriptions(JsonNode log) {
+        List<String> descriptions = new ArrayList<>();
+        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        return descriptions;
     }
 
     private static JsonNode participant(JsonNode state, String participantId) {

@@ -511,7 +511,7 @@ export default function EncounterBuilderPage() {
                             <tbody>
                               {selectedEncounter.participants.map((p: EncounterParticipant) => {
                                 const isMonster = p.participantType === 'MONSTER';
-                                const pColour = getParticipantColour(isMonster, (p as any).characterClass);
+                                const pColour = getParticipantColour(isMonster);
                                 return (
                                   <tr key={p.id} className="border-b border-rule-light">
                                     <td className="px-4 py-3">

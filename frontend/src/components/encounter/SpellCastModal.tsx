@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { X, Zap, Shield, Target, Sparkles, AlertTriangle } from 'lucide-react';
-import { combatApi } from '../../api/combatApi';
 import { getSpellTargeting } from '../../api/referenceApi';
 import type { SpellTargetingInfo } from '../../api/referenceApi';
+import { useEncounterAction } from '../../queries/encounters';
 import type { EncounterParticipant, SpellSlots } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
 import { healthLabel } from '../../utils/healthStatus';
@@ -17,17 +17,17 @@ interface SpellEntry {
 }
 
 interface Props {
-  encounterId: string;
   caster: EncounterParticipant;
   participants: EncounterParticipant[];
-  onUpdate: (encounterState: any) => void;
   onClose: () => void;
   isMonster?: boolean;
 }
 
 type Step = 'spell' | 'slot' | 'target' | 'confirm';
 
-export default function SpellCastModal({ encounterId, caster, participants, onUpdate, onClose, isMonster }: Props) {
+/** Casts a spell in the live encounter of the surrounding EncounterProvider, whose state the result updates. */
+export default function SpellCastModal({ caster, participants, onClose, isMonster }: Props) {
+  const actions = useEncounterAction();
   const [step, setStep] = useState<Step>('spell');
   const [search, setSearch] = useState('');
   const [selectedSpell, setSelectedSpell] = useState<SpellEntry | null>(null);
@@ -146,8 +146,8 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
       const attackOverride = overrideAttackBonus ? parseInt(overrideAttackBonus) : undefined;
       const saveDcOverride = overrideSaveDC ? parseInt(overrideSaveDC) : undefined;
       // Monsters cast through their own endpoint so their slots and innate uses are spent (D165)
-      const res = isMonster
-        ? await combatApi.monsterSpell(encounterId, {
+      const cast = isMonster
+        ? await actions.monsterSpell({
             monsterParticipantId: caster.id,
             spellName: selectedSpell.name,
             slotLevel: selectedSlotLevel,
@@ -156,7 +156,7 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
             overrideAttackBonus: attackOverride,
             overrideSaveDC: saveDcOverride,
           }, caster.id)
-        : await combatApi.castSpell(encounterId, {
+        : await actions.castSpell({
             spellName: selectedSpell.name,
             slotLevel: selectedSlotLevel,
             targetIds: selectedTargets,
@@ -166,8 +166,7 @@ export default function SpellCastModal({ encounterId, caster, participants, onUp
             overrideSpellSaveDC: saveDcOverride,
           }, caster.id);
 
-      setResult(res.data);
-      onUpdate(res.data.encounterState);
+      setResult(cast);
     } catch (err: any) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to cast spell');
       setCasting(false);

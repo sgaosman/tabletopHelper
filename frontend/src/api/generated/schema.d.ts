@@ -1323,7 +1323,8 @@ export interface components {
             initiativeModifier?: number | null;
             /** Format: uuid */
             monsterId?: string | null;
-            participantType: string;
+            /** @enum {string} */
+            participantType: "PLAYER" | "MONSTER" | "COMPANION";
             /** Format: int32 */
             quantity?: number | null;
         };
@@ -1428,14 +1429,14 @@ export interface components {
             usePactSlot?: boolean | null;
         };
         CastSpellResponse: {
-            autoResolved?: boolean | null;
-            encounterState?: components["schemas"]["EncounterResponse"] | null;
+            autoResolved: boolean;
+            encounterState: components["schemas"]["EncounterResponse"];
             manualResolutionReason?: string | null;
-            resultSummary?: string | null;
+            resultSummary: string;
             /** Format: int32 */
-            slotLevelUsed?: number | null;
-            spellName?: string | null;
-            targets?: components["schemas"]["TargetOutcome"][] | null;
+            slotLevelUsed: number;
+            spellName: string;
+            targets: components["schemas"]["TargetOutcome"][];
         };
         CharacterClass: {
             armorProficiencies?: string | null;
@@ -1720,19 +1721,20 @@ export interface components {
             wisdom?: number | null;
         };
         CombatLogResponse: {
-            actionType?: string | null;
+            /** @enum {string} */
+            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE";
             /** Format: uuid */
             actorId?: string | null;
             actorName?: string | null;
             /** Format: date-time */
-            createdAt?: string | null;
+            createdAt: string;
             /** Format: int32 */
             damageDealt?: number | null;
-            description?: string | null;
+            description: string;
             /** Format: int32 */
             healingDone?: number | null;
             /** Format: uuid */
-            id?: string | null;
+            id: string;
             legendaryResistanceEligible?: boolean | null;
             lrConditionsApplied?: string | null;
             /** Format: int32 */
@@ -1745,7 +1747,7 @@ export interface components {
             /** Format: int32 */
             rollValue?: number | null;
             /** Format: int32 */
-            roundNumber?: number | null;
+            roundNumber: number;
             /** Format: uuid */
             targetId?: string | null;
             targetName?: string | null;
@@ -1802,21 +1804,22 @@ export interface components {
         };
         EncounterResponse: {
             /** Format: uuid */
-            campaignId?: string | null;
-            campaignName?: string | null;
+            campaignId: string;
+            campaignName: string;
             /** Format: date-time */
             createdAt?: string | null;
             /** Format: int32 */
-            currentTurnIndex?: number | null;
+            currentTurnIndex: number;
             description?: string | null;
             /** Format: uuid */
-            id?: string | null;
-            name?: string | null;
-            participants?: components["schemas"]["ParticipantResponse"][] | null;
+            id: string;
+            name: string;
+            participants: components["schemas"]["ParticipantResponse"][];
             /** Format: int32 */
-            roundNumber?: number | null;
+            roundNumber: number;
             sessionCode?: string | null;
-            status?: string | null;
+            /** @enum {string} */
+            status: "PREPARING" | "ACTIVE" | "PAUSED" | "COMPLETED";
         };
         Feat: {
             abilityScoreIncrease?: string | null;
@@ -1946,45 +1949,46 @@ export interface components {
             wisdom?: number | null;
         };
         MonsterActionRequest: {
-            actionName?: string | null;
-            actionSource?: string | null;
+            actionName: string;
+            /** @enum {string} */
+            actionSource: "ACTION" | "LEGENDARY" | "LAIR";
             advantage?: boolean | null;
             /** Format: uuid */
-            monsterParticipantId?: string | null;
+            monsterParticipantId: string;
             /** Format: int32 */
             overrideAttackBonus?: number | null;
             /** Format: int32 */
             overrideSaveDC?: number | null;
-            targetParticipantIds?: string[] | null;
+            targetParticipantIds: string[];
         };
         MonsterActionResponse: {
-            conditionsInflicted?: string[] | null;
-            description?: string | null;
-            encounterState?: components["schemas"]["EncounterResponse"] | null;
-            legendaryResistanceAvailable?: boolean | null;
+            conditionsInflicted: string[];
+            description: string;
+            encounterState: components["schemas"]["EncounterResponse"];
+            legendaryResistanceAvailable: boolean;
             /** Format: int32 */
-            legendaryResistanceRemaining?: number | null;
+            legendaryResistanceRemaining: number;
             manualResolutionReason?: string | null;
-            requiresManualResolution?: boolean | null;
-            resolved?: boolean | null;
-            targetResults?: components["schemas"]["TargetResult"][] | null;
+            requiresManualResolution: boolean;
+            resolved: boolean;
+            targetResults: components["schemas"]["TargetResult"][];
             /** Format: int32 */
-            totalDamage?: number | null;
+            totalDamage: number;
             /** Format: int32 */
-            totalHealing?: number | null;
+            totalHealing: number;
         };
         MonsterSpellRequest: {
             advantage?: boolean | null;
             /** Format: uuid */
-            monsterParticipantId?: string | null;
+            monsterParticipantId: string;
             /** Format: int32 */
             overrideAttackBonus?: number | null;
             /** Format: int32 */
             overrideSaveDC?: number | null;
             /** Format: int32 */
             slotLevel?: number | null;
-            spellName?: string | null;
-            targetParticipantIds?: string[] | null;
+            spellName: string;
+            targetParticipantIds: string[];
         };
         OptionalFeature: {
             /** Format: date-time */
@@ -2070,14 +2074,14 @@ export interface components {
             unpaged?: boolean | null;
         };
         ParticipantResponse: {
-            actionUsed?: boolean | null;
+            actionUsed: boolean;
             activeConditions?: string | null;
             activeSpell?: string | null;
             /** Format: int32 */
             activeSpellSlotLevel?: number | null;
             /** Format: int32 */
-            armourClass?: number | null;
-            bonusActionUsed?: boolean | null;
+            armourClass: number;
+            bonusActionUsed: boolean;
             /** Format: uuid */
             characterId?: string | null;
             /** Format: int32 */
@@ -2086,11 +2090,12 @@ export interface components {
             /** Format: uuid */
             controlledByUserId?: string | null;
             /** Format: int32 */
-            deathSaveFailures?: number | null;
+            deathSaveFailures: number;
             /** Format: int32 */
-            deathSaveSuccesses?: number | null;
-            displayName?: string | null;
-            healthStatus?: string | null;
+            deathSaveSuccesses: number;
+            displayName: string;
+            /** @enum {string|null} */
+            healthStatus?: "UNHARMED" | "INJURED" | "BLOODIED" | "DOWN" | null;
             /** Format: int32 */
             hpCurrent?: number | null;
             /** Format: int32 */
@@ -2098,19 +2103,20 @@ export interface components {
             /** Format: int32 */
             hpTemp?: number | null;
             /** Format: uuid */
-            id?: string | null;
+            id: string;
             /** Format: int32 */
             initiative?: number | null;
             /** Format: int32 */
             initiativeModifier?: number | null;
-            isAlive?: boolean | null;
-            isCurrentTurn?: boolean | null;
+            isAlive: boolean;
+            isCurrentTurn: boolean;
             isVisibleToPlayers?: boolean | null;
             /** Format: uuid */
             monsterId?: string | null;
             notes?: string | null;
-            participantType?: string | null;
-            reactionUsed?: boolean | null;
+            /** @enum {string} */
+            participantType: "PLAYER" | "MONSTER" | "COMPANION";
+            reactionUsed: boolean;
             resourcePoolsCurrent?: string | null;
             /** Format: int32 */
             sortOrder?: number | null;
@@ -2246,37 +2252,37 @@ export interface components {
         TargetOutcome: {
             /** Format: int32 */
             attackRoll?: number | null;
-            conditionsApplied?: string[] | null;
+            conditionsApplied: string[];
             /** Format: int32 */
             damage?: number | null;
             /** Format: int32 */
             healing?: number | null;
-            outcome?: string | null;
+            outcome: string;
             /** Format: int32 */
             saveRoll?: number | null;
             /** Format: uuid */
-            targetId?: string | null;
-            targetName?: string | null;
+            targetId: string;
+            targetName: string;
         };
         TargetResult: {
-            attackOutcome?: string | null;
-            conditionsApplied?: string[] | null;
+            attackOutcome: string;
+            conditionsApplied: string[];
             /** Format: int32 */
-            damage?: number | null;
+            damage: number;
             damageType?: string | null;
             /** Format: int32 */
-            healing?: number | null;
-            legendaryResistanceAvailable?: boolean | null;
+            healing: number;
+            legendaryResistanceAvailable: boolean;
             /** Format: int32 */
-            legendaryResistanceRemaining?: number | null;
+            legendaryResistanceRemaining: number;
             /** Format: int32 */
             rollTotal?: number | null;
             /** Format: int32 */
             rollValue?: number | null;
-            savedSuccessfully?: boolean | null;
+            savedSuccessfully: boolean;
             /** Format: uuid */
-            targetId?: string | null;
-            targetName?: string | null;
+            targetId: string;
+            targetName: string;
         };
         VisibilityRequest: {
             visible: boolean;

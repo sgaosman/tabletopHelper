@@ -1,10 +1,9 @@
 import { Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
-import { encounterApi } from '../../api/encounterApi';
-import { combatApi } from '../../api/combatApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useCombatLog, useEncounterAction, useMonsterActionTemplates } from '../../queries/encounters';
 import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
-import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
@@ -49,14 +48,14 @@ function HpBar({ participant }: { participant: EncounterParticipant }) {
   );
 }
 
-function DeathSaves({ participant, encounterId, onUpdate }: { participant: EncounterParticipant; encounterId: string; onUpdate: () => void }) {
+function DeathSaves({ participant }: { participant: EncounterParticipant }) {
+  const actions = useEncounterAction();
   const [rolling, setRolling] = useState(false);
 
   async function handleRoll() {
     setRolling(true);
     try {
-      await combatApi.rollDeathSave(encounterId, participant.id);
-      onUpdate();
+      await actions.rollDeathSave(participant.id);
     } finally {
       setRolling(false);
     }
@@ -87,7 +86,8 @@ function DeathSaves({ participant, encounterId, onUpdate }: { participant: Encou
   );
 }
 
-function SpellSlotDisplay({ participant, encounterId, onUpdate }: { participant: EncounterParticipant; encounterId: string; onUpdate: () => void }) {
+function SpellSlotDisplay({ participant }: { participant: EncounterParticipant }) {
+  const actions = useEncounterAction();
   const slots = parseSpellSlots(participant);
   if (!slots) return null;
 
@@ -95,13 +95,11 @@ function SpellSlotDisplay({ participant, encounterId, onUpdate }: { participant:
   if (levels.length === 0) return null;
 
   async function handleUse(level: number) {
-    await combatApi.useSpellSlot(encounterId, participant.id, level);
-    onUpdate();
+    await actions.spendSpellSlot(participant.id, level);
   }
 
   async function handleRestore(level: number) {
-    await combatApi.restoreSpellSlot(encounterId, participant.id, level);
-    onUpdate();
+    await actions.restoreSpellSlot(participant.id, level);
   }
 
   return (
@@ -145,18 +143,15 @@ function parseSpellSlots(p: EncounterParticipant): SpellSlots | null {
 }
 
 function ActionPanel({
-  encounterId,
   selectedTarget,
   actionMode,
   setActionMode,
-  onUpdate,
 }: {
-  encounterId: string;
   selectedTarget: EncounterParticipant | null;
   actionMode: ActionMode;
   setActionMode: (mode: ActionMode) => void;
-  onUpdate: () => void;
 }) {
+  const actions = useEncounterAction();
   const [amount, setAmount] = useState('');
   const [damageType, setDamageType] = useState('');
   const [condition, setCondition] = useState('');
@@ -194,19 +189,18 @@ function ActionPanel({
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await combatApi.rollAttack(encounterId, selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, undefined, atk.isRanged || undefined);
+            await actions.rollAttack(selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, undefined, atk.isRanged || undefined);
           }
         }
       } else if (actionMode === 'damage' && amount) {
-        await combatApi.applyDamage(encounterId, selectedTarget.id, parseInt(amount), damageType || undefined);
+        await actions.applyDamage(selectedTarget.id, parseInt(amount), damageType || undefined);
       } else if (actionMode === 'heal' && amount) {
-        await combatApi.applyHealing(encounterId, selectedTarget.id, parseInt(amount));
+        await actions.applyHealing(selectedTarget.id, parseInt(amount));
       } else if (actionMode === 'condition' && condition) {
-        await combatApi.addCondition(encounterId, selectedTarget.id, condition, conditionDuration ? parseInt(conditionDuration) : undefined);
+        await actions.addCondition(selectedTarget.id, condition, conditionDuration ? parseInt(conditionDuration) : undefined);
       } else if (actionMode === 'concentration') {
-        await combatApi.setConcentration(encounterId, selectedTarget.id, spellName || null);
+        await actions.setConcentration(selectedTarget.id, spellName || null);
       }
-      onUpdate();
       setAmount('');
       setDamageType('');
       setCondition('');
@@ -429,21 +423,15 @@ function ActionPanel({
   );
 }
 
-function CombatLogPanel({ encounterId }: { encounterId: string }) {
-  const [logs, setLogs] = useState<CombatLogEntry[]>([]);
+function CombatLogPanel() {
+  // The server sends the whole log after every change (D171)
+  const logs = useCombatLog();
+  const actions = useEncounterAction();
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newCount, setNewCount] = useState(0);
   const prevLogCount = useRef(0);
-
-  useEffect(() => {
-    combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
-    const interval = setInterval(() => {
-      combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [encounterId]);
 
   const isAtBottomRef = useRef(true);
   useEffect(() => { isAtBottomRef.current = isAtBottom; }, [isAtBottom]);
@@ -571,11 +559,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
                         {log.legendaryResistanceEligible && !log.lrResolved && (
                           <button
                             className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[11px] font-semibold tracking-[0.02em]"
-                            onClick={() => {
-                              combatApi.useLegendaryResistance(encounterId, log.id).then(() => {
-                                combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
-                              });
-                            }}
+                            onClick={() => { void actions.spendLegendaryResistance(log.id); }}
                           >
                             Use Legendary Resistance
                           </button>
@@ -605,10 +589,9 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
 // ── M12 Inline Monster Actions ────────────────────────────────────────
 
 function InlineMonsterActions({
-  encounterId, participant, participants, inlineTargets, inlineResult,
-  inlineExecuting, onToggleTarget, onExecute, onRefresh,
+  participant, participants, inlineTargets, inlineResult,
+  inlineExecuting, onToggleTarget, onExecute, onClearResult,
 }: {
-  encounterId: string;
   participant: EncounterParticipant;
   participants: EncounterParticipant[];
   inlineTargets: string[];
@@ -616,25 +599,16 @@ function InlineMonsterActions({
   inlineExecuting: boolean;
   onToggleTarget: (id: string) => void;
   onExecute: (participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR') => void;
-  onRefresh: () => void;
+  onClearResult: () => void;
 }) {
-  const [templates, setTemplates] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const templatesQuery = useMonsterActionTemplates(participant.id);
   const [tab, setTab] = useState<'actions' | 'legendary' | 'lair'>('actions');
   const [selectedAction, setSelectedAction] = useState<any>(null);
 
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setFetchError(null);
-    combatApi.getMonsterActions(encounterId, participant.id)
-      .then(res => { setTemplates(res.data); setLoading(false); })
-      .catch(err => { setFetchError(err.response?.data?.message || err.response?.status + ' ' + (err.response?.data?.error || err.message)); setLoading(false); });
-  }, [encounterId, participant.id]);
-
-  if (loading) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-muted">Loading actions...</div>;
-  if (fetchError) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{fetchError}</div>;
+  if (templatesQuery.isPending) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-muted">Loading actions...</div>;
+  if (templatesQuery.isError) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{apiErrorMessage(templatesQuery.error)}</div>;
+  // A monster without templates gets {"error": ...}, which the template type leaves out
+  const templates: any = templatesQuery.data;
   if (!templates || templates.error) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{templates?.error || 'No data'}</div>;
 
   const actions: any[] = templates.actions || [];
@@ -808,7 +782,7 @@ function InlineMonsterActions({
           {inlineResult.targetResults?.map((tr: any) => (
             <div key={tr.targetId}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${tr.damage} ${tr.damageType}` : ''}{tr.conditionsApplied?.length > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
           ))}
-          <button className="mt-1 font-body text-[15px] font-semibold text-muted underline hover:text-ink" onClick={onRefresh}>Clear</button>
+          <button className="mt-1 font-body text-[15px] font-semibold text-muted underline hover:text-ink" onClick={onClearResult}>Clear</button>
         </div>
       )}
     </div>
@@ -830,7 +804,8 @@ function TabBtn({ active, onClick, label }: { active: boolean; onClick: () => vo
 // ── DmSessionView ──────────────────────────────────────────────────────
 
 function DmSessionView() {
-  const { encounter, isConnected, error, refreshEncounter } = useEncounter();
+  const { encounter, isConnected, error } = useEncounter();
+  const actions = useEncounterAction();
   const navigate = useNavigate();
   const [copiedCode, setCopiedCode] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
@@ -844,14 +819,12 @@ function DmSessionView() {
     if (inlineTargets.length === 0) return;
     setInlineExecuting(true);
     try {
-      const res = await combatApi.monsterAction(encounter!.id, {
+      setInlineResult(await actions.monsterAction({
         monsterParticipantId: participantId,
         actionName,
         actionSource: source,
         targetParticipantIds: inlineTargets,
-      });
-      setInlineResult(res.data);
-      refreshEncounter();
+      }));
     } catch (err: any) {
       const msg = err.response?.data?.message
           || err.response?.data?.error
@@ -882,7 +855,13 @@ function DmSessionView() {
   }
 
   if (!encounter) {
-    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[15px] font-semibold">Loading encounter...</p></div>;
+    return (
+      <div className="min-h-screen bg-page flex items-center justify-center">
+        {error
+          ? <p role="alert" className="text-debuff font-body text-[15px] font-semibold">{error}</p>
+          : <p className="text-muted font-body text-[15px] font-semibold">Loading encounter...</p>}
+      </div>
+    );
   }
 
   function copySessionCode() {
@@ -893,46 +872,32 @@ function DmSessionView() {
   }
 
   async function handlePause() {
-    if (!encounter) return;
-    await encounterApi.pause(encounter.id);
-    refreshEncounter();
+    await actions.pause();
   }
 
   async function handleResume() {
-    if (!encounter) return;
-    await encounterApi.resume(encounter.id);
-    refreshEncounter();
+    await actions.resume();
   }
 
   async function handleEnd() {
-    if (!encounter) return;
     if (!window.confirm('End this encounter? This cannot be undone.')) return;
-    await encounterApi.end(encounter.id);
-    refreshEncounter();
+    await actions.end();
   }
 
   async function handleNextTurn() {
-    if (!encounter) return;
-    await combatApi.advanceTurn(encounter.id);
-    refreshEncounter();
+    await actions.nextTurn();
   }
 
   async function handlePrevTurn() {
-    if (!encounter) return;
-    await combatApi.previousTurn(encounter.id);
-    refreshEncounter();
+    await actions.previousTurn();
   }
 
   async function handleRemoveCondition(participantId: string, condition: string) {
-    if (!encounter) return;
-    await combatApi.removeCondition(encounter.id, participantId, condition);
-    refreshEncounter();
+    await actions.removeCondition(participantId, condition);
   }
 
   async function handleSetVisibility(participantId: string, visible: boolean) {
-    if (!encounter) return;
-    await encounterApi.setVisibility(encounter.id, participantId, visible);
-    refreshEncounter();
+    await actions.setVisibility(participantId, visible);
   }
 
   function selectTarget(participantId: string, mode: ActionMode) {
@@ -1028,10 +993,8 @@ function DmSessionView() {
         {/* Spell cast modal */}
         {actionMode === 'spell' && selectedTarget && (
           <SpellCastModal
-            encounterId={encounter.id}
             caster={selectedTarget}
             participants={encounter.participants}
-            onUpdate={refreshEncounter}
             onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
             isMonster={selectedTarget.participantType === 'MONSTER'}
           />
@@ -1040,11 +1003,9 @@ function DmSessionView() {
         {/* Repeat spell effect modal */}
         {actionMode === 'repeat-effect' && selectedTarget && (selectedTarget.concentrationSpell || selectedTarget.activeSpell) && (
           <RepeatEffectModal
-            encounterId={encounter.id}
             caster={selectedTarget}
             participants={encounter.participants}
             spellName={(selectedTarget.concentrationSpell || selectedTarget.activeSpell)!}
-            onUpdate={refreshEncounter}
             onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
             isMonster={selectedTarget.participantType === 'MONSTER'}
           />
@@ -1053,11 +1014,9 @@ function DmSessionView() {
         {/* Action panel */}
         {actionMode !== 'spell' && (
           <ActionPanel
-            encounterId={encounter.id}
             selectedTarget={selectedTarget}
             actionMode={actionMode}
             setActionMode={setActionMode}
-            onUpdate={refreshEncounter}
           />
         )}
 
@@ -1161,12 +1120,12 @@ function DmSessionView() {
 
                     {/* Death saves for downed players */}
                     {!p.isAlive && p.participantType === 'PLAYER' && p.deathSaveFailures < 3 && (
-                      <DeathSaves participant={p} encounterId={encounter.id} onUpdate={refreshEncounter} />
+                      <DeathSaves participant={p} />
                     )}
 
                     {/* Spell slots */}
                     {p.isAlive && p.spellSlotsCurrent && (
-                      <SpellSlotDisplay participant={p} encounterId={encounter.id} onUpdate={refreshEncounter} />
+                      <SpellSlotDisplay participant={p} />
                     )}
 
                     {/* Resource pools (M24.5) */}
@@ -1260,7 +1219,6 @@ function DmSessionView() {
               {/* M12 Inline monster action panel */}
               {expandedMonsterId === p.id && isMonster && (
                 <InlineMonsterActions
-                  encounterId={encounter.id}
                   participant={p}
                   participants={sorted}
                   inlineTargets={inlineTargets}
@@ -1268,7 +1226,7 @@ function DmSessionView() {
                   inlineExecuting={inlineExecuting}
                   onToggleTarget={toggleInlineTarget}
                   onExecute={executeInlineAction}
-                  onRefresh={refreshEncounter}
+                  onClearResult={() => setInlineResult(null)}
                 />
               )}
             </Fragment>
@@ -1277,7 +1235,7 @@ function DmSessionView() {
         </div>
 
         {/* Combat log */}
-        <CombatLogPanel encounterId={encounter.id} />
+        <CombatLogPanel />
       </main>
     </div>
   );

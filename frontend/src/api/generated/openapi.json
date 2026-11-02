@@ -3068,7 +3068,12 @@
             "nullable": true
           },
           "participantType": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "PLAYER",
+              "MONSTER",
+              "COMPANION"
+            ]
           },
           "quantity": {
             "type": "integer",
@@ -3461,40 +3466,38 @@
         }
       },
       "CastSpellResponse": {
+        "required": [
+          "autoResolved",
+          "encounterState",
+          "resultSummary",
+          "slotLevelUsed",
+          "spellName",
+          "targets"
+        ],
         "type": "object",
         "properties": {
           "autoResolved": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "encounterState": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/EncounterResponse"
-              }
-            ]
+            "$ref": "#/components/schemas/EncounterResponse"
           },
           "manualResolutionReason": {
             "type": "string",
             "nullable": true
           },
           "resultSummary": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "slotLevelUsed": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "spellName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "targets": {
             "type": "array",
-            "nullable": true,
             "items": {
               "$ref": "#/components/schemas/TargetOutcome"
             }
@@ -4442,11 +4445,42 @@
         }
       },
       "CombatLogResponse": {
+        "required": [
+          "actionType",
+          "createdAt",
+          "description",
+          "id",
+          "roundNumber"
+        ],
         "type": "object",
         "properties": {
           "actionType": {
             "type": "string",
-            "nullable": true
+            "enum": [
+              "ATTACK",
+              "DAMAGE",
+              "HEAL",
+              "CONDITION_ADD",
+              "CONDITION_REMOVE",
+              "DEATH_SAVE",
+              "CONCENTRATION_CHECK",
+              "CONCENTRATION_LOST",
+              "TURN_ADVANCE",
+              "TURN_BACK",
+              "STABILIZE",
+              "KILL",
+              "REVIVE",
+              "SPELL_SLOT_USE",
+              "SPELL_SLOT_RESTORE",
+              "SPELL_CAST",
+              "SPELL_EFFECT_REPEAT",
+              "MONSTER_ACTION",
+              "LEGENDARY_ACTION",
+              "LAIR_ACTION",
+              "LEGENDARY_RESISTANCE_USED",
+              "RECHARGE_SUCCESS",
+              "RECHARGE_FAILURE"
+            ]
           },
           "actorId": {
             "type": "string",
@@ -4459,8 +4493,7 @@
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "format": "date-time"
           },
           "damageDealt": {
             "type": "integer",
@@ -4468,8 +4501,7 @@
             "nullable": true
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "healingDone": {
             "type": "integer",
@@ -4478,8 +4510,7 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "legendaryResistanceEligible": {
             "type": "boolean",
@@ -4515,8 +4546,7 @@
           },
           "roundNumber": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "targetId": {
             "type": "string",
@@ -4689,16 +4719,24 @@
         }
       },
       "EncounterResponse": {
+        "required": [
+          "campaignId",
+          "campaignName",
+          "currentTurnIndex",
+          "id",
+          "name",
+          "participants",
+          "roundNumber",
+          "status"
+        ],
         "type": "object",
         "properties": {
           "campaignId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "campaignName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "createdAt": {
             "type": "string",
@@ -4707,8 +4745,7 @@
           },
           "currentTurnIndex": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "description": {
             "type": "string",
@@ -4716,24 +4753,20 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "participants": {
             "type": "array",
-            "nullable": true,
             "items": {
               "$ref": "#/components/schemas/ParticipantResponse"
             }
           },
           "roundNumber": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "sessionCode": {
             "type": "string",
@@ -4741,7 +4774,12 @@
           },
           "status": {
             "type": "string",
-            "nullable": true
+            "enum": [
+              "PREPARING",
+              "ACTIVE",
+              "PAUSED",
+              "COMPLETED"
+            ]
           }
         }
       },
@@ -5166,15 +5204,24 @@
         }
       },
       "MonsterActionRequest": {
+        "required": [
+          "actionName",
+          "actionSource",
+          "monsterParticipantId",
+          "targetParticipantIds"
+        ],
         "type": "object",
         "properties": {
           "actionName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "actionSource": {
             "type": "string",
-            "nullable": true
+            "enum": [
+              "ACTION",
+              "LEGENDARY",
+              "LAIR"
+            ]
           },
           "advantage": {
             "type": "boolean",
@@ -5182,8 +5229,7 @@
           },
           "monsterParticipantId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "overrideAttackBonus": {
             "type": "integer",
@@ -5197,7 +5243,6 @@
           },
           "targetParticipantIds": {
             "type": "array",
-            "nullable": true,
             "items": {
               "type": "string",
               "format": "uuid"
@@ -5206,68 +5251,71 @@
         }
       },
       "MonsterActionResponse": {
+        "required": [
+          "conditionsInflicted",
+          "description",
+          "encounterState",
+          "legendaryResistanceAvailable",
+          "legendaryResistanceRemaining",
+          "requiresManualResolution",
+          "resolved",
+          "targetResults",
+          "totalDamage",
+          "totalHealing"
+        ],
         "type": "object",
         "properties": {
           "conditionsInflicted": {
             "type": "array",
-            "nullable": true,
             "items": {
               "type": "string"
             }
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "encounterState": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/EncounterResponse"
-              }
-            ]
+            "$ref": "#/components/schemas/EncounterResponse"
           },
           "legendaryResistanceAvailable": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "legendaryResistanceRemaining": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "manualResolutionReason": {
             "type": "string",
             "nullable": true
           },
           "requiresManualResolution": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "resolved": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "targetResults": {
             "type": "array",
-            "nullable": true,
             "items": {
               "$ref": "#/components/schemas/TargetResult"
             }
           },
           "totalDamage": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "totalHealing": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           }
         }
       },
       "MonsterSpellRequest": {
+        "required": [
+          "monsterParticipantId",
+          "spellName",
+          "targetParticipantIds"
+        ],
         "type": "object",
         "properties": {
           "advantage": {
@@ -5276,8 +5324,7 @@
           },
           "monsterParticipantId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "overrideAttackBonus": {
             "type": "integer",
@@ -5295,12 +5342,10 @@
             "nullable": true
           },
           "spellName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "targetParticipantIds": {
             "type": "array",
-            "nullable": true,
             "items": {
               "type": "string",
               "format": "uuid"
@@ -5599,11 +5644,23 @@
         }
       },
       "ParticipantResponse": {
+        "required": [
+          "actionUsed",
+          "armourClass",
+          "bonusActionUsed",
+          "deathSaveFailures",
+          "deathSaveSuccesses",
+          "displayName",
+          "id",
+          "isAlive",
+          "isCurrentTurn",
+          "participantType",
+          "reactionUsed"
+        ],
         "type": "object",
         "properties": {
           "actionUsed": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "activeConditions": {
             "type": "string",
@@ -5620,12 +5677,10 @@
           },
           "armourClass": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "bonusActionUsed": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "characterId": {
             "type": "string",
@@ -5648,21 +5703,24 @@
           },
           "deathSaveFailures": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "deathSaveSuccesses": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "displayName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "healthStatus": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "enum": [
+              "UNHARMED",
+              "INJURED",
+              "BLOODIED",
+              "DOWN"
+            ]
           },
           "hpCurrent": {
             "type": "integer",
@@ -5681,8 +5739,7 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "initiative": {
             "type": "integer",
@@ -5695,12 +5752,10 @@
             "nullable": true
           },
           "isAlive": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "isCurrentTurn": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "isVisibleToPlayers": {
             "type": "boolean",
@@ -5717,11 +5772,14 @@
           },
           "participantType": {
             "type": "string",
-            "nullable": true
+            "enum": [
+              "PLAYER",
+              "MONSTER",
+              "COMPANION"
+            ]
           },
           "reactionUsed": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "resourcePoolsCurrent": {
             "type": "string",
@@ -6178,6 +6236,12 @@
         }
       },
       "TargetOutcome": {
+        "required": [
+          "conditionsApplied",
+          "outcome",
+          "targetId",
+          "targetName"
+        ],
         "type": "object",
         "properties": {
           "attackRoll": {
@@ -6187,7 +6251,6 @@
           },
           "conditionsApplied": {
             "type": "array",
-            "nullable": true,
             "items": {
               "type": "string"
             }
@@ -6203,8 +6266,7 @@
             "nullable": true
           },
           "outcome": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "saveRoll": {
             "type": "integer",
@@ -6213,33 +6275,39 @@
           },
           "targetId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "targetName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
       "TargetResult": {
+        "required": [
+          "attackOutcome",
+          "conditionsApplied",
+          "damage",
+          "healing",
+          "legendaryResistanceAvailable",
+          "legendaryResistanceRemaining",
+          "savedSuccessfully",
+          "targetId",
+          "targetName"
+        ],
         "type": "object",
         "properties": {
           "attackOutcome": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "conditionsApplied": {
             "type": "array",
-            "nullable": true,
             "items": {
               "type": "string"
             }
           },
           "damage": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "damageType": {
             "type": "string",
@@ -6247,17 +6315,14 @@
           },
           "healing": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "legendaryResistanceAvailable": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "legendaryResistanceRemaining": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "rollTotal": {
             "type": "integer",
@@ -6270,17 +6335,14 @@
             "nullable": true
           },
           "savedSuccessfully": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "targetId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "targetName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },

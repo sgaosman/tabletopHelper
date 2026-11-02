@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
@@ -11,6 +11,7 @@ import type { EncounterParticipant } from '../../types/encounter';
 import PlayerEncounterSessionPage from './EncounterSessionPage';
 
 const NAMES = /^(Test Goblin|Hidden Bugbear|Gimli|Legolas)$/;
+const LOG_TOPIC = '/topic/encounter/enc-001/log';
 
 // Monsters as the Player View sends them (D157): a Health Status instead of HP, unless the DM shows exact HP.
 // The server leaves out the bugbear while the DM hides it.
@@ -98,7 +99,7 @@ describe('Player EncounterSessionPage', () => {
       participants: [goblin(), bugbear(), gimli({ hpCurrent: 18, isCurrentTurn: true }), legolas()],
     })));
 
-    expect(screen.getByText('Round 2')).toBeInTheDocument();
+    expect(await screen.findByText('Round 2')).toBeInTheDocument();
     expect(screen.getByText('18/30')).toBeInTheDocument();
     expect(screen.getByText("It's your turn!")).toBeInTheDocument();
     expect(screen.getByText('Hidden Bugbear')).toBeInTheDocument();
@@ -106,12 +107,14 @@ describe('Player EncounterSessionPage', () => {
     expect(screen.getAllByRole('button', { name: 'Attack' })).toHaveLength(3);
   });
 
-  it('subscribes to the Player View, never the DM View', async () => {
+  it('subscribes to the Player View and the players\' combat log, never the DM\'s topics', async () => {
     renderPage();
     await screen.findByText('Live');
 
     expect(MockStompClient.latest().isSubscribed('/topic/encounter/enc-001/state')).toBe(true);
+    expect(MockStompClient.latest().isSubscribed(LOG_TOPIC)).toBe(true);
     expect(MockStompClient.latest().isSubscribed('/topic/encounter/enc-001/dm-state')).toBe(false);
+    expect(MockStompClient.latest().isSubscribed('/topic/encounter/enc-001/dm-log')).toBe(false);
   });
 
   it('offers the participants in the Player View as spell targets, with a Health Status for monsters', async () => {
@@ -129,39 +132,77 @@ describe('Player EncounterSessionPage', () => {
     expect(within(dialog).queryByRole('button', { name: /Hidden Bugbear/ })).not.toBeInTheDocument();
   });
 
+  it('removes a condition from your character with one request and shows the state it answers with', async () => {
+    let encounterRequests = 0;
+    let removal: unknown;
+    server.use(
+      http.get('/api/encounters/:id', () => {
+        encounterRequests += 1;
+        return HttpResponse.json(makeMockEncounter({
+          participants: [legolas(), gimli({ activeConditions: JSON.stringify(['prone']) }), goblin()],
+        }));
+      }),
+      http.post('/api/encounters/:id/combat/condition/remove', async ({ request }) => {
+        removal = await request.json();
+        return HttpResponse.json(makeMockEncounter({ participants: [legolas(), gimli(), goblin()] }));
+      }),
+    );
+    renderPage();
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: /prone/ }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: /prone/ })).not.toBeInTheDocument());
+    expect(removal).toEqual({ targetId: 'part-gimli', condition: 'prone' });
+    expect(encounterRequests).toBe(1);
+  });
+
   describe('combat log', () => {
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it('polls the combat log every 3 seconds until the page closes', async () => {
-      // R4 (D171): the combat log will arrive over the WebSocket instead of being polled
+    it('shows the players\' combat log the WebSocket sends after each change, without polling', async () => {
       vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
-      const entries = [makeMockLogEntry('log-1', 'Legolas hits Test Goblin for 4 damage.')];
       let logRequests = 0;
       server.use(
         http.get('/api/encounters/:id/combat/log', () => {
           logRequests += 1;
-          return HttpResponse.json(entries);
+          return HttpResponse.json([makeMockLogEntry('log-1', 'Legolas hits Test Goblin for 4 damage.')]);
         }),
       );
-      const { unmount } = renderPage();
+      renderPage();
       expect(await screen.findByText('(1 entries)')).toBeInTheDocument();
-      expect(logRequests).toBe(1);
+      await screen.findByText('Live');
 
-      entries.push(makeMockLogEntry('log-2', 'Gimli casts Fire Bolt.', { actionType: 'SPELL_CAST' }));
-      await act(() => vi.advanceTimersByTimeAsync(2999));
-      expect(logRequests).toBe(1);
-      await act(() => vi.advanceTimersByTimeAsync(1));
+      act(() => MockStompClient.latest().emit(LOG_TOPIC, [
+        makeMockLogEntry('log-1', 'Legolas hits Test Goblin for 4 damage.'),
+        makeMockLogEntry('log-2', 'Gimli casts Fire Bolt.', { actionType: 'SPELL_CAST' }),
+      ]));
+
       expect(await screen.findByText('(2 entries)')).toBeInTheDocument();
-      expect(logRequests).toBe(2);
-
       await userEvent.setup().click(screen.getByRole('button', { name: /Combat Log/ }));
       expect(screen.getByText('Gimli casts Fire Bolt.')).toBeInTheDocument();
-
-      expect(vi.getTimerCount()).toBe(1);
-      unmount();
+      expect(logRequests).toBe(1);
       expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('shows a hidden monster\'s entries again when the log the DM\'s reveal sends includes them', async () => {
+      server.use(
+        http.get('/api/encounters/:id/combat/log', () =>
+          HttpResponse.json([makeMockLogEntry('log-1', 'Legolas hits Test Goblin for 4 damage.')])),
+      );
+      renderPage();
+      await screen.findByText('Live');
+      await userEvent.setup().click(await screen.findByRole('button', { name: /Combat Log/ }));
+      expect(screen.queryByText('Hidden Bugbear hits Gimli.')).not.toBeInTheDocument();
+
+      act(() => MockStompClient.latest().emit(LOG_TOPIC, [
+        makeMockLogEntry('log-0', 'Hidden Bugbear hits Gimli.', { actorId: 'part-bugbear', targetId: 'part-gimli' }),
+        makeMockLogEntry('log-1', 'Legolas hits Test Goblin for 4 damage.'),
+      ]));
+
+      expect(await screen.findByText('Hidden Bugbear hits Gimli.')).toBeInTheDocument();
+      expect(screen.getByText('(2 entries)')).toBeInTheDocument();
     });
   });
 });

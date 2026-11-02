@@ -15,6 +15,7 @@ import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,6 +34,7 @@ public class CombatService {
 
     private final EncounterRepository encounterRepository;
     private final CombatLogRepository combatLogRepository;
+    private final CombatLogReader combatLogReader;
     private final EncounterService encounterService;
     private final ObjectMapper objectMapper;
     private final SpellResolverEngine spellResolverEngine;
@@ -718,27 +722,27 @@ public class CombatService {
     // ── M12 Request/Response records ─────────────────────────────
 
     public record MonsterActionRequest(
-            UUID monsterParticipantId,
-            String actionName,
-            String actionSource,  // "ACTION", "LEGENDARY", "LAIR"
-            List<UUID> targetParticipantIds,
+            @Schema(requiredMode = REQUIRED) UUID monsterParticipantId,
+            @Schema(requiredMode = REQUIRED) String actionName,
+            @Schema(requiredMode = REQUIRED, allowableValues = {"ACTION", "LEGENDARY", "LAIR"}) String actionSource,
+            @Schema(requiredMode = REQUIRED) List<UUID> targetParticipantIds,
             Integer overrideAttackBonus,
             Integer overrideSaveDC,
             Boolean advantage
     ) {}
 
     public record MonsterActionResponse(
-            boolean resolved,
-            String description,
-            int totalDamage,
-            int totalHealing,
-            List<TargetResult> targetResults,
-            boolean requiresManualResolution,
+            @Schema(requiredMode = REQUIRED) boolean resolved,
+            @Schema(requiredMode = REQUIRED) String description,
+            @Schema(requiredMode = REQUIRED) int totalDamage,
+            @Schema(requiredMode = REQUIRED) int totalHealing,
+            @Schema(requiredMode = REQUIRED) List<TargetResult> targetResults,
+            @Schema(requiredMode = REQUIRED) boolean requiresManualResolution,
             String manualResolutionReason,
-            List<String> conditionsInflicted,
-            boolean legendaryResistanceAvailable,
-            int legendaryResistanceRemaining,
-            EncounterResponse encounterState
+            @Schema(requiredMode = REQUIRED) List<String> conditionsInflicted,
+            @Schema(requiredMode = REQUIRED) boolean legendaryResistanceAvailable,
+            @Schema(requiredMode = REQUIRED) int legendaryResistanceRemaining,
+            @Schema(requiredMode = REQUIRED) EncounterResponse encounterState
     ) {
         public MonsterActionResponse withEncounterState(EncounterResponse state) {
             return new MonsterActionResponse(resolved, description, totalDamage, totalHealing, targetResults,
@@ -748,25 +752,26 @@ public class CombatService {
     }
 
     public record TargetResult(
-            UUID targetId,
-            String targetName,
-            int damage,
-            int healing,
-            boolean savedSuccessfully,
-            List<String> conditionsApplied,
-            String attackOutcome,
+            @Schema(requiredMode = REQUIRED) UUID targetId,
+            @Schema(requiredMode = REQUIRED) String targetName,
+            @Schema(requiredMode = REQUIRED) int damage,
+            @Schema(requiredMode = REQUIRED) int healing,
+            @Schema(requiredMode = REQUIRED) boolean savedSuccessfully,
+            @Schema(requiredMode = REQUIRED) List<String> conditionsApplied,
+            @Schema(requiredMode = REQUIRED) String attackOutcome,
             Integer rollValue,
             Integer rollTotal,
             String damageType,
-            boolean legendaryResistanceAvailable,
-            int legendaryResistanceRemaining
+            @Schema(requiredMode = REQUIRED) boolean legendaryResistanceAvailable,
+            @Schema(requiredMode = REQUIRED) int legendaryResistanceRemaining
     ) {}
 
     public record MonsterSpellRequest(
-            UUID monsterParticipantId,
-            String spellName,
+            @Schema(requiredMode = REQUIRED) UUID monsterParticipantId,
+            @Schema(requiredMode = REQUIRED) String spellName,
+            // Left out, it is 0, which spends no spell slot
             int slotLevel,
-            List<UUID> targetParticipantIds,
+            @Schema(requiredMode = REQUIRED) List<UUID> targetParticipantIds,
             Integer overrideAttackBonus,
             Integer overrideSaveDC,
             Boolean advantage
@@ -1189,29 +1194,7 @@ public class CombatService {
         Encounter encounter = loadEncounter(encounterId);
         accessPolicy.requireMember(campaignId(encounter), userId);
 
-        List<CombatLogResponse> entries = combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId).stream()
-                .map(log -> CombatLogResponse.builder()
-                        .id(log.getId())
-                        .roundNumber(log.getRoundNumber())
-                        .actorId(log.getActorId())
-                        .actorName(log.getActorName())
-                        .targetId(log.getTargetId())
-                        .targetName(log.getTargetName())
-                        .actionType(log.getActionType().name())
-                        .description(log.getDescription())
-                        .rollValue(log.getRollValue())
-                        .rollTotal(log.getRollTotal())
-                        .damageDealt(log.getDamageDealt())
-                        .healingDone(log.getHealingDone())
-                        .turnParticipantName(log.getTurnParticipantName())
-                        .legendaryResistanceEligible(log.getLegendaryResistanceEligible())
-                        .lrTargetId(log.getLrTargetId())
-                        .lrDamageDealt(log.getLrDamageDealt())
-                        .lrConditionsApplied(log.getLrConditionsApplied())
-                        .lrResolved(log.getLrResolved())
-                        .createdAt(log.getCreatedAt())
-                        .build())
-                .toList();
+        List<CombatLogResponse> entries = combatLogReader.dmLog(encounterId);
 
         // The DM reads the whole log; players read it as the Player View allows (D157)
         if (userId.equals(encounter.getCampaign().getDm().getId())) {

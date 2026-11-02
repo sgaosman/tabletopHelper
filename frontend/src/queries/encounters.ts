@@ -1,7 +1,15 @@
-import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useMemo, type RefObject } from 'react';
+import {
+  queryOptions, skipToken, useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey,
+} from '@tanstack/react-query';
 import type { AxiosResponse } from 'axios';
+import { combatApi } from '../api/combatApi';
 import { encounterApi } from '../api/encounterApi';
-import type { AddParticipantRequest, Encounter, EncounterCreateRequest, SetInitiativeRequest } from '../types/encounter';
+import { useLiveEncounter } from '../context/liveEncounter';
+import type { CombatLogEntry } from '../types/combat';
+import type {
+  AddParticipantRequest, Encounter, EncounterCreateRequest, EncounterView, SetInitiativeRequest,
+} from '../types/encounter';
 import { queryKeys } from './keys';
 import { invalidateOnConflict } from './queryClient';
 
@@ -119,4 +127,119 @@ async function writeEncounter(queryClient: QueryClient, encounter: Encounter) {
       ? encounters.map(e => (e.id === encounter.id ? encounter : e))
       : [encounter, ...encounters];
   });
+}
+
+// ── The live encounter of a session page (D171) ─────────────────────────
+
+/**
+ * Loads one of a live encounter's queries. A WebSocket message that arrives while the request is in flight is
+ * at least as new as the response, so the copy it wrote to the cache is kept instead.
+ */
+async function loadUnlessSocketIsNewer<T>(
+  client: QueryClient, queryKey: QueryKey, socketMessages: RefObject<number>, load: () => Promise<T>,
+): Promise<T> {
+  const messagesBefore = socketMessages.current;
+  const loaded = await load();
+  const cached = client.getQueryData<T>(queryKey);
+  return socketMessages.current !== messagesBefore && cached !== undefined ? cached : loaded;
+}
+
+/**
+ * A live encounter in one view (D157). It loads each time a session page opens and again after the WebSocket
+ * reconnects; in between, socket messages and action responses keep it current, so it never goes stale.
+ */
+export function liveEncounterQuery(encounterId: string, view: EncounterView, socketMessages: RefObject<number>) {
+  const queryKey = queryKeys.encounters.detail(encounterId, view);
+  return queryOptions({
+    queryKey,
+    queryFn: ({ client }) => loadUnlessSocketIsNewer(client, queryKey, socketMessages,
+      async () => (await encounterApi.getById(encounterId)).data),
+    staleTime: Infinity,
+    refetchOnMount: 'always',
+  });
+}
+
+/** The combat log of a live encounter's view, which loads and stays current as liveEncounterQuery does. */
+export function liveCombatLogQuery(encounterId: string, view: EncounterView, socketMessages: RefObject<number>) {
+  const queryKey = queryKeys.encounters.log(encounterId, view);
+  return queryOptions({
+    queryKey,
+    queryFn: ({ client }) => loadUnlessSocketIsNewer(client, queryKey, socketMessages,
+      async () => (await combatApi.getCombatLog(encounterId)).data),
+    staleTime: Infinity,
+    refetchOnMount: 'always',
+  });
+}
+
+/** The combat log of the page's live encounter, oldest entry first. The server sends it after every change. */
+export function useCombatLog(): CombatLogEntry[] {
+  return useLiveEncounter().log;
+}
+
+/** A monster's action templates, with the current uses of its resource pools; DM only (D157). */
+export function useMonsterActionTemplates(participantId: string) {
+  const { encounterId } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.monsterActions(encounterId, participantId),
+    queryFn: async () => (await combatApi.getMonsterActions(encounterId, participantId)).data,
+    // The pools change with every monster action, so the templates load again each time they are shown
+    staleTime: 0,
+  });
+}
+
+/** An API call that changes an encounter, minus the encounter's ID, which the session page supplies. */
+type EncounterRequest<A extends unknown[], T> = (encounterId: string, ...args: A) => Promise<AxiosResponse<T>>;
+
+/**
+ * The changes a session page makes to its live encounter. Each sends one request and writes the encounter
+ * state in the response to the cache, unless a WebSocket message arrived while the request was in flight: the
+ * server publishes every change before it answers, so that message is at least as new (D171). A failed
+ * request rejects and leaves the cache as it was.
+ */
+export function useEncounterAction() {
+  const queryClient = useQueryClient();
+  const { encounterId, view, socketMessages } = useLiveEncounter();
+
+  return useMemo(() => {
+    const stateKey = queryKeys.encounters.detail(encounterId, view);
+
+    async function run<T>(request: () => Promise<AxiosResponse<T>>, stateOf: (data: T) => Encounter): Promise<T> {
+      const messagesBefore = socketMessages.current;
+      const { data } = await request();
+      if (socketMessages.current === messagesBefore) {
+        queryClient.setQueryData(stateKey, stateOf(data));
+      }
+      return data;
+    }
+
+    // Answers with the encounter state itself
+    const change = <A extends unknown[]>(request: EncounterRequest<A, Encounter>) =>
+      (...args: A) => run(() => request(encounterId, ...args), encounter => encounter);
+    // Answers with a result that carries the encounter state
+    const resolve = <A extends unknown[], T extends { encounterState: Encounter }>(request: EncounterRequest<A, T>) =>
+      (...args: A) => run(() => request(encounterId, ...args), result => result.encounterState);
+
+    return {
+      pause: change(encounterApi.pause),
+      resume: change(encounterApi.resume),
+      end: change(encounterApi.end),
+      setVisibility: change(encounterApi.setVisibility),
+      nextTurn: change(combatApi.advanceTurn),
+      previousTurn: change(combatApi.previousTurn),
+      rollAttack: change(combatApi.rollAttack),
+      applyDamage: change(combatApi.applyDamage),
+      applyHealing: change(combatApi.applyHealing),
+      addCondition: change(combatApi.addCondition),
+      removeCondition: change(combatApi.removeCondition),
+      rollDeathSave: change(combatApi.rollDeathSave),
+      setConcentration: change(combatApi.setConcentration),
+      spendSpellSlot: change(combatApi.useSpellSlot),
+      restoreSpellSlot: change(combatApi.restoreSpellSlot),
+      spendLegendaryResistance: change(combatApi.useLegendaryResistance),
+      castSpell: resolve(combatApi.castSpell),
+      repeatSpellEffect: resolve(combatApi.repeatSpellEffect),
+      monsterSpell: resolve(combatApi.monsterSpell),
+      monsterAction: resolve(combatApi.monsterAction),
+    };
+  }, [queryClient, encounterId, view, socketMessages]);
 }

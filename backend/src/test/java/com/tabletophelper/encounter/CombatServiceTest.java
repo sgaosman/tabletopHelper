@@ -51,7 +51,8 @@ class CombatServiceTest {
 
     @BeforeEach
     void setUp() {
-        combatService = new CombatService(encounterRepository, combatLogRepository, encounterService, objectMapper, spellResolverEngine, monsterActionResolverEngine, monsterSpellCastService, resourcePoolService, spellRepository,
+        combatService = new CombatService(encounterRepository, combatLogRepository, new CombatLogReader(combatLogRepository),
+                encounterService, objectMapper, spellResolverEngine, monsterActionResolverEngine, monsterSpellCastService, resourcePoolService, spellRepository,
                 new AccessPolicy(campaignRepository, campaignMemberRepository));
 
         dmUserId = UUID.randomUUID();

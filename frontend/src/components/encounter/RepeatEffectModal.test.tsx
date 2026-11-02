@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import type { ComponentProps } from 'react';
@@ -7,6 +7,8 @@ import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCastSpellResponse, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
 import type { SpellTargetingInfo } from '../../api/referenceApi';
+import { EncounterProvider } from '../../context/EncounterContext';
+import { queryKeys } from '../../queries/keys';
 import RepeatEffectModal from './RepeatEffectModal';
 
 const cleric = makeMockParticipant('part-cleric', 'Brother Tuck', 'PLAYER', { concentrationSpell: 'Hold Person', concentrationSlotLevel: 2 });
@@ -32,16 +34,18 @@ function targeting(info: Partial<SpellTargetingInfo> = {}) {
   return lookups;
 }
 
-function renderModal(props: Partial<ComponentProps<typeof RepeatEffectModal>> = {}) {
-  const onUpdate = vi.fn();
+const ENCOUNTER_KEY = queryKeys.encounters.detail('enc-001', 'player');
+
+/** Renders the modal in the live encounter it acts in, once that encounter has loaded. */
+async function renderModal(props: Partial<ComponentProps<typeof RepeatEffectModal>> = {}) {
   const onClose = vi.fn();
-  render(
-    <RepeatEffectModal
-      encounterId="enc-001" caster={cleric} participants={participants} spellName="Hold Person"
-      onUpdate={onUpdate} onClose={onClose} {...props}
-    />,
+  const { queryClient } = render(
+    <EncounterProvider encounterId="enc-001">
+      <RepeatEffectModal caster={cleric} participants={participants} spellName="Hold Person" onClose={onClose} {...props} />
+    </EncounterProvider>,
   );
-  return { onUpdate, onClose, user: userEvent.setup() };
+  await waitFor(() => expect(queryClient.getQueryData(ENCOUNTER_KEY)).toBeDefined());
+  return { onClose, cachedEncounter: () => queryClient.getQueryData(ENCOUNTER_KEY), user: userEvent.setup() };
 }
 
 async function targetNames() {
@@ -56,7 +60,7 @@ describe('RepeatEffectModal', () => {
 
   it('looks up targeting at the concentration slot level and offers the eligible targets', async () => {
     const lookups = targeting();
-    renderModal();
+    await renderModal();
 
     expect(screen.getByRole('dialog', { name: 'Hold Person — Repeat Effect' })).toBeInTheDocument();
     expect(screen.getByText('(slot level 2)')).toBeInTheDocument();
@@ -79,7 +83,7 @@ describe('RepeatEffectModal', () => {
         }));
       }),
     );
-    const { user, onUpdate } = renderModal();
+    const { user, cachedEncounter } = await renderModal();
 
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -91,13 +95,14 @@ describe('RepeatEffectModal', () => {
     expect(screen.getByText('Save: 9')).toBeInTheDocument();
     expect(screen.getByText('paralyzed')).toBeInTheDocument();
     expect(repeatRequest).toEqual({ body: { targetIds: ['part-goblin'], advantage: false }, actorId: 'part-cleric' });
-    expect(onUpdate).toHaveBeenCalledWith(encounterState);
+    // The encounter state in the result replaces the cached one
+    expect(cachedEncounter()).toEqual(encounterState);
   });
 
   it('uses the active spell slot level when the caster is not concentrating', async () => {
     const lookups = targeting();
     const caster = makeMockParticipant('part-cleric', 'Brother Tuck', 'PLAYER', { activeSpell: 'Spiritual Weapon', activeSpellSlotLevel: 3 });
-    renderModal({ caster, participants: [caster, goblin], spellName: 'Spiritual Weapon' });
+    await renderModal({ caster, participants: [caster, goblin], spellName: 'Spiritual Weapon' });
 
     expect(await targetNames()).toEqual(['Test Goblin']);
     expect(lookups).toEqual([{ name: 'Spiritual Weapon', slotLevel: '3' }]);
@@ -106,7 +111,7 @@ describe('RepeatEffectModal', () => {
 
   it('offers everyone still standing when targeting info is unavailable', async () => {
     server.use(http.get('/api/reference/spells/targeting', () => new HttpResponse(null, { status: 404 })));
-    renderModal();
+    await renderModal();
 
     expect(await targetNames()).toEqual(['Brother Tuck', 'Test Goblin', 'Orc', 'Legolas']);
     expect(screen.getByText('— Select target(s)')).toBeInTheDocument();
@@ -117,7 +122,7 @@ describe('RepeatEffectModal', () => {
     const hiddenHpOrc = makeMockParticipant('part-orc', 'Orc', 'MONSTER', {
       hpMax: null, hpCurrent: null, hpTemp: null, healthStatus: 'INJURED', armourClass: 13,
     });
-    renderModal({ participants: [cleric, goblin, hiddenHpOrc] });
+    await renderModal({ participants: [cleric, goblin, hiddenHpOrc] });
 
     expect(await screen.findByRole('button', { name: /Test Goblin/ })).toHaveTextContent('7/7 HP');
     expect(screen.getByRole('button', { name: /Orc/ })).toHaveTextContent('AC 13Injured');
@@ -126,7 +131,7 @@ describe('RepeatEffectModal', () => {
 
   it('stops adding targets once the spell limit is reached', async () => {
     targeting({ maxTargets: 1 });
-    const { user } = renderModal();
+    const { user } = await renderModal();
 
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
 
@@ -146,7 +151,7 @@ describe('RepeatEffectModal', () => {
         return HttpResponse.json(makeMockCastSpellResponse({ spellName: 'Hold Person', resultSummary: 'Legolas resists.' }));
       }),
     );
-    const { user } = renderModal({ caster: ghoul, participants: [ghoul, legolas], isMonster: true });
+    const { user } = await renderModal({ caster: ghoul, participants: [ghoul, legolas], isMonster: true });
 
     await user.click(await screen.findByRole('button', { name: /Legolas/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -165,7 +170,8 @@ describe('RepeatEffectModal', () => {
         HttpResponse.json({ error: 'Hold Person has ended' }, { status: 409 }),
       ),
     );
-    const { user, onUpdate } = renderModal();
+    const { user, cachedEncounter } = await renderModal();
+    const loaded = cachedEncounter();
 
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -173,6 +179,6 @@ describe('RepeatEffectModal', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Hold Person has ended');
     expect(screen.getByRole('button', { name: 'Repeat Effect' })).toBeEnabled();
-    expect(onUpdate).not.toHaveBeenCalled();
+    expect(cachedEncounter()).toBe(loaded);
   });
 });

@@ -28,9 +28,11 @@ The frontend uses `@stomp/stompjs` Client with a SockJS factory (`new SockJS('/w
 |-------------|---------|----------|
 | `/topic/encounter/{id}/state` | The Player View, after every change | Members of the encounter's campaign, the DM included |
 | `/topic/encounter/{id}/dm-state` | The DM View, after every change | The campaign's DM only |
+| `/topic/encounter/{id}/log` | Full combat log, Player View, after every change (D171) | Campaign members |
+| `/topic/encounter/{id}/dm-log` | Full combat log, DM View | The campaign's DM only |
 | `/user/queue/encounter/errors` | Error messages (nothing publishes to it yet) | Private to user |
 
-`/topic/encounter/{id}/action` and `/topic/encounter/{id}/log` were planned in M4 but never published; since R3 the subscription guard refuses them. The frontend subscribes to `state`, or to `dm-state` on the DM session page, plus the error queue.
+`/topic/encounter/{id}/action` was planned in M4 but never published, and the guard refuses it. The frontend subscribes to `state` and `log` (`dm-state` and `dm-log` on the DM page) plus the error queue, and refetches both after a reconnect. Each log message is complete, so revealing a monster restores its entries (D171).
 
 ### Send (client → server)
 
@@ -44,9 +46,11 @@ The frontend uses `@stomp/stompjs` Client with a SockJS factory (`new SockJS('/w
 
 `EncounterSubscriptionGuard` checks every SUBSCRIBE and SEND frame. It is registered by its own configurer, `EncounterSubscriptionConfig`, and runs after the CONNECT check.
 
-- **SUBSCRIBE** must name one of three destinations exactly, so the simple broker's wildcard patterns never reach it:
+- **SUBSCRIBE** must name one of five destinations exactly, so the simple broker's wildcard patterns never reach it:
   - `/topic/encounter/{id}/state` — a member of the encounter's campaign
   - `/topic/encounter/{id}/dm-state` — the campaign's DM
+  - `/topic/encounter/{id}/log` — a member of the encounter's campaign
+  - `/topic/encounter/{id}/dm-log` — the campaign's DM
   - `/user/queue/encounter/errors` — anyone connected
 
   `{id}` must be a lower-case UUID, as the server publishes it. Any other destination is refused, and so is an encounter that doesn't exist.
@@ -120,7 +124,7 @@ The broadcast payload is the `EncounterResponse` DTO, the same shape as the REST
 
 ### AttackActionMessage (broadcast after an attack resolves)
 
-Planned in M4 for the `/action` topic and never published: attack results reach clients through the state broadcast and the combat log, which the session pages poll over REST every 3 seconds.
+Planned in M4 for the `/action` topic and never published: attack results reach clients through the state broadcast and the combat log.
 
 ```json
 {
@@ -152,9 +156,9 @@ WebSocket infrastructure is **implemented** as of Milestone 4.
 - `encounter/EncounterViews.java` — derives the Player View and the players' combat log; `HealthStatus.java` — the four Health Status values (R3)
 
 **Frontend:**
-- `useWebSocket.ts` — STOMP client hook with auto-reconnect (5s delay). It fetches a fresh access token in `beforeConnect`, subscribes to the state topic for its `view` (`state`, or `dm-state` for the DM page) and the error queue, and sends `join` on every connect.
-- `EncounterContext.tsx` — wraps useWebSocket, manages encounter state via useReducer, fetches initial state via REST. Its `view` prop chooses the topic; the DM session page passes `view="dm"`.
+- `useWebSocket.ts` — STOMP client hook with auto-reconnect (5s delay). It fetches a fresh access token in `beforeConnect`, subscribes to the state and log topics for its `view` (`state` and `log`, or `dm-state` and `dm-log` for the DM page) and the error queue, and sends `join` on every connect.
+- `EncounterContext.tsx` — wraps useWebSocket, keeps state and log in the TanStack Query cache, fetches initial state via REST. Its `view` prop chooses the topics; the DM session page passes `view="dm"`.
 
-**Remaining (Milestone 5):** Combat action message mappings (`/attack`, `/spell`, `/damage`, `/heal`, `/condition/*`, `/deathsave`, `/turn/*`), combat log broadcasts, and action result messages. *(Not built this way: M5 made combat actions REST endpoints that publish the state, and the combat log is polled over REST. D171 moves the log onto the WebSocket in R4.)*
+**Remaining (Milestone 5):** Combat action message mappings (`/attack`, `/spell`, `/damage`, `/heal`, `/condition/*`, `/deathsave`, `/turn/*`), combat log broadcasts, and action result messages. *(Not built this way: M5 made combat actions REST endpoints that publish the state, and the combat log has arrived over the WebSocket since R4, per D171.)*
 
-**Note:** Campaign detail page still uses 10-second REST polling, which is fine for its use case (see [[decisions-log#D008]]).
+**Note:** the campaign detail page still refreshes every 10 seconds, but only while visible (D008).

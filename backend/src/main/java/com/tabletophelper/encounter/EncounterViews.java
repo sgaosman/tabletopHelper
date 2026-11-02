@@ -8,6 +8,7 @@ import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * The two views of a live encounter (D157). The DM View is the full state; the Player View is what
@@ -73,6 +74,13 @@ public final class EncounterViews {
                         .lrResolved(null)
                         .build())
                 .toList();
+    }
+
+    /** Each participant the DM View marks hidden, mapped to its display name, as {@link #playerLog} takes them. */
+    public static Map<UUID, String> hiddenParticipants(EncounterResponse dmView) {
+        return dmView.getParticipants().stream()
+                .filter(p -> Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
+                .collect(Collectors.toMap(ParticipantResponse::getId, ParticipantResponse::getDisplayName));
     }
 
     private static boolean isHidden(UUID participantId, Map<UUID, String> hiddenParticipants) {

@@ -28,6 +28,9 @@ export const queryKeys = {
     detail: (encounterId: string, view: EncounterView) => ['encounters', encounterId, view] as const,
     /** The combat log of that view. */
     log: (encounterId: string, view: EncounterView) => ['encounters', encounterId, view, 'log'] as const,
+    /** A monster's action templates and current resource pools, which only the DM may read (D157). */
+    monsterActions: (encounterId: string, participantId: string) =>
+      ['encounters', encounterId, 'dm', 'participants', participantId, 'actions'] as const,
   },
   monsters: {
     all: () => ['monsters'] as const,

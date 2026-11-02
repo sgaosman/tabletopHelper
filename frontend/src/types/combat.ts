@@ -1,115 +1,29 @@
-import type { Encounter } from './encounter';
+import type { Schemas } from '../api/schema';
 
-export interface CastSpellRequest {
-  spellName: string;
-  slotLevel: number;
-  targetIds: string[];
-  advantage?: boolean | null;
-  usePactSlot?: boolean;
-  overrideSpellAttackBonus?: number;
-  overrideSpellSaveDC?: number;
-}
+export type CastSpellRequest = Schemas['CastSpellRequest'];
 
-export interface TargetOutcome {
-  targetId: string;
-  targetName: string;
-  outcome: string;
-  damage?: number;
-  healing?: number;
-  conditionsApplied: string[];
-  attackRoll?: number;
-  saveRoll?: number;
-}
+export type TargetOutcome = Schemas['TargetOutcome'];
 
-export interface CastSpellResponse {
-  encounterState: Encounter;
-  spellName: string;
-  slotLevelUsed: number;
-  autoResolved: boolean;
-  resultSummary: string;
-  targets: TargetOutcome[];
-  manualResolutionReason?: string;
-}
+/** The result of a spell, with the encounter state it left: the caller's view (D157). */
+export type CastSpellResponse = Schemas['CastSpellResponse'];
 
-export interface RepeatSpellEffectRequest {
-  targetIds: string[];
-  advantage?: boolean | null;
-  overrideSpellAttackBonus?: number;
-  overrideSpellSaveDC?: number;
-}
+export type RepeatSpellEffectRequest = Schemas['RepeatSpellEffectRequest'];
 
-export interface CombatLogEntry {
-  id: string;
-  roundNumber: number;
-  actorId?: string;
-  actorName?: string;
-  targetId?: string;
-  targetName?: string;
-  actionType: string;
-  description: string;
-  rollValue?: number;
-  rollTotal?: number;
-  damageDealt?: number;
-  healingDone?: number;
-  turnParticipantName?: string;
-  legendaryResistanceEligible?: boolean;
-  lrTargetId?: string;
-  lrDamageDealt?: number;
-  lrConditionsApplied?: string;
-  lrResolved?: boolean;
-  createdAt: string;
-}
+/**
+ * A combat log entry. The players' log leaves out entries about participants the DM hides, and its
+ * entries have no Legendary Resistance fields (D157).
+ */
+export type CombatLogEntry = Schemas['CombatLogResponse'];
 
 // ── M12 Monster Action Types ──────────────────────────────────────
 
-export interface MonsterActionRequest {
-  monsterParticipantId: string;
-  actionName: string;
-  actionSource: 'ACTION' | 'LEGENDARY' | 'LAIR';
-  targetParticipantIds: string[];
-  overrideAttackBonus?: number;
-  overrideSaveDC?: number;
-  advantage?: boolean | null;
-}
+export type MonsterActionRequest = Schemas['MonsterActionRequest'];
 
-export interface MonsterActionTargetResult {
-  targetId: string;
-  targetName: string;
-  damage: number;
-  healing: number;
-  savedSuccessfully: boolean;
-  conditionsApplied: string[];
-  attackOutcome: string;
-  rollValue?: number;
-  rollTotal?: number;
-  damageType?: string;
-  legendaryResistanceAvailable: boolean;
-  legendaryResistanceRemaining: number;
-}
+export type MonsterActionTargetResult = Schemas['TargetResult'];
 
-export interface MonsterActionResponse {
-  resolved: boolean;
-  description: string;
-  totalDamage: number;
-  totalHealing: number;
-  targetResults: MonsterActionTargetResult[];
-  requiresManualResolution: boolean;
-  manualResolutionReason?: string;
-  conditionsInflicted: string[];
-  legendaryResistanceAvailable: boolean;
-  legendaryResistanceRemaining: number;
-  encounterState: Encounter;
-}
+export type MonsterActionResponse = Schemas['MonsterActionResponse'];
 
-export interface MonsterSpellRequest {
-  monsterParticipantId: string;
-  spellName: string;
-  slotLevel: number;
-  targetParticipantIds: string[];
-  overrideAttackBonus?: number;
-  overrideSaveDC?: number;
-  advantage?: boolean | null;
-}
+export type MonsterSpellRequest = Schemas['MonsterSpellRequest'];
 
 export interface MonsterActionTemplate {
   actions: MonsterAction[];

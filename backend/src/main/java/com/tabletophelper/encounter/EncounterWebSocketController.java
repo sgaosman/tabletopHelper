@@ -17,7 +17,8 @@ public class EncounterWebSocketController {
     private final EncounterService encounterService;
     private final EncounterBroadcaster broadcaster;
 
-    // Publishes both views, so the client that just subscribed receives the state it may see (D157)
+    // Publishes both views and both combat logs, so the client that just subscribed receives what it may
+    // see (D157, D171)
     @MessageMapping("/encounter/{encounterId}/join")
     public void joinEncounter(
             @DestinationVariable UUID encounterId,

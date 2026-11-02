@@ -24,6 +24,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         config.enableSimpleBroker("/topic", "/queue");
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
+        // Each message carries a full state or a full log, which replaces the client's copy (D004, D171),
+        // so a client must receive them in the order they were published
+        config.setPreservePublishOrder(true);
     }
 
     @Override

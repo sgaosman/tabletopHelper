@@ -1,5 +1,7 @@
 package com.tabletophelper.encounter.dto;
 
+import com.tabletophelper.encounter.ParticipantType;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -10,6 +12,7 @@ import java.util.UUID;
 public class AddParticipantRequest {
 
     @NotBlank
+    @Schema(implementation = ParticipantType.class)
     private String participantType;
 
     private UUID characterId;
