@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, ChevronRight } from 'lucide-react';
-import { characterApi } from '../../api/characterApi';
-import { getSubclasses } from '../../api/referenceApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useApplyChoices } from '../../queries/characters';
+import { useSubclasses } from '../../queries/reference';
 import type { PlayerCharacter } from '../../types/character';
-import type { Subclass } from '../../types/reference';
+import { safeJsonParse } from '../../utils/dndRules';
 
 interface Props {
   character: PlayerCharacter;
@@ -13,40 +14,38 @@ interface Props {
   onClose: () => void;
 }
 
+/** A feature in a subclass's features, which arrive as JSON. */
+interface SubclassFeature {
+  name: string;
+  level: number;
+  description: string;
+}
+
+/** Picks the subclass of one of a character's classes. The updated character replaces the cached one. */
 export default function SubclassModal({ character, classId, className, onComplete, onClose }: Props) {
-  const [subclasses, setSubclasses] = useState<Subclass[]>([]);
-  const [loading, setLoading] = useState(true);
+  const subclassesQuery = useSubclasses(classId);
+  const applyChoices = useApplyChoices();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    getSubclasses(classId)
-      .then(data => setSubclasses(data))
-      .catch(() => setError('Failed to load subclasses'))
-      .finally(() => setLoading(false));
-  }, [classId]);
+  const subclasses = subclassesQuery.data ?? [];
+  const loading = subclassesQuery.isPending;
+  // Stays disabled once the subclass is chosen, until the sheet closes the dialog
+  const submitting = applyChoices.isPending || applyChoices.isSuccess;
+  const error = applyChoices.error ?? subclassesQuery.error;
 
-  async function handleConfirm() {
+  function handleConfirm() {
     if (!selectedId) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      const res = await characterApi.applyChoices(character.id, { subclassId: selectedId, classId });
-      onComplete(res.data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to select subclass');
-      setSubmitting(false);
-    }
-  }
-
-  function safeParseFeatures(featuresJson: string | null): Array<{ name: string; level: number; description: string }> {
-    if (!featuresJson) return [];
-    try { return JSON.parse(featuresJson); } catch { return []; }
+    applyChoices.mutate(
+      { characterId: character.id, choices: { subclassId: selectedId, classId } },
+      { onSuccess: updated => onComplete(updated) },
+    );
   }
 
   const selected = subclasses.find(s => s.id === selectedId);
-  const selectedFeatures = selected ? safeParseFeatures(selected.features).filter(f => f.level <= character.level) : [];
+  // The server sends the features as JSON rather than a string, so they go through safeJsonParse
+  const selectedFeatures = selected
+    ? safeJsonParse<SubclassFeature[]>(selected.features, []).filter(f => f.level <= character.level)
+    : [];
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -61,7 +60,7 @@ export default function SubclassModal({ character, classId, className, onComplet
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {error && (
-            <div className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
+            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{apiErrorMessage(error)}</div>
           )}
 
           {loading ? (

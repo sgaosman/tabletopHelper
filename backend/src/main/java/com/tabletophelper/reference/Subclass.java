@@ -2,6 +2,7 @@ package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -10,6 +11,8 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
+
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 @Entity
 @Table(name = "subclasses")
@@ -20,16 +23,21 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Subclass {
 
+    @Schema(requiredMode = REQUIRED)
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 200, nullable = false)
     private String name;
 
+    // The column allows null, but subclasses are only written by CharacterClassSeeder, which falls back to ""
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 100)
     private String source;
 
+    @Schema(requiredMode = REQUIRED)
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "character_class_id", nullable = false)
     @JsonIgnoreProperties({"features", "startingEquipment", "spellSlotProgression", "skillChoices", "armorProficiencies", "weaponProficiencies", "toolProficiencies"})

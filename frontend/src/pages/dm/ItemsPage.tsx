@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X, RotateCcw } from 'lucide-react';
-import { searchItems, getItemTypes, getItemRarities, getItemSources } from '../../api/referenceApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useItemFilterOptions, useItemSearch } from '../../queries/reference';
 import type { Item } from '../../types/reference';
 import ItemCard from '../../components/reference/ItemCard';
 import MultiSelect from '../../components/common/MultiSelect';
@@ -25,48 +26,30 @@ const COLUMNS: { label: string; field: string; hideClass?: string }[] = [
 ];
 
 export default function ItemsPage() {
-  const [items, setItems] = useState<Item[]>([]);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [rarityFilter, setRarityFilter] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
   const [sortField, setSortField] = useState('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const [types, setTypes] = useState<string[]>([]);
-  const [rarities, setRarities] = useState<string[]>([]);
-  const [sources, setSources] = useState<string[]>([]);
+  const { data: types = [] } = useItemFilterOptions('types');
+  const { data: rarities = [] } = useItemFilterOptions('rarities');
+  const { data: sources = [] } = useItemFilterOptions('sources');
 
-  useEffect(() => {
-    Promise.all([getItemTypes(), getItemRarities(), getItemSources()])
-      .then(([t, r, s]) => { setTypes(t); setRarities(r); setSources(s); });
-  }, []);
-
-  const loadItems = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await searchItems({
-        name: search || undefined,
-        type: typeFilter.length ? typeFilter.join(',') : undefined,
-        rarity: rarityFilter.length ? rarityFilter.join(',') : undefined,
-        source: sourceFilter.length ? sourceFilter.join(',') : undefined,
-        page, size: 20, sort: `${sortField},${sortDir}`,
-      });
-      setItems(result.content);
-      setTotalPages(result.totalPages);
-      setTotalElements(result.totalElements);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, typeFilter, rarityFilter, sourceFilter, page, sortField, sortDir]);
-
-  useEffect(() => { loadItems(); }, [loadItems]);
-  useEffect(() => { setPage(0); }, [search, typeFilter, rarityFilter, sourceFilter]);
+  // While another page or filter loads, the current results stay on screen, dimmed
+  const itemsQuery = useItemSearch({
+    name: search || undefined,
+    type: typeFilter.length ? typeFilter.join(',') : undefined,
+    rarity: rarityFilter.length ? rarityFilter.join(',') : undefined,
+    source: sourceFilter.length ? sourceFilter.join(',') : undefined,
+    page, size: 20, sort: `${sortField},${sortDir}`,
+  });
+  const items = itemsQuery.data?.content ?? [];
+  const totalPages = itemsQuery.data?.totalPages ?? 0;
+  const totalElements = itemsQuery.data?.totalElements ?? 0;
 
   const hasFilters = search || typeFilter.length > 0 || rarityFilter.length > 0 || sourceFilter.length > 0;
   const clearFilters = () => { setSearch(''); setTypeFilter([]); setRarityFilter([]); setSourceFilter([]); setPage(0); };
@@ -94,12 +77,12 @@ export default function ItemsPage() {
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-faint" size={16} />
             <input type="text" placeholder="Search items..."
-              value={search} onChange={(e) => setSearch(e.target.value)}
+              value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
               className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none" />
           </div>
-          <MultiSelect options={types} selected={typeFilter} onChange={setTypeFilter} placeholder="All Types" accentColor="emerald" />
-          <MultiSelect options={rarities} selected={rarityFilter} onChange={setRarityFilter} placeholder="All Rarities" accentColor="emerald" />
-          <MultiSelect options={sources} selected={sourceFilter} onChange={setSourceFilter} placeholder="All Sources" renderLabel={(s) => sourceName(s)} accentColor="emerald" />
+          <MultiSelect options={types} selected={typeFilter} onChange={(v) => { setTypeFilter(v); setPage(0); }} placeholder="All Types" accentColor="emerald" />
+          <MultiSelect options={rarities} selected={rarityFilter} onChange={(v) => { setRarityFilter(v); setPage(0); }} placeholder="All Rarities" accentColor="emerald" />
+          <MultiSelect options={sources} selected={sourceFilter} onChange={(v) => { setSourceFilter(v); setPage(0); }} placeholder="All Sources" renderLabel={(s) => sourceName(s)} accentColor="emerald" />
         </div>
 
         <div className="flex items-center justify-between mb-4">
@@ -114,11 +97,14 @@ export default function ItemsPage() {
 
         <div className="flex gap-0">
           <div className={`min-w-0 transition-all duration-300 ${selectedItem ? 'w-3/5' : 'w-full'}`}>
-            {loading ? (
+            {itemsQuery.isPending ? (
               <div className="text-center py-12 font-body text-[16px] text-muted">Loading...</div>
+            ) : itemsQuery.isError ? (
+              <p role="alert" className="text-center py-12 font-body text-[16px] text-debuff">{apiErrorMessage(itemsQuery.error)}</p>
             ) : (
               <>
-                <div className="bg-card border border-rule overflow-hidden">
+                <div aria-busy={itemsQuery.isPlaceholderData}
+                  className={`bg-card border border-rule overflow-hidden transition-opacity ${itemsQuery.isPlaceholderData ? 'opacity-60' : ''}`}>
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-rule bg-page">

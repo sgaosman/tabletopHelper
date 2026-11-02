@@ -1,10 +1,10 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { X, Target, RotateCw, AlertTriangle, Shield } from 'lucide-react';
-import { getSpellTargeting } from '../../api/referenceApi';
-import type { SpellTargetingInfo } from '../../api/referenceApi';
 import { useEncounterAction } from '../../queries/encounters';
+import { useSpellTargeting } from '../../queries/reference';
 import type { EncounterParticipant } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
+import type { SpellTargetingInfo } from '../../types/reference';
 import { healthLabel } from '../../utils/healthStatus';
 
 interface Props {
@@ -29,23 +29,10 @@ export default function RepeatEffectModal({ caster, participants, spellName, onC
 
   const [overrideAttackBonus, setOverrideAttackBonus] = useState<string>('');
   const [overrideSaveDC, setOverrideSaveDC] = useState<string>('');
-  const [targetingInfo, setTargetingInfo] = useState<SpellTargetingInfo | null>(null);
-  const [targetingLoading, setTargetingLoading] = useState(true);
-
-  const fetchTargeting = useCallback(async () => {
-    setTargetingLoading(true);
-    try {
-      const slotLevel = caster.concentrationSlotLevel || caster.activeSpellSlotLevel || 0;
-      const info = await getSpellTargeting(spellName, slotLevel);
-      setTargetingInfo(info);
-    } catch {
-      setTargetingInfo(null);
-    } finally {
-      setTargetingLoading(false);
-    }
-  }, [spellName, caster.concentrationSlotLevel, caster.activeSpellSlotLevel]);
-
-  useEffect(() => { fetchTargeting(); }, [fetchTargeting]);
+  // A spell without an effect template has no targeting, which leaves the targets unrestricted
+  const targeting = useSpellTargeting(spellName, caster.concentrationSlotLevel || caster.activeSpellSlotLevel || 0);
+  const targetingInfo: SpellTargetingInfo | null = targeting.data ?? null;
+  const targetingLoading = targeting.isPending;
 
   function toggleTarget(id: string) {
     setSelectedTargets(prev => {

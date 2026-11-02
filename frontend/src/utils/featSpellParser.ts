@@ -28,7 +28,7 @@ function parseChooseFilter(filter: string): { level: number; classes: string[] }
   return { level, classes };
 }
 
-export function parseFeatOptions(grantsFeatures: string | null): ParsedFeatOption[] {
+export function parseFeatOptions(grantsFeatures: string | null | undefined): ParsedFeatOption[] {
   if (!grantsFeatures) return [];
   let raw: any[];
   try {

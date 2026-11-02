@@ -1,6 +1,7 @@
 package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -9,6 +10,8 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
+
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 @Entity
 @Table(name = "character_classes")
@@ -19,16 +22,22 @@ import java.util.UUID;
 @AllArgsConstructor
 public class CharacterClass {
 
+    @Schema(requiredMode = REQUIRED)
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 100, nullable = false)
     private String name;
 
+    // The columns of source, hitDice, the four caster flags and subclassLevel allow null, but classes are
+    // only written by CharacterClassSeeder, which sets each of them
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 100)
     private String source;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "hit_dice")
     private Integer hitDice;
 
@@ -63,18 +72,22 @@ public class CharacterClass {
     @Column(name = "spellcasting_ability", length = 20)
     private String spellcastingAbility;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "is_spellcaster")
     @Builder.Default
     private Boolean isSpellcaster = false;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "is_prepared_caster")
     @Builder.Default
     private Boolean isPreparedCaster = false;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "is_known_caster")
     @Builder.Default
     private Boolean isKnownCaster = false;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "is_pact_magic")
     @Builder.Default
     private Boolean isPactMagic = false;
@@ -94,6 +107,7 @@ public class CharacterClass {
     @Column(name = "starting_equipment", columnDefinition = "jsonb")
     private String startingEquipment;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "subclass_level")
     private Integer subclassLevel;
 

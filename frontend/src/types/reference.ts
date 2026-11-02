@@ -1,48 +1,34 @@
-export interface Spell {
-  id: string;
-  name: string;
-  level: number;
-  school: string | null;
-  castingTime: string | null;
-  rangeDistance: string | null;
-  components: { verbal?: boolean; somatic?: boolean; material?: string | boolean } | null;
-  duration: string | null;
-  concentration: boolean;
-  ritual: boolean;
-  description: string | null;
-  higherLevels: string | null;
-  classes: string[] | null;
-  damageType: string | null;
-  damageDice: string | null;
-  saveAbility: string | null;
-  source: string | null;
+import type { Schemas } from '../api/schema';
+
+// The reference entities write their JSON columns as raw JSON (@JsonRawValue), but the spec describes those
+// fields as strings. Where a page reads one of them, the type below gives the shape it really has; R5-R6
+// type them in the spec (D171).
+
+/** A spell's components, which arrive as a JSON object. */
+export interface SpellComponents {
+  verbal?: boolean;
+  somatic?: boolean;
+  material?: string | boolean;
 }
 
-export interface Condition {
-  id: string;
-  name: string;
-  description: string;
-  effects: string[] | null;
-  source: string | null;
-}
+export type Spell = Omit<Schemas['Spell'], 'components' | 'classes'> & {
+  components?: SpellComponents | null;
+  /** The classes and subclasses whose spell lists have the spell, such as "Cleric (Life)". */
+  classes?: string[] | null;
+};
 
-export interface Item {
-  id: string;
-  name: string;
-  type: string | null;
-  subtype: string | null;
-  rarity: string | null;
-  description: string | null;
-  properties: Record<string, unknown> | null;
-  requiresAttunement: boolean;
-  attunementCondition: string | null;
-  weight: number | null;
-  cost: string | null;
-  damageDice: string | null;
-  damageType: string | null;
-  source: string | null;
-}
+export type Condition = Omit<Schemas['Condition'], 'effects'> & {
+  effects?: string[] | null;
+};
 
+export type Item = Omit<Schemas['Item'], 'properties'> & {
+  properties?: Record<string, unknown> | null;
+};
+
+/** Who a spell can target, read from its effect template; a spell without one has no targeting. */
+export type SpellTargetingInfo = Schemas['SpellTargetingResponse'];
+
+/** The search and filters of the spell list; a filter takes several values separated by commas. */
 export interface SpellSearchParams {
   name?: string;
   level?: number | string;
@@ -57,6 +43,7 @@ export interface SpellSearchParams {
   sort?: string;
 }
 
+/** The search and filters of the item list; a filter takes several values separated by commas. */
 export interface ItemSearchParams {
   name?: string;
   type?: string;
@@ -67,6 +54,7 @@ export interface ItemSearchParams {
   sort?: string;
 }
 
+/** One page of a paged list. */
 export interface PageResponse<T> {
   content: T[];
   totalPages: number;
@@ -75,89 +63,21 @@ export interface PageResponse<T> {
   size: number;
 }
 
-export interface Race {
-  id: string;
-  name: string;
-  source: string;
-  size: string;
-  speed: string;
-  abilityScoreBonuses: string;
-  creatureType: string;
-  darkvision: number | null;
-  traits: string;
-  proficiencies: string;
-  resistances: string;
-  raceChoices: string | null;
-  additionalSpells: string | null;
-  baseRaceName: string | null;
-  description: string | null;
-}
+export type Race = Schemas['Race'];
 
-export interface CharacterClassRef {
-  id: string;
-  name: string;
-  source: string;
-  hitDice: number;
-  primaryAbility: string;
-  savingThrowProficiencies: string;
-  armorProficiencies: string;
-  weaponProficiencies: string;
-  toolProficiencies: string;
-  skillChoices: string;
-  spellcastingAbility: string | null;
-  isSpellcaster: boolean;
-  isPreparedCaster: boolean;
-  isKnownCaster: boolean;
-  isPactMagic: boolean;
-  spellSlotProgression: string;
-  features: string;
-  startingEquipment: string;
-  subclassLevel: number;
-  multiclassRequirements: string | null;
-  multiclassProficiencies: string | null;
-}
+export type CharacterClassRef = Schemas['CharacterClass'];
 
-export interface Subclass {
-  id: string;
-  name: string;
-  source: string;
-  characterClass: { id: string; name: string };
-  features: string;
-  alwaysPreparedSpells: string;
-  expandedSpellList: string;
-  additionalProficiencies: string;
-}
+/** A subclass, with the class it belongs to. */
+export type Subclass = Schemas['Subclass'];
 
-export interface Background {
-  id: string;
-  name: string;
-  source: string;
-  skillProficiencies: string;
-  toolProficiencies: string;
-  languageProficiencies: string;
-  startingEquipment: string;
-  feature: string;
-  feats: string | null;
-  additionalSpells: string | null;
-  description: string | null;
-}
+// The wizard's helpers take the proficiency lists as string | null until R8 rewrites them; the server always
+// sends the three fields, null when a background has none
+export type Background = Omit<Schemas['Background'], 'skillProficiencies' | 'toolProficiencies' | 'languageProficiencies'> & {
+  skillProficiencies: string | null;
+  toolProficiencies: string | null;
+  languageProficiencies: string | null;
+};
 
-export interface Feat {
-  id: string;
-  name: string;
-  source: string;
-  prerequisite: string;
-  description: string;
-  abilityScoreIncrease: string;
-  grantsFeatures: string;
-  effects: string;
-}
+export type Feat = Schemas['Feat'];
 
-export interface OptionalFeature {
-  id: string;
-  name: string;
-  source: string;
-  featureType: string;
-  description: string;
-  prerequisite: string | null;
-}
+export type OptionalFeature = Schemas['OptionalFeature'];

@@ -4,6 +4,12 @@ import { apiErrorStatus } from '../api/errors';
 /** Data fetched within the last 30 seconds is shown without asking the server again (D171). */
 export const STALE_TIME_MS = 30_000;
 
+/**
+ * Reference data, such as spells, monsters and the options of their filters, doesn't change while the app
+ * runs, so it never goes stale: each list is fetched once while it stays in the cache.
+ */
+export const REFERENCE_STALE_TIME = Infinity;
+
 const MAX_QUERY_RETRIES = 2;
 
 /**

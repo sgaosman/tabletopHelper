@@ -1,8 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, waitFor } from '../../test/test-utils';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { render, setupAuthToken } from '../../test/test-utils';
+import { server } from '../../test/mocks/server';
 import { makeMockCharacter } from '../../test/mocks/handlers';
+import { queryKeys } from '../../queries/keys';
 import AsiModal from './AsiModal';
 
 describe('AsiModal', () => {
@@ -97,5 +100,43 @@ describe('AsiModal', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Applying...' })).toBeDisabled();
     });
+  });
+
+  it('applies the increases and caches the character the server returns', async () => {
+    const updated = { ...makeMockCharacter('char-001', 'Gimli', 'Fighter', 4), strength: 16 };
+    let applied: unknown;
+    server.use(
+      http.post('/api/characters/:id/apply-choices', async ({ request }) => {
+        applied = await request.json();
+        return HttpResponse.json(updated);
+      }),
+    );
+    const onComplete = vi.fn();
+    const { queryClient } = render(<AsiModal character={character} onComplete={onComplete} onClose={() => {}} />);
+    const user = userEvent.setup();
+    const strengthPlus = screen.getAllByRole('button', { name: '' }).filter(b => b.querySelector('.lucide-plus'))[0];
+    await user.click(strengthPlus);
+    await user.click(strengthPlus);
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(updated));
+    expect(applied).toEqual({ asi: { type: 'ability', increases: [{ ability: 'strength', bonus: 2 }] } });
+    expect(queryClient.getQueryData(queryKeys.characters.detail('char-001'))).toEqual(updated);
+  });
+
+  it('shows the server\'s message when the choice is refused', async () => {
+    server.use(
+      http.post('/api/characters/:id/apply-choices', () =>
+        HttpResponse.json({ error: 'No ability score improvement is pending' }, { status: 409 })),
+    );
+    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    const user = userEvent.setup();
+    const plusButtons = screen.getAllByRole('button', { name: '' }).filter(b => b.querySelector('.lucide-plus'));
+    await user.click(plusButtons[0]);
+    await user.click(plusButtons[1]);
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No ability score improvement is pending');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
   });
 });

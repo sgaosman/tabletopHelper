@@ -1,5 +1,4 @@
 import { http, HttpResponse } from 'msw';
-import type { SpellTargetingInfo } from '../../api/referenceApi';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
@@ -7,7 +6,8 @@ import type { CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterA
 import type { Encounter, EncounterParticipant, ParticipantType } from '../../types/encounter';
 import type { Monster } from '../../types/monster';
 import type {
-  Background, CharacterClassRef, Condition, Feat, Item, OptionalFeature, PageResponse, Race, Spell, Subclass,
+  Background, CharacterClassRef, Condition, Feat, Item, OptionalFeature, PageResponse, Race, Spell, SpellTargetingInfo,
+  Subclass,
 } from '../../types/reference';
 
 const BASE = '/api';
@@ -303,7 +303,7 @@ export const referenceHandlers = [
     return HttpResponse.json({
       id: params.id as string, name: 'Longsword', type: 'M', subtype: null, rarity: 'none',
       description: 'A versatile martial weapon.', properties: null, requiresAttunement: false, attunementCondition: null,
-      weight: 3, cost: '15 gp', damageDice: '1d8', damageType: 'slashing', source: 'PHB',
+      weight: 3, cost: '15 gp', damageDice: '1d8', damageType: 'slashing', source: 'PHB', isHomebrew: false,
     } satisfies Item);
   }),
   http.get(`${BASE}/reference/items/filters/types`, async () => {
@@ -379,6 +379,7 @@ export const monsterHandlers = [
 export function makeMockCharacter(id: string, name: string, cls: string, level: number) {
   return {
     id, userId: 'user-001', ownerDisplayName: 'Test User', campaignId: 'camp-001',
+    raceId: 'race-human', raceName: 'Human',
     name, race: 'Human', characterClass: cls, subclass: null, level,
     experiencePoints: 0, background: null, alignment: 'Neutral',
     strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 12, charisma: 10,
@@ -460,7 +461,7 @@ export function makeMockMonster(id: string, name: string, type: string, cr: stri
     savingThrows: {}, skills: {}, damageResistances: null, damageImmunities: null,
     damageVulnerabilities: null, conditionImmunities: null, senses: { passive_perception: 11 }, languages: null,
     experiencePoints: 0, traits: [], actions: [], reactions: [], legendaryActions: null, lairActions: null,
-    source: 'MM',
+    source: 'MM', isHomebrew: false,
   } satisfies Monster;
 }
 

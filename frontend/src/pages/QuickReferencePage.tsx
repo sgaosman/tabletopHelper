@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
-import { getQuickReference } from '../api/referenceApi';
+import { apiErrorMessage } from '../api/errors';
+import { useQuickReference } from '../queries/reference';
 import { parseMarkup } from '../utils/parseMarkup';
 import NavBar from '../components/common/NavBar';
 
@@ -202,18 +203,15 @@ function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+const NO_CHAPTERS: QuickRefChapter[] = [];
+
 export default function QuickReferencePage() {
-  const [chapters, setChapters] = useState<QuickRefChapter[]>([]);
-  const [loading, setLoading] = useState(true);
+  const quickReference = useQuickReference();
+  // The chapters keep their identity between renders, which the section observer below depends on
+  const chapters = (quickReference.data as QuickRefChapter[] | undefined) ?? NO_CHAPTERS;
   const [activeSection, setActiveSection] = useState<string>('');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    getQuickReference()
-      .then(data => setChapters(data as QuickRefChapter[]))
-      .finally(() => setLoading(false));
-  }, []);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -266,8 +264,10 @@ export default function QuickReferencePage() {
     <div className="min-h-screen bg-page">
       <NavBar />
 
-      {loading ? (
+      {quickReference.isPending ? (
         <div className="text-center py-20 font-body text-[16px] text-muted">Loading quick rules reference...</div>
+      ) : quickReference.isError ? (
+        <p role="alert" className="text-center py-20 font-body text-[16px] text-debuff">{apiErrorMessage(quickReference.error)}</p>
       ) : (
         <div className="flex">
           <aside className="hidden lg:block w-56 flex-shrink-0 border-r border-rule">

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { getAllConditions } from '../../api/referenceApi';
-import type { Condition } from '../../types/reference';
+import { apiErrorMessage } from '../../api/errors';
+import { useConditions } from '../../queries/reference';
 import { sourceName } from '../../utils/sourceNames';
 import NavBar from '../../components/common/NavBar';
 
@@ -42,15 +42,8 @@ function formatDescription(text: string) {
 }
 
 export default function ConditionsPage() {
-  const [conditions, setConditions] = useState<Condition[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: conditions = [], error, isPending } = useConditions();
   const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    getAllConditions()
-      .then(setConditions)
-      .finally(() => setLoading(false));
-  }, []);
 
   return (
     <div className="min-h-screen bg-page">
@@ -60,8 +53,10 @@ export default function ConditionsPage() {
         <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">Conditions</h1>
         <p className="font-body text-[15px] font-semibold text-muted mb-6">Reference conditions and their effects</p>
 
-        {loading ? (
+        {isPending ? (
           <div className="text-center py-12 font-body text-[16px] text-muted">Loading...</div>
+        ) : error ? (
+          <p role="alert" className="text-center py-12 font-body text-[16px] text-debuff">{apiErrorMessage(error)}</p>
         ) : (
           <div className="space-y-1.5">
             {conditions.map(c => (

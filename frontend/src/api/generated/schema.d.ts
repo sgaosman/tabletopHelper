@@ -1350,7 +1350,8 @@ export interface components {
             skillProficiencyChoices?: string[] | null;
             spellIds?: string[] | null;
             toolProficiencyChoices?: string[] | null;
-            type?: string | null;
+            /** @enum {string|null} */
+            type?: "ability" | "feat" | null;
             weaponChoices?: string[] | null;
         };
         AttackRollRequest: {
@@ -1379,9 +1380,9 @@ export interface components {
             feats?: string | null;
             feature?: string | null;
             /** Format: uuid */
-            id?: string | null;
+            id: string;
             languageProficiencies?: string | null;
-            name?: string | null;
+            name: string;
             skillProficiencies?: string | null;
             source?: string | null;
             startingEquipment?: string | null;
@@ -1444,25 +1445,25 @@ export interface components {
             createdAt?: string | null;
             features?: string | null;
             /** Format: int32 */
-            hitDice?: number | null;
+            hitDice: number;
             /** Format: uuid */
-            id?: string | null;
-            isKnownCaster?: boolean | null;
-            isPactMagic?: boolean | null;
-            isPreparedCaster?: boolean | null;
-            isSpellcaster?: boolean | null;
+            id: string;
+            isKnownCaster: boolean;
+            isPactMagic: boolean;
+            isPreparedCaster: boolean;
+            isSpellcaster: boolean;
             multiclassProficiencies?: string | null;
             multiclassRequirements?: string | null;
-            name?: string | null;
+            name: string;
             primaryAbility?: string | null;
             savingThrowProficiencies?: string | null;
             skillChoices?: string | null;
-            source?: string | null;
+            source: string;
             spellSlotProgression?: string | null;
             spellcastingAbility?: string | null;
             startingEquipment?: string | null;
             /** Format: int32 */
-            subclassLevel?: number | null;
+            subclassLevel: number;
             toolProficiencies?: string | null;
             weaponProficiencies?: string | null;
         };
@@ -1535,7 +1536,7 @@ export interface components {
             alignment?: string | null;
             armorProficiencies?: string | null;
             /** Format: int32 */
-            armourClass?: number | null;
+            armourClass: number;
             attunedItems?: string | null;
             background?: string | null;
             /** Format: uuid */
@@ -1546,28 +1547,28 @@ export interface components {
             campaignId?: string | null;
             characterClass?: string | null;
             /** Format: int32 */
-            charisma?: number | null;
+            charisma: number;
             /** Format: uuid */
             classId?: string | null;
             className?: string | null;
             conditionImmunities?: string | null;
             /** Format: int32 */
-            constitution?: number | null;
+            constitution: number;
             /** Format: date-time */
             createdAt?: string | null;
             currency?: string | null;
             damageImmunities?: string | null;
             damageResistances?: string | null;
             /** Format: int32 */
-            deathSaveFailures?: number | null;
+            deathSaveFailures: number;
             /** Format: int32 */
-            deathSaveSuccesses?: number | null;
+            deathSaveSuccesses: number;
             /** Format: int32 */
-            dexterity?: number | null;
+            dexterity: number;
             equipment?: string | null;
             equippedItems?: string | null;
             /** Format: int32 */
-            experiencePoints?: number | null;
+            experiencePoints: number;
             featResources?: string | null;
             features?: string | null;
             flaws?: string | null;
@@ -1575,42 +1576,42 @@ export interface components {
             hitDiceRemaining?: string | null;
             hitDiceTotal?: string | null;
             /** Format: int32 */
-            hpCurrent?: number | null;
+            hpCurrent: number;
             /** Format: int32 */
-            hpMax?: number | null;
+            hpMax: number;
             /** Format: int32 */
-            hpTemp?: number | null;
+            hpTemp: number;
             /** Format: uuid */
-            id?: string | null;
+            id: string;
             ideals?: string | null;
             /** Format: int32 */
-            initiativeBonus?: number | null;
+            initiativeBonus: number;
             /** Format: int32 */
-            intelligence?: number | null;
-            isActive?: boolean | null;
+            intelligence: number;
+            isActive: boolean;
             languageProficiencies?: string | null;
             /** Format: int32 */
-            level?: number | null;
+            level: number;
             levelHistory?: string | null;
             multiclassEntries?: string | null;
-            name?: string | null;
+            name: string;
             notes?: string | null;
-            ownerDisplayName?: string | null;
+            ownerDisplayName: string;
             personalityTraits?: string | null;
             portraitUrl?: string | null;
             /** Format: int32 */
-            proficiencyBonus?: number | null;
+            proficiencyBonus: number;
             race?: string | null;
             /** Format: uuid */
-            raceId?: string | null;
-            raceName?: string | null;
+            raceId: string;
+            raceName: string;
             racialAbilityBonuses?: string | null;
             resourcePools?: string | null;
             savingThrowProficiencies?: string | null;
             skillExpertises?: string | null;
             skillProficiencies?: string | null;
             /** Format: int32 */
-            speed?: number | null;
+            speed: number;
             /** Format: int32 */
             spellAttackBonus?: number | null;
             /** Format: int32 */
@@ -1619,7 +1620,7 @@ export interface components {
             spellcastingAbility?: string | null;
             spellsKnown?: string | null;
             /** Format: int32 */
-            strength?: number | null;
+            strength: number;
             subclass?: string | null;
             subclassAlwaysPreparedSpells?: string | null;
             /** Format: uuid */
@@ -1629,10 +1630,10 @@ export interface components {
             /** Format: date-time */
             updatedAt?: string | null;
             /** Format: uuid */
-            userId?: string | null;
+            userId: string;
             weaponProficiencies?: string | null;
             /** Format: int32 */
-            wisdom?: number | null;
+            wisdom: number;
         };
         CharacterUpdateRequest: {
             abilityScoreMethod?: string | null;
@@ -1761,11 +1762,11 @@ export interface components {
         Condition: {
             /** Format: date-time */
             createdAt?: string | null;
-            description?: string | null;
+            description: string;
             effects?: string | null;
             /** Format: uuid */
-            id?: string | null;
-            name?: string | null;
+            id: string;
+            name: string;
             source?: string | null;
         };
         ConditionRequest: {
@@ -1788,13 +1789,13 @@ export interface components {
         };
         EligibleClassResponse: {
             /** Format: uuid */
-            classId?: string | null;
-            className?: string | null;
-            currentClass?: boolean | null;
+            classId: string;
+            className: string;
+            currentClass: boolean;
             /** Format: int32 */
-            currentClassLevel?: number | null;
-            meetsPrerequisites?: boolean | null;
-            prerequisiteDescription?: string | null;
+            currentClassLevel: number;
+            meetsPrerequisites: boolean;
+            prerequisiteDescription: string;
         };
         EncounterCreateRequest: {
             /** Format: uuid */
@@ -1829,8 +1830,8 @@ export interface components {
             effects?: string | null;
             grantsFeatures?: string | null;
             /** Format: uuid */
-            id?: string | null;
-            name?: string | null;
+            id: string;
+            name: string;
             prerequisite?: string | null;
             source?: string | null;
         };
@@ -1851,12 +1852,12 @@ export interface components {
             damageType?: string | null;
             description?: string | null;
             /** Format: uuid */
-            id?: string | null;
-            isHomebrew?: boolean | null;
-            name?: string | null;
+            id: string;
+            isHomebrew: boolean;
+            name: string;
             properties?: string | null;
             rarity?: string | null;
-            requiresAttunement?: boolean | null;
+            requiresAttunement: boolean;
             source?: string | null;
             subtype?: string | null;
             type?: string | null;
@@ -1878,8 +1879,8 @@ export interface components {
             classId?: string | null;
         };
         LevelUpResponse: {
-            character?: components["schemas"]["CharacterResponse"] | null;
-            pendingChoices?: components["schemas"]["PendingChoices"] | null;
+            character: components["schemas"]["CharacterResponse"];
+            pendingChoices: components["schemas"]["PendingChoices"];
         };
         LoginRequest: {
             password: string;
@@ -1901,13 +1902,13 @@ export interface components {
             actions?: string | null;
             alignment?: string | null;
             /** Format: int32 */
-            armourClass?: number | null;
+            armourClass: number;
             challengeRating?: string | null;
             /** Format: int32 */
-            charisma?: number | null;
+            charisma: number;
             conditionImmunities?: string | null;
             /** Format: int32 */
-            constitution?: number | null;
+            constitution: number;
             /** Format: date-time */
             createdAt?: string | null;
             /** Format: uuid */
@@ -1916,21 +1917,21 @@ export interface components {
             damageResistances?: string | null;
             damageVulnerabilities?: string | null;
             /** Format: int32 */
-            dexterity?: number | null;
+            dexterity: number;
             /** Format: int32 */
-            experiencePoints?: number | null;
+            experiencePoints: number;
             hitDice?: string | null;
             /** Format: int32 */
-            hitPoints?: number | null;
+            hitPoints: number;
             /** Format: uuid */
-            id?: string | null;
+            id: string;
             /** Format: int32 */
-            intelligence?: number | null;
-            isHomebrew?: boolean | null;
+            intelligence: number;
+            isHomebrew: boolean;
             lairActions?: string | null;
             languages?: string | null;
             legendaryActions?: string | null;
-            name?: string | null;
+            name: string;
             reactions?: string | null;
             savingThrows?: string | null;
             senses?: string | null;
@@ -1939,14 +1940,14 @@ export interface components {
             source?: string | null;
             speed?: string | null;
             /** Format: int32 */
-            strength?: number | null;
+            strength: number;
             subtype?: string | null;
             traits?: string | null;
             type?: string | null;
             /** Format: date-time */
             updatedAt?: string | null;
             /** Format: int32 */
-            wisdom?: number | null;
+            wisdom: number;
         };
         MonsterActionRequest: {
             actionName: string;
@@ -1994,10 +1995,10 @@ export interface components {
             /** Format: date-time */
             createdAt?: string | null;
             description?: string | null;
-            featureType?: string | null;
+            featureType: string;
             /** Format: uuid */
-            id?: string | null;
-            name?: string | null;
+            id: string;
+            name: string;
             prerequisite?: string | null;
             source?: string | null;
         };
@@ -2129,16 +2130,16 @@ export interface components {
             spellsKnown?: string | null;
         };
         PendingChoices: {
-            asiAvailable?: boolean | null;
-            expertiseAvailable?: boolean | null;
+            asiAvailable: boolean;
+            expertiseAvailable: boolean;
             /** Format: int32 */
-            expertiseCount?: number | null;
+            expertiseCount: number;
             /** Format: int32 */
-            maxSpellLevel?: number | null;
-            newFeatures?: string[] | null;
-            spellSelectionNeeded?: boolean | null;
+            maxSpellLevel: number;
+            newFeatures: string[];
+            spellSelectionNeeded: boolean;
             spellSelectionType?: string | null;
-            subclassRequired?: boolean | null;
+            subclassRequired: boolean;
         };
         Race: {
             abilityScoreBonuses?: string | null;
@@ -2146,18 +2147,18 @@ export interface components {
             baseRaceName?: string | null;
             /** Format: date-time */
             createdAt?: string | null;
-            creatureType?: string | null;
+            creatureType: string;
             /** Format: int32 */
             darkvision?: number | null;
             description?: string | null;
             /** Format: uuid */
-            id?: string | null;
-            name?: string | null;
+            id: string;
+            name: string;
             proficiencies?: string | null;
             raceChoices?: string | null;
             resistances?: string | null;
-            size?: string | null;
-            source?: string | null;
+            size: string;
+            source: string;
             speed?: string | null;
             traits?: string | null;
         };
@@ -2198,7 +2199,7 @@ export interface components {
             castingTime?: string | null;
             classes?: string | null;
             components?: string | null;
-            concentration?: boolean | null;
+            concentration: boolean;
             /** Format: date-time */
             createdAt?: string | null;
             damageDice?: string | null;
@@ -2208,12 +2209,12 @@ export interface components {
             effectTemplate?: string | null;
             higherLevels?: string | null;
             /** Format: uuid */
-            id?: string | null;
+            id: string;
             /** Format: int32 */
-            level?: number | null;
-            name?: string | null;
+            level: number;
+            name: string;
             rangeDistance?: string | null;
-            ritual?: boolean | null;
+            ritual: boolean;
             saveAbility?: string | null;
             school?: string | null;
             source?: string | null;
@@ -2239,15 +2240,15 @@ export interface components {
         Subclass: {
             additionalProficiencies?: string | null;
             alwaysPreparedSpells?: string | null;
-            characterClass?: components["schemas"]["CharacterClass"] | null;
+            characterClass: components["schemas"]["CharacterClass"];
             /** Format: date-time */
             createdAt?: string | null;
             expandedSpellList?: string | null;
             features?: string | null;
             /** Format: uuid */
-            id?: string | null;
-            name?: string | null;
-            source?: string | null;
+            id: string;
+            name: string;
+            source: string;
         };
         TargetOutcome: {
             /** Format: int32 */

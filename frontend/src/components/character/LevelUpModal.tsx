@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, ChevronRight, Shield, Lock } from 'lucide-react';
-import { characterApi } from '../../api/characterApi';
-import type { PlayerCharacter, LevelUpResponse, EligibleClassResponse } from '../../types/character';
+import { apiErrorMessage } from '../../api/errors';
+import { useEligibleClasses, useLevelUp } from '../../queries/characters';
+import type { PlayerCharacter, LevelUpResponse } from '../../types/character';
 
 interface Props {
   character: PlayerCharacter;
@@ -9,36 +10,27 @@ interface Props {
   onClose: () => void;
 }
 
+/** Picks the class of a character's next level. The levelled character replaces the cached one. */
 export default function LevelUpModal({ character, onComplete, onClose }: Props) {
-  const [classes, setClasses] = useState<EligibleClassResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const classesQuery = useEligibleClasses(character.id);
+  const levelUp = useLevelUp();
+  const [pickedClassId, setPickedClassId] = useState<string | null>(null);
 
-  useEffect(() => {
-    characterApi.getEligibleClasses(character.id)
-      .then(res => {
-        setClasses(res.data);
-        const current = res.data.find(c => c.currentClass);
-        if (current) setSelectedClassId(current.classId);
-      })
-      .catch(() => setError('Failed to load eligible classes'))
-      .finally(() => setLoading(false));
-  }, [character.id]);
+  const classes = classesQuery.data ?? [];
+  const loading = classesQuery.isPending;
+  // The class the character already has is selected until the player picks another
+  const selectedClassId = pickedClassId ?? classes.find(c => c.currentClass)?.classId ?? null;
+  // Stays disabled once the level is added, until the sheet closes the dialog
+  const submitting = levelUp.isPending || levelUp.isSuccess;
+  const error = levelUp.error ?? classesQuery.error;
 
-  async function handleConfirm() {
+  function handleConfirm() {
     if (!selectedClassId) return;
-    setSubmitting(true);
-    setError('');
-    try {
-      const res = await characterApi.levelUp(character.id, selectedClassId);
-      const cls = classes.find(c => c.classId === selectedClassId);
-      onComplete(res.data, selectedClassId, cls?.className || '');
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Level up failed');
-      setSubmitting(false);
-    }
+    const className = classes.find(c => c.classId === selectedClassId)?.className ?? '';
+    levelUp.mutate(
+      { characterId: character.id, classId: selectedClassId },
+      { onSuccess: response => onComplete(response, selectedClassId, className) },
+    );
   }
 
   const selected = classes.find(c => c.classId === selectedClassId);
@@ -61,7 +53,7 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {error && (
-            <div className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
+            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{apiErrorMessage(error)}</div>
           )}
 
           {loading ? (
@@ -77,7 +69,7 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
                     return (
                       <button
                         key={cls.classId}
-                        onClick={() => !disabled && setSelectedClassId(cls.classId)}
+                        onClick={() => !disabled && setPickedClassId(cls.classId)}
                         disabled={disabled}
                         className={`w-full flex items-center gap-3 px-4 py-3 border text-left transition-colors ${
                           disabled

@@ -6,7 +6,7 @@ import type { ComponentProps } from 'react';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCastSpellResponse, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
-import type { SpellTargetingInfo } from '../../api/referenceApi';
+import type { SpellTargetingInfo } from '../../types/reference';
 import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
 import SpellCastModal from './SpellCastModal';

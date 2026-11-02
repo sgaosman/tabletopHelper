@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { render, setupAuthToken } from '../../test/test-utils';
+import { server } from '../../test/mocks/server';
 import SpellsPage from './SpellsPage';
 
 describe('SpellsPage', () => {
@@ -46,5 +49,31 @@ describe('SpellsPage', () => {
     render(<SpellsPage />);
     await waitFor(() => screen.getByText('Fireball'));
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
+  });
+
+  it('loads the filter lists once, and a class\'s subclasses the first time it is picked', async () => {
+    const filterRequests: string[] = [];
+    server.use(
+      http.get('/api/reference/spells/filters/:filter', ({ params, request }) => {
+        const className = new URL(request.url).searchParams.get('className');
+        filterRequests.push(className ? `${params.filter} of ${className}` : params.filter as string);
+        if (params.filter === 'classes') return HttpResponse.json(['Cleric', 'Wizard']);
+        if (params.filter === 'subclasses') return HttpResponse.json([`${className} (Life)`]);
+        return HttpResponse.json([]);
+      }),
+    );
+    render(<SpellsPage />);
+    const user = userEvent.setup();
+    await screen.findByText('Fireball');
+
+    await user.click(screen.getByRole('button', { name: 'All Classes' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Cleric' }));
+    expect(await screen.findByRole('button', { name: 'All Subclasses' })).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Cleric' }));
+    expect(screen.queryByRole('button', { name: 'All Subclasses' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Cleric' }));
+
+    expect(await screen.findByRole('button', { name: 'All Subclasses' })).toBeInTheDocument();
+    expect(filterRequests.sort()).toEqual(['classes', 'schools', 'sources', 'subclasses of Cleric']);
   });
 });

@@ -3189,7 +3189,11 @@
           },
           "type": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "enum": [
+              "ability",
+              "feat"
+            ]
           },
           "weaponChoices": {
             "type": "array",
@@ -3262,6 +3266,10 @@
         }
       },
       "Background": {
+        "required": [
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "additionalSpells": {
@@ -3287,16 +3295,14 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "languageProficiencies": {
             "type": "string",
             "nullable": true
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "skillProficiencies": {
             "type": "string",
@@ -3505,6 +3511,17 @@
         }
       },
       "CharacterClass": {
+        "required": [
+          "hitDice",
+          "id",
+          "isKnownCaster",
+          "isPactMagic",
+          "isPreparedCaster",
+          "isSpellcaster",
+          "name",
+          "source",
+          "subclassLevel"
+        ],
         "type": "object",
         "properties": {
           "armorProficiencies": {
@@ -3522,29 +3539,23 @@
           },
           "hitDice": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "isKnownCaster": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "isPactMagic": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "isPreparedCaster": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "isSpellcaster": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "multiclassProficiencies": {
             "type": "string",
@@ -3555,8 +3566,7 @@
             "nullable": true
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "primaryAbility": {
             "type": "string",
@@ -3571,8 +3581,7 @@
             "nullable": true
           },
           "source": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "spellSlotProgression": {
             "type": "string",
@@ -3588,8 +3597,7 @@
           },
           "subclassLevel": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "toolProficiencies": {
             "type": "string",
@@ -3817,6 +3825,32 @@
         }
       },
       "CharacterResponse": {
+        "required": [
+          "armourClass",
+          "charisma",
+          "constitution",
+          "deathSaveFailures",
+          "deathSaveSuccesses",
+          "dexterity",
+          "experiencePoints",
+          "hpCurrent",
+          "hpMax",
+          "hpTemp",
+          "id",
+          "initiativeBonus",
+          "intelligence",
+          "isActive",
+          "level",
+          "name",
+          "ownerDisplayName",
+          "proficiencyBonus",
+          "raceId",
+          "raceName",
+          "speed",
+          "strength",
+          "userId",
+          "wisdom"
+        ],
         "type": "object",
         "properties": {
           "abilityScoreMethod": {
@@ -3833,8 +3867,7 @@
           },
           "armourClass": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "attunedItems": {
             "type": "string",
@@ -3868,8 +3901,7 @@
           },
           "charisma": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "classId": {
             "type": "string",
@@ -3886,8 +3918,7 @@
           },
           "constitution": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "createdAt": {
             "type": "string",
@@ -3908,18 +3939,15 @@
           },
           "deathSaveFailures": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "deathSaveSuccesses": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "dexterity": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "equipment": {
             "type": "string",
@@ -3931,8 +3959,7 @@
           },
           "experiencePoints": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "featResources": {
             "type": "string",
@@ -3960,23 +3987,19 @@
           },
           "hpCurrent": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "hpMax": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "hpTemp": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "ideals": {
             "type": "string",
@@ -3984,17 +4007,14 @@
           },
           "initiativeBonus": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "intelligence": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "isActive": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "languageProficiencies": {
             "type": "string",
@@ -4002,8 +4022,7 @@
           },
           "level": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "levelHistory": {
             "type": "string",
@@ -4014,16 +4033,14 @@
             "nullable": true
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "notes": {
             "type": "string",
             "nullable": true
           },
           "ownerDisplayName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "personalityTraits": {
             "type": "string",
@@ -4035,8 +4052,7 @@
           },
           "proficiencyBonus": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "race": {
             "type": "string",
@@ -4044,12 +4060,10 @@
           },
           "raceId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "raceName": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "racialAbilityBonuses": {
             "type": "string",
@@ -4073,8 +4087,7 @@
           },
           "speed": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "spellAttackBonus": {
             "type": "integer",
@@ -4100,8 +4113,7 @@
           },
           "strength": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "subclass": {
             "type": "string",
@@ -4131,8 +4143,7 @@
           },
           "userId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "weaponProficiencies": {
             "type": "string",
@@ -4140,8 +4151,7 @@
           },
           "wisdom": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           }
         }
       },
@@ -4580,6 +4590,11 @@
         }
       },
       "Condition": {
+        "required": [
+          "description",
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "createdAt": {
@@ -4588,8 +4603,7 @@
             "nullable": true
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "effects": {
             "type": "string",
@@ -4597,12 +4611,10 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "source": {
             "type": "string",
@@ -4666,33 +4678,35 @@
         }
       },
       "EligibleClassResponse": {
+        "required": [
+          "classId",
+          "className",
+          "currentClass",
+          "currentClassLevel",
+          "meetsPrerequisites",
+          "prerequisiteDescription"
+        ],
         "type": "object",
         "properties": {
           "classId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "className": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "currentClass": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "currentClassLevel": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "meetsPrerequisites": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "prerequisiteDescription": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
@@ -4784,6 +4798,10 @@
         }
       },
       "Feat": {
+        "required": [
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "abilityScoreIncrease": {
@@ -4809,12 +4827,10 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "prerequisite": {
             "type": "string",
@@ -4845,6 +4861,12 @@
         }
       },
       "Item": {
+        "required": [
+          "id",
+          "isHomebrew",
+          "name",
+          "requiresAttunement"
+        ],
         "type": "object",
         "properties": {
           "attunementCondition": {
@@ -4879,16 +4901,13 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "isHomebrew": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "properties": {
             "type": "string",
@@ -4899,8 +4918,7 @@
             "nullable": true
           },
           "requiresAttunement": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "source": {
             "type": "string",
@@ -4965,23 +4983,17 @@
         }
       },
       "LevelUpResponse": {
+        "required": [
+          "character",
+          "pendingChoices"
+        ],
         "type": "object",
         "properties": {
           "character": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CharacterResponse"
-              }
-            ]
+            "$ref": "#/components/schemas/CharacterResponse"
           },
           "pendingChoices": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PendingChoices"
-              }
-            ]
+            "$ref": "#/components/schemas/PendingChoices"
           }
         }
       },
@@ -5034,6 +5046,20 @@
         }
       },
       "Monster": {
+        "required": [
+          "armourClass",
+          "charisma",
+          "constitution",
+          "dexterity",
+          "experiencePoints",
+          "hitPoints",
+          "id",
+          "intelligence",
+          "isHomebrew",
+          "name",
+          "strength",
+          "wisdom"
+        ],
         "type": "object",
         "properties": {
           "acType": {
@@ -5054,8 +5080,7 @@
           },
           "armourClass": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "challengeRating": {
             "type": "string",
@@ -5063,8 +5088,7 @@
           },
           "charisma": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "conditionImmunities": {
             "type": "string",
@@ -5072,8 +5096,7 @@
           },
           "constitution": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "createdAt": {
             "type": "string",
@@ -5099,13 +5122,11 @@
           },
           "dexterity": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "experiencePoints": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "hitDice": {
             "type": "string",
@@ -5113,22 +5134,18 @@
           },
           "hitPoints": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "intelligence": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "isHomebrew": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "lairActions": {
             "type": "string",
@@ -5143,8 +5160,7 @@
             "nullable": true
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "reactions": {
             "type": "string",
@@ -5176,8 +5192,7 @@
           },
           "strength": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "subtype": {
             "type": "string",
@@ -5198,8 +5213,7 @@
           },
           "wisdom": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           }
         }
       },
@@ -5354,6 +5368,11 @@
         }
       },
       "OptionalFeature": {
+        "required": [
+          "featureType",
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "createdAt": {
@@ -5366,17 +5385,14 @@
             "nullable": true
           },
           "featureType": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "prerequisite": {
             "type": "string",
@@ -5815,48 +5831,57 @@
         }
       },
       "PendingChoices": {
+        "required": [
+          "asiAvailable",
+          "expertiseAvailable",
+          "expertiseCount",
+          "maxSpellLevel",
+          "newFeatures",
+          "spellSelectionNeeded",
+          "subclassRequired"
+        ],
         "type": "object",
         "properties": {
           "asiAvailable": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "expertiseAvailable": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "expertiseCount": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "maxSpellLevel": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "newFeatures": {
             "type": "array",
-            "nullable": true,
             "items": {
               "type": "string"
             }
           },
           "spellSelectionNeeded": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "spellSelectionType": {
             "type": "string",
             "nullable": true
           },
           "subclassRequired": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           }
         }
       },
       "Race": {
+        "required": [
+          "creatureType",
+          "id",
+          "name",
+          "size",
+          "source"
+        ],
         "type": "object",
         "properties": {
           "abilityScoreBonuses": {
@@ -5877,8 +5902,7 @@
             "nullable": true
           },
           "creatureType": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "darkvision": {
             "type": "integer",
@@ -5891,12 +5915,10 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "proficiencies": {
             "type": "string",
@@ -5911,12 +5933,10 @@
             "nullable": true
           },
           "size": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "source": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "speed": {
             "type": "string",
@@ -6045,6 +6065,13 @@
         }
       },
       "Spell": {
+        "required": [
+          "concentration",
+          "id",
+          "level",
+          "name",
+          "ritual"
+        ],
         "type": "object",
         "properties": {
           "castingTime": {
@@ -6060,8 +6087,7 @@
             "nullable": true
           },
           "concentration": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "createdAt": {
             "type": "string",
@@ -6094,25 +6120,21 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "level": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "rangeDistance": {
             "type": "string",
             "nullable": true
           },
           "ritual": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "saveAbility": {
             "type": "string",
@@ -6189,6 +6211,12 @@
         }
       },
       "Subclass": {
+        "required": [
+          "characterClass",
+          "id",
+          "name",
+          "source"
+        ],
         "type": "object",
         "properties": {
           "additionalProficiencies": {
@@ -6200,12 +6228,7 @@
             "nullable": true
           },
           "characterClass": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CharacterClass"
-              }
-            ]
+            "$ref": "#/components/schemas/CharacterClass"
           },
           "createdAt": {
             "type": "string",
@@ -6222,16 +6245,13 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "source": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },

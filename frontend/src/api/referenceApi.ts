@@ -1,5 +1,5 @@
 import api from './axiosConfig';
-import type { Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature } from '../types/reference';
+import type { Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature, SpellTargetingInfo } from '../types/reference';
 
 export const searchSpells = async (params: SpellSearchParams): Promise<PageResponse<Spell>> => {
   const response = await api.get('/reference/spells', { params });
@@ -100,16 +100,6 @@ export const getOptionalFeatures = async (type?: string): Promise<OptionalFeatur
   const response = await api.get('/reference/optional-features', { params: type ? { type } : {} });
   return response.data;
 };
-
-export interface SpellTargetingInfo {
-  maxTargets: number;
-  selfOnly: boolean;
-  canTargetSelf: boolean;
-  canTargetAllies: boolean;
-  canTargetEnemies: boolean;
-  targetType: string;
-  hasRepeatEffect: boolean;
-}
 
 export const getSpellTargeting = async (name: string, slotLevel: number): Promise<SpellTargetingInfo> => {
   const response = await api.get('/reference/spells/targeting', { params: { name, slotLevel } });

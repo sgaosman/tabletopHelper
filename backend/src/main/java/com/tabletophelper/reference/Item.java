@@ -1,6 +1,7 @@
 package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -11,6 +12,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.UUID;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 @Entity
 @Table(name = "items")
 @Getter
@@ -20,10 +23,12 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Item {
 
+    @Schema(requiredMode = REQUIRED)
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 200, nullable = false)
     private String name;
 
@@ -44,6 +49,8 @@ public class Item {
     @Column(columnDefinition = "jsonb")
     private String properties;
 
+    // The columns allow null, but items are only written by ItemSeeder, which sets this and isHomebrew
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "requires_attunement")
     @Builder.Default
     private Boolean requiresAttunement = false;
@@ -65,6 +72,7 @@ public class Item {
     @Column(length = 100)
     private String source;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "is_homebrew")
     @Builder.Default
     private Boolean isHomebrew = false;

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X, RotateCcw } from 'lucide-react';
-import { searchMonsters, getMonsterTypes, getMonsterChallengeRatings, getMonsterSources } from '../../api/monsterApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useMonsterFilterOptions, useMonsterList } from '../../queries/monsters';
 import type { Monster } from '../../types/monster';
 import MonsterStatBlock from '../../components/monster/MonsterStatBlock';
 import MultiSelect from '../../components/common/MultiSelect';
@@ -24,50 +25,32 @@ const COLUMNS: { label: string; field: string; hideClass?: string }[] = [
 ];
 
 export default function BestiaryPage() {
-  const [monsters, setMonsters] = useState<Monster[]>([]);
   const [selectedMonster, setSelectedMonster] = useState<Monster | null>(null);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [crFilter, setCrFilter] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
   const [sortField, setSortField] = useState('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const [types, setTypes] = useState<string[]>([]);
-  const [crs, setCrs] = useState<string[]>([]);
-  const [sources, setSources] = useState<string[]>([]);
+  const { data: types = [] } = useMonsterFilterOptions('types');
+  const { data: crs = [] } = useMonsterFilterOptions('challenge-ratings');
+  const { data: sources = [] } = useMonsterFilterOptions('sources');
 
-  useEffect(() => {
-    Promise.all([getMonsterTypes(), getMonsterChallengeRatings(), getMonsterSources()])
-      .then(([t, c, s]) => { setTypes(t); setCrs(c); setSources(s); });
-  }, []);
-
-  const loadMonsters = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await searchMonsters({
-        name: search || undefined,
-        type: typeFilter.length ? typeFilter.join(',') : undefined,
-        cr: crFilter.length ? crFilter.join(',') : undefined,
-        source: sourceFilter.length ? sourceFilter.join(',') : undefined,
-        page,
-        size: 20,
-        sort: `${sortField},${sortDir}`,
-      });
-      setMonsters(result.content);
-      setTotalPages(result.totalPages);
-      setTotalElements(result.totalElements);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, typeFilter, crFilter, sourceFilter, page, sortField, sortDir]);
-
-  useEffect(() => { loadMonsters(); }, [loadMonsters]);
-  useEffect(() => { setPage(0); }, [search, typeFilter, crFilter, sourceFilter]);
+  // While another page or filter loads, the current results stay on screen, dimmed
+  const monstersQuery = useMonsterList({
+    name: search || undefined,
+    type: typeFilter.length ? typeFilter.join(',') : undefined,
+    cr: crFilter.length ? crFilter.join(',') : undefined,
+    source: sourceFilter.length ? sourceFilter.join(',') : undefined,
+    page,
+    size: 20,
+    sort: `${sortField},${sortDir}`,
+  });
+  const monsters = monstersQuery.data?.content ?? [];
+  const totalPages = monstersQuery.data?.totalPages ?? 0;
+  const totalElements = monstersQuery.data?.totalElements ?? 0;
 
   const hasFilters = search || typeFilter.length > 0 || crFilter.length > 0 || sourceFilter.length > 0;
   const clearFilters = () => {
@@ -105,12 +88,12 @@ export default function BestiaryPage() {
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-faint" size={16} />
             <input type="text" placeholder="Search monsters..."
-              value={search} onChange={(e) => setSearch(e.target.value)}
+              value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
               className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none" />
           </div>
-          <MultiSelect options={types} selected={typeFilter} onChange={setTypeFilter} placeholder="All Types" accentColor="red" />
-          <MultiSelect options={crs} selected={crFilter} onChange={setCrFilter} placeholder="All CRs" renderLabel={(c) => `CR ${c}`} accentColor="red" />
-          <MultiSelect options={sources} selected={sourceFilter} onChange={setSourceFilter} placeholder="All Sources" renderLabel={(s) => sourceName(s)} accentColor="red" />
+          <MultiSelect options={types} selected={typeFilter} onChange={(v) => { setTypeFilter(v); setPage(0); }} placeholder="All Types" accentColor="red" />
+          <MultiSelect options={crs} selected={crFilter} onChange={(v) => { setCrFilter(v); setPage(0); }} placeholder="All CRs" renderLabel={(c) => `CR ${c}`} accentColor="red" />
+          <MultiSelect options={sources} selected={sourceFilter} onChange={(v) => { setSourceFilter(v); setPage(0); }} placeholder="All Sources" renderLabel={(s) => sourceName(s)} accentColor="red" />
         </div>
 
         <div className="flex items-center justify-between mb-4">
@@ -125,11 +108,14 @@ export default function BestiaryPage() {
 
         <div className="flex gap-0">
           <div className={`min-w-0 transition-all duration-300 ${selectedMonster ? 'w-3/5' : 'w-full'}`}>
-            {loading ? (
+            {monstersQuery.isPending ? (
               <div className="text-center py-12 font-body text-[16px] text-muted">Loading...</div>
+            ) : monstersQuery.isError ? (
+              <p role="alert" className="text-center py-12 font-body text-[16px] text-debuff">{apiErrorMessage(monstersQuery.error)}</p>
             ) : (
               <>
-                <div className="bg-card border border-rule overflow-hidden">
+                <div aria-busy={monstersQuery.isPlaceholderData}
+                  className={`bg-card border border-rule overflow-hidden transition-opacity ${monstersQuery.isPlaceholderData ? 'opacity-60' : ''}`}>
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-rule bg-page">

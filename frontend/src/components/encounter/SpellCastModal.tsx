@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { X, Zap, Shield, Target, Sparkles, AlertTriangle } from 'lucide-react';
-import { getSpellTargeting } from '../../api/referenceApi';
-import type { SpellTargetingInfo } from '../../api/referenceApi';
 import { useEncounterAction } from '../../queries/encounters';
+import { useFetchSpellTargeting } from '../../queries/reference';
 import type { EncounterParticipant, SpellSlots } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
+import type { SpellTargetingInfo } from '../../types/reference';
 import { healthLabel } from '../../utils/healthStatus';
 
 interface SpellEntry {
@@ -28,6 +28,7 @@ type Step = 'spell' | 'slot' | 'target' | 'confirm';
 /** Casts a spell in the live encounter of the surrounding EncounterProvider, whose state the result updates. */
 export default function SpellCastModal({ caster, participants, onClose, isMonster }: Props) {
   const actions = useEncounterAction();
+  const lookUpTargeting = useFetchSpellTargeting();
   const [step, setStep] = useState<Step>('spell');
   const [search, setSearch] = useState('');
   const [selectedSpell, setSelectedSpell] = useState<SpellEntry | null>(null);
@@ -48,7 +49,7 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
     setTargetingLoading(true);
     setSelectedTargets([]);
     try {
-      const info = await getSpellTargeting(spellName, slotLevel);
+      const info = await lookUpTargeting(spellName, slotLevel);
       setTargetingInfo(info);
       if (!info.selfOnly && !info.canTargetSelf && !info.canTargetAllies && !info.canTargetEnemies) {
         setStep('confirm');
@@ -60,7 +61,7 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
       setTargetingLoading(false);
     }
     setStep('target');
-  }, []);
+  }, [lookUpTargeting]);
 
   const spells: SpellEntry[] = useMemo(() => {
     if (!caster.spellsKnown) return [];

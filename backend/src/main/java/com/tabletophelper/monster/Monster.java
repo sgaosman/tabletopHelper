@@ -1,6 +1,7 @@
 package com.tabletophelper.monster;
 
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -11,6 +12,8 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.UUID;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 @Entity
 @Table(name = "monsters")
 @Getter
@@ -20,10 +23,12 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Monster {
 
+    @Schema(requiredMode = REQUIRED)
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 200, nullable = false)
     private String name;
 
@@ -39,12 +44,17 @@ public class Monster {
     @Column(length = 50)
     private String alignment;
 
+    // The columns of armourClass, hitPoints, the ability scores, experiencePoints and isHomebrew allow
+    // null, but monsters are only written by MonsterSeeder, which sets each of them, and
+    // MonsterActionSeeder, which only adds action templates
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "armour_class")
     private Integer armourClass;
 
     @Column(name = "ac_type", length = 200)
     private String acType;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "hit_points")
     private Integer hitPoints;
 
@@ -56,11 +66,22 @@ public class Monster {
     @Column(columnDefinition = "jsonb")
     private String speed;
 
+    @Schema(requiredMode = REQUIRED)
     private Integer strength;
+
+    @Schema(requiredMode = REQUIRED)
     private Integer dexterity;
+
+    @Schema(requiredMode = REQUIRED)
     private Integer constitution;
+
+    @Schema(requiredMode = REQUIRED)
     private Integer intelligence;
+
+    @Schema(requiredMode = REQUIRED)
     private Integer wisdom;
+
+    @Schema(requiredMode = REQUIRED)
     private Integer charisma;
 
     @JsonRawValue
@@ -104,6 +125,7 @@ public class Monster {
     @Column(name = "challenge_rating", length = 10)
     private String challengeRating;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "experience_points")
     private Integer experiencePoints;
 
@@ -140,6 +162,7 @@ public class Monster {
     @Column(length = 100)
     private String source;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "is_homebrew")
     @Builder.Default
     private Boolean isHomebrew = false;

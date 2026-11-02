@@ -1,6 +1,7 @@
 package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -9,6 +10,8 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
+
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 @Entity
 @Table(name = "races")
@@ -19,16 +22,22 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Race {
 
+    @Schema(requiredMode = REQUIRED)
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 200, nullable = false)
     private String name;
 
+    // The columns of source, size and creatureType allow null, but races are only written by RaceSeeder,
+    // which falls back to "", Medium and Humanoid
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 100)
     private String source;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(length = 20)
     private String size;
 
@@ -42,6 +51,7 @@ public class Race {
     @Column(name = "ability_score_bonuses", columnDefinition = "jsonb")
     private String abilityScoreBonuses;
 
+    @Schema(requiredMode = REQUIRED)
     @Column(name = "creature_type", length = 50)
     private String creatureType;
 

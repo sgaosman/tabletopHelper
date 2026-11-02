@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Plus, Minus } from 'lucide-react';
-import { characterApi } from '../../api/characterApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useApplyChoices } from '../../queries/characters';
 import type { PlayerCharacter, ApplyChoicesRequest, AsiChoice } from '../../types/character';
 import FeatPicker from './FeatPicker';
 
@@ -19,12 +20,14 @@ interface Props {
   onClose: () => void;
 }
 
+/** An ability score improvement, or a feat in its place. The updated character replaces the cached one. */
 export default function AsiModal({ character, onComplete, onClose }: Props) {
+  const applyChoices = useApplyChoices();
   const [mode, setMode] = useState<'ability' | 'feat'>('ability');
   const [increases, setIncreases] = useState<Record<string, number>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
   const [featSelection, setFeatSelection] = useState<AsiChoice | null>(null);
+  // Stays disabled once the choice is applied, until the page closes the dialog
+  const submitting = applyChoices.isPending || applyChoices.isSuccess;
 
   const pointsSpent = Object.values(increases).reduce((a, b) => a + b, 0);
   const pointsRemaining = 2 - pointsSpent;
@@ -44,25 +47,17 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
 
   const canSubmit = mode === 'ability' ? pointsSpent === 2 : featSelection !== null;
 
-  async function handleSubmit() {
-    setSubmitting(true);
-    setError('');
-    try {
-      const request: ApplyChoicesRequest = {};
-      if (mode === 'ability') {
-        request.asi = {
-          type: 'ability',
-          increases: Object.entries(increases).map(([ability, bonus]) => ({ ability, bonus })),
-        };
-      } else if (featSelection) {
-        request.asi = featSelection;
-      }
-      const res = await characterApi.applyChoices(character.id, request);
-      onComplete(res.data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to apply choices');
-      setSubmitting(false);
+  function handleSubmit() {
+    const request: ApplyChoicesRequest = {};
+    if (mode === 'ability') {
+      request.asi = {
+        type: 'ability',
+        increases: Object.entries(increases).map(([ability, bonus]) => ({ ability, bonus })),
+      };
+    } else if (featSelection) {
+      request.asi = featSelection;
     }
+    applyChoices.mutate({ characterId: character.id, choices: request }, { onSuccess: updated => onComplete(updated) });
   }
 
   return (
@@ -77,8 +72,8 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
         </div>
 
         <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
-          {error && (
-            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
+          {applyChoices.error && (
+            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{apiErrorMessage(applyChoices.error)}</div>
           )}
 
           <div className="flex gap-2">

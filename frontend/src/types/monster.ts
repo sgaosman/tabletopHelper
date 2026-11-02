@@ -1,44 +1,36 @@
-export interface Monster {
-  id: string;
-  name: string;
-  size: string | null;
-  type: string | null;
-  subtype: string | null;
-  alignment: string | null;
-  armourClass: number;
-  acType: string | null;
-  hitPoints: number;
-  hitDice: string | null;
-  speed: Record<string, number> | null;
-  strength: number;
-  dexterity: number;
-  constitution: number;
-  intelligence: number;
-  wisdom: number;
-  charisma: number;
-  savingThrows: Record<string, string> | null;
-  skills: Record<string, string> | null;
-  damageResistances: string[] | null;
-  damageImmunities: string[] | null;
-  damageVulnerabilities: string[] | null;
-  conditionImmunities: string[] | null;
-  senses: { special?: string[]; passive_perception?: number } | null;
-  languages: string | null;
-  challengeRating: string | null;
-  experiencePoints: number;
-  traits: MonsterEntry[] | null;
-  actions: MonsterEntry[] | null;
-  reactions: MonsterEntry[] | null;
-  legendaryActions: MonsterEntry[] | null;
-  lairActions: MonsterEntry[] | null;
-  source: string | null;
-}
+import type { Schemas } from '../api/schema';
 
+/** A trait, action, reaction, legendary action or lair action in a stat block. */
 export interface MonsterEntry {
   name: string;
   description: string;
 }
 
+/**
+ * A bestiary monster. Its JSON columns arrive as raw JSON (@JsonRawValue), but the spec describes them as
+ * strings, so the fields the stat block reads keep the shapes they really have; R5-R6 type them in the
+ * spec (D171).
+ */
+export type Monster = Omit<Schemas['Monster'],
+  | 'speed' | 'savingThrows' | 'skills' | 'damageResistances' | 'damageImmunities' | 'damageVulnerabilities'
+  | 'conditionImmunities' | 'senses' | 'traits' | 'actions' | 'reactions' | 'legendaryActions' | 'lairActions'
+> & {
+  speed?: Record<string, number> | null;
+  savingThrows?: Record<string, string> | null;
+  skills?: Record<string, string> | null;
+  damageResistances?: string[] | null;
+  damageImmunities?: string[] | null;
+  damageVulnerabilities?: string[] | null;
+  conditionImmunities?: string[] | null;
+  senses?: { special?: string[]; passive_perception?: number } | null;
+  traits?: MonsterEntry[] | null;
+  actions?: MonsterEntry[] | null;
+  reactions?: MonsterEntry[] | null;
+  legendaryActions?: MonsterEntry[] | null;
+  lairActions?: MonsterEntry[] | null;
+};
+
+/** The search and filters of the bestiary; a filter takes several values separated by commas. */
 export interface MonsterSearchParams {
   name?: string;
   type?: string;

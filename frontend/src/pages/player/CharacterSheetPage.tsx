@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, ChevronUp, ChevronDown } from 'lucide-react';
-import { characterApi } from '../../api/characterApi';
-import { campaignApi } from '../../api/campaignApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useCampaigns } from '../../queries/campaigns';
+import { useApplyChoices, useCharacter, useLevelDown, useUpdateCharacter } from '../../queries/characters';
 import LevelUpModal from '../../components/character/LevelUpModal';
 import AsiModal from '../../components/character/AsiModal';
 import SubclassModal from '../../components/character/SubclassModal';
 import ExpertiseModal from '../../components/character/ExpertiseModal';
 import type { PlayerCharacter, CharacterUpdateRequest, LevelUpResponse } from '../../types/character';
-import type { Campaign } from '../../types/campaign';
 import { THIRD_CASTER_SUBCLASSES } from '../../utils/spellConstants';
 import { abilityMod, formatMod, safeJsonParse } from '../../utils/dndRules';
 import { getClassColour } from '../../utils/classColours';
@@ -31,48 +31,44 @@ const TABS: { key: Tab; label: string; icon: typeof Shield }[] = [
   { key: 'Journal', label: 'Journal', icon: ScrollText },
 ];
 
+/**
+ * A character's sheet. Every change goes to the server, and the character it returns replaces the cached one,
+ * so the sheet shows it without loading the character again.
+ */
 export default function CharacterSheetPage() {
   const { characterId } = useParams<{ characterId: string }>();
   const navigate = useNavigate();
-  const [char, setChar] = useState<PlayerCharacter | null>(null);
+  const characterQuery = useCharacter(characterId);
+  const char = characterQuery.data;
+  const { data: campaigns = [] } = useCampaigns();
+  const { mutateAsync: updateCharacter } = useUpdateCharacter();
+  const levelDown = useLevelDown();
+  const applyChoices = useApplyChoices();
   const [activeTab, setActiveTab] = useState<Tab>('Stats');
-  const [_saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [restModal, setRestModal] = useState<'short' | 'long' | null>(null);
   const [shortRestDice, setShortRestDice] = useState<Record<string, number>>({});
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [showAsi, setShowAsi] = useState(false);
   const [subclassPrompt, setSubclassPrompt] = useState<{ classId: string; className: string } | null>(null);
   const [levelUpBanner, setLevelUpBanner] = useState<string | null>(null);
   const [levelDownConfirm, setLevelDownConfirm] = useState(false);
-  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean; expertiseAvailable: boolean; expertiseCount: number; spellSelectionNeeded: boolean; spellSelectionType?: string } | null>(null);
+  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean; expertiseAvailable: boolean; expertiseCount: number; spellSelectionNeeded: boolean; spellSelectionType?: string | null } | null>(null);
   const [showExpertise, setShowExpertise] = useState(false);
   const [pendingSpellManage, setPendingSpellManage] = useState<{ className: string; type: 'known' | 'prepared' } | null>(null);
 
-  useEffect(() => {
-    if (characterId && characterId !== 'new') {
-      characterApi.getById(characterId).then(res => setChar(res.data));
-    }
-    campaignApi.getAll().then(res => setCampaigns(res.data)).catch(() => {});
-  }, [characterId]);
-
   const saveField = useCallback(async (updates: CharacterUpdateRequest) => {
     if (!characterId) return;
-    setSaving(true);
     setError('');
     try {
-      const res = await characterApi.update(characterId, updates);
-      setChar(res.data);
+      await updateCharacter({ characterId, updates });
       setSuccess('Saved');
       setTimeout(() => setSuccess(''), 2000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Save failed');
-    } finally {
-      setSaving(false);
+    } catch (err) {
+      setError(apiErrorMessage(err));
     }
-  }, [characterId]);
+  }, [characterId, updateCharacter]);
 
   async function handleCampaignChange(value: string) {
     if (!characterId) return;
@@ -80,12 +76,11 @@ export default function CharacterSheetPage() {
       const update: CharacterUpdateRequest = value
         ? { campaignId: value }
         : { clearCampaign: true };
-      const res = await characterApi.update(characterId, update);
-      setChar(res.data);
+      await updateCharacter({ characterId, updates: update });
       setSuccess('Campaign updated');
       setTimeout(() => setSuccess(''), 2000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update campaign');
+    } catch (err) {
+      setError(apiErrorMessage(err));
     }
   }
 
@@ -119,7 +114,9 @@ export default function CharacterSheetPage() {
   if (!char) {
     return (
       <div className="min-h-screen bg-page flex items-center justify-center">
-        <p className="font-body text-[16px] text-muted">Loading character...</p>
+        {characterQuery.isPending
+          ? <p className="font-body text-[16px] text-muted">Loading character...</p>
+          : <p role="alert" className="font-body text-[16px] text-debuff">{apiErrorMessage(characterQuery.error)}</p>}
       </div>
     );
   }
@@ -154,14 +151,14 @@ export default function CharacterSheetPage() {
       p.resetOn === 'shortRest' ? { ...p, currentUses: p.maxUses } : p
     );
 
-    const updates: Record<string, unknown> = {
+    const updates: CharacterUpdateRequest = {
       hpCurrent: newHp,
       hitDiceMap: JSON.stringify(updated),
     };
     if (Object.keys(resetSlots).length > 0) updates.spellSlots = JSON.stringify(resetSlots);
     if (resetResources.length > 0) updates.featResources = JSON.stringify(resetResources);
     if (resetPools.length > 0) updates.resourcePools = JSON.stringify(resetPools);
-    await saveField(updates as Record<string, string | number | undefined>);
+    await saveField(updates);
     setShortRestDice({});
     setRestModal(null);
   }
@@ -205,7 +202,6 @@ export default function CharacterSheetPage() {
   }
 
   function handleLevelUpComplete(response: LevelUpResponse, leveledClassId: string, leveledClassName: string) {
-    setChar(response.character);
     setShowLevelUp(false);
     const { pendingChoices } = response;
     const pending = { classId: leveledClassId, className: leveledClassName, subclassRequired: pendingChoices.subclassRequired, expertiseAvailable: pendingChoices.expertiseAvailable, expertiseCount: pendingChoices.expertiseCount, spellSelectionNeeded: pendingChoices.spellSelectionNeeded, spellSelectionType: pendingChoices.spellSelectionType };
@@ -222,7 +218,6 @@ export default function CharacterSheetPage() {
   }
 
   function handleAsiComplete(updated: PlayerCharacter) {
-    setChar(updated);
     setShowAsi(false);
     if (pendingLevelClass?.subclassRequired) {
       setSubclassPrompt({ classId: pendingLevelClass.classId, className: pendingLevelClass.className });
@@ -234,7 +229,6 @@ export default function CharacterSheetPage() {
   }
 
   function handleSubclassComplete(updated: PlayerCharacter) {
-    setChar(updated);
     setSubclassPrompt(null);
 
     let updatedPending = pendingLevelClass;
@@ -263,10 +257,12 @@ export default function CharacterSheetPage() {
 
   async function handleExpertiseComplete(skills: string[]) {
     if (!char) return;
+    // The level is kept either way; a failure only leaves the expertise unchosen
     try {
-      const res = await characterApi.applyChoices(char.id, { expertiseSkills: skills });
-      setChar(res.data);
-    } catch { /* expertise is best-effort */ }
+      await applyChoices.mutateAsync({ characterId: char.id, choices: { expertiseSkills: skills } });
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    }
     setShowExpertise(false);
     finishLevelUp(char.level);
   }
@@ -276,12 +272,11 @@ export default function CharacterSheetPage() {
     setLevelDownConfirm(false);
     setError('');
     try {
-      const res = await characterApi.levelDown(characterId);
-      setChar(res.data);
-      setSuccess(`Reverted to level ${res.data.level}`);
+      const reverted = await levelDown.mutateAsync(characterId);
+      setSuccess(`Reverted to level ${reverted.level}`);
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Level down failed');
+    } catch (err) {
+      setError(apiErrorMessage(err));
     }
   }
 

@@ -8,6 +8,8 @@ function mockCharacter(overrides: Partial<PlayerCharacter> = {}): PlayerCharacte
     id: 'test-id',
     userId: 'user-id',
     ownerDisplayName: 'Test User',
+    raceId: 'race-id',
+    raceName: 'Human',
     name: 'Test Character',
     level: 5,
     experiencePoints: 0,

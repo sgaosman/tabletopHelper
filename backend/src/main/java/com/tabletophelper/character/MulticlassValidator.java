@@ -92,7 +92,7 @@ public class MulticlassValidator {
                     .classId(cc.getId())
                     .className(cc.getName())
                     .currentClassLevel(classLevel)
-                    .isCurrentClass(isCurrent)
+                    .currentClass(isCurrent)
                     .meetsPrerequisites(eligible)
                     .prerequisiteDescription(description)
                     .build());

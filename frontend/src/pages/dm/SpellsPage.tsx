@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X, RotateCcw } from 'lucide-react';
-import { searchSpells, getSpellSchools, getSpellSources, getSpellClasses, getSpellSubclasses } from '../../api/referenceApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useSpellFilterOptions, useSpellSearch, useSpellSubclasses } from '../../queries/reference';
 import type { Spell } from '../../types/reference';
 import SpellCard from '../../components/reference/SpellCard';
 import MultiSelect from '../../components/common/MultiSelect';
@@ -22,9 +23,7 @@ const COLUMNS: { label: string; field: string; hideClass?: string }[] = [
 ];
 
 export default function SpellsPage() {
-  const [spells, setSpells] = useState<Spell[]>([]);
   const [selectedSpell, setSelectedSpell] = useState<Spell | null>(null);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState<string[]>([]);
   const [schoolFilter, setSchoolFilter] = useState<string[]>([]);
@@ -34,30 +33,13 @@ export default function SpellsPage() {
   const [concFilter, setConcFilter] = useState('');
   const [ritualFilter, setRitualFilter] = useState('');
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
   const [sortField, setSortField] = useState('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const [schools, setSchools] = useState<string[]>([]);
-  const [sources, setSources] = useState<string[]>([]);
-  const [classes, setClasses] = useState<string[]>([]);
-  const [subclasses, setSubclasses] = useState<string[]>([]);
-
-  useEffect(() => {
-    Promise.all([getSpellSchools(), getSpellSources(), getSpellClasses()])
-      .then(([sc, so, cl]) => { setSchools(sc); setSources(so); setClasses(cl); });
-  }, []);
-
-  useEffect(() => {
-    if (classFilter.length > 0) {
-      Promise.all(classFilter.map(c => getSpellSubclasses(c)))
-        .then(results => setSubclasses(results.flat()));
-    } else {
-      setSubclasses([]);
-      setSubclassFilter([]);
-    }
-  }, [classFilter]);
+  const { data: schools = [] } = useSpellFilterOptions('schools');
+  const { data: sources = [] } = useSpellFilterOptions('sources');
+  const { data: classes = [] } = useSpellFilterOptions('classes');
+  const subclasses = useSpellSubclasses(classFilter);
 
   const hasFilters = search || levelFilter.length > 0 || schoolFilter.length > 0 || sourceFilter.length > 0 ||
     classFilter.length > 0 || subclassFilter.length > 0 || concFilter || ritualFilter;
@@ -67,30 +49,21 @@ export default function SpellsPage() {
     setClassFilter([]); setSubclassFilter([]); setConcFilter(''); setRitualFilter(''); setPage(0);
   };
 
-  const loadSpells = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await searchSpells({
-        name: search || undefined,
-        level: levelFilter.length ? levelFilter.join(',') : undefined,
-        school: schoolFilter.length ? schoolFilter.join(',') : undefined,
-        source: sourceFilter.length ? sourceFilter.join(',') : undefined,
-        className: classFilter.length ? classFilter.join(',') : undefined,
-        subclass: subclassFilter.length ? subclassFilter.join(',') : undefined,
-        concentration: concFilter || undefined,
-        ritual: ritualFilter || undefined,
-        page, size: 20, sort: `${sortField},${sortDir}`,
-      });
-      setSpells(result.content);
-      setTotalPages(result.totalPages);
-      setTotalElements(result.totalElements);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, levelFilter, schoolFilter, sourceFilter, classFilter, subclassFilter, concFilter, ritualFilter, page, sortField, sortDir]);
-
-  useEffect(() => { loadSpells(); }, [loadSpells]);
-  useEffect(() => { setPage(0); }, [search, levelFilter, schoolFilter, sourceFilter, classFilter, subclassFilter, concFilter, ritualFilter]);
+  // While another page or filter loads, the current results stay on screen, dimmed
+  const spellsQuery = useSpellSearch({
+    name: search || undefined,
+    level: levelFilter.length ? levelFilter.join(',') : undefined,
+    school: schoolFilter.length ? schoolFilter.join(',') : undefined,
+    source: sourceFilter.length ? sourceFilter.join(',') : undefined,
+    className: classFilter.length ? classFilter.join(',') : undefined,
+    subclass: subclassFilter.length ? subclassFilter.join(',') : undefined,
+    concentration: concFilter || undefined,
+    ritual: ritualFilter || undefined,
+    page, size: 20, sort: `${sortField},${sortDir}`,
+  });
+  const spells = spellsQuery.data?.content ?? [];
+  const totalPages = spellsQuery.data?.totalPages ?? 0;
+  const totalElements = spellsQuery.data?.totalElements ?? 0;
 
   const handleSort = (field: string) => {
     if (field === sortField) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -117,28 +90,28 @@ export default function SpellsPage() {
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-faint" size={16} />
             <input type="text" placeholder="Search spells..."
-              value={search} onChange={(e) => setSearch(e.target.value)}
+              value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
               className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none" />
           </div>
-          <MultiSelect options={['0','1','2','3','4','5','6','7','8','9']} selected={levelFilter} onChange={setLevelFilter} placeholder="All Levels" renderLabel={(l) => l === '0' ? 'Cantrip' : `Level ${l}`} accentColor="indigo" />
-          <MultiSelect options={schools} selected={schoolFilter} onChange={setSchoolFilter} placeholder="All Schools" accentColor="indigo" />
-          <MultiSelect options={classes} selected={classFilter} onChange={(v) => { setClassFilter(v); setSubclassFilter(prev => prev.filter(s => v.some(c => s.startsWith(c + ' (')))); }} placeholder="All Classes" accentColor="indigo" />
+          <MultiSelect options={['0','1','2','3','4','5','6','7','8','9']} selected={levelFilter} onChange={(v) => { setLevelFilter(v); setPage(0); }} placeholder="All Levels" renderLabel={(l) => l === '0' ? 'Cantrip' : `Level ${l}`} accentColor="indigo" />
+          <MultiSelect options={schools} selected={schoolFilter} onChange={(v) => { setSchoolFilter(v); setPage(0); }} placeholder="All Schools" accentColor="indigo" />
+          <MultiSelect options={classes} selected={classFilter} onChange={(v) => { setClassFilter(v); setSubclassFilter(prev => prev.filter(s => v.some(c => s.startsWith(c + ' (')))); setPage(0); }} placeholder="All Classes" accentColor="indigo" />
           {classFilter.length > 0 && subclasses.length > 0 && (
-            <MultiSelect options={subclasses} selected={subclassFilter} onChange={setSubclassFilter} placeholder="All Subclasses" renderLabel={(sc) => sc.replace(/^.+ \(/, '').replace(/\)$/, '')} accentColor="indigo" />
+            <MultiSelect options={subclasses} selected={subclassFilter} onChange={(v) => { setSubclassFilter(v); setPage(0); }} placeholder="All Subclasses" renderLabel={(sc) => sc.replace(/^.+ \(/, '').replace(/\)$/, '')} accentColor="indigo" />
           )}
-          <select value={concFilter} onChange={(e) => setConcFilter(e.target.value)}
+          <select value={concFilter} onChange={(e) => { setConcFilter(e.target.value); setPage(0); }}
             className="px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink focus:border-muted focus:outline-none">
             <option value="">Concentration: Any</option>
             <option value="true">Concentration Only</option>
             <option value="false">Non-Concentration Only</option>
           </select>
-          <select value={ritualFilter} onChange={(e) => setRitualFilter(e.target.value)}
+          <select value={ritualFilter} onChange={(e) => { setRitualFilter(e.target.value); setPage(0); }}
             className="px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink focus:border-muted focus:outline-none">
             <option value="">Ritual: Any</option>
             <option value="true">Ritual Only</option>
             <option value="false">Non-Ritual Only</option>
           </select>
-          <MultiSelect options={sources} selected={sourceFilter} onChange={setSourceFilter} placeholder="All Sources" renderLabel={(s) => sourceName(s)} accentColor="indigo" />
+          <MultiSelect options={sources} selected={sourceFilter} onChange={(v) => { setSourceFilter(v); setPage(0); }} placeholder="All Sources" renderLabel={(s) => sourceName(s)} accentColor="indigo" />
         </div>
 
         <div className="flex items-center justify-between mb-4">
@@ -153,11 +126,14 @@ export default function SpellsPage() {
 
         <div className="flex gap-0">
           <div className={`min-w-0 transition-all duration-300 ${selectedSpell ? 'w-3/5' : 'w-full'}`}>
-            {loading ? (
+            {spellsQuery.isPending ? (
               <div className="text-center py-12 font-body text-[16px] text-muted">Loading...</div>
+            ) : spellsQuery.isError ? (
+              <p role="alert" className="text-center py-12 font-body text-[16px] text-debuff">{apiErrorMessage(spellsQuery.error)}</p>
             ) : (
               <>
-                <div className="bg-card border border-rule overflow-hidden">
+                <div aria-busy={spellsQuery.isPlaceholderData}
+                  className={`bg-card border border-rule overflow-hidden transition-opacity ${spellsQuery.isPlaceholderData ? 'opacity-60' : ''}`}>
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-rule bg-page">

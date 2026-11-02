@@ -1,4 +1,4 @@
-import type { Monster } from '../../types/monster';
+import type { Monster, MonsterEntry } from '../../types/monster';
 import { parseMarkup } from '../../utils/parseMarkup';
 import { formatAbilityMod } from '../../utils/dndRules';
 
@@ -99,7 +99,7 @@ export default function MonsterStatBlock({ monster }: { monster: Monster }) {
   );
 }
 
-function EntrySection({ title, entries }: { title: string; entries: { name: string; description: string }[] | null }) {
+function EntrySection({ title, entries }: { title: string; entries?: MonsterEntry[] | null }) {
   if (!entries || entries.length === 0) return null;
   return (
     <div className="border-t border-rule-light pt-3 space-y-2">

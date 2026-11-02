@@ -1,5 +1,6 @@
 package com.tabletophelper.character.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.util.List;
@@ -14,6 +15,7 @@ public class ApplyChoicesRequest {
 
     @Data
     public static class AsiChoice {
+        @Schema(allowableValues = {"ability", "feat"})
         private String type;
         private List<AbilityIncrease> increases;
 
