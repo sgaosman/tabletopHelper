@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '../../test/test-utils';
+import { screen } from '../../test/test-utils';
 import { render, setupAuthToken } from '../../test/test-utils';
 import App from '../../App';
 
@@ -11,27 +11,21 @@ describe('Character Sheet Integration', () => {
 
   it('renders the character sheet page with header tabs', async () => {
     render(<App />);
-    await waitFor(() => {
-      expect(screen.getByRole('tablist')).toBeInTheDocument();
-    });
+    expect(await screen.findByRole('tablist')).toBeInTheDocument();
   }, 10000);
 
   it('has all six character sheet tabs', async () => {
     render(<App />);
-    await waitFor(() => {
-      expect(screen.getByRole('tab', { name: 'Stats' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Actions' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Spells' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Inventory' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Features' })).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: 'Journal' })).toBeInTheDocument();
-    });
+    expect(await screen.findByRole('tab', { name: 'Stats' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Actions' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Spells' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Inventory' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Features' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Journal' })).toBeInTheDocument();
   }, 10000);
 
   it('shows character name in the header', async () => {
     render(<App />);
-    await waitFor(() => {
-      expect(screen.getByText('Test Character')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Test Character')).toBeInTheDocument();
   }, 10000);
 });

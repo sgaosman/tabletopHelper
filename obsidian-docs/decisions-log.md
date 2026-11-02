@@ -2611,7 +2611,7 @@ The full list is settled during R2 planning.
 ## D171: Frontend Architecture — Query Cache, Generated Types, Shared Components
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (foundations in R4; consolidation in R8)
+**Status:** Accepted — foundations implemented (R4); consolidation in R8
 
 **Decision:**
 - **Server data:** TanStack Query.

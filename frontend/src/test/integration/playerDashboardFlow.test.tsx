@@ -12,18 +12,16 @@ describe('Player Dashboard Flow', () => {
   it('loads dashboard with character cards', async () => {
     window.history.pushState({}, '', '/player');
     render(<App />);
-    await waitFor(() => {
-      expect(screen.getByText('Gimli')).toBeInTheDocument();
-      expect(screen.getByText(/Level 5/)).toBeInTheDocument();
-      expect(screen.getByText(/HP 30\/30/)).toBeInTheDocument();
-      expect(screen.getByText(/AC 16/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Gimli')).toBeInTheDocument();
+    expect(screen.getByText(/Level 5/)).toBeInTheDocument();
+    expect(screen.getByText(/HP 30\/30/)).toBeInTheDocument();
+    expect(screen.getByText(/AC 16/)).toBeInTheDocument();
   });
 
   it('opens delete confirmation and requires exact name', async () => {
     window.history.pushState({}, '', '/player');
     render(<App />);
-    await waitFor(() => screen.getByText('Gimli'));
+    await screen.findByText('Gimli');
     const user = userEvent.setup();
     await user.click(screen.getByTitle('Delete character'));
     expect(screen.getByRole('dialog')).toBeInTheDocument();

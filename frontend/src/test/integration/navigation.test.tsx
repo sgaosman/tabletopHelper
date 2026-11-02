@@ -34,18 +34,14 @@ describe('Navigation & Routing', () => {
   it('shows player dashboard with character list', async () => {
     window.history.pushState({}, '', '/player');
     render(<App />);
-    await waitFor(() => {
-      expect(screen.getByText('My Characters')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('My Characters')).toBeInTheDocument();
   });
 
   it('renders DM dashboard after navigation', async () => {
     window.history.pushState({}, '', '/dm');
     render(<App />);
-    await waitFor(() => {
-      const dashboards = screen.getAllByText('Dashboard');
+    const dashboards = await screen.findAllByText('Dashboard');
     expect(dashboards.length).toBeGreaterThanOrEqual(1);
-    });
   });
 
   it('redirects unknown routes to login when unauthenticated', async () => {

@@ -3,6 +3,22 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "no-unused-vars": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/pages/player/CharacterCreateWizard.tsx",
+        "src/pages/player/wizard/*Step.tsx",
+        "src/pages/player/sheet/SpellsTab.tsx",
+        "src/components/character/FeatPicker.tsx"
+      ],
+      "rules": {
+        "react/exhaustive-deps": "warn",
+        "no-unused-vars": "warn"
+      }
+    }
+  ]
 }

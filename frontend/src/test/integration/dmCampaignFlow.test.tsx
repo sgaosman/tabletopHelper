@@ -12,15 +12,13 @@ describe('DM Campaign Flow', () => {
   it('loads campaign list page', async () => {
     window.history.pushState({}, '', '/dm/campaigns');
     render(<App />);
-    await waitFor(() => {
-      expect(screen.getByText('Test Campaign')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Test Campaign')).toBeInTheDocument();
   });
 
   it('can open and close the create campaign form', async () => {
     window.history.pushState({}, '', '/dm/campaigns');
     render(<App />);
-    await waitFor(() => screen.getByText('New Campaign'));
+    await screen.findByText('New Campaign');
     const user = userEvent.setup();
     await user.click(screen.getByText('New Campaign'));
     expect(screen.getByPlaceholderText(/e\.g\. Curse of Strahd/)).toBeInTheDocument();
@@ -33,9 +31,7 @@ describe('DM Campaign Flow', () => {
   it('shows campaign details with invite code and member count', async () => {
     window.history.pushState({}, '', '/dm/campaigns');
     render(<App />);
-    await waitFor(() => {
-      expect(screen.getByText('ABC123XY')).toBeInTheDocument();
-      expect(screen.getByText(/1 member/)).toBeInTheDocument();
-    });
+    expect(await screen.findByText('ABC123XY')).toBeInTheDocument();
+    expect(screen.getByText(/1 member/)).toBeInTheDocument();
   });
 });

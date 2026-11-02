@@ -1,5 +1,7 @@
 # API Reference
 
+> **Source of truth (R4, D171):** the springdoc OpenAPI spec is authoritative: Swagger UI at http://localhost:8080/swagger-ui.html while the dev backend runs, or the committed `frontend/src/api/generated/openapi.json`, which `OpenApiSpecIT` keeps in step with the backend. This page is a readable summary and may lag behind it. Access rules follow D155; Player View redactions are in [[websocket-protocol#Player View (D157)]].
+
 Base URL: `http://localhost:8080/api` (dev) or `https://yourdomain.com/api` (prod)
 
 All authenticated endpoints require the header: `Authorization: Bearer <accessToken>`. An access token lasts 15 minutes; `POST /auth/refresh` exchanges the `refresh_token` cookie for a new one (see [[auth-flow]]). The `/auth/*` endpoints need no access token.
