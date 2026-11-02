@@ -30,6 +30,11 @@ export const encounterApi = {
     return api.patch<Encounter>(`/encounters/${encounterId}/participants/${participantId}/name`, { displayName });
   },
 
+  /** Hides a monster from the Player View, or shows it again (D157). */
+  setVisibility(encounterId: string, participantId: string, visible: boolean) {
+    return api.patch<Encounter>(`/encounters/${encounterId}/participants/${participantId}/visibility`, { visible });
+  },
+
   setInitiatives(encounterId: string, data: BulkInitiativeRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/initiatives`, data);
   },

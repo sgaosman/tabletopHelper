@@ -5,6 +5,7 @@ import { getSpellTargeting } from '../../api/referenceApi';
 import type { SpellTargetingInfo } from '../../api/referenceApi';
 import type { EncounterParticipant } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
+import { healthLabel } from '../../utils/healthStatus';
 
 interface Props {
   encounterId: string;
@@ -219,7 +220,7 @@ function TargetStep({ spellName, targets, caster, selectedTargets, onToggle, onP
                 </div>
                 <div className="flex items-center gap-2 font-body text-[13px] text-faint">
                   <span>AC {p.armourClass}</span>
-                  <span>{p.hpCurrent}/{p.hpMax} HP</span>
+                  {healthLabel(p) && <span>{healthLabel(p)}</span>}
                 </div>
               </button>
             );

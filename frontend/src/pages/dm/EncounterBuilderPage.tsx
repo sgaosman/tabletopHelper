@@ -11,6 +11,7 @@ import type { Monster } from '../../types/monster';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
 import { Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Check } from 'lucide-react';
 import NavBar from '../../components/common/NavBar';
+import VisibilityToggle from '../../components/encounter/VisibilityToggle';
 import { getClassColour, getParticipantColour } from '../../utils/classColours';
 
 const STATUS_STYLES: Record<string, { text: string; bg: string; border: string }> = {
@@ -153,6 +154,13 @@ export default function EncounterBuilderPage() {
     const res = await encounterApi.renameParticipant(selectedEncounter.id, participantId, newName.trim());
     setSelectedEncounter(res.data);
     setEditingName(prev => { const next = { ...prev }; delete next[participantId]; return next; });
+    loadEncounters();
+  }
+
+  async function handleSetVisibility(participantId: string, visible: boolean) {
+    if (!selectedEncounter) return;
+    const res = await encounterApi.setVisibility(selectedEncounter.id, participantId, visible);
+    setSelectedEncounter(res.data);
     loadEncounters();
   }
 
@@ -489,15 +497,20 @@ export default function EncounterBuilderPage() {
                                       )}
                                     </td>
                                     <td className="px-4 py-3">
-                                      <span
-                                        className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 border"
-                                        style={isMonster
-                                          ? { color: 'var(--color-monster)', backgroundColor: 'var(--color-monster-bg)', borderColor: 'var(--color-debuff-border)' }
-                                          : { color: 'var(--color-cls-wizard)', backgroundColor: 'var(--color-cls-wizard-bg)', borderColor: 'var(--color-abj-border)' }
-                                        }
-                                      >
-                                        {p.participantType}
-                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 border"
+                                          style={isMonster
+                                            ? { color: 'var(--color-monster)', backgroundColor: 'var(--color-monster-bg)', borderColor: 'var(--color-debuff-border)' }
+                                            : { color: 'var(--color-cls-wizard)', backgroundColor: 'var(--color-cls-wizard-bg)', borderColor: 'var(--color-abj-border)' }
+                                          }
+                                        >
+                                          {p.participantType}
+                                        </span>
+                                        {isMonster && (
+                                          <VisibilityToggle participant={p} onToggle={visible => handleSetVisibility(p.id, visible)} />
+                                        )}
+                                      </div>
                                     </td>
                                     <td className="px-4 py-3 font-heading text-[14px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</td>
                                     <td className="px-4 py-3 font-heading text-[14px] font-semibold text-ink">{p.armourClass}</td>

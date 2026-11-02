@@ -2,6 +2,7 @@ package com.tabletophelper.campaign;
 
 import com.tabletophelper.campaign.dto.CampaignCreateRequest;
 import com.tabletophelper.campaign.dto.CampaignResponse;
+import com.tabletophelper.campaign.dto.CampaignSettingsRequest;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -95,6 +96,19 @@ public class CampaignService {
         return toResponse(campaign);
     }
 
+    // A live encounter's Player View picks up a change with its next update (D157)
+    @Transactional
+    public CampaignResponse updateSettings(UUID campaignId, CampaignSettingsRequest request, UUID userId) {
+        accessPolicy.requireDm(campaignId, userId);
+
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new NotFoundException("Campaign not found"));
+        if (request.showExactMonsterHp() != null) {
+            campaign.setShowExactMonsterHp(request.showExactMonsterHp());
+        }
+        return toResponse(campaignRepository.save(campaign));
+    }
+
     private CampaignResponse toResponse(Campaign campaign) {
         List<CampaignResponse.MemberResponse> memberResponses = campaign.getMembers().stream()
                 .map(m -> CampaignResponse.MemberResponse.builder()
@@ -114,6 +128,7 @@ public class CampaignService {
                 .dmDisplayName(campaign.getDm().getDisplayName())
                 .inviteCode(campaign.getInviteCode())
                 .isActive(campaign.getIsActive())
+                .showExactMonsterHp(campaign.getShowExactMonsterHp())
                 .members(memberResponses)
                 .createdAt(campaign.getCreatedAt())
                 .build();

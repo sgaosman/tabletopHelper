@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import type { SpellTargetingInfo } from '../../api/referenceApi';
 import type { AuthResponse } from '../../types/auth';
-import type { Campaign, CampaignMember } from '../../types/campaign';
+import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
 import type { CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
 import type { Encounter, EncounterParticipant, ParticipantType } from '../../types/encounter';
@@ -41,7 +41,7 @@ export const authHandlers = [
 ];
 
 // --- Shared data builders ---
-function makeCampaign(id: string, name: string, dmUserId = 'user-001', membersCount = 1): Campaign {
+export function makeCampaign(id: string, name: string, dmUserId = 'user-001', membersCount = 1): Campaign {
   const members: CampaignMember[] = [
     { userId: dmUserId, username: 'testuser', displayName: 'Test User', role: 'DM', joinedAt: makeTimestamp() },
   ];
@@ -50,7 +50,7 @@ function makeCampaign(id: string, name: string, dmUserId = 'user-001', membersCo
   }
   return {
     id, name, dmUserId, dmDisplayName: 'Test User',
-    inviteCode: 'ABC123XY', isActive: true, members, createdAt: makeTimestamp(),
+    inviteCode: 'ABC123XY', isActive: true, showExactMonsterHp: false, members, createdAt: makeTimestamp(),
   } satisfies Campaign;
 }
 
@@ -70,6 +70,11 @@ export const campaignHandlers = [
 
   http.post(`${BASE}/campaigns/join`, async () => {
     return HttpResponse.json(makeCampaign('camp-joined', 'Joined Campaign', 'dm-other', 2));
+  }),
+
+  http.patch(`${BASE}/campaigns/:id/settings`, async ({ params, request }) => {
+    const settings = await request.json() as CampaignSettingsRequest;
+    return HttpResponse.json({ ...makeCampaign(params.id as string, 'Test Campaign'), ...settings });
   }),
 ];
 
@@ -150,6 +155,10 @@ export const encounterHandlers = [
 
   http.patch(`${BASE}/encounters/:id/participants/:participantId/name`, async () => {
     return HttpResponse.json(makeMockEncounter({ status: 'PREPARING', sessionCode: undefined }));
+  }),
+
+  http.patch(`${BASE}/encounters/:id/participants/:participantId/visibility`, async () => {
+    return HttpResponse.json(makeMockEncounter());
   }),
 
   http.post(`${BASE}/encounters/:id/initiatives/roll`, async () => {

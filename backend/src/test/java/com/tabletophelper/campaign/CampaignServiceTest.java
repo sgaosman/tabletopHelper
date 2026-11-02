@@ -2,6 +2,7 @@ package com.tabletophelper.campaign;
 
 import com.tabletophelper.campaign.dto.CampaignCreateRequest;
 import com.tabletophelper.campaign.dto.CampaignResponse;
+import com.tabletophelper.campaign.dto.CampaignSettingsRequest;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
@@ -217,5 +218,63 @@ class CampaignServiceTest {
         assertEquals(2, responses.size());
         assertTrue(responses.stream().anyMatch(r -> r.getName().equals("Campaign 1")));
         assertTrue(responses.stream().anyMatch(r -> r.getName().equals("Campaign 2")));
+    }
+
+    // ── Settings (D157) ──────────────────────────────────────────
+
+    private Campaign savedCampaign() {
+        Campaign campaign = Campaign.builder()
+                .id(UUID.randomUUID())
+                .name("Test Campaign")
+                .dm(dmUser)
+                .inviteCode("ABC12345")
+                .members(new ArrayList<>())
+                .build();
+        lenient().when(campaignRepository.findById(campaign.getId())).thenReturn(Optional.of(campaign));
+        lenient().when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        return campaign;
+    }
+
+    @Test
+    @DisplayName("A new campaign hides exact monster HP from players")
+    void newCampaign_hidesExactMonsterHp() {
+        assertFalse(savedCampaign().getShowExactMonsterHp());
+    }
+
+    @Test
+    @DisplayName("The DM can turn on showing exact monster HP")
+    void updateSettings_dmTurnsOnExactMonsterHp() {
+        Campaign campaign = savedCampaign();
+
+        CampaignResponse response = campaignService.updateSettings(campaign.getId(),
+                new CampaignSettingsRequest(true), dmUserId);
+
+        assertTrue(response.getShowExactMonsterHp());
+        assertTrue(campaign.getShowExactMonsterHp());
+    }
+
+    @Test
+    @DisplayName("A setting left out of the request keeps its value")
+    void updateSettings_missingSettingIsKept() {
+        Campaign campaign = savedCampaign();
+        campaign.setShowExactMonsterHp(true);
+
+        CampaignResponse response = campaignService.updateSettings(campaign.getId(),
+                new CampaignSettingsRequest(null), dmUserId);
+
+        assertTrue(response.getShowExactMonsterHp());
+    }
+
+    @Test
+    @DisplayName("Only the DM can change campaign settings")
+    void updateSettings_refusesPlayer() {
+        Campaign campaign = savedCampaign();
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                campaignService.updateSettings(campaign.getId(), new CampaignSettingsRequest(true), playerUserId));
+
+        assertEquals("Only the DM can perform this action", ex.getMessage());
+        assertFalse(campaign.getShowExactMonsterHp());
+        verify(campaignRepository, never()).save(any());
     }
 }

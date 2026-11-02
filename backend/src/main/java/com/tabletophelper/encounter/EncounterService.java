@@ -222,6 +222,25 @@ public class EncounterService {
         return toResponse(encounterRepository.save(encounter));
     }
 
+    // Hides a monster from the Player View or shows it again, in any status (D157)
+    @Transactional
+    public EncounterResponse setParticipantVisibility(UUID encounterId, UUID participantId, boolean visible,
+                                                      UUID userId) {
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+
+        EncounterParticipant participant = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Participant not found"));
+        if (participant.getParticipantType() != ParticipantType.MONSTER) {
+            throw new ValidationException("Only monsters can be hidden from players");
+        }
+        participant.setIsVisibleToPlayers(visible);
+
+        return toResponse(encounterRepository.save(encounter));
+    }
+
     @Transactional
     public EncounterResponse removeParticipant(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
@@ -423,10 +442,11 @@ public class EncounterService {
                         .build())
                 .toList();
 
+        Campaign campaign = encounter.getCampaign();
         return EncounterResponse.builder()
                 .id(encounter.getId())
-                .campaignId(encounter.getCampaign().getId())
-                .campaignName(encounter.getCampaign().getName())
+                .campaignId(campaign.getId())
+                .campaignName(campaign.getName())
                 .name(encounter.getName())
                 .description(encounter.getDescription())
                 .status(encounter.getStatus().name())
@@ -435,6 +455,8 @@ public class EncounterService {
                 .sessionCode(encounter.getSessionCode())
                 .participants(participantResponses)
                 .createdAt(encounter.getCreatedAt())
+                .dmUserId(campaign.getDm().getId())
+                .showExactMonsterHp(Boolean.TRUE.equals(campaign.getShowExactMonsterHp()))
                 .build();
     }
 

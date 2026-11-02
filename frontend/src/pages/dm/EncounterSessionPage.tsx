@@ -7,6 +7,7 @@ import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../typ
 import type { CombatLogEntry } from '../../types/combat';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
+import VisibilityToggle from '../../components/encounter/VisibilityToggle';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import { getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
@@ -30,8 +31,9 @@ const DAMAGE_TYPES = [
 type ActionMode = 'attack' | 'damage' | 'heal' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
 
 function HpBar({ participant }: { participant: EncounterParticipant }) {
-  const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
-  const tempPct = participant.hpMax > 0 ? ((participant.hpTemp || 0) / participant.hpMax) * 100 : 0;
+  const hpMax = participant.hpMax ?? 0;
+  const pct = hpMax > 0 ? ((participant.hpCurrent ?? 0) / hpMax) * 100 : 0;
+  const tempPct = hpMax > 0 ? ((participant.hpTemp || 0) / hpMax) * 100 : 0;
 
   let barColor = 'bg-buff';
   if (pct <= 25) barColor = 'bg-debuff';
@@ -927,6 +929,12 @@ function DmSessionView() {
     refreshEncounter();
   }
 
+  async function handleSetVisibility(participantId: string, visible: boolean) {
+    if (!encounter) return;
+    await encounterApi.setVisibility(encounter.id, participantId, visible);
+    refreshEncounter();
+  }
+
   function selectTarget(participantId: string, mode: ActionMode) {
     setSelectedTargetId(participantId);
     setActionMode(mode);
@@ -1059,6 +1067,7 @@ function DmSessionView() {
             const conditions = parseConditions(p);
             const isSelected = p.id === selectedTargetId;
             const isMonster = p.participantType === 'MONSTER';
+            const hpRatio = p.hpCurrent != null && p.hpMax ? p.hpCurrent / p.hpMax : 0;
 
             return (
               <Fragment key={p.id}>
@@ -1093,6 +1102,9 @@ function DmSessionView() {
                       >
                         {p.participantType}
                       </span>
+                      {isMonster && (
+                        <VisibilityToggle participant={p} onToggle={visible => handleSetVisibility(p.id, visible)} />
+                      )}
                       {!p.isAlive && <Skull className="w-4 h-4 text-debuff" />}
                     </div>
 
@@ -1164,7 +1176,7 @@ function DmSessionView() {
                   {/* HP bar + values */}
                   <div className="w-36 flex-shrink-0">
                     <div className="flex items-center justify-end gap-1.5 mb-1">
-                      <Heart className={`w-3.5 h-3.5 ${p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.5 ? 'text-buff' : p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.25 ? 'text-cls-monk' : 'text-debuff'}`} />
+                      <Heart className={`w-3.5 h-3.5 ${hpRatio > 0.5 ? 'text-buff' : hpRatio > 0.25 ? 'text-cls-monk' : 'text-debuff'}`} />
                       <span className="font-heading text-[13px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</span>
                       {(p.hpTemp || 0) > 0 && <span className="text-cls-wizard font-heading text-[13px] font-semibold">+{p.hpTemp}</span>}
                     </div>
@@ -1276,7 +1288,7 @@ export default function EncounterSessionPage() {
   if (!encounterId) return null;
 
   return (
-    <EncounterProvider encounterId={encounterId}>
+    <EncounterProvider encounterId={encounterId} view="dm">
       <DmSessionView />
     </EncounterProvider>
   );

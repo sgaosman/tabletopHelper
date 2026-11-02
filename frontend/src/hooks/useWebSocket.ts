@@ -3,16 +3,18 @@ import axios from 'axios';
 import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { refreshAccessToken } from '../api/tokenStore';
-import type { Encounter } from '../types/encounter';
+import type { Encounter, EncounterView } from '../types/encounter';
 
 interface UseWebSocketOptions {
   encounterId: string;
+  /** The DM View is published on dm-state, the Player View on state; the server lets only the DM subscribe to dm-state (D157). */
+  view?: EncounterView;
   onStateUpdate?: (state: Encounter) => void;
   onError?: (error: string) => void;
   enabled?: boolean;
 }
 
-export function useWebSocket({ encounterId, onStateUpdate, onError, enabled = true }: UseWebSocketOptions) {
+export function useWebSocket({ encounterId, view = 'player', onStateUpdate, onError, enabled = true }: UseWebSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const clientRef = useRef<Client | null>(null);
 
@@ -53,7 +55,7 @@ export function useWebSocket({ encounterId, onStateUpdate, onError, enabled = tr
       onConnect: () => {
         setIsConnected(true);
 
-        client.subscribe(`/topic/encounter/${encounterId}/state`, (message: IMessage) => {
+        client.subscribe(`/topic/encounter/${encounterId}/${view === 'dm' ? 'dm-state' : 'state'}`, (message: IMessage) => {
           const state: Encounter = JSON.parse(message.body);
           onStateUpdate?.(state);
         });
@@ -86,7 +88,7 @@ export function useWebSocket({ encounterId, onStateUpdate, onError, enabled = tr
       clientRef.current = null;
       setIsConnected(false);
     };
-  }, [encounterId, enabled]);
+  }, [encounterId, view, enabled]);
 
   return { isConnected, sendMessage };
 }

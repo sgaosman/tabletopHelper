@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Copy, Check, Users, ScrollText } from 'lucide-react';
+import { Copy, Check, Users, ScrollText, Settings } from 'lucide-react';
 import { campaignApi } from '../../api/campaignApi';
 import { characterApi } from '../../api/characterApi';
 import type { Campaign } from '../../types/campaign';
@@ -14,6 +14,8 @@ export default function CampaignDetailPage() {
   const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
   const fetchData = useCallback(() => {
     if (!campaignId) return;
     Promise.all([
@@ -36,6 +38,22 @@ export default function CampaignDetailPage() {
     navigator.clipboard.writeText(campaign.inviteCode);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  }
+
+  async function handleShowExactMonsterHp(showExactMonsterHp: boolean) {
+    if (!campaign) return;
+    setSavingSettings(true);
+    try {
+      const res = await campaignApi.updateSettings(campaign.id, { showExactMonsterHp });
+      setCampaign(res.data);
+      setSettingsError('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })
+        ?.response?.data?.error || 'Could not save the setting';
+      setSettingsError(msg);
+    } finally {
+      setSavingSettings(false);
+    }
   }
 
   function modifierString(score: number) {
@@ -63,6 +81,28 @@ export default function CampaignDetailPage() {
             </button>
           </div>
         </div>
+
+        <section className="mb-8">
+          <h2 className="font-heading text-[13px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
+            <Settings className="w-3.5 h-3.5" /> Encounter Settings
+          </h2>
+          <label className="bg-card border border-rule p-3 flex items-start gap-3 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={campaign.showExactMonsterHp}
+              onChange={e => handleShowExactMonsterHp(e.target.checked)}
+              disabled={savingSettings}
+              className="mt-1 accent-ink"
+            />
+            <span>
+              <span className="block font-heading text-[15px] font-bold text-ink">Show exact monster HP</span>
+              <span className="block font-body text-[13px] font-semibold text-faint">
+                Players see monster HP as numbers. When off, they see Unharmed, Injured, Bloodied or Down.
+              </span>
+            </span>
+          </label>
+          {settingsError && <p role="alert" className="font-body text-[13px] font-semibold text-debuff mt-2">{settingsError}</p>}
+        </section>
 
         <section className="mb-8">
           <h2 className="font-heading text-[13px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">

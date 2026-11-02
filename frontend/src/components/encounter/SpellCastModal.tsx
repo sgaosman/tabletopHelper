@@ -5,6 +5,7 @@ import { getSpellTargeting } from '../../api/referenceApi';
 import type { SpellTargetingInfo } from '../../api/referenceApi';
 import type { EncounterParticipant, SpellSlots } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
+import { healthLabel } from '../../utils/healthStatus';
 
 interface SpellEntry {
   name: string;
@@ -464,7 +465,7 @@ function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle
                 </div>
                 <div className="flex items-center gap-2 font-body text-[13px] font-semibold text-faint">
                   <span>AC {p.armourClass}</span>
-                  <span>{p.hpCurrent}/{p.hpMax} HP</span>
+                  {healthLabel(p) && <span>{healthLabel(p)}</span>}
                 </div>
               </button>
             );

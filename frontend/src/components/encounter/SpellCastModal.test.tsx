@@ -179,6 +179,21 @@ describe('SpellCastModal', () => {
     expect(screen.getByRole('button', { name: /Test Goblin/ })).toBeEnabled();
   });
 
+  it('labels each target with exact HP, or the Health Status the Player View sends instead', async () => {
+    targeting();
+    const hiddenHpOrc = makeMockParticipant('part-orc', 'Orc', 'MONSTER', {
+      hpMax: null, hpCurrent: null, hpTemp: null, healthStatus: 'BLOODIED', armourClass: 13,
+    });
+    const { user } = renderModal({ participants: [wizard, goblin, hiddenHpOrc, legolas] });
+
+    await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
+
+    expect(await screen.findByRole('button', { name: /Test Goblin/ })).toHaveTextContent('7/7 HP');
+    expect(screen.getByRole('button', { name: /Orc/ })).toHaveTextContent('AC 13Bloodied');
+    expect(screen.getByRole('button', { name: /Orc/ })).not.toHaveTextContent('HP');
+    expect(screen.getByRole('button', { name: /Legolas/ })).toHaveTextContent('25/25 HP');
+  });
+
   it('offers only the caster for a self-only spell', async () => {
     targeting({ selfOnly: true });
     const { user } = renderModal();

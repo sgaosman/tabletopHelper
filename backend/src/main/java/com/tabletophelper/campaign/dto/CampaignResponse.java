@@ -18,6 +18,7 @@ public class CampaignResponse {
     private String dmDisplayName;
     private String inviteCode;
     private Boolean isActive;
+    private Boolean showExactMonsterHp;
     private List<MemberResponse> members;
     private Instant createdAt;
 

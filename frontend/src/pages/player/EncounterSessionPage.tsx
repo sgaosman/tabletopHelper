@@ -8,6 +8,7 @@ import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import { getParticipantColour } from '../../utils/classColours';
+import { healthLabel } from '../../utils/healthStatus';
 import {
   ArrowLeft, Wifi, WifiOff, Heart, Shield, Skull, Copy,
   ChevronRight, ChevronLeft, ScrollText, Sparkles, Crosshair, Zap, Swords, X, Plus, RotateCw
@@ -30,8 +31,9 @@ type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat
 const CONDITION_BADGE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff';
 
 function HpBar({ participant }: { participant: EncounterParticipant }) {
-  const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
-  const tempPct = participant.hpMax > 0 ? ((participant.hpTemp || 0) / participant.hpMax) * 100 : 0;
+  const hpMax = participant.hpMax ?? 0;
+  const pct = hpMax > 0 ? ((participant.hpCurrent ?? 0) / hpMax) * 100 : 0;
+  const tempPct = hpMax > 0 ? ((participant.hpTemp || 0) / hpMax) * 100 : 0;
 
   let barColor = 'bg-buff';
   if (pct <= 25) barColor = 'bg-debuff';
@@ -486,8 +488,8 @@ function PlayerSessionView() {
     }
   }
 
+  // The Player View already leaves out participants the DM has hidden (D157)
   const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
-  const visibleParticipants = sorted.filter(p => p.isVisibleToPlayers || p.controlledByUserId === user?.userId);
   const isMyTurn = encounter.participants.some(p => p.isCurrentTurn && p.controlledByUserId === user?.userId);
   const myCharacter = encounter.participants.find(p => p.controlledByUserId === user?.userId);
 
@@ -622,11 +624,13 @@ function PlayerSessionView() {
 
         {/* Initiative list */}
         <div className="space-y-2 mb-4">
-          {visibleParticipants.map((p: EncounterParticipant) => {
+          {sorted.map((p: EncounterParticipant) => {
             const isOwn = p.controlledByUserId === user?.userId;
             const conditions = parseConditions(p);
             const isMonster = p.participantType === 'MONSTER';
             const participantColour = getParticipantColour(isMonster, (p as any).className);
+            const hpRatio = p.hpCurrent != null && p.hpMax ? p.hpCurrent / p.hpMax : 0;
+            const monsterHealth = isMonster ? healthLabel(p) : null;
 
             return (
               <div
@@ -689,7 +693,7 @@ function PlayerSessionView() {
                     <>
                       <div className="w-28 flex-shrink-0">
                         <div className="flex items-center justify-end gap-1.5 mb-1">
-                          <Heart className={`w-3.5 h-3.5 ${p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.5 ? 'text-buff' : p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.25 ? 'text-cls-monk' : 'text-debuff'}`} />
+                          <Heart className={`w-3.5 h-3.5 ${hpRatio > 0.5 ? 'text-buff' : hpRatio > 0.25 ? 'text-cls-monk' : 'text-debuff'}`} />
                           <span className="font-heading text-[13px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</span>
                           {(p.hpTemp || 0) > 0 && <span className="text-cls-wizard font-heading text-[13px] font-semibold">+{p.hpTemp}</span>}
                         </div>
@@ -703,6 +707,9 @@ function PlayerSessionView() {
                   ) : (
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-faint font-body text-[15px] font-semibold">{p.participantType === 'MONSTER' ? 'Monster' : 'Player'}</span>
+                      {monsterHealth && (
+                        <span className="font-heading text-[13px] font-semibold text-muted">{monsterHealth}</span>
+                      )}
                       {isMyTurn && p.isAlive && !isOwn && (
                         <button onClick={() => selectAttackTarget(p.id)}
                           className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter" title="Attack">

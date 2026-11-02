@@ -3,6 +3,7 @@ package com.tabletophelper.campaign;
 import com.tabletophelper.campaign.dto.CampaignCreateRequest;
 import com.tabletophelper.campaign.dto.CampaignJoinRequest;
 import com.tabletophelper.campaign.dto.CampaignResponse;
+import com.tabletophelper.campaign.dto.CampaignSettingsRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -49,5 +50,14 @@ public class CampaignController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         return ResponseEntity.ok(campaignService.getCampaign(campaignId, userId));
+    }
+
+    @PatchMapping("/{campaignId}/settings")
+    public ResponseEntity<CampaignResponse> updateSettings(
+            @PathVariable UUID campaignId,
+            @RequestBody CampaignSettingsRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(campaignService.updateSettings(campaignId, request, userId));
     }
 }

@@ -1,7 +1,7 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, type ReactNode } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { encounterApi } from '../api/encounterApi';
-import type { Encounter } from '../types/encounter';
+import type { Encounter, EncounterView } from '../types/encounter';
 
 interface EncounterState {
   encounter: Encounter | null;
@@ -43,7 +43,8 @@ interface EncounterContextType extends EncounterState {
 
 const EncounterContext = createContext<EncounterContextType | null>(null);
 
-export function EncounterProvider({ encounterId, children }: { encounterId: string; children: ReactNode }) {
+/** `view` picks the WebSocket topic: the DM page asks for the DM View, every other page gets the Player View (D157). */
+export function EncounterProvider({ encounterId, view = 'player', children }: { encounterId: string; view?: EncounterView; children: ReactNode }) {
   const [state, dispatch] = useReducer(encounterReducer, initialState);
 
   const handleStateUpdate = useCallback((encounter: Encounter) => {
@@ -56,6 +57,7 @@ export function EncounterProvider({ encounterId, children }: { encounterId: stri
 
   const { isConnected, sendMessage } = useWebSocket({
     encounterId,
+    view,
     onStateUpdate: handleStateUpdate,
     onError: handleError,
     enabled: true,

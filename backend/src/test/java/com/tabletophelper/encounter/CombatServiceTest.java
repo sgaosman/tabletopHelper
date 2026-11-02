@@ -1177,6 +1177,42 @@ class CombatServiceTest {
     }
 
     @Test
+    @DisplayName("A player's combat log leaves out entries about hidden monsters; the DM's keeps them (D157)")
+    void combatLogLeavesOutHiddenMonstersForPlayers() {
+        UUID playerUserId = UUID.randomUUID();
+        EncounterParticipant rogue = addPlayerControlledBy("Rogue", playerUserId);
+        EncounterParticipant goblin = addMonster("Goblin", 7, 15);
+        EncounterParticipant bugbear = addMonster("Bugbear", 27, 16);
+        bugbear.setIsVisibleToPlayers(false);
+        UUID campaignId = encounter.getCampaign().getId();
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUserId)).thenReturn(true);
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, dmUserId)).thenReturn(true);
+        when(combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId)).thenReturn(List.of(
+                logEntry("Rogue hits Goblin", rogue, goblin),
+                logEntry("Bugbear hits Rogue", bugbear, rogue)));
+
+        var playerLog = combatService.getCombatLog(encounterId, playerUserId);
+        var dmLog = combatService.getCombatLog(encounterId, dmUserId);
+
+        assertEquals(List.of("Rogue hits Goblin"), playerLog.stream().map(CombatLogResponse::getDescription).toList());
+        assertEquals(2, dmLog.size());
+    }
+
+    private CombatLog logEntry(String description, EncounterParticipant actor, EncounterParticipant target) {
+        return CombatLog.builder()
+                .id(UUID.randomUUID())
+                .encounter(encounter)
+                .roundNumber(1)
+                .actorId(actor.getId())
+                .actorName(actor.getDisplayName())
+                .targetId(target.getId())
+                .targetName(target.getDisplayName())
+                .actionType(CombatActionType.ATTACK)
+                .description(description)
+                .build();
+    }
+
+    @Test
     @DisplayName("Only the DM can advance the turn")
     void playerCannotAdvanceTurn() {
         UUID playerUserId = UUID.randomUUID();

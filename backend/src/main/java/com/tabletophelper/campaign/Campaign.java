@@ -41,6 +41,11 @@ public class Campaign {
     @Builder.Default
     private Boolean isActive = true;
 
+    // Off: players see monster HP as a Health Status in the Player View (D157)
+    @Column(name = "show_exact_monster_hp", nullable = false)
+    @Builder.Default
+    private Boolean showExactMonsterHp = false;
+
     @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CampaignMember> members = new ArrayList<>();

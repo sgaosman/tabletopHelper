@@ -3,33 +3,34 @@ package com.tabletophelper.encounter;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.shared.ValidationException;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+// Every encounter state returned here is the caller's view: the DM View for the DM, the Player View for anyone else (D157)
 @RestController
 @RequestMapping("/api/encounters")
 @RequiredArgsConstructor
 public class EncounterController {
 
     private final EncounterService encounterService;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final EncounterBroadcaster broadcaster;
 
     @PostMapping
     public ResponseEntity<EncounterResponse> createEncounter(
             @Valid @RequestBody EncounterCreateRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = encounterService.createEncounter(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(encounterService.createEncounter(request, userId));
+                .body(EncounterViews.forUser(response, userId));
     }
 
     @GetMapping("/campaign/{campaignId}")
@@ -37,7 +38,9 @@ public class EncounterController {
             @PathVariable UUID campaignId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(encounterService.getEncountersByCampaign(campaignId, userId));
+        return ResponseEntity.ok(encounterService.getEncountersByCampaign(campaignId, userId).stream()
+                .map(encounter -> EncounterViews.forUser(encounter, userId))
+                .toList());
     }
 
     @GetMapping("/{encounterId}")
@@ -45,7 +48,8 @@ public class EncounterController {
             @PathVariable UUID encounterId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(encounterService.getEncounter(encounterId, userId));
+        EncounterResponse response = encounterService.getEncounter(encounterId, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @DeleteMapping("/{encounterId}")
@@ -64,8 +68,8 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.addParticipant(encounterId, request, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @PatchMapping("/{encounterId}/participants/{participantId}/name")
@@ -80,8 +84,21 @@ public class EncounterController {
             throw new ValidationException("displayName is required");
         }
         EncounterResponse response = encounterService.renameParticipant(encounterId, participantId, newName, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    @PatchMapping("/{encounterId}/participants/{participantId}/visibility")
+    public ResponseEntity<EncounterResponse> setParticipantVisibility(
+            @PathVariable UUID encounterId,
+            @PathVariable UUID participantId,
+            @Valid @RequestBody VisibilityRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = encounterService.setParticipantVisibility(
+                encounterId, participantId, request.visible(), userId);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @DeleteMapping("/{encounterId}/participants/{participantId}")
@@ -91,8 +108,8 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.removeParticipant(encounterId, participantId, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @PostMapping("/{encounterId}/initiatives")
@@ -102,8 +119,8 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.setInitiatives(encounterId, request, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @PostMapping("/{encounterId}/initiatives/roll")
@@ -112,8 +129,8 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.rollAllInitiatives(encounterId, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @PostMapping("/{encounterId}/start")
@@ -122,8 +139,8 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.startEncounter(encounterId, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @PostMapping("/{encounterId}/pause")
@@ -132,8 +149,8 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.pauseEncounter(encounterId, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @PostMapping("/{encounterId}/resume")
@@ -142,8 +159,8 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.resumeEncounter(encounterId, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
     @PostMapping("/{encounterId}/end")
@@ -152,10 +169,11 @@ public class EncounterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = encounterService.endEncounter(encounterId, userId);
-        broadcastState(response);
-        return ResponseEntity.ok(response);
+        broadcaster.publish(response);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // DM only: action templates are part of the DM View (D157)
     @GetMapping("/{encounterId}/participants/{participantId}/actions")
     public ResponseEntity<Map<String, Object>> getMonsterActions(
             @PathVariable UUID encounterId,
@@ -170,11 +188,9 @@ public class EncounterController {
             @PathVariable String sessionCode,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(encounterService.getEncounterBySessionCode(sessionCode, userId));
+        EncounterResponse response = encounterService.getEncounterBySessionCode(sessionCode, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
-    private void broadcastState(EncounterResponse response) {
-        messagingTemplate.convertAndSend(
-                "/topic/encounter/" + response.getId() + "/state", response);
-    }
+    public record VisibilityRequest(@NotNull Boolean visible) {}
 }

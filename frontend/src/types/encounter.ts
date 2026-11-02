@@ -17,6 +17,12 @@ export type SpellSlots = Record<string, SpellSlotLevel>;
 export type EncounterStatus = 'PREPARING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 export type ParticipantType = 'PLAYER' | 'MONSTER' | 'COMPANION';
 
+/** Which view of a live encounter a page receives: the DM View or the Player View (D157). */
+export type EncounterView = 'dm' | 'player';
+
+/** How a monster's HP reads to players while the DM hides exact numbers (D157). */
+export type HealthStatus = 'UNHARMED' | 'INJURED' | 'BLOODIED' | 'DOWN';
+
 export interface EncounterParticipant {
   id: string;
   participantType: ParticipantType;
@@ -26,9 +32,11 @@ export interface EncounterParticipant {
   initiative?: number;
   initiativeModifier?: number;
   sortOrder?: number;
-  hpMax: number;
-  hpCurrent: number;
-  hpTemp: number;
+  /** HP is null for a monster in the Player View unless the DM shows exact monster HP; healthStatus is set instead. */
+  hpMax: number | null;
+  hpCurrent: number | null;
+  hpTemp: number | null;
+  healthStatus?: HealthStatus | null;
   armourClass: number;
   activeConditions?: string;
   concentrationSpell?: string;

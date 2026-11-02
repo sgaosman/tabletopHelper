@@ -13,6 +13,7 @@ import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
+import com.tabletophelper.shared.ValidationException;
 import com.tabletophelper.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -616,5 +617,95 @@ class EncounterServiceTest {
                 () -> encounterService.getEncounter(encounterId, dmUserId));
 
         assertEquals("Encounter not found", ex.getMessage());
+    }
+
+    // ── Hiding participants and choosing a view (D157) ──────────
+
+    private Encounter activeEncounterWith(EncounterParticipant... participants) {
+        Encounter encounter = Encounter.builder()
+                .id(UUID.randomUUID())
+                .campaign(campaign)
+                .name("Test Encounter")
+                .status(EncounterStatus.ACTIVE)
+                .participants(new ArrayList<>(List.of(participants)))
+                .build();
+        lenient().when(encounterRepository.findById(encounter.getId())).thenReturn(Optional.of(encounter));
+        lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        return encounter;
+    }
+
+    private static EncounterParticipant participant(String name, ParticipantType type) {
+        return EncounterParticipant.builder()
+                .id(UUID.randomUUID())
+                .participantType(type)
+                .displayName(name)
+                .hpMax(10)
+                .hpCurrent(10)
+                .build();
+    }
+
+    @Test
+    @DisplayName("The DM can hide a monster from players and show it again")
+    void setParticipantVisibility_dmHidesAndShowsMonster() {
+        EncounterParticipant bugbear = participant("Bugbear", ParticipantType.MONSTER);
+        Encounter encounter = activeEncounterWith(bugbear);
+
+        EncounterResponse hidden = encounterService.setParticipantVisibility(encounter.getId(), bugbear.getId(), false, dmUserId);
+        assertFalse(bugbear.getIsVisibleToPlayers());
+        assertFalse(hidden.getParticipants().get(0).getIsVisibleToPlayers());
+
+        encounterService.setParticipantVisibility(encounter.getId(), bugbear.getId(), true, dmUserId);
+        assertTrue(bugbear.getIsVisibleToPlayers());
+    }
+
+    @Test
+    @DisplayName("A player character cannot be hidden")
+    void setParticipantVisibility_refusesPlayerCharacter() {
+        EncounterParticipant gimli = participant("Gimli", ParticipantType.PLAYER);
+        Encounter encounter = activeEncounterWith(gimli);
+
+        ValidationException ex = assertThrows(ValidationException.class,
+                () -> encounterService.setParticipantVisibility(encounter.getId(), gimli.getId(), false, dmUserId));
+
+        assertEquals("Only monsters can be hidden from players", ex.getMessage());
+        assertTrue(gimli.getIsVisibleToPlayers());
+        verify(encounterRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Only the DM can hide a participant")
+    void setParticipantVisibility_refusesPlayer() {
+        EncounterParticipant bugbear = participant("Bugbear", ParticipantType.MONSTER);
+        Encounter encounter = activeEncounterWith(bugbear);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> encounterService.setParticipantVisibility(encounter.getId(), bugbear.getId(), false, UUID.randomUUID()));
+
+        assertEquals("Only the DM can perform this action", ex.getMessage());
+        assertTrue(bugbear.getIsVisibleToPlayers());
+    }
+
+    @Test
+    @DisplayName("Hiding an unknown participant is a NotFoundException")
+    void setParticipantVisibility_unknownParticipantIsNotFound() {
+        Encounter encounter = activeEncounterWith(participant("Bugbear", ParticipantType.MONSTER));
+
+        NotFoundException ex = assertThrows(NotFoundException.class,
+                () -> encounterService.setParticipantVisibility(encounter.getId(), UUID.randomUUID(), false, dmUserId));
+
+        assertEquals("Participant not found", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("The response carries the campaign's DM and HP setting, which choose the view")
+    void toResponse_carriesTheViewContext() {
+        campaign.setShowExactMonsterHp(true);
+        Encounter encounter = activeEncounterWith(participant("Bugbear", ParticipantType.MONSTER));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, dmUserId)).thenReturn(true);
+
+        EncounterResponse response = encounterService.getEncounter(encounter.getId(), dmUserId);
+
+        assertEquals(dmUserId, response.getDmUserId());
+        assertTrue(response.isShowExactMonsterHp());
     }
 }

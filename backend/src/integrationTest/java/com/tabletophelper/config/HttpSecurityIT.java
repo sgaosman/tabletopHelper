@@ -24,8 +24,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Status codes through the full stack, as the code returns them today. R3 changes the cases marked
- * {@code R3 (D15x)}, and R3 isn't done while any marker remains.
+ * Status codes through the full stack: the access policy and error mapping (D155) and token types
+ * (D156). The encounter views and their DM-only controls are in {@code PlayerViewIT} (D157).
  */
 class HttpSecurityIT extends IntegrationTest {
 

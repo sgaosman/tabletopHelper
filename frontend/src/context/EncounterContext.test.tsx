@@ -9,6 +9,7 @@ import { setupAuthToken, TEST_SESSION } from '../test/test-utils';
 import { EncounterProvider, useEncounter } from './EncounterContext';
 
 const STATE_TOPIC = '/topic/encounter/enc-001/state';
+const DM_STATE_TOPIC = '/topic/encounter/enc-001/dm-state';
 const ERROR_QUEUE = '/user/queue/encounter/errors';
 
 /** Answers each refresh with a new access token, socket-token-1, socket-token-2, and so on. */
@@ -82,6 +83,24 @@ describe('EncounterContext', () => {
     expect(client.connected).toBe(true);
     expect(client.isSubscribed(STATE_TOPIC)).toBe(true);
     expect(screen.getByText('Connected')).toBeInTheDocument();
+  });
+
+  it('subscribes to the DM View instead of the Player View when asked for it', async () => {
+    setupAuthToken();
+    render(
+      <EncounterProvider encounterId="enc-001" view="dm">
+        <EncounterProbe />
+      </EncounterProvider>,
+    );
+    await screen.findByText('Goblin Ambush, round 1');
+    await screen.findByText('Connected');
+    const client = MockStompClient.latest();
+
+    expect(client.isSubscribed(DM_STATE_TOPIC)).toBe(true);
+    expect(client.isSubscribed(STATE_TOPIC)).toBe(false);
+    expect(client.isSubscribed(ERROR_QUEUE)).toBe(true);
+    act(() => client.emit(DM_STATE_TOPIC, makeMockEncounter({ roundNumber: 4 })));
+    expect(screen.getByText('Goblin Ambush, round 4')).toBeInTheDocument();
   });
 
   it('replaces the encounter with each state message', async () => {

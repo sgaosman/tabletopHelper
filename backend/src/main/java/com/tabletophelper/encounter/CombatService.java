@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -737,7 +738,13 @@ public class CombatService {
             boolean legendaryResistanceAvailable,
             int legendaryResistanceRemaining,
             EncounterResponse encounterState
-    ) {}
+    ) {
+        public MonsterActionResponse withEncounterState(EncounterResponse state) {
+            return new MonsterActionResponse(resolved, description, totalDamage, totalHealing, targetResults,
+                    requiresManualResolution, manualResolutionReason, conditionsInflicted,
+                    legendaryResistanceAvailable, legendaryResistanceRemaining, state);
+        }
+    }
 
     public record TargetResult(
             UUID targetId,
@@ -1181,7 +1188,7 @@ public class CombatService {
         Encounter encounter = loadEncounter(encounterId);
         accessPolicy.requireMember(campaignId(encounter), userId);
 
-        return combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId).stream()
+        List<CombatLogResponse> entries = combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId).stream()
                 .map(log -> CombatLogResponse.builder()
                         .id(log.getId())
                         .roundNumber(log.getRoundNumber())
@@ -1204,6 +1211,15 @@ public class CombatService {
                         .createdAt(log.getCreatedAt())
                         .build())
                 .toList();
+
+        // The DM reads the whole log; players read it as the Player View allows (D157)
+        if (userId.equals(encounter.getCampaign().getDm().getId())) {
+            return entries;
+        }
+        Map<UUID, String> hiddenParticipants = encounter.getParticipants().stream()
+                .filter(p -> Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
+                .collect(Collectors.toMap(EncounterParticipant::getId, EncounterParticipant::getDisplayName));
+        return EncounterViews.playerLog(entries, hiddenParticipants);
     }
 
     private record DamageResult(int actualDamage, boolean droppedToZero) {}

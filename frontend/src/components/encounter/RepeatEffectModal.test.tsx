@@ -112,6 +112,18 @@ describe('RepeatEffectModal', () => {
     expect(screen.getByText('— Select target(s)')).toBeInTheDocument();
   });
 
+  it('labels each target with exact HP, or the Health Status the Player View sends instead', async () => {
+    targeting();
+    const hiddenHpOrc = makeMockParticipant('part-orc', 'Orc', 'MONSTER', {
+      hpMax: null, hpCurrent: null, hpTemp: null, healthStatus: 'INJURED', armourClass: 13,
+    });
+    renderModal({ participants: [cleric, goblin, hiddenHpOrc] });
+
+    expect(await screen.findByRole('button', { name: /Test Goblin/ })).toHaveTextContent('7/7 HP');
+    expect(screen.getByRole('button', { name: /Orc/ })).toHaveTextContent('AC 13Injured');
+    expect(screen.getByRole('button', { name: /Orc/ })).not.toHaveTextContent('HP');
+  });
+
   it('stops adding targets once the spell limit is reached', async () => {
     targeting({ maxTargets: 1 });
     const { user } = renderModal();

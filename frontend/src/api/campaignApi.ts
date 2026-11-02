@@ -1,5 +1,5 @@
 import api from './axiosConfig';
-import type { Campaign, CampaignCreateRequest, CampaignJoinRequest } from '../types/campaign';
+import type { Campaign, CampaignCreateRequest, CampaignJoinRequest, CampaignSettingsRequest } from '../types/campaign';
 
 export const campaignApi = {
   create(data: CampaignCreateRequest) {
@@ -16,5 +16,9 @@ export const campaignApi = {
 
   getById(id: string) {
     return api.get<Campaign>(`/campaigns/${id}`);
+  },
+
+  updateSettings(id: string, data: CampaignSettingsRequest) {
+    return api.patch<Campaign>(`/campaigns/${id}/settings`, data);
   },
 };

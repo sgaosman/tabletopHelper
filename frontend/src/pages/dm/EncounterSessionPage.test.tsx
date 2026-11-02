@@ -11,6 +11,7 @@ import type { EncounterParticipant } from '../../types/encounter';
 import EncounterSessionPage from './EncounterSessionPage';
 
 const NAMES = /^(Test Goblin|Gimli|Hidden Bugbear)$/;
+const DM_STATE_TOPIC = '/topic/encounter/enc-001/dm-state';
 
 const goblin = (overrides: Partial<EncounterParticipant> = {}) =>
   makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { sortOrder: 1, initiative: 17, hpMax: 7, hpCurrent: 7, armourClass: 15, ...overrides });
@@ -59,16 +60,77 @@ describe('DM EncounterSessionPage', () => {
     expect(await screen.findByText('Live')).toBeInTheDocument();
   });
 
-  it('shows state pushed over the WebSocket', async () => {
+  it('shows the DM View pushed over the WebSocket', async () => {
     await renderLoaded();
 
-    act(() => MockStompClient.latest().emit('/topic/encounter/enc-001/state', makeMockEncounter({
+    act(() => MockStompClient.latest().emit(DM_STATE_TOPIC, makeMockEncounter({
       roundNumber: 2,
       participants: [gimli({ isCurrentTurn: true }), goblin({ hpCurrent: 0, isAlive: false }), bugbear()],
     })));
 
     expect(screen.getByText('Round 2 · 2/3 alive')).toBeInTheDocument();
     expect(screen.getByText('0/7')).toBeInTheDocument();
+  });
+
+  it('subscribes to the DM View rather than the Player View', async () => {
+    await renderLoaded();
+
+    expect(MockStompClient.latest().isSubscribed(DM_STATE_TOPIC)).toBe(true);
+    expect(MockStompClient.latest().isSubscribed('/topic/encounter/enc-001/state')).toBe(false);
+  });
+
+  it('hides a monster from players and shows a hidden one again', async () => {
+    const visible: Record<string, boolean> = { 'part-goblin': true, 'part-bugbear': false };
+    const requests: { participantId: string; body: unknown }[] = [];
+    const current = () => makeMockEncounter({
+      participants: [
+        gimli(),
+        goblin({ isVisibleToPlayers: visible['part-goblin'] }),
+        bugbear({ isVisibleToPlayers: visible['part-bugbear'] }),
+      ],
+    });
+    server.use(
+      http.get('/api/encounters/:id', () => HttpResponse.json(current())),
+      http.patch('/api/encounters/:id/participants/:participantId/visibility', async ({ params, request }) => {
+        const body = await request.json() as { visible: boolean };
+        requests.push({ participantId: params.participantId as string, body });
+        visible[params.participantId as string] = body.visible;
+        return HttpResponse.json(current());
+      }),
+    );
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    // Only monsters have the switch, and the bugbear starts hidden
+    expect(screen.getByRole('button', { name: 'Hide from players' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show to players' })).toBeInTheDocument();
+    expect(screen.getAllByText('Hidden')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Show to players' }));
+    expect(await screen.findAllByRole('button', { name: 'Hide from players' })).toHaveLength(2);
+    expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
+
+    // The goblin comes first in initiative order
+    await user.click(screen.getAllByRole('button', { name: 'Hide from players' })[0]);
+    expect(await screen.findByText('Hidden')).toBeInTheDocument();
+    expect(requests).toEqual([
+      { participantId: 'part-bugbear', body: { visible: true } },
+      { participantId: 'part-goblin', body: { visible: false } },
+    ]);
+  });
+
+  it('shows why a monster could not be hidden', async () => {
+    server.use(
+      http.patch('/api/encounters/:id/participants/:participantId/visibility', () =>
+        HttpResponse.json({ error: 'Only the DM can perform this action' }, { status: 403 })),
+    );
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    await user.click(screen.getByRole('button', { name: 'Hide from players' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Only the DM can perform this action');
+    expect(screen.getByRole('button', { name: 'Hide from players' })).toBeEnabled();
   });
 
   it('deals damage to the chosen participant and reloads the encounter', async () => {
