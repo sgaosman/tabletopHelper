@@ -43,7 +43,8 @@ import static org.mockito.Mockito.mock;
 
 /**
  * The combat services wired as in the app, over mocked repositories, an Active encounter whose DM is
- * {@link #dmUserId}, and dice the test scripts. Every combat log entry saved is kept in {@link #log}.
+ * {@link #dmUserId}, and dice the test scripts. Participants act in the order they are added, and the first
+ * has the turn. Every combat log entry saved is kept in {@link #log}.
  */
 class CombatFixture {
 
@@ -60,12 +61,12 @@ class CombatFixture {
     final Resolver resolver = new Resolver(dice);
     final CreatureStats stats = new CreatureStats(objectMapper);
     final CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
-    final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog);
+    final ResourcePoolService resourcePoolService = new ResourcePoolService(
+            mock(ClassFeaturePoolRepository.class), mock(MonsterPoolTriggerRepository.class), objectMapper);
+    final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog, resourcePoolService);
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final CombatAccess access = new CombatAccess(
             new EncounterCommands(encounterRepository, accessPolicy, eventPublisher), accessPolicy);
-    final ResourcePoolService resourcePoolService = new ResourcePoolService(
-            mock(ClassFeaturePoolRepository.class), mock(MonsterPoolTriggerRepository.class), objectMapper);
     final SpellEffects spellEffects = new SpellEffects(spellRepository, objectMapper, stats);
     final SpellCaster spellCaster = new SpellCaster(spellEffects, resolver, effectApplier, stats);
     final MonsterEffects monsterEffects = new MonsterEffects(dice);
@@ -84,8 +85,8 @@ class CombatFixture {
             encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatLog, encounterRepository, encounterService);
-    final TurnService turns = new TurnService(access, effectApplier, resourcePoolService, combatLog,
-            encounterRepository, encounterService);
+    final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
+    final TurnService turns = new TurnService(access, turnProcessor, encounterRepository, encounterService);
 
     final UUID dmUserId = UUID.randomUUID();
     final Campaign campaign;
@@ -100,7 +101,6 @@ class CombatFixture {
                 .campaign(campaign)
                 .name("Test Encounter")
                 .status(EncounterStatus.ACTIVE)
-                .currentTurnIndex(0)
                 .roundNumber(1)
                 .participants(new ArrayList<>())
                 .build();
@@ -145,7 +145,6 @@ class CombatFixture {
                 .displayName(name)
                 .hpMax(hp).hpCurrent(hp).hpTemp(0)
                 .armourClass(ac)
-                .isCurrentTurn(false)
                 .deathSaveSuccesses(0).deathSaveFailures(0)
                 .sortOrder(encounter.getParticipants().size())
                 .build());
@@ -165,16 +164,31 @@ class CombatFixture {
                 .displayName(name)
                 .hpMax(hp).hpCurrent(hp).hpTemp(0)
                 .armourClass(ac)
-                .isCurrentTurn(false)
                 .deathSaveSuccesses(0).deathSaveFailures(0)
                 .controlledByUserId(dmUserId)
                 .sortOrder(encounter.getParticipants().size())
                 .build());
     }
 
+    // The first participant added has the turn, as an encounter starts on its first; turnOf moves it
     private EncounterParticipant add(EncounterParticipant participant) {
         encounter.getParticipants().add(participant);
+        if (encounter.getCurrentTurnParticipantId() == null && !Boolean.TRUE.equals(encounter.getLairTurn())) {
+            encounter.setCurrentTurnParticipantId(participant.getId());
+        }
         return participant;
+    }
+
+    /** Gives the participant the turn (D163). */
+    void turnOf(EncounterParticipant participant) {
+        encounter.setCurrentTurnParticipantId(participant.getId());
+        encounter.setLairTurn(false);
+    }
+
+    /** Gives the Lair the turn (D163). */
+    void lairTurn() {
+        encounter.setCurrentTurnParticipantId(null);
+        encounter.setLairTurn(true);
     }
 
     /** A user who is a member of the campaign and controls the participant. */

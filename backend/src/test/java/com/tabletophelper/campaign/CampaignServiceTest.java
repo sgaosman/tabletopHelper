@@ -242,12 +242,31 @@ class CampaignServiceTest {
     }
 
     @Test
+    @DisplayName("A new campaign has the server roll player characters' Repeat Saves (D162)")
+    void newCampaign_serverRollsRepeatSaves() {
+        assertFalse(savedCampaign().getPromptPlayerRepeatSaves());
+    }
+
+    @Test
+    @DisplayName("The DM can have players roll their characters' Repeat Saves, leaving the HP setting alone")
+    void updateSettings_dmPromptsPlayerRepeatSaves() {
+        Campaign campaign = savedCampaign();
+
+        CampaignResponse response = campaignService.updateSettings(campaign.getId(),
+                new CampaignSettingsRequest(null, true), dmUserId);
+
+        assertTrue(response.getPromptPlayerRepeatSaves());
+        assertTrue(campaign.getPromptPlayerRepeatSaves());
+        assertFalse(response.getShowExactMonsterHp());
+    }
+
+    @Test
     @DisplayName("The DM can turn on showing exact monster HP")
     void updateSettings_dmTurnsOnExactMonsterHp() {
         Campaign campaign = savedCampaign();
 
         CampaignResponse response = campaignService.updateSettings(campaign.getId(),
-                new CampaignSettingsRequest(true), dmUserId);
+                new CampaignSettingsRequest(true, null), dmUserId);
 
         assertTrue(response.getShowExactMonsterHp());
         assertTrue(campaign.getShowExactMonsterHp());
@@ -260,7 +279,7 @@ class CampaignServiceTest {
         campaign.setShowExactMonsterHp(true);
 
         CampaignResponse response = campaignService.updateSettings(campaign.getId(),
-                new CampaignSettingsRequest(null), dmUserId);
+                new CampaignSettingsRequest(null, null), dmUserId);
 
         assertTrue(response.getShowExactMonsterHp());
     }
@@ -271,10 +290,11 @@ class CampaignServiceTest {
         Campaign campaign = savedCampaign();
 
         ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
-                campaignService.updateSettings(campaign.getId(), new CampaignSettingsRequest(true), playerUserId));
+                campaignService.updateSettings(campaign.getId(), new CampaignSettingsRequest(true, true), playerUserId));
 
         assertEquals("Only the DM can perform this action", ex.getMessage());
         assertFalse(campaign.getShowExactMonsterHp());
+        assertFalse(campaign.getPromptPlayerRepeatSaves());
         verify(campaignRepository, never()).save(any());
     }
 }

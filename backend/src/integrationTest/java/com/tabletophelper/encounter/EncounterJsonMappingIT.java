@@ -210,7 +210,8 @@ class EncounterJsonMappingIT extends IntegrationTest {
                     assertThat(condition.name()).isEqualTo("prone");
                     assertThat(condition.duration()).isEqualTo(2);
                     assertThat(condition.appliedRound()).isEqualTo(1);
-                    assertThat(condition.endRule()).isEqualTo(EndRule.MANUAL);
+                    // Its two rounds count on the mage's own turns (D162)
+                    assertThat(condition.endRule()).isEqualTo(EndRule.afterRounds(null));
                     assertThat(condition.id()).isNotNull();
                 });
     }

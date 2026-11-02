@@ -5,11 +5,9 @@ import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.CombatLogRepository;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.rules.combat.TurnOrder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-
-import java.util.Comparator;
-import java.util.List;
 
 /** Writes combat log entries, each stamped with the encounter's round and whose turn it is. */
 @Component
@@ -48,12 +46,11 @@ public class CombatLogWriter {
         return save(about(entry(encounter, type, description), actor, target));
     }
 
-    // The participant at the current turn index, counting in sort order with unsorted participants last
+    // Whose turn it is: the participant the encounter's marker names, the Lair's, or nobody's (D163)
     private static String currentTurnName(Encounter encounter) {
-        List<EncounterParticipant> sorted = encounter.getParticipants().stream()
-                .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 999))
-                .toList();
-        int turnIndex = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
-        return turnIndex < sorted.size() ? sorted.get(turnIndex).getDisplayName() : null;
+        if (EncounterTurns.isLairTurn(encounter)) {
+            return TurnOrder.LAIR_ACTIONS;
+        }
+        return EncounterTurns.currentParticipant(encounter).map(EncounterParticipant::getDisplayName).orElse(null);
     }
 }

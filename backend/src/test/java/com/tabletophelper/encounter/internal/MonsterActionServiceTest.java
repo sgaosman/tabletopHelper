@@ -146,8 +146,49 @@ class MonsterActionServiceTest {
     }
 
     @Test
+    @DisplayName("A legendary action is a 409 on its monster's own turn, and fine on another's, the Lair's included (D163)")
+    void legendaryActionTiming() {
+        f.turnOf(dragon);
+
+        ConflictException ownTurn = assertThrows(ConflictException.class,
+                () -> act("Wing Attack", "LEGENDARY", List.of(fighter), 18));
+
+        assertEquals("Young Dragon can't use legendary actions on its own turn, only on other creatures' turns",
+                ownTurn.getMessage());
+        assertEquals(3, pool(dragon, "monster:legendary-actions"));
+        assertTrue(f.log.isEmpty());
+
+        f.encounter.setMonstersInLair(List.of(dragon.getId()));
+        f.lairTurn();
+        act("Wing Attack", "LEGENDARY", List.of(fighter), 18);
+        assertEquals(1, pool(dragon, "monster:legendary-actions"));
+    }
+
+    @Test
+    @DisplayName("A lair action is a 409 outside the Lair's turn, or by a monster not fighting in its lair (D163)")
+    void lairActionTiming() {
+        ConflictException notTheLairsTurn = assertThrows(ConflictException.class,
+                () -> act("Tremor", "LAIR", List.of(fighter), 18));
+        f.lairTurn();
+        ConflictException notInItsLair = assertThrows(ConflictException.class,
+                () -> act("Tremor", "LAIR", List.of(fighter), 18));
+        f.encounter.setMonstersInLair(List.of(dragon.getId()));
+        CombatFixture.dead(dragon);
+        ConflictException dead = assertThrows(ConflictException.class,
+                () -> act("Tremor", "LAIR", List.of(fighter), 18));
+
+        assertEquals("Lair actions happen only on the Lair's turn, at initiative 20", notTheLairsTurn.getMessage());
+        assertEquals("Young Dragon isn't fighting in its lair", notInItsLair.getMessage());
+        assertEquals("Young Dragon isn't fighting in its lair", dead.getMessage());
+        assertNull(dragon.getLastLairActionUsed());
+        assertTrue(f.log.isEmpty());
+    }
+
+    @Test
     @DisplayName("A lair action can't be used two rounds running")
     void lairActionNoRepeat() {
+        f.encounter.setMonstersInLair(List.of(dragon.getId()));
+        f.lairTurn();
         act("Tremor", "LAIR", List.of(fighter), 18);
 
         ConflictException ex = assertThrows(ConflictException.class, () -> act("Tremor", "LAIR", List.of(fighter), 18));

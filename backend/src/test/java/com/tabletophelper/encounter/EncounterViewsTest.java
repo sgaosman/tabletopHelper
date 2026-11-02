@@ -5,6 +5,7 @@ import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.CombatLogResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
+import com.tabletophelper.encounter.dto.EncounterResponse.TurnResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
@@ -179,6 +180,77 @@ class EncounterViewsTest {
             assertEquals(5, find(dmView, goblinId).getHpCurrent());
             assertEquals("Carries the key to the cellar", find(dmView, goblinId).getNotes());
             assertNull(find(dmView, goblinId).getHealthStatus());
+        }
+    }
+
+    @Nested
+    @DisplayName("playerView's turn order (D157, D163)")
+    class PlayerTurnOrder {
+
+        private TurnResponse turn(ParticipantResponse participant, boolean current) {
+            return TurnResponse.builder().participantId(participant.getId()).name(participant.getDisplayName())
+                    .initiative(10).current(current).tieGroup(0).build();
+        }
+
+        private TurnResponse lair(boolean current) {
+            return TurnResponse.builder().name("Lair Actions").initiative(20).lair(true).current(current).build();
+        }
+
+        // The DM View of Gimli, the hidden bugbear, the Lair and the goblin, in that order, on the given turn
+        private EncounterResponse fight(int current, List<UUID> inLair) {
+            var gimli = gimli().toBuilder().sortOrder(0).isCurrentTurn(current == 0).build();
+            var bugbear = bugbear(false).toBuilder().sortOrder(1).isCurrentTurn(current == 1).build();
+            var goblin = goblin(7).toBuilder().sortOrder(3).isCurrentTurn(current == 3).build();
+            return encounter(false, gimli, bugbear, goblin).toBuilder()
+                    .turnOrder(List.of(turn(gimli, current == 0), turn(bugbear, current == 1), lair(current == 2),
+                            turn(goblin, current == 3)))
+                    .currentTurnIndex(current)
+                    .monstersInLair(inLair)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Numbers sortOrder and currentTurnIndex over the turns players can see")
+        void renumbersTheVisibleTurns() {
+            var view = EncounterViews.playerView(fight(3, List.of(goblinId)));
+
+            assertEquals(List.of("Gimli", "Lair Actions", "Goblin"),
+                    view.getTurnOrder().stream().map(TurnResponse::getName).toList());
+            assertEquals(2, view.getCurrentTurnIndex());
+            assertEquals(0, find(view, gimliId).getSortOrder());
+            assertEquals(2, find(view, goblinId).getSortOrder());
+            assertTrue(find(view, goblinId).getIsCurrentTurn());
+            assertTrue(view.getTurnOrder().stream().allMatch(turn -> turn.getTieGroup() == null));
+        }
+
+        @Test
+        @DisplayName("Shows no current turn while a hidden participant acts")
+        void noCurrentTurnWhileHiddenActs() {
+            var dmView = fight(1, List.of());
+
+            var view = EncounterViews.playerView(dmView);
+
+            assertNull(view.getCurrentTurnIndex());
+            assertTrue(view.getTurnOrder().stream().noneMatch(TurnResponse::isCurrent));
+            assertTrue(view.getParticipants().stream().noneMatch(ParticipantResponse::getIsCurrentTurn));
+            assertEquals(1, dmView.getCurrentTurnIndex(), "The DM View keeps its own numbers");
+        }
+
+        @Test
+        @DisplayName("Shows the Lair's turn only while players can see a monster in its lair")
+        void lairOnlyWithAVisibleLairMonster() {
+            var hiddenLair = EncounterViews.playerView(fight(2, List.of(bugbearId)));
+            var visibleLair = EncounterViews.playerView(fight(2, List.of(bugbearId, goblinId)));
+
+            assertEquals(List.of("Gimli", "Goblin"),
+                    hiddenLair.getTurnOrder().stream().map(TurnResponse::getName).toList());
+            assertNull(hiddenLair.getCurrentTurnIndex());
+            assertEquals(List.of(), hiddenLair.getMonstersInLair());
+            assertEquals(1, find(hiddenLair, goblinId).getSortOrder());
+
+            assertEquals(1, visibleLair.getCurrentTurnIndex());
+            assertTrue(visibleLair.getTurnOrder().get(1).isLair());
+            assertEquals(List.of(goblinId), visibleLair.getMonstersInLair());
         }
     }
 

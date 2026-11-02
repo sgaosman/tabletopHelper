@@ -4,6 +4,12 @@ import type { Schemas } from '../api/schema';
 export type ConditionEntry = Schemas['ConditionEntry'];
 
 /**
+ * The save a condition's creature repeats at the end of each of its turns to end it (D162). awaitingRoll is
+ * set when the campaign leaves a player character's roll to its player.
+ */
+export type RepeatSave = Schemas['RepeatSave'];
+
+/**
  * The slots of one spell level in a participant's spellSlotsCurrent, which keys them "1" to "9", and pact
  * slots "pact_N" (D168).
  */
@@ -26,6 +32,13 @@ export type EncounterParticipant = Schemas['ParticipantResponse'];
 
 export type Encounter = Schemas['EncounterResponse'];
 
+/**
+ * One turn in an encounter's computed order (D163): a participant's, or the Lair's on initiative 20. The
+ * encounter's currentTurnIndex points into its turnOrder, and each participant's sortOrder is its turn's
+ * place there. The Player View leaves out turns players can't see and numbers the rest again (D157).
+ */
+export type TurnEntry = Schemas['TurnResponse'];
+
 export type EncounterStatus = Encounter['status'];
 export type ParticipantType = EncounterParticipant['participantType'];
 
@@ -39,3 +52,6 @@ export type AddParticipantRequest = Schemas['AddParticipantRequest'];
 export type SetInitiativeRequest = Schemas['SetInitiativeRequest'];
 
 export type BulkInitiativeRequest = Schemas['BulkInitiativeRequest'];
+
+/** Every participant of a tie on initiative and DEX, in the order the DM wants them to act (D163). */
+export type TieOrderRequest = Schemas['TieOrderRequest'];

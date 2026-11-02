@@ -50,6 +50,11 @@ export const combatApi = {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/death-save`, { participantId });
   },
 
+  // A Repeat Save the campaign leaves to the player, which the server rolls (D162)
+  rollRepeatSave(encounterId: string, participantId: string, conditionId: string) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/repeat-save`, { participantId, conditionId });
+  },
+
   setConcentration(encounterId: string, participantId: string, spellName: string | null) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/concentration`, { participantId, spellName });
   },
@@ -108,6 +113,7 @@ export const combatApi = {
     return api.get<MonsterActionTemplate>(`/encounters/${encounterId}/participants/${participantId}/actions`);
   },
 
+  // Every monster participant fighting in its lair, which gives the Lair a turn on initiative 20 (D163)
   setLairStatus(encounterId: string, monsterIds: string[]) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/lair-status`, { monsterIds });
   },

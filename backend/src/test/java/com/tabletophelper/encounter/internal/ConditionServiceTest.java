@@ -39,7 +39,7 @@ class ConditionServiceTest {
     }
 
     @Test
-    @DisplayName("10.26 A condition added with a duration is stored in lower case, ends only by hand or by its duration")
+    @DisplayName("10.26 A condition added with a duration is stored in lower case, and ends by hand or after its rounds")
     void addConditionWithDuration() {
         EncounterParticipant goblin = f.monster("Goblin", 20, 15);
 
@@ -49,7 +49,8 @@ class ConditionServiceTest {
         assertEquals("frightened", entry.name());
         assertEquals(3, entry.duration());
         assertEquals(1, entry.appliedRound());
-        assertEquals(EndRule.MANUAL, entry.endRule());
+        // Its rounds count on its own creature's turns (D162)
+        assertEquals(EndRule.afterRounds(null), entry.endRule());
         assertNotNull(entry.id());
         assertNull(entry.concentrationInstanceId());
         assertEquals(List.of("Goblin gains condition: frightened (3 rounds)"), f.descriptions());

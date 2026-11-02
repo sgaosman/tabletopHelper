@@ -15,7 +15,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -97,7 +99,7 @@ public class SpellEffects {
         }
 
         Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), conditions(template),
-                concentration, durationRounds);
+                concentration, durationRounds, conditionEnds(template, saveDc));
         return new SpellPlan(spellName, spellLevel, effect, null, concentration, durationRounds, verbal);
     }
 
@@ -154,7 +156,7 @@ public class SpellEffects {
             }
         }
         Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), conditions(template),
-                false, null);
+                false, null, conditionEnds(template, saveDc));
         return new SpellPlan(spellName, spellLevel, effect, null, false, null, false);
     }
 
@@ -315,13 +317,49 @@ public class SpellEffects {
                 .map(groups -> new Healing(groups.getFirst()));
     }
 
+    // Each condition the spell inflicts, listed by name or as an object naming it
     private static List<String> conditions(JsonNode template) {
         List<String> conditions = new ArrayList<>();
         for (JsonNode condition : template.path("conditionsInflicted")) {
-            if (condition.isTextual() && !condition.asText().isBlank()) {
-                conditions.add(condition.asText().trim().toLowerCase());
+            String name = conditionName(condition);
+            if (name != null) {
+                conditions.add(name);
             }
         }
         return conditions;
+    }
+
+    /**
+     * How each condition ends where its entry says (D162): its own duration in rounds, and a save repeated at
+     * the end of each of its creature's turns against the caster's spell save DC, in the entry's ability or
+     * else the spell's. A repeat save the entry makes conditional, such as Fear's on losing sight of the
+     * caster, is left to the DM.
+     */
+    private static Map<String, Effect.ConditionEnd> conditionEnds(JsonNode template, int saveDc) {
+        Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
+        for (JsonNode condition : template.path("conditionsInflicted")) {
+            String name = conditionName(condition);
+            if (name == null || !condition.isObject()) {
+                continue;
+            }
+            Integer duration = condition.path("durationRounds").isInt() && condition.path("durationRounds").asInt() > 0
+                    ? condition.path("durationRounds").asInt() : null;
+            Effect.RepeatSave repeatSave = null;
+            if (condition.path("saveToEndEachTurn").asBoolean(false) && condition.path("saveToEndCondition").isMissingNode()) {
+                repeatSave = Ability.parse(condition.path("saveToEndAbility").asText(null))
+                        .or(() -> Ability.parse(template.path("saveAbility").asText(null)))
+                        .map(ability -> new Effect.RepeatSave(ability, saveDc))
+                        .orElse(null);
+            }
+            if (duration != null || repeatSave != null) {
+                ends.put(name, new Effect.ConditionEnd(duration, repeatSave));
+            }
+        }
+        return ends;
+    }
+
+    private static String conditionName(JsonNode condition) {
+        JsonNode name = condition.isObject() ? condition.path("condition") : condition;
+        return name.isTextual() && !name.asText().isBlank() ? name.asText().trim().toLowerCase() : null;
     }
 }

@@ -8,11 +8,17 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.CombatLogWriter;
+import com.tabletophelper.encounter.internal.CreatureStats;
+import com.tabletophelper.encounter.internal.EffectApplier;
+import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.rules.Rng;
+import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
@@ -27,6 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.*;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -56,11 +63,15 @@ class EncounterServiceTest {
     @BeforeEach
     void setUp() {
         AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
+        ObjectMapper objectMapper = new ObjectMapper();
+        CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
+        TurnProcessor turnProcessor = new TurnProcessor(new EffectApplier(new Resolver(Rng.random()),
+                new CreatureStats(objectMapper), combatLog, resourcePoolService), combatLog);
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
-                characterRepository, monsterRepository, new ObjectMapper(), resourcePoolService,
+                characterRepository, monsterRepository, objectMapper, resourcePoolService,
                 monsterSpellCastService, accessPolicy,
                 new EncounterCommands(encounterRepository, accessPolicy, eventPublisher),
-                new CombatLogReader(combatLogRepository));
+                new CombatLogReader(combatLogRepository), turnProcessor);
 
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();
@@ -83,6 +94,13 @@ class EncounterServiceTest {
 
         // The access policy looks the campaign up to find its DM
         lenient().when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+    }
+
+    /** The encounter as saving returns it: its new participants get IDs, as persisting them would. */
+    private static Encounter saved(org.mockito.invocation.InvocationOnMock invocation) {
+        Encounter encounter = invocation.getArgument(0);
+        encounter.getParticipants().stream().filter(p -> p.getId() == null).forEach(p -> p.setId(UUID.randomUUID()));
+        return encounter;
     }
 
     /** A command finds the encounter's campaign, then locks its row (D160); both find this encounter. */
@@ -143,7 +161,7 @@ class EncounterServiceTest {
 
         stubLock(encounter);
         when(monsterRepository.findById(monsterId)).thenReturn(Optional.of(goblin));
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.addParticipant(encounterId, request, dmUserId);
 
@@ -200,7 +218,7 @@ class EncounterServiceTest {
         stubLock(encounter);
         when(characterRepository.findById(characterId)).thenReturn(Optional.of(thorin));
         when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.addParticipant(encounterId, request, dmUserId);
 
@@ -237,7 +255,7 @@ class EncounterServiceTest {
         stubLock(encounter);
         when(characterRepository.findById(thorin.getId())).thenReturn(Optional.of(thorin));
         when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse.ParticipantResponse participant =
                 encounterService.addParticipant(encounterId, request, dmUserId).getParticipants().get(0);
@@ -353,7 +371,7 @@ class EncounterServiceTest {
         stubLock(encounter);
         when(characterRepository.findById(elara.getId())).thenReturn(Optional.of(elara));
         when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.addParticipant(encounterId, request, dmUserId);
 
@@ -398,7 +416,7 @@ class EncounterServiceTest {
                 .build();
 
         stubLock(encounter);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.removeParticipant(encounterId, participantToRemoveId, dmUserId);
 
@@ -432,7 +450,7 @@ class EncounterServiceTest {
                 .build();
 
         stubLock(encounter);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.renameParticipant(encounterId, participantId, "Snaggle the Goblin", dmUserId);
 
@@ -481,7 +499,7 @@ class EncounterServiceTest {
         request.setInitiatives(List.of(fighterInit, wizardInit));
 
         stubLock(encounter);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.setInitiatives(encounterId, request, dmUserId);
 
@@ -523,7 +541,7 @@ class EncounterServiceTest {
                 .build();
 
         stubLock(encounter);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.rollAllInitiatives(encounterId, dmUserId);
 
@@ -575,7 +593,7 @@ class EncounterServiceTest {
 
         stubLock(encounter);
         when(encounterRepository.findBySessionCode(anyString())).thenReturn(Optional.empty());
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.startEncounter(encounterId, dmUserId);
 
@@ -616,22 +634,33 @@ class EncounterServiceTest {
     }
 
     @Test
-    @DisplayName("Pause and resume encounter preserves state")
+    @DisplayName("Pause and resume encounter preserves state, the current turn included")
     void pauseAndResumeEncounter_preservesState() {
         UUID encounterId = UUID.randomUUID();
+        List<EncounterParticipant> participants = new ArrayList<>();
+        for (String name : List.of("Fighter", "Wizard", "Goblin")) {
+            participants.add(EncounterParticipant.builder()
+                    .id(UUID.randomUUID())
+                    .participantType(ParticipantType.PLAYER)
+                    .displayName(name)
+                    .initiative(20 - participants.size())
+                    .sortOrder(participants.size())
+                    .hpMax(20).hpCurrent(20).armourClass(12)
+                    .build());
+        }
 
         Encounter encounter = Encounter.builder()
                 .id(encounterId)
                 .campaign(campaign)
                 .name("Test Encounter")
                 .status(EncounterStatus.ACTIVE)
-                .currentTurnIndex(2)
+                .currentTurnParticipantId(participants.get(2).getId())
                 .roundNumber(3)
-                .participants(new ArrayList<>())
+                .participants(participants)
                 .build();
 
         stubLock(encounter);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         // Pause
         EncounterResponse pauseResponse = encounterService.pauseEncounter(encounterId, dmUserId);
@@ -661,7 +690,7 @@ class EncounterServiceTest {
                 .build();
 
         stubLock(encounter);
-        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
         EncounterResponse response = encounterService.endEncounter(encounterId, dmUserId);
 
@@ -800,7 +829,7 @@ class EncounterServiceTest {
                 .build();
         lenient().when(encounterRepository.findById(encounter.getId())).thenReturn(Optional.of(encounter));
         stubLock(encounter);
-        lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
         return encounter;
     }
 
@@ -890,7 +919,7 @@ class EncounterServiceTest {
                 .participants(new ArrayList<>(List.of(participants)))
                 .build();
         stubLock(encounter);
-        lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
         return encounter;
     }
 
@@ -1028,5 +1057,198 @@ class EncounterServiceTest {
         inOrder.verify(encounterRepository).limitLockWaits();
         inOrder.verify(encounterRepository).lockById(encounter.getId());
         inOrder.verify(eventPublisher).publishEvent(new EncounterChanged(encounter.getId()));
+    }
+
+    // ── The turn order (D163) ────────────────────────────────────
+
+    private static EncounterParticipant fighting(String name, ParticipantType type, Integer initiative, int dexterity,
+                                                 int sortOrder) {
+        EncounterParticipant.EncounterParticipantBuilder participant = EncounterParticipant.builder()
+                .id(UUID.randomUUID())
+                .participantType(type)
+                .displayName(name)
+                .initiative(initiative)
+                .sortOrder(sortOrder)
+                .hpMax(30).hpCurrent(30).armourClass(14);
+        if (type == ParticipantType.MONSTER) {
+            participant.monster(Monster.builder().id(UUID.randomUUID()).name(name).dexterity(dexterity).build());
+        } else {
+            participant.character(PlayerCharacter.builder().id(UUID.randomUUID()).name(name).dexterity(dexterity).build());
+        }
+        return participant.build();
+    }
+
+    private static List<String> turnNames(EncounterResponse response) {
+        return response.getTurnOrder().stream().map(EncounterResponse.TurnResponse::getName).toList();
+    }
+
+    @Test
+    @DisplayName("The response lists the computed turn order with the Lair's turn, the current turn's place and the ties")
+    void toResponse_computesTheTurnOrder() {
+        EncounterParticipant rogue = fighting("Rogue", ParticipantType.PLAYER, 5, 16, 0);
+        EncounterParticipant brom = fighting("Brom", ParticipantType.PLAYER, 15, 14, 1);
+        EncounterParticipant aria = fighting("Aria", ParticipantType.PLAYER, 15, 14, 2);
+        EncounterParticipant ogre = fighting("Ogre", ParticipantType.MONSTER, 22, 8, 3);
+        EncounterParticipant dragon = fighting("Dragon", ParticipantType.MONSTER, 10, 10, 4);
+        dragon.getMonster().setActionTemplates("""
+                {"actions": [], "lairActions": [{"name": "Tremor"}]}""");
+        rogue.setHpCurrent(0);
+        rogue.setLifeState(com.tabletophelper.rules.combat.LifeState.DYING);
+        rogue.setDeathSaveDue(true);
+        Encounter encounter = activeEncounterWith(rogue, brom, aria, ogre, dragon);
+        encounter.setMonstersInLair(new ArrayList<>(List.of(dragon.getId())));
+        encounter.setCurrentTurnParticipantId(aria.getId());
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, dmUserId)).thenReturn(true);
+
+        EncounterResponse response = encounterService.getEncounter(encounter.getId(), dmUserId);
+
+        assertEquals(List.of("Ogre", "Lair Actions", "Brom", "Aria", "Dragon", "Rogue"), turnNames(response));
+        assertEquals(List.of("Ogre", "Brom", "Aria", "Dragon", "Rogue"),
+                response.getParticipants().stream().map(EncounterResponse.ParticipantResponse::getDisplayName).toList());
+        assertEquals(List.of(0, 2, 3, 4, 5),
+                response.getParticipants().stream().map(EncounterResponse.ParticipantResponse::getSortOrder).toList());
+        assertEquals(3, response.getCurrentTurnIndex());
+        assertTrue(response.getTurnOrder().get(3).isCurrent());
+        assertEquals(20, response.getTurnOrder().get(1).getInitiative());
+        assertEquals(Arrays.asList(null, null, 2, 2, null, null),
+                response.getTurnOrder().stream().map(EncounterResponse.TurnResponse::getTieGroup).toList());
+        EncounterResponse.ParticipantResponse ariaView = response.getParticipants().get(2);
+        assertTrue(ariaView.getIsCurrentTurn());
+        assertNull(ariaView.getHasLairActions());
+        assertTrue(response.getParticipants().get(3).getHasLairActions());
+        assertFalse(response.getParticipants().get(0).getHasLairActions());
+        assertTrue(response.getParticipants().get(4).getDeathSaveDue());
+        assertEquals(List.of(dragon.getId()), response.getMonstersInLair());
+    }
+
+    @Test
+    @DisplayName("Starting an encounter gives the first turn in the order, which starts")
+    void startEncounter_givesTheFirstTurn() {
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 0);
+        EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 1);
+        fighter.setActionUsed(true);
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING, goblin, fighter);
+        when(encounterRepository.findBySessionCode(anyString())).thenReturn(Optional.empty());
+
+        EncounterResponse response = encounterService.startEncounter(encounter.getId(), dmUserId);
+
+        assertEquals(fighter.getId(), encounter.getCurrentTurnParticipantId());
+        assertFalse(encounter.getLairTurn());
+        assertFalse(fighter.getActionUsed());
+        assertEquals(0, response.getCurrentTurnIndex());
+        assertEquals("Fighter", response.getTurnOrder().getFirst().getName());
+    }
+
+    @Test
+    @DisplayName("Before the encounter starts there is no current turn")
+    void toResponse_noTurnBeforeTheStart() {
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING,
+                fighting("Goblin", ParticipantType.MONSTER, null, 14, 0));
+        lenient().when(encounterRepository.findById(encounter.getId())).thenReturn(Optional.of(encounter));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, dmUserId)).thenReturn(true);
+
+        EncounterResponse response = encounterService.getEncounter(encounter.getId(), dmUserId);
+
+        assertNull(response.getCurrentTurnIndex());
+        assertFalse(response.getParticipants().getFirst().getIsCurrentTurn());
+    }
+
+    @Test
+    @DisplayName("The DM reorders a tie: its turns swap places among themselves and nothing else moves")
+    void reorderTie_swapsTheTiedTurns() {
+        EncounterParticipant ogre = fighting("Ogre", ParticipantType.MONSTER, 20, 8, 0);
+        EncounterParticipant aria = fighting("Aria", ParticipantType.PLAYER, 15, 14, 1);
+        EncounterParticipant brom = fighting("Brom", ParticipantType.PLAYER, 15, 14, 2);
+        EncounterParticipant cael = fighting("Cael", ParticipantType.PLAYER, 15, 14, 3);
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 15, 16, 4);
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, ogre, aria, brom, cael, goblin);
+        encounter.setCurrentTurnParticipantId(aria.getId());
+
+        EncounterResponse response = encounterService.reorderTie(encounter.getId(),
+                new TieOrderRequest(List.of(cael.getId(), aria.getId(), brom.getId())), dmUserId);
+
+        assertEquals(List.of("Ogre", "Goblin", "Cael", "Aria", "Brom"), turnNames(response));
+        assertEquals(3, response.getCurrentTurnIndex(), "The turn stays with Aria");
+        assertEquals(List.of(0, 3, 4, 2, 1),
+                Stream.of(ogre, aria, brom, cael, goblin).map(EncounterParticipant::getSortOrder).toList());
+    }
+
+    @Test
+    @DisplayName("Reordering anything but a whole tie on initiative and DEX is a 400; a Paused encounter is a 409")
+    void reorderTie_refusals() {
+        EncounterParticipant aria = fighting("Aria", ParticipantType.PLAYER, 15, 14, 0);
+        EncounterParticipant brom = fighting("Brom", ParticipantType.PLAYER, 15, 14, 1);
+        EncounterParticipant cael = fighting("Cael", ParticipantType.PLAYER, 15, 14, 2);
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 15, 16, 3);
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, aria, brom, cael, goblin);
+
+        ValidationException dexterity = assertThrows(ValidationException.class, () -> encounterService.reorderTie(
+                encounter.getId(), new TieOrderRequest(List.of(goblin.getId(), aria.getId())), dmUserId));
+        ValidationException part = assertThrows(ValidationException.class, () -> encounterService.reorderTie(
+                encounter.getId(), new TieOrderRequest(List.of(brom.getId(), aria.getId())), dmUserId));
+        ValidationException twice = assertThrows(ValidationException.class, () -> encounterService.reorderTie(
+                encounter.getId(), new TieOrderRequest(List.of(aria.getId(), aria.getId())), dmUserId));
+        assertThrows(ValidationException.class, () -> encounterService.reorderTie(
+                encounter.getId(), new TieOrderRequest(List.of(aria.getId(), UUID.randomUUID())), dmUserId));
+        encounter.setStatus(EncounterStatus.PAUSED);
+        assertThrows(ConflictException.class, () -> encounterService.reorderTie(encounter.getId(),
+                new TieOrderRequest(List.of(cael.getId(), brom.getId(), aria.getId())), dmUserId));
+
+        assertEquals("Only participants tied on both initiative and DEX can be reordered", dexterity.getMessage());
+        assertEquals("Name every participant in the tie", part.getMessage());
+        assertEquals("Name two or more tied participants, each once", twice.getMessage());
+        assertEquals(List.of(0, 1, 2, 3),
+                Stream.of(aria, brom, cael, goblin).map(EncounterParticipant::getSortOrder).toList());
+    }
+
+    @Test
+    @DisplayName("Setting initiatives numbers the DM's order by the turn order, ties to the higher DEX")
+    void setInitiatives_numbersTheOrder() {
+        EncounterParticipant aria = fighting("Aria", ParticipantType.PLAYER, null, 12, 0);
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, null, 14, 1);
+        EncounterParticipant ogre = fighting("Ogre", ParticipantType.MONSTER, null, 8, 2);
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING, aria, goblin, ogre);
+        BulkInitiativeRequest request = new BulkInitiativeRequest();
+        request.setInitiatives(List.of(initiative(aria, 15), initiative(goblin, 15), initiative(ogre, 18)));
+
+        encounterService.setInitiatives(encounter.getId(), request, dmUserId);
+
+        assertEquals(List.of(2, 1, 0), Stream.of(aria, goblin, ogre).map(EncounterParticipant::getSortOrder).toList());
+    }
+
+    private static SetInitiativeRequest initiative(EncounterParticipant participant, int value) {
+        SetInitiativeRequest request = new SetInitiativeRequest();
+        request.setParticipantId(participant.getId());
+        request.setInitiative(value);
+        return request;
+    }
+
+    @Test
+    @DisplayName("Removing the participant whose turn it is mid-fight passes the turn to the next in the order")
+    void removeParticipant_passesTheTurnOn() {
+        EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 0);
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 1);
+        EncounterParticipant ogre = fighting("Ogre", ParticipantType.MONSTER, 8, 8, 2);
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, fighter, goblin, ogre);
+        encounter.setCurrentTurnParticipantId(goblin.getId());
+
+        EncounterResponse response = encounterService.removeParticipant(encounter.getId(), goblin.getId(), dmUserId);
+
+        assertEquals(ogre.getId(), encounter.getCurrentTurnParticipantId());
+        assertEquals(List.of("Fighter", "Ogre"), turnNames(response));
+        assertEquals(1, response.getCurrentTurnIndex());
+    }
+
+    @Test
+    @DisplayName("Participants can't be removed from a Paused or Completed encounter")
+    void removeParticipant_refusedWhilePaused() {
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 0);
+        Encounter paused = encounterIn(EncounterStatus.PAUSED, goblin);
+
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> encounterService.removeParticipant(paused.getId(), goblin.getId(), dmUserId));
+
+        assertEquals("Participants can be removed only while the encounter is prepared or active", ex.getMessage());
+        assertEquals(1, paused.getParticipants().size());
     }
 }

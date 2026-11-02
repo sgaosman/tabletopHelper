@@ -180,6 +180,37 @@ class PlayerViewIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("The Player View numbers the turns players can see, with no current turn while the hidden bugbear acts")
+    void playerTurnOrderWhileTheHiddenMonsterActs() {
+        nextTurn();
+        JsonNode goblinsTurn = getEncounter(player.accessToken());
+        assertThat(goblinsTurn.get("currentTurnIndex").asInt()).isEqualTo(1);
+        assertThat(participant(goblinsTurn, goblinId).get("isCurrentTurn").asBoolean()).isTrue();
+
+        nextTurn();
+        JsonNode playerView = getEncounter(player.accessToken());
+        JsonNode dmView = getEncounter(dm.accessToken());
+
+        assertThat(turnNames(dmView)).containsExactly("Aria", "Goblin", "Bugbear");
+        assertThat(dmView.get("currentTurnIndex").asInt()).isEqualTo(2);
+        assertThat(participant(dmView, bugbearId).get("sortOrder").asInt()).isEqualTo(2);
+        assertThat(turnNames(playerView)).containsExactly("Aria", "Goblin");
+        assertThat(playerView.get("currentTurnIndex").isNull()).isTrue();
+        assertThat(playerView.get("turnOrder").findValuesAsText("current")).containsOnly("false");
+        assertThat(playerView.get("participants").findValuesAsText("isCurrentTurn")).containsOnly("false");
+        assertThat(participant(playerView, characterId).get("sortOrder").asInt()).isZero();
+        assertThat(participant(playerView, goblinId).get("sortOrder").asInt()).isEqualTo(1);
+        // The players' log keeps the turns they can see, and never names the bugbear
+        JsonNode playerLog = expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, player.accessToken()));
+        assertThat(descriptions(playerLog)).containsExactly("Turn passes to Goblin (Round 1)");
+        assertThat(playerLog.toString()).doesNotContain("Bugbear").doesNotContain(bugbearId);
+
+        nextTurn();
+        assertThat(getEncounter(player.accessToken()).get("currentTurnIndex").asInt()).isZero();
+    }
+
+    @Test
     @DisplayName("Revealing the monster puts it back in the Player View")
     void revealingTheMonster() {
         expect(HttpStatus.OK, setVisibility(bugbearId, true, dm.accessToken()));
@@ -256,6 +287,17 @@ class PlayerViewIT extends IntegrationTest {
 
     private JsonNode getEncounter(String token) {
         return expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId, null, token));
+    }
+
+    private void nextTurn() {
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/turn/next", null,
+                dm.accessToken()));
+    }
+
+    private static List<String> turnNames(JsonNode encounter) {
+        List<String> names = new ArrayList<>();
+        encounter.get("turnOrder").forEach(turn -> names.add(turn.get("name").asText()));
+        return names;
     }
 
     private static String idOf(JsonNode encounter, String displayName) {

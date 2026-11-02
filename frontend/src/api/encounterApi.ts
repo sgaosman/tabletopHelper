@@ -1,5 +1,7 @@
 import api from './axiosConfig';
-import type { Encounter, EncounterCreateRequest, AddParticipantRequest, BulkInitiativeRequest } from '../types/encounter';
+import type {
+  Encounter, EncounterCreateRequest, AddParticipantRequest, BulkInitiativeRequest, TieOrderRequest,
+} from '../types/encounter';
 
 export const encounterApi = {
   create(data: EncounterCreateRequest) {
@@ -41,6 +43,11 @@ export const encounterApi = {
 
   rollInitiatives(encounterId: string) {
     return api.post<Encounter>(`/encounters/${encounterId}/initiatives/roll`);
+  },
+
+  /** The DM's order for participants tied on initiative and DEX: every one of them, first to act first (D163). */
+  reorderTie(encounterId: string, participantIds: string[]) {
+    return api.put<Encounter>(`/encounters/${encounterId}/initiatives/tie-order`, { participantIds } satisfies TieOrderRequest);
   },
 
   start(encounterId: string) {

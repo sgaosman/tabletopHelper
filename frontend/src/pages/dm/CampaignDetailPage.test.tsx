@@ -41,6 +41,26 @@ describe('CampaignDetailPage', () => {
     expect(settingsRequest).toEqual({ showExactMonsterHp: true });
   });
 
+  it('has players roll their own Repeat Saves, leaving the HP setting alone (D162)', async () => {
+    let settingsRequest: unknown;
+    server.use(
+      http.patch('/api/campaigns/:id/settings', async ({ params, request }) => {
+        settingsRequest = await request.json();
+        return HttpResponse.json({ ...makeCampaign(params.id as string, 'Test Campaign'), promptPlayerRepeatSaves: true });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    const setting = await screen.findByRole('checkbox', { name: /Players roll their own Repeat Saves/ });
+    expect(setting).not.toBeChecked();
+    await user.click(setting);
+
+    await waitFor(() => expect(setting).toBeChecked());
+    expect(settingsRequest).toEqual({ promptPlayerRepeatSaves: true });
+    expect(screen.getByRole('checkbox', { name: /Show exact monster HP/ })).not.toBeChecked();
+  });
+
   it('shows the setting as saved on the campaign', async () => {
     server.use(
       http.get('/api/campaigns/:id', ({ params }) =>

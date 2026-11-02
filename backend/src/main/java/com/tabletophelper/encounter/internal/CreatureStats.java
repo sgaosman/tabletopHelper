@@ -59,6 +59,11 @@ public class CreatureStats {
 
     /** An ability score, 10 when the participant has no sheet or stat block, or the score is missing. */
     public int abilityScore(EncounterParticipant participant, Ability ability) {
+        return score(participant, ability);
+    }
+
+    /** As {@link #abilityScore}, for callers without the component, such as the turn order. */
+    public static int score(EncounterParticipant participant, Ability ability) {
         if (participant.getCharacter() != null) {
             return orTen(characterScore(participant.getCharacter(), ability));
         }

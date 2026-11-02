@@ -126,6 +126,17 @@ public class EncounterController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // The DM's order among participants tied on initiative and DEX (D163)
+    @PutMapping("/{encounterId}/initiatives/tie-order")
+    public ResponseEntity<EncounterResponse> reorderTie(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody TieOrderRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = encounterService.reorderTie(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     @PostMapping("/{encounterId}/start")
     public ResponseEntity<EncounterResponse> startEncounter(
             @PathVariable UUID encounterId,

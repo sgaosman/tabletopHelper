@@ -7,7 +7,7 @@ import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
-import type { Encounter, EncounterParticipant } from '../../types/encounter';
+import type { Encounter, EncounterParticipant, TurnEntry } from '../../types/encounter';
 import EncounterSessionPage from './EncounterSessionPage';
 
 const NAMES = /^(Test Goblin|Gimli|Hidden Bugbear)$/;
@@ -467,6 +467,147 @@ describe('DM EncounterSessionPage', () => {
         expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
       }
       expect(screen.queryByText(PAUSED_NOTICE)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('turn order (D163)', () => {
+    const dragon = (overrides: Partial<EncounterParticipant> = {}) =>
+      makeMockParticipant('part-dragon', 'Red Dragon', 'MONSTER', { sortOrder: 0, initiative: 22, hasLairActions: true, ...overrides });
+    const lairTurn = (current: boolean): TurnEntry =>
+      ({ participantId: null, name: 'Lair Actions', initiative: 20, lair: true, skipped: false, current, tieGroup: null });
+    const turnOf = (p: EncounterParticipant, overrides: Partial<TurnEntry> = {}): TurnEntry =>
+      ({ participantId: p.id, name: p.displayName, initiative: p.initiative ?? null, lair: false, skipped: false, current: false, tieGroup: null, ...overrides });
+
+    // The dragon fights in its lair, and the Lair's turn on 20 comes after the dragon's 22
+    function lairFight(onLairTurn: boolean): Encounter {
+      const participants = [dragon(), goblin({ sortOrder: 2 }), gimli({ sortOrder: 3 })];
+      return makeMockEncounter({
+        participants,
+        turnOrder: [turnOf(participants[0]), lairTurn(onLairTurn), turnOf(participants[1]), turnOf(participants[2])],
+        monstersInLair: ['part-dragon'],
+      });
+    }
+
+    it('lists the computed order with the Lair\'s turn, and marks the current turn', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(lairFight(true))));
+      await renderLoaded();
+
+      expect(screen.getAllByText(/^(Lair Actions|Test Goblin|Gimli)$/).map(el => el.textContent))
+        .toEqual(['Lair Actions', 'Test Goblin', 'Gimli']);
+      const current = screen.getByRole('list', { name: 'Initiative order' }).querySelector('[aria-current="step"]');
+      expect(current).toHaveTextContent('Lair Actions');
+      expect(current).toHaveTextContent('Red Dragon');
+    });
+
+    it('puts a monster with lair actions in its lair, and offers no switch to one without', async () => {
+      let requested: unknown;
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [gimli(), goblin({ hasLairActions: true }), bugbear({ hasLairActions: false })],
+        }))),
+        http.post('/api/encounters/:id/combat/lair-status', async ({ request }) => {
+          requested = await request.json();
+          return HttpResponse.json(makeMockEncounter({
+            participants: [gimli(), goblin({ hasLairActions: true }), bugbear({ hasLairActions: false })],
+            monstersInLair: ['part-goblin'],
+          }));
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      const toggle = screen.getByRole('button', { name: /In lair/ });
+      expect(toggle).toHaveAttribute('aria-pressed', 'false');
+      await user.click(toggle);
+
+      await waitFor(() => expect(screen.getByRole('button', { name: /In lair/ })).toHaveAttribute('aria-pressed', 'true'));
+      expect(requested).toEqual({ monsterIds: ['part-goblin'] });
+      expect(screen.getAllByRole('button', { name: /In lair/ })).toHaveLength(1);
+    });
+
+    it('reorders a tie on initiative and DEX with the arrows', async () => {
+      let requested: unknown;
+      const participants = [goblin({ initiative: 12 }), gimli({ initiative: 12 }), bugbear()];
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants,
+          turnOrder: [turnOf(participants[0], { tieGroup: 0, current: true }), turnOf(participants[1], { tieGroup: 0 }), turnOf(participants[2])],
+        }))),
+        http.put('/api/encounters/:id/initiatives/tie-order', async ({ request }) => {
+          requested = await request.json();
+          return HttpResponse.json(makeMockEncounter({ participants }));
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      expect(screen.getByRole('button', { name: 'Move Test Goblin up the tie' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Move Hidden Bugbear up the tie' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Move Gimli up the tie' }));
+
+      await waitFor(() => expect(requested).toEqual({ participantIds: ['part-gimli', 'part-goblin'] }));
+    });
+
+    it('shows why the turn could not move on', async () => {
+      server.use(http.post('/api/encounters/:id/combat/turn/next', () =>
+        HttpResponse.json({ error: 'Nobody in the turn order can take a turn' }, { status: 409 })));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: /Next Turn/ }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Nobody in the turn order can take a turn');
+    });
+
+    it('holds back legendary actions on the monster\'s own turn, and lair actions outside the Lair\'s', async () => {
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [goblin({ isCurrentTurn: true }), gimli()],
+        }))),
+        http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+          actions: [{ name: 'Scimitar', attackBonus: 4, deliveryMethod: 'MELEE_WEAPON', automatable: true,
+            effects: [{ effectType: 'DAMAGE', damageDice: '1d6+2', damageType: 'slashing' }] }],
+          legendaryActions: [{ name: 'Tail Attack', cost: 1, deliveryMethod: 'ATTACK_ROLL', attackBonus: 4,
+            effects: [{ effectType: 'DAMAGE', damageDice: '1d8', damageType: 'bludgeoning' }] }],
+          lairActions: [{ name: 'Tremor', deliveryMethod: 'SAVING_THROW', saveDC: 15, saveAbility: 'DEX',
+            effects: [{ effectType: 'CONDITION', condition: 'prone' }], description: 'The ground shakes.' }],
+          resourcePools: { 'monster:legendary-actions': { currentUses: 3, maxUses: 3, displayName: 'Legendary Actions' } },
+        })),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Monster actions' }));
+      await user.click(await screen.findByRole('button', { name: 'Legendary (3)' }));
+      expect(screen.getByRole('button', { name: /Tail Attack/ })).toBeDisabled();
+      expect(screen.getByText(/Legendary actions are used on other creatures' turns/)).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Lair (1)' }));
+      expect(screen.getByText('Test Goblin isn\'t fighting in its lair.')).toBeInTheDocument();
+      expect(screen.getByText('Tremor').closest('[aria-disabled]')).toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('shows a death save due, and rolls a Repeat Save waiting on a player', async () => {
+      let requested: unknown;
+      const paralyzed = makeMockCondition('paralyzed', { repeatSave: { ability: 'CON', dc: 10, awaitingRoll: true }, endRule: { type: 'REPEAT_SAVE' } });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [goblin(), gimli({ hpCurrent: 0, lifeState: 'DYING', deathSaveDue: true, activeConditions: [paralyzed] })],
+        }))),
+        http.post('/api/encounters/:id/combat/repeat-save', async ({ request }) => {
+          requested = await request.json();
+          return HttpResponse.json(makeMockEncounter({ participants: [goblin(), gimli({ hpCurrent: 0, lifeState: 'DYING' })] }));
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      expect(screen.getByText('Death save due')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Roll CON save' }));
+
+      await waitFor(() => expect(requested).toEqual({ participantId: 'part-gimli', conditionId: 'cond-paralyzed' }));
+      expect(await screen.findByText('Gimli')).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText('Death save due')).not.toBeInTheDocument());
     });
   });
 });

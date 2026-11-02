@@ -135,9 +135,10 @@ public class EncounterParticipant {
     @Builder.Default
     private LifeState lifeState = LifeState.ALIVE;
 
-    @Column(name = "is_current_turn")
+    // Set when a Dying PC's turn starts, until it rolls a death save or stops dying (D163)
+    @Column(name = "death_save_due", nullable = false)
     @Builder.Default
-    private Boolean isCurrentTurn = false;
+    private Boolean deathSaveDue = false;
 
     @Column(name = "controlled_by_user_id")
     private UUID controlledByUserId;

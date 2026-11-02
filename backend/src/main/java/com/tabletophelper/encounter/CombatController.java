@@ -99,6 +99,17 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // A Repeat Save the campaign leaves to the player (D162)
+    @PostMapping("/repeat-save")
+    public ResponseEntity<EncounterResponse> rollRepeatSave(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody RepeatSaveRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = conditionService.rollRepeatSave(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     @PostMapping("/death-save")
     public ResponseEntity<EncounterResponse> rollDeathSave(
             @PathVariable UUID encounterId,

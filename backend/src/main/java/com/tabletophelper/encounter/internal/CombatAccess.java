@@ -11,7 +11,6 @@ import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,11 +41,14 @@ public class CombatAccess {
         return encounter;
     }
 
-    /** As {@link #beginFor}, and a player only on that participant's turn: attacks and spells (D028). */
+    /**
+     * As {@link #beginFor}, and a player only on that participant's turn: attacks and spells (D028). The turn
+     * is the creature the encounter's marker names (D163).
+     */
     public Encounter beginOnTurnFor(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
         accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId),
-                isCurrentTurn(encounter, participantId), userId);
+                EncounterTurns.isCurrentTurn(encounter, participantId), userId);
         EncounterLifecycle.requireActive(encounter);
         return encounter;
     }
@@ -104,14 +106,5 @@ public class CombatAccess {
                 .findFirst()
                 .map(EncounterParticipant::getControlledByUserId)
                 .orElse(null);
-    }
-
-    // The participant at the current turn index, counting in sort order with unsorted participants last
-    private static boolean isCurrentTurn(Encounter encounter, UUID participantId) {
-        List<EncounterParticipant> sorted = encounter.getParticipants().stream()
-                .sorted(Comparator.comparingInt(p -> p.getSortOrder() != null ? p.getSortOrder() : 999))
-                .toList();
-        int turnIndex = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
-        return turnIndex < sorted.size() && sorted.get(turnIndex).getId().equals(participantId);
     }
 }

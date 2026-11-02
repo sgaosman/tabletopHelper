@@ -1367,6 +1367,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/repeat-save": {
+      "post": {
+        "operationId": "rollRepeatSave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepeatSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/repeat-spell-effect": {
       "post": {
         "operationId": "repeatSpellEffect",
@@ -1647,6 +1688,47 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/initiatives/tie-order": {
+      "put": {
+        "operationId": "reorderTie",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TieOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -3373,6 +3455,7 @@
           "isActive",
           "members",
           "name",
+          "promptPlayerRepeatSaves",
           "showExactMonsterHp"
         ],
         "type": "object",
@@ -3412,6 +3495,10 @@
           "name": {
             "type": "string"
           },
+          "promptPlayerRepeatSaves": {
+            "type": "boolean",
+            "description": "On: players roll their characters' Repeat Saves when prompted; off: the server rolls them (D162)"
+          },
           "showExactMonsterHp": {
             "type": "boolean",
             "description": "Off: players see each monster's HP as a Health Status instead of numbers (D157)"
@@ -3421,6 +3508,10 @@
       "CampaignSettingsRequest": {
         "type": "object",
         "properties": {
+          "promptPlayerRepeatSaves": {
+            "type": "boolean",
+            "nullable": true
+          },
           "showExactMonsterHp": {
             "type": "boolean",
             "nullable": true
@@ -4670,6 +4761,14 @@
           "name": {
             "type": "string"
           },
+          "repeatSave": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RepeatSave"
+              }
+            ]
+          },
           "sourceParticipantId": {
             "type": "string",
             "format": "uuid",
@@ -4799,12 +4898,13 @@
         "required": [
           "campaignId",
           "campaignName",
-          "currentTurnIndex",
           "id",
+          "monstersInLair",
           "name",
           "participants",
           "roundNumber",
-          "status"
+          "status",
+          "turnOrder"
         ],
         "type": "object",
         "properties": {
@@ -4822,7 +4922,8 @@
           },
           "currentTurnIndex": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
           "description": {
             "type": "string",
@@ -4831,6 +4932,13 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "monstersInLair": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "name": {
             "type": "string"
@@ -4857,6 +4965,12 @@
               "PAUSED",
               "COMPLETED"
             ]
+          },
+          "turnOrder": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TurnResponse"
+            }
           }
         }
       },
@@ -4866,6 +4980,11 @@
         ],
         "type": "object",
         "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "type": {
             "type": "string",
             "enum": [
@@ -5794,6 +5913,7 @@
           "actionUsed",
           "armourClass",
           "bonusActionUsed",
+          "deathSaveDue",
           "deathSaveFailures",
           "deathSaveSuccesses",
           "displayName",
@@ -5801,7 +5921,8 @@
           "isCurrentTurn",
           "lifeState",
           "participantType",
-          "reactionUsed"
+          "reactionUsed",
+          "sortOrder"
         ],
         "type": "object",
         "properties": {
@@ -5850,6 +5971,9 @@
             "format": "uuid",
             "nullable": true
           },
+          "deathSaveDue": {
+            "type": "boolean"
+          },
           "deathSaveFailures": {
             "type": "integer",
             "format": "int32"
@@ -5860,6 +5984,10 @@
           },
           "displayName": {
             "type": "string"
+          },
+          "hasLairActions": {
+            "type": "boolean",
+            "nullable": true
           },
           "healthStatus": {
             "type": "string",
@@ -5945,8 +6073,7 @@
           },
           "sortOrder": {
             "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "format": "int32"
           },
           "spellAttackBonus": {
             "type": "integer",
@@ -6124,6 +6251,51 @@
             "maxLength": 50,
             "minLength": 3,
             "type": "string"
+          }
+        }
+      },
+      "RepeatSave": {
+        "required": [
+          "ability",
+          "awaitingRoll",
+          "dc"
+        ],
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string",
+            "enum": [
+              "STR",
+              "DEX",
+              "CON",
+              "INT",
+              "WIS",
+              "CHA"
+            ]
+          },
+          "awaitingRoll": {
+            "type": "boolean"
+          },
+          "dc": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RepeatSaveRequest": {
+        "required": [
+          "conditionId",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "conditionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -6589,6 +6761,59 @@
           },
           "targetName": {
             "type": "string"
+          }
+        }
+      },
+      "TieOrderRequest": {
+        "required": [
+          "participantIds"
+        ],
+        "type": "object",
+        "properties": {
+          "participantIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "TurnResponse": {
+        "required": [
+          "current",
+          "lair",
+          "name",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "boolean"
+          },
+          "initiative": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "lair": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "skipped": {
+            "type": "boolean"
+          },
+          "tieGroup": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },

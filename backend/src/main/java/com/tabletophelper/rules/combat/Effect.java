@@ -4,6 +4,7 @@ import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -20,15 +21,25 @@ import java.util.Objects;
  *                       automatically
  * @param concentration  whether keeping it going needs concentration
  * @param durationRounds how many rounds it lasts; null when instantaneous or unknown
+ * @param conditionEnds  how a condition it applies ends, by condition name, when its data says (D162); a
+ *                       condition missing here lasts as long as the Effect
  */
 public record Effect(String name, Delivery delivery, List<DamagePart> damage, Dice healing,
-                     List<String> conditions, boolean concentration, Integer durationRounds) {
+                     List<String> conditions, boolean concentration, Integer durationRounds,
+                     Map<String, ConditionEnd> conditionEnds) {
 
     public Effect {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(delivery, "delivery");
         damage = List.copyOf(damage);
         conditions = List.copyOf(conditions);
+        conditionEnds = Map.copyOf(conditionEnds);
+    }
+
+    /** An Effect whose conditions all last as long as it does. */
+    public Effect(String name, Delivery delivery, List<DamagePart> damage, Dice healing, List<String> conditions,
+                  boolean concentration, Integer durationRounds) {
+        this(name, delivery, damage, healing, conditions, concentration, durationRounds, Map.of());
     }
 
     /** How an Effect reaches its targets: an attack roll, a saving throw, automatically, or only its user. */
@@ -76,6 +87,23 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
 
         public DamagePart {
             Objects.requireNonNull(dice, "dice");
+        }
+    }
+
+    /**
+     * How a condition an Effect applies ends (D162).
+     *
+     * @param durationRounds how many rounds the condition lasts; null for as long as the Effect
+     * @param repeatSave     the save its creature repeats at the end of each of its turns to end it, or null
+     */
+    public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave) {
+    }
+
+    /** A saving throw repeated to end a condition: the ability and the DC. */
+    public record RepeatSave(Ability ability, int dc) {
+
+        public RepeatSave {
+            Objects.requireNonNull(ability, "ability");
         }
     }
 }

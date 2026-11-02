@@ -50,6 +50,9 @@ public final class TurnOrder {
     /** The turn that comes next, and whether reaching it starts a new round. */
     public record NextTurn(int index, boolean newRound) {}
 
+    /** The turn that came before, and whether going back to it returns to the previous round. */
+    public record PreviousTurn(int index, boolean previousRound) {}
+
     // Combatants without initiative come last
     private static final Comparator<Combatant> INITIATIVE_ORDER = Comparator
             .comparing(Combatant::initiative, Comparator.nullsLast(Comparator.<Integer>reverseOrder()))
@@ -82,6 +85,33 @@ public final class TurnOrder {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * The turn before current, the index of the turn now taken or -1 when there is none, passing over skipped
+     * turns. Going back past the start of the order returns to the previous round. Empty when nobody in the
+     * order can act.
+     */
+    public static Optional<PreviousTurn> previous(List<Turn> order, int current) {
+        if (current < -1 || current >= order.size()) {
+            throw new IllegalArgumentException("Turn " + current + " isn't in an order of " + order.size());
+        }
+        int from = current == -1 ? order.size() : current;
+        for (int step = 1; step <= order.size(); step++) {
+            int index = Math.floorMod(from - step, order.size());
+            if (!order.get(index).isSkipped()) {
+                return Optional.of(new PreviousTurn(index, from - step < 0));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Whether two combatants tie on both initiative and DEX, so only the DM's order puts one before the other
+     * (D163). Combatants without initiative never tie.
+     */
+    public static boolean tied(Combatant a, Combatant b) {
+        return a.initiative() != null && a.initiative().equals(b.initiative()) && a.dexterity() == b.dexterity();
     }
 
     // Everyone on 20 or more goes before the Lair, which loses ties

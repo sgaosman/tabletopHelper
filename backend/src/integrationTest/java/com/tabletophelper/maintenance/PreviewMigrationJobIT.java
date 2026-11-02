@@ -34,13 +34,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The preview-migration dry run (D150, D168). V15 is previewed against rows in the shapes it converts, with
- * {@code preview} called directly because Flyway has already applied it to this database. V16 is previewed
- * through {@code run}, pending as it would be in use, against a schema of its own that Flyway takes only to
- * V15, and then applied there, so its backfill is checked row by row (D161, D162).
+ * {@code preview} called directly because Flyway has already applied it to this database. V16 is applied to a
+ * schema of its own that Flyway takes only to V15, so its backfill is checked row by row (D161, D162); its
+ * preview, which loads the rows with entities now at V17, gave way to V17's. V17 is previewed through
+ * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
     private static final String V16_SCHEMA = "v16_preview";
+    private static final String V17_SCHEMA = "v17_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -57,8 +59,9 @@ class PreviewMigrationJobIT extends IntegrationTest {
     }
 
     @AfterEach
-    void dropV16Schema() {
+    void dropSchemas() {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V16_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V17_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -240,10 +243,10 @@ class PreviewMigrationJobIT extends IntegrationTest {
         return id;
     }
 
-    // Connections that find the V16 schema's tables first, as the app would on a database at V15
-    private DataSource v16DataSource() {
+    // Connections that find the schema's tables first, as the app would on a database at its version
+    private DataSource schemaDataSource(String schema) {
         String url = postgres.getJdbcUrl();
-        return new DriverManagerDataSource(url + (url.contains("?") ? "&" : "?") + "currentSchema=" + V16_SCHEMA
+        return new DriverManagerDataSource(url + (url.contains("?") ? "&" : "?") + "currentSchema=" + schema
                 + ",public", postgres.getUsername(), postgres.getPassword());
     }
 
@@ -251,28 +254,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
         return jdbcTemplate.queryForMap("SELECT hp_max, hp_current, hp_temp, life_state, death_save_successes, "
                 + "death_save_failures, concentration::text AS concentration, active_conditions::text AS conditions "
                 + "FROM " + V16_SCHEMA + ".encounter_participants WHERE id = ?", id);
-    }
-
-    @Test
-    @DisplayName("Previews V16 on a database at V15: every participant changes, every row loads, and nothing is written")
-    void previewsV16() {
-        Map<String, UUID> rows = v16Rows();
-        DataSource v16 = v16DataSource();
-
-        MaintenanceReport report = new PreviewMigrationJob(v16, new JdbcTemplate(v16), entityManagerFactory,
-                objectMapper, "16").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(report.examined()).isEqualTo(9);
-        // Seven participants and the log entry, whose new Legendary Resistance columns are empty
-        assertThat(report.changes()).hasSize(8);
-        String wizard = report.changes().stream().filter(c -> c.contains(rows.get("Wizard").toString()))
-                .findFirst().orElseThrow();
-        assertThat(wizard).contains("\"spell\":\"Bless\"").contains("\"slotLevel\":1").contains("\"startedRound\":4")
-                .containsPattern("life_state: +→ \"ALIVE\"");
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND table_name = 'encounter_participants' AND column_name = 'is_alive'", Integer.class, V16_SCHEMA))
-                .isEqualTo(1);
     }
 
     @Test
@@ -334,5 +315,113 @@ class PreviewMigrationJobIT extends IntegrationTest {
                 rows.get("entry"));
         jdbcTemplate.update("UPDATE " + V16_SCHEMA + ".combat_logs SET action_type = 'REPEAT_SAVE' WHERE id = ?",
                 rows.get("entry"));
+    }
+
+    // ── V17: the turn order (D163) ───────────────────────────────
+
+    /**
+     * Takes a schema of its own to V16 and fills it with encounters whose turns the old code marked: one with a
+     * participant flagged, a paused one with none flagged, and one still being prepared.
+     */
+    private Map<String, UUID> v17Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V17_SCHEMA).locations("classpath:db/migration")
+                .target("16").load().migrate();
+        UUID dm = UUID.randomUUID();
+        UUID campaign = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V17_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'dm', 'dm@example.com', 'hash')", dm);
+        jdbcTemplate.update("INSERT INTO " + V17_SCHEMA + ".campaigns (id, name, invite_code, dm_user_id) "
+                + "VALUES (?, 'Lost Mine', 'ABCD2345', ?)", campaign, dm);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        rows.put("Ambush", v16Encounter(campaign, "Ambush", "ACTIVE", 1));
+        rows.put("Ogre", v16Participant(rows.get("Ambush"), "Ogre", 0, false));
+        rows.put("Goblin", v16Participant(rows.get("Ambush"), "Goblin", 1, true));
+        rows.put("Wizard", v16Participant(rows.get("Ambush"), "Wizard", 2, false));
+        // Unmarked: the turn index counts in sort order, unsorted participants last
+        rows.put("Unmarked", v16Encounter(campaign, "Unmarked", "PAUSED", 2));
+        rows.put("Unsorted", v16Participant(rows.get("Unmarked"), "Unsorted", null, false));
+        rows.put("First", v16Participant(rows.get("Unmarked"), "First", 0, false));
+        rows.put("Second", v16Participant(rows.get("Unmarked"), "Second", 1, false));
+        rows.put("Prepared", v16Encounter(campaign, "Prepared", "PREPARING", 0));
+        rows.put("Waiting", v16Participant(rows.get("Prepared"), "Waiting", 0, false));
+        return rows;
+    }
+
+    private UUID v16Encounter(UUID campaign, String name, String status, int turnIndex) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V17_SCHEMA + ".encounters (id, name, status, round_number, "
+                + "current_turn_index, campaign_id) VALUES (?, ?, ?, 3, ?, ?)", id, name, status, turnIndex, campaign);
+        return id;
+    }
+
+    private UUID v16Participant(UUID encounter, String name, Integer sortOrder, boolean currentTurn) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V17_SCHEMA + ".encounter_participants (id, display_name, participant_type, "
+                        + "hp_max, hp_current, hp_temp, armour_class, sort_order, is_current_turn, life_state, "
+                        + "death_save_successes, death_save_failures, encounter_id) "
+                        + "VALUES (?, ?, 'MONSTER', 7, 7, 0, 12, ?, ?, 'ALIVE', 0, 0, ?)",
+                id, name, sortOrder, currentTurn, encounter);
+        return id;
+    }
+
+    private Map<String, Object> v17Encounter(UUID id) {
+        return jdbcTemplate.queryForMap("SELECT current_turn_participant_id, is_lair_turn FROM " + V17_SCHEMA
+                + ".encounters WHERE id = ?", id);
+    }
+
+    private int v17Columns(String table, String... columns) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND table_name = ? AND column_name = ANY (?)", Integer.class, V17_SCHEMA, table, columns);
+    }
+
+    @Test
+    @DisplayName("Previews V17 on a database at V16: every encounter and participant changes, every row loads, nothing is written")
+    void previewsV17() {
+        Map<String, UUID> rows = v17Rows();
+        DataSource v17 = schemaDataSource(V17_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v17, new JdbcTemplate(v17), entityManagerFactory,
+                objectMapper, "17").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(report.examined()).isEqualTo(10);
+        // Three encounters and seven participants, which lose their turn columns and gain the new ones
+        assertThat(report.changes()).hasSize(10);
+        String ambush = report.changes().stream().filter(c -> c.contains(rows.get("Ambush").toString()))
+                .findFirst().orElseThrow();
+        assertThat(ambush).containsPattern("current_turn_participant_id: +→ \"" + rows.get("Goblin") + "\"")
+                .containsPattern("current_turn_index: 1 → *\n")
+                .containsPattern("is_lair_turn: +→ false");
+        assertThat(v17Columns("encounter_participants", "is_current_turn")).isEqualTo(1);
+        assertThat(v17Columns("encounters", "current_turn_participant_id")).isZero();
+    }
+
+    @Test
+    @DisplayName("V17 keeps whose turn it was, by flag or else by turn index, and drops the old turn columns")
+    void appliesV17() {
+        Map<String, UUID> rows = v17Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V17_SCHEMA).locations("classpath:db/migration")
+                .target("17").load().migrate();
+
+        assertThat(v17Encounter(rows.get("Ambush"))).containsEntry("current_turn_participant_id", rows.get("Goblin"))
+                .containsEntry("is_lair_turn", false);
+        assertThat(v17Encounter(rows.get("Unmarked")).get("current_turn_participant_id")).isEqualTo(rows.get("Unsorted"));
+        assertThat(v17Encounter(rows.get("Prepared")).get("current_turn_participant_id")).isNull();
+        assertThat(v17Columns("encounter_participants", "is_current_turn")).isZero();
+        assertThat(v17Columns("encounters", "current_turn_index")).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT bool_or(death_save_due) FROM " + V17_SCHEMA
+                + ".encounter_participants", Boolean.class)).isFalse();
+        assertThat(jdbcTemplate.queryForObject("SELECT prompt_player_repeat_saves FROM " + V17_SCHEMA
+                + ".campaigns", Boolean.class)).isFalse();
+
+        // Never both a participant's turn and the Lair's
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V17_SCHEMA + ".encounters SET is_lair_turn = TRUE "
+                + "WHERE id = ?", rows.get("Ambush")))
+                .hasMessageContaining("encounters_one_current_turn_check");
+        // Deleting the participant whose turn it is leaves no turn rather than failing
+        jdbcTemplate.update("DELETE FROM " + V17_SCHEMA + ".encounter_participants WHERE id = ?", rows.get("Goblin"));
+        assertThat(v17Encounter(rows.get("Ambush")).get("current_turn_participant_id")).isNull();
     }
 }

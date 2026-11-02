@@ -44,9 +44,16 @@ public class Encounter {
     @Builder.Default
     private EncounterStatus status = EncounterStatus.PREPARING;
 
-    @Column(name = "current_turn_index")
+    // Whose turn it is, by participant rather than by place in the order, which is computed and shifts as
+    // initiative ties are broken and participants and the Lair come and go (D163). Null with lairTurn unset
+    // before the encounter starts; V17 keeps the two from both being set.
+    @Column(name = "current_turn_participant_id")
+    private UUID currentTurnParticipantId;
+
+    // The Lair's turn, on initiative 20 (D163)
+    @Column(name = "is_lair_turn", nullable = false)
     @Builder.Default
-    private Integer currentTurnIndex = 0;
+    private Boolean lairTurn = false;
 
     @Column(name = "round_number")
     @Builder.Default
@@ -55,7 +62,8 @@ public class Encounter {
     @Column(name = "session_code", length = 8, unique = true)
     private String sessionCode;
 
-    // The monster IDs fighting in their lair (D136), typed since R5 (D168)
+    // The monster participants fighting in their lair (D136), typed since R5 (D168). The Lair takes a turn
+    // while any of them is alive (D163).
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "monsters_in_lair", columnDefinition = "jsonb")
     private List<UUID> monstersInLair;

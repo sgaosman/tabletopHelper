@@ -2,6 +2,7 @@ package com.tabletophelper.rules.combat;
 
 import com.tabletophelper.rules.combat.TurnOrder.Combatant;
 import com.tabletophelper.rules.combat.TurnOrder.NextTurn;
+import com.tabletophelper.rules.combat.TurnOrder.PreviousTurn;
 import com.tabletophelper.rules.combat.TurnOrder.Turn;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -187,5 +188,41 @@ class TurnOrderTest {
         var order = TurnOrder.order(List.of(pc("Aria", 12, 10, 0)), false);
         assertThrows(IllegalArgumentException.class, () -> TurnOrder.next(order, 1));
         assertThrows(IllegalArgumentException.class, () -> TurnOrder.next(order, -2));
+        assertThrows(IllegalArgumentException.class, () -> TurnOrder.previous(order, 1));
+    }
+
+    // ── Going back ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("The previous turn passes over dead monsters, within the round")
+    void previousSkipsDeadMonsters() {
+        var order = TurnOrder.order(List.of(
+                pc("Aria", 20, 10, 0), dead(monster("Goblin", 15, 14, 1)), monster("Ogre", 10, 8, 2)), false);
+        assertEquals(Optional.of(new PreviousTurn(0, false)), TurnOrder.previous(order, 2));
+    }
+
+    @Test
+    @DisplayName("Going back past the first turn returns to the last of the round before, past the Lair it keeps")
+    void previousWrapsToThePreviousRound() {
+        var order = TurnOrder.order(List.of(pc("Aria", 25, 10, 0), dead(monster("Goblin", 3, 14, 1))), true);
+        assertEquals(Optional.of(new PreviousTurn(1, true)), TurnOrder.previous(order, 0));
+        assertEquals(LAIR, names(order).get(1));
+    }
+
+    @Test
+    @DisplayName("No previous turn when nobody can act")
+    void noPreviousTurn() {
+        assertEquals(Optional.empty(), TurnOrder.previous(List.of(), -1));
+    }
+
+    // ── Ties the DM orders ────────────────────────────────────────
+
+    @Test
+    @DisplayName("Two combatants tie only on equal initiative and equal DEX; without initiative they never do")
+    void tiedOnInitiativeAndDexterity() {
+        assertTrue(TurnOrder.tied(pc("Aria", 15, 14, 0), monster("Goblin", 15, 14, 1)));
+        assertFalse(TurnOrder.tied(pc("Aria", 15, 12, 0), monster("Goblin", 15, 14, 1)));
+        assertFalse(TurnOrder.tied(pc("Aria", 15, 14, 0), monster("Goblin", 16, 14, 1)));
+        assertFalse(TurnOrder.tied(pc("Aria", null, 14, 0), monster("Goblin", null, 14, 1)));
     }
 }

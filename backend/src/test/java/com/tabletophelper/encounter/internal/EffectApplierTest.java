@@ -13,6 +13,8 @@ import com.tabletophelper.encounter.dto.MonsterSpellRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
+import com.tabletophelper.encounter.state.RepeatSave;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
@@ -614,6 +616,44 @@ class EffectApplierTest {
     }
 
     // ── Concentration ────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("How applied conditions end (D162)")
+    class ConditionEndRules {
+
+        @Test
+        @DisplayName("A monster's condition keeps its rounds and Repeat Save, counted on the monster's turns")
+        void monsterConditionWithARepeatSave() {
+            ogreAction("""
+                    {"name": "Gaze", "deliveryMethod": "AUTO_HIT", "saveDC": 14, "saveAbility": "WIS",
+                     "effects": [{"effectType": "CONDITION", "condition": "frightened", "durationRounds": 10,
+                                  "saveToEndEachTurn": true}]}""");
+            f.dice.script();
+
+            f.monsterActions.monsterAction(f.encounterId(), monsterAction("Gaze", rogue), f.dmUserId);
+
+            ConditionEntry frightened = rogue.getActiveConditions().getFirst();
+            assertEquals(10, frightened.duration());
+            assertEquals(EndRule.REPEAT_SAVE, frightened.endRule());
+            assertEquals(new RepeatSave(Ability.WIS, 14, false), frightened.repeatSave());
+            assertEquals(ogre.getId(), frightened.sourceParticipantId());
+        }
+
+        @Test
+        @DisplayName("A spell's condition with rounds of its own ends after them at the start of its caster's turn")
+        void spellConditionWithRounds() {
+            f.spell("Test Spell", 1, spellTemplate("AUTO_HIT", null, null,
+                    "[{\"condition\": \"poisoned\", \"durationRounds\": 1}]", ""));
+            f.dice.script();
+
+            cast(Path.SPELL, rogue);
+
+            ConditionEntry poisoned = rogue.getActiveConditions().getFirst();
+            assertEquals(1, poisoned.duration());
+            assertEquals(EndRule.afterRounds(wizard.getId()), poisoned.endRule());
+            assertNull(poisoned.repeatSave());
+        }
+    }
 
     @Nested
     @DisplayName("Concentration (D162)")

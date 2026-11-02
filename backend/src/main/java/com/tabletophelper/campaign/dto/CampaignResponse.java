@@ -40,6 +40,10 @@ public class CampaignResponse {
             description = "Off: players see each monster's HP as a Health Status instead of numbers (D157)")
     private Boolean showExactMonsterHp;
 
+    @Schema(requiredMode = REQUIRED,
+            description = "On: players roll their characters' Repeat Saves when prompted; off: the server rolls them (D162)")
+    private Boolean promptPlayerRepeatSaves;
+
     @Schema(requiredMode = REQUIRED)
     private List<MemberResponse> members;
 

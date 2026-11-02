@@ -26,6 +26,6 @@ public enum CombatActionType {
     RECHARGE_FAILURE,
     // The DM's Set HP / revive (D161)
     HP_SET,
-    // A save to end a condition, which R5 workstream E rolls (D162)
+    // A save repeated to end a condition, at the end of its creature's turn or when its player rolls it (D162)
     REPEAT_SAVE
 }

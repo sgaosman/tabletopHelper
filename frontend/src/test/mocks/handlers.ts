@@ -3,7 +3,9 @@ import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
 import type { CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
-import type { ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry } from '../../types/encounter';
+import type {
+  ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, TurnEntry,
+} from '../../types/encounter';
 import type { Monster } from '../../types/monster';
 import type {
   Background, CharacterClassRef, Condition, Feat, Item, OptionalFeature, PageResponse, Race, Spell, SpellTargetingInfo,
@@ -50,7 +52,8 @@ export function makeCampaign(id: string, name: string, dmUserId = 'user-001', me
   }
   return {
     id, name, dmUserId, dmDisplayName: 'Test User',
-    inviteCode: 'ABC123XY', isActive: true, showExactMonsterHp: false, members, createdAt: makeTimestamp(),
+    inviteCode: 'ABC123XY', isActive: true, showExactMonsterHp: false, promptPlayerRepeatSaves: false, members,
+    createdAt: makeTimestamp(),
   } satisfies Campaign;
 }
 
@@ -165,6 +168,10 @@ export const encounterHandlers = [
     return HttpResponse.json(makeMockEncounter({ status: 'PREPARING', sessionCode: undefined }));
   }),
 
+  http.put(`${BASE}/encounters/:id/initiatives/tie-order`, async () => {
+    return HttpResponse.json(makeMockEncounter());
+  }),
+
   http.post(`${BASE}/encounters/:id/pause`, async () => {
     return HttpResponse.json(makeMockEncounter({ status: 'PAUSED' }));
   }),
@@ -229,6 +236,7 @@ export const combatHandlers = [
   http.post(`${BASE}/encounters/:id/combat/condition/add`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/condition/remove`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/death-save`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/repeat-save`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/concentration`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/spell-slot/use`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/spell-slot/restore`, async () => HttpResponse.json(makeMockEncounter())),
@@ -418,7 +426,7 @@ export function makeMockParticipant(
     characterId: type === 'PLAYER' ? 'char-001' : undefined,
     displayName, initiative: 15, initiativeModifier: 2, sortOrder: 1,
     hpMax: 30, hpCurrent: 30, hpTemp: 0, armourClass: 14,
-    isVisibleToPlayers: true, lifeState: 'ALIVE', isCurrentTurn: false,
+    isVisibleToPlayers: true, lifeState: 'ALIVE', isCurrentTurn: false, deathSaveDue: false,
     deathSaveSuccesses: 0, deathSaveFailures: 0,
     actionUsed: false, bonusActionUsed: false, reactionUsed: false,
   } satisfies EncounterParticipant;
@@ -433,7 +441,7 @@ export function makeMockCondition(name: string, overrides: Partial<ConditionEntr
   const condition = {
     id: `cond-${name}`, name, duration: null, appliedRound: 1,
     sourceSpellName: null, sourceParticipantId: null, sourceRequiresConcentration: null,
-    concentrationInstanceId: null, endRule: { type: 'MANUAL' },
+    concentrationInstanceId: null, endRule: { type: 'MANUAL', participantId: null }, repeatSave: null,
   } satisfies ConditionEntry;
   return { ...condition, ...overrides };
 }
@@ -452,11 +460,27 @@ export function makeMockResourcePool(
   return { ...pool, ...overrides };
 }
 
+/**
+ * The turn order the server computes for these participants (D163): by sortOrder, on the turn of the one
+ * whose isCurrentTurn is set, with no Lair and no ties. A dead monster's turn is skipped.
+ */
+export function mockTurnOrder(participants: EncounterParticipant[]): TurnEntry[] {
+  return [...participants].sort((a, b) => a.sortOrder - b.sortOrder).map(p => ({
+    participantId: p.id, name: p.displayName, initiative: p.initiative ?? null, lair: false,
+    skipped: p.participantType === 'MONSTER' && p.lifeState === 'DEAD', current: p.isCurrentTurn, tieGroup: null,
+  } satisfies TurnEntry));
+}
+
+/** An encounter whose turn order and current turn follow from its participants, unless overridden. */
 export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter {
+  const participants = overrides.participants
+    ?? [makeMockParticipant('part-001', 'Test Goblin', 'MONSTER'), makeMockParticipant('part-002', 'Gimli', 'PLAYER')];
+  const turnOrder = overrides.turnOrder ?? mockTurnOrder(participants);
+  const current = turnOrder.findIndex(turn => turn.current);
   const encounter = {
     id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush',
-    status: 'ACTIVE', currentTurnIndex: 0, roundNumber: 1, sessionCode: 'ABC123XY',
-    participants: [makeMockParticipant('part-001', 'Test Goblin', 'MONSTER'), makeMockParticipant('part-002', 'Gimli', 'PLAYER')],
+    status: 'ACTIVE', currentTurnIndex: current >= 0 ? current : null, roundNumber: 1, sessionCode: 'ABC123XY',
+    participants, turnOrder, monstersInLair: [],
     createdAt: makeTimestamp(),
   } satisfies Encounter;
   return { ...encounter, ...overrides };

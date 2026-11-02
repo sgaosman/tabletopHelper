@@ -21,6 +21,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param concentrationInstanceId     the Concentration Instance that created it, which removes it on ending
  *                                    (D162); null for any other condition
  * @param endRule                     how it ends
+ * @param repeatSave                  the save its creature repeats at the end of each of its turns to end it;
+ *                                    null when there is none (D162)
  */
 public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) UUID id,
@@ -31,29 +33,57 @@ public record ConditionEntry(
         UUID sourceParticipantId,
         Boolean sourceRequiresConcentration,
         UUID concentrationInstanceId,
-        @Schema(requiredMode = REQUIRED) EndRule endRule
+        @Schema(requiredMode = REQUIRED) EndRule endRule,
+        RepeatSave repeatSave
 ) {
 
-    /** A condition with no source, added by hand: it ends when removed, or after its duration. */
+    /**
+     * A condition with no source, added by hand: it ends when removed, or after its duration at the start of
+     * its creature's turn.
+     */
     public static ConditionEntry manual(String name, Integer duration, int appliedRound) {
         return new ConditionEntry(UUID.randomUUID(), name, duration, appliedRound, null, null, null, null,
-                EndRule.MANUAL);
+                duration != null ? EndRule.afterRounds(null) : EndRule.MANUAL, null);
     }
 
     /** The unconsciousness of a PC dropping to 0 HP, which ends when it regains hit points (D161). */
     public static ConditionEntry unconsciousAtZeroHp(int appliedRound) {
         return new ConditionEntry(UUID.randomUUID(), "unconscious", null, appliedRound, null, null, null, null,
-                EndRule.HP_REGAINED);
+                EndRule.HP_REGAINED, null);
+    }
+
+    /**
+     * A condition an Effect applied, without a Repeat Save; see
+     * {@link #fromEffect(String, Integer, int, String, UUID, ConcentrationInstance, RepeatSave)}.
+     */
+    public static ConditionEntry fromEffect(String name, Integer duration, int appliedRound, String sourceName,
+                                            UUID sourceParticipantId, ConcentrationInstance instance) {
+        return fromEffect(name, duration, appliedRound, sourceName, sourceParticipantId, instance, null);
     }
 
     /**
      * A condition an Effect applied. One created by a Concentration Instance ends with it (D162); any other
-     * ends when removed, or after its duration.
+     * ends on its Repeat Save, after its duration at the start of its caster's turn, or when removed.
      */
     public static ConditionEntry fromEffect(String name, Integer duration, int appliedRound, String sourceName,
-                                            UUID sourceParticipantId, ConcentrationInstance instance) {
+                                            UUID sourceParticipantId, ConcentrationInstance instance,
+                                            RepeatSave repeatSave) {
+        EndRule endRule;
+        if (instance != null) {
+            endRule = EndRule.CONCENTRATION;
+        } else if (repeatSave != null) {
+            endRule = EndRule.REPEAT_SAVE;
+        } else if (duration != null) {
+            endRule = EndRule.afterRounds(sourceParticipantId);
+        } else {
+            endRule = EndRule.MANUAL;
+        }
         return new ConditionEntry(UUID.randomUUID(), name, duration, appliedRound, sourceName, sourceParticipantId,
-                instance != null, instance != null ? instance.id() : null,
-                instance != null ? EndRule.CONCENTRATION : EndRule.MANUAL);
+                instance != null, instance != null ? instance.id() : null, endRule, repeatSave);
+    }
+
+    public ConditionEntry withRepeatSave(RepeatSave save) {
+        return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
+                sourceRequiresConcentration, concentrationInstanceId, endRule, save);
     }
 }

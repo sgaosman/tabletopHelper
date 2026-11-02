@@ -372,4 +372,52 @@ class SpellEffectsTest {
             assertEquals(OptionalInt.empty(), f.spellEffects.maxTargets("Fireball", 3));
         }
     }
+
+    @Nested
+    @DisplayName("Condition end rules (D162)")
+    class ConditionEnds {
+
+        @Test
+        @DisplayName("Conditions listed as objects are read by name, with their own rounds and Repeat Saves")
+        void conditionObjects() {
+            f.spell("Hold Person", 2, """
+                    {"spellName": "Hold Person", "spellLevel": 2, "deliveryMethod": "SAVING_THROW", "saveAbility": "WIS",
+                     "concentration": true, "durationRounds": 10, "effects": [],
+                     "conditionsInflicted": [{"condition": "Paralyzed", "saveToAvoid": "WIS", "durationRounds": 10,
+                       "saveToEndEachTurn": true, "saveToEndAbility": "WIS"}]}""");
+            f.spell("Ray of Sickness", 1, """
+                    {"spellName": "Ray of Sickness", "spellLevel": 1, "deliveryMethod": "SAVING_THROW",
+                     "saveAbility": "CON", "concentration": false, "durationRounds": null, "effects": [],
+                     "conditionsInflicted": [{"condition": "poisoned", "durationRounds": 1}]}""");
+
+            Effect hold = cast("Hold Person", 2, wizard, 5).effect();
+            Effect ray = cast("Ray of Sickness", 1, wizard, 5).effect();
+
+            assertEquals(List.of("paralyzed"), hold.conditions());
+            assertEquals(new Effect.ConditionEnd(10, new Effect.RepeatSave(Ability.WIS, 13)),
+                    hold.conditionEnds().get("paralyzed"));
+            assertEquals(List.of("poisoned"), ray.conditions());
+            assertEquals(new Effect.ConditionEnd(1, null), ray.conditionEnds().get("poisoned"));
+        }
+
+        @Test
+        @DisplayName("A Repeat Save without its own ability uses the spell's, and a conditional one is left to the DM")
+        void repeatSaveAbilities() {
+            f.spell("Blindness", 2, """
+                    {"spellName": "Blindness", "spellLevel": 2, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON",
+                     "concentration": false, "durationRounds": 10, "effects": [],
+                     "conditionsInflicted": [{"condition": "blinded", "saveToEndEachTurn": true}]}""");
+            f.spell("Fear", 3, """
+                    {"spellName": "Fear", "spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "WIS",
+                     "concentration": true, "durationRounds": 10, "effects": [],
+                     "conditionsInflicted": [{"condition": "frightened", "durationRounds": 10,
+                       "saveToEndEachTurn": true, "saveToEndAbility": "WIS",
+                       "saveToEndCondition": "creature cannot see caster"}]}""");
+
+            assertEquals(new Effect.ConditionEnd(null, new Effect.RepeatSave(Ability.CON, 13)),
+                    cast("Blindness", 2, wizard, 5).effect().conditionEnds().get("blinded"));
+            assertEquals(new Effect.ConditionEnd(10, null),
+                    cast("Fear", 3, wizard, 5).effect().conditionEnds().get("frightened"));
+        }
+    }
 }

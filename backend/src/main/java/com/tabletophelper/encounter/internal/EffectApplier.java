@@ -9,6 +9,8 @@ import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
+import com.tabletophelper.encounter.state.RepeatSave;
+import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
@@ -24,7 +26,9 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -45,6 +49,9 @@ import java.util.stream.Collectors;
  *       condition; ending it removes exactly the conditions its Concentration Instance created (D162).</li>
  *   <li>A failed save by a creature with Legendary Resistance left is offered for undoing: its entry records
  *       the damage a success would have left and the conditions the save applied (D163).</li>
+ *   <li>At the turn boundaries {@link TurnProcessor} reaches, it ends conditions, rolls Repeat Saves or waits
+ *       for the player's, gives a creature its turn's actions and pools back, and marks a death save due
+ *       (D162, D163).</li>
  * </ul>
  */
 @Component
@@ -61,6 +68,7 @@ public class EffectApplier {
     private final Resolver resolver;
     private final CreatureStats stats;
     private final CombatLogWriter combatLog;
+    private final ResourcePoolService resourcePoolService;
 
     /**
      * Who uses an Effect, and how its entries read: the actor's name, the action and, for another target, the
@@ -275,6 +283,7 @@ public class EffectApplier {
         }
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, type, description), null, participant)
                 .rollValue(d20).rollTotal(d20));
+        participant.setDeathSaveDue(false);
 
         if (change.removeUnconsciousFromDowned()) {
             removeUnconsciousFromZeroHp(participant);
@@ -318,23 +327,130 @@ public class EffectApplier {
                 target.getDisplayName() + " loses condition: " + name, null, target);
     }
 
+    // ── Turn boundaries ──────────────────────────────────────────
+
     /**
-     * Ends the participant's conditions whose duration has run out: those applied at least that many rounds
-     * ago. The turn processing of R5 workstream E replaces this with end rules (D162).
+     * Ends one of the participant's conditions as its end rule says, at the turn boundary {@link TurnProcessor}
+     * reached (D162), writing why, as in "blinded ends on Goblin (its duration ends)". Nothing happens when the
+     * condition is already gone.
      */
-    public void expireConditions(Encounter encounter, EncounterParticipant participant) {
+    public void endCondition(Encounter encounter, EncounterParticipant participant, UUID conditionId, String why) {
         List<ConditionEntry> conditions = conditions(participant);
-        List<ConditionEntry> expired = conditions.stream()
-                .filter(c -> c.duration() != null && encounter.getRoundNumber() - c.appliedRound() >= c.duration())
-                .toList();
-        if (expired.isEmpty()) {
+        Optional<ConditionEntry> ended = find(conditions, conditionId);
+        if (ended.isEmpty()) {
             return;
         }
-        conditions.removeAll(expired);
+        conditions.remove(ended.get());
         participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
-        for (ConditionEntry condition : expired) {
-            combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
-                    condition.name() + " expires on " + participant.getDisplayName(), null, participant);
+        combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
+                ended.get().name() + " ends on " + participant.getDisplayName() + " (" + why + ")", null, participant);
+    }
+
+    /**
+     * The participant's Repeat Save against one of its conditions, rolled here and logged as REPEAT_SAVE (D162):
+     * a success ends the condition. A creature with Legendary Resistance left that fails is offered it, which
+     * would end the condition (D163). Nothing happens when the condition is gone or has no Repeat Save.
+     */
+    public void repeatSave(Encounter encounter, EncounterParticipant participant, UUID conditionId) {
+        List<ConditionEntry> conditions = conditions(participant);
+        Optional<ConditionEntry> found = find(conditions, conditionId);
+        if (found.isEmpty() || found.get().repeatSave() == null) {
+            return;
+        }
+        ConditionEntry condition = found.get();
+        RepeatSave save = condition.repeatSave();
+        int modifier = stats.saveModifier(participant, save.ability());
+        Resolver.SaveRoll roll = resolver.savingThrow(save.ability(), modifier, save.dc(),
+                CreatureStats.conditionNames(participant));
+
+        String name = participant.getDisplayName();
+        StringBuilder description = new StringBuilder(name).append(" repeats the ").append(save.ability().name())
+                .append(" save against ").append(condition.name());
+        if (roll.autoFailed()) {
+            description.append(" vs DC ").append(save.dc()).append(" — fails automatically");
+        } else {
+            description.append(": d20(").append(roll.d20()).append(')').append(signed(modifier)).append(" = ")
+                    .append(roll.total()).append(" vs DC ").append(save.dc())
+                    .append(roll.success() ? " — succeeds" : " — fails");
+        }
+        description.append(roll.success() ? ", and " + condition.name() + " ends." : ", and stays " + condition.name() + ".");
+
+        int remaining = legendaryResistanceRemaining(participant);
+        CombatLog.CombatLogBuilder entry = CombatLogWriter.about(combatLog.entry(encounter,
+                        CombatActionType.REPEAT_SAVE, description.toString()), null, participant)
+                .rollValue(roll.d20())
+                .rollTotal(roll.total());
+        if (!roll.success() && remaining > 0) {
+            entry.legendaryResistanceEligible(true)
+                    .lrTargetId(participant.getId())
+                    .lrDamageDealt(0)
+                    .lrConditionsApplied(condition.name())
+                    .lrResolved(false)
+                    .lrSuccessDamage(0)
+                    .lrConditionIds(List.of(condition.id()));
+        }
+        combatLog.save(entry);
+
+        int index = conditions.indexOf(condition);
+        if (roll.success()) {
+            conditions.remove(index);
+        } else {
+            conditions.set(index, condition.withRepeatSave(save.withAwaitingRoll(false)));
+        }
+        participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+    }
+
+    /**
+     * Leaves the participant's Repeat Save against the condition for its player to roll, as the campaign's
+     * prompt_player_repeat_saves asks (D162).
+     */
+    public void awaitRepeatSave(EncounterParticipant participant, UUID conditionId) {
+        List<ConditionEntry> conditions = conditions(participant);
+        for (int i = 0; i < conditions.size(); i++) {
+            ConditionEntry condition = conditions.get(i);
+            if (conditionId.equals(condition.id()) && condition.repeatSave() != null) {
+                conditions.set(i, condition.withRepeatSave(condition.repeatSave().withAwaitingRoll(true)));
+                participant.setActiveConditions(conditions);
+                return;
+            }
+        }
+    }
+
+    /**
+     * The start of the participant's turn gives back its action, bonus action and reaction, refills its
+     * per-turn pools, such as legendary actions, and rolls the d6 of each spent Recharge ability, logging the
+     * roll (M12, D146).
+     */
+    public void refreshTurn(Encounter encounter, EncounterParticipant participant) {
+        participant.setActionUsed(false);
+        participant.setBonusActionUsed(false);
+        participant.setReactionUsed(false);
+
+        List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent();
+        if (pools == null || pools.isEmpty()) {
+            return;
+        }
+        ResourcePoolService.ResetPoolsResult reset = resourcePoolService.resetPools(pools, "turn", Map.of());
+        participant.setResourcePoolsCurrent(reset.pools());
+
+        for (ResourcePoolService.RechargeLogEntry recharge : reset.rechargeResults()) {
+            String dice = recharge.checkExpression() != null
+                    ? recharge.checkExpression().replaceAll(">=.*", "") : "1d6";
+            String name = participant.getDisplayName();
+            String description = name + " rolls " + dice + " (" + recharge.rollValue() + "). "
+                    + (recharge.success() ? name + " recharges " + recharge.displayName() + "!"
+                    : name + " fails to recharge " + recharge.displayName() + ".");
+            combatLog.save(CombatLogWriter.about(combatLog.entry(encounter,
+                    recharge.success() ? CombatActionType.RECHARGE_SUCCESS : CombatActionType.RECHARGE_FAILURE,
+                    description), participant, participant).rollValue(recharge.rollValue()));
+        }
+    }
+
+    /** A Dying PC's turn starts, so it is due a death save (D163); rolling one or no longer dying clears it. */
+    public void deathSaveDue(EncounterParticipant participant) {
+        if (participant.getParticipantType() == ParticipantType.PLAYER
+                && participant.getLifeState() == LifeState.DYING) {
+            participant.setDeathSaveDue(true);
         }
     }
 
@@ -449,6 +565,10 @@ public class EffectApplier {
         participant.setLifeState(vitals.lifeState());
         participant.setDeathSaveSuccesses(vitals.deathSaveSuccesses());
         participant.setDeathSaveFailures(vitals.deathSaveFailures());
+        // Only the dying owe death saves
+        if (vitals.lifeState() != LifeState.DYING) {
+            participant.setDeathSaveDue(false);
+        }
     }
 
     private static Vitals withTempHp(Vitals vitals, int tempHp) {
@@ -565,7 +685,8 @@ public class EffectApplier {
         }
     }
 
-    // The Effect's conditions, apart from one the target already has from the same source
+    // The Effect's conditions, apart from one the target already has from the same source. Each lasts as its
+    // data says, or as long as the Effect, and keeps any Repeat Save its data gives (D162).
     private List<ConditionEntry> addEffectConditions(Encounter encounter, EncounterParticipant target,
                                                      List<String> names, Use use, Effect effect) {
         if (names.isEmpty()) {
@@ -575,8 +696,13 @@ public class EffectApplier {
         List<ConditionEntry> added = new ArrayList<>();
         UUID sourceId = use.actor() != null ? use.actor().getId() : null;
         for (String name : names) {
-            ConditionEntry entry = ConditionEntry.fromEffect(name, effect.durationRounds(), encounter.getRoundNumber(),
-                    use.conditionSource(), sourceId, use.instance());
+            Effect.ConditionEnd end = effect.conditionEnds().get(name);
+            Integer duration = end != null && end.durationRounds() != null ? end.durationRounds()
+                    : effect.durationRounds();
+            RepeatSave repeatSave = end != null && end.repeatSave() != null
+                    ? new RepeatSave(end.repeatSave().ability(), end.repeatSave().dc(), false) : null;
+            ConditionEntry entry = ConditionEntry.fromEffect(name, duration, encounter.getRoundNumber(),
+                    use.conditionSource(), sourceId, use.instance(), repeatSave);
             boolean duplicate = conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name)
                     && Objects.equals(c.sourceParticipantId(), entry.sourceParticipantId())
                     && Objects.equals(c.sourceSpellName(), entry.sourceSpellName())
@@ -714,6 +840,10 @@ public class EffectApplier {
     private static List<ConditionEntry> conditions(EncounterParticipant participant) {
         return participant.getActiveConditions() != null
                 ? new ArrayList<>(participant.getActiveConditions()) : new ArrayList<>();
+    }
+
+    private static Optional<ConditionEntry> find(List<ConditionEntry> conditions, UUID conditionId) {
+        return conditions.stream().filter(c -> conditionId.equals(c.id())).findFirst();
     }
 
     private static int orZero(Integer value) {

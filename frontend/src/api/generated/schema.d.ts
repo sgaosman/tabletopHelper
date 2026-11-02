@@ -532,6 +532,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/repeat-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rollRepeatSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/repeat-spell-effect": {
         parameters: {
             query?: never;
@@ -654,6 +670,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["rollAllInitiatives"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/initiatives/tie-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["reorderTie"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1411,10 +1443,13 @@ export interface components {
             isActive: boolean;
             members: components["schemas"]["MemberResponse"][];
             name: string;
+            /** @description On: players roll their characters' Repeat Saves when prompted; off: the server rolls them (D162) */
+            promptPlayerRepeatSaves: boolean;
             /** @description Off: players see each monster's HP as a Health Status instead of numbers (D157) */
             showExactMonsterHp: boolean;
         };
         CampaignSettingsRequest: {
+            promptPlayerRepeatSaves?: boolean | null;
             showExactMonsterHp?: boolean | null;
         };
         CastSpellRequest: {
@@ -1783,6 +1818,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+            repeatSave?: components["schemas"]["RepeatSave"] | null;
             /** Format: uuid */
             sourceParticipantId?: string | null;
             sourceRequiresConcentration?: boolean | null;
@@ -1829,10 +1865,11 @@ export interface components {
             /** Format: date-time */
             createdAt?: string | null;
             /** Format: int32 */
-            currentTurnIndex: number;
+            currentTurnIndex?: number | null;
             description?: string | null;
             /** Format: uuid */
             id: string;
+            monstersInLair: string[];
             name: string;
             participants: components["schemas"]["ParticipantResponse"][];
             /** Format: int32 */
@@ -1840,8 +1877,11 @@ export interface components {
             sessionCode?: string | null;
             /** @enum {string} */
             status: "PREPARING" | "ACTIVE" | "PAUSED" | "COMPLETED";
+            turnOrder: components["schemas"]["TurnResponse"][];
         };
         EndRule: {
+            /** Format: uuid */
+            participantId?: string | null;
             /** @enum {string} */
             type: "AFTER_ROUNDS" | "START_OF_TURN" | "END_OF_TURN" | "CONCENTRATION" | "REPEAT_SAVE" | "HP_REGAINED" | "MANUAL";
         };
@@ -2128,11 +2168,13 @@ export interface components {
             concentrationSpell?: string | null;
             /** Format: uuid */
             controlledByUserId?: string | null;
+            deathSaveDue: boolean;
             /** Format: int32 */
             deathSaveFailures: number;
             /** Format: int32 */
             deathSaveSuccesses: number;
             displayName: string;
+            hasLairActions?: boolean | null;
             /** @enum {string|null} */
             healthStatus?: "UNHARMED" | "INJURED" | "BLOODIED" | "DOWN" | null;
             /** Format: int32 */
@@ -2159,7 +2201,7 @@ export interface components {
             reactionUsed: boolean;
             resourcePoolsCurrent?: components["schemas"]["ResourcePoolEntry"][] | null;
             /** Format: int32 */
-            sortOrder?: number | null;
+            sortOrder: number;
             /** Format: int32 */
             spellAttackBonus?: number | null;
             /** Format: int32 */
@@ -2208,6 +2250,19 @@ export interface components {
             email: string;
             password: string;
             username: string;
+        };
+        RepeatSave: {
+            /** @enum {string} */
+            ability: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA";
+            awaitingRoll: boolean;
+            /** Format: int32 */
+            dc: number;
+        };
+        RepeatSaveRequest: {
+            /** Format: uuid */
+            conditionId: string;
+            /** Format: uuid */
+            participantId: string;
         };
         RepeatSpellEffectRequest: {
             advantage?: boolean | null;
@@ -2348,6 +2403,21 @@ export interface components {
             /** Format: uuid */
             targetId: string;
             targetName: string;
+        };
+        TieOrderRequest: {
+            participantIds: string[];
+        };
+        TurnResponse: {
+            current: boolean;
+            /** Format: int32 */
+            initiative?: number | null;
+            lair: boolean;
+            name: string;
+            /** Format: uuid */
+            participantId?: string | null;
+            skipped: boolean;
+            /** Format: int32 */
+            tieGroup?: number | null;
         };
         VisibilityRequest: {
             visible: boolean;
@@ -3279,6 +3349,32 @@ export interface operations {
             };
         };
     };
+    rollRepeatSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepeatSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
     repeatSpellEffect: {
         parameters: {
             query?: {
@@ -3461,6 +3557,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    reorderTie: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TieOrderRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

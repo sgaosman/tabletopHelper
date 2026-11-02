@@ -9,7 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -74,7 +76,8 @@ public class MonsterEffects {
             deliveryMethod = "AUTO_HIT";
         }
 
-        Parts parts = parts(effects);
+        int saveDc = overrideSaveDc != null ? overrideSaveDc : action.path("saveDC").asInt(0);
+        Parts parts = parts(effects, overrideSaveDc, saveDc, action.path("saveAbility").asText(null));
         if (parts == null) {
             return manual(name, name + "'s damage dice can't be rolled automatically");
         }
@@ -85,7 +88,6 @@ public class MonsterEffects {
         List<String> notes = parts.healing() ? List.of(name + "'s healing is left to the DM.") : List.of();
 
         int attackBonus = overrideAttackBonus != null ? overrideAttackBonus : action.path("attackBonus").asInt(0);
-        int saveDc = overrideSaveDc != null ? overrideSaveDc : action.path("saveDC").asInt(0);
         Effect.Delivery delivery;
         List<String> conditions = parts.conditions();
         switch (deliveryMethod.toUpperCase()) {
@@ -103,7 +105,8 @@ public class MonsterEffects {
                 return manual(name, "Delivery method '" + deliveryMethod + "' requires DM adjudication");
             }
         }
-        Effect effect = new Effect(name, delivery, parts.damage(), null, conditions, false, null);
+        Effect effect = new Effect(name, delivery, parts.damage(), null, conditions, false, null,
+                parts.conditionEnds());
         return new MonsterAction(name, List.of(new Step(name, effect, List.copyOf(targetIds))), null, notes);
     }
 
@@ -160,27 +163,35 @@ public class MonsterEffects {
         for (int i = 0; i < chosen.size(); i++) {
             JsonNode ray = chosen.get(i);
             String rayName = ray.path("name").asText("Ray " + (i + 1));
-            Parts parts = parts(ray.path("effects"));
+            int saveDc = overrideSaveDc != null ? overrideSaveDc : ray.path("saveDC").asInt(0);
+            Parts parts = parts(ray.path("effects"), overrideSaveDc, saveDc, ray.path("saveAbility").asText("DEX"));
             if (parts == null) {
                 return manual(name, rayName + "'s damage dice can't be rolled automatically");
             }
-            int saveDc = overrideSaveDc != null ? overrideSaveDc : ray.path("saveDC").asInt(0);
             Effect.Save save = new Effect.Save(Ability.parse(ray.path("saveAbility").asText("DEX")).orElse(null),
                     saveDc, ray.path("halfOnSave").asBoolean(false));
-            Effect effect = new Effect(rayName, save, parts.damage(), null, parts.conditions(), false, null);
+            Effect effect = new Effect(rayName, save, parts.damage(), null, parts.conditions(), false, null,
+                    parts.conditionEnds());
             steps.add(new Step(rayName, effect, List.of(targetIds.get(i % targetIds.size()))));
         }
         return new MonsterAction(name, steps, null, List.of());
     }
 
-    // Damage parts and condition names, and whether there is healing or another effect type, both of which
-    // are left to the DM; null when a part's dice can't be read
-    private record Parts(List<Effect.DamagePart> damage, List<String> conditions, boolean healing, boolean other) {
+    // Damage parts, condition names and how each condition ends, and whether there is healing or another
+    // effect type, both of which are left to the DM; null when a part's dice can't be read
+    private record Parts(List<Effect.DamagePart> damage, List<String> conditions,
+                         Map<String, Effect.ConditionEnd> conditionEnds, boolean healing, boolean other) {
     }
 
-    private static Parts parts(JsonNode effects) {
+    /**
+     * The effects' parts. A condition lasts the rounds its effect gives, and one its creature saves to end at
+     * the end of each of its turns gets that Repeat Save (D162): against the DM's override of the DC, else
+     * the effect's own DC, else the action's, in the effect's ability or else the action's.
+     */
+    private static Parts parts(JsonNode effects, Integer overrideSaveDc, int actionSaveDc, String actionSaveAbility) {
         List<Effect.DamagePart> damage = new ArrayList<>();
         List<String> conditions = new ArrayList<>();
+        Map<String, Effect.ConditionEnd> conditionEnds = new LinkedHashMap<>();
         boolean healing = false;
         boolean other = false;
         for (JsonNode effect : effects) {
@@ -203,14 +214,36 @@ public class MonsterEffects {
                 case "CONDITION" -> {
                     JsonNode condition = effect.path("condition");
                     if (condition.isTextual() && !condition.asText().isBlank()) {
-                        conditions.add(condition.asText().trim().toLowerCase());
+                        String name = condition.asText().trim().toLowerCase();
+                        conditions.add(name);
+                        Effect.ConditionEnd end = conditionEnd(effect, overrideSaveDc, actionSaveDc, actionSaveAbility);
+                        if (end != null) {
+                            conditionEnds.put(name, end);
+                        }
                     }
                 }
                 case "HEAL" -> healing = true;
                 default -> other = true;
             }
         }
-        return new Parts(damage, conditions, healing, other);
+        return new Parts(damage, conditions, conditionEnds, healing, other);
+    }
+
+    // Null when the effect gives the condition neither a duration nor a Repeat Save
+    private static Effect.ConditionEnd conditionEnd(JsonNode effect, Integer overrideSaveDc, int actionSaveDc,
+                                                    String actionSaveAbility) {
+        Integer duration = effect.path("durationRounds").isInt() && effect.path("durationRounds").asInt() > 0
+                ? effect.path("durationRounds").asInt() : null;
+        Effect.RepeatSave repeatSave = null;
+        if (effect.path("saveToEndEachTurn").asBoolean(false)) {
+            int dc = overrideSaveDc != null ? overrideSaveDc : effect.path("saveToEndDC").asInt(actionSaveDc);
+            repeatSave = Ability.parse(effect.path("saveToEndAbility").asText(null))
+                    .or(() -> Ability.parse(actionSaveAbility))
+                    .filter(ability -> dc > 0)
+                    .map(ability -> new Effect.RepeatSave(ability, dc))
+                    .orElse(null);
+        }
+        return duration != null || repeatSave != null ? new Effect.ConditionEnd(duration, repeatSave) : null;
     }
 
     // There is no map, so a melee attack counts as within 5 feet and a ranged one as not (D161)

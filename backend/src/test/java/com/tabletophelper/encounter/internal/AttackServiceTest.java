@@ -178,7 +178,6 @@ class AttackServiceTest {
     void playerCannotForceACritical() {
         UUID playerUserId = f.playerControlling(rogue);
         EncounterParticipant goblin = f.monster("Goblin", 7, 15);
-        rogue.setSortOrder(0);
         AttackRollRequest request = request(goblin, 5, "1d6");
         request.setForceCrit(true);
 
@@ -217,8 +216,7 @@ class AttackServiceTest {
     @DisplayName("A player attacking when it is not their turn gets 403 (D028)")
     void playerAttackOutOfTurnIsForbidden() {
         EncounterParticipant fighter = f.player("Fighter", 30, 16);
-        fighter.setSortOrder(0);
-        rogue.setSortOrder(1);
+        f.turnOf(fighter);
         UUID playerUserId = f.playerControlling(rogue);
         EncounterParticipant goblin = f.monster("Goblin", 7, 15);
 

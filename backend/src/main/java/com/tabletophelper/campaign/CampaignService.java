@@ -104,6 +104,9 @@ public class CampaignService {
         if (request.showExactMonsterHp() != null) {
             campaign.setShowExactMonsterHp(request.showExactMonsterHp());
         }
+        if (request.promptPlayerRepeatSaves() != null) {
+            campaign.setPromptPlayerRepeatSaves(request.promptPlayerRepeatSaves());
+        }
         return toResponse(campaignRepository.save(campaign));
     }
 
@@ -127,6 +130,7 @@ public class CampaignService {
                 .inviteCode(campaign.getInviteCode())
                 .isActive(campaign.getIsActive())
                 .showExactMonsterHp(campaign.getShowExactMonsterHp())
+                .promptPlayerRepeatSaves(campaign.getPromptPlayerRepeatSaves())
                 .members(memberResponses)
                 .createdAt(campaign.getCreatedAt())
                 .build();

@@ -11,7 +11,9 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.EncounterTurns;
 import com.tabletophelper.encounter.internal.StoredJson;
+import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
@@ -19,6 +21,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.TurnOrder;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -48,6 +51,7 @@ public class EncounterService {
     private final AccessPolicy accessPolicy;
     private final EncounterCommands encounterCommands;
     private final CombatLogReader combatLogReader;
+    private final TurnProcessor turnProcessor;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -245,12 +249,25 @@ public class EncounterService {
         return toResponse(encounterRepository.save(encounter));
     }
 
+    /**
+     * Removes a participant while the encounter is prepared or fought. Mid-fight its concentration ends, it
+     * leaves its lair, and if the turn is its own, the turn passes to the next creature in the order (D163).
+     */
     @Transactional
     public EncounterResponse removeParticipant(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
-        verifyStatus(encounter, EncounterStatus.PREPARING);
+        if (encounter.getStatus() != EncounterStatus.PREPARING && encounter.getStatus() != EncounterStatus.ACTIVE) {
+            throw new ConflictException("Participants can be removed only while the encounter is prepared or active");
+        }
+        EncounterParticipant participant = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Participant not found"));
 
-        encounter.getParticipants().removeIf(p -> p.getId().equals(participantId));
+        if (encounter.getStatus() == EncounterStatus.ACTIVE) {
+            turnProcessor.leave(encounter, participant);
+        }
+        encounter.getParticipants().remove(participant);
         return toResponse(encounterRepository.save(encounter));
     }
 
@@ -299,14 +316,8 @@ public class EncounterService {
 
         encounter.setStatus(EncounterStatus.ACTIVE);
         encounter.setSessionCode(generateSessionCode());
-        encounter.setCurrentTurnIndex(0);
         encounter.setRoundNumber(1);
-
-        encounter.getParticipants().forEach(p -> p.setIsCurrentTurn(false));
-        encounter.getParticipants().stream()
-                .filter(p -> p.getSortOrder() != null && p.getSortOrder() == 0)
-                .findFirst()
-                .ifPresent(p -> p.setIsCurrentTurn(true));
+        turnProcessor.begin(encounter);
 
         return toResponse(encounterRepository.save(encounter));
     }
@@ -375,15 +386,58 @@ public class EncounterService {
         }
     }
 
-    private void recomputeSortOrder(Encounter encounter) {
-        List<EncounterParticipant> sorted = encounter.getParticipants().stream()
-                .sorted(Comparator.comparing(
-                        (EncounterParticipant p) -> p.getInitiative() != null ? p.getInitiative() : 0
-                ).reversed())
+    /**
+     * The DM's order for a group of participants tied on initiative and DEX (D163): the IDs of the whole group,
+     * in the order they should act. Their turns swap places among themselves and nothing else moves. Naming
+     * participants who don't tie, or only some of a group, is a 400; a Paused or Completed encounter is a 409.
+     */
+    @Transactional
+    public EncounterResponse reorderTie(UUID encounterId, TieOrderRequest request, UUID userId) {
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
+        if (encounter.getStatus() != EncounterStatus.PREPARING && encounter.getStatus() != EncounterStatus.ACTIVE) {
+            throw new ConflictException("Ties can be reordered only while the encounter is prepared or active");
+        }
+        List<UUID> requested = request.participantIds();
+        if (requested.size() < 2 || new HashSet<>(requested).size() != requested.size()) {
+            throw new ValidationException("Name two or more tied participants, each once");
+        }
+        Map<UUID, TurnOrder.Combatant> combatants = encounter.getParticipants().stream()
+                .collect(Collectors.toMap(EncounterParticipant::getId, EncounterTurns::combatant));
+        List<TurnOrder.Combatant> group = requested.stream()
+                .map(id -> Optional.ofNullable(combatants.get(id))
+                        .orElseThrow(() -> new ValidationException("Participant not found")))
                 .toList();
+        TurnOrder.Combatant first = group.getFirst();
+        if (!group.stream().allMatch(c -> TurnOrder.tied(first, c))) {
+            throw new ValidationException("Only participants tied on both initiative and DEX can be reordered");
+        }
+        if (combatants.values().stream().filter(c -> TurnOrder.tied(first, c)).count() != group.size()) {
+            throw new ValidationException("Name every participant in the tie");
+        }
 
-        for (int i = 0; i < sorted.size(); i++) {
-            sorted.get(i).setSortOrder(i);
+        // The order as it stands, with the group's turns in the order asked for, numbered from 0
+        List<UUID> order = new ArrayList<>(TurnOrder.order(combatants.values(), false).stream()
+                .map(turn -> turn.combatant().id())
+                .toList());
+        List<Integer> slots = requested.stream().map(order::indexOf).sorted().toList();
+        for (int i = 0; i < slots.size(); i++) {
+            order.set(slots.get(i), requested.get(i));
+        }
+        renumber(encounter, order);
+        return toResponse(encounterRepository.save(encounter));
+    }
+
+    // The DM's order among ties follows the turn order once initiatives change (D163)
+    private void recomputeSortOrder(Encounter encounter) {
+        renumber(encounter, TurnOrder.order(encounter.getParticipants().stream()
+                .map(EncounterTurns::combatant).toList(), false).stream()
+                .map(turn -> turn.combatant().id())
+                .toList());
+    }
+
+    private static void renumber(Encounter encounter, List<UUID> order) {
+        for (EncounterParticipant participant : encounter.getParticipants()) {
+            participant.setSortOrder(order.indexOf(participant.getId()));
         }
     }
 
@@ -399,10 +453,23 @@ public class EncounterService {
         return code;
     }
 
-    /** The DM View of an encounter, which EncounterViews narrows for players (D157). */
+    /**
+     * The DM View of an encounter, which EncounterViews narrows for players (D157). The turn order is
+     * computed here, with the current turn's place in it and each tie the DM may reorder (D163).
+     */
     public EncounterResponse toResponse(Encounter encounter) {
+        List<TurnOrder.Turn> order = EncounterTurns.order(encounter);
+        List<EncounterResponse.TurnResponse> turns = turnResponses(encounter, order);
+        Map<UUID, Integer> places = new HashMap<>();
+        for (int i = 0; i < order.size(); i++) {
+            if (!order.get(i).isLair()) {
+                places.put(order.get(i).combatant().id(), i);
+            }
+        }
+        int current = EncounterTurns.currentIndex(encounter, order);
+
         List<EncounterResponse.ParticipantResponse> participantResponses = encounter.getParticipants().stream()
-                .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder() : Integer.MAX_VALUE))
+                .sorted(Comparator.comparing(p -> places.get(p.getId())))
                 .map(p -> EncounterResponse.ParticipantResponse.builder()
                         .id(p.getId())
                         .participantType(p.getParticipantType().name())
@@ -411,7 +478,7 @@ public class EncounterService {
                         .displayName(p.getDisplayName())
                         .initiative(p.getInitiative())
                         .initiativeModifier(p.getInitiativeModifier())
-                        .sortOrder(p.getSortOrder())
+                        .sortOrder(places.get(p.getId()))
                         .hpMax(p.getHpMax())
                         .hpCurrent(p.getHpCurrent())
                         .hpTemp(p.getHpTemp())
@@ -424,7 +491,9 @@ public class EncounterService {
                         .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
                         .lifeState(p.getLifeState().name())
-                        .isCurrentTurn(p.getIsCurrentTurn())
+                        .isCurrentTurn(EncounterTurns.isCurrentTurn(encounter, p.getId()))
+                        .deathSaveDue(Boolean.TRUE.equals(p.getDeathSaveDue()) && p.getLifeState() == LifeState.DYING)
+                        .hasLairActions(p.getParticipantType() == ParticipantType.MONSTER ? hasLairActions(p) : null)
                         .controlledByUserId(p.getControlledByUserId())
                         .deathSaveSuccesses(p.getDeathSaveSuccesses())
                         .deathSaveFailures(p.getDeathSaveFailures())
@@ -448,14 +517,53 @@ public class EncounterService {
                 .name(encounter.getName())
                 .description(encounter.getDescription())
                 .status(encounter.getStatus().name())
-                .currentTurnIndex(encounter.getCurrentTurnIndex())
+                .currentTurnIndex(current >= 0 ? current : null)
                 .roundNumber(encounter.getRoundNumber())
                 .sessionCode(encounter.getSessionCode())
                 .participants(participantResponses)
+                .turnOrder(turns)
+                .monstersInLair(encounter.getMonstersInLair() != null ? List.copyOf(encounter.getMonstersInLair()) : List.of())
                 .createdAt(encounter.getCreatedAt())
                 .dmUserId(campaign.getDm().getId())
                 .showExactMonsterHp(Boolean.TRUE.equals(campaign.getShowExactMonsterHp()))
                 .build();
+    }
+
+    // Each turn in order, with the number of the group it ties with, if any: its first turn's place
+    private static List<EncounterResponse.TurnResponse> turnResponses(Encounter encounter, List<TurnOrder.Turn> order) {
+        List<EncounterResponse.TurnResponse> turns = new ArrayList<>();
+        Integer group = null;
+        for (int i = 0; i < order.size(); i++) {
+            TurnOrder.Turn turn = order.get(i);
+            boolean tiedBefore = i > 0 && tied(order.get(i - 1), turn);
+            boolean tiedAfter = i + 1 < order.size() && tied(turn, order.get(i + 1));
+            group = tiedBefore ? group : tiedAfter ? Integer.valueOf(i) : null;
+            turns.add(EncounterResponse.TurnResponse.builder()
+                    .participantId(turn.isLair() ? null : turn.combatant().id())
+                    .name(EncounterTurns.name(encounter, turn))
+                    .initiative(turn.isLair() ? Integer.valueOf(TurnOrder.LAIR_INITIATIVE) : turn.combatant().initiative())
+                    .lair(turn.isLair())
+                    .skipped(turn.isSkipped())
+                    .current(EncounterTurns.isCurrent(encounter, turn))
+                    .tieGroup(group)
+                    .build());
+        }
+        return turns;
+    }
+
+    private static boolean tied(TurnOrder.Turn a, TurnOrder.Turn b) {
+        return !a.isLair() && !b.isLair() && TurnOrder.tied(a.combatant(), b.combatant());
+    }
+
+    // Whether the monster's action templates list any lair actions, so it can fight in its lair (D163)
+    private boolean hasLairActions(EncounterParticipant participant) {
+        Monster monster = participant.getMonster();
+        if (monster == null || monster.getActionTemplates() == null || monster.getActionTemplates().isBlank()) {
+            return false;
+        }
+        JsonNode lairActions = StoredJson.read(objectMapper, monster.getActionTemplates(),
+                monster.getName() + "'s action templates").path("lairActions");
+        return lairActions.isArray() && !lairActions.isEmpty();
     }
 
     /**

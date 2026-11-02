@@ -5,6 +5,8 @@ import { useCombatLog, useEncounterAction } from '../../queries/encounters';
 import type { EncounterParticipant } from '../../types/encounter';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
+import RepeatSavePrompt from '../../components/encounter/RepeatSavePrompt';
+import LairTurnRow from '../../components/encounter/LairTurnRow';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import IconButton from '../../components/ui/IconButton';
 import { getParticipantColour } from '../../utils/classColours';
@@ -491,10 +493,14 @@ function PlayerSessionView() {
     );
   }
 
-  // The Player View already leaves out participants the DM has hidden (D157)
-  const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+  // The Player View already leaves out participants the DM has hidden, and the Lair's turn unless a monster
+  // in its lair is visible; its turn order counts only what players see (D157, D163)
+  const participantsById = new Map(encounter.participants.map(p => [p.id, p]));
+  const lairMonsters = encounter.monstersInLair.flatMap(id => participantsById.get(id)?.displayName ?? []);
   const isMyTurn = encounter.participants.some(p => p.isCurrentTurn && p.controlledByUserId === user?.userId);
   const myCharacter = encounter.participants.find(p => p.controlledByUserId === user?.userId);
+  // Repeat Saves the campaign leaves to this player, at the end of their character's turn (D162)
+  const savesToRoll = (myCharacter?.activeConditions ?? []).filter(c => c.repeatSave?.awaitingRoll);
   // Actions show only while the encounter is Active: the server refuses them while it is Paused or
   // Completed (D166)
   const isActive = encounter.status === 'ACTIVE';
@@ -550,11 +556,19 @@ function PlayerSessionView() {
           )}
         </div>
 
-        {/* Own character at 0 HP: death saves only while Dying (D161) */}
+        {/* Own character at 0 HP: death saves only while Dying (D161), one due as each turn starts (D163) */}
         {myCharacter?.lifeState === 'DYING' && (
           <div className="bg-debuff/10 border border-debuff/30 p-4 mb-4">
             <p className="text-debuff font-heading text-[15px] font-semibold tracking-[0.01em] mb-1">You are dying!</p>
+            {myCharacter.deathSaveDue && (
+              <p role="status" className="text-debuff font-body text-[15px] font-semibold">Your turn has started: roll your death saving throw.</p>
+            )}
             <DeathSaves participant={myCharacter} canRoll={isActive} />
+          </div>
+        )}
+        {myCharacter && isActive && savesToRoll.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {savesToRoll.map(c => <RepeatSavePrompt key={c.id} participant={myCharacter} condition={c} />)}
           </div>
         )}
         {myCharacter?.lifeState === 'STABLE' && (
@@ -632,9 +646,14 @@ function PlayerSessionView() {
           />
         )}
 
-        {/* Initiative list */}
-        <div className="space-y-2 mb-4">
-          {sorted.map((p: EncounterParticipant) => {
+        {/* Initiative list, in the order the server computes */}
+        <div className="space-y-2 mb-4" role="list" aria-label="Initiative order">
+          {encounter.turnOrder.map(turn => {
+            if (turn.lair) {
+              return <LairTurnRow key="lair" turn={turn} lairMonsters={lairMonsters} />;
+            }
+            const p = participantsById.get(turn.participantId ?? '');
+            if (!p) return null;
             const isOwn = p.controlledByUserId === user?.userId;
             const conditions = p.activeConditions ?? [];
             const isMonster = p.participantType === 'MONSTER';
@@ -645,8 +664,9 @@ function PlayerSessionView() {
             return (
               <div
                 key={p.id}
+                aria-current={turn.current ? 'step' : undefined}
                 className={`bg-card border px-4 py-3 transition-all ${
-                  p.isCurrentTurn
+                  turn.current
                     ? 'border-cls-fighter ring-1 ring-cls-fighter/30'
                     : isOwn
                       ? 'border-ink/50'
@@ -655,7 +675,7 @@ function PlayerSessionView() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-5 flex-shrink-0">
-                    {p.isCurrentTurn && <ChevronRight className="w-5 h-5 text-cls-fighter" />}
+                    {turn.current && <ChevronRight className="w-5 h-5 text-cls-fighter" />}
                   </div>
 
                   <div className="w-9 text-center flex-shrink-0">

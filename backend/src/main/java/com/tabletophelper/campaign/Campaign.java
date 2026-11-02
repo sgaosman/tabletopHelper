@@ -46,6 +46,11 @@ public class Campaign {
     @Builder.Default
     private Boolean showExactMonsterHp = false;
 
+    // Off: the server rolls player characters' Repeat Saves; on, their players roll them (D162)
+    @Column(name = "prompt_player_repeat_saves", nullable = false)
+    @Builder.Default
+    private Boolean promptPlayerRepeatSaves = false;
+
     @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CampaignMember> members = new ArrayList<>();

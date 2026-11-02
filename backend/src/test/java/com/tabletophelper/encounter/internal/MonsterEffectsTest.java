@@ -76,6 +76,40 @@ class MonsterEffectsTest {
     }
 
     @Test
+    @DisplayName("A condition keeps its rounds and its Repeat Save, whose DC and ability default to the action's (D162)")
+    void conditionEnds() throws Exception {
+        var plan = plan("""
+                {"name": "Chilling Gaze", "deliveryMethod": "SAVING_THROW", "saveDC": 18, "saveAbility": "CON",
+                 "effects": [{"effectType": "CONDITION", "condition": "paralyzed", "durationRounds": 10,
+                              "saveToEndEachTurn": true},
+                             {"effectType": "CONDITION", "condition": "frightened", "durationRounds": 10,
+                              "saveToEndEachTurn": true, "saveToEndDC": 15, "saveToEndAbility": "WIS"},
+                             {"effectType": "CONDITION", "condition": "stunned", "durationRounds": 1},
+                             {"effectType": "CONDITION", "condition": "grappled", "escapeDC": 14}]}""",
+                "{}", List.of(aria));
+
+        Effect effect = plan.steps().getFirst().effect();
+        assertEquals(new Effect.ConditionEnd(10, new Effect.RepeatSave(Ability.CON, 18)),
+                effect.conditionEnds().get("paralyzed"));
+        assertEquals(new Effect.ConditionEnd(10, new Effect.RepeatSave(Ability.WIS, 15)),
+                effect.conditionEnds().get("frightened"));
+        assertEquals(new Effect.ConditionEnd(1, null), effect.conditionEnds().get("stunned"));
+        assertFalse(effect.conditionEnds().containsKey("grappled"));
+    }
+
+    @Test
+    @DisplayName("The DM's override of the DC is the Repeat Save's DC too")
+    void overrideRepeatSaveDc() throws Exception {
+        var plan = monsterEffects.plan(json("""
+                {"name": "Gaze", "deliveryMethod": "SAVING_THROW", "saveDC": 12, "saveAbility": "WIS",
+                 "effects": [{"effectType": "CONDITION", "condition": "charmed", "saveToEndEachTurn": true,
+                              "saveToEndDC": 12}]}"""), json("{}"), List.of(aria), null, 16, null);
+
+        assertEquals(new Effect.RepeatSave(Ability.WIS, 16),
+                plan.steps().getFirst().effect().conditionEnds().get("charmed").repeatSave());
+    }
+
+    @Test
     @DisplayName("The DM's override replaces the template's attack bonus or DC")
     void overrides() throws Exception {
         var attack = monsterEffects.plan(json("""

@@ -4,10 +4,14 @@ import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.CombatLogResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
+import com.tabletophelper.encounter.dto.EncounterResponse.TurnResponse;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -41,15 +45,48 @@ public final class EncounterViews {
      * their notes, known spells, spell slots, spellcasting numbers, resource pools and the ID of their
      * bestiary entry, which would lead to the full stat block. Unless the campaign shows exact monster
      * HP, their HP, temporary HP included, is replaced by a Health Status.
+     * <p>
+     * The turn order leaves out the hidden participants' turns, and the Lair's unless players can see a
+     * monster in its lair. The turns left are numbered again, so sortOrder and currentTurnIndex count
+     * only what players see, and there is no current turn while a turn they can't see is taken (D157).
      */
     public static EncounterResponse playerView(EncounterResponse dmView) {
-        List<ParticipantResponse> participants = dmView.getParticipants().stream()
+        Set<UUID> visible = dmView.getParticipants().stream()
                 .filter(p -> !Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
+                .map(ParticipantResponse::getId)
+                .collect(Collectors.toSet());
+        List<UUID> visibleInLair = Optional.ofNullable(dmView.getMonstersInLair()).orElse(List.of()).stream()
+                .filter(visible::contains)
+                .toList();
+
+        List<TurnResponse> turns = Optional.ofNullable(dmView.getTurnOrder()).orElse(List.of()).stream()
+                .filter(turn -> turn.isLair() ? !visibleInLair.isEmpty() : visible.contains(turn.getParticipantId()))
+                .map(turn -> turn.toBuilder().tieGroup(null).build())
+                .toList();
+        Map<UUID, Integer> places = new HashMap<>();
+        Integer current = null;
+        for (int i = 0; i < turns.size(); i++) {
+            if (turns.get(i).getParticipantId() != null) {
+                places.put(turns.get(i).getParticipantId(), i);
+            }
+            if (turns.get(i).isCurrent()) {
+                current = i;
+            }
+        }
+
+        List<ParticipantResponse> participants = dmView.getParticipants().stream()
+                .filter(p -> visible.contains(p.getId()))
                 .map(p -> ParticipantType.MONSTER.name().equals(p.getParticipantType())
                         ? monsterForPlayers(p, dmView.isShowExactMonsterHp())
                         : p)
+                .map(p -> p.toBuilder().sortOrder(places.get(p.getId())).build())
                 .toList();
-        return dmView.toBuilder().participants(participants).build();
+        return dmView.toBuilder()
+                .participants(participants)
+                .turnOrder(turns)
+                .currentTurnIndex(current)
+                .monstersInLair(visibleInLair)
+                .build();
     }
 
     /**
@@ -97,6 +134,7 @@ public final class EncounterViews {
     private static ParticipantResponse monsterForPlayers(ParticipantResponse monster, boolean showExactHp) {
         var view = monster.toBuilder()
                 .monsterId(null)
+                .hasLairActions(null)
                 .notes(null)
                 .spellsKnown(null)
                 .spellSlotsCurrent(null)

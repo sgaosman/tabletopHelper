@@ -7,12 +7,15 @@ import type { EncounterParticipant } from '../../types/encounter';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
+import LairToggle from '../../components/encounter/LairToggle';
+import LairTurnRow from '../../components/encounter/LairTurnRow';
+import RepeatSavePrompt from '../../components/encounter/RepeatSavePrompt';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import IconButton from '../../components/ui/IconButton';
 import { getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
-  ChevronRight, ChevronLeft, Heart, HeartPulse, Shield, Skull, Swords,
+  ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Heart, HeartPulse, Shield, Skull, Swords,
   Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles, RotateCw, Castle
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
@@ -66,7 +69,8 @@ function HpBar({ participant }: { participant: EncounterParticipant }) {
   );
 }
 
-// The Roll button shows only while the encounter is Active, since combat needs it (D166)
+// The Roll button shows only while the encounter is Active, since combat needs it (D166). A Dying PC whose
+// turn has started is due a death save until it rolls one (D163).
 function DeathSaves({ participant, canRoll }: { participant: EncounterParticipant; canRoll: boolean }) {
   const actions = useEncounterAction();
   const [rolling, setRolling] = useState(false);
@@ -94,11 +98,18 @@ function DeathSaves({ participant, canRoll }: { participant: EncounterParticipan
           <div key={`f${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveFailures ? 'bg-debuff border-debuff' : 'border-rule-light'}`} />
         ))}
       </div>
+      {participant.deathSaveDue && (
+        <span role="status" className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff">
+          Death save due
+        </span>
+      )}
       {canRoll && (
         <button
           onClick={handleRoll}
           disabled={rolling}
-          className="px-2 py-0.5 font-body text-[16px] font-semibold bg-page-alt hover:bg-rule text-muted disabled:opacity-50"
+          className={`px-2 py-0.5 font-body text-[16px] font-semibold disabled:opacity-50 ${
+            participant.deathSaveDue ? 'bg-debuff text-card hover:bg-debuff/90' : 'bg-page-alt hover:bg-rule text-muted'
+          }`}
         >
           {rolling ? '...' : 'Roll'}
         </button>
@@ -645,9 +656,11 @@ function CombatLogPanel({ canUseLegendaryResistance }: { canUseLegendaryResistan
 
 // ── M12 Inline Monster Actions ────────────────────────────────────────
 
+// Legendary actions are used on other creatures' turns, the Lair's included, never on the monster's own; lair
+// actions only on the Lair's turn, by a monster fighting in its lair (D163). The server refuses the rest.
 function InlineMonsterActions({
   participant, participants, inlineTargets, inlineResult,
-  inlineExecuting, onToggleTarget, onExecute, onClearResult,
+  inlineExecuting, onToggleTarget, onExecute, onClearResult, isLairTurn, inLair,
 }: {
   participant: EncounterParticipant;
   participants: EncounterParticipant[];
@@ -657,6 +670,8 @@ function InlineMonsterActions({
   onToggleTarget: (id: string) => void;
   onExecute: (participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR') => void;
   onClearResult: () => void;
+  isLairTurn: boolean;
+  inLair: boolean;
 }) {
   const templatesQuery = useMonsterActionTemplates(participant.id);
   const [tab, setTab] = useState<'actions' | 'legendary' | 'lair'>('actions');
@@ -675,6 +690,9 @@ function InlineMonsterActions({
   const hasLegendary = legendary.length > 0;
   const hasLair = lair.length > 0;
   const legendaryRemaining = pools['monster:legendary-actions']?.currentUses ?? templates.legendaryActionCount ?? 0;
+  const ownTurn = participant.isCurrentTurn;
+  const lairReady = isLairTurn && inLair;
+  const lairReason = !inLair ? `${participant.displayName} isn't fighting in its lair` : 'Lair actions wait for the Lair\'s turn, on initiative 20';
 
   const currentActions = tab === 'legendary' ? legendary : tab === 'lair' ? lair : actions;
 
@@ -707,6 +725,15 @@ function InlineMonsterActions({
         </div>
       )}
 
+      {tab === 'legendary' && ownTurn && (
+        <p role="note" className="mb-2 font-body text-[13px] font-semibold text-faint">
+          Legendary actions are used on other creatures' turns, not {participant.displayName}'s own.
+        </p>
+      )}
+      {tab === 'lair' && !lairReady && (
+        <p role="note" className="mb-2 font-body text-[13px] font-semibold text-faint">{lairReason}.</p>
+      )}
+
       {/* Action list — lair actions get full cards, others get compact buttons */}
       {tab === 'lair' ? (
         <div className="space-y-2 mb-2">
@@ -715,12 +742,16 @@ function InlineMonsterActions({
             return (
               <div
                 key={a.name}
-                className={`border p-3 cursor-pointer transition-colors ${
+                aria-disabled={!lairReady}
+                title={lairReady ? undefined : lairReason}
+                className={`border p-3 transition-colors ${
+                  !lairReady ? 'opacity-40 cursor-not-allowed border-rule-light bg-card' :
                   selectedAction?.name === a.name
-                    ? 'border-ink bg-page-alt'
-                    : 'border-rule-light bg-card hover:bg-page-alt'
+                    ? 'border-ink bg-page-alt cursor-pointer'
+                    : 'border-rule-light bg-card hover:bg-page-alt cursor-pointer'
                 }`}
                 onClick={() => {
+                  if (!lairReady) return;
                   if (isNonAutomatable) {
                     onExecute(participant.id, a.name, 'LAIR');
                   } else {
@@ -757,12 +788,13 @@ function InlineMonsterActions({
             const isLegendary = tab === 'legendary';
             const actionCost = a.cost || 1;
             const legendaryDepleted = isLegendary && legendaryRemaining < actionCost;
+            const legendaryOnOwnTurn = isLegendary && ownTurn;
             return (
               <button
                 key={a.name}
-                disabled={!recharged || inlineExecuting || legendaryDepleted}
+                disabled={!recharged || inlineExecuting || legendaryDepleted || legendaryOnOwnTurn}
                 onClick={() => {
-                  if (legendaryDepleted || !recharged) return;
+                  if (legendaryDepleted || legendaryOnOwnTurn || !recharged) return;
                   if (isNonAutomatable) {
                     onExecute(participant.id, a.name, tab === 'legendary' ? 'LEGENDARY' : 'ACTION');
                   } else {
@@ -770,11 +802,13 @@ function InlineMonsterActions({
                   }
                 }}
                 className={`px-2 py-1 font-heading text-[12px] font-semibold tracking-[0.02em] border transition-colors
-                  ${!recharged || legendaryDepleted ? 'opacity-40 cursor-not-allowed border-rule-light bg-card text-muted' :
+                  ${!recharged || legendaryDepleted || legendaryOnOwnTurn ? 'opacity-40 cursor-not-allowed border-rule-light bg-card text-muted' :
                     isNonAutomatable ? 'border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20' :
                     selectedAction?.name === a.name ? 'border-ink bg-ink text-card' :
                     'border-monster bg-monster-bg text-monster hover:bg-monster/20'}`}
-                title={legendaryDepleted ? `Not enough legendary actions (need ${actionCost}, have ${legendaryRemaining})` : (a.description || formatActionLabel(a))}
+                title={legendaryOnOwnTurn ? `Not on ${participant.displayName}'s own turn`
+                  : legendaryDepleted ? `Not enough legendary actions (need ${actionCost}, have ${legendaryRemaining})`
+                  : (a.description || formatActionLabel(a))}
               >
                 {a.name}
                 {a.cost > 0 && <span className="ml-1 text-[11px] opacity-70">({a.cost})</span>}
@@ -819,9 +853,12 @@ function InlineMonsterActions({
       {selectedAction && (
         <div className="mt-2">
           <button
-            disabled={inlineTargets.length === 0 || inlineExecuting || (tab === 'legendary' && legendaryRemaining < (selectedAction.cost || 1))}
+            disabled={inlineTargets.length === 0 || inlineExecuting
+              || (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1)))
+              || (tab === 'lair' && !lairReady)}
             onClick={() => {
-              if (tab === 'legendary' && legendaryRemaining < (selectedAction.cost || 1)) return;
+              if (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1))) return;
+              if (tab === 'lair' && !lairReady) return;
               onExecute(participant.id, selectedAction.name, tab === 'legendary' ? 'LEGENDARY' : tab === 'lair' ? 'LAIR' : 'ACTION');
               setSelectedAction(null);
             }}
@@ -871,6 +908,7 @@ function DmSessionView() {
   const [inlineTargets, setInlineTargets] = useState<string[]>([]);
   const [inlineResult, setInlineResult] = useState<any>(null);
   const [inlineExecuting, setInlineExecuting] = useState(false);
+  const [turnError, setTurnError] = useState('');
 
   async function executeInlineAction(participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR') {
     if (inlineTargets.length === 0) return;
@@ -941,12 +979,22 @@ function DmSessionView() {
     await actions.end();
   }
 
+  // A turn-order change the server refuses, such as a turn when nobody can act, says why (D163)
+  async function attemptTurnChange(change: () => Promise<unknown>) {
+    try {
+      await change();
+      setTurnError('');
+    } catch (err: unknown) {
+      setTurnError(apiErrorMessage(err));
+    }
+  }
+
   async function handleNextTurn() {
-    await actions.nextTurn();
+    await attemptTurnChange(() => actions.nextTurn());
   }
 
   async function handlePrevTurn() {
-    await actions.previousTurn();
+    await attemptTurnChange(() => actions.previousTurn());
   }
 
   async function handleRemoveCondition(participantId: string, condition: string) {
@@ -962,12 +1010,33 @@ function DmSessionView() {
     setActionMode(mode);
   }
 
-  const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+  // The server computes the turn order, the Lair's turn included, and each participant's sortOrder is its
+  // turn's place in it (D163)
+  const sorted = [...encounter.participants].sort((a, b) => a.sortOrder - b.sortOrder);
+  const participantsById = new Map(encounter.participants.map(p => [p.id, p]));
+  const turns = encounter.turnOrder;
+  const isLairTurn = encounter.currentTurnIndex != null && (turns[encounter.currentTurnIndex]?.lair ?? false);
+  const lairMonsters = encounter.monstersInLair.flatMap(id => participantsById.get(id)?.displayName ?? []);
   const selectedTarget = sorted.find(p => p.id === selectedTargetId) ?? null;
   // Combat controls show only while the encounter is Active: a Paused one can only resume or end, and a
   // Completed one is final (D166)
   const isActive = encounter.status === 'ACTIVE';
   const isPaused = encounter.status === 'PAUSED';
+
+  // Swaps a participant with its neighbour in a tie on initiative and DEX, which only the DM's order breaks
+  const moveInTie = (index: number, offset: -1 | 1) => {
+    const group = turns[index].tieGroup;
+    const ids = turns.filter(turn => turn.tieGroup === group).flatMap(turn => turn.participantId ?? []);
+    const at = ids.indexOf(turns[index].participantId ?? '');
+    [ids[at], ids[at + offset]] = [ids[at + offset], ids[at]];
+    return attemptTurnChange(() => actions.reorderTie(ids));
+  };
+
+  // The whole list of monsters fighting in their lair, with this one in it or out of it
+  const setInLair = (participantId: string, inLair: boolean) => {
+    const others = encounter.monstersInLair.filter(id => id !== participantId);
+    return actions.setLairStatus(inLair ? [...others, participantId] : others);
+  };
 
   return (
     <div className="min-h-screen bg-page">
@@ -1044,6 +1113,8 @@ function DmSessionView() {
           </div>
         )}
 
+        {turnError && <p role="alert" className="text-debuff font-body text-[15px] font-semibold mb-4">{turnError}</p>}
+
         {/* Spell cast modal */}
         {isActive && actionMode === 'spell' && selectedTarget && (
           <SpellCastModal
@@ -1074,9 +1145,16 @@ function DmSessionView() {
           />
         )}
 
-        {/* Participant list */}
+        {/* The initiative order as the server computes it, the Lair's turn included (D163) */}
         <div className="space-y-2 mb-4" role="list" aria-label="Initiative order">
-          {sorted.map((p: EncounterParticipant) => {
+          {turns.map((turn, index) => {
+            if (turn.lair) {
+              return <LairTurnRow key="lair" turn={turn} lairMonsters={lairMonsters} />;
+            }
+            const p = participantsById.get(turn.participantId ?? '');
+            if (!p) return null;
+            const tiedBefore = turn.tieGroup != null && turns[index - 1]?.tieGroup === turn.tieGroup;
+            const tiedAfter = turn.tieGroup != null && turns[index + 1]?.tieGroup === turn.tieGroup;
             const conditions = p.activeConditions ?? [];
             const isSelected = p.id === selectedTargetId;
             const isMonster = p.participantType === 'MONSTER';
@@ -1088,8 +1166,9 @@ function DmSessionView() {
             return (
               <Fragment key={p.id}>
               <div
+                aria-current={turn.current ? 'step' : undefined}
                 className={`bg-card border border-l-[3px] px-4 py-3 transition-all ${
-                  p.isCurrentTurn ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
+                  turn.current ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
                   isSelected ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
                   'border-t-rule border-r-rule border-b-rule'
                 } ${!isUp ? 'opacity-60' : ''}`}
@@ -1098,13 +1177,35 @@ function DmSessionView() {
                 <div className="flex items-center gap-3">
                   {/* Turn indicator */}
                   <div className="w-5 flex-shrink-0">
-                    {p.isCurrentTurn && <ChevronRight className="w-5 h-5 text-cls-fighter" />}
+                    {turn.current && <ChevronRight className="w-5 h-5 text-cls-fighter" />}
                   </div>
 
                   {/* Initiative */}
                   <div className="w-9 text-center flex-shrink-0">
                     <span className="font-heading text-[17px] font-bold text-ink">{p.initiative ?? '—'}</span>
                   </div>
+
+                  {/* The DM's order among participants tied on initiative and DEX (D163) */}
+                  {isActive && turn.tieGroup != null && (
+                    <div className="flex flex-col flex-shrink-0 -my-1">
+                      <IconButton
+                        label={`Move ${p.displayName} up the tie`}
+                        disabled={!tiedBefore}
+                        onClick={() => moveInTie(index, -1)}
+                        className="p-0.5 text-faint hover:text-ink disabled:opacity-30"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </IconButton>
+                      <IconButton
+                        label={`Move ${p.displayName} down the tie`}
+                        disabled={!tiedAfter}
+                        onClick={() => moveInTie(index, 1)}
+                        className="p-0.5 text-faint hover:text-ink disabled:opacity-30"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </IconButton>
+                    </div>
+                  )}
 
                   {/* Name + info */}
                   <div className="flex-1 min-w-0">
@@ -1121,6 +1222,13 @@ function DmSessionView() {
                       {isMonster && (
                         <VisibilityToggle participant={p} onToggle={visible => handleSetVisibility(p.id, visible)} />
                       )}
+                      {isActive && isMonster && p.hasLairActions && (
+                        <LairToggle
+                          participant={p}
+                          inLair={encounter.monstersInLair.includes(p.id)}
+                          onToggle={inLair => setInLair(p.id, inLair)}
+                        />
+                      )}
                       <LifeStateBadge participant={p} />
                     </div>
 
@@ -1130,20 +1238,24 @@ function DmSessionView() {
                         {conditions.map(c => {
                           const remaining = c.duration != null ? Math.max(0, c.duration - (encounter.roundNumber - c.appliedRound)) : null;
                           const label = `${c.name}${c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}${remaining != null ? ` (${remaining})` : ''}`;
+                          // A Repeat Save is rolled at the end of each of the creature's turns (D162)
+                          const saveEnds = c.repeatSave ? `; ${c.repeatSave.ability} save DC ${c.repeatSave.dc} at the end of each turn ends it` : '';
                           return isActive ? (
-                            <button
-                              key={c.id}
-                              onClick={() => handleRemoveCondition(p.id, c.name)}
-                              className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff hover:opacity-75 cursor-pointer"
-                              title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}`}
-                            >
-                              {label} <X className="w-2.5 h-2.5 inline" />
-                            </button>
+                            <Fragment key={c.id}>
+                              <button
+                                onClick={() => handleRemoveCondition(p.id, c.name)}
+                                className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff hover:opacity-75 cursor-pointer"
+                                title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}${saveEnds}`}
+                              >
+                                {label} <X className="w-2.5 h-2.5 inline" />
+                              </button>
+                              <RepeatSavePrompt participant={p} condition={c} compact />
+                            </Fragment>
                           ) : (
                             <span
                               key={c.id}
                               className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff"
-                              title={remaining != null ? `${remaining} rounds left` : undefined}
+                              title={remaining != null || saveEnds ? `${remaining != null ? `${remaining} rounds left` : ''}${saveEnds}` : undefined}
                             >
                               {label}
                             </span>
@@ -1308,6 +1420,8 @@ function DmSessionView() {
                   onToggleTarget={toggleInlineTarget}
                   onExecute={executeInlineAction}
                   onClearResult={() => setInlineResult(null)}
+                  isLairTurn={isLairTurn}
+                  inLair={encounter.monstersInLair.includes(p.id)}
                 />
               )}
             </Fragment>

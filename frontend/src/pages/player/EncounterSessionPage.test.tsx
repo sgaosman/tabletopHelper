@@ -310,4 +310,98 @@ describe('Player EncounterSessionPage', () => {
       expect(screen.getByText('(2 entries)')).toBeInTheDocument();
     });
   });
+
+  describe('turns (D157, D162, D163)', () => {
+    it('lists the turns players can see in the order the server numbers them, the Lair\'s included', async () => {
+      const participants = [goblin({ sortOrder: 0 }), gimli({ sortOrder: 2 }), legolas({ sortOrder: 3 })];
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants,
+        turnOrder: [
+          { participantId: 'part-goblin', name: 'Test Goblin', initiative: 22, lair: false, skipped: false, current: false, tieGroup: null },
+          { participantId: null, name: 'Lair Actions', initiative: 20, lair: true, skipped: false, current: true, tieGroup: null },
+          { participantId: 'part-gimli', name: 'Gimli', initiative: 15, lair: false, skipped: false, current: false, tieGroup: null },
+          { participantId: 'part-legolas', name: 'Legolas', initiative: 12, lair: false, skipped: false, current: false, tieGroup: null },
+        ],
+        currentTurnIndex: 1,
+        monstersInLair: ['part-goblin'],
+      }))));
+      renderPage();
+
+      await screen.findByRole('heading', { name: 'Goblin Ambush' });
+      const list = screen.getByRole('list', { name: 'Initiative order' });
+      // The Lair's row names the monster in its lair
+      expect(within(list).getAllByText(/^(Test Goblin|Lair Actions|Gimli|Legolas)$/).map(el => el.textContent))
+        .toEqual(['Test Goblin', 'Lair Actions', 'Test Goblin', 'Gimli', 'Legolas']);
+      expect(list.querySelector('[aria-current="step"]')).toHaveTextContent('Lair Actions');
+      expect(screen.queryByText('It\'s your turn!')).not.toBeInTheDocument();
+    });
+
+    it('marks no turn while one the player can\'t see is taken', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [goblin(), gimli()], currentTurnIndex: null,
+      }))));
+      renderPage();
+
+      const list = await screen.findByRole('list', { name: 'Initiative order' });
+      expect(list.querySelector('[aria-current]')).toBeNull();
+    });
+
+    it('prompts the death save due as a dying character\'s turn starts, and rolls it on the server', async () => {
+      const requests: unknown[] = [];
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [gimli({ hpCurrent: 0, lifeState: 'DYING', deathSaveDue: true, isCurrentTurn: true }), goblin()],
+        }))),
+        http.post('/api/encounters/:id/combat/death-save', async ({ request }) => {
+          requests.push(await request.json());
+          return HttpResponse.json(makeMockEncounter({
+            participants: [gimli({ hpCurrent: 0, lifeState: 'DYING', deathSaveSuccesses: 1, isCurrentTurn: true }), goblin()],
+          }));
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      expect(await screen.findByText('Your turn has started: roll your death saving throw.')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Roll Death Save' }));
+
+      await waitFor(() => expect(screen.queryByText(/Your turn has started/)).not.toBeInTheDocument());
+      expect(requests).toEqual([{ participantId: 'part-gimli' }]);
+    });
+
+    it('prompts a Repeat Save the campaign leaves to the player, and rolls it on the server', async () => {
+      const requests: unknown[] = [];
+      const paralyzed = makeMockCondition('paralyzed', {
+        duration: 10, endRule: { type: 'REPEAT_SAVE' }, repeatSave: { ability: 'CON', dc: 10, awaitingRoll: true },
+      });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [gimli({ activeConditions: [paralyzed] }), goblin()],
+        }))),
+        http.post('/api/encounters/:id/combat/repeat-save', async ({ request }) => {
+          requests.push(await request.json());
+          return HttpResponse.json(makeMockEncounter({ participants: [gimli(), goblin()] }));
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      expect(await screen.findByText('Repeat your CON save (DC 10) to end paralyzed')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Roll CON save (DC 10) to end paralyzed' }));
+
+      await waitFor(() => expect(screen.queryByText(/Repeat your CON save/)).not.toBeInTheDocument());
+      expect(requests).toEqual([{ participantId: 'part-gimli', conditionId: 'cond-paralyzed' }]);
+    });
+
+    it('shows no Repeat Save prompt while the server rolls them', async () => {
+      const paralyzed = makeMockCondition('paralyzed', { repeatSave: { ability: 'CON', dc: 10, awaitingRoll: false } });
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [gimli({ activeConditions: [paralyzed] }), goblin()],
+      }))));
+      renderPage();
+
+      expect(await screen.findByText('paralyzed x')).toBeInTheDocument();
+      expect(screen.queryByText(/Repeat your/)).not.toBeInTheDocument();
+    });
+  });
 });

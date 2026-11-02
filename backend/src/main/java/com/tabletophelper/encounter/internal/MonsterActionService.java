@@ -32,9 +32,10 @@ import java.util.stream.Collectors;
 
 /**
  * Monster actions, legendary actions, lair actions and monster spells, all the DM's (M12). Legendary actions
- * spend the monster's pool, a recharge action needs its pool recharged, and a lair action can't repeat two
- * rounds running (D136). Each target's result is logged on its own entry, and a failed save by a creature with
- * Legendary Resistance left is offered for undoing (D163).
+ * spend the monster's pool and can't be used on its own turn, a recharge action needs its pool recharged, and
+ * a lair action happens only on the Lair's turn and can't repeat two rounds running (D136, D163). Each
+ * target's result is logged on its own entry, and a failed save by a creature with Legendary Resistance left
+ * is offered for undoing (D163).
  */
 @Service
 @RequiredArgsConstructor
@@ -69,6 +70,7 @@ public class MonsterActionService {
         String actionName = action.path("name").asText("Unknown Action");
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.targetParticipantIds(), userId);
         CombatAccess.requireNotDead(targets);
+        requireTiming(encounter, monster, request.actionSource());
 
         if ("LEGENDARY".equals(request.actionSource())) {
             int cost = action.path("cost").asInt(1);
@@ -171,6 +173,26 @@ public class MonsterActionService {
                 .targets(result.targets())
                 .manualResolutionReason(result.manualReason())
                 .build();
+    }
+
+    /**
+     * When the action may be used (D163), refused with a 409: a legendary action on any turn but its monster's
+     * own, the Lair's included, and a lair action only on the Lair's turn, by a living monster fighting in its
+     * lair.
+     */
+    private static void requireTiming(Encounter encounter, EncounterParticipant monster, String source) {
+        if ("LEGENDARY".equals(source) && EncounterTurns.isCurrentTurn(encounter, monster.getId())) {
+            throw new ConflictException(monster.getDisplayName()
+                    + " can't use legendary actions on its own turn, only on other creatures' turns");
+        }
+        if ("LAIR".equals(source)) {
+            if (!EncounterTurns.isLairTurn(encounter)) {
+                throw new ConflictException("Lair actions happen only on the Lair's turn, at initiative 20");
+            }
+            if (!EncounterTurns.inLair(encounter, monster.getId()) || monster.getLifeState() == LifeState.DEAD) {
+                throw new ConflictException(monster.getDisplayName() + " isn't fighting in its lair");
+            }
+        }
     }
 
     private static EncounterParticipant monsterParticipant(Encounter encounter, UUID participantId) {

@@ -33,6 +33,11 @@ export default function CampaignDetailPage() {
     updateSettings.mutate({ campaignId: campaign.id, settings: { showExactMonsterHp } });
   }
 
+  function handlePromptPlayerRepeatSaves(promptPlayerRepeatSaves: boolean) {
+    if (!campaign) return;
+    updateSettings.mutate({ campaignId: campaign.id, settings: { promptPlayerRepeatSaves } });
+  }
+
   function modifierString(score: number) {
     const mod = Math.floor((score - 10) / 2);
     return mod >= 0 ? `+${mod}` : `${mod}`;
@@ -75,6 +80,21 @@ export default function CampaignDetailPage() {
               <span className="block font-heading text-[15px] font-bold text-ink">Show exact monster HP</span>
               <span className="block font-body text-[13px] font-semibold text-faint">
                 Players see monster HP as numbers. When off, they see Unharmed, Injured, Bloodied or Down.
+              </span>
+            </span>
+          </label>
+          <label className="bg-card border border-rule p-3 flex items-start gap-3 cursor-pointer w-fit mt-2">
+            <input
+              type="checkbox"
+              checked={campaign.promptPlayerRepeatSaves}
+              onChange={e => handlePromptPlayerRepeatSaves(e.target.checked)}
+              disabled={updateSettings.isPending}
+              className="mt-1 accent-ink"
+            />
+            <span>
+              <span className="block font-heading text-[15px] font-bold text-ink">Players roll their own Repeat Saves</span>
+              <span className="block font-body text-[13px] font-semibold text-faint">
+                At the end of their character's turn, players are prompted to roll the save that ends a condition. When off, the app rolls it for them.
               </span>
             </span>
           </label>

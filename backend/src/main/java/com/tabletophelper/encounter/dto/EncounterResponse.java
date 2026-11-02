@@ -45,9 +45,8 @@ public class EncounterResponse {
     @Schema(requiredMode = REQUIRED, implementation = EncounterStatus.class)
     private String status;
 
-    // The columns allow null, but a new encounter starts at turn 0 of round 1 and the turn order
-    // only ever counts on from there
-    @Schema(requiredMode = REQUIRED)
+    // The current turn's place in turnOrder, computed for each view (D157, D163): null before the
+    // encounter starts, and in the Player View while a participant hidden from players acts
     private Integer currentTurnIndex;
 
     @Schema(requiredMode = REQUIRED)
@@ -56,8 +55,18 @@ public class EncounterResponse {
     // Set when the encounter starts
     private String sessionCode;
 
+    // In turn order
     @Schema(requiredMode = REQUIRED)
     private List<ParticipantResponse> participants;
+
+    // Every turn in order, the Lair's included while it has one (D163). The Player View leaves out the
+    // turns of participants hidden from players, and the Lair's unless they can see a monster in its lair.
+    @Schema(requiredMode = REQUIRED)
+    private List<TurnResponse> turnOrder;
+
+    // The monster participants fighting in their lair, which gives the Lair a turn while any is alive
+    @Schema(requiredMode = REQUIRED)
+    private List<UUID> monstersInLair;
 
     // Null in the response that creates the encounter: @CreationTimestamp only fills it in when the
     // insert is flushed, after the response is built
@@ -88,6 +97,9 @@ public class EncounterResponse {
 
         private Integer initiative;
         private Integer initiativeModifier;
+
+        // The participant's turn's place in turnOrder, counted again over the turns the view shows
+        @Schema(requiredMode = REQUIRED)
         private Integer sortOrder;
 
         // Null in the Player View for a monster whose HP it hides behind healthStatus (D157)
@@ -120,14 +132,21 @@ public class EncounterResponse {
         @Schema(requiredMode = REQUIRED, implementation = LifeState.class)
         private String lifeState;
 
-        // The columns allow null, but participants are only created through the entity's builder,
-        // which starts each of these, and combat code reads them without a null check
+        // Computed from the encounter's current turn (D163)
         @Schema(requiredMode = REQUIRED)
         private Boolean isCurrentTurn;
 
+        // A Dying PC whose turn has started and who hasn't yet rolled the death save it is due (D163)
+        @Schema(requiredMode = REQUIRED)
+        private Boolean deathSaveDue;
+
+        // DM View only: whether a monster's action templates have lair actions, so it can fight in its lair
+        private Boolean hasLairActions;
+
         private UUID controlledByUserId;
 
-        // As isCurrentTurn
+        // The columns allow null, but participants are only created through the entity's builder,
+        // which starts each of these, and combat code reads them without a null check
         @Schema(requiredMode = REQUIRED)
         private Integer deathSaveSuccesses;
 
@@ -150,5 +169,35 @@ public class EncounterResponse {
 
         @Schema(requiredMode = REQUIRED)
         private Boolean reactionUsed;
+    }
+
+    /** One turn in the order: a participant's, or the Lair's (D163). */
+    @Data
+    @Builder(toBuilder = true)
+    public static class TurnResponse {
+
+        // The participant whose turn it is; null for the Lair's
+        private UUID participantId;
+
+        // The participant's name, or "Lair Actions"
+        @Schema(requiredMode = REQUIRED)
+        private String name;
+
+        // 20 for the Lair; null for a participant without initiative
+        private Integer initiative;
+
+        @Schema(requiredMode = REQUIRED)
+        private boolean lair;
+
+        // A dead monster's turn, which the order passes over
+        @Schema(requiredMode = REQUIRED)
+        private boolean skipped;
+
+        @Schema(requiredMode = REQUIRED)
+        private boolean current;
+
+        // DM View only: the same number on each turn of a group tied on initiative and DEX, which the DM
+        // may reorder; null for a turn tied with no other
+        private Integer tieGroup;
     }
 }
