@@ -1,10 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { server } from '../test/mocks/server';
-import { setupAuthToken } from '../test/test-utils';
+import { makeCampaign, makeMockCharacter } from '../test/mocks/handlers';
+import { createTestQueryClient, setupAuthToken } from '../test/test-utils';
 import { getAccessToken } from '../api/tokenStore';
+import { queryKeys } from '../queries/keys';
 import { AuthProvider, useAuth } from './AuthContext';
 
 function AuthProbe() {
@@ -22,11 +25,13 @@ function AuthProbe() {
   );
 }
 
-function renderProvider() {
+function renderProvider(queryClient: QueryClient = createTestQueryClient()) {
   return render(
-    <AuthProvider>
-      <AuthProbe />
-    </AuthProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -112,11 +117,42 @@ describe('AuthContext', () => {
     expect(getAccessToken()).toBeNull();
   });
 
+  it('empties the query cache on logout, so the next account sees none of this one', async () => {
+    setupAuthToken();
+    logoutEndpoint();
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(queryKeys.campaigns.list(), [makeCampaign('camp-001', 'Test Campaign')]);
+    queryClient.setQueryData(queryKeys.characters.mine(), [makeMockCharacter('char-001', 'Gimli', 'Fighter', 5)]);
+    renderProvider(queryClient);
+    await screen.findByText('Status: authenticated');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
+
+    expect(await screen.findByText('Status: anonymous')).toBeInTheDocument();
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    expect(queryClient.getQueryData(queryKeys.campaigns.list())).toBeUndefined();
+  });
+
+  it('starts a new session from an empty cache, even if data landed after the last sign-out', async () => {
+    const queryClient = createTestQueryClient();
+    renderProvider(queryClient);
+    await screen.findByText('Status: anonymous');
+    // A settings change the last account sent just before signing out, answered afterwards
+    queryClient.setQueryData(queryKeys.campaigns.detail('camp-001'), makeCampaign('camp-001', 'Test Campaign'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+
+    expect(await screen.findByText('Signed in as Test User')).toBeInTheDocument();
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+  });
+
   it('still signs out of this tab when the logout request fails', async () => {
     setupAuthToken();
     const logoutCalls = logoutEndpoint(() => HttpResponse.error());
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    renderProvider();
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(queryKeys.campaigns.list(), [makeCampaign('camp-001', 'Test Campaign')]);
+    renderProvider(queryClient);
     await screen.findByText('Status: authenticated');
 
     await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
@@ -124,6 +160,7 @@ describe('AuthContext', () => {
     expect(await screen.findByText('Status: anonymous')).toBeInTheDocument();
     expect(logoutCalls()).toBe(1);
     expect(getAccessToken()).toBeNull();
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith('Sign-out request failed', expect.anything());
     warn.mockRestore();
   });

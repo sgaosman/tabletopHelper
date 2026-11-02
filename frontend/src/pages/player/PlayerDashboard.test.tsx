@@ -94,6 +94,43 @@ describe('PlayerDashboard', () => {
     expect(deleteBtn).not.toBeDisabled();
   });
 
+  it('removes the character once it is deleted and closes the modal', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockCharacter } = await import('../../test/mocks/handlers');
+    let characters = [makeMockCharacter('char-001', 'Gimli', 'Fighter', 5)];
+    let deleted: string | undefined;
+    server.use(
+      http.get('/api/characters', () => HttpResponse.json(characters)),
+      http.delete('/api/characters/:id', ({ params }) => {
+        deleted = params.id as string;
+        characters = characters.filter(c => c.id !== params.id);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    render(<PlayerDashboard />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByTitle('Delete character'));
+    await user.type(screen.getByPlaceholderText('Gimli'), 'Gimli');
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByText('Gimli')).not.toBeInTheDocument();
+    expect(await screen.findByText('Create New Character')).toBeInTheDocument();
+    expect(deleted).toBe('char-001');
+  });
+
+  it("shows why a section couldn't load in place of its list", async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    server.use(http.get('/api/characters', () => HttpResponse.error()));
+    render(<PlayerDashboard />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach the server. Check your connection and try again.');
+    expect(screen.queryByText('Create New Character')).not.toBeInTheDocument();
+    expect(await screen.findByText('Test Campaign')).toBeInTheDocument();
+  });
+
   it('closes delete modal on Cancel', async () => {
     render(<PlayerDashboard />);
     await waitFor(() => screen.getByText('Gimli'));

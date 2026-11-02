@@ -1,8 +1,8 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { characterApi } from '../../api/characterApi';
-import { campaignApi } from '../../api/campaignApi';
-import type { Campaign } from '../../types/campaign';
+import { apiErrorMessage } from '../../api/errors';
+import { useCampaigns, useJoinCampaign } from '../../queries/campaigns';
+import { useDeleteCharacter, useMyCharacters } from '../../queries/characters';
 import type { PlayerCharacter } from '../../types/character';
 import { Plus, Users, ScrollText, Swords, Trash2 } from 'lucide-react';
 import NavBar from '../../components/common/NavBar';
@@ -10,59 +10,36 @@ import { getClassColour } from '../../utils/classColours';
 
 export default function PlayerDashboard() {
   const navigate = useNavigate();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
+  const campaignsQuery = useCampaigns();
+  const charactersQuery = useMyCharacters();
+  const joinCampaign = useJoinCampaign();
+  const deleteCharacter = useDeleteCharacter();
   const [inviteCode, setInviteCode] = useState('');
-  const [joinError, setJoinError] = useState('');
-  const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<PlayerCharacter | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
-  const [deleteError, setDeleteError] = useState('');
-  const [deleting, setDeleting] = useState(false);
+  const campaigns = campaignsQuery.data;
+  const characters = charactersQuery.data;
+  const deleting = deleteCharacter.isPending;
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
-    try {
-      const [campRes, charRes] = await Promise.all([
-        campaignApi.getAll(),
-        characterApi.getMine(),
-      ]);
-      setCampaigns(campRes.data);
-      setCharacters(charRes.data);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleJoin(e: FormEvent) {
+  function handleJoin(e: FormEvent) {
     e.preventDefault();
-    setJoinError('');
-    try {
-      await campaignApi.join({ inviteCode: inviteCode.trim() });
-      setInviteCode('');
-      loadData();
-    } catch (err: any) {
-      setJoinError(err.response?.data?.error || 'Failed to join campaign');
-    }
+    joinCampaign.mutate({ inviteCode: inviteCode.trim() }, { onSuccess: () => setInviteCode('') });
   }
 
-  async function handleDelete() {
+  function openDeleteConfirmation(character: PlayerCharacter) {
+    deleteCharacter.reset();
+    setDeleteTarget(character);
+    setDeleteConfirmName('');
+  }
+
+  function handleDelete() {
     if (!deleteTarget || deleteConfirmName !== deleteTarget.name) return;
-    setDeleting(true);
-    setDeleteError('');
-    try {
-      await characterApi.delete(deleteTarget.id);
-      setCharacters(prev => prev.filter(c => c.id !== deleteTarget.id));
-      setDeleteTarget(null);
-      setDeleteConfirmName('');
-    } catch (err: any) {
-      setDeleteError(err.response?.data?.error || 'Failed to delete character');
-    } finally {
-      setDeleting(false);
-    }
+    deleteCharacter.mutate(deleteTarget, {
+      onSuccess: () => {
+        setDeleteTarget(null);
+        setDeleteConfirmName('');
+      },
+    });
   }
 
   return (
@@ -83,11 +60,13 @@ export default function PlayerDashboard() {
               placeholder="Enter invite code"
               className="flex-1 max-w-xs px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink tracking-wider placeholder-faint focus:border-muted focus:outline-none uppercase"
             />
-            <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors">
+            <button type="submit" disabled={joinCampaign.isPending} className="px-4 py-2 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               Join
             </button>
           </form>
-          {joinError && <p role="alert" className="text-debuff font-body text-[15px] mt-2">{joinError}</p>}
+          {joinCampaign.error && (
+            <p role="alert" className="text-debuff font-body text-[15px] mt-2">{apiErrorMessage(joinCampaign.error)}</p>
+          )}
         </section>
 
         {/* Join Encounter */}
@@ -110,8 +89,10 @@ export default function PlayerDashboard() {
           <h2 className="font-heading text-[13px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
             <Users className="w-3.5 h-3.5" /> My Campaigns
           </h2>
-          {loading ? (
+          {campaignsQuery.isPending ? (
             <p className="font-body text-[15px] text-muted">Loading...</p>
+          ) : !campaigns ? (
+            <p role="alert" className="font-body text-[15px] text-debuff">{apiErrorMessage(campaignsQuery.error)}</p>
           ) : campaigns.length === 0 ? (
             <p className="font-body text-[15px] text-faint">You haven't joined any campaigns yet. Ask your DM for an invite code.</p>
           ) : (
@@ -141,8 +122,10 @@ export default function PlayerDashboard() {
               <Plus className="w-3.5 h-3.5" /> New Character
             </button>
           </div>
-          {loading ? (
+          {charactersQuery.isPending ? (
             <p className="font-body text-[15px] text-muted">Loading...</p>
+          ) : !characters ? (
+            <p role="alert" className="font-body text-[15px] text-debuff">{apiErrorMessage(charactersQuery.error)}</p>
           ) : characters.length === 0 ? (
             <button
               onClick={() => navigate('/player/characters/new')}
@@ -185,7 +168,7 @@ export default function PlayerDashboard() {
                       </div>
                     </button>
                     <button
-                      onClick={() => { setDeleteTarget(c); setDeleteConfirmName(''); setDeleteError(''); }}
+                      onClick={() => openDeleteConfirmation(c)}
                       className="px-3 text-faint hover:text-debuff transition-colors shrink-0"
                       title="Delete character"
                     >
@@ -225,7 +208,9 @@ export default function PlayerDashboard() {
               className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none mb-4"
               autoFocus
             />
-            {deleteError && <p role="alert" className="text-debuff font-body text-[15px] mb-3">{deleteError}</p>}
+            {deleteCharacter.error && (
+              <p role="alert" className="text-debuff font-body text-[15px] mb-3">{apiErrorMessage(deleteCharacter.error)}</p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}

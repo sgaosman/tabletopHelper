@@ -1,24 +1,39 @@
 import { type ReactElement } from 'react';
 import { render, type RenderOptions } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { AuthProvider } from '../context/AuthContext';
 import { clearAccessToken, setAccessToken } from '../api/tokenStore';
+import { createQueryClient } from '../queries/queryClient';
 import type { AuthResponse } from '../types/auth';
 import { server } from './mocks/server';
 
-function AllProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        {children}
-      </AuthProvider>
-    </BrowserRouter>
-  );
+/** The app's query cache without retries, so a failed request shows its error straight away. */
+export function createTestQueryClient(): QueryClient {
+  const queryClient = createQueryClient();
+  const defaults = queryClient.getDefaultOptions();
+  queryClient.setDefaultOptions({ ...defaults, queries: { ...defaults.queries, retry: false } });
+  return queryClient;
 }
 
+/** Renders inside the app's providers. Each render gets its own query cache, returned as `queryClient`. */
 function customRender(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
-  return render(ui, { wrapper: AllProviders, ...options });
+  const queryClient = createTestQueryClient();
+
+  function AllProviders({ children }: { children: React.ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  return { ...render(ui, { wrapper: AllProviders, ...options }), queryClient };
 }
 
 // Re-export everything from testing-library so consumers only need one import

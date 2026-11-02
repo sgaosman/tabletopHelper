@@ -1,45 +1,34 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Copy, Users, Check } from 'lucide-react';
-import { campaignApi } from '../../api/campaignApi';
-import type { Campaign } from '../../types/campaign';
+import { apiErrorMessage } from '../../api/errors';
+import { useCampaigns, useCreateCampaign } from '../../queries/campaigns';
 import NavBar from '../../components/common/NavBar';
 
 export default function CampaignManagePage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const { data: campaigns, error: loadError, isPending } = useCampaigns();
+  const createCampaign = useCreateCampaign();
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => { loadCampaigns(); }, []);
-
-  async function loadCampaigns() {
-    try {
-      const res = await campaignApi.getAll();
-      setCampaigns(res.data);
-    } catch {
-      setError('Failed to load campaigns');
-    } finally {
-      setLoading(false);
-    }
+  function handleCreate(e: FormEvent) {
+    e.preventDefault();
+    createCampaign.mutate({ name, description: description || undefined }, {
+      onSuccess: () => {
+        setName('');
+        setDescription('');
+        setShowCreate(false);
+      },
+    });
   }
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    try {
-      await campaignApi.create({ name, description: description || undefined });
-      setName('');
-      setDescription('');
-      setShowCreate(false);
-      loadCampaigns();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create campaign');
-    }
+  // Opening or closing the form forgets why the last attempt failed
+  function toggleCreateForm(show: boolean) {
+    createCampaign.reset();
+    setShowCreate(show);
   }
 
   function copyInviteCode(code: string) {
@@ -56,16 +45,12 @@ export default function CampaignManagePage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink">Campaigns</h1>
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => toggleCreateForm(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[15px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> New Campaign
           </button>
         </div>
-
-        {error && (
-          <div className="bg-debuff-bg border border-debuff-border text-debuff font-body text-[15px] p-3 mb-4">{error}</div>
-        )}
 
         {showCreate && (
           <form onSubmit={handleCreate} className="bg-card border border-rule p-6 mb-6 space-y-4">
@@ -88,15 +73,20 @@ export default function CampaignManagePage() {
                 placeholder="A brief description of your campaign"
               />
             </div>
+            {createCampaign.error && (
+              <p role="alert" className="text-debuff font-body text-[15px]">{apiErrorMessage(createCampaign.error)}</p>
+            )}
             <div className="flex gap-3">
-              <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[15px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors">Create</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-page border border-rule font-body text-[15px] font-semibold text-muted hover:border-muted transition-colors">Cancel</button>
+              <button type="submit" disabled={createCampaign.isPending} className="px-4 py-2 bg-ink text-card font-body text-[15px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Create</button>
+              <button type="button" onClick={() => toggleCreateForm(false)} className="px-4 py-2 bg-page border border-rule font-body text-[15px] font-semibold text-muted hover:border-muted transition-colors">Cancel</button>
             </div>
           </form>
         )}
 
-        {loading ? (
+        {isPending ? (
           <p className="font-body text-[16px] text-muted">Loading campaigns...</p>
+        ) : !campaigns ? (
+          <div role="alert" className="bg-debuff-bg border border-debuff-border text-debuff font-body text-[15px] p-3">{apiErrorMessage(loadError)}</div>
         ) : campaigns.length === 0 ? (
           <div className="text-center py-16">
             <Users className="w-10 h-10 text-faint mx-auto mb-4" />

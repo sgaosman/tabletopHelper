@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { campaignApi } from '../../api/campaignApi';
-import { characterApi } from '../../api/characterApi';
-import { encounterApi } from '../../api/encounterApi';
-import { fuzzySearchMonsters } from '../../api/monsterApi';
-import type { Campaign } from '../../types/campaign';
+import { apiErrorMessage } from '../../api/errors';
+import { useCampaigns } from '../../queries/campaigns';
+import { useCampaignCharacters } from '../../queries/characters';
+import {
+  useAddParticipant, useCampaignEncounters, useCreateEncounter, useDeleteEncounter, useRemoveParticipant,
+  useRenameParticipant, useRollInitiatives, useSetInitiatives, useSetParticipantVisibility, useStartEncounter,
+} from '../../queries/encounters';
+import { useMonsterSearch } from '../../queries/monsters';
 import type { PlayerCharacter } from '../../types/character';
 import type { Monster } from '../../types/monster';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
@@ -25,156 +28,173 @@ export default function EncounterBuilderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState('');
-  const [encounters, setEncounters] = useState<Encounter[]>([]);
-  const [selectedEncounter, setSelectedEncounter] = useState<Encounter | null>(null);
-  const [loading, setLoading] = useState(true);
+  const campaignsQuery = useCampaigns();
+  // null until the DM picks a campaign; a DM with only one starts on it
+  const [chosenCampaignId, setChosenCampaignId] = useState<string | null>(null);
+  const [selectedEncounterId, setSelectedEncounterId] = useState<string | null>(null);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
-  const [campaignCharacters, setCampaignCharacters] = useState<PlayerCharacter[]>([]);
   const [monsterSearch, setMonsterSearch] = useState('');
-  const [monsterResults, setMonsterResults] = useState<Monster[]>([]);
+  const [monsterSearchTerm, setMonsterSearchTerm] = useState('');
   const [monsterQuantities, setMonsterQuantities] = useState<Record<string, number>>({});
-  const [searchingMonsters, setSearchingMonsters] = useState(false);
 
   const [copiedCode, setCopiedCode] = useState(false);
   const [editingInitiative, setEditingInitiative] = useState<Record<string, string>>({});
   const [editingName, setEditingName] = useState<Record<string, string>>({});
+  // Why the last change to the selected encounter failed; the next change clears it
+  const [actionError, setActionError] = useState<unknown>(null);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const campaigns = (campaignsQuery.data ?? []).filter(c => c.dmUserId === user?.userId);
+  const selectedCampaignId = chosenCampaignId ?? (campaigns.length === 1 ? campaigns[0].id : '');
 
+  const encountersQuery = useCampaignEncounters(selectedCampaignId || undefined);
+  const charactersQuery = useCampaignCharacters(selectedCampaignId || undefined);
+  const encounters = encountersQuery.data ?? [];
+  const campaignCharacters = charactersQuery.data ?? [];
+  // Read from the list, which every change writes its result into
+  const selectedEncounter = encounters.find(e => e.id === selectedEncounterId) ?? null;
+
+  const createEncounter = useCreateEncounter();
+  const deleteEncounter = useDeleteEncounter();
+  const addParticipant = useAddParticipant();
+  const removeParticipant = useRemoveParticipant();
+  const renameParticipant = useRenameParticipant();
+  const setParticipantVisibility = useSetParticipantVisibility();
+  const setInitiatives = useSetInitiatives();
+  const rollInitiatives = useRollInitiatives();
+  const startEncounter = useStartEncounter();
+
+  // Searches once typing pauses
   useEffect(() => {
-    campaignApi.getAll().then(res => {
-      const dmCampaigns = res.data.filter(c => c.dmUserId === user?.userId);
-      setCampaigns(dmCampaigns);
-      if (dmCampaigns.length === 1) {
-        setSelectedCampaignId(dmCampaigns[0].id);
-      }
-    }).finally(() => setLoading(false));
-  }, [user]);
-
-  const loadEncounters = useCallback(() => {
-    if (!selectedCampaignId) return;
-    encounterApi.getByCampaign(selectedCampaignId).then(res => setEncounters(res.data));
-    characterApi.getByCampaign(selectedCampaignId).then(res => setCampaignCharacters(res.data));
-  }, [selectedCampaignId]);
-
-  useEffect(() => { loadEncounters(); }, [loadEncounters]);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!monsterSearch.trim()) {
-      setMonsterResults([]);
-      setSearchingMonsters(false);
-      return;
-    }
-    setSearchingMonsters(true);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const results = await fuzzySearchMonsters(monsterSearch.trim(), 10);
-        setMonsterResults(results);
-      } finally {
-        setSearchingMonsters(false);
-      }
-    }, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    const timer = setTimeout(() => setMonsterSearchTerm(monsterSearch.trim()), 300);
+    return () => clearTimeout(timer);
   }, [monsterSearch]);
 
-  async function handleCreate(e: FormEvent) {
+  const monsterSearchQuery = useMonsterSearch(monsterSearchTerm);
+  const hasMonsterSearch = monsterSearch.trim() !== '';
+  const monsterResults = hasMonsterSearch ? monsterSearchQuery.data ?? [] : [];
+  const searchingMonsters = hasMonsterSearch
+    && (monsterSearch.trim() !== monsterSearchTerm || monsterSearchQuery.isFetching);
+
+  function selectCampaign(campaignId: string) {
+    setChosenCampaignId(campaignId);
+    selectEncounter(null);
+  }
+
+  function selectEncounter(encounterId: string | null) {
+    setSelectedEncounterId(encounterId);
+    setActionError(null);
+  }
+
+  // Opening or closing the form forgets why the last attempt failed
+  function toggleCreateForm(show: boolean) {
+    createEncounter.reset();
+    setShowCreateForm(show);
+  }
+
+  /** Runs a change to the selected encounter. Resolves with its result, or undefined once the error is shown. */
+  async function attempt<T>(change: () => Promise<T>): Promise<T | undefined> {
+    setActionError(null);
+    try {
+      return await change();
+    } catch (err) {
+      setActionError(err);
+      return undefined;
+    }
+  }
+
+  function handleCreate(e: FormEvent) {
     e.preventDefault();
-    const res = await encounterApi.create({
+    createEncounter.mutate({
       campaignId: selectedCampaignId,
       name: newName.trim(),
       description: newDesc.trim() || undefined,
+    }, {
+      onSuccess: encounter => {
+        setNewName('');
+        setNewDesc('');
+        setShowCreateForm(false);
+        selectEncounter(encounter.id);
+      },
     });
-    setNewName('');
-    setNewDesc('');
-    setShowCreateForm(false);
-    setSelectedEncounter(res.data);
-    loadEncounters();
   }
 
   async function handleAddMonster(monster: Monster) {
     if (!selectedEncounter) return;
     const qty = monsterQuantities[monster.id] || 1;
-    const res = await encounterApi.addParticipant(selectedEncounter.id, {
-      participantType: 'MONSTER',
-      monsterId: monster.id,
-      displayName: monster.name,
-      quantity: qty,
-    });
-    setSelectedEncounter(res.data);
-    loadEncounters();
+    await attempt(() => addParticipant.mutateAsync({
+      encounter: selectedEncounter,
+      request: {
+        participantType: 'MONSTER',
+        monsterId: monster.id,
+        displayName: monster.name,
+        quantity: qty,
+      },
+    }));
   }
 
   async function handleAddPlayer(character: PlayerCharacter) {
     if (!selectedEncounter) return;
-    const res = await encounterApi.addParticipant(selectedEncounter.id, {
-      participantType: 'PLAYER',
-      characterId: character.id,
-      displayName: character.name,
-    });
-    setSelectedEncounter(res.data);
-    loadEncounters();
+    await attempt(() => addParticipant.mutateAsync({
+      encounter: selectedEncounter,
+      request: {
+        participantType: 'PLAYER',
+        characterId: character.id,
+        displayName: character.name,
+      },
+    }));
   }
 
   async function handleRemoveParticipant(participantId: string) {
     if (!selectedEncounter) return;
-    const res = await encounterApi.removeParticipant(selectedEncounter.id, participantId);
-    setSelectedEncounter(res.data);
-    loadEncounters();
+    await attempt(() => removeParticipant.mutateAsync({ encounter: selectedEncounter, participantId }));
   }
 
   async function handleRollInitiative() {
     if (!selectedEncounter) return;
-    const res = await encounterApi.rollInitiatives(selectedEncounter.id);
-    setSelectedEncounter(res.data);
-    setEditingInitiative({});
-    loadEncounters();
+    const rolled = await attempt(() => rollInitiatives.mutateAsync({ encounter: selectedEncounter }));
+    if (rolled) setEditingInitiative({});
   }
 
   async function handleSetInitiative(participantId: string, value: string) {
     if (!selectedEncounter) return;
     const parsed = parseInt(value);
     if (isNaN(parsed)) return;
-    const res = await encounterApi.setInitiatives(selectedEncounter.id, {
+    const saved = await attempt(() => setInitiatives.mutateAsync({
+      encounter: selectedEncounter,
       initiatives: [{ participantId, initiative: parsed }],
-    });
-    setSelectedEncounter(res.data);
-    setEditingInitiative(prev => { const next = { ...prev }; delete next[participantId]; return next; });
-    loadEncounters();
+    }));
+    if (saved) setEditingInitiative(prev => { const next = { ...prev }; delete next[participantId]; return next; });
   }
 
   async function handleRenameParticipant(participantId: string, newName: string) {
     if (!selectedEncounter || !newName.trim()) return;
-    const res = await encounterApi.renameParticipant(selectedEncounter.id, participantId, newName.trim());
-    setSelectedEncounter(res.data);
-    setEditingName(prev => { const next = { ...prev }; delete next[participantId]; return next; });
-    loadEncounters();
+    const saved = await attempt(() => renameParticipant.mutateAsync({
+      encounter: selectedEncounter,
+      participantId,
+      displayName: newName.trim(),
+    }));
+    if (saved) setEditingName(prev => { const next = { ...prev }; delete next[participantId]; return next; });
   }
 
+  // Rejects on failure, and VisibilityToggle shows why beside the switch
   async function handleSetVisibility(participantId: string, visible: boolean) {
     if (!selectedEncounter) return;
-    const res = await encounterApi.setVisibility(selectedEncounter.id, participantId, visible);
-    setSelectedEncounter(res.data);
-    loadEncounters();
+    await setParticipantVisibility.mutateAsync({ encounter: selectedEncounter, participantId, visible });
   }
 
   async function handleStartEncounter() {
     if (!selectedEncounter) return;
-    const res = await encounterApi.start(selectedEncounter.id);
-    setSelectedEncounter(res.data);
-    navigate(`/dm/encounter/${selectedEncounter.id}/session`);
+    const started = await attempt(() => startEncounter.mutateAsync({ encounter: selectedEncounter }));
+    if (started) navigate(`/dm/encounter/${started.id}/session`);
   }
 
-  async function handleDeleteEncounter(id: string) {
-    await encounterApi.delete(id);
-    if (selectedEncounter?.id === id) setSelectedEncounter(null);
-    loadEncounters();
+  async function handleDeleteEncounter(encounter: Encounter) {
+    const deleted = await attempt(() => deleteEncounter.mutateAsync(encounter));
+    if (deleted) setSelectedEncounterId(current => (current === encounter.id ? null : current));
   }
 
   function copySessionCode() {
@@ -193,7 +213,7 @@ export default function EncounterBuilderPage() {
   const allHaveInitiative = selectedEncounter?.participants.every(p => p.initiative != null) ?? false;
   const hasParticipants = (selectedEncounter?.participants.length ?? 0) > 0;
 
-  if (loading) {
+  if (campaignsQuery.isPending) {
     return <div className="min-h-screen bg-page flex items-center justify-center"><p className="font-body text-muted">Loading...</p></div>;
   }
 
@@ -204,14 +224,16 @@ export default function EncounterBuilderPage() {
       <main className="px-6 py-8">
         <h1 className="font-heading text-[20px] font-semibold tracking-[0.02em] text-ink mb-6">Encounters</h1>
 
-        {campaigns.length === 0 ? (
+        {campaignsQuery.isLoadingError ? (
+          <p role="alert" className="font-body text-debuff">{apiErrorMessage(campaignsQuery.error)}</p>
+        ) : campaigns.length === 0 ? (
           <p className="font-body text-faint">Create a campaign first to build encounters.</p>
         ) : (
           <>
             <div className="mb-6">
               <select
                 value={selectedCampaignId}
-                onChange={e => { setSelectedCampaignId(e.target.value); setSelectedEncounter(null); }}
+                onChange={e => selectCampaign(e.target.value)}
                 className="px-4 py-2.5 bg-card border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
               >
                 <option value="">Select a campaign...</option>
@@ -226,7 +248,7 @@ export default function EncounterBuilderPage() {
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="font-heading text-[16px] font-semibold text-ink">Encounters</h2>
                     <button
-                      onClick={() => setShowCreateForm(true)}
+                      onClick={() => toggleCreateForm(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[15px] font-semibold transition-colors hover:opacity-90"
                     >
                       <Plus className="w-4 h-4" /> New
@@ -250,20 +272,27 @@ export default function EncounterBuilderPage() {
                         rows={2}
                         className="w-full px-3 py-2 bg-page border border-rule font-body text-[16px] font-semibold text-ink mb-2 placeholder-faint focus:outline-none focus:border-muted resize-none"
                       />
+                      {createEncounter.error && (
+                        <p role="alert" className="font-body text-[15px] text-debuff mb-2">{apiErrorMessage(createEncounter.error)}</p>
+                      )}
                       <div className="flex gap-2">
-                        <button type="submit" className="px-3 py-1.5 bg-ink text-card font-body text-[15px] font-semibold">Create</button>
-                        <button type="button" onClick={() => setShowCreateForm(false)} className="px-3 py-1.5 bg-page border border-rule font-body text-[15px] font-semibold text-muted hover:border-muted">Cancel</button>
+                        <button type="submit" disabled={createEncounter.isPending} className="px-3 py-1.5 bg-ink text-card font-body text-[15px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed">Create</button>
+                        <button type="button" onClick={() => toggleCreateForm(false)} className="px-3 py-1.5 bg-page border border-rule font-body text-[15px] font-semibold text-muted hover:border-muted">Cancel</button>
                       </div>
                     </form>
                   )}
 
                   <div className="space-y-2">
+                    {encountersQuery.isPending && <p className="font-body text-[15px] text-muted">Loading...</p>}
+                    {encountersQuery.isLoadingError && (
+                      <p role="alert" className="font-body text-[15px] text-debuff">{apiErrorMessage(encountersQuery.error)}</p>
+                    )}
                     {encounters.map(enc => {
                       const status = STATUS_STYLES[enc.status];
                       return (
                         <button
                           key={enc.id}
-                          onClick={() => setSelectedEncounter(enc)}
+                          onClick={() => selectEncounter(enc.id)}
                           className={`w-full text-left bg-card border p-3 transition-colors ${
                             selectedEncounter?.id === enc.id ? 'border-ink' : 'border-rule hover:border-muted'
                           }`}
@@ -283,7 +312,7 @@ export default function EncounterBuilderPage() {
                         </button>
                       );
                     })}
-                    {encounters.length === 0 && !showCreateForm && (
+                    {encountersQuery.data?.length === 0 && !showCreateForm && (
                       <p className="font-body text-[15px] text-faint">No encounters yet.</p>
                     )}
                   </div>
@@ -320,7 +349,7 @@ export default function EncounterBuilderPage() {
                         )}
                         {selectedEncounter.status === 'PREPARING' && (
                           <button
-                            onClick={() => handleDeleteEncounter(selectedEncounter.id)}
+                            onClick={() => handleDeleteEncounter(selectedEncounter)}
                             className="p-2 text-faint hover:text-debuff transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -328,6 +357,10 @@ export default function EncounterBuilderPage() {
                         )}
                       </div>
                     </div>
+
+                    {actionError != null && (
+                      <p role="alert" className="font-body text-[15px] text-debuff mb-4">{apiErrorMessage(actionError)}</p>
+                    )}
 
                     {selectedEncounter.status === 'PREPARING' && (
                       <>
@@ -338,7 +371,11 @@ export default function EncounterBuilderPage() {
                             <h3 className="font-heading text-[13px] font-semibold tracking-[0.08em] uppercase text-muted mb-3 flex items-center gap-2">
                               <Users className="w-4 h-4" style={{ color: 'var(--color-cls-wizard)' }} /> Campaign Characters
                             </h3>
-                            {campaignCharacters.length === 0 ? (
+                            {charactersQuery.isPending ? (
+                              <p className="font-body text-[15px] text-muted">Loading...</p>
+                            ) : charactersQuery.isLoadingError ? (
+                              <p role="alert" className="font-body text-[15px] text-debuff">{apiErrorMessage(charactersQuery.error)}</p>
+                            ) : campaignCharacters.length === 0 ? (
                               <p className="font-body text-[15px] text-faint">No characters in this campaign.</p>
                             ) : (
                               <div className="space-y-2">
@@ -389,7 +426,10 @@ export default function EncounterBuilderPage() {
                             </div>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
                               {searchingMonsters && <p className="font-body text-[15px] text-muted">Searching...</p>}
-                              {!searchingMonsters && monsterSearch.trim() && monsterResults.length === 0 && (
+                              {!searchingMonsters && hasMonsterSearch && monsterSearchQuery.isError && (
+                                <p role="alert" className="font-body text-[15px] text-debuff">{apiErrorMessage(monsterSearchQuery.error)}</p>
+                              )}
+                              {!searchingMonsters && hasMonsterSearch && !monsterSearchQuery.isError && monsterResults.length === 0 && (
                                 <p className="font-body text-[15px] text-faint">No monsters found.</p>
                               )}
                               {monsterResults.map(m => (

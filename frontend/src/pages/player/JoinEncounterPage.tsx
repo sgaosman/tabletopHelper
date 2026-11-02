@@ -1,26 +1,20 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { encounterApi } from '../../api/encounterApi';
+import { apiErrorMessage } from '../../api/errors';
+import { useFindEncounterBySessionCode } from '../../queries/encounters';
 import { ArrowLeft, Swords } from 'lucide-react';
 
 export default function JoinEncounterPage() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const findEncounter = useFindEncounterBySessionCode();
+  const loading = findEncounter.isPending;
 
-  async function handleJoin(e: FormEvent) {
+  function handleJoin(e: FormEvent) {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const res = await encounterApi.getBySessionCode(code.trim());
-      navigate(`/player/encounter/${res.data.id}/session`);
-    } catch {
-      setError('Encounter not found. Check the session code and try again.');
-    } finally {
-      setLoading(false);
-    }
+    findEncounter.mutate(code.trim(), {
+      onSuccess: encounter => navigate(`/player/encounter/${encounter.id}/session`),
+    });
   }
 
   return (
@@ -46,7 +40,9 @@ export default function JoinEncounterPage() {
             maxLength={8}
             className="w-full px-4 py-3 bg-page-alt border border-rule text-ink text-center font-heading text-[20px] font-bold tracking-[0.2em] placeholder-faint focus:outline-none focus:border-muted uppercase"
           />
-          {error && <p className="font-body text-[14px] text-debuff">{error}</p>}
+          {findEncounter.error && (
+            <p role="alert" className="font-body text-[14px] text-debuff">{apiErrorMessage(findEncounter.error)}</p>
+          )}
           <button
             type="submit"
             disabled={loading || !code.trim()}

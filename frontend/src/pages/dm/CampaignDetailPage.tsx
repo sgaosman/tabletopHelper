@@ -1,37 +1,24 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Copy, Check, Users, ScrollText, Settings } from 'lucide-react';
-import { campaignApi } from '../../api/campaignApi';
-import { characterApi } from '../../api/characterApi';
-import type { Campaign } from '../../types/campaign';
-import type { PlayerCharacter } from '../../types/character';
+import { apiErrorMessage } from '../../api/errors';
+import { useCampaign, useUpdateCampaignSettings } from '../../queries/campaigns';
+import { useCampaignCharacters } from '../../queries/characters';
 import NavBar from '../../components/common/NavBar';
 import { getClassColour } from '../../utils/classColours';
 
+// Players who join, and their characters, appear without a reload. Like every refetch interval, this one
+// pauses while the tab is hidden.
+const REFRESH_INTERVAL_MS = 10_000;
+
 export default function CampaignDetailPage() {
   const { campaignId } = useParams<{ campaignId: string }>();
-  const [campaign, setCampaign] = useState<Campaign | null>(null);
-  const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
-  const [loading, setLoading] = useState(true);
+  const campaignQuery = useCampaign(campaignId, { refetchInterval: REFRESH_INTERVAL_MS });
+  const charactersQuery = useCampaignCharacters(campaignId, { refetchInterval: REFRESH_INTERVAL_MS });
+  const updateSettings = useUpdateCampaignSettings();
   const [copiedCode, setCopiedCode] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [settingsError, setSettingsError] = useState('');
-  const fetchData = useCallback(() => {
-    if (!campaignId) return;
-    Promise.all([
-      campaignApi.getById(campaignId),
-      characterApi.getByCampaign(campaignId),
-    ]).then(([campRes, charRes]) => {
-      setCampaign(campRes.data);
-      setCharacters(charRes.data);
-    }).finally(() => setLoading(false));
-  }, [campaignId]);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+  const campaign = campaignQuery.data;
+  const characters = charactersQuery.data;
 
   function copyInviteCode() {
     if (!campaign) return;
@@ -40,20 +27,9 @@ export default function CampaignDetailPage() {
     setTimeout(() => setCopiedCode(false), 2000);
   }
 
-  async function handleShowExactMonsterHp(showExactMonsterHp: boolean) {
+  function handleShowExactMonsterHp(showExactMonsterHp: boolean) {
     if (!campaign) return;
-    setSavingSettings(true);
-    try {
-      const res = await campaignApi.updateSettings(campaign.id, { showExactMonsterHp });
-      setCampaign(res.data);
-      setSettingsError('');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error || 'Could not save the setting';
-      setSettingsError(msg);
-    } finally {
-      setSavingSettings(false);
-    }
+    updateSettings.mutate({ campaignId: campaign.id, settings: { showExactMonsterHp } });
   }
 
   function modifierString(score: number) {
@@ -61,8 +37,8 @@ export default function CampaignDetailPage() {
     return mod >= 0 ? `+${mod}` : `${mod}`;
   }
 
-  if (loading) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[16px] text-muted">Loading...</p></div></div>;
-  if (!campaign) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[16px] text-debuff">Campaign not found</p></div></div>;
+  if (campaignQuery.isPending) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[16px] text-muted">Loading...</p></div></div>;
+  if (!campaign) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p role="alert" className="font-body text-[16px] text-debuff">{apiErrorMessage(campaignQuery.error)}</p></div></div>;
 
   return (
     <div className="min-h-screen bg-page">
@@ -91,7 +67,7 @@ export default function CampaignDetailPage() {
               type="checkbox"
               checked={campaign.showExactMonsterHp}
               onChange={e => handleShowExactMonsterHp(e.target.checked)}
-              disabled={savingSettings}
+              disabled={updateSettings.isPending}
               className="mt-1 accent-ink"
             />
             <span>
@@ -101,7 +77,9 @@ export default function CampaignDetailPage() {
               </span>
             </span>
           </label>
-          {settingsError && <p role="alert" className="font-body text-[13px] font-semibold text-debuff mt-2">{settingsError}</p>}
+          {updateSettings.error && (
+            <p role="alert" className="font-body text-[13px] font-semibold text-debuff mt-2">{apiErrorMessage(updateSettings.error)}</p>
+          )}
         </section>
 
         <section className="mb-8">
@@ -125,9 +103,13 @@ export default function CampaignDetailPage() {
 
         <section>
           <h2 className="font-heading text-[13px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
-            <ScrollText className="w-3.5 h-3.5" /> Characters ({characters.length})
+            <ScrollText className="w-3.5 h-3.5" /> Characters{characters && ` (${characters.length})`}
           </h2>
-          {characters.length === 0 ? (
+          {charactersQuery.isPending ? (
+            <p className="font-body text-[15px] text-muted">Loading...</p>
+          ) : !characters ? (
+            <p role="alert" className="font-body text-[15px] text-debuff">{apiErrorMessage(charactersQuery.error)}</p>
+          ) : characters.length === 0 ? (
             <p className="font-body text-[15px] text-faint">No characters assigned to this campaign yet.</p>
           ) : (
             <div className="space-y-2">

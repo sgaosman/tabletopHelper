@@ -68,6 +68,89 @@ describe('EncounterBuilderPage', () => {
     expect(visibilityRequest).toEqual({ participantId: 'part-goblin', body: { visible: false } });
   });
 
+  it('shows the encounter a change returns without fetching the list again', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter, makeMockParticipant } = await import('../../test/mocks/handlers');
+    let listRequests = 0;
+    let addRequest: unknown;
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => {
+        listRequests += 1;
+        return HttpResponse.json([makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] })]);
+      }),
+      http.post('/api/encounters/:id/participants', async ({ request }) => {
+        addRequest = await request.json();
+        return HttpResponse.json(makeMockEncounter({
+          status: 'PREPARING', sessionCode: undefined,
+          participants: [makeMockParticipant('part-cleric', 'Player 1 Char', 'PLAYER', { characterId: 'char-001' })],
+        }));
+      }),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+    await user.click(await screen.findByRole('button', { name: 'Add' }));
+
+    expect(await screen.findByRole('button', { name: 'Added' })).toBeDisabled();
+    expect(screen.getByText('Participants (1)')).toBeInTheDocument();
+    expect(screen.getByText('1 participants')).toBeInTheDocument();
+    expect(addRequest).toEqual({ participantType: 'PLAYER', characterId: 'char-001', displayName: 'Player 1 Char' });
+    expect(listRequests).toBe(1);
+  });
+
+  it('shows a conflict in the builder and fetches the encounters again', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter, makeMockParticipant } = await import('../../test/mocks/handlers');
+    let listRequests = 0;
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => {
+        listRequests += 1;
+        // Another DM tab started the encounter after this page loaded
+        return HttpResponse.json([makeMockEncounter({
+          status: listRequests > 1 ? 'ACTIVE' : 'PREPARING', sessionCode: undefined,
+          participants: [makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER')],
+        })]);
+      }),
+      http.post('/api/encounters/:id/initiatives/roll', () =>
+        HttpResponse.json({ error: 'Encounter must be in PREPARING status' }, { status: 409 })),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+    await user.click(screen.getByRole('button', { name: /Roll All Initiative/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Encounter must be in PREPARING status');
+    expect(await screen.findByRole('button', { name: /Go to Session/ })).toBeInTheDocument();
+    expect(listRequests).toBe(2);
+  });
+
+  it('selects a new encounter as soon as it is created', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter } = await import('../../test/mocks/handlers');
+    const encounters = [makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] })];
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => HttpResponse.json(encounters)),
+      http.post('/api/encounters', async ({ request }) => {
+        const { name } = await request.json() as { name: string };
+        const created = makeMockEncounter({ id: 'enc-new', name, status: 'PREPARING', sessionCode: undefined, participants: [] });
+        encounters.unshift(created);
+        return HttpResponse.json(created, { status: 201 });
+      }),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('New'));
+    await user.type(screen.getByPlaceholderText('Encounter name'), 'Dragon Attack');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('heading', { name: 'Dragon Attack' })).toBeInTheDocument();
+    expect(screen.getByText('Add characters and monsters above.')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Encounter name')).not.toBeInTheDocument();
+  });
+
   it('creates encounter on form submit', async () => {
     render(<EncounterBuilderPage />);
     await waitFor(() => screen.getByText('Goblin Ambush'), { timeout: 3000 });

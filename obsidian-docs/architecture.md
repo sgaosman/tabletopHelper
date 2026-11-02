@@ -192,6 +192,7 @@ tabletophelper/
 ├── frontend/
 │   ├── src/
 │   │   ├── api/                  # Axios clients for each backend resource
+│   │   ├── queries/              # TanStack Query hooks and keys (D171)
 │   │   ├── context/              # React Context (Auth, Encounter)
 │   │   ├── hooks/                # Custom hooks (useAuth, useWebSocket)
 │   │   ├── pages/                # Route-level page components
