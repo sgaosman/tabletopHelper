@@ -107,7 +107,7 @@ describe('SubclassModal', () => {
   it('has correct ARIA attributes', () => {
     render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
     expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
-    expect(screen.getByRole('dialog')).toHaveAttribute('aria-labelledby', 'subclass-title');
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Choose Subclass');
   });
 
   it('calls onClose when Skip is clicked', async () => {

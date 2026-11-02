@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import AccountMenu from './AccountMenu';
+import IconButton from '../ui/IconButton';
 import { useDismiss } from '../../hooks/useDismiss';
 
 interface NavLink {
@@ -92,17 +93,16 @@ export default function NavBar() {
 
           {/* The same links in a menu, on narrower screens */}
           <div ref={linksMenuRef} className={`contents ${narrowMenu}`}>
-            <button
+            <IconButton
               ref={linksButtonRef}
-              type="button"
-              aria-label="Menu"
+              label="Menu"
               aria-expanded={linksOpen}
               aria-controls="nav-links-menu"
               onClick={() => setLinksOpen(o => !o)}
               className="p-1.5 text-muted hover:text-ink transition-colors"
             >
               {linksOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
-            </button>
+            </IconButton>
 
             {linksOpen && (
               <div id="nav-links-menu" className="absolute left-0 right-0 top-full bg-card border-b border-rule py-2">

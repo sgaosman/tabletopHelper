@@ -4,6 +4,7 @@ import { Plus, Copy, Users, Check } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns, useCreateCampaign } from '../../queries/campaigns';
 import NavBar from '../../components/common/NavBar';
+import IconButton from '../../components/ui/IconButton';
 
 export default function CampaignManagePage() {
   const { data: campaigns, error: loadError, isPending } = useCampaigns();
@@ -114,9 +115,13 @@ export default function CampaignManagePage() {
                   <div className="flex items-center gap-2 bg-page border border-rule px-3 py-1.5">
                     <span className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
                     <span className="font-heading text-[15px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
-                    <button onClick={() => copyInviteCode(campaign.inviteCode)} className="text-faint hover:text-ink transition-colors">
+                    <IconButton
+                      label={copiedCode === campaign.inviteCode ? 'Invite code copied' : `Copy invite code for ${campaign.name}`}
+                      onClick={() => copyInviteCode(campaign.inviteCode)}
+                      className="text-faint hover:text-ink transition-colors"
+                    >
                       {copiedCode === campaign.inviteCode ? <Check className="w-3.5 h-3.5 text-buff" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
+                    </IconButton>
                   </div>
                   <span className="font-body text-[14px] font-semibold text-muted">
                     {campaign.members.length} member{campaign.members.length !== 1 ? 's' : ''}

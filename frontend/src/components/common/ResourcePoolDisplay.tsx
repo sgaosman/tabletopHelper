@@ -1,4 +1,5 @@
 import type { ResourcePoolEntry } from '../../types/encounter';
+import IconButton from '../ui/IconButton';
 
 function safeParsePools(json?: string | null): ResourcePoolEntry[] {
   if (!json) return [];
@@ -57,24 +58,22 @@ export default function ResourcePoolDisplay({
 
           {editable && (
             <>
-              <button
-                type="button"
+              <IconButton
+                label={`Spend one ${entry.displayName} use`}
                 className="ml-1 rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
                 disabled={entry.currentUses <= 0}
                 onClick={() => onSpend?.(entry.poolId)}
-                title={`Spend one ${entry.displayName} use`}
               >
                 −
-              </button>
-              <button
-                type="button"
+              </IconButton>
+              <IconButton
+                label={`Recover one ${entry.displayName} use`}
                 className="rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
                 disabled={entry.currentUses >= entry.maxUses}
                 onClick={() => onRecover?.(entry.poolId)}
-                title={`Recover one ${entry.displayName} use`}
               >
                 +
-              </button>
+              </IconButton>
             </>
           )}
         </div>

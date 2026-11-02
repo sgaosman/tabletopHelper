@@ -78,6 +78,25 @@ describe('CharacterSheetPage', () => {
     ]);
   });
 
+  it('names the hit dice steppers in the short rest dialog, which Escape closes', async () => {
+    server.use(
+      http.get('/api/characters/:id', ({ params }) =>
+        HttpResponse.json({ ...makeMockCharacter(params.id as string, 'Gimli', 'Fighter', 5), hpCurrent: 12 })),
+    );
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('12/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Short Rest' }));
+    const dialog = screen.getByRole('dialog', { name: 'Short Rest' });
+    await user.click(within(dialog).getByRole('button', { name: 'Spend one more Fighter hit die' }));
+    expect(within(dialog).getByRole('button', { name: 'Spend one fewer Fighter hit die' })).toBeEnabled();
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Short Rest' })).toHaveFocus();
+  });
+
   it('shows the server\'s message when the character cannot be loaded', async () => {
     server.use(
       http.get('/api/characters/:id', () =>

@@ -6,6 +6,7 @@ import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../typ
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
+import IconButton from '../../components/ui/IconButton';
 import { getParticipantColour } from '../../utils/classColours';
 import { healthLabel } from '../../utils/healthStatus';
 import {
@@ -123,8 +124,9 @@ function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }
               <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-6">Lv{lvl}</span>
               <div className="flex gap-1">
                 {Array.from({ length: s.max }).map((_, i) => (
-                  <button
+                  <IconButton
                     key={i}
+                    label={i < s.remaining ? `Use level ${lvl} slot` : `Level ${lvl} slot used`}
                     onClick={() => i < s.remaining ? handleUse(parseInt(lvl)) : undefined}
                     disabled={i >= s.remaining}
                     className={`w-3.5 h-3.5 rounded-full border transition-colors ${
@@ -132,7 +134,6 @@ function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }
                         ? 'bg-ink border-ink hover:bg-ink/80 cursor-pointer'
                         : 'border-rule-light cursor-default'
                     }`}
-                    title={i < s.remaining ? `Use level ${lvl} slot` : `Used`}
                   />
                 ))}
               </div>
@@ -339,7 +340,7 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
           {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-cls-monk" />Add Condition</>}
           {actionMode === 'concentration' && <><Swords className="w-4 h-4 inline mr-1 text-cls-warlock" />Set Concentration</>}
         </div>
-        <button onClick={onClose} className="text-faint hover:text-ink"><X className="w-4 h-4" /></button>
+        <IconButton label="Close action panel" onClick={onClose} className="text-faint hover:text-ink"><X className="w-4 h-4" /></IconButton>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -386,16 +387,16 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
                   </div>
                   <div className="flex gap-1">
                     {attacks.length < 5 && (
-                      <button type="button" onClick={() => cloneAttackRow(i)}
-                        className="p-2 text-faint hover:text-buff" title="Clone this attack">
+                      <IconButton label="Clone this attack" onClick={() => cloneAttackRow(i)}
+                        className="p-2 text-faint hover:text-buff">
                         <Copy className="w-4 h-4" />
-                      </button>
+                      </IconButton>
                     )}
                     {attacks.length > 1 && (
-                      <button type="button" onClick={() => removeAttackRow(i)}
-                        className="p-2 text-faint hover:text-debuff" title="Remove this attack">
+                      <IconButton label="Remove this attack" onClick={() => removeAttackRow(i)}
+                        className="p-2 text-faint hover:text-debuff">
                         <X className="w-4 h-4" />
-                      </button>
+                      </IconButton>
                     )}
                   </div>
                 </div>
@@ -703,10 +704,10 @@ function PlayerSessionView() {
                         <span className="font-heading text-[13px] font-semibold text-muted">{monsterHealth}</span>
                       )}
                       {isMyTurn && p.isAlive && !isOwn && (
-                        <button onClick={() => selectAttackTarget(p.id)}
-                          className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter" title="Attack">
+                        <IconButton label="Attack" onClick={() => selectAttackTarget(p.id)}
+                          className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
                           <Crosshair className="w-3.5 h-3.5" />
-                        </button>
+                        </IconButton>
                       )}
                     </div>
                   )}

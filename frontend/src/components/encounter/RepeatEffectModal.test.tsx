@@ -155,8 +155,9 @@ describe('RepeatEffectModal', () => {
 
     await user.click(await screen.findByRole('button', { name: /Legolas/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(screen.getByPlaceholderText('6')).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('14'), '16');
+    expect(screen.getByLabelText('Spell Attack Bonus')).toHaveAttribute('placeholder', '6');
+    expect(screen.getByLabelText('Spell Save DC')).toHaveAttribute('placeholder', '14');
+    await user.type(screen.getByLabelText('Spell Save DC'), '16');
     await user.click(screen.getByRole('button', { name: 'Repeat Effect' }));
 
     expect(await screen.findByText('Legolas resists.')).toBeInTheDocument();

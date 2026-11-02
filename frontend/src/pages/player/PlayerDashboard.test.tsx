@@ -131,6 +131,20 @@ describe('PlayerDashboard', () => {
     expect(await screen.findByText('Test Campaign')).toBeInTheDocument();
   });
 
+  it('opens the delete dialog with focus in the described name field, and closes it on Escape', async () => {
+    render(<PlayerDashboard />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Delete character' }));
+
+    const nameField = screen.getByRole('textbox', { name: 'Character name' });
+    expect(nameField).toHaveFocus();
+    expect(nameField).toHaveAccessibleDescription("Type the character's name below to confirm.");
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete character' })).toHaveFocus();
+  });
+
   it('closes delete modal on Cancel', async () => {
     render(<PlayerDashboard />);
     await waitFor(() => screen.getByText('Gimli'));

@@ -153,8 +153,9 @@ describe('SpellCastModal', () => {
     await user.click(screen.getByRole('button', { name: /^Level 2/ }));
     await user.click(await screen.findByRole('button', { name: /Legolas/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(screen.getByPlaceholderText('5')).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('13'), '15');
+    expect(screen.getByLabelText('Spell Attack Bonus')).toHaveAttribute('placeholder', '5');
+    expect(screen.getByLabelText('Spell Save DC')).toHaveAttribute('placeholder', '13');
+    await user.type(screen.getByLabelText('Spell Save DC'), '15');
     await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
 
     expect(await screen.findByText('Legolas is paralyzed.')).toBeInTheDocument();
@@ -239,5 +240,29 @@ describe('SpellCastModal', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens with focus in the labelled spell search, and closes on Escape', async () => {
+    const { user, onClose } = await renderModal();
+
+    expect(screen.getByRole('textbox', { name: 'Search spells' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks the chosen target and advantage as pressed', async () => {
+    targeting();
+    const { user } = await renderModal();
+
+    await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    expect(screen.getByRole('button', { name: /Test Goblin/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /Orc/ })).toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Advantage' }));
+
+    expect(screen.getByRole('button', { name: 'Advantage' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Normal' })).toHaveAttribute('aria-pressed', 'false');
   });
 });

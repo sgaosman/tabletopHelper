@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../api/errors';
 import { useCampaign, useUpdateCampaignSettings } from '../../queries/campaigns';
 import { useCampaignCharacters } from '../../queries/characters';
 import NavBar from '../../components/common/NavBar';
+import IconButton from '../../components/ui/IconButton';
 import { getClassColour } from '../../utils/classColours';
 
 // Players who join, and their characters, appear without a reload. Like every refetch interval, this one
@@ -52,9 +53,9 @@ export default function CampaignDetailPage() {
           <div className="flex items-center gap-2 mt-4 bg-card border border-rule px-4 py-2.5 w-fit">
             <span className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
             <span className="font-heading text-[17px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
-            <button onClick={copyInviteCode} className="ml-2 text-faint hover:text-ink transition-colors">
+            <IconButton label={copiedCode ? 'Invite code copied' : 'Copy invite code'} onClick={copyInviteCode} className="ml-2 text-faint hover:text-ink transition-colors">
               {copiedCode ? <Check className="w-4 h-4 text-buff" /> : <Copy className="w-4 h-4" />}
-            </button>
+            </IconButton>
           </div>
         </div>
 

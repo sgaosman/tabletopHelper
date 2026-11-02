@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns, useJoinCampaign } from '../../queries/campaigns';
@@ -6,6 +6,10 @@ import { useDeleteCharacter, useMyCharacters } from '../../queries/characters';
 import type { PlayerCharacter } from '../../types/character';
 import { Plus, Users, ScrollText, Swords, Trash2 } from 'lucide-react';
 import NavBar from '../../components/common/NavBar';
+import Button from '../../components/ui/Button';
+import IconButton from '../../components/ui/IconButton';
+import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
 import { getClassColour } from '../../utils/classColours';
 
 export default function PlayerDashboard() {
@@ -17,6 +21,7 @@ export default function PlayerDashboard() {
   const [inviteCode, setInviteCode] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<PlayerCharacter | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const deleteHintId = useId();
   const campaigns = campaignsQuery.data;
   const characters = charactersQuery.data;
   const deleting = deleteCharacter.isPending;
@@ -29,6 +34,11 @@ export default function PlayerDashboard() {
   function openDeleteConfirmation(character: PlayerCharacter) {
     deleteCharacter.reset();
     setDeleteTarget(character);
+    setDeleteConfirmName('');
+  }
+
+  function closeDeleteConfirmation() {
+    setDeleteTarget(null);
     setDeleteConfirmName('');
   }
 
@@ -167,13 +177,13 @@ export default function PlayerDashboard() {
                         </div>
                       </div>
                     </button>
-                    <button
+                    <IconButton
+                      label="Delete character"
                       onClick={() => openDeleteConfirmation(c)}
                       className="px-3 text-faint hover:text-debuff transition-colors shrink-0"
-                      title="Delete character"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </IconButton>
                   </div>
                 );
               })}
@@ -191,44 +201,41 @@ export default function PlayerDashboard() {
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => { if (!deleting) { setDeleteTarget(null); setDeleteConfirmName(''); } }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="delete-title" className="bg-card border border-rule p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <h3 id="delete-title" className="font-heading text-[17px] font-semibold text-ink mb-2">Delete Character</h3>
-            <p className="font-body text-[15px] font-semibold text-muted mb-1">
-              Are you sure you want to delete <span className="text-ink font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
-            </p>
-            <p className="font-body text-[14px] text-faint mb-4">
-              Type the character's name below to confirm.
-            </p>
-            <input
-              type="text"
-              value={deleteConfirmName}
-              onChange={e => setDeleteConfirmName(e.target.value)}
-              placeholder={deleteTarget.name}
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none mb-4"
-              autoFocus
-            />
-            {deleteCharacter.error && (
-              <p role="alert" className="text-debuff font-body text-[15px] mb-3">{apiErrorMessage(deleteCharacter.error)}</p>
-            )}
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setDeleteTarget(null); setDeleteConfirmName(''); }}
-                disabled={deleting}
-                className="flex-1 px-4 py-2 bg-page border border-rule font-body text-[16px] font-semibold text-muted hover:border-muted transition-colors disabled:opacity-50"
-              >
+        <Modal
+          title="Delete Character"
+          onClose={closeDeleteConfirmation}
+          dismissible={!deleting}
+          footer={(
+            <>
+              <Button variant="secondary" className="flex-1" onClick={closeDeleteConfirmation} disabled={deleting}>
                 Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteConfirmName !== deleteTarget.name || deleting}
-                className="flex-1 px-4 py-2 bg-debuff text-card font-body text-[16px] font-semibold border border-debuff hover:opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              </Button>
+              <Button variant="danger" className="flex-1" onClick={handleDelete} loading={deleting} disabled={deleteConfirmName !== deleteTarget.name}>
                 {deleting ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Button>
+            </>
+          )}
+        >
+          <p className="font-body text-[15px] font-semibold text-muted mb-1">
+            Are you sure you want to delete <span className="text-ink font-semibold">{deleteTarget.name}</span>? This action cannot be undone.
+          </p>
+          <p id={deleteHintId} className="font-body text-[14px] text-faint mb-4">
+            Type the character's name below to confirm.
+          </p>
+          <Input
+            label="Character name"
+            hideLabel
+            aria-describedby={deleteHintId}
+            type="text"
+            value={deleteConfirmName}
+            onChange={e => setDeleteConfirmName(e.target.value)}
+            placeholder={deleteTarget.name}
+            autoFocus
+          />
+          {deleteCharacter.error && (
+            <p role="alert" className="text-debuff font-body text-[15px] mt-3">{apiErrorMessage(deleteCharacter.error)}</p>
+          )}
+        </Modal>
       )}
     </div>
   );

@@ -15,6 +15,7 @@ import type { Encounter, EncounterParticipant } from '../../types/encounter';
 import { Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Check } from 'lucide-react';
 import NavBar from '../../components/common/NavBar';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
+import IconButton from '../../components/ui/IconButton';
 import { getClassColour, getParticipantColour } from '../../utils/classColours';
 
 const STATUS_STYLES: Record<string, { text: string; bg: string; border: string }> = {
@@ -333,9 +334,9 @@ export default function EncounterBuilderPage() {
                           <div className="flex items-center gap-2 bg-card border border-rule px-3 py-2">
                             <span className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Session</span>
                             <span className="font-heading text-[16px] font-bold tracking-wider text-ink">{selectedEncounter.sessionCode}</span>
-                            <button onClick={copySessionCode} className="text-muted hover:text-ink">
+                            <IconButton label={copiedCode ? 'Session code copied' : 'Copy session code'} onClick={copySessionCode} className="text-muted hover:text-ink">
                               {copiedCode ? <Check className="w-4 h-4" style={{ color: 'var(--color-buff)' }} /> : <Copy className="w-4 h-4" />}
-                            </button>
+                            </IconButton>
                           </div>
                         )}
                         {selectedEncounter.status === 'ACTIVE' && (
@@ -348,12 +349,13 @@ export default function EncounterBuilderPage() {
                           </button>
                         )}
                         {selectedEncounter.status === 'PREPARING' && (
-                          <button
+                          <IconButton
+                            label="Delete encounter"
                             onClick={() => handleDeleteEncounter(selectedEncounter)}
                             className="p-2 text-faint hover:text-debuff transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          </IconButton>
                         )}
                       </div>
                     </div>
@@ -596,12 +598,13 @@ export default function EncounterBuilderPage() {
                                     </td>
                                     {selectedEncounter.status === 'PREPARING' && (
                                       <td className="px-4 py-3">
-                                        <button
+                                        <IconButton
+                                          label={`Remove ${p.displayName}`}
                                           onClick={() => handleRemoveParticipant(p.id)}
                                           className="text-faint hover:text-debuff transition-colors"
                                         >
                                           <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        </IconButton>
                                       </td>
                                     )}
                                   </tr>

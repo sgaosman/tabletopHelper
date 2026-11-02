@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react';
-import { X, Target, RotateCw, AlertTriangle, Shield } from 'lucide-react';
+import { Target, RotateCw, AlertTriangle, Shield } from 'lucide-react';
 import { useEncounterAction } from '../../queries/encounters';
 import { useSpellTargeting } from '../../queries/reference';
 import type { EncounterParticipant } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
 import type { SpellTargetingInfo } from '../../types/reference';
 import { healthLabel } from '../../utils/healthStatus';
+import Button from '../ui/Button';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
 
 interface Props {
   caster: EncounterParticipant;
@@ -63,75 +66,61 @@ export default function RepeatEffectModal({ caster, participants, spellName, onC
   const otherParticipants = participants.filter(p => p.id !== caster.id && p.isAlive);
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="repeat-effect-title"
-        className="bg-card border border-rule w-full max-w-lg max-h-[90vh] flex flex-col shadow-lg"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-5 py-4 border-b border-rule flex items-center justify-between shrink-0">
-          <div>
-            <h2 id="repeat-effect-title" className="font-heading text-[17px] font-bold text-ink flex items-center gap-2">
-              <RotateCw className="w-5 h-5 text-cls-warlock" />
-              {spellName} — Repeat Effect
-            </h2>
-            <p className="font-body text-[13px] font-semibold text-muted mt-0.5">
-              {caster.displayName}
-              {(caster.concentrationSlotLevel || caster.activeSpellSlotLevel) && (
-                <span className="text-cls-warlock ml-1">(slot level {caster.concentrationSlotLevel || caster.activeSpellSlotLevel})</span>
-              )}
-            </p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink">
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      title={<><RotateCw className="w-5 h-5 text-cls-warlock" />{spellName} — Repeat Effect</>}
+      subtitle={(
+        <>
+          {caster.displayName}
+          {(caster.concentrationSlotLevel || caster.activeSpellSlotLevel) && (
+            <span className="text-cls-warlock ml-1">(slot level {caster.concentrationSlotLevel || caster.activeSpellSlotLevel})</span>
+          )}
+        </>
+      )}
+      size="lg"
+      onClose={onClose}
+    >
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 bg-page-alt border border-cls-warlock/30 px-3 py-2">
+          <RotateCw className="w-3.5 h-3.5 text-cls-warlock shrink-0" />
+          <p className="font-body text-[13px] font-semibold text-cls-warlock">No spell slot consumed — repeating existing concentration effect</p>
         </div>
 
-        <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1 min-h-0">
-          <div className="flex items-center gap-2 bg-page-alt border border-cls-warlock/30 px-3 py-2">
-            <RotateCw className="w-3.5 h-3.5 text-cls-warlock shrink-0" />
-            <p className="font-body text-[13px] font-semibold text-cls-warlock">No spell slot consumed — repeating existing concentration effect</p>
-          </div>
+        {error && (
+          <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
+        )}
 
-          {error && (
-            <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
-          )}
-
-          {result ? (
-            <ResultView result={result} onClose={onClose} />
-          ) : step === 'target' ? (
-            <TargetStep
-              spellName={spellName}
-              targets={otherParticipants}
-              caster={caster}
-              selectedTargets={selectedTargets}
-              onToggle={toggleTarget}
-              onProceed={() => setStep('confirm')}
-              targetingInfo={targetingInfo}
-              targetingLoading={targetingLoading}
-            />
-          ) : (
-            <ConfirmStep
-              spellName={spellName}
-              targets={participants.filter(p => selectedTargets.includes(p.id))}
-              caster={caster}
-              advantage={advantage}
-              onAdvantageChange={setAdvantage}
-              casting={casting}
-              onRepeat={repeatEffect}
-              onBack={() => setStep('target')}
-              isMonster={isMonster}
-              overrideAttackBonus={overrideAttackBonus}
-              overrideSaveDC={overrideSaveDC}
-              onOverrideAttackBonus={setOverrideAttackBonus}
-              onOverrideSaveDC={setOverrideSaveDC}
-            />
-          )}
-        </div>
+        {result ? (
+          <ResultView result={result} onClose={onClose} />
+        ) : step === 'target' ? (
+          <TargetStep
+            spellName={spellName}
+            targets={otherParticipants}
+            caster={caster}
+            selectedTargets={selectedTargets}
+            onToggle={toggleTarget}
+            onProceed={() => setStep('confirm')}
+            targetingInfo={targetingInfo}
+            targetingLoading={targetingLoading}
+          />
+        ) : (
+          <ConfirmStep
+            spellName={spellName}
+            targets={participants.filter(p => selectedTargets.includes(p.id))}
+            caster={caster}
+            advantage={advantage}
+            onAdvantageChange={setAdvantage}
+            casting={casting}
+            onRepeat={repeatEffect}
+            onBack={() => setStep('target')}
+            isMonster={isMonster}
+            overrideAttackBonus={overrideAttackBonus}
+            overrideSaveDC={overrideSaveDC}
+            onOverrideAttackBonus={setOverrideAttackBonus}
+            onOverrideSaveDC={setOverrideSaveDC}
+          />
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -189,8 +178,10 @@ function TargetStep({ spellName, targets, caster, selectedTargets, onToggle, onP
             return (
               <button
                 key={p.id}
+                type="button"
                 onClick={() => !disabled && onToggle(p.id)}
                 disabled={disabled}
+                aria-pressed={isSelected}
                 className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors
                   ${isSelected ? 'bg-page-alt border-2 border-cls-warlock' :
                     disabled ? 'bg-page-alt border border-rule opacity-50 cursor-not-allowed' :
@@ -212,13 +203,9 @@ function TargetStep({ spellName, targets, caster, selectedTargets, onToggle, onP
         </div>
       )}
 
-      <button
-        onClick={onProceed}
-        disabled={selectedTargets.length === 0}
-        className="w-full mt-2 px-4 py-2.5 bg-ink text-card font-body text-[16px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
-      >
+      <Button size="lg" className="w-full mt-2" onClick={onProceed} disabled={selectedTargets.length === 0}>
         Continue
-      </button>
+      </Button>
     </>
   );
 }
@@ -241,7 +228,7 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
   return (
     <>
       <div className="flex items-center gap-2 mb-3">
-        <button onClick={onBack} className="font-body text-[15px] font-semibold text-muted hover:text-ink">&larr; Back</button>
+        <Button variant="ghost" size="sm" onClick={onBack}>&larr; Back</Button>
         <span className="font-heading text-[16px] font-semibold text-ink">Confirm</span>
       </div>
 
@@ -263,7 +250,9 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
           return (
             <button
               key={mode}
+              type="button"
               onClick={() => onAdvantageChange(val)}
+              aria-pressed={advantage === val}
               className={`flex-1 py-1.5 font-body text-[14px] font-semibold transition-colors ${
                 advantage === val
                   ? 'bg-ink text-card'
@@ -278,37 +267,27 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
 
       {isMonster && (
         <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Spell Attack Bonus</label>
-            <input
-              type="number"
-              value={overrideAttackBonus}
-              onChange={e => onOverrideAttackBonus(e.target.value)}
-              placeholder={String(caster.spellAttackBonus ?? 0)}
-              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
-            />
-          </div>
-          <div>
-            <label className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Spell Save DC</label>
-            <input
-              type="number"
-              value={overrideSaveDC}
-              onChange={e => onOverrideSaveDC(e.target.value)}
-              placeholder={String(caster.spellSaveDc ?? 10)}
-              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
-            />
-          </div>
+          <Input
+            label="Spell Attack Bonus"
+            type="number"
+            value={overrideAttackBonus}
+            onChange={e => onOverrideAttackBonus(e.target.value)}
+            placeholder={String(caster.spellAttackBonus ?? 0)}
+          />
+          <Input
+            label="Spell Save DC"
+            type="number"
+            value={overrideSaveDC}
+            onChange={e => onOverrideSaveDC(e.target.value)}
+            placeholder={String(caster.spellSaveDc ?? 10)}
+          />
         </div>
       )}
 
-      <button
-        onClick={onRepeat}
-        disabled={casting}
-        className="w-full px-4 py-2.5 bg-ink text-card font-body text-[16px] font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 flex items-center justify-center gap-2"
-      >
+      <Button size="lg" className="w-full" onClick={onRepeat} loading={casting}>
         <RotateCw className="w-4 h-4" />
         {casting ? 'Repeating...' : 'Repeat Effect'}
-      </button>
+      </Button>
     </>
   );
 }
@@ -371,12 +350,9 @@ function ResultView({ result, onClose }: { result: CastSpellResponse; onClose: (
         </div>
       )}
 
-      <button
-        onClick={onClose}
-        className="w-full px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[16px] font-semibold hover:bg-rule transition-colors"
-      >
+      <Button variant="secondary" className="w-full" onClick={onClose}>
         Done
-      </button>
+      </Button>
     </div>
   );
 }

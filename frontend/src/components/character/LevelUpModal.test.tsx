@@ -39,7 +39,8 @@ describe('LevelUpModal', () => {
   it('has correct ARIA attributes', () => {
     render(<LevelUpModal character={character} onComplete={() => {}} onClose={() => {}} />);
     expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
-    expect(screen.getByRole('dialog')).toHaveAttribute('aria-labelledby', 'levelup-title');
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Level Up');
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription('Level 5 → Level 6');
   });
 
   it('calls onClose when Cancel is clicked', async () => {

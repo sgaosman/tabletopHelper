@@ -9,9 +9,7 @@ import BestiaryPage from './BestiaryPage';
 
 /** The pager's next-page button, which only has an icon. */
 function nextPageButton(): HTMLElement {
-  const button = document.querySelector('.lucide-chevron-right')?.closest('button');
-  if (!button) throw new Error('No next-page button');
-  return button;
+  return screen.getByRole('button', { name: 'Next page' });
 }
 
 /** A page of the bestiary with one monster on it, out of two pages. */
@@ -69,11 +67,9 @@ describe('BestiaryPage', () => {
     await waitFor(() => screen.getByText('Goblin'));
     const user = userEvent.setup();
     await user.click(screen.getByText('Goblin'));
-    // Detail panel closes when X button is clicked — verify a close mechanism exists
-    await waitFor(() => {
-      const closeButtons = screen.getAllByRole('button');
-      expect(closeButtons.length).toBeGreaterThan(0);
-    });
+    // The desktop panel closes from its named close button
+    await user.click(await screen.findByRole('button', { name: 'Close monster details' }));
+    expect(screen.queryByRole('button', { name: 'Close monster details' })).not.toBeInTheDocument();
   });
 
   it('does not show pagination when totalPages <= 1', async () => {

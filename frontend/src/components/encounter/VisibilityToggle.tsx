@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import type { EncounterParticipant } from '../../types/encounter';
+import IconButton from '../ui/IconButton';
 
 /**
  * The DM's show/hide switch for a monster (D157). A hidden monster is left out of the Player View:
@@ -37,16 +38,14 @@ export default function VisibilityToggle({ participant, onToggle }: {
           Hidden
         </span>
       )}
-      <button
-        type="button"
+      <IconButton
+        label={action}
         onClick={handleClick}
         disabled={saving}
-        aria-label={action}
-        title={action}
         className="p-1 text-faint hover:text-ink transition-colors disabled:opacity-50"
       >
         {hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-      </button>
+      </IconButton>
       {error && <span role="alert" className="font-body text-[12.5px] font-semibold text-debuff">{error}</span>}
     </>
   );

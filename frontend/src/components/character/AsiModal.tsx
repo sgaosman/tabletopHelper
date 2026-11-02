@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { X, Plus, Minus } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useApplyChoices } from '../../queries/characters';
 import type { PlayerCharacter, ApplyChoicesRequest, AsiChoice } from '../../types/character';
+import Button from '../ui/Button';
+import IconButton from '../ui/IconButton';
+import Modal from '../ui/Modal';
 import FeatPicker from './FeatPicker';
 
 const ABILITIES = [
@@ -61,93 +64,87 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="asi-title" className="bg-card border border-rule w-full max-w-lg max-h-[90vh] flex flex-col shadow-lg" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-rule flex items-center justify-between shrink-0">
-          <div>
-            <h2 id="asi-title" className="font-heading text-[17px] font-bold text-ink">Ability Score Improvement</h2>
-            <p className="font-body text-[13px] font-semibold text-muted mt-0.5">Level {character.level}</p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink"><X className="w-5 h-5" /></button>
-        </div>
-
-        <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
-          {applyChoices.error && (
-            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{apiErrorMessage(applyChoices.error)}</div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setMode('ability'); setFeatSelection(null); }}
-              className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
-                mode === 'ability' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
-              }`}
-            >Ability Scores</button>
-            <button
-              onClick={() => { setMode('feat'); setIncreases({}); }}
-              className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
-                mode === 'feat' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
-              }`}
-            >Feat</button>
-          </div>
-
-          {mode === 'ability' && (
-            <>
-              <p className="font-body text-[15px] font-semibold text-muted">
-                Distribute 2 points across your ability scores. No score can exceed 20.
-              </p>
-              <div className="space-y-2">
-                {ABILITIES.map(({ key, label }) => {
-                  const base = character[key as keyof PlayerCharacter] as number;
-                  const bonus = increases[key] || 0;
-                  const atMax = base + bonus >= 20;
-                  return (
-                    <div key={key} className="flex items-center justify-between bg-page-alt px-4 py-2">
-                      <div className="flex items-center gap-3">
-                        <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-8">{label}</span>
-                        <span className="font-heading text-[17px] font-bold text-ink">{base}</span>
-                        {bonus > 0 && <span className="font-body text-[15px] font-semibold text-buff">+{bonus}</span>}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => adjustAbility(key, -1)} disabled={bonus <= 0}
-                          className="p-1 hover:bg-rule disabled:opacity-30 disabled:cursor-not-allowed text-muted">
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => adjustAbility(key, 1)} disabled={atMax || pointsRemaining <= 0}
-                          className="p-1 hover:bg-rule disabled:opacity-30 disabled:cursor-not-allowed text-muted">
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-center font-body text-[15px] font-semibold">
-                <span className={pointsRemaining === 0 ? 'text-buff' : 'text-cls-monk'}>
-                  {pointsRemaining} point{pointsRemaining !== 1 ? 's' : ''} remaining
-                </span>
-              </p>
-            </>
-          )}
-
-          {mode === 'feat' && (
-            <FeatPicker character={character} onSelectionChange={setFeatSelection} />
-          )}
-        </div>
-
-        <div className="px-5 py-4 border-t border-rule flex justify-end gap-3 shrink-0">
-          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[15px] font-semibold hover:bg-rule transition-colors">
-            Skip
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit || submitting}
-            className="px-5 py-2 bg-ink text-card font-body text-[16px] font-semibold hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+    <Modal
+      title="Ability Score Improvement"
+      subtitle={`Level ${character.level}`}
+      size="lg"
+      onClose={onClose}
+      footer={(
+        <>
+          <Button variant="secondary" onClick={onClose}>Skip</Button>
+          <Button onClick={handleSubmit} loading={submitting} disabled={!canSubmit}>
             {submitting ? 'Applying...' : 'Apply'}
-          </button>
+          </Button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        {applyChoices.error && (
+          <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{apiErrorMessage(applyChoices.error)}</div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => { setMode('ability'); setFeatSelection(null); }}
+            aria-pressed={mode === 'ability'}
+            className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
+              mode === 'ability' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
+            }`}
+          >Ability Scores</button>
+          <button
+            type="button"
+            onClick={() => { setMode('feat'); setIncreases({}); }}
+            aria-pressed={mode === 'feat'}
+            className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
+              mode === 'feat' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
+            }`}
+          >Feat</button>
         </div>
+
+        {mode === 'ability' && (
+          <>
+            <p className="font-body text-[15px] font-semibold text-muted">
+              Distribute 2 points across your ability scores. No score can exceed 20.
+            </p>
+            <div className="space-y-2">
+              {ABILITIES.map(({ key, label, full }) => {
+                const base = character[key as keyof PlayerCharacter] as number;
+                const bonus = increases[key] || 0;
+                const atMax = base + bonus >= 20;
+                return (
+                  <div key={key} className="flex items-center justify-between bg-page-alt px-4 py-2">
+                    <div className="flex items-center gap-3">
+                      <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-8">{label}</span>
+                      <span className="font-heading text-[17px] font-bold text-ink">{base}</span>
+                      {bonus > 0 && <span className="font-body text-[15px] font-semibold text-buff">+{bonus}</span>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <IconButton label={`Decrease ${full}`} onClick={() => adjustAbility(key, -1)} disabled={bonus <= 0}
+                        className="p-1 hover:bg-rule disabled:opacity-30 disabled:cursor-not-allowed text-muted">
+                        <Minus className="w-4 h-4" />
+                      </IconButton>
+                      <IconButton label={`Increase ${full}`} onClick={() => adjustAbility(key, 1)} disabled={atMax || pointsRemaining <= 0}
+                        className="p-1 hover:bg-rule disabled:opacity-30 disabled:cursor-not-allowed text-muted">
+                        <Plus className="w-4 h-4" />
+                      </IconButton>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-center font-body text-[15px] font-semibold">
+              <span className={pointsRemaining === 0 ? 'text-buff' : 'text-cls-monk'}>
+                {pointsRemaining} point{pointsRemaining !== 1 ? 's' : ''} remaining
+              </span>
+            </p>
+          </>
+        )}
+
+        {mode === 'feat' && (
+          <FeatPicker character={character} onSelectionChange={setFeatSelection} />
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

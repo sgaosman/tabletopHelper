@@ -1139,7 +1139,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Focus trapping in modals is not yet implemented — just the semantic markup. Full keyboard accessibility would require a focus trap hook.
 
-**Update (2026-11-02, R4 planning):** the shared `Modal` (D171) traps focus, closes on Escape and returns focus to the opener. Every dialog uses it; icon-only buttons use `IconButton`, which requires a label.
+**Update (2026-11-02, R4 planning):** the shared `Modal` (D171) traps focus, closes on Escape and returns focus to the opener. Every dialog uses it except the three in `SpellsTab`, which move to it when R8 rebuilds that screen; icon-only buttons use `IconButton`, which requires a label.
 
 ## D101: CombatService Damage Deduplication
 

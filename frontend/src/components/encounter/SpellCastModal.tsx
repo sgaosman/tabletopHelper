@@ -1,11 +1,14 @@
 import { useState, useMemo, useCallback } from 'react';
-import { X, Zap, Shield, Target, Sparkles, AlertTriangle } from 'lucide-react';
+import { Zap, Shield, Target, Sparkles, AlertTriangle } from 'lucide-react';
 import { useEncounterAction } from '../../queries/encounters';
 import { useFetchSpellTargeting } from '../../queries/reference';
 import type { EncounterParticipant, SpellSlots } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
 import type { SpellTargetingInfo } from '../../types/reference';
 import { healthLabel } from '../../utils/healthStatus';
+import Button from '../ui/Button';
+import Input from '../ui/Input';
+import Modal from '../ui/Modal';
 
 interface SpellEntry {
   name: string;
@@ -181,91 +184,75 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
   const otherParticipants = participants.filter(p => p.id !== caster.id && p.isAlive);
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="spell-cast-title"
-        className="bg-card border border-rule shadow-lg w-full max-w-lg max-h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-5 py-4 border-b border-rule flex items-center justify-between shrink-0">
-          <div>
-            <h2 id="spell-cast-title" className="font-heading text-[17px] font-bold text-ink flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-ink" />
-              Cast Spell
-            </h2>
-            <p className="font-body text-[13px] font-semibold text-muted mt-0.5">{caster.displayName}</p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Modal
+      title={<><Sparkles className="w-5 h-5 text-ink" />Cast Spell</>}
+      subtitle={caster.displayName}
+      size="lg"
+      onClose={onClose}
+    >
+      <div className="space-y-3">
+        {error && (
+          <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
+        )}
 
-        <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1 min-h-0">
-          {error && (
-            <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
-          )}
-
-          {result ? (
-            <ResultView result={result} onClose={resetAndClose} />
-          ) : step === 'spell' ? (
-            <SpellSelectionStep
-              cantrips={cantrips}
-              leveled={leveled}
-              search={search}
-              onSearch={setSearch}
-              onSelect={selectSpell}
-              isMonster={isMonster}
-            />
-          ) : step === 'slot' ? (
-            <SlotSelectionStep
-              spell={selectedSpell!}
-              levels={availableSlotLevels}
-              onSelect={selectSlot}
-              onBack={() => setStep('spell')}
-            />
-          ) : step === 'target' ? (
-            <TargetSelectionStep
-              spell={selectedSpell!}
-              targets={otherParticipants}
-              caster={caster}
-              selectedTargets={selectedTargets}
-              onToggle={toggleTarget}
-              onBack={() => selectedSpell!.level === 0 ? setStep('spell') : setStep('slot')}
-              onProceed={proceedToConfirm}
-              targetingInfo={targetingInfo}
-              targetingLoading={targetingLoading}
-            />
-          ) : (
-            <ConfirmStep
-              spell={selectedSpell!}
-              slotLevel={selectedSlotLevel}
-              usePactSlot={usePactSlot}
-              targets={participants.filter(p => selectedTargets.includes(p.id))}
-              caster={caster}
-              advantage={advantage}
-              onAdvantageChange={setAdvantage}
-              casting={casting}
-              onCast={cast}
-              onBack={() => {
-                const noTargets = targetingInfo && !targetingInfo.selfOnly && !targetingInfo.canTargetSelf && !targetingInfo.canTargetAllies && !targetingInfo.canTargetEnemies;
-                if (noTargets) {
-                  setStep(selectedSpell!.level === 0 ? 'spell' : 'slot');
-                } else {
-                  setStep('target');
-                }
-              }}
-              isMonster={isMonster}
-              overrideAttackBonus={overrideAttackBonus}
-              overrideSaveDC={overrideSaveDC}
-              onOverrideAttackBonus={setOverrideAttackBonus}
-              onOverrideSaveDC={setOverrideSaveDC}
-            />
-          )}
-        </div>
+        {result ? (
+          <ResultView result={result} onClose={resetAndClose} />
+        ) : step === 'spell' ? (
+          <SpellSelectionStep
+            cantrips={cantrips}
+            leveled={leveled}
+            search={search}
+            onSearch={setSearch}
+            onSelect={selectSpell}
+            isMonster={isMonster}
+          />
+        ) : step === 'slot' ? (
+          <SlotSelectionStep
+            spell={selectedSpell!}
+            levels={availableSlotLevels}
+            onSelect={selectSlot}
+            onBack={() => setStep('spell')}
+          />
+        ) : step === 'target' ? (
+          <TargetSelectionStep
+            spell={selectedSpell!}
+            targets={otherParticipants}
+            caster={caster}
+            selectedTargets={selectedTargets}
+            onToggle={toggleTarget}
+            onBack={() => selectedSpell!.level === 0 ? setStep('spell') : setStep('slot')}
+            onProceed={proceedToConfirm}
+            targetingInfo={targetingInfo}
+            targetingLoading={targetingLoading}
+          />
+        ) : (
+          <ConfirmStep
+            spell={selectedSpell!}
+            slotLevel={selectedSlotLevel}
+            usePactSlot={usePactSlot}
+            targets={participants.filter(p => selectedTargets.includes(p.id))}
+            caster={caster}
+            advantage={advantage}
+            onAdvantageChange={setAdvantage}
+            casting={casting}
+            onCast={cast}
+            onBack={() => {
+              const noTargets = targetingInfo && !targetingInfo.selfOnly && !targetingInfo.canTargetSelf && !targetingInfo.canTargetAllies && !targetingInfo.canTargetEnemies;
+              if (noTargets) {
+                setStep(selectedSpell!.level === 0 ? 'spell' : 'slot');
+              } else {
+                setStep('target');
+              }
+            }}
+            isMonster={isMonster}
+            overrideAttackBonus={overrideAttackBonus}
+            overrideSaveDC={overrideSaveDC}
+            onOverrideAttackBonus={setOverrideAttackBonus}
+            onOverrideSaveDC={setOverrideSaveDC}
+          />
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -279,13 +266,14 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isM
 }) {
   return (
     <>
-      <input
+      <Input
+        label="Search spells"
+        hideLabel
         type="text"
         value={search}
         onChange={e => onSearch(e.target.value)}
         placeholder="Search spells..."
         autoFocus
-        className="w-full px-4 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
       />
 
       {cantrips.length === 0 && leveled.length === 0 && (
@@ -322,6 +310,7 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isM
 function SpellRow({ spell, onClick }: { spell: SpellEntry; onClick: () => void }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="w-full flex items-center justify-between px-3 py-2 bg-page-alt hover:bg-rule text-left transition-colors group"
     >
@@ -349,7 +338,7 @@ function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
   return (
     <>
       <div className="flex items-center gap-2 mb-2">
-        <button onClick={onBack} className="font-body text-[15px] font-semibold text-muted hover:text-ink">&larr; Back</button>
+        <Button variant="ghost" size="sm" onClick={onBack}>&larr; Back</Button>
         <span className="font-heading text-[16px] font-semibold text-ink">{spell.name}</span>
         <span className="font-body text-[13px] font-semibold text-faint">— Select slot level</span>
       </div>
@@ -362,6 +351,7 @@ function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
         {levels.map(l => (
           <button
             key={l.isPact ? `pact_${l.level}` : String(l.level)}
+            type="button"
             onClick={() => l.remaining > 0 && onSelect(l.level, l.isPact)}
             disabled={l.remaining <= 0}
             className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors
@@ -434,7 +424,7 @@ function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle
   return (
     <>
       <div className="flex items-center gap-2 mb-2">
-        <button onClick={onBack} className="font-body text-[15px] font-semibold text-muted hover:text-ink">&larr; Back</button>
+        <Button variant="ghost" size="sm" onClick={onBack}>&larr; Back</Button>
         <span className="font-heading text-[16px] font-semibold text-ink">{spell.name}</span>
         <span className="font-body text-[13px] font-semibold text-faint">— {targetingLoading ? 'Loading...' : targetLabel}</span>
       </div>
@@ -450,8 +440,10 @@ function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle
             return (
               <button
                 key={p.id}
+                type="button"
                 onClick={() => !disabled && onToggle(p.id)}
                 disabled={disabled}
+                aria-pressed={isSelected}
                 className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors
                   ${isSelected ? 'bg-page-alt border-2 border-ink' :
                     disabled ? 'bg-page-alt/50 border border-rule opacity-50 cursor-not-allowed' :
@@ -473,13 +465,9 @@ function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle
         </div>
       )}
 
-      <button
-        onClick={onProceed}
-        disabled={selectedTargets.length === 0}
-        className="w-full mt-2 px-4 py-2.5 bg-ink text-card font-body text-[16px] font-semibold hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
+      <Button size="lg" className="w-full mt-2" onClick={onProceed} disabled={selectedTargets.length === 0}>
         Continue
-      </button>
+      </Button>
     </>
   );
 }
@@ -506,7 +494,7 @@ function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage
   return (
     <>
       <div className="flex items-center gap-2 mb-3">
-        <button onClick={onBack} className="font-body text-[15px] font-semibold text-muted hover:text-ink">&larr; Back</button>
+        <Button variant="ghost" size="sm" onClick={onBack}>&larr; Back</Button>
         <span className="font-heading text-[16px] font-semibold text-ink">Confirm</span>
       </div>
 
@@ -545,7 +533,9 @@ function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage
           return (
             <button
               key={mode}
+              type="button"
               onClick={() => onAdvantageChange(val)}
+              aria-pressed={advantage === val}
               className={`flex-1 py-1.5 font-body text-[15px] font-semibold transition-colors ${
                 advantage === val
                   ? 'bg-ink text-card'
@@ -560,37 +550,27 @@ function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage
 
       {isMonster && (
         <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted">Spell Attack Bonus</label>
-            <input
-              type="number"
-              value={overrideAttackBonus}
-              onChange={e => onOverrideAttackBonus(e.target.value)}
-              placeholder={String(caster.spellAttackBonus ?? 0)}
-              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
-            />
-          </div>
-          <div>
-            <label className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted">Spell Save DC</label>
-            <input
-              type="number"
-              value={overrideSaveDC}
-              onChange={e => onOverrideSaveDC(e.target.value)}
-              placeholder={String(caster.spellSaveDc ?? 10)}
-              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
-            />
-          </div>
+          <Input
+            label="Spell Attack Bonus"
+            type="number"
+            value={overrideAttackBonus}
+            onChange={e => onOverrideAttackBonus(e.target.value)}
+            placeholder={String(caster.spellAttackBonus ?? 0)}
+          />
+          <Input
+            label="Spell Save DC"
+            type="number"
+            value={overrideSaveDC}
+            onChange={e => onOverrideSaveDC(e.target.value)}
+            placeholder={String(caster.spellSaveDc ?? 10)}
+          />
         </div>
       )}
 
-      <button
-        onClick={onCast}
-        disabled={casting}
-        className="w-full px-4 py-2.5 bg-ink text-card font-body text-[16px] font-semibold hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
+      <Button size="lg" className="w-full" onClick={onCast} loading={casting}>
         <Sparkles className="w-4 h-4" />
         {casting ? 'Casting...' : 'Cast Spell'}
-      </button>
+      </Button>
     </>
   );
 }
@@ -655,12 +635,9 @@ function ResultView({ result, onClose }: { result: CastSpellResponse; onClose: (
         </div>
       )}
 
-      <button
-        onClick={onClose}
-        className="w-full px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[15px] font-semibold hover:bg-rule transition-colors"
-      >
+      <Button variant="secondary" className="w-full" onClick={onClose}>
         Done
-      </button>
+      </Button>
     </div>
   );
 }

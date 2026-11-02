@@ -7,6 +7,7 @@ import MonsterStatBlock from '../../components/monster/MonsterStatBlock';
 import MultiSelect from '../../components/common/MultiSelect';
 import { sourceName } from '../../utils/sourceNames';
 import NavBar from '../../components/common/NavBar';
+import IconButton from '../../components/ui/IconButton';
 
 function crBadgeClasses(cr: string): string {
   const num = cr.includes('/') ? 0.5 : parseFloat(cr);
@@ -153,15 +154,15 @@ export default function BestiaryPage() {
 
                 {totalPages > 1 && (
                   <div className="flex items-center justify-center gap-4 mt-6">
-                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                    <IconButton label="Previous page" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                       className="p-2 bg-card border border-rule hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       <ChevronLeft size={18} className="text-muted" />
-                    </button>
+                    </IconButton>
                     <span className="font-body text-[15px] font-semibold text-muted">Page {page + 1} of {totalPages}</span>
-                    <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                    <IconButton label="Next page" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                       className="p-2 bg-card border border-rule hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       <ChevronRight size={18} className="text-muted" />
-                    </button>
+                    </IconButton>
                   </div>
                 )}
               </>
@@ -172,10 +173,10 @@ export default function BestiaryPage() {
             <div className="w-2/5 ml-4 flex-shrink-0 hidden md:block">
               <div className="sticky top-16">
                 <div className="flex justify-end mb-2">
-                  <button onClick={() => setSelectedMonster(null)}
+                  <IconButton label="Close monster details" onClick={() => setSelectedMonster(null)}
                     className="p-1 bg-card border border-rule hover:border-muted text-faint hover:text-ink transition-colors">
                     <X size={16} />
-                  </button>
+                  </IconButton>
                 </div>
                 <div className="max-h-[calc(100vh-8rem)] overflow-y-auto">
                   <MonsterStatBlock monster={selectedMonster} />

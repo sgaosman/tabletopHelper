@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import IconButton from '../ui/IconButton';
 
 interface NumberStepperProps {
   value: number;
@@ -61,24 +62,22 @@ export default function NumberStepper({ value, min, max, onChange, label }: Numb
         className="w-12 text-center bg-transparent font-heading text-[17px] font-bold text-ink focus:outline-none"
       />
       <div className="flex flex-col border-l border-rule">
-        <button
-          type="button"
-          aria-label={`Increase ${label.toLowerCase()}`}
+        <IconButton
+          label={`Increase ${label.toLowerCase()}`}
           onClick={() => commit(value + 1)}
           disabled={value >= max}
           className="flex-1 px-2 text-muted hover:text-ink hover:bg-page-alt disabled:opacity-30 disabled:hover:bg-transparent"
         >
           <ChevronUp size={14} />
-        </button>
-        <button
-          type="button"
-          aria-label={`Decrease ${label.toLowerCase()}`}
+        </IconButton>
+        <IconButton
+          label={`Decrease ${label.toLowerCase()}`}
           onClick={() => commit(value - 1)}
           disabled={value <= min}
           className="flex-1 px-2 border-t border-rule text-muted hover:text-ink hover:bg-page-alt disabled:opacity-30 disabled:hover:bg-transparent"
         >
           <ChevronDown size={14} />
-        </button>
+        </IconButton>
       </div>
     </div>
   );

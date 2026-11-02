@@ -8,6 +8,7 @@ import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
+import IconButton from '../../components/ui/IconButton';
 import { getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
@@ -112,15 +113,15 @@ function SpellSlotDisplay({ participant }: { participant: EncounterParticipant }
             <span className="font-heading text-[12px] font-semibold tracking-[0.1em] text-faint">{lvl}:</span>
             <div className="flex gap-0.5">
               {Array.from({ length: s.max }).map((_, i) => (
-                <button
+                <IconButton
                   key={i}
+                  label={i < s.remaining ? `Use level ${lvl} slot` : `Restore level ${lvl} slot`}
                   onClick={() => i < s.remaining ? handleUse(parseInt(lvl)) : handleRestore(parseInt(lvl))}
                   className={`w-2.5 h-2.5 rounded-full border transition-colors ${
                     i < s.remaining
                       ? 'bg-ink border-ink hover:bg-ink/80'
                       : 'border-rule-light hover:border-ink'
                   }`}
-                  title={i < s.remaining ? `Use level ${lvl} slot` : `Restore level ${lvl} slot`}
                 />
               ))}
             </div>
@@ -224,9 +225,9 @@ function ActionPanel({
           {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-cls-monk" />Add Condition to {selectedTarget.displayName}</>}
           {actionMode === 'concentration' && <><Zap className="w-4 h-4 inline mr-1 text-cls-warlock" />Concentration for {selectedTarget.displayName}</>}
         </h3>
-        <button onClick={() => setActionMode(null)} className="text-faint hover:text-muted">
+        <IconButton label="Close action panel" onClick={() => setActionMode(null)} className="text-faint hover:text-muted">
           <X className="w-4 h-4" />
-        </button>
+        </IconButton>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -299,16 +300,16 @@ function ActionPanel({
                   </div>
                   <div className="flex gap-1">
                     {attacks.length < 5 && (
-                      <button type="button" onClick={() => cloneAttackRow(i)}
-                        className="p-2 text-faint hover:text-buff" title="Clone this attack">
+                      <IconButton label="Clone this attack" onClick={() => cloneAttackRow(i)}
+                        className="p-2 text-faint hover:text-buff">
                         <Copy className="w-4 h-4" />
-                      </button>
+                      </IconButton>
                     )}
                     {attacks.length > 1 && (
-                      <button type="button" onClick={() => removeAttackRow(i)}
-                        className="p-2 text-faint hover:text-debuff" title="Remove this attack">
+                      <IconButton label="Remove this attack" onClick={() => removeAttackRow(i)}
+                        className="p-2 text-faint hover:text-debuff">
                         <X className="w-4 h-4" />
-                      </button>
+                      </IconButton>
                     )}
                   </div>
                 </div>
@@ -934,9 +935,9 @@ function DmSessionView() {
               <div className="flex items-center gap-2 bg-card border border-rule px-3 py-1.5">
                 <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted">Code:</span>
                 <span className="text-ink font-mono font-bold tracking-wider">{encounter.sessionCode}</span>
-                <button onClick={copySessionCode} className="text-muted hover:text-ink">
+                <IconButton label={copiedCode ? 'Session code copied' : 'Copy session code'} onClick={copySessionCode} className="text-muted hover:text-ink">
                   {copiedCode ? <Check className="w-3.5 h-3.5 text-buff" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
+                </IconButton>
               </div>
             )}
             <div className="flex items-center gap-1.5">
@@ -961,9 +962,9 @@ function DmSessionView() {
           <div className="flex items-center gap-2">
             {isActive && (
               <>
-                <button onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold" title="Previous turn">
+                <IconButton label="Previous turn" onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold">
                   <ChevronLeft className="w-4 h-4" />
-                </button>
+                </IconButton>
                 <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-ink hover:bg-ink/90 text-card font-body text-[16px] font-semibold">
                   Next Turn <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1092,13 +1093,13 @@ function DmSessionView() {
                         <p className="text-cls-warlock font-body text-[15px] font-semibold">
                           Concentrating: {p.concentrationSpell}
                         </p>
-                        <button
+                        <IconButton
+                          label="Repeat spell effect"
                           onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
                           className="p-0.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock"
-                          title="Repeat spell effect"
                         >
                           <RotateCw className="w-3 h-3" />
-                        </button>
+                        </IconButton>
                       </div>
                     )}
 
@@ -1108,13 +1109,13 @@ function DmSessionView() {
                         <p className="text-cls-monk font-body text-[15px] font-semibold">
                           Active: {p.activeSpell}
                         </p>
-                        <button
+                        <IconButton
+                          label="Repeat spell effect"
                           onClick={(e) => { e.stopPropagation(); selectTarget(p.id, 'repeat-effect'); }}
                           className="p-0.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk"
-                          title="Repeat spell effect"
                         >
                           <RotateCw className="w-3 h-3" />
-                        </button>
+                        </IconButton>
                       </div>
                     )}
 
@@ -1153,63 +1154,64 @@ function DmSessionView() {
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                       {/* Monster actions toggle (M12) */}
                       {isMonster && (
-                        <button
+                        <IconButton
+                          label="Monster actions"
                           onClick={() => toggleMonsterActions(p.id)}
+                          aria-expanded={expandedMonsterId === p.id}
                           className={`p-1.5 ${expandedMonsterId === p.id ? 'bg-monster/20 text-monster' : 'bg-monster/10 hover:bg-monster/20 text-monster'}`}
-                          title="Monster actions"
                         >
                           <Swords className="w-3.5 h-3.5" />
-                        </button>
+                        </IconButton>
                       )}
                       {(p.isAlive || (p.participantType === 'PLAYER' && p.deathSaveFailures < 3)) && (
-                        <button
+                        <IconButton
+                          label="Attack roll"
                           onClick={() => selectTarget(p.id, 'attack')}
                           className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter"
-                          title="Attack roll"
                         >
                           <Crosshair className="w-3.5 h-3.5" />
-                        </button>
+                        </IconButton>
                       )}
-                      <button
+                      <IconButton
+                        label="Deal damage"
                         onClick={() => selectTarget(p.id, 'damage')}
                         className="p-1.5 bg-debuff/10 hover:bg-debuff/20 text-debuff"
-                        title="Deal damage"
                       >
                         <Minus className="w-3.5 h-3.5" />
-                      </button>
+                      </IconButton>
                       {(p.isAlive || p.participantType === 'PLAYER') && (
-                        <button
+                        <IconButton
+                          label={!p.isAlive && p.deathSaveFailures >= 3 ? "Resurrect" : "Heal"}
                           onClick={() => selectTarget(p.id, 'heal')}
                           className="p-1.5 bg-buff/10 hover:bg-buff/20 text-buff"
-                          title={!p.isAlive && p.deathSaveFailures >= 3 ? "Resurrect" : "Heal"}
                         >
                           <Plus className="w-3.5 h-3.5" />
-                        </button>
+                        </IconButton>
                       )}
-                      <button
+                      <IconButton
+                        label="Add condition"
                         onClick={() => selectTarget(p.id, 'condition')}
                         className="p-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk"
-                        title="Add condition"
                       >
                         <Zap className="w-3.5 h-3.5" />
-                      </button>
+                      </IconButton>
                       {p.isAlive && (
-                        <button
+                        <IconButton
+                          label="Set concentration"
                           onClick={() => selectTarget(p.id, 'concentration')}
                           className="p-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock"
-                          title="Set concentration"
                         >
                           <Swords className="w-3.5 h-3.5" />
-                        </button>
+                        </IconButton>
                       )}
                       {p.isAlive && (
-                        <button
+                        <IconButton
+                          label="Cast spell"
                           onClick={() => selectTarget(p.id, 'spell')}
                           className="p-1.5 bg-ink/10 hover:bg-ink/20 text-ink"
-                          title="Cast spell"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                        </button>
+                        </IconButton>
                       )}
                     </div>
                   )}

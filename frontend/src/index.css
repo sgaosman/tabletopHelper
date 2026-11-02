@@ -7,6 +7,8 @@
   --color-page: #F3F2EC;
   --color-card: #FBFAF5;
   --color-page-alt: #F6F5F0;
+  /* The backdrop behind a dialog */
+  --color-scrim: rgb(0 0 0 / 0.4);
 
   /* Text */
   --color-ink: #1C1917;

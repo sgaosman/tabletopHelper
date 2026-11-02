@@ -42,35 +42,28 @@ describe('AsiModal', () => {
   it('increments ability and decrements points remaining', async () => {
     render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
-    // Find the first + button (STR)
-    const buttons = screen.getAllByRole('button', { name: '' });
-    const plusButtons = buttons.filter(b => b.querySelector('.lucide-plus'));
     expect(screen.getByText('2 points remaining')).toBeInTheDocument();
-    await user.click(plusButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     expect(screen.getByText('1 point remaining')).toBeInTheDocument();
   });
 
   it('disables + buttons after spending 2 points', async () => {
     render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
-    const plusButtons = screen.getAllByRole('button', { name: '' })
-      .filter(b => b.querySelector('.lucide-plus'));
-    await user.click(plusButtons[0]);
-    await user.click(plusButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     expect(screen.getByText('0 points remaining')).toBeInTheDocument();
+    const plusButtons = screen.getAllByRole('button', { name: /^Increase / });
+    expect(plusButtons).toHaveLength(6);
     plusButtons.forEach(b => expect(b).toBeDisabled());
   });
 
   it('decrement restores a point', async () => {
     render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
-    const plusButtons = screen.getAllByRole('button', { name: '' })
-      .filter(b => b.querySelector('.lucide-plus'));
-    await user.click(plusButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     expect(screen.getByText('1 point remaining')).toBeInTheDocument();
-    const minusButtons = screen.getAllByRole('button', { name: '' })
-      .filter(b => b.querySelector('.lucide-minus'));
-    await user.click(minusButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Decrease Strength' }));
     expect(screen.getByText('2 points remaining')).toBeInTheDocument();
   });
 
@@ -82,20 +75,16 @@ describe('AsiModal', () => {
   it('enables Apply when 2 points are allocated', async () => {
     render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
-    const plusButtons = screen.getAllByRole('button', { name: '' })
-      .filter(b => b.querySelector('.lucide-plus'));
-    await user.click(plusButtons[0]);
-    await user.click(plusButtons[1]);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    await user.click(screen.getByRole('button', { name: 'Increase Dexterity' }));
     expect(screen.getByRole('button', { name: 'Apply' })).not.toBeDisabled();
   });
 
   it('calls API on Apply', async () => {
     render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
-    const plusButtons = screen.getAllByRole('button', { name: '' })
-      .filter(b => b.querySelector('.lucide-plus'));
-    await user.click(plusButtons[0]);
-    await user.click(plusButtons[1]);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    await user.click(screen.getByRole('button', { name: 'Increase Dexterity' }));
     await user.click(screen.getByRole('button', { name: 'Apply' }));
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Applying...' })).toBeDisabled();
@@ -114,7 +103,7 @@ describe('AsiModal', () => {
     const onComplete = vi.fn();
     const { queryClient } = render(<AsiModal character={character} onComplete={onComplete} onClose={() => {}} />);
     const user = userEvent.setup();
-    const strengthPlus = screen.getAllByRole('button', { name: '' }).filter(b => b.querySelector('.lucide-plus'))[0];
+    const strengthPlus = screen.getByRole('button', { name: 'Increase Strength' });
     await user.click(strengthPlus);
     await user.click(strengthPlus);
     await user.click(screen.getByRole('button', { name: 'Apply' }));
@@ -131,9 +120,8 @@ describe('AsiModal', () => {
     );
     render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
-    const plusButtons = screen.getAllByRole('button', { name: '' }).filter(b => b.querySelector('.lucide-plus'));
-    await user.click(plusButtons[0]);
-    await user.click(plusButtons[1]);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    await user.click(screen.getByRole('button', { name: 'Increase Dexterity' }));
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No ability score improvement is pending');

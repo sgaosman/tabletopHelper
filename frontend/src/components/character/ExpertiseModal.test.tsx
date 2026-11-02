@@ -85,6 +85,21 @@ describe('ExpertiseModal', () => {
   it('has correct ARIA attributes', () => {
     render(<ExpertiseModal character={character} count={1} onComplete={() => {}} onClose={() => {}} />);
     expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
-    expect(screen.getByRole('dialog')).toHaveAttribute('aria-labelledby', 'expertise-title');
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Choose Expertise');
+  });
+
+  it('marks the chosen skill as pressed', async () => {
+    render(<ExpertiseModal character={character} count={1} onComplete={() => {}} onClose={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'athletics' }));
+    expect(screen.getByRole('button', { name: 'athletics' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'perception' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('closes on Escape', async () => {
+    let closed = false;
+    render(<ExpertiseModal character={character} count={1} onComplete={() => {}} onClose={() => { closed = true; }} />);
+    await userEvent.setup().keyboard('{Escape}');
+    expect(closed).toBe(true);
   });
 });
