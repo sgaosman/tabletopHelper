@@ -13,8 +13,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Reading monster action templates into records (D168). The JSON is the seeded data as the local database holds it,
  * cut to the entries each case needs: the Adult Red Dragon (MM), the Illithilich, the Pixie, the Octopus and the
- * Beholder. Across all 2,357 monsters, every key the records read has one JSON type, except a legendary action's
- * cost, which is a number or, twice, the text "1-3".
+ * Beholder. Across all 2,357 monsters, every key the records read has one JSON type, except two: a legendary
+ * action's cost, which is a number or, twice, the text "1-3", and spellcasting's innateSpells, a flag on 750
+ * monsters and an object on 18.
  */
 class MonsterTemplatesTest {
 

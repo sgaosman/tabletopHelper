@@ -254,6 +254,15 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 
 **Count:** 2,684 monsters
 
+**`action_templates` keys the encounter reads (R5, D168).** `MonsterTemplates` reads the column into records and ignores every other key. The column itself stays JSON until R7 gives it a record type. 2,357 monsters have templates, each a JSON object.
+- Top level: `actions`, `legendaryActions`, `lairActions`, `bonusActions`, `reactions`, `traits`, `legendaryActionCount`, `legendaryResistanceCount` and `spellcasting`.
+- Each action, legendary action, lair action and trait: `name`, `description`, `automatable`, `deliveryMethod`, `attackType`, `attackBonus`, `saveDC`, `saveAbility`, `halfOnSave`, `targetCount`, `effects`, `recharge`, `cost`, `isMultiattack`, `multiattackComponents`, `multiattackDescription`, `_multiattackNote`, `isEyeRays`, `rayCount` and `rays`.
+- Each effect: `effectType`, `damageDice`, `damageType`, `condition`, `durationRounds`, `saveToEndEachTurn`, `saveToEndDC` and `saveToEndAbility`. Each ray: `name`, `saveDC`, `saveAbility`, `halfOnSave` and `effects`. The `spellcasting` block: `ability`, `attackBonus`, `saveDC`, `slots`, `spellsByLevel`, `dailySpells`, `atWillSpells` and `innateSpells`.
+- Each key has one JSON type across the 2,357 templates (or null), with two exceptions. A legendary action's `cost` is a number (900 times) or the text `1-3` (twice, on the Illithilich and the Drow Matron Mother); the records read it as text, and `1-3` costs 1. `innateSpells` is a flag on 750 monsters and an object of daily and at-will lists on 18, so it is read as raw JSON.
+- `flatDamage` is a flag (always `true`, 23 effects) on an effect whose `damageDice` is a flat amount such as `1`. It adds nothing, because `damageDice` already holds the amount, so it isn't read.
+- `hasUnresolvedComponents` (`true` on 90 multiattacks) is ignored. The server works out for itself which multiattacks it can't read, from `multiattackComponents` and `_multiattackNote`, so the flag is redundant, and it is wrong for Moloch (MTF), whose three components all resolve. In total 124 of the 1,478 multiattacks can't be read.
+- Data that doesn't fit the records stops the command with a 409 naming the monster's templates, and the cause is logged.
+
 ### spells
 
 | Column | Type | Notes |
@@ -295,6 +304,10 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 1,723 items (zero NULL types)
+
+**Weapons for weapon attacks (R5, D164).** `ItemRepository.findMundaneWeapons()` returns the rows a character's equipment entries are matched against: `subtype` (the weapon category) is `simple` or `martial`, `damage_dice` is set, and `rarity` is NULL or `unknown`. 5etools' `none` is stored as NULL by `ItemSeeder`, and `unknown`, which 5etools gives some adventure weapons, is kept as it is. That is 55 rows with distinct names, 19 simple and 36 martial: the 54 base weapons less the Net, which deals no damage, plus the Iron Ball and the Oversized Longbow, two mundane weapons from adventures. The other rows with a weapon category are the Net and 173 magic weapons, which have a rarity, so none of them is in the set.
+- `type` is `Ranged Weapon` for a ranged weapon. `properties.tags` carries the 5etools property codes the rules read: `F` finesse, `H` heavy and `AF` firearm ammunition. A code may have a `|source` suffix.
+- `player_characters.equipment` entries are free text with no link to an item, so an entry is matched by name, in any case and singular or plural, until R6 gives inventory entries item IDs (D164).
 
 ### conditions
 

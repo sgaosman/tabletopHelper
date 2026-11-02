@@ -276,7 +276,7 @@ The `@JsonRawValue` deserialization trap (reference entities return pre-parsed o
 
 ### Low: Documentation Spread Across Multiple Locations
 
-README, `obsidian-docs/`, `docs/`, `PROJECT_DOCUMENTATION.md`, `CLAUDE_CODE_BRIEF.md` — unclear which is canonical. The latter two are local-only files per `.claude/CLAUDE.md`, but this isn't documented anywhere a new engineer would see it.
+README, `obsidian-docs/`, `docs/`, `PROJECT_DOCUMENTATION.md` and a local project brief — unclear which is canonical. The latter two are local-only files, but this isn't documented anywhere a new engineer would see it.
 
 ---
 

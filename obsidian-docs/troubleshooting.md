@@ -317,6 +317,8 @@ cd backend
 
 2. **Spell slot format mismatch:** `PlayerCharacter.spellSlots` uses `{used, total}` format but `CombatService` expects `{remaining, max}`. When a character joins an encounter, `EncounterService.addPlayerParticipant()` was copying the raw JSON. `slot.getOrDefault("remaining", 0)` returned 0, making the frontend show all slots as empty/greyed-out. Fixed by adding `convertSpellSlotsFormat()` that converts `{used, total}` → `{remaining: total-used, max: total}` at copy time.
 
+**Update (2026-11-02, R5):** `CombatService` no longer exists. `SpellcastingService` and `SpellCaster` cast spells, `EffectApplier` makes the changes, and `CasterSpells` and `SpellSources` check what pays for a cast (D160, D165). Participants hold spell slots as `{max, used}` since V15 (D168), so `EncounterService.convertSpellSlotsFormat()` now turns the sheet's `{total, used}` into `{max, used}`, and the `{remaining, max}` shape described above is gone. A cast the caster has no slot for answers 400 before anything is spent.
+
 ---
 
 ## Race Spells All Show as Cantrips (Level 0)
@@ -353,6 +355,8 @@ cd backend
 
 **Fix:** Changed to read `healingDice` with a `dice` fallback. Updated the corresponding test fixture to use `healingDice`.
 
+**Update (2026-11-02, R5):** `SpellResolverEngine` was removed. `SpellEffects` reads the spell's effect template into an `Effect` and still takes the healing dice from `healingDice`, falling back to `dice` (D160).
+
 ---
 
 ## Magic Stone Crashes with "Invalid dice expression: 1d6+SPELL_MOD"
@@ -364,6 +368,8 @@ cd backend
 **Root Cause:** `SpellResolverEngine.resolveDamageDice()` returned the raw `damageDice` string from the spell template without replacing the `SPELL_MOD` placeholder with the caster's spellcasting ability modifier.
 
 **Fix:** After cantrip/upcast scaling, the method now replaces `SPELL_MOD` with the computed spellcasting modifier (spell attack bonus minus proficiency bonus derived from character level).
+
+**Update (2026-11-02, R5):** `SpellResolverEngine` was removed. `SpellEffects` reads the dice through `TemplateDice`, which turns the template's `MOD` placeholder into the caster's spellcasting modifier (`CreatureStats.spellcastingModifier`) before it becomes a `Dice`, and a template whose dice can't be read leaves the spell to the DM instead of throwing (D160).
 
 ---
 
@@ -377,6 +383,8 @@ cd backend
 
 **Fix:** Introduced `findDamageEffect()` that iterates all effects to find the first with a `damageDice` field. Damage type is now also extracted from this same effect node.
 
+**Update (2026-11-02, R5):** both methods lived in `SpellResolverEngine`, which was removed. `SpellEffects.firstDamageEffect()` does the same job: the first effect with `damageDice` supplies the damage and its type (D160).
+
 ---
 
 ## Pact Slot Use/Restore Endpoints Fail for Warlocks
@@ -388,6 +396,8 @@ cd backend
 **Root Cause:** Both endpoints looked up spell slots by key `"N"` (e.g., `"5"`), but Warlock pact slots are stored with the key `"pact_N"` (e.g., `"pact_5"`). The key mismatch caused a null lookup.
 
 **Fix:** Both `useSpellSlot()` and `restoreSpellSlot()` now fall back to checking `"pact_N"` when the regular `"N"` key is not found.
+
+**Update (2026-11-02, R5):** `CombatService` was removed, and both methods now live in `SpellcastingService`, which keeps the `"pact_N"` fallback (`slotKey`). Casting a spell with a pact slot no longer goes through a flag: `SpellSources` takes `spellSource` `PACT_SLOT` (D165).
 
 ## "Invalid dice expression: 1d8+MOD" on Spell Cast
 
@@ -403,6 +413,8 @@ cd backend
 3. Fixed `healing.healingDice` in definitions for Cure Wounds, Healing Word, Prayer of Healing, and Mass Healing Word to include `+MOD`
 4. Ensured MOD substitution runs before upcast scaling (so `parseDiceExpression` receives numeric values)
 
+**Update (2026-11-02, R5):** the resolver this entry describes (`SpellResolverEngine`) was removed. `TemplateDice` now turns `+MOD` and `+SPELL_MOD` into the caster's spellcasting modifier as a number before upcast scaling, and `SpellEffectsTest` covers both placeholders (D160).
+
 ## NONE Delivery Concentration Spells Don't Set Concentration
 
 **Status:** Fixed (2026-07-21)
@@ -412,3 +424,5 @@ cd backend
 **Root Cause:** All 8 spells use `deliveryMethod: "NONE"` (utility/illusion spells with no attack roll or save). In `SpellResolverEngine`, the `NONE` delivery method had no explicit case in the switch statement, so it fell through to `default`, which called `manualResult()`. The `manualResult()` helper hardcodes `concentrationSet: false` because it was designed as a generic fallback that doesn't examine spell metadata.
 
 **Fix:** Added explicit `case "NONE"` to the delivery switch in `resolveSpell()` that constructs a `SpellCastResult` with the correct concentration fields from the spell definition. The new case returns `manualResolution: true` (DM must adjudicate the effect) while correctly setting `concentrationSet` and `concentrationSpellName`.
+
+**Update (2026-11-02, R5):** `SpellResolverEngine` was removed, and the participant's `concentration_spell` column with it. Concentration is a Concentration Instance in `encounter_participants.concentration` (V16, D162), and the API still shows its spell and slot level as `concentrationSpell` and `concentrationSlotLevel`. A spell left to the DM, such as these eight, still starts its caster's concentration: `SpellCaster` starts the instance whenever the template says the spell needs concentration, whether or not the effect resolves automatically.

@@ -1,5 +1,7 @@
 # Feature Roadmap
 
+> **Note (2026-11-02, R5):** refactor phase R5 replaced `CombatService`, `SpellResolverEngine`, `MonsterActionResolverEngine` and `MonsterSpellCastService`, which the milestones below name, with the services in `encounter.internal` (`TurnService`, `AttackService`, `SpellcastingService`, `MonsterActionService`, `LegendaryResistanceService`, `ConditionService` and `HitPointService`), where `EffectApplier` makes every change, and the pure rules in `rules.combat` (D160). The milestone text below is history and is left as written. See [[architecture#Combat Layout (R5, D160)]].
+
 ## Milestone Status
 
 | # | Milestone | Status | Notes |
@@ -368,11 +370,11 @@ Phase 3 — Multiclass at creation:
 
 ## Milestone 24: UI Redesign — Tourmaline Theme (Complete)
 
-**Goal:** Complete visual overhaul from the default dark AI-generated look to a distinctive, fantasy-themed light UI.
+**Goal:** Complete visual overhaul from the generic default dark look to a distinctive, fantasy-themed light UI.
 
 **Status:** Complete (2026-07-22)
 
-**Design System (documented in `.claude/DESIGN_SYSTEM.md`):**
+**Design System:**
 - Light mode with warm parchment surfaces (`#FAFAF5` cards, `#F5F5F0` page, `#EEEEE8` page-alt)
 - Square corners throughout (global `border-radius: 0 !important`)
 - Tourmaline gradient on nav bar 2px top accent line only
@@ -411,7 +413,6 @@ Phase 3 — Multiclass at creation:
 - `frontend/src/index.css` — `@theme` block with all design tokens + global border-radius override
 - `frontend/src/components/common/NavBar.tsx` — shared navigation
 - `frontend/src/utils/classColours.ts` — class color utility
-- `.claude/DESIGN_SYSTEM.md` — full design system reference
 
 ## Milestone 12: Monster Actions, Legendary Actions, Legendary Resistance, Lair Actions (ALL CRs)
 

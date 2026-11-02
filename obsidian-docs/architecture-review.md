@@ -246,7 +246,7 @@ Default HikariCP pool of 10 connections, no caching, in-memory STOMP broker, no 
 1. **Every JSONB field is `String`** — you cannot know the shape of `spellsKnown`, `levelHistory`, or `features` from the types. Must check [[database-schema]] or read seeder code.
 2. **Reference entities vs PlayerCharacter have different JSON behavior** — `@JsonRawValue` means reference JSONB arrives as pre-parsed objects; character JSONB arrives as strings needing `JSON.parse()`.
 3. **D&D rule constants scattered across 6+ files** — third-caster subclass lists, ASI levels, spell slot tables, spellcaster class lists each appear in multiple backend and frontend files with no single source of truth.
-4. **Documentation exists in 4+ locations** — README, obsidian-docs/, docs/, PROJECT_DOCUMENTATION.md, CLAUDE_CODE_BRIEF.md. Unclear which is canonical.
+4. **Documentation exists in 4+ locations** — README, obsidian-docs/, docs/, PROJECT_DOCUMENTATION.md and a local project brief. Unclear which is canonical.
 
 ### First-Week Survival Guide
 

@@ -1418,11 +1418,11 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Decision:** Replace the default dark-mode UI with a warm parchment light-mode design system ("Tourmaline Theme") using Cinzel and Cormorant Garamond serif fonts, square corners, class-colored accents, and Tailwind v4 CSS custom property tokens.
 
-**Rationale:** The original dark-mode UI (bg-gray-950, sans-serif, rounded corners) looked generic and AI-generated. A fantasy-themed light design with serif typography gives the app a distinctive D&D identity. Tailwind v4's `@theme` block with CSS custom properties (`--color-page`, `--color-card`, `--color-ink`, etc.) provides a single source of truth for the design system, making future theming changes trivial. Class colors (13 D&D classes) are applied as accent stripes and text color, not full backgrounds, keeping the interface readable.
+**Rationale:** The original dark-mode UI (bg-gray-950, sans-serif, rounded corners) looked generic, like a default template. A fantasy-themed light design with serif typography gives the app a distinctive D&D identity. Tailwind v4's `@theme` block with CSS custom properties (`--color-page`, `--color-card`, `--color-ink`, etc.) provides a single source of truth for the design system, making future theming changes trivial. Class colors (13 D&D classes) are applied as accent stripes and text color, not full backgrounds, keeping the interface readable.
 
 **Trade-offs:** Serif fonts have slightly lower information density than sans-serif at small sizes — mitigated by using Cormorant Garamond at 13-15px for body text. Square corners lose visual softness but reinforce the medieval/parchment aesthetic. Light mode may strain eyes in dark rooms during evening game sessions — a future dark theme toggle could address this.
 
-**Key files:** `frontend/src/index.css` (@theme block), `frontend/src/components/common/NavBar.tsx`, `frontend/src/utils/classColours.ts`, `.claude/DESIGN_SYSTEM.md`
+**Key files:** `frontend/src/index.css` (@theme block), `frontend/src/components/common/NavBar.tsx`, `frontend/src/utils/classColours.ts`
 
 ## D125: Generic Resource Pool System — M24.5
 
@@ -1468,7 +1468,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Related decisions:** D024 (spell slot copy-on-join pattern), D044 (proficiency collection), D054 (server-side leveling), D083 (short rest hit dice), D099 (feat resources)
 
-**Key files:** `CLAUDE.md`, `CONTEXT.md`, `obsidian-docs/database-schema.md` (resource pool tables section), `obsidian-docs/decisions-log.md` (this entry), `backend/src/main/resources/db/migration/V8__resource_pool_system.sql` (future)
+**Key files:** `CONTEXT.md`, `obsidian-docs/database-schema.md` (resource pool tables section), `obsidian-docs/decisions-log.md` (this entry), `backend/src/main/resources/db/migration/V8__resource_pool_system.sql` (future)
 
 ## D126: Frontend Test Infrastructure & Expanded Coverage
 
@@ -1673,11 +1673,13 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D140: M12 Test Suite — Full Coverage
 
 **Date:** 2026-07-29
-**Status:** Accepted — not met in M12; met by the combat pipeline's tests in R5 (D160, D172)
+**Status:** Accepted — met in R5 (D160, D172)
 
 **Decision:** M12 includes a full test suite: unit tests for MonsterActionResolverEngine (all delivery methods, multiattack, recharge, legendary actions, lair actions, spellcasting), integration tests for new endpoints, and frontend component tests for the accordion action panel. Target: 60-100+ new tests.
 
 **Related:** D102, D126
+
+**Update (2026-11-02, R5 implementation):** met by R5's tests rather than M12's. The combat pipeline's unit tests cover every delivery method, Multiattack, recharge, legendary and lair actions and spellcasting, and integration tests cover each combat endpoint, including the damage and dying golden table (D172). At the end of R5 the backend has 1,228 unit and 126 integration tests and the frontend 518, all passing.
 
 ## D141: M12 Frontend Styling — Tourmaline Token Consistency
 
@@ -1811,7 +1813,7 @@ Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and
 ## D150: Refactor Phase Before M13 — Phases R1–R8
 
 **Date:** 2026-11-01
-**Status:** Accepted — in progress (R1–R3 done; R4–R8 to come)
+**Status:** Accepted — in progress (R1–R5 done; R6–R8 to come)
 
 **Decision:** Feature milestones (M13 onward) are paused until the refactor phase is complete. The phase runs in eight steps. Each step leaves the app deployable, with CI green and the project docs updated.
 
@@ -1850,6 +1852,8 @@ M13 (action economy) changes the same combat code. Building it first would multi
 **Update (2026-11-01, R1 planning):** nothing is hosted (the Hetzner server was closed), so R1 no longer turns on HTTPS or installs automated backups. Those move to a Hosting step taken when a new host is chosen (D154). R1 moves only monster spellcasting out of `MonsterActionPanel` (D165).
 
 **Update (2026-11-02, R3 planning):** D155's removal of catch-and-continue blocks moves to the phases that rewrite that code: the combat services in R5, the character services and `ResourcePoolService` in R6, and the seeders in R7.
+
+**Update (2026-11-02, R5 complete):** R4 and R5 were completed on 2026-11-02. R5 ran workstreams E and F at the same time, F in a separate worktree that was merged afterwards. Since R5 removed the main reason for pausing M13, starting M13 before R6–R8 was considered; the order was kept: R6, R7, R8, then M13. Hosting stays deferred until the app is to be played online (D154).
 
 ## D151: Modular Monolith — Microservices Rejected
 
@@ -2383,7 +2387,7 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 ## D164: Attacks and Spells Calculated and Validated by the Server
 
 **Date:** 2026-11-01
-**Status:** Accepted — Manual Modifiers implemented (R5); weapon attacks come with R5 workstream G
+**Status:** Accepted — implemented (R5)
 
 **Decision:**
 - **Weapon attacks.** A player's weapon attack names the weapon and any declared options: advantage or disadvantage, within 5 ft, Great Weapon Master or Sharpshooter. The server calculates:
@@ -2416,6 +2420,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Update (2026-11-02, R5 planning):** inventory entries are free text (`{name, quantity, description}`) with no item link. R5 matches an entry's name against the 54 base weapons, whose names are unique, and migrates no characters; item IDs come with R6's typed inventory **(choice)**. Magic bonuses aren't stored (the seeder doesn't keep `bonusWeapon`), so they are Manual Modifiers for now. The setting is `campaigns.allow_player_manual_modifiers`, on by default. A player's forced critical counts as a Manual Modifier, which reconciles D161's DM-only override with this decision and CONTEXT.md **(choice)**. Great Weapon Master and Sharpshooter need the feat among the character's features and a qualifying weapon the character is proficient with. Race and feat spells have no recorded casting ability, so they use the character's main spell attack bonus and save DC **(choice)**.
 
 **Update (2026-11-02, R5 implementation):** workstream F adds `campaigns.allow_player_manual_modifiers` (V18, on by default) and `ManualModifiers`. The DM always, and players while the setting is on, may enter a spell attack bonus, save DC or forced critical; a refused one answers 403, and each use is logged under the action's own type, for example "Manual Modifier (player): Rogue's attack is a critical hit." Players' hand-entered weapon attack numbers stay until workstream G replaces them with weapon attacks the server calculates.
+
+**Update (2026-11-02, R5 workstream G):** weapon attacks are now calculated by the server. `rules.combat.WeaponRules` works out the ability (STR for melee, DEX for ranged, and for finesse the higher modifier, keeping the weapon's own on a tie), the attack bonus and the damage; the Resolver doubles a critical's dice. Great Weapon Master and Sharpshooter offer −5 to hit for +10 damage only with the feat (read from `features` and the level history's ability score choices) and a qualifying weapon the character is proficient with; a thrown melee weapon qualifies for neither, and anything else answers 400. `CharacterWeapons` matches inventory names, ignoring case and plurals, against the 55 mundane weapons, meaning `items` rows with a weapon category, damage dice and no rarity: the 54 base weapons less the Net, plus the Iron Ball and the Oversized Longbow **(choice)**. Proficiency matches the spellings in the data: simple, martial, Simple Weapons, weapon names and plurals, and Firearms by ammunition tag. Unarmed Strike is always offered, and `GET /api/encounters/{id}/combat/attack-options` lists the choices. A magic bonus, extra damage, a forced critical or a whole attack entered by hand is a Manual Modifier, a whole attack counting as one **(choice)**. Left for later: versatile damage, fighting styles, Monk Martial Arts, two-weapon fighting, ammunition, loading and reach, disadvantage for ranged attacks in melee, and an arcane focus Staff counting as a quarterstaff. No local character has inventory items yet, and there is no UI to add them, so players see Unarmed Strike and, while the setting allows it, Other.
 
 ## D165: Monster Action and Spellcasting Fixes
 
@@ -2457,6 +2463,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Update (2026-11-02, R5 planning):** the Spell Sources are `SLOT`, `PACT_SLOT`, `INNATE` and `NONE`. Daily keys such as `1e`, `1/day` and `3e/day each` give uses, never spell levels; an innate spell is cast at its level in `spells`, because the data records no cast level **(choice)**. One `MonsterPools` class builds every monster pool. `rules.Dice` also parses flat damage such as `1` (45 entries) and negative modifiers such as `1d6 - 1` (32 entries); the monster data already lists each damage part separately (882 actions have two or more). **Correction:** the seeded Legendary Resistance trigger is `{"hasField": "legendary"}`, and `hasFeature` is never seeded, so the 50 monsters with legendary actions but no Legendary Resistance, such as the Aboleth, get the pool anyway. A generic breath-weapon trigger also duplicates the per-action recharge pools. The DM's spell modal hid every levelled monster spell, because monster entries carry no `prepared` flag, and then asked for a spell name the server can't cast.
 
 **Update (2026-11-02, R5 implementation):** built in workstream F. Monsters and PCs cast through one path; `MonsterSpellCastService` and the monster-spell endpoint are gone, and `GET /api/encounters/{id}/combat/spell-options` lists what an actor may cast. `SpellSources` picks the Spell Source (SLOT, PACT_SLOT, INNATE or NONE; the server works it out when a cast leaves it out) and checks that a PC's spell is known or prepared, at a legal level, with a slot or use left, answering 400 otherwise; a DM casting for a PC follows the same rules. Innate uses are resource pools named `innate:<spell>`; a PC's start full on its first cast in an encounter and aren't written back until R6 **(choice)**. Race and feat spells with their own uses count as innate uses at their own level and can also be cast with a slot, as Fey Touched and the Multiverse races allow; ones with no recorded uses can only use slots **(choice)**. Always-prepared subclass spells come from the subclass data **(choice)**. `MonsterSpellbook` reads every shape of monster spell list, so daily keys such as `1/day each` give uses (a drow's Darkness is a 2nd-level spell, once read as level 1); `additionalSpellcasting` on 5 monsters and notes such as "as a 5th-level spell" aren't read yet. `MonsterPools` builds every monster pool, replacing `ResourcePoolService`'s monster builders. V18 matches Legendary Resistance to the trait: 336 monsters get the pool instead of 386, and the 50 that lose it, such as the Aboleth, have legendary actions but no Legendary Resistance. The breath-weapon trigger it deletes matched no monster. Monsters already in an encounter keep the pools they joined with, so 10 local participants, Aboleths among them, hold a wrong Legendary Resistance pool until re-added. The DM's spell modal lists a monster's slot, innate and at-will spells.
+
+**Update (2026-11-02, R5 workstream G):** each Multiattack component takes its own target (`componentTargetIds`), and `GET /api/encounters/{id}/combat/multiattack-options` lists the components. Each one resolves and logs on its own, and later ones skip creatures that earlier ones killed. A multiattack with no components, with a component naming none of the monster's actions, or with the data's own and/or note can't be read: 124 of 1,478 are left for the DM with the reason, including 102 that used to resolve partly **(choice)**. A multiattack with alternatives offers its default components, which the DM can skip; choosing an alternative isn't supported yet. Sending a whole multiattack at more than one target answers 400. **Known issue:** 90 on-hit conditions, such as a dire wolf's prone, apply without the saving throw the data records; fixing that changes the rules and is left for a follow-up.
 
 ## D166: Encounter Lifecycle and Write-Back
 
@@ -2573,6 +2581,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 **Update (2026-11-02, R5 planning):** R5 types these participant fields: conditions, spell slots (`{max, used}`, pact slots keyed `pact_N`), resource pools, known spells and the Concentration Instance, plus the encounter's `monsters_in_lair`. Spell and monster templates are read into the rules module's Effect model where they are used; their columns get record types with R7's data files **(choice)**. Before V15 or V16 runs, the `preview-migration` maintenance job runs it inside a transaction that is always rolled back, prints every changed row before and after, and checks that each converted row loads. A backup comes first.
 
 **Update (2026-11-02, R5 implementation):** V15 typed the participant columns (conditions, spell slots `{max, used}` with pact slots keyed `pact_N`, known spells and resource pools) and the encounter's `monsters_in_lair`; V16 added the Concentration Instance and condition IDs and end rules. `JsonColumnConfig` makes Hibernate use Spring's ObjectMapper, so unknown keys don't fail a load. The `preview-migration` job dry-ran V15, V16 and V17 against the local database before each was applied, and no row failed to load.
+
+**Update (2026-11-02, R5 workstream G):** `monsters.action_templates` is read into the `MonsterTemplates` records where it is used, replacing the JSON walking in the monster services. No column changes; the column's own record type still comes with R7. A comparison over all 2,357 local templates parsed every one and found the 7,823 non-multiattack actions, spellbooks, pool counts and lair flags unchanged.
 
 ## D169: Game Content as Data Files with Idempotent Seeding
 
