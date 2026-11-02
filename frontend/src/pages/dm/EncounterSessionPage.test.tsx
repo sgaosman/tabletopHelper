@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
+import { makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
 import EncounterSessionPage from './EncounterSessionPage';
@@ -253,10 +253,10 @@ describe('DM EncounterSessionPage', () => {
       participants: [
         gimli({ isAlive: false, hpCurrent: 0, deathSaveFailures: 1 }),
         goblin({
-          activeConditions: JSON.stringify([{ name: 'prone', duration: null, appliedRound: 1 }]),
+          activeConditions: [makeMockCondition('prone')],
           concentrationSpell: 'Bless',
         }),
-        bugbear({ spellSlotsCurrent: JSON.stringify({ 1: { remaining: 2, max: 3 } }) }),
+        bugbear({ spellSlotsCurrent: { 1: { max: 3, used: 1 } } }),
       ],
     });
 

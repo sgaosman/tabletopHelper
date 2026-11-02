@@ -11,6 +11,8 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.state.KnownSpell;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
@@ -116,7 +118,7 @@ public class EncounterService {
                 .spellAttackBonus(character.getSpellAttackBonus())
                 .spellSaveDc(character.getSpellSaveDc())
                 .spellcastingAbility(character.getSpellcastingAbility())
-                .spellsKnown(character.getSpellsKnown())
+                .spellsKnown(readSpellsKnown(character.getSpellsKnown()))
                 .build();
 
         resourcePoolService.copyToParticipant(participant, character);
@@ -191,8 +193,8 @@ public class EncounterService {
                     participant.getMonster().getActionTemplates(), Map.class);
 
             // Attach current resource pool states
-            List<ResourcePoolEntry> pools = resourcePoolService.parsePools(
-                    participant.getResourcePoolsCurrent());
+            List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent() != null
+                    ? participant.getResourcePoolsCurrent() : List.of();
             Map<String, Object> poolStates = new LinkedHashMap<>();
             for (ResourcePoolEntry p : pools) {
                 poolStates.put(p.poolId(), Map.of(
@@ -452,24 +454,35 @@ public class EncounterService {
                 .build();
     }
 
-    private String convertSpellSlotsFormat(String characterSpellSlots) {
+    // The character sheet keeps {total, used} until R6 types it; participants hold {max, used} (D168)
+    private Map<String, SpellSlot> convertSpellSlotsFormat(String characterSpellSlots) {
         if (characterSpellSlots == null) return null;
         try {
             Map<String, Map<String, Integer>> charSlots = objectMapper.readValue(characterSpellSlots,
                     new TypeReference<LinkedHashMap<String, Map<String, Integer>>>() {});
-            Map<String, Map<String, Integer>> encounterSlots = new LinkedHashMap<>();
+            Map<String, SpellSlot> encounterSlots = new LinkedHashMap<>();
             for (var entry : charSlots.entrySet()) {
                 Map<String, Integer> slot = entry.getValue();
-                int total = slot.getOrDefault("total", slot.getOrDefault("max", 0));
-                int used = slot.getOrDefault("used", 0);
-                int remaining = slot.containsKey("remaining") ? slot.get("remaining") : total - used;
-                int max = slot.containsKey("max") ? slot.get("max") : total;
-                encounterSlots.put(entry.getKey(), Map.of("remaining", remaining, "max", max));
+                int max = slot.getOrDefault("max", slot.getOrDefault("total", 0));
+                int used = slot.containsKey("used") ? slot.get("used")
+                        : slot.containsKey("remaining") ? max - slot.get("remaining") : 0;
+                encounterSlots.put(entry.getKey(), new SpellSlot(max, Math.max(0, Math.min(max, used))));
             }
-            return objectMapper.writeValueAsString(encounterSlots);
+            return encounterSlots;
         } catch (JsonProcessingException e) {
             log.warn("Failed to convert spell slots format: {}", e.getMessage());
-            return characterSpellSlots;
+            return null;
+        }
+    }
+
+    // The character sheet keeps its spells as a JSON string until R6 types it (D168)
+    private List<KnownSpell> readSpellsKnown(String characterSpellsKnown) {
+        if (characterSpellsKnown == null) return null;
+        try {
+            return objectMapper.readValue(characterSpellsKnown, new TypeReference<List<KnownSpell>>() {});
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to read spells known: {}", e.getMessage());
+            return null;
         }
     }
 }

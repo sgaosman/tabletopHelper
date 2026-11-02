@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.rules.DiceRoller;
 import lombok.RequiredArgsConstructor;
@@ -606,27 +607,16 @@ public class MonsterActionResolverEngine {
     }
 
     /**
-     * Parse the participant's resourcePoolsCurrent JSON to find remaining
-     * uses of the legendary resistance pool.
+     * Finds the remaining uses of the participant's legendary resistance pool.
      */
     private int getLegendaryResistanceRemaining(EncounterParticipant participant) {
-        String poolsJson = participant.getResourcePoolsCurrent();
-        if (poolsJson == null || poolsJson.isBlank()) return 0;
-
-        try {
-            JsonNode pools = objectMapper.readTree(poolsJson);
-            if (pools.isArray()) {
-                for (JsonNode pool : pools) {
-                    String poolId = pool.path("poolId").asText("");
-                    if (LEGENDARY_RESISTANCE_POOL_ID.equals(poolId)) {
-                        return pool.path("currentUses").asInt(0);
-                    }
-                }
-            }
-        } catch (JsonProcessingException e) {
-            log.debug("Failed to parse resourcePoolsCurrent for legendary resistance check: {}", e.getMessage());
-        }
-        return 0;
+        List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent();
+        if (pools == null) return 0;
+        return pools.stream()
+                .filter(pool -> LEGENDARY_RESISTANCE_POOL_ID.equals(pool.poolId()))
+                .findFirst()
+                .map(ResourcePoolEntry::currentUses)
+                .orElse(0);
     }
 
     /**

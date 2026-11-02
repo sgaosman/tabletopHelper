@@ -2,6 +2,7 @@ package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -147,7 +148,7 @@ class SpellResolverEngineTest {
         @Test
         @DisplayName("Silenced caster cannot cast verbal spell")
         void silencedCasterCannotCastVerbalSpell() {
-            caster.setActiveConditions("[{\"name\":\"silenced\",\"duration\":null}]");
+            caster.setActiveConditions(List.of(ConditionEntry.unsourced("silenced", null, 1)));
 
             String template = """
                 {"spellName":"Fire Bolt","spellLevel":0,"deliveryMethod":"SPELL_ATTACK",
@@ -166,7 +167,7 @@ class SpellResolverEngineTest {
         @Test
         @DisplayName("Silenced caster can cast non-verbal spell")
         void silencedCasterCanCastNonVerbalSpell() {
-            caster.setActiveConditions("[{\"name\":\"silenced\",\"duration\":null}]");
+            caster.setActiveConditions(List.of(ConditionEntry.unsourced("silenced", null, 1)));
 
             String template = """
                 {"spellName":"Counterspell","spellLevel":3,"deliveryMethod":"AUTO_HIT",

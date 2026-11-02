@@ -7,6 +7,8 @@ import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.rules.DiceRoller;
@@ -99,6 +101,16 @@ class CombatServiceTest {
     }
 
     // ---- Helper methods ----
+
+    private static List<String> conditionNames(EncounterParticipant participant) {
+        return participant.getActiveConditions() == null ? List.of()
+                : participant.getActiveConditions().stream().map(ConditionEntry::name).toList();
+    }
+
+    private static List<ResourcePoolEntry> legendaryResistance(int uses) {
+        return List.of(new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER",
+                "Adult Red Dragon", 3, "3", uses, "longRest", null, null, "REACTION", "shield", null));
+    }
 
     private EncounterParticipant addMonster(String name, int hp, int ac) {
         EncounterParticipant p = EncounterParticipant.builder()
@@ -324,7 +336,7 @@ class CombatServiceTest {
         assertEquals(0, fighter.getDeathSaveSuccesses());
         assertEquals(0, fighter.getDeathSaveFailures());
         assertNotNull(fighter.getActiveConditions());
-        assertTrue(fighter.getActiveConditions().contains("prone"));
+        assertTrue(conditionNames(fighter).contains("prone"));
     }
 
     // ================================================================
@@ -776,7 +788,7 @@ class CombatServiceTest {
         combatService.addCondition(encounterId, request, dmUserId);
 
         assertNotNull(goblin.getActiveConditions());
-        assertTrue(goblin.getActiveConditions().contains("frightened"));
+        assertEquals(List.of(ConditionEntry.unsourced("frightened", 3, 1)), goblin.getActiveConditions());
     }
 
     @Test
@@ -789,7 +801,7 @@ class CombatServiceTest {
         EncounterParticipant goblin = addMonster("Goblin", 20, 15);
         goblin.setSortOrder(1);
         // Set Blinded condition: duration=2, applied in round 1
-        goblin.setActiveConditions("[{\"name\":\"blinded\",\"duration\":2,\"appliedRound\":1}]");
+        goblin.setActiveConditions(List.of(ConditionEntry.unsourced("blinded", 2, 1)));
 
         // Set encounter to round 3 so condition expires (3-1=2 >= duration 2)
         encounter.setRoundNumber(3);
@@ -797,18 +809,15 @@ class CombatServiceTest {
         combatService.advanceTurn(encounterId, dmUserId);
 
         // After advancing to Goblin's turn in round 3, Blinded should expire
-        String conditions = goblin.getActiveConditions();
-        assertTrue(conditions == null || !conditions.contains("blinded"),
-                "Blinded should have expired after 2 rounds");
+        assertFalse(conditionNames(goblin).contains("blinded"), "Blinded should have expired after 2 rounds");
     }
 
     @Test
     @DisplayName("10.28 Manual condition removal removes only the specified condition")
     void removeConditionManually() {
         EncounterParticipant goblin = addMonster("Goblin", 20, 15);
-        goblin.setActiveConditions(
-                "[{\"name\":\"restrained\",\"duration\":null,\"appliedRound\":1},"
-                        + "{\"name\":\"poisoned\",\"duration\":null,\"appliedRound\":1}]");
+        goblin.setActiveConditions(List.of(
+                ConditionEntry.unsourced("restrained", null, 1), ConditionEntry.unsourced("poisoned", null, 1)));
 
         ConditionRequest request = new ConditionRequest();
         request.setTargetId(goblin.getId());
@@ -816,9 +825,7 @@ class CombatServiceTest {
 
         combatService.removeCondition(encounterId, request, dmUserId);
 
-        assertNotNull(goblin.getActiveConditions());
-        assertFalse(goblin.getActiveConditions().contains("restrained"));
-        assertTrue(goblin.getActiveConditions().contains("poisoned"));
+        assertEquals(List.of("poisoned"), conditionNames(goblin));
     }
 
     @Test
@@ -836,9 +843,45 @@ class CombatServiceTest {
         req2.setCondition("Prone");
         combatService.addCondition(encounterId, req2, dmUserId);
 
-        assertNotNull(goblin.getActiveConditions());
-        assertTrue(goblin.getActiveConditions().contains("poisoned"));
-        assertTrue(goblin.getActiveConditions().contains("prone"));
+        assertEquals(List.of("poisoned", "prone"), conditionNames(goblin));
+    }
+
+    // ================================================================
+    // Spell slots ({max, used}, D168)
+    // ================================================================
+
+    private SpellSlotRequest slotRequest(EncounterParticipant participant, int level) {
+        SpellSlotRequest request = new SpellSlotRequest();
+        request.setParticipantId(participant.getId());
+        request.setSlotLevel(level);
+        return request;
+    }
+
+    @Test
+    @DisplayName("Using a slot adds to its used count, a pact slot is found under pact_N, and a spent level is a 409")
+    void useSpellSlot_countsSlotsUsed() {
+        EncounterParticipant warlock = addPlayer("Warlock", 30, 13);
+        warlock.setSpellSlotsCurrent(Map.of("1", new SpellSlot(2, 0), "pact_3", new SpellSlot(2, 1)));
+
+        combatService.useSpellSlot(encounterId, slotRequest(warlock, 1), dmUserId);
+        combatService.useSpellSlot(encounterId, slotRequest(warlock, 3), dmUserId);
+
+        assertEquals(Map.of("1", new SpellSlot(2, 1), "pact_3", new SpellSlot(2, 2)), warlock.getSpellSlotsCurrent());
+        assertThrows(ConflictException.class, () ->
+                combatService.useSpellSlot(encounterId, slotRequest(warlock, 3), dmUserId));
+    }
+
+    @Test
+    @DisplayName("Restoring a slot takes one off its used count, and a level with none used is a 409")
+    void restoreSpellSlot_takesOffTheUsedCount() {
+        EncounterParticipant wizard = addPlayer("Wizard", 20, 12);
+        wizard.setSpellSlotsCurrent(Map.of("2", new SpellSlot(3, 1)));
+
+        combatService.restoreSpellSlot(encounterId, slotRequest(wizard, 2), dmUserId);
+
+        assertEquals(Map.of("2", new SpellSlot(3, 0)), wizard.getSpellSlotsCurrent());
+        assertThrows(ConflictException.class, () ->
+                combatService.restoreSpellSlot(encounterId, slotRequest(wizard, 2), dmUserId));
     }
 
     // ================================================================
@@ -913,7 +956,7 @@ class CombatServiceTest {
     @DisplayName("LR: reverts damage on the target when legendary resistance is used")
     void legendaryResistanceRevertsDamage() {
         EncounterParticipant dragon = addMonster("Adult Red Dragon", 200, 19);
-        dragon.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
+        dragon.setResourcePoolsCurrent(legendaryResistance(3));
 
         UUID logId = UUID.randomUUID();
         CombatLog logEntry = CombatLog.builder()
@@ -935,9 +978,6 @@ class CombatServiceTest {
 
         when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
         when(resourcePoolService.spendPool(dragon, "monster:legendary-resistance", 1)).thenReturn(true);
-        when(resourcePoolService.parsePools(any())).thenReturn(List.of(
-                new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Adult Red Dragon",
-                        3, "3", 2, "longRest", null, null, "REACTION", "shield", null)));
         when(encounterRepository.save(any())).thenReturn(encounter);
         when(encounterService.toResponse(any())).thenReturn(EncounterResponse.builder().build());
 
@@ -953,8 +993,8 @@ class CombatServiceTest {
     @DisplayName("LR: removes conditions applied from the failed save")
     void legendaryResistanceRemovesConditions() throws Exception {
         EncounterParticipant dragon = addMonster("Adult Red Dragon", 200, 19);
-        dragon.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
-        dragon.setActiveConditions("[{\"name\":\"charmed\",\"duration\":null,\"appliedRound\":1}]");
+        dragon.setResourcePoolsCurrent(legendaryResistance(3));
+        dragon.setActiveConditions(List.of(ConditionEntry.unsourced("charmed", null, 1)));
 
         UUID logId = UUID.randomUUID();
         CombatLog logEntry = CombatLog.builder()
@@ -975,8 +1015,6 @@ class CombatServiceTest {
 
         when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
         when(resourcePoolService.spendPool(dragon, "monster:legendary-resistance", 1)).thenReturn(true);
-        when(resourcePoolService.parsePools(any())).thenReturn(List.of(
-                new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Adult Red Dragon", 3, "3", 2, "longRest", null, null, "REACTION", "shield", null)));
         when(encounterRepository.save(any())).thenReturn(encounter);
         when(encounterService.toResponse(any())).thenReturn(EncounterResponse.builder().build());
 
@@ -990,7 +1028,7 @@ class CombatServiceTest {
     void legendaryResistanceDecrementsTargetPool() {
         EncounterParticipant attacker = addMonster("Aboleth", 150, 17);
         EncounterParticipant target = addMonster("Adult Red Dragon", 200, 19);
-        target.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
+        target.setResourcePoolsCurrent(legendaryResistance(3));
 
         UUID logId = UUID.randomUUID();
         CombatLog logEntry = CombatLog.builder()
@@ -1012,8 +1050,6 @@ class CombatServiceTest {
 
         when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
         when(resourcePoolService.spendPool(target, "monster:legendary-resistance", 1)).thenReturn(true);
-        when(resourcePoolService.parsePools(any())).thenReturn(List.of(
-                new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Adult Red Dragon", 3, "3", 2, "longRest", null, null, "REACTION", "shield", null)));
         when(encounterRepository.save(any())).thenReturn(encounter);
         when(encounterService.toResponse(any())).thenReturn(EncounterResponse.builder().build());
 
@@ -1027,7 +1063,7 @@ class CombatServiceTest {
     @DisplayName("LR: throws error when called twice on the same log entry")
     void legendaryResistanceThrowsOnDoubleUse() {
         EncounterParticipant dragon = addMonster("Adult Red Dragon", 200, 19);
-        dragon.setResourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\",\"currentUses\":3,\"maxUses\":3}]");
+        dragon.setResourcePoolsCurrent(legendaryResistance(3));
 
         UUID logId = UUID.randomUUID();
         CombatLog logEntry = CombatLog.builder()

@@ -1,6 +1,5 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.tabletophelper.campaign.Campaign;
 import jakarta.persistence.*;
 import lombok.*;
@@ -56,10 +55,10 @@ public class Encounter {
     @Column(name = "session_code", length = 8, unique = true)
     private String sessionCode;
 
-    @JsonRawValue
+    // The monster IDs fighting in their lair (D136), typed since R5 (D168)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "monsters_in_lair", columnDefinition = "jsonb")
-    private String monstersInLair;
+    private List<UUID> monstersInLair;
 
     @OneToMany(mappedBy = "encounter", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

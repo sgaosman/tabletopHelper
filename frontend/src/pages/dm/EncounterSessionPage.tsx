@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
 import { apiErrorMessage } from '../../api/errors';
 import { useCombatLog, useEncounterAction, useMonsterActionTemplates } from '../../queries/encounters';
-import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
+import type { EncounterParticipant } from '../../types/encounter';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
@@ -93,7 +93,7 @@ function DeathSaves({ participant, canRoll }: { participant: EncounterParticipan
 // Slots are spent and restored only while the encounter is Active; otherwise they are shown read-only (D166)
 function SpellSlotDisplay({ participant, canChange }: { participant: EncounterParticipant; canChange: boolean }) {
   const actions = useEncounterAction();
-  const slots = parseSpellSlots(participant);
+  const slots = participant.spellSlotsCurrent;
   if (!slots) return null;
 
   const levels = Object.keys(slots).sort((a, b) => parseInt(a) - parseInt(b));
@@ -112,6 +112,7 @@ function SpellSlotDisplay({ participant, canChange }: { participant: EncounterPa
       <Sparkles className="w-3 h-3 text-ink" />
       {levels.map(lvl => {
         const s = slots[lvl];
+        const remaining = s.max - s.used;
         return (
           <div key={lvl} className="flex items-center gap-0.5">
             <span className="font-heading text-[12px] font-semibold tracking-[0.1em] text-faint">{lvl}:</span>
@@ -119,10 +120,10 @@ function SpellSlotDisplay({ participant, canChange }: { participant: EncounterPa
               {Array.from({ length: s.max }).map((_, i) => canChange ? (
                 <IconButton
                   key={i}
-                  label={i < s.remaining ? `Use level ${lvl} slot` : `Restore level ${lvl} slot`}
-                  onClick={() => i < s.remaining ? handleUse(parseInt(lvl)) : handleRestore(parseInt(lvl))}
+                  label={i < remaining ? `Use level ${lvl} slot` : `Restore level ${lvl} slot`}
+                  onClick={() => i < remaining ? handleUse(parseInt(lvl)) : handleRestore(parseInt(lvl))}
                   className={`w-2.5 h-2.5 rounded-full border transition-colors ${
-                    i < s.remaining
+                    i < remaining
                       ? 'bg-ink border-ink hover:bg-ink/80'
                       : 'border-rule-light hover:border-ink'
                   }`}
@@ -131,27 +132,16 @@ function SpellSlotDisplay({ participant, canChange }: { participant: EncounterPa
                 <span
                   key={i}
                   aria-hidden="true"
-                  className={`w-2.5 h-2.5 rounded-full border ${i < s.remaining ? 'bg-ink border-ink' : 'border-rule-light'}`}
+                  className={`w-2.5 h-2.5 rounded-full border ${i < remaining ? 'bg-ink border-ink' : 'border-rule-light'}`}
                 />
               ))}
-              {!canChange && <span className="sr-only">{`${s.remaining} of ${s.max} left`}</span>}
+              {!canChange && <span className="sr-only">{`${remaining} of ${s.max} left`}</span>}
             </div>
           </div>
         );
       })}
     </div>
   );
-}
-
-function parseSpellSlots(p: EncounterParticipant): SpellSlots | null {
-  if (!p.spellSlotsCurrent) return null;
-  try {
-    const parsed = JSON.parse(p.spellSlotsCurrent);
-    if (Object.keys(parsed).length === 0) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
 }
 
 function ActionPanel({
@@ -917,19 +907,6 @@ function DmSessionView() {
     setActionMode(mode);
   }
 
-  function parseConditions(p: EncounterParticipant): ConditionEntry[] {
-    if (!p.activeConditions) return [];
-    try {
-      const parsed = JSON.parse(p.activeConditions);
-      if (parsed.length > 0 && typeof parsed[0] === 'string') {
-        return parsed.map((name: string) => ({ name, duration: null, appliedRound: 1 }));
-      }
-      return parsed;
-    } catch {
-      return [];
-    }
-  }
-
   const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
   const selectedTarget = sorted.find(p => p.id === selectedTargetId) ?? null;
   // Combat controls show only while the encounter is Active: a Paused one can only resume or end, and a
@@ -1045,7 +1022,7 @@ function DmSessionView() {
         {/* Participant list */}
         <div className="space-y-2 mb-4" role="list" aria-label="Initiative order">
           {sorted.map((p: EncounterParticipant) => {
-            const conditions = parseConditions(p);
+            const conditions = p.activeConditions ?? [];
             const isSelected = p.id === selectedTargetId;
             const isMonster = p.participantType === 'MONSTER';
             const hpRatio = p.hpCurrent != null && p.hpMax ? p.hpCurrent / p.hpMax : 0;

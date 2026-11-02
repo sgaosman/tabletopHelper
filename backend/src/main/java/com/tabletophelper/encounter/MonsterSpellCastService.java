@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.state.KnownSpell;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
@@ -30,9 +32,9 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li><b>Slot-based</b> — the monster has spell slots (like a player caster).
  *       Slots are tracked via {@link EncounterParticipant#spellSlotsCurrent}.</li>
- *   <li><b>Innate</b> — the monster has per-day or at-will spells.
+ *   <li><b>Innate</b> — the monster has per-day or at-will spells and no spell slots.
  *       Daily-limited spells are tracked via {@link ResourcePoolEntry resource pools};
- *       at-will spells have no resource cost.</li>
+ *       at-will spells have no resource cost (D165).</li>
  * </ul>
  */
 @Service
@@ -69,25 +71,11 @@ public class MonsterSpellCastService {
         boolean isInnate = spellcasting.path("innateSpells").asBoolean(false);
 
         // -- Spell slots --
+        // An innate caster has none: populateInnateSpellPools tracks its daily uses (D165)
         if (!isInnate) {
-            // Slot-based caster: convert slots object to encounter slot format
             JsonNode slots = spellcasting.get("slots");
             if (slots != null && !slots.isNull()) {
-                try {
-                    participant.setSpellSlotsCurrent(buildEncounterSlotJson(slots));
-                } catch (Exception e) {
-                    log.warn("Failed to serialize spell slots for participant {}", participant.getId(), e);
-                }
-            }
-        } else {
-            // Innate caster: set spellSlotsCurrent for daily usage tracking
-            JsonNode dailySpells = spellcasting.get("dailySpells");
-            if (dailySpells != null && !dailySpells.isNull()) {
-                try {
-                    participant.setSpellSlotsCurrent(buildInnateSlotJson(dailySpells));
-                } catch (Exception e) {
-                    log.warn("Failed to build innate slot tracking for participant {}", participant.getId(), e);
-                }
+                participant.setSpellSlotsCurrent(buildEncounterSlots(slots));
             }
         }
 
@@ -104,11 +92,7 @@ public class MonsterSpellCastService {
         }
 
         // -- Spells known --
-        try {
-            participant.setSpellsKnown(buildSpellsKnownJson(spellcasting));
-        } catch (Exception e) {
-            log.warn("Failed to build spellsKnown for participant {}", participant.getId(), e);
-        }
+        participant.setSpellsKnown(parseSpellsKnown(spellcasting, spellRepository));
 
         log.debug("Populated monster spellcasting for participant {} (innate={})",
                 participant.getDisplayName(), isInnate);
@@ -206,8 +190,8 @@ public class MonsterSpellCastService {
      * <p>At-will spells ({@code atWillSpells}) are skipped — they require no
      * resource tracking.</p>
      *
-     * <p>The pools are serialized back to
-     * {@link EncounterParticipant#setResourcePoolsCurrent(String)}.</p>
+     * <p>The pools are set back with
+     * {@link EncounterParticipant#setResourcePoolsCurrent(List)}.</p>
      *
      * @param participant       the encounter participant
      * @param actionTemplatesJson the monster's {@code action_templates} JSON
@@ -229,7 +213,8 @@ public class MonsterSpellCastService {
         }
 
         List<ResourcePoolEntry> pools = new ArrayList<>();
-        List<ResourcePoolEntry> existing = resourcePoolService.parsePools(participant.getResourcePoolsCurrent());
+        List<ResourcePoolEntry> existing = participant.getResourcePoolsCurrent() != null
+                ? participant.getResourcePoolsCurrent() : List.of();
 
         // Collect existing pools keyed by poolId to preserve currentUses if already present
         Map<String, ResourcePoolEntry> existingByPoolId = new LinkedHashMap<>();
@@ -286,11 +271,7 @@ public class MonsterSpellCastService {
             }
         }
 
-        try {
-            participant.setResourcePoolsCurrent(objectMapper.writeValueAsString(pools));
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize innate spell pools for participant {}", participant.getId(), e);
-        }
+        participant.setResourcePoolsCurrent(pools);
     }
 
     // ── Helper methods ─────────────────────────────────────────────
@@ -314,47 +295,20 @@ public class MonsterSpellCastService {
     }
 
     /**
-     * Parses the {@code slots} object from the spellcasting block into the
-     * encounter participant format: {@code {"1":{"remaining":N,"max":N},...}}.
-     *
-     * @param spellcasting the spellcasting JSON node
-     * @return a map of level to slot info, or empty map if no slots present
-     */
-    public Map<String, Map<String, Integer>> parseSpellSlots(JsonNode spellcasting) {
-        Map<String, Map<String, Integer>> slotsMap = new LinkedHashMap<>();
-        if (spellcasting == null) return slotsMap;
-
-        JsonNode slots = spellcasting.get("slots");
-        if (slots == null || slots.isNull()) return slotsMap;
-
-        slots.fieldNames().forEachRemaining(level -> {
-            int max = slots.get(level).asInt(0);
-            if (max > 0) {
-                Map<String, Integer> slotInfo = new LinkedHashMap<>();
-                slotInfo.put("remaining", max);
-                slotInfo.put("max", max);
-                slotsMap.put(level, slotInfo);
-            }
-        });
-
-        return slotsMap;
-    }
-
-    /**
      * Looks up each spell name in the spellcasting block and builds the
-     * spellsKnown array in player-compatible format:
+     * participant's spells known, in the same shape as a player's:
      * {@code [{"id":"uuid","name":"Fireball","level":3,"source":"monster"},...]}.
      *
      * <p>Reads from {@code spellsByLevel} for slot-based casters, and from
      * both {@code atWillSpells} and {@code dailySpells} for innate casters.</p>
      *
      * @param spellcasting the spellcasting JSON node
-     * @return the spells known JSON string
+     * @return the spells known
      */
-    public String parseSpellsKnown(JsonNode spellcasting, SpellRepository repository) {
-        List<Map<String, Object>> spellsList = new ArrayList<>();
+    public List<KnownSpell> parseSpellsKnown(JsonNode spellcasting, SpellRepository repository) {
+        List<KnownSpell> spellsList = new ArrayList<>();
 
-        if (spellcasting == null) return "[]";
+        if (spellcasting == null) return spellsList;
 
         JsonNode spellsByLevel = spellcasting.get("spellsByLevel");
         if (spellsByLevel != null && !spellsByLevel.isNull()) {
@@ -368,7 +322,7 @@ public class MonsterSpellCastService {
                 for (JsonNode spellNameNode : spells) {
                     String spellName = spellNameNode.asText("");
                     if (spellName.isBlank()) continue;
-                    addSpellToMap(spellsList, spellName, level, repository);
+                    addSpell(spellsList, spellName, level, repository);
                 }
             });
         }
@@ -379,7 +333,7 @@ public class MonsterSpellCastService {
             for (JsonNode spellNameNode : atWillSpells) {
                 String spellName = spellNameNode.asText("");
                 if (spellName.isBlank()) continue;
-                addSpellToMap(spellsList, spellName, 0, repository);
+                addSpell(spellsList, spellName, 0, repository);
             }
         }
 
@@ -392,17 +346,12 @@ public class MonsterSpellCastService {
                 for (JsonNode spellNameNode : spells) {
                     String spellName = spellNameNode.asText("");
                     if (spellName.isBlank()) continue;
-                    addSpellToMap(spellsList, spellName, level, repository);
+                    addSpell(spellsList, spellName, level, repository);
                 }
             });
         }
 
-        try {
-            return objectMapper.writeValueAsString(spellsList);
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize spells known list", e);
-            return "[]";
-        }
+        return spellsList;
     }
 
     // ── Internal helpers ───────────────────────────────────────────
@@ -433,103 +382,41 @@ public class MonsterSpellCastService {
     }
 
     /**
-     * Converts a simple slots object {@code {"1":4,"2":3}} to encounter format
-     * {@code {"1":{"remaining":4,"max":4},"2":{"remaining":3,"max":3}}}.
+     * Converts a simple slots object {@code {"1":4,"2":3}} to the participant's
+     * {@code {"1":{"max":4,"used":0},"2":{"max":3,"used":0}}}.
      */
-    private String buildEncounterSlotJson(JsonNode slots) throws JsonProcessingException {
-        Map<String, Map<String, Integer>> result = new LinkedHashMap<>();
-        slots.fieldNames().forEachRemaining(level -> {
-            int max = slots.get(level).asInt(0);
-            Map<String, Integer> slotInfo = new LinkedHashMap<>();
-            slotInfo.put("remaining", max);
-            slotInfo.put("max", max);
-            result.put(level, slotInfo);
-        });
-        return objectMapper.writeValueAsString(result);
-    }
-
-    /**
-     * Builds an innate spell slot-tracking JSON. For innate casters, we set a
-     * simple tracking object so the system knows this is an innate caster with
-     * its daily limits.
-     */
-    private String buildInnateSlotJson(JsonNode dailySpells) throws JsonProcessingException {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("innate", true);
-        result.put("source", "innate");
-
-        // Track total daily spells as metadata
-        int totalDailySpells = 0;
-        for (var it = dailySpells.fieldNames(); it.hasNext(); ) {
-            String key = it.next();
-            JsonNode spells = dailySpells.get(key);
-            if (spells != null && spells.isArray()) {
-                totalDailySpells += spells.size();
-            }
-        }
-        result.put("dailySpellCount", totalDailySpells);
-        return objectMapper.writeValueAsString(result);
-    }
-
-    /**
-     * Builds the spellsKnown JSON string by looking up each spell name from
-     * the spellcasting block via {@link #parseSpellsKnown}.
-     */
-    private String buildSpellsKnownJson(JsonNode spellcasting) {
-        return parseSpellsKnown(spellcasting, spellRepository);
+    private Map<String, SpellSlot> buildEncounterSlots(JsonNode slots) {
+        Map<String, SpellSlot> result = new LinkedHashMap<>();
+        slots.fieldNames().forEachRemaining(level -> result.put(level, new SpellSlot(slots.get(level).asInt(0), 0)));
+        return result;
     }
 
     /**
      * Adds a spell lookup entry to the list. If the spell is found in the
      * repository, its database id, name, level, and source="monster" are
-     * recorded. If not found, a best-effort entry is added with null id.
+     * recorded. If not found, a best-effort entry is added without an id.
      */
-    private void addSpellToMap(List<Map<String, Object>> spellsList, String spellName,
-                                int level, SpellRepository repository) {
+    private void addSpell(List<KnownSpell> spellsList, String spellName,
+                          int level, SpellRepository repository) {
         // Avoid duplicates by name
         boolean alreadyPresent = spellsList.stream()
-                .anyMatch(s -> spellName.equalsIgnoreCase((String) s.get("name")));
+                .anyMatch(s -> spellName.equalsIgnoreCase(s.name()));
         if (alreadyPresent) {
             return;
         }
 
-        Map<String, Object> entry = new LinkedHashMap<>();
-        entry.put("name", spellName);
-        entry.put("level", level);
-        entry.put("source", "monster");
-
         // Try to look up the spell for its ID
-        repository.findByNameIgnoreCase(spellName).ifPresentOrElse(
-                spell -> entry.put("id", spell.getId().toString()),
-                () -> entry.put("id", null)
-        );
-
-        spellsList.add(entry);
+        UUID id = repository.findByNameIgnoreCase(spellName).map(Spell::getId).orElse(null);
+        spellsList.add(KnownSpell.monster(id, spellName, level));
     }
 
     /**
-     * Checks whether the monster participant knows the given spell by
-     * parsing its spellsKnown JSON.
+     * Checks whether the monster participant knows the given spell.
      */
     private boolean monsterKnowsSpell(EncounterParticipant monster, Spell spell) {
-        String spellsKnown = monster.getSpellsKnown();
-        if (spellsKnown == null || spellsKnown.isBlank()) {
-            return false;
-        }
-        try {
-            JsonNode spellsArray = objectMapper.readTree(spellsKnown);
-            if (spellsArray != null && spellsArray.isArray()) {
-                for (JsonNode spellEntry : spellsArray) {
-                    JsonNode nameNode = spellEntry.get("name");
-                    if (nameNode != null && spell.getName().equalsIgnoreCase(nameNode.asText())) {
-                        return true;
-                    }
-                }
-            }
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to parse spellsKnown for monster {}", monster.getId(), e);
-        }
-        return false;
+        List<KnownSpell> spellsKnown = monster.getSpellsKnown();
+        return spellsKnown != null
+                && spellsKnown.stream().anyMatch(known -> spell.getName().equalsIgnoreCase(known.name()));
     }
 
     /**
@@ -557,65 +444,27 @@ public class MonsterSpellCastService {
 
     /**
      * Deducts one spell slot at the given level from the participant's
-     * spellSlotsCurrent JSON.
+     * spellSlotsCurrent.
      */
     private void deductSpellSlot(EncounterParticipant participant, int slotLevel) {
-        String slotsJson = participant.getSpellSlotsCurrent();
-        if (slotsJson == null || slotsJson.isBlank()) {
+        Map<String, SpellSlot> slots = participant.getSpellSlotsCurrent();
+        if (slots == null || slots.isEmpty()) {
             throw new ConflictException("No spell slots available for " + participant.getDisplayName());
         }
-        try {
-            JsonNode slots = objectMapper.readTree(slotsJson);
-            String levelKey = String.valueOf(slotLevel);
-            JsonNode slotEntry = slots.get(levelKey);
-            if (slotEntry == null) {
-                throw new ConflictException(
-                        "No spell slots at level " + slotLevel + " for " + participant.getDisplayName());
-            }
-
-            int remaining = slotEntry.get("remaining").asInt(0);
-            if (remaining <= 0) {
-                throw new ConflictException(
-                        "No remaining spell slots at level " + slotLevel + " for " + participant.getDisplayName());
-            }
-
-            // Build updated JSON with decremented remaining count
-            Map<String, Map<String, Integer>> updatedSlots = new LinkedHashMap<>();
-            slots.fieldNames().forEachRemaining(level -> {
-                JsonNode entry = slots.get(level);
-                Map<String, Integer> slotInfo = new LinkedHashMap<>();
-                int max = entry.get("max").asInt(0);
-                int rem = entry.get("remaining").asInt(0);
-                if (level.equals(levelKey)) {
-                    rem--;
-                }
-                slotInfo.put("remaining", Math.max(0, rem));
-                slotInfo.put("max", max);
-                updatedSlots.put(level, slotInfo);
-            });
-
-            participant.setSpellSlotsCurrent(objectMapper.writeValueAsString(updatedSlots));
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to parse spell slots for deduction", e);
+        String levelKey = String.valueOf(slotLevel);
+        SpellSlot slot = slots.get(levelKey);
+        if (slot == null) {
+            throw new ConflictException(
+                    "No spell slots at level " + slotLevel + " for " + participant.getDisplayName());
         }
-    }
+        if (slot.remaining() <= 0) {
+            throw new ConflictException(
+                    "No remaining spell slots at level " + slotLevel + " for " + participant.getDisplayName());
+        }
 
-    /**
-     * Converts the simple monster slot format {@code {"1": 4}} to the encounter
-     * participant format used on the participant during slot deduction.
-     */
-    @SuppressWarnings("unused")
-    private Map<String, Map<String, Integer>> parseSlotsMap(JsonNode slots) {
-        Map<String, Map<String, Integer>> result = new LinkedHashMap<>();
-        if (slots == null || slots.isNull()) return result;
-        slots.fieldNames().forEachRemaining(level -> {
-            int max = slots.get(level).asInt(0);
-            Map<String, Integer> slotInfo = new LinkedHashMap<>();
-            slotInfo.put("remaining", max);
-            slotInfo.put("max", max);
-            result.put(level, slotInfo);
-        });
-        return result;
+        Map<String, SpellSlot> updatedSlots = new LinkedHashMap<>(slots);
+        updatedSlots.put(levelKey, slot.spend());
+        participant.setSpellSlotsCurrent(updatedSlots);
     }
 
     /**

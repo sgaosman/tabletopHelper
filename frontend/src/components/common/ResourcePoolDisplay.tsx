@@ -1,18 +1,8 @@
 import type { ResourcePoolEntry } from '../../types/encounter';
 import IconButton from '../ui/IconButton';
 
-function safeParsePools(json?: string | null): ResourcePoolEntry[] {
-  if (!json) return [];
-  try {
-    const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 interface ResourcePoolDisplayProps {
-  pools?: string | null; // JSON string of ResourcePoolEntry[]
+  pools?: ResourcePoolEntry[] | null;
   /** Only show pools matching these sourceTypes (e.g. ['CLASS', 'FEAT']) */
   filterSourceType?: string[];
   /** Enable increment/decrement buttons for out-of-encounter management */
@@ -28,7 +18,7 @@ export default function ResourcePoolDisplay({
   onSpend,
   onRecover,
 }: ResourcePoolDisplayProps) {
-  const entries = safeParsePools(pools);
+  const entries = pools ?? [];
   const filtered = filterSourceType
     ? entries.filter((e) => filterSourceType.includes(e.sourceType))
     : entries;
@@ -83,7 +73,7 @@ export default function ResourcePoolDisplay({
 }
 
 /** Quick icon map for common lucide-react icon names → single-char fallback. */
-function iconChar(icon?: string): string {
+function iconChar(icon?: string | null): string {
   switch (icon) {
     case 'zap': return '⚡';
     case 'flame': return '🔥';

@@ -1,31 +1,27 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { makeMockResourcePool } from '../../test/mocks/handlers';
 import type { ResourcePoolEntry } from '../../types/encounter';
 import ResourcePoolDisplay from './ResourcePoolDisplay';
 
-const rage = {
-  poolId: 'class:barbarian:rage', displayName: 'Rage', sourceType: 'CLASS', sourceName: 'Barbarian',
-  maxUses: 3, currentUses: 2, resetOn: 'LONG_REST', icon: 'flame',
-} satisfies ResourcePoolEntry;
-const luck = {
-  poolId: 'feat:lucky', displayName: 'Luck Points', sourceType: 'FEAT', sourceName: '',
-  maxUses: 3, currentUses: 0, resetOn: 'LONG_REST',
-} satisfies ResourcePoolEntry;
-const breath = {
-  poolId: 'monster:recharge:fire-breath', displayName: 'Fire Breath', sourceType: 'MONSTER', sourceName: 'Red Dragon',
-  maxUses: 1, currentUses: 1, resetOn: 'RECHARGE', resetCheck: '1d6>=5',
-} satisfies ResourcePoolEntry;
+const rage = makeMockResourcePool('class:barbarian:rage', 'Rage', {
+  sourceName: 'Barbarian', currentUses: 2, resetOn: 'LONG_REST', icon: 'flame',
+});
+const luck = makeMockResourcePool('feat:lucky', 'Luck Points', {
+  sourceType: 'FEAT', sourceName: '', currentUses: 0, resetOn: 'LONG_REST',
+});
+const breath = makeMockResourcePool('monster:recharge:fire-breath', 'Fire Breath', {
+  sourceType: 'MONSTER', sourceName: 'Red Dragon', maxUses: 1, currentUses: 1, resetOn: 'RECHARGE', resetCheck: '1d6>=5',
+});
 
-const pools = (...entries: ResourcePoolEntry[]) => JSON.stringify(entries);
+const pools = (...entries: ResourcePoolEntry[]) => entries;
 
 describe('ResourcePoolDisplay', () => {
   it.each([
     ['missing', undefined],
     ['null', null],
-    ['an empty list', '[]'],
-    ['invalid JSON', '{not json'],
-    ['JSON that is not a list', '{"poolId":"x"}'],
+    ['an empty list', []],
   ])('renders nothing when the pools are %s', (_label, value) => {
     const { container } = render(<ResourcePoolDisplay pools={value} />);
     expect(container).toBeEmptyDOMElement();

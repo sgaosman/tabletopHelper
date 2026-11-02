@@ -2,22 +2,13 @@ import { useState, useMemo, useCallback } from 'react';
 import { Zap, Shield, Target, Sparkles, AlertTriangle } from 'lucide-react';
 import { useEncounterAction } from '../../queries/encounters';
 import { useFetchSpellTargeting } from '../../queries/reference';
-import type { EncounterParticipant, SpellSlots } from '../../types/encounter';
+import type { EncounterParticipant, KnownSpell } from '../../types/encounter';
 import type { CastSpellResponse } from '../../types/combat';
 import type { SpellTargetingInfo } from '../../types/reference';
 import { healthLabel } from '../../utils/healthStatus';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Modal from '../ui/Modal';
-
-interface SpellEntry {
-  name: string;
-  level: number;
-  source?: string;
-  prepared?: boolean;
-  alwaysPrepared?: boolean;
-  atWill?: boolean;
-}
 
 interface Props {
   caster: EncounterParticipant;
@@ -34,7 +25,7 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
   const lookUpTargeting = useFetchSpellTargeting();
   const [step, setStep] = useState<Step>('spell');
   const [search, setSearch] = useState('');
-  const [selectedSpell, setSelectedSpell] = useState<SpellEntry | null>(null);
+  const [selectedSpell, setSelectedSpell] = useState<KnownSpell | null>(null);
   const [selectedSlotLevel, setSelectedSlotLevel] = useState<number>(0);
   const [usePactSlot, setUsePactSlot] = useState(false);
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
@@ -66,19 +57,8 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
     setStep('target');
   }, [lookUpTargeting]);
 
-  const spells: SpellEntry[] = useMemo(() => {
-    if (!caster.spellsKnown) return [];
-    try {
-      const parsed = JSON.parse(caster.spellsKnown);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
-  }, [caster.spellsKnown]);
-
-  const slots: SpellSlots = useMemo(() => {
-    if (!caster.spellSlotsCurrent) return {};
-    try { return JSON.parse(caster.spellSlotsCurrent); }
-    catch { return {}; }
-  }, [caster.spellSlotsCurrent]);
+  const spells = useMemo(() => caster.spellsKnown ?? [], [caster.spellsKnown]);
+  const slots = useMemo(() => caster.spellSlotsCurrent ?? {}, [caster.spellSlotsCurrent]);
 
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
@@ -100,7 +80,7 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
       const isPact = key.startsWith('pact_');
       const lvl = isPact ? parseInt(key.replace('pact_', '')) : parseInt(key);
       if (isNaN(lvl) || lvl < selectedSpell.level) continue;
-      levels.push({ level: lvl, remaining: val.remaining, max: val.max, isPact });
+      levels.push({ level: lvl, remaining: val.max - val.used, max: val.max, isPact });
     }
 
     return levels.sort((a, b) => {
@@ -109,7 +89,7 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
     });
   }, [selectedSpell, slots]);
 
-  function selectSpell(spell: SpellEntry) {
+  function selectSpell(spell: KnownSpell) {
     setSelectedSpell(spell);
     setError('');
 
@@ -257,11 +237,11 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
 }
 
 function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isMonster }: {
-  cantrips: SpellEntry[];
-  leveled: SpellEntry[];
+  cantrips: KnownSpell[];
+  leveled: KnownSpell[];
   search: string;
   onSearch: (s: string) => void;
-  onSelect: (spell: SpellEntry) => void;
+  onSelect: (spell: KnownSpell) => void;
   isMonster?: boolean;
 }) {
   return (
@@ -307,7 +287,7 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isM
   );
 }
 
-function SpellRow({ spell, onClick }: { spell: SpellEntry; onClick: () => void }) {
+function SpellRow({ spell, onClick }: { spell: KnownSpell; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -330,7 +310,7 @@ function SpellRow({ spell, onClick }: { spell: SpellEntry; onClick: () => void }
 }
 
 function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
-  spell: SpellEntry;
+  spell: KnownSpell;
   levels: { level: number; remaining: number; max: number; isPact: boolean }[];
   onSelect: (level: number, isPact: boolean) => void;
   onBack: () => void;
@@ -384,7 +364,7 @@ function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
 }
 
 function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle, onBack, onProceed, targetingInfo, targetingLoading }: {
-  spell: SpellEntry;
+  spell: KnownSpell;
   targets: EncounterParticipant[];
   caster: EncounterParticipant;
   selectedTargets: string[];
@@ -473,7 +453,7 @@ function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle
 }
 
 function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage, onAdvantageChange, casting, onCast, onBack, isMonster, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC }: {
-  spell: SpellEntry;
+  spell: KnownSpell;
   slotLevel: number;
   usePactSlot: boolean;
   targets: EncounterParticipant[];

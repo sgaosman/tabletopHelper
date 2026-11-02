@@ -1,22 +1,19 @@
 import type { Schemas } from '../api/schema';
 
-/** One entry of a participant's activeConditions, which arrives as a JSON string. */
-export interface ConditionEntry {
-  name: string;
-  duration: number | null;
-  appliedRound: number;
-  sourceSpellName?: string;
-  sourceParticipantId?: string;
-  sourceRequiresConcentration?: boolean;
-}
+/** One of a participant's activeConditions. */
+export type ConditionEntry = Schemas['ConditionEntry'];
 
-export interface SpellSlotLevel {
-  max: number;
-  remaining: number;
-}
+/**
+ * The slots of one spell level in a participant's spellSlotsCurrent, which keys them "1" to "9", and pact
+ * slots "pact_N" (D168).
+ */
+export type SpellSlot = Schemas['SpellSlot'];
 
-/** A participant's spellSlotsCurrent, which arrives as a JSON string. */
-export type SpellSlots = Record<string, SpellSlotLevel>;
+/** One of a participant's spellsKnown: a player character's spells as they joined, or a monster's. */
+export type KnownSpell = Schemas['KnownSpell'];
+
+/** One resource pool of a participant, or of a character sheet, where it still arrives as a JSON string. */
+export type ResourcePoolEntry = Schemas['ResourcePoolEntry'];
 
 /** Which view of a live encounter a page receives: the DM View or the Player View (D157). */
 export type EncounterView = 'dm' | 'player';
@@ -34,23 +31,6 @@ export type ParticipantType = EncounterParticipant['participantType'];
 
 /** How a monster's HP reads to players while the DM hides exact numbers (D157). */
 export type HealthStatus = NonNullable<EncounterParticipant['healthStatus']>;
-
-/** A single resource pool entry (matches backend ResourcePoolEntry record). */
-export interface ResourcePoolEntry {
-  poolId: string;
-  displayName: string;
-  sourceType: string;
-  sourceName: string;
-  maxUses: number;
-  maxUsesFormula?: string;
-  currentUses: number;
-  resetOn: string;
-  resetAmount?: string;
-  resetCheck?: string;
-  spendActionType?: string;
-  icon?: string;
-  metadata?: Record<string, unknown>;
-}
 
 export type EncounterCreateRequest = Schemas['EncounterCreateRequest'];
 

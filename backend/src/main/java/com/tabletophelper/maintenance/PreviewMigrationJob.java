@@ -1,0 +1,296 @@
+package com.tabletophelper.maintenance;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.encounter.CombatLog;
+import com.tabletophelper.encounter.Encounter;
+import com.tabletophelper.encounter.EncounterParticipant;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.FlushMode;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.EncodedResource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.ScriptException;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.stereotype.Component;
+
+import javax.sql.DataSource;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Savepoint;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+/**
+ * Dry-runs a pending Flyway migration (D150, D168). It runs {@code db/migration/V<N>__*.sql} in a
+ * transaction it always rolls back, reports each encounter, participant and combat log row the
+ * migration would change, before and after, and checks that every row then loads with the current
+ * entity mappings. It never writes: Flyway applies the migration at the next normal start.
+ * <p>
+ * Start the app with Flyway's target below the migration, so it stays pending, and with
+ * {@code --server.port=0} to stay clear of a running backend. For V15:
+ * {@code ./gradlew bootRun --args="--maintenance.job=preview-migration --maintenance.version=15
+ * --spring.flyway.target=14 --spring.jpa.hibernate.ddl-auto=none --server.port=0"}
+ */
+@Component
+public class PreviewMigrationJob implements MaintenanceJob {
+
+    // The tables compared, each with the entity its rows must load as
+    private static final Map<String, Class<?>> TABLES = new LinkedHashMap<>();
+    static {
+        TABLES.put("encounters", Encounter.class);
+        TABLES.put("encounter_participants", EncounterParticipant.class);
+        TABLES.put("combat_logs", CombatLog.class);
+    }
+
+    // The columns that name a row in the report
+    private static final List<String> LABEL_COLUMNS = List.of("display_name", "name", "action_type");
+
+    private static final Pattern MIGRATION_FILE = Pattern.compile("V(\\d+)__.+\\.sql");
+
+    private final DataSource dataSource;
+    private final JdbcTemplate jdbcTemplate;
+    private final EntityManagerFactory entityManagerFactory;
+    private final ObjectMapper objectMapper;
+    private final String version;
+
+    public PreviewMigrationJob(DataSource dataSource, JdbcTemplate jdbcTemplate,
+                               EntityManagerFactory entityManagerFactory, ObjectMapper objectMapper,
+                               @Value("${maintenance.version:}") String version) {
+        this.dataSource = dataSource;
+        this.jdbcTemplate = jdbcTemplate;
+        this.entityManagerFactory = entityManagerFactory;
+        this.objectMapper = objectMapper;
+        this.version = version;
+    }
+
+    @Override
+    public String name() {
+        return "preview-migration";
+    }
+
+    @Override
+    public MaintenanceReport run(boolean apply) {
+        if (apply) {
+            throw new IllegalArgumentException(
+                    "preview-migration never writes: Flyway applies the migration at the next normal start");
+        }
+        if (version == null || !version.matches("\\d+")) {
+            throw new IllegalArgumentException(
+                    "preview-migration needs the migration's version, such as --maintenance.version=15");
+        }
+        int target = Integer.parseInt(version);
+        requirePending(target);
+        return preview(target);
+    }
+
+    /**
+     * Runs V{@code target} against the current data and rolls it back, whatever happens. Package-private
+     * so that tests can preview a migration Flyway has already applied to their database.
+     */
+    MaintenanceReport preview(int target) {
+        Resource script = migrationScripts().get(target);
+        if (script == null) {
+            throw new IllegalArgumentException("There is no migration V" + target + " in db/migration");
+        }
+
+        List<String> changes = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+        int examined;
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                Map<String, Map<String, JsonNode>> before = snapshot(connection);
+                examined = before.values().stream().mapToInt(Map::size).sum();
+                try {
+                    ScriptUtils.executeSqlScript(connection, new EncodedResource(script, StandardCharsets.UTF_8));
+                } catch (ScriptException e) {
+                    warnings.add("Flyway would fail too: " + e.getMessage() + ": " + rootMessage(e));
+                    return report(target, examined, changes, warnings);
+                }
+                Map<String, Map<String, JsonNode>> after = snapshot(connection);
+                compare(before, after, changes);
+                checkRowsLoad(connection, after, warnings);
+            } finally {
+                connection.rollback();
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not preview V" + target + ": " + e.getMessage(), e);
+        }
+        return report(target, examined, changes, warnings);
+    }
+
+    private MaintenanceReport report(int target, int examined, List<String> changes, List<String> warnings) {
+        return new MaintenanceReport(name() + " V" + target, false, "rows", examined, changes, warnings,
+                "Flyway applies V" + target + " at the next normal start; back up the database first (D150).");
+    }
+
+    // ── Which migration ──────────────────────────────────────────
+
+    private void requirePending(int target) {
+        Set<Integer> applied = jdbcTemplate.queryForList(
+                        "SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL", String.class)
+                .stream()
+                .filter(v -> v.matches("\\d+"))
+                .map(Integer::valueOf)
+                .collect(Collectors.toCollection(TreeSet::new));
+        if (applied.contains(target)) {
+            throw new IllegalStateException("V" + target + " is already applied, so there is nothing to preview. "
+                    + "Preview it before Flyway applies it, starting the app with --spring.flyway.target="
+                    + (target - 1));
+        }
+        migrationScripts().keySet().stream()
+                .filter(v -> v < target && !applied.contains(v))
+                .findFirst()
+                .ifPresent(earlier -> {
+                    throw new IllegalStateException("V" + earlier + " isn't applied yet, and Flyway applies it before V"
+                            + target + "; preview V" + earlier + " first");
+                });
+    }
+
+    private static Map<Integer, Resource> migrationScripts() {
+        try {
+            Map<Integer, Resource> scripts = new TreeMap<>();
+            for (Resource resource : new PathMatchingResourcePatternResolver()
+                    .getResources("classpath:db/migration/V*__*.sql")) {
+                Matcher matcher = MIGRATION_FILE.matcher(Objects.requireNonNull(resource.getFilename()));
+                if (matcher.matches()) {
+                    scripts.put(Integer.valueOf(matcher.group(1)), resource);
+                }
+            }
+            return scripts;
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not list the migrations in db/migration", e);
+        }
+    }
+
+    // ── Before and after ─────────────────────────────────────────
+
+    /** Every row of each table as {@code to_jsonb}, by ID. */
+    private Map<String, Map<String, JsonNode>> snapshot(Connection connection) throws SQLException {
+        Map<String, Map<String, JsonNode>> tables = new LinkedHashMap<>();
+        for (String table : TABLES.keySet()) {
+            Map<String, JsonNode> rows = new LinkedHashMap<>();
+            try (Statement statement = connection.createStatement();
+                 ResultSet resultSet = statement.executeQuery(
+                         "SELECT id::text, to_jsonb(t)::text FROM " + table + " t ORDER BY id")) {
+                while (resultSet.next()) {
+                    rows.put(resultSet.getString(1), readTree(resultSet.getString(2)));
+                }
+            }
+            tables.put(table, rows);
+        }
+        return tables;
+    }
+
+    private static void compare(Map<String, Map<String, JsonNode>> before, Map<String, Map<String, JsonNode>> after,
+                                List<String> changes) {
+        for (String table : TABLES.keySet()) {
+            Map<String, JsonNode> oldRows = before.get(table);
+            Map<String, JsonNode> newRows = after.get(table);
+            oldRows.forEach((id, oldRow) -> {
+                JsonNode newRow = newRows.get(id);
+                if (newRow == null) {
+                    changes.add(row(table, id, oldRow) + ": deleted");
+                } else if (!oldRow.equals(newRow)) {
+                    changes.add(row(table, id, oldRow) + changedColumns(oldRow, newRow));
+                }
+            });
+            newRows.forEach((id, newRow) -> {
+                if (!oldRows.containsKey(id)) {
+                    changes.add(row(table, id, newRow) + ": added");
+                }
+            });
+        }
+    }
+
+    private static String changedColumns(JsonNode oldRow, JsonNode newRow) {
+        Set<String> columns = new TreeSet<>();
+        oldRow.fieldNames().forEachRemaining(columns::add);
+        newRow.fieldNames().forEachRemaining(columns::add);
+        StringBuilder sb = new StringBuilder();
+        for (String column : columns) {
+            JsonNode oldValue = oldRow.path(column);
+            JsonNode newValue = newRow.path(column);
+            if (!oldValue.equals(newValue)) {
+                sb.append("\n      ").append(column).append(": ").append(oldValue).append(" → ").append(newValue);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String row(String table, String id, JsonNode row) {
+        String label = LABEL_COLUMNS.stream()
+                .map(column -> row.path(column).asText(null))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        return table + " " + id + (label != null ? " (" + label + ")" : "");
+    }
+
+    // ── Loading ──────────────────────────────────────────────────
+
+    /**
+     * Loads every row as its entity through Hibernate, on the connection the migration ran on, so the
+     * JSON columns are read into their records exactly as the app will read them. Each row has its own
+     * savepoint, so one that fails doesn't stop the rest.
+     */
+    private void checkRowsLoad(Connection connection, Map<String, Map<String, JsonNode>> rows, List<String> warnings)
+            throws SQLException {
+        SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
+        try (Session session = sessionFactory.withOptions().connection(connection).openSession()) {
+            session.setDefaultReadOnly(true);
+            session.setHibernateFlushMode(FlushMode.MANUAL);
+            for (var table : TABLES.entrySet()) {
+                for (var row : rows.get(table.getKey()).entrySet()) {
+                    Savepoint savepoint = connection.setSavepoint();
+                    try {
+                        session.get(table.getValue(), UUID.fromString(row.getKey()));
+                        connection.releaseSavepoint(savepoint);
+                    } catch (RuntimeException e) {
+                        connection.rollback(savepoint);
+                        warnings.add(row(table.getKey(), row.getKey(), row.getValue())
+                                + " does not load: " + rootMessage(e));
+                    } finally {
+                        session.clear();
+                    }
+                }
+            }
+        }
+    }
+
+    private JsonNode readTree(String json) {
+        try {
+            return objectMapper.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("PostgreSQL returned JSON that doesn't parse: " + json, e);
+        }
+    }
+
+    private static String rootMessage(Throwable e) {
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return root.getMessage();
+    }
+}

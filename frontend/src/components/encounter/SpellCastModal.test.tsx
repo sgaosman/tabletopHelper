@@ -12,13 +12,13 @@ import { queryKeys } from '../../queries/keys';
 import SpellCastModal from './SpellCastModal';
 
 const wizard = makeMockParticipant('part-wizard', 'Elminster', 'PLAYER', {
-  spellsKnown: JSON.stringify([
+  spellsKnown: [
     { name: 'Fire Bolt', level: 0 },
     { name: 'Magic Missile', level: 1, prepared: true },
     { name: 'Shield', level: 1, prepared: false },
     { name: 'Hold Person', level: 2, alwaysPrepared: true },
-  ]),
-  spellSlotsCurrent: JSON.stringify({ 1: { max: 4, remaining: 2 }, 2: { max: 3, remaining: 0 }, 3: { max: 2, remaining: 1 } }),
+  ],
+  spellSlotsCurrent: { 1: { max: 4, used: 2 }, 2: { max: 3, used: 3 }, 3: { max: 2, used: 1 } },
 });
 const goblin = makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { hpMax: 7, hpCurrent: 7, armourClass: 15 });
 const orc = makeMockParticipant('part-orc', 'Orc', 'MONSTER', { hpMax: 15, hpCurrent: 15, armourClass: 13 });
@@ -130,8 +130,8 @@ describe('SpellCastModal', () => {
   it('casts a monster spell through the monster-spell endpoint, with its overrides', async () => {
     targeting();
     const shaman = makeMockParticipant('part-shaman', 'Goblin Shaman', 'MONSTER', {
-      spellsKnown: JSON.stringify([{ name: 'Hold Person', level: 2, prepared: true }]),
-      spellSlotsCurrent: JSON.stringify({ 2: { max: 2, remaining: 2 } }),
+      spellsKnown: [{ name: 'Hold Person', level: 2, prepared: true }],
+      spellSlotsCurrent: { 2: { max: 2, used: 0 } },
       spellAttackBonus: 5,
       spellSaveDc: 13,
     });

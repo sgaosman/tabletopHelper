@@ -1,7 +1,10 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.KnownSpell;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import jakarta.persistence.*;
 import lombok.*;
@@ -11,6 +14,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -69,10 +74,9 @@ public class EncounterParticipant {
     @Column(name = "armour_class", nullable = false)
     private Integer armourClass;
 
-    @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "active_conditions", columnDefinition = "jsonb")
-    private String activeConditions;
+    private List<ConditionEntry> activeConditions;
 
     @Column(name = "concentration_spell", length = 200)
     private String concentrationSpell;
@@ -86,10 +90,10 @@ public class EncounterParticipant {
     @Column(name = "active_spell_slot_level")
     private Integer activeSpellSlotLevel;
 
-    @JsonRawValue
+    // Keyed "1" to "9" by spell level, and "pact_N" for pact slots (D168)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "spell_slots_current", columnDefinition = "jsonb")
-    private String spellSlotsCurrent;
+    private Map<String, SpellSlot> spellSlotsCurrent;
 
     @Column(name = "spell_attack_bonus")
     private Integer spellAttackBonus;
@@ -100,15 +104,13 @@ public class EncounterParticipant {
     @Column(name = "spellcasting_ability", length = 20)
     private String spellcastingAbility;
 
-    @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "spells_known", columnDefinition = "jsonb")
-    private String spellsKnown;
+    private List<KnownSpell> spellsKnown;
 
-    @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "resource_pools_current", columnDefinition = "jsonb")
-    private String resourcePoolsCurrent;
+    private List<ResourcePoolEntry> resourcePoolsCurrent;
 
     @Column(name = "action_used")
     @Builder.Default

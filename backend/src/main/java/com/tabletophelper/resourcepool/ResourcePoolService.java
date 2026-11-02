@@ -131,12 +131,7 @@ public class ResourcePoolService {
      * Called when a player character joins an encounter.
      */
     public void copyToParticipant(EncounterParticipant participant, PlayerCharacter character) {
-        try {
-            List<ResourcePoolEntry> charPools = parsePools(character.getResourcePools());
-            participant.setResourcePoolsCurrent(serializePools(charPools));
-        } catch (Exception e) {
-            log.error("Failed to copy resource pools to participant {}", participant.getId(), e);
-        }
+        participant.setResourcePoolsCurrent(parsePools(character.getResourcePools()));
     }
 
     /**
@@ -146,7 +141,7 @@ public class ResourcePoolService {
     public void syncBackToCharacter(EncounterParticipant participant, PlayerCharacter character) {
         try {
             if (participant.getResourcePoolsCurrent() == null) return;
-            List<ResourcePoolEntry> partPools = parsePools(participant.getResourcePoolsCurrent());
+            List<ResourcePoolEntry> partPools = participant.getResourcePoolsCurrent();
             List<ResourcePoolEntry> charPools = parsePools(character.getResourcePools());
 
             Map<String, Integer> currentByPoolId = partPools.stream()
@@ -277,7 +272,7 @@ public class ResourcePoolService {
                 }
             }
 
-            participant.setResourcePoolsCurrent(serializePools(pools));
+            participant.setResourcePoolsCurrent(pools);
         } catch (Exception e) {
             log.error("Failed to create resource pools for monster participant {}", participant.getId(), e);
         }
@@ -306,29 +301,23 @@ public class ResourcePoolService {
      * @return true if the spend succeeded (pool exists and had enough uses)
      */
     public boolean spendPool(EncounterParticipant participant, String poolId, int amount) {
-        try {
-            List<ResourcePoolEntry> pools = parsePools(participant.getResourcePoolsCurrent());
-            boolean found = false;
-            boolean hadEnough = false;
-            List<ResourcePoolEntry> updated = new ArrayList<>();
+        boolean found = false;
+        boolean hadEnough = false;
+        List<ResourcePoolEntry> updated = new ArrayList<>();
 
-            for (ResourcePoolEntry e : pools) {
-                if (e.poolId().equals(poolId)) {
-                    found = true;
-                    hadEnough = e.currentUses() >= amount;
-                    int newUses = Math.max(0, e.currentUses() - amount);
-                    updated.add(e.withCurrentUses(newUses));
-                } else {
-                    updated.add(e);
-                }
+        for (ResourcePoolEntry e : participantPools(participant)) {
+            if (poolId.equals(e.poolId())) {
+                found = true;
+                hadEnough = e.currentUses() >= amount;
+                int newUses = Math.max(0, e.currentUses() - amount);
+                updated.add(e.withCurrentUses(newUses));
+            } else {
+                updated.add(e);
             }
-
-            participant.setResourcePoolsCurrent(serializePools(updated));
-            return found && hadEnough;
-        } catch (Exception e) {
-            log.error("Failed to spend pool {} on participant {}", poolId, participant.getId(), e);
-            return false;
         }
+
+        participant.setResourcePoolsCurrent(updated);
+        return found && hadEnough;
     }
 
     /**
@@ -337,27 +326,21 @@ public class ResourcePoolService {
      * @return true if the pool was found and recovered
      */
     public boolean recoverPool(EncounterParticipant participant, String poolId, int amount) {
-        try {
-            List<ResourcePoolEntry> pools = parsePools(participant.getResourcePoolsCurrent());
-            boolean found = false;
-            List<ResourcePoolEntry> updated = new ArrayList<>();
+        boolean found = false;
+        List<ResourcePoolEntry> updated = new ArrayList<>();
 
-            for (ResourcePoolEntry e : pools) {
-                if (e.poolId().equals(poolId)) {
-                    found = true;
-                    int newUses = Math.min(e.maxUses(), e.currentUses() + amount);
-                    updated.add(e.withCurrentUses(newUses));
-                } else {
-                    updated.add(e);
-                }
+        for (ResourcePoolEntry e : participantPools(participant)) {
+            if (poolId.equals(e.poolId())) {
+                found = true;
+                int newUses = Math.min(e.maxUses(), e.currentUses() + amount);
+                updated.add(e.withCurrentUses(newUses));
+            } else {
+                updated.add(e);
             }
-
-            participant.setResourcePoolsCurrent(serializePools(updated));
-            return found;
-        } catch (Exception e) {
-            log.error("Failed to recover pool {} on participant {}", poolId, participant.getId(), e);
-            return false;
         }
+
+        participant.setResourcePoolsCurrent(updated);
+        return found;
     }
 
     // ── Reset logic ──────────────────────────────────────────────
@@ -519,6 +502,11 @@ public class ResourcePoolService {
 
     // ── JSON helpers ─────────────────────────────────────────────
 
+    private static List<ResourcePoolEntry> participantPools(EncounterParticipant participant) {
+        return participant.getResourcePoolsCurrent() != null ? participant.getResourcePoolsCurrent() : List.of();
+    }
+
+    /** Reads a character sheet's pools, which stay a JSON string until R6 types them (D168). */
     public List<ResourcePoolEntry> parsePools(String json) {
         if (json == null || json.isBlank()) return new ArrayList<>();
         try {

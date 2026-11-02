@@ -51,6 +51,8 @@ class RecomputeSpellSlotsJobTest {
         assertThat(report.applied()).isFalse();
         assertThat(report.examined()).isEqualTo(2);
         assertThat(report.changes()).singleElement().asString().contains("Aria").contains("level 1 2→3");
+        assertThat(report.render()).contains("Examined 2 characters; 1 would change.")
+                .contains("Run again with --maintenance.apply=true");
         assertThat(paladin.getSpellSlots()).isEqualTo("{\"1\":{\"total\":2,\"used\":1}}");
         verify(characterRepository, never()).save(any());
     }

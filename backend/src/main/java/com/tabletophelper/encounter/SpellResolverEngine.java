@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.rules.DiceRoller;
@@ -336,21 +337,13 @@ public class SpellResolverEngine {
         JsonNode components = template.get("components");
         if (components == null || !components.path("verbal").asBoolean(false)) return;
 
-        String conditions = caster.getActiveConditions();
+        List<ConditionEntry> conditions = caster.getActiveConditions();
         if (conditions == null) return;
 
-        try {
-            JsonNode condArray = objectMapper.readTree(conditions);
-            if (condArray.isArray()) {
-                for (JsonNode c : condArray) {
-                    String name = c.isTextual() ? c.asText() : c.path("name").asText("");
-                    if ("silenced".equalsIgnoreCase(name) || "silence".equalsIgnoreCase(name)) {
-                        throw new ConflictException("Cannot cast spells with verbal components while silenced");
-                    }
-                }
+        for (ConditionEntry c : conditions) {
+            if ("silenced".equalsIgnoreCase(c.name()) || "silence".equalsIgnoreCase(c.name())) {
+                throw new ConflictException("Cannot cast spells with verbal components while silenced");
             }
-        } catch (JsonProcessingException e) {
-            // ignore parse errors
         }
     }
 

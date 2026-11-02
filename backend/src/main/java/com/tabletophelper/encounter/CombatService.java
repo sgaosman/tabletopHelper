@@ -1,11 +1,12 @@
 package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -259,12 +260,12 @@ public class CombatService {
             target.setDeathSaveSuccesses(0);
             target.setDeathSaveFailures(0);
 
-            List<ConditionEntry> conditions = parseConditionEntries(target);
-            conditions.removeIf(c -> c.name.equals("unconscious"));
-            if (conditions.stream().noneMatch(c -> c.name.equals("prone"))) {
-                conditions.add(new ConditionEntry("prone", null, encounter.getRoundNumber()));
+            List<ConditionEntry> conditions = conditionsOf(target);
+            conditions.removeIf(c -> c.name().equals("unconscious"));
+            if (conditions.stream().noneMatch(c -> c.name().equals("prone"))) {
+                conditions.add(ConditionEntry.unsourced("prone", null, encounter.getRoundNumber()));
             }
-            target.setActiveConditions(serializeConditionEntries(conditions));
+            target.setActiveConditions(conditions);
 
             String reviveDesc = wasDead
                     ? target.getDisplayName() + " is resurrected with " + actualHealing + " HP (prone)"
@@ -319,12 +320,12 @@ public class CombatService {
         requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
-        List<ConditionEntry> conditions = parseConditionEntries(target);
+        List<ConditionEntry> conditions = conditionsOf(target);
         String condition = request.getCondition().toLowerCase().trim();
 
-        if (conditions.stream().noneMatch(c -> c.name.equals(condition))) {
-            conditions.add(new ConditionEntry(condition, request.getDuration(), encounter.getRoundNumber()));
-            target.setActiveConditions(serializeConditionEntries(conditions));
+        if (conditions.stream().noneMatch(c -> c.name().equals(condition))) {
+            conditions.add(ConditionEntry.unsourced(condition, request.getDuration(), encounter.getRoundNumber()));
+            target.setActiveConditions(conditions);
 
             String desc = target.getDisplayName() + " gains condition: " + condition
                     + (request.getDuration() != null ? " (" + request.getDuration() + " rounds)" : "");
@@ -341,12 +342,12 @@ public class CombatService {
         requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
-        List<ConditionEntry> conditions = parseConditionEntries(target);
+        List<ConditionEntry> conditions = conditionsOf(target);
         String condition = request.getCondition().toLowerCase().trim();
 
-        boolean removed = conditions.removeIf(c -> c.name.equals(condition));
+        boolean removed = conditions.removeIf(c -> c.name().equals(condition));
         if (removed) {
-            target.setActiveConditions(conditions.isEmpty() ? null : serializeConditionEntries(conditions));
+            target.setActiveConditions(conditions.isEmpty() ? null : conditions);
 
             logAction(encounter, null, target, CombatActionType.CONDITION_REMOVE,
                     target.getDisplayName() + " loses condition: " + condition, null, null, null, null);
@@ -442,26 +443,27 @@ public class CombatService {
         requireActive(encounter);
 
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
-        Map<String, Map<String, Integer>> slots = parseSpellSlots(participant);
+        Map<String, SpellSlot> slots = spellSlotsOf(participant);
 
         String level = String.valueOf(request.getSlotLevel());
-        Map<String, Integer> slot = slots.get(level);
+        SpellSlot slot = slots.get(level);
         if (slot == null) {
             slot = slots.get("pact_" + level);
             if (slot != null) {
                 level = "pact_" + level;
             }
         }
-        if (slot == null || slot.getOrDefault("remaining", 0) <= 0) {
+        if (slot == null || slot.remaining() <= 0) {
             throw new ConflictException("No level " + request.getSlotLevel() + " spell slots remaining");
         }
 
-        slot.put("remaining", slot.get("remaining") - 1);
-        participant.setSpellSlotsCurrent(serializeSpellSlots(slots));
+        SpellSlot spent = slot.spend();
+        slots.put(level, spent);
+        participant.setSpellSlotsCurrent(slots);
 
         logAction(encounter, null, participant, CombatActionType.SPELL_SLOT_USE,
                 participant.getDisplayName() + " uses a level " + level + " spell slot ("
-                        + slot.get("remaining") + "/" + slot.get("max") + " remaining)",
+                        + spent.remaining() + "/" + spent.max() + " remaining)",
                 null, null, null, null);
 
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -473,10 +475,10 @@ public class CombatService {
         requireActive(encounter);
 
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
-        Map<String, Map<String, Integer>> slots = parseSpellSlots(participant);
+        Map<String, SpellSlot> slots = spellSlotsOf(participant);
 
         String level = String.valueOf(request.getSlotLevel());
-        Map<String, Integer> slot = slots.get(level);
+        SpellSlot slot = slots.get(level);
         if (slot == null) {
             slot = slots.get("pact_" + level);
             if (slot != null) {
@@ -487,18 +489,17 @@ public class CombatService {
             throw new ValidationException("Participant has no level " + request.getSlotLevel() + " spell slots");
         }
 
-        int remaining = slot.getOrDefault("remaining", 0);
-        int max = slot.getOrDefault("max", 0);
-        if (remaining >= max) {
+        if (slot.remaining() >= slot.max()) {
             throw new ConflictException("Level " + level + " spell slots already at maximum");
         }
 
-        slot.put("remaining", remaining + 1);
-        participant.setSpellSlotsCurrent(serializeSpellSlots(slots));
+        SpellSlot restored = slot.restore();
+        slots.put(level, restored);
+        participant.setSpellSlotsCurrent(slots);
 
         logAction(encounter, null, participant, CombatActionType.SPELL_SLOT_RESTORE,
                 participant.getDisplayName() + " restores a level " + level + " spell slot ("
-                        + slot.get("remaining") + "/" + max + " remaining)",
+                        + restored.remaining() + "/" + restored.max() + " remaining)",
                 null, null, null, null);
 
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -515,20 +516,21 @@ public class CombatService {
         validateTargetCount(request);
 
         if (request.getSlotLevel() > 0) {
-            Map<String, Map<String, Integer>> slots = parseSpellSlots(caster);
+            Map<String, SpellSlot> slots = spellSlotsOf(caster);
             String slotKey = Boolean.TRUE.equals(request.getUsePactSlot())
                     ? "pact_" + request.getSlotLevel()
                     : String.valueOf(request.getSlotLevel());
-            Map<String, Integer> slot = slots.get(slotKey);
-            if (slot == null || slot.getOrDefault("remaining", 0) <= 0) {
+            SpellSlot slot = slots.get(slotKey);
+            if (slot == null || slot.remaining() <= 0) {
                 throw new ConflictException("No level " + request.getSlotLevel() + " spell slots remaining");
             }
-            slot.put("remaining", slot.get("remaining") - 1);
-            caster.setSpellSlotsCurrent(serializeSpellSlots(slots));
+            SpellSlot spent = slot.spend();
+            slots.put(slotKey, spent);
+            caster.setSpellSlotsCurrent(slots);
 
             logAction(encounter, null, caster, CombatActionType.SPELL_SLOT_USE,
                     caster.getDisplayName() + " uses a level " + request.getSlotLevel() + " spell slot ("
-                            + slot.get("remaining") + "/" + slot.get("max") + " remaining)",
+                            + spent.remaining() + "/" + spent.max() + " remaining)",
                     null, null, null, null);
         }
 
@@ -565,15 +567,15 @@ public class CombatService {
             }
             if (!tr.conditionsApplied().isEmpty()) {
                 EncounterParticipant target = findParticipant(encounter, tr.targetId());
-                List<ConditionEntry> conditions = parseConditionEntries(target);
+                List<ConditionEntry> conditions = conditionsOf(target);
                 for (String condName : tr.conditionsApplied()) {
-                    if (conditions.stream().noneMatch(c -> c.name.equalsIgnoreCase(condName))) {
+                    if (conditions.stream().noneMatch(c -> c.name().equalsIgnoreCase(condName))) {
                         conditions.add(new ConditionEntry(condName, result.durationRounds(),
                                 encounter.getRoundNumber(), request.getSpellName(),
                                 caster.getId(), result.concentrationSet()));
                     }
                 }
-                target.setActiveConditions(serializeConditionEntries(conditions));
+                target.setActiveConditions(conditions);
             }
 
             outcomes.add(CastSpellResponse.TargetOutcome.builder()
@@ -675,15 +677,15 @@ public class CombatService {
             }
             if (!tr.conditionsApplied().isEmpty()) {
                 EncounterParticipant target = findParticipant(encounter, tr.targetId());
-                List<ConditionEntry> conditions = parseConditionEntries(target);
+                List<ConditionEntry> conditions = conditionsOf(target);
                 for (String condName : tr.conditionsApplied()) {
-                    if (conditions.stream().noneMatch(c -> c.name.equalsIgnoreCase(condName))) {
+                    if (conditions.stream().noneMatch(c -> c.name().equalsIgnoreCase(condName))) {
                         conditions.add(new ConditionEntry(condName, result.durationRounds(),
                                 encounter.getRoundNumber(), spellName,
                                 caster.getId(), true));
                     }
                 }
-                target.setActiveConditions(serializeConditionEntries(conditions));
+                target.setActiveConditions(conditions);
             }
 
             outcomes.add(CastSpellResponse.TargetOutcome.builder()
@@ -823,8 +825,8 @@ public class CombatService {
                 String actionName = actionTemplate.get("name").asText();
                 String kebab = actionName.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");
                 String poolId = "monster:recharge:" + kebab;
-                List<ResourcePoolEntry> pools = resourcePoolService.parsePools(monster.getResourcePoolsCurrent());
-                boolean available = pools.stream().anyMatch(p -> p.poolId().equals(poolId) && p.currentUses() > 0);
+                boolean available = poolsOf(monster).stream()
+                        .anyMatch(p -> p.poolId().equals(poolId) && p.currentUses() > 0);
                 if (!available) {
                     throw new ConflictException("Recharge action '" + actionName + "' is not yet recharged");
                 }
@@ -943,8 +945,9 @@ public class CombatService {
                 .findFirst()
                 .orElseThrow(() -> new ValidationException("Monster participant not found"));
 
-        // Populate spellcasting data if not already set
-        if ((monster.getSpellSlotsCurrent() == null || monster.getSpellSlotsCurrent().isBlank())
+        // Populate spellcasting data if not already set. Every caster gets its spells, but an innate caster gets
+        // no spell slots: its daily uses live in resource pools (D165)
+        if (monster.getSpellsKnown() == null
                 && monster.getMonster() != null && monster.getMonster().getActionTemplates() != null) {
             monsterSpellCastService.populateMonsterSpellcasting(monster,
                     monster.getMonster().getActionTemplates());
@@ -976,17 +979,13 @@ public class CombatService {
                 }
             }
             if (!tr.conditionsApplied().isEmpty()) {
-                List<ConditionEntry> existing = parseConditionEntries(target);
+                List<ConditionEntry> existing = conditionsOf(target);
                 int rn = encounter.getRoundNumber();
                 for (String cond : tr.conditionsApplied()) {
                     existing.add(new ConditionEntry(cond, null, rn,
                             monster.getDisplayName(), monster.getId(), false));
                 }
-                try {
-                    target.setActiveConditions(objectMapper.writeValueAsString(existing));
-                } catch (Exception e) {
-                    // skip
-                }
+                target.setActiveConditions(existing);
             }
         }
 
@@ -1069,8 +1068,7 @@ public class CombatService {
         combatLogRepository.save(logEntry);
 
         // 5. Get remaining LR count for the log message
-        List<ResourcePoolEntry> pools = resourcePoolService.parsePools(target.getResourcePoolsCurrent());
-        int remaining = pools.stream()
+        int remaining = poolsOf(target).stream()
                 .filter(p -> "monster:legendary-resistance".equals(p.poolId()))
                 .findFirst().map(ResourcePoolEntry::currentUses).orElse(0);
 
@@ -1086,11 +1084,7 @@ public class CombatService {
     public EncounterResponse setLairStatus(UUID encounterId, List<UUID> monsterIds, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
         requireActive(encounter);
-        try {
-            encounter.setMonstersInLair(objectMapper.writeValueAsString(monsterIds));
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize monstersInLair", e);
-        }
+        encounter.setMonstersInLair(monsterIds != null ? new ArrayList<>(monsterIds) : null);
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
@@ -1315,7 +1309,7 @@ public class CombatService {
     private void applyConditions(Encounter encounter, EncounterParticipant target,
                                   List<String> conditionNames, EncounterParticipant source,
                                   boolean saveToEndEachTurn, int saveToEndDC, String saveToEndAbility) {
-        List<ConditionEntry> existing = parseConditionEntries(target);
+        List<ConditionEntry> existing = conditionsOf(target);
         int roundNumber = encounter.getRoundNumber();
         for (String name : conditionNames) {
             // Parse duration from action template if available; default to null (manual removal)
@@ -1323,11 +1317,7 @@ public class CombatService {
             existing.add(new ConditionEntry(name, duration, roundNumber, source.getDisplayName(),
                     source.getId(), false));
         }
-        try {
-            target.setActiveConditions(objectMapper.writeValueAsString(existing));
-        } catch (Exception e) {
-            log.warn("Failed to serialize conditions for participant {}", target.getId(), e);
-        }
+        target.setActiveConditions(existing);
     }
 
     private void checkConcentration(Encounter encounter, EncounterParticipant participant, int damage) {
@@ -1398,20 +1388,19 @@ public class CombatService {
                 null, null, null, null);
 
         for (EncounterParticipant p : encounter.getParticipants()) {
-            List<ConditionEntry> conditions = parseConditionEntries(p);
+            List<ConditionEntry> conditions = conditionsOf(p);
             List<ConditionEntry> toRemove = conditions.stream()
-                    .filter(c -> c.sourceRequiresConcentration != null
-                            && c.sourceRequiresConcentration
-                            && spell.equals(c.sourceSpellName)
-                            && casterId.equals(c.sourceParticipantId))
+                    .filter(c -> Boolean.TRUE.equals(c.sourceRequiresConcentration())
+                            && spell.equals(c.sourceSpellName())
+                            && casterId.equals(c.sourceParticipantId()))
                     .toList();
 
             if (!toRemove.isEmpty()) {
                 conditions.removeAll(toRemove);
-                p.setActiveConditions(conditions.isEmpty() ? null : serializeConditionEntries(conditions));
+                p.setActiveConditions(conditions.isEmpty() ? null : conditions);
                 for (ConditionEntry removed : toRemove) {
                     logAction(encounter, null, p, CombatActionType.CONDITION_REMOVE,
-                            removed.name + " ends on " + p.getDisplayName() + " (" + spell + " concentration lost)",
+                            removed.name() + " ends on " + p.getDisplayName() + " (" + spell + " concentration lost)",
                             null, null, null, null);
                 }
             }
@@ -1512,10 +1501,10 @@ public class CombatService {
     }
 
     private void removeConditionByName(EncounterParticipant target, String conditionName) {
-        if (target.getActiveConditions() == null || target.getActiveConditions().isBlank()) return;
-        List<ConditionEntry> conditions = parseConditionEntries(target);
-        conditions.removeIf(c -> c.name.equalsIgnoreCase(conditionName.trim()));
-        target.setActiveConditions(conditions.isEmpty() ? null : serializeConditionEntries(conditions));
+        if (target.getActiveConditions() == null) return;
+        List<ConditionEntry> conditions = conditionsOf(target);
+        conditions.removeIf(c -> c.name().equalsIgnoreCase(conditionName.trim()));
+        target.setActiveConditions(conditions.isEmpty() ? null : conditions);
     }
 
     private void validateTargetCount(CastSpellRequest request) {
@@ -1585,14 +1574,14 @@ public class CombatService {
     }
 
     private void expireConditions(Encounter encounter, EncounterParticipant participant) {
-        List<ConditionEntry> conditions = parseConditionEntries(participant);
+        List<ConditionEntry> conditions = conditionsOf(participant);
         if (conditions.isEmpty()) return;
 
         List<ConditionEntry> expired = new ArrayList<>();
         List<ConditionEntry> remaining = new ArrayList<>();
 
         for (ConditionEntry c : conditions) {
-            if (c.duration != null && (encounter.getRoundNumber() - c.appliedRound) >= c.duration) {
+            if (c.duration() != null && (encounter.getRoundNumber() - c.appliedRound()) >= c.duration()) {
                 expired.add(c);
             } else {
                 remaining.add(c);
@@ -1600,10 +1589,10 @@ public class CombatService {
         }
 
         if (!expired.isEmpty()) {
-            participant.setActiveConditions(remaining.isEmpty() ? null : serializeConditionEntries(remaining));
+            participant.setActiveConditions(remaining.isEmpty() ? null : remaining);
             for (ConditionEntry c : expired) {
                 logAction(encounter, null, participant, CombatActionType.CONDITION_REMOVE,
-                        c.name + " expires on " + participant.getDisplayName(), null, null, null, null);
+                        c.name() + " expires on " + participant.getDisplayName(), null, null, null, null);
             }
         }
     }
@@ -1615,12 +1604,11 @@ public class CombatService {
      */
     private void resetTurnPools(EncounterParticipant participant) {
         try {
-            List<ResourcePoolEntry> pools = resourcePoolService.parsePools(
-                    participant.getResourcePoolsCurrent());
+            List<ResourcePoolEntry> pools = poolsOf(participant);
             if (pools.isEmpty()) return;
             ResourcePoolService.ResetPoolsResult resetResult = resourcePoolService.resetPools(
                     pools, "turn", Map.of());
-            participant.setResourcePoolsCurrent(objectMapper.writeValueAsString(resetResult.pools()));
+            participant.setResourcePoolsCurrent(resetResult.pools());
 
             // Log recharge results to combat log
             for (ResourcePoolService.RechargeLogEntry r : resetResult.rechargeResults()) {
@@ -1643,74 +1631,18 @@ public class CombatService {
         }
     }
 
-    private List<ConditionEntry> parseConditionEntries(EncounterParticipant participant) {
-        if (participant.getActiveConditions() == null) return new ArrayList<>();
-        try {
-            return new ArrayList<>(objectMapper.readValue(participant.getActiveConditions(),
-                    new TypeReference<List<ConditionEntry>>() {}));
-        } catch (JsonProcessingException e) {
-            try {
-                List<String> legacy = objectMapper.readValue(participant.getActiveConditions(),
-                        new TypeReference<List<String>>() {});
-                return new ArrayList<>(legacy.stream()
-                        .map(name -> new ConditionEntry(name, null, 1))
-                        .toList());
-            } catch (JsonProcessingException e2) {
-                return new ArrayList<>();
-            }
-        }
+    // Copies, so callers can change them and set them back
+    private static List<ConditionEntry> conditionsOf(EncounterParticipant participant) {
+        return participant.getActiveConditions() != null
+                ? new ArrayList<>(participant.getActiveConditions()) : new ArrayList<>();
     }
 
-    private String serializeConditionEntries(List<ConditionEntry> conditions) {
-        try {
-            return objectMapper.writeValueAsString(conditions);
-        } catch (JsonProcessingException e) {
-            return "[]";
-        }
+    private static Map<String, SpellSlot> spellSlotsOf(EncounterParticipant participant) {
+        return participant.getSpellSlotsCurrent() != null
+                ? new LinkedHashMap<>(participant.getSpellSlotsCurrent()) : new LinkedHashMap<>();
     }
 
-    private Map<String, Map<String, Integer>> parseSpellSlots(EncounterParticipant participant) {
-        if (participant.getSpellSlotsCurrent() == null) return new LinkedHashMap<>();
-        try {
-            return objectMapper.readValue(participant.getSpellSlotsCurrent(),
-                    new TypeReference<LinkedHashMap<String, Map<String, Integer>>>() {});
-        } catch (JsonProcessingException e) {
-            return new LinkedHashMap<>();
-        }
-    }
-
-    private String serializeSpellSlots(Map<String, Map<String, Integer>> slots) {
-        try {
-            return objectMapper.writeValueAsString(slots);
-        } catch (JsonProcessingException e) {
-            return "{}";
-        }
-    }
-
-    static class ConditionEntry {
-        public String name;
-        public Integer duration;
-        public int appliedRound;
-        public String sourceSpellName;
-        public UUID sourceParticipantId;
-        public Boolean sourceRequiresConcentration;
-
-        public ConditionEntry() {}
-
-        public ConditionEntry(String name, Integer duration, int appliedRound) {
-            this.name = name;
-            this.duration = duration;
-            this.appliedRound = appliedRound;
-        }
-
-        public ConditionEntry(String name, Integer duration, int appliedRound,
-                              String sourceSpellName, UUID sourceParticipantId, Boolean sourceRequiresConcentration) {
-            this.name = name;
-            this.duration = duration;
-            this.appliedRound = appliedRound;
-            this.sourceSpellName = sourceSpellName;
-            this.sourceParticipantId = sourceParticipantId;
-            this.sourceRequiresConcentration = sourceRequiresConcentration;
-        }
+    private static List<ResourcePoolEntry> poolsOf(EncounterParticipant participant) {
+        return participant.getResourcePoolsCurrent() != null ? participant.getResourcePoolsCurrent() : List.of();
     }
 }

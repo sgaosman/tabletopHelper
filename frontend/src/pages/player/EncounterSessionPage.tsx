@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { EncounterProvider, useEncounter } from '../../context/EncounterContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCombatLog, useEncounterAction } from '../../queries/encounters';
-import type { EncounterParticipant, ConditionEntry, SpellSlots } from '../../types/encounter';
+import type { EncounterParticipant } from '../../types/encounter';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
@@ -87,20 +87,9 @@ function DeathSaves({ participant }: { participant: EncounterParticipant }) {
   );
 }
 
-function parseSpellSlots(p: EncounterParticipant): SpellSlots | null {
-  if (!p.spellSlotsCurrent) return null;
-  try {
-    const parsed = JSON.parse(p.spellSlotsCurrent);
-    if (Object.keys(parsed).length === 0) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }) {
   const actions = useEncounterAction();
-  const slots = parseSpellSlots(participant);
+  const slots = participant.spellSlotsCurrent;
   if (!slots) return null;
 
   const levels = Object.keys(slots).sort((a, b) => parseInt(a) - parseInt(b));
@@ -119,6 +108,7 @@ function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }
       <div className="flex items-center gap-4 flex-wrap">
         {levels.map(lvl => {
           const s = slots[lvl];
+          const remaining = s.max - s.used;
           return (
             <div key={lvl} className="flex items-center gap-1">
               <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-6">Lv{lvl}</span>
@@ -126,18 +116,18 @@ function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }
                 {Array.from({ length: s.max }).map((_, i) => (
                   <IconButton
                     key={i}
-                    label={i < s.remaining ? `Use level ${lvl} slot` : `Level ${lvl} slot used`}
-                    onClick={() => i < s.remaining ? handleUse(parseInt(lvl)) : undefined}
-                    disabled={i >= s.remaining}
+                    label={i < remaining ? `Use level ${lvl} slot` : `Level ${lvl} slot used`}
+                    onClick={() => i < remaining ? handleUse(parseInt(lvl)) : undefined}
+                    disabled={i >= remaining}
                     className={`w-3.5 h-3.5 rounded-full border transition-colors ${
-                      i < s.remaining
+                      i < remaining
                         ? 'bg-ink border-ink hover:bg-ink/80 cursor-pointer'
                         : 'border-rule-light cursor-default'
                     }`}
                   />
                 ))}
               </div>
-              <span className="font-body text-[12.5px] font-semibold text-faint">{s.remaining}/{s.max}</span>
+              <span className="font-body text-[12.5px] font-semibold text-faint">{remaining}/{s.max}</span>
             </div>
           );
         })}
@@ -474,19 +464,6 @@ function PlayerSessionView() {
     );
   }
 
-  function parseConditions(p: EncounterParticipant): ConditionEntry[] {
-    if (!p.activeConditions) return [];
-    try {
-      const parsed = JSON.parse(p.activeConditions);
-      if (parsed.length > 0 && typeof parsed[0] === 'string') {
-        return parsed.map((name: string) => ({ name, duration: null, appliedRound: 1 }));
-      }
-      return parsed;
-    } catch {
-      return [];
-    }
-  }
-
   // The Player View already leaves out participants the DM has hidden (D157)
   const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
   const isMyTurn = encounter.participants.some(p => p.isCurrentTurn && p.controlledByUserId === user?.userId);
@@ -619,7 +596,7 @@ function PlayerSessionView() {
         <div className="space-y-2 mb-4">
           {sorted.map((p: EncounterParticipant) => {
             const isOwn = p.controlledByUserId === user?.userId;
-            const conditions = parseConditions(p);
+            const conditions = p.activeConditions ?? [];
             const isMonster = p.participantType === 'MONSTER';
             const participantColour = getParticipantColour(isMonster);
             const hpRatio = p.hpCurrent != null && p.hpMax ? p.hpCurrent / p.hpMax : 0;

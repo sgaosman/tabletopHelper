@@ -1,8 +1,8 @@
 import type { Schemas } from '../api/schema';
 
 // The reference entities write their JSON columns as raw JSON (@JsonRawValue), but the spec describes those
-// fields as strings. Where a page reads one of them, the type below gives the shape it really has; R5-R6
-// type them in the spec (D171).
+// fields as strings. Where a page reads one of them, the type below gives the shape it really has; R7 types
+// those columns, with its data files (D168).
 
 /** A spell's components, which arrive as a JSON object. */
 export interface SpellComponents {

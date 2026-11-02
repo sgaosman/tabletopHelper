@@ -1,8 +1,12 @@
 package com.tabletophelper.character.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
+
 /**
  * A single resource pool entry stored on player_characters.resource_pools
- * and encounter_participants.resource_pools_current.
+ * and encounter_participants.resource_pools_current, where it is typed (D168).
  *
  * <p>Subsumes the old {@code feat_resources} and {@code hit_dice_map} patterns.
  * Spell slots, HP, death saves, conditions, and action economy remain separate.</p>
@@ -22,13 +26,13 @@ package com.tabletophelper.character.dto;
  * @param metadata         extra JSONB data (hitDie faces, breath shape, etc.)
  */
 public record ResourcePoolEntry(
-        String poolId,
-        String displayName,
-        String sourceType,
+        @Schema(requiredMode = REQUIRED) String poolId,
+        @Schema(requiredMode = REQUIRED) String displayName,
+        @Schema(requiredMode = REQUIRED) String sourceType,
         String sourceName,
-        int maxUses,
+        @Schema(requiredMode = REQUIRED) int maxUses,
         String maxUsesFormula,
-        int currentUses,
+        @Schema(requiredMode = REQUIRED) int currentUses,
         String resetOn,
         String resetAmount,
         String resetCheck,

@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
+import { makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
 import type { EncounterParticipant } from '../../types/encounter';
 import PlayerEncounterSessionPage from './EncounterSessionPage';
@@ -24,7 +24,7 @@ const bugbear = (overrides: Partial<EncounterParticipant> = {}) =>
 const gimli = (overrides: Partial<EncounterParticipant> = {}) =>
   makeMockParticipant('part-gimli', 'Gimli', 'PLAYER', {
     sortOrder: 3, controlledByUserId: 'user-001',
-    spellsKnown: JSON.stringify([{ name: 'Fire Bolt', level: 0 }]),
+    spellsKnown: [{ name: 'Fire Bolt', level: 0 }],
     ...overrides,
   });
 const legolas = (overrides: Partial<EncounterParticipant> = {}) =>
@@ -139,7 +139,7 @@ describe('Player EncounterSessionPage', () => {
       http.get('/api/encounters/:id', () => {
         encounterRequests += 1;
         return HttpResponse.json(makeMockEncounter({
-          participants: [legolas(), gimli({ activeConditions: JSON.stringify(['prone']) }), goblin()],
+          participants: [legolas(), gimli({ activeConditions: [makeMockCondition('prone')] }), goblin()],
         }));
       }),
       http.post('/api/encounters/:id/combat/condition/remove', async ({ request }) => {

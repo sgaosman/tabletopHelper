@@ -8,8 +8,8 @@ export interface MonsterEntry {
 
 /**
  * A bestiary monster. Its JSON columns arrive as raw JSON (@JsonRawValue), but the spec describes them as
- * strings, so the fields the stat block reads keep the shapes they really have; R5-R6 type them in the
- * spec (D171).
+ * strings, so the fields the stat block reads keep the shapes they really have; R7 types those columns,
+ * with its data files (D168).
  */
 export type Monster = Omit<Schemas['Monster'],
   | 'speed' | 'savingThrows' | 'skills' | 'damageResistances' | 'damageImmunities' | 'damageVulnerabilities'

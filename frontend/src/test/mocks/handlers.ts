@@ -3,7 +3,7 @@ import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
 import type { CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
-import type { Encounter, EncounterParticipant, ParticipantType } from '../../types/encounter';
+import type { ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry } from '../../types/encounter';
 import type { Monster } from '../../types/monster';
 import type {
   Background, CharacterClassRef, Condition, Feat, Item, OptionalFeature, PageResponse, Race, Spell, SpellTargetingInfo,
@@ -423,6 +423,29 @@ export function makeMockParticipant(
     actionUsed: false, bonusActionUsed: false, reactionUsed: false,
   } satisfies EncounterParticipant;
   return { ...participant, ...overrides };
+}
+
+/** A condition as the server writes one: applied in round 1, lasting until removed, with no source. */
+export function makeMockCondition(name: string, overrides: Partial<ConditionEntry> = {}): ConditionEntry {
+  const condition = {
+    name, duration: null, appliedRound: 1,
+    sourceSpellName: null, sourceParticipantId: null, sourceRequiresConcentration: null,
+  } satisfies ConditionEntry;
+  return { ...condition, ...overrides };
+}
+
+/** A full pool of three uses that a long rest restores. */
+export function makeMockResourcePool(
+  poolId: string,
+  displayName: string,
+  overrides: Partial<ResourcePoolEntry> = {},
+): ResourcePoolEntry {
+  const pool = {
+    poolId, displayName, sourceType: 'CLASS', sourceName: null,
+    maxUses: 3, maxUsesFormula: null, currentUses: 3, resetOn: 'longRest',
+    resetAmount: null, resetCheck: null, spendActionType: 'FREE', icon: null, metadata: {},
+  } satisfies ResourcePoolEntry;
+  return { ...pool, ...overrides };
 }
 
 export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter {

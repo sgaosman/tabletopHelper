@@ -403,7 +403,7 @@ export default function CharacterSheetPage() {
 
         {/* Resource Pools (M24.5) */}
         <ResourcePoolDisplay
-          pools={char.resourcePools}
+          pools={resourcePools}
           editable
           onSpend={(poolId) => {
             const updated = resourcePools.map(p =>

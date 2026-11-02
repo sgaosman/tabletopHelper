@@ -1,9 +1,13 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.CombatLogResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
+import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.KnownSpell;
+import com.tabletophelper.encounter.state.SpellSlot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,6 +27,8 @@ class EncounterViewsTest {
     private final UUID bugbearId = UUID.randomUUID();
     private final UUID gimliId = UUID.randomUUID();
 
+    private static final List<ConditionEntry> PRONE = List.of(ConditionEntry.unsourced("prone", null, 1));
+
     private ParticipantResponse goblin(int hpCurrent) {
         return ParticipantResponse.builder()
                 .id(goblinId)
@@ -33,16 +39,18 @@ class EncounterViewsTest {
                 .hpCurrent(hpCurrent)
                 .hpTemp(2)
                 .armourClass(15)
-                .activeConditions("[\"prone\"]")
+                .activeConditions(PRONE)
                 .isVisibleToPlayers(true)
                 .isAlive(hpCurrent > 0)
                 .notes("Carries the key to the cellar")
-                .spellsKnown("[{\"name\":\"Shield\"}]")
-                .spellSlotsCurrent("{\"1\":{\"max\":2,\"remaining\":1}}")
+                .spellsKnown(List.of(KnownSpell.monster(UUID.randomUUID(), "Shield", 1)))
+                .spellSlotsCurrent(Map.of("1", new SpellSlot(2, 1)))
                 .spellAttackBonus(4)
                 .spellSaveDc(12)
                 .spellcastingAbility("INT")
-                .resourcePoolsCurrent("[{\"poolId\":\"monster:legendary-resistance\"}]")
+                .resourcePoolsCurrent(List.of(new ResourcePoolEntry("monster:legendary-resistance",
+                        "Legendary Resistance", "MONSTER", "Goblin", 3, null, 3, "longRest", null, null, "FREE",
+                        "shield", Map.of())))
                 .build();
     }
 
@@ -68,12 +76,12 @@ class EncounterViewsTest {
                 .isVisibleToPlayers(true)
                 .controlledByUserId(playerId)
                 .notes("Owes the innkeeper")
-                .spellsKnown("[]")
-                .spellSlotsCurrent("{}")
+                .spellsKnown(List.of())
+                .spellSlotsCurrent(Map.of())
                 .spellAttackBonus(5)
                 .spellSaveDc(13)
                 .spellcastingAbility("WIS")
-                .resourcePoolsCurrent("[]")
+                .resourcePoolsCurrent(List.of())
                 .build();
     }
 
@@ -127,7 +135,7 @@ class EncounterViewsTest {
             // What the table can see stays
             assertEquals("Goblin", goblin.getDisplayName());
             assertEquals(15, goblin.getArmourClass());
-            assertEquals("[\"prone\"]", goblin.getActiveConditions());
+            assertEquals(PRONE, goblin.getActiveConditions());
         }
 
         @Test

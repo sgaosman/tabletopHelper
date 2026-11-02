@@ -1,15 +1,20 @@
 package com.tabletophelper.encounter.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.HealthStatus;
 import com.tabletophelper.encounter.ParticipantType;
+import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.KnownSpell;
+import com.tabletophelper.encounter.state.SpellSlot;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
@@ -96,12 +101,14 @@ public class EncounterResponse {
         @Schema(requiredMode = REQUIRED)
         private Integer armourClass;
 
-        private String activeConditions;
+        private List<ConditionEntry> activeConditions;
         private String concentrationSpell;
         private Integer concentrationSlotLevel;
         private String activeSpell;
         private Integer activeSpellSlotLevel;
-        private String spellSlotsCurrent;
+
+        // Keyed "1" to "9" by spell level, and "pact_N" for pact slots (D168)
+        private Map<String, SpellSlot> spellSlotsCurrent;
 
         // Null counts as visible (D157)
         private Boolean isVisibleToPlayers;
@@ -127,8 +134,8 @@ public class EncounterResponse {
         private Integer spellAttackBonus;
         private Integer spellSaveDc;
         private String spellcastingAbility;
-        private String spellsKnown;
-        private String resourcePoolsCurrent;
+        private List<KnownSpell> spellsKnown;
+        private List<ResourcePoolEntry> resourcePoolsCurrent;
 
         // V8 added these columns with a default of false, which the entity's builder matches
         @Schema(requiredMode = REQUIRED)

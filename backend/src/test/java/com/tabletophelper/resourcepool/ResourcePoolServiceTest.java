@@ -1,7 +1,9 @@
 package com.tabletophelper.resourcepool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -190,6 +192,50 @@ class ResourcePoolServiceTest {
         assertEquals("ki", result.get(0).poolId());
         assertEquals(5, result.get(0).maxUses());
         assertEquals(3, result.get(0).currentUses());
+    }
+
+    // ── Participant pools (typed since R5, D168) ─────────────────
+
+    @Test
+    @DisplayName("spendPool takes uses from the named pool only, and refuses a spend larger than what is left")
+    void spendPoolTakesFromTheNamedPool() {
+        EncounterParticipant dragon = EncounterParticipant.builder()
+                .resourcePoolsCurrent(List.of(
+                        entry("legendary-actions", 3, 2, "turn", null), entry("rage", 2, 2, "longRest", null)))
+                .build();
+
+        assertTrue(service.spendPool(dragon, "legendary-actions", 2));
+        assertFalse(service.spendPool(dragon, "legendary-actions", 1));
+
+        assertEquals(0, findPool(dragon.getResourcePoolsCurrent(), "legendary-actions").currentUses());
+        assertEquals(2, findPool(dragon.getResourcePoolsCurrent(), "rage").currentUses());
+        assertFalse(service.spendPool(dragon, "no-such-pool", 1));
+    }
+
+    @Test
+    @DisplayName("recoverPool gives uses back up to the maximum; a participant without pools recovers nothing")
+    void recoverPoolStopsAtTheMaximum() {
+        EncounterParticipant monk = EncounterParticipant.builder()
+                .resourcePoolsCurrent(List.of(entry("ki", 5, 4, "shortRest", null)))
+                .build();
+
+        assertTrue(service.recoverPool(monk, "ki", 3));
+
+        assertEquals(5, findPool(monk.getResourcePoolsCurrent(), "ki").currentUses());
+        assertFalse(service.recoverPool(EncounterParticipant.builder().build(), "ki", 1));
+    }
+
+    @Test
+    @DisplayName("copyToParticipant reads the sheet's pools into the participant's typed list")
+    void copyToParticipantReadsTheSheet() throws Exception {
+        PlayerCharacter barbarian = PlayerCharacter.builder()
+                .resourcePools(objectMapper.writeValueAsString(List.of(entry("rage", 3, 1, "longRest", null))))
+                .build();
+        EncounterParticipant participant = EncounterParticipant.builder().build();
+
+        service.copyToParticipant(participant, barbarian);
+
+        assertEquals(List.of(entry("rage", 3, 1, "longRest", null)), participant.getResourcePoolsCurrent());
     }
 
     // ── Context building ─────────────────────────────────────────

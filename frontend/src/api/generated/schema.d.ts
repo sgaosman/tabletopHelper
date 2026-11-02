@@ -1769,6 +1769,17 @@ export interface components {
             name: string;
             source?: string | null;
         };
+        ConditionEntry: {
+            /** Format: int32 */
+            appliedRound: number;
+            /** Format: int32 */
+            duration?: number | null;
+            name: string;
+            /** Format: uuid */
+            sourceParticipantId?: string | null;
+            sourceRequiresConcentration?: boolean | null;
+            sourceSpellName?: string | null;
+        };
         ConditionRequest: {
             condition: string;
             /** Format: int32 */
@@ -1867,6 +1878,21 @@ export interface components {
             weight?: number | null;
         };
         JsonNode: Record<string, never>;
+        KnownSpell: {
+            alwaysPrepared?: boolean | null;
+            atWill?: boolean | null;
+            /** Format: uuid */
+            id?: string | null;
+            /** Format: int32 */
+            level: number;
+            name: string;
+            prepared?: boolean | null;
+            source?: string | null;
+            /** Format: int32 */
+            unlocksAtLevel?: number | null;
+            /** Format: int32 */
+            usesPerLongRest?: number | null;
+        };
         LairStatusRequest: {
             monsterIds?: string[] | null;
         };
@@ -2076,7 +2102,7 @@ export interface components {
         };
         ParticipantResponse: {
             actionUsed: boolean;
-            activeConditions?: string | null;
+            activeConditions?: components["schemas"]["ConditionEntry"][] | null;
             activeSpell?: string | null;
             /** Format: int32 */
             activeSpellSlotLevel?: number | null;
@@ -2118,16 +2144,18 @@ export interface components {
             /** @enum {string} */
             participantType: "PLAYER" | "MONSTER" | "COMPANION";
             reactionUsed: boolean;
-            resourcePoolsCurrent?: string | null;
+            resourcePoolsCurrent?: components["schemas"]["ResourcePoolEntry"][] | null;
             /** Format: int32 */
             sortOrder?: number | null;
             /** Format: int32 */
             spellAttackBonus?: number | null;
             /** Format: int32 */
             spellSaveDc?: number | null;
-            spellSlotsCurrent?: string | null;
+            spellSlotsCurrent?: {
+                [key: string]: components["schemas"]["SpellSlot"];
+            } | null;
             spellcastingAbility?: string | null;
-            spellsKnown?: string | null;
+            spellsKnown?: components["schemas"]["KnownSpell"][] | null;
         };
         PendingChoices: {
             asiAvailable: boolean;
@@ -2176,6 +2204,23 @@ export interface components {
             overrideSpellSaveDC?: number | null;
             targetIds: string[];
         };
+        ResourcePoolEntry: {
+            /** Format: int32 */
+            currentUses: number;
+            displayName: string;
+            icon?: string | null;
+            /** Format: int32 */
+            maxUses: number;
+            maxUsesFormula?: string | null;
+            metadata?: Record<string, never> | null;
+            poolId: string;
+            resetAmount?: string | null;
+            resetCheck?: string | null;
+            resetOn?: string | null;
+            sourceName?: string | null;
+            sourceType: string;
+            spendActionType?: string | null;
+        };
         SetHpRequest: {
             /** Format: int32 */
             hpCurrent: number;
@@ -2220,6 +2265,12 @@ export interface components {
             source?: string | null;
             /** Format: date-time */
             updatedAt?: string | null;
+        };
+        SpellSlot: {
+            /** Format: int32 */
+            max: number;
+            /** Format: int32 */
+            used: number;
         };
         SpellSlotRequest: {
             /** Format: uuid */

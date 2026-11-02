@@ -4622,6 +4622,40 @@
           }
         }
       },
+      "ConditionEntry": {
+        "required": [
+          "appliedRound",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "appliedRound": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceParticipantId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "sourceRequiresConcentration": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "sourceSpellName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ConditionRequest": {
         "required": [
           "condition",
@@ -4946,6 +4980,53 @@
       },
       "JsonNode": {
         "type": "object"
+      },
+      "KnownSpell": {
+        "required": [
+          "level",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "alwaysPrepared": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "atWill": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prepared": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "unlocksAtLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "usesPerLongRest": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
       },
       "LairStatusRequest": {
         "type": "object",
@@ -5679,8 +5760,11 @@
             "type": "boolean"
           },
           "activeConditions": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ConditionEntry"
+            }
           },
           "activeSpell": {
             "type": "string",
@@ -5798,8 +5882,11 @@
             "type": "boolean"
           },
           "resourcePoolsCurrent": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ResourcePoolEntry"
+            }
           },
           "sortOrder": {
             "type": "integer",
@@ -5817,7 +5904,10 @@
             "nullable": true
           },
           "spellSlotsCurrent": {
-            "type": "string",
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SpellSlot"
+            },
             "nullable": true
           },
           "spellcastingAbility": {
@@ -5825,8 +5915,11 @@
             "nullable": true
           },
           "spellsKnown": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/KnownSpell"
+            }
           }
         }
       },
@@ -6008,6 +6101,67 @@
           }
         }
       },
+      "ResourcePoolEntry": {
+        "required": [
+          "currentUses",
+          "displayName",
+          "maxUses",
+          "poolId",
+          "sourceType"
+        ],
+        "type": "object",
+        "properties": {
+          "currentUses": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true
+          },
+          "maxUses": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxUsesFormula": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true
+          },
+          "poolId": {
+            "type": "string"
+          },
+          "resetAmount": {
+            "type": "string",
+            "nullable": true
+          },
+          "resetCheck": {
+            "type": "string",
+            "nullable": true
+          },
+          "resetOn": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "spendActionType": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "SetHpRequest": {
         "required": [
           "hpCurrent",
@@ -6152,6 +6306,23 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        }
+      },
+      "SpellSlot": {
+        "required": [
+          "max",
+          "used"
+        ],
+        "type": "object",
+        "properties": {
+          "max": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "used": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

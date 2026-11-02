@@ -76,6 +76,6 @@ public class RelinkFeatIdsJob implements MaintenanceJob {
                 warnings.add(pc.getName() + ": skipped (" + e.getMessage() + ")");
             }
         }
-        return new MaintenanceReport(name(), apply, characters.size(), changes, warnings);
+        return new MaintenanceReport(name(), apply, "characters", characters.size(), changes, warnings);
     }
 }

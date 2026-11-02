@@ -8,6 +8,8 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.state.KnownSpell;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -208,6 +210,48 @@ class EncounterServiceTest {
         assertEquals(45, participant.getHpCurrent());
         assertEquals(18, participant.getArmourClass());
         assertEquals(2, participant.getInitiativeModifier());
+    }
+
+    @Test
+    @DisplayName("A PC joins with the sheet's {total, used} slots as {max, used}, pact slots kept as pact_N, and its spells typed")
+    void addPcParticipant_copiesSlotsAndSpellsTyped() {
+        UUID encounterId = UUID.randomUUID();
+        User playerUser = User.builder().id(UUID.randomUUID()).username("player1").email("player1@test.com")
+                .passwordHash("hash").build();
+        PlayerCharacter elara = PlayerCharacter.builder()
+                .id(UUID.randomUUID()).name("Elara").user(playerUser)
+                .hpMax(30).hpCurrent(30).armourClass(12).initiativeBonus(1)
+                // A used count above the total, which the sheet allows, is capped
+                .spellSlots("{\"1\":{\"total\":4,\"used\":1},\"2\":{\"total\":2,\"used\":5},\"pact_2\":{\"total\":2,\"used\":0}}")
+                // Spells stay untyped on the sheet until R6, so an unknown property is ignored
+                .spellsKnown("[{\"name\":\"Shield\",\"level\":1,\"source\":\"class:Wizard\",\"prepared\":true},"
+                        + "{\"name\":\"Eldritch Blast\",\"level\":0,\"source\":\"class:Warlock\",\"colour\":\"green\"}]")
+                .build();
+        Encounter encounter = Encounter.builder()
+                .id(encounterId).campaign(campaign).name("Test Encounter")
+                .status(EncounterStatus.PREPARING).participants(new ArrayList<>())
+                .build();
+
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("PLAYER");
+        request.setCharacterId(elara.getId());
+
+        stubLock(encounter);
+        when(characterRepository.findById(elara.getId())).thenReturn(Optional.of(elara));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        EncounterResponse response = encounterService.addParticipant(encounterId, request, dmUserId);
+
+        EncounterResponse.ParticipantResponse participant = response.getParticipants().get(0);
+        assertEquals(Map.of(
+                "1", new SpellSlot(4, 1),
+                "2", new SpellSlot(2, 2),
+                "pact_2", new SpellSlot(2, 0)), participant.getSpellSlotsCurrent());
+        assertEquals(List.of(
+                new KnownSpell(null, "Shield", 1, "class:Wizard", true, null, null, null, null),
+                new KnownSpell(null, "Eldritch Blast", 0, "class:Warlock", null, null, null, null, null)),
+                participant.getSpellsKnown());
     }
 
     @Test
