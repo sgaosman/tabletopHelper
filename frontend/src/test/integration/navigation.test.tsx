@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '../../test/test-utils';
 import userEvent from '@testing-library/user-event';
-import { render, setupAuthToken } from '../../test/test-utils';
+import { render, setupAuthToken, clearAuthToken } from '../../test/test-utils';
 import App from '../../App';
 
 describe('Navigation & Routing', () => {
@@ -48,11 +48,11 @@ describe('Navigation & Routing', () => {
     });
   });
 
-  it('redirects unknown routes to login when unauthenticated', () => {
-    localStorage.clear();
+  it('redirects unknown routes to login when unauthenticated', async () => {
+    clearAuthToken();
     window.history.pushState({}, '', '/some/nonexistent/path');
     render(<App />);
-    // App redirects * to /login
-    expect(screen.getByLabelText('Username')).toBeInTheDocument();
+    // App redirects * to /login, which appears once the refresh cookie has been refused (D156)
+    expect(await screen.findByLabelText('Username')).toBeInTheDocument();
   });
 });

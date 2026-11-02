@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { server } from './src/test/mocks/server';
 import { MockStompClient } from './src/test/mocks/stomp';
+import { clearAccessToken } from './src/api/tokenStore';
 
 // No test opens a real socket: the STOMP client and SockJS are replaced everywhere.
 vi.mock('@stomp/stompjs', async (importOriginal) => {
@@ -40,6 +41,8 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   localStorage.clear();
+  // The access token lives in module memory, which outlasts a single test (D156)
+  clearAccessToken();
   MockStompClient.reset();
   failOnUnhandledRequests();
 });

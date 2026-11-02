@@ -68,14 +68,28 @@ public abstract class IntegrationTest {
 
     // ── Users and reference rows ─────────────────────────────────
 
-    /** Registers through the real endpoint, so tests hold genuine access and refresh tokens. */
+    /**
+     * Registers through the real endpoint, so tests hold a genuine access token and the refresh token
+     * from the cookie (D156).
+     */
     protected RegisteredUser register(String username) {
-        JsonNode body = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/auth/register", Map.of(
+        ResponseEntity<String> response = exchange(HttpMethod.POST, "/api/auth/register", Map.of(
                 "username", username,
                 "email", username + "@example.com",
-                "password", "password123"), null));
+                "password", "password123"), null);
+        JsonNode body = expect(HttpStatus.CREATED, response);
         return new RegisteredUser(UUID.fromString(body.get("userId").asText()),
-                body.get("accessToken").asText(), body.get("refreshToken").asText());
+                body.get("accessToken").asText(), refreshCookieValue(response));
+    }
+
+    /** The value of the refresh_token cookie a response sets, or null when it sets none. */
+    protected static String refreshCookieValue(ResponseEntity<?> response) {
+        return response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE).stream()
+                .map(header -> header.split(";", 2)[0])
+                .filter(pair -> pair.startsWith("refresh_token="))
+                .map(pair -> pair.substring("refresh_token=".length()))
+                .findFirst()
+                .orElse(null);
     }
 
     protected UUID insertRace(String name) {

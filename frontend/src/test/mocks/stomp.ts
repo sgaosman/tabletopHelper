@@ -118,6 +118,16 @@ export class MockStompClient {
     this.onStompError(makeFrame('ERROR', { message }, message));
   }
 
+  /**
+   * Closes the socket without a DISCONNECT, as a dropped network does. An active client then
+   * reconnects, running beforeConnect again first. The real client waits reconnectDelay; this one
+   * reconnects at once, and the promise settles when that attempt has finished.
+   */
+  async drop(): Promise<void> {
+    this.closeConnection();
+    if (this.active) await this.connect();
+  }
+
   private closeConnection() {
     this.connected = false;
     this.subscriptions.forEach(s => { s.active = false; });

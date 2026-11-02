@@ -1,6 +1,7 @@
 package com.tabletophelper.config;
 
 import com.tabletophelper.auth.JwtTokenProvider;
+import com.tabletophelper.auth.JwtTokenProvider.AccessTokenClaims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -13,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -25,17 +25,13 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-            String token = extractToken(accessor);
-            if (token != null && jwtTokenProvider.validateToken(token)) {
-                UUID userId = jwtTokenProvider.getUserIdFromToken(token);
-                String username = jwtTokenProvider.getUsernameFromToken(token);
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
-                auth.setDetails(username);
-                accessor.setUser(auth);
-            } else {
-                throw new IllegalArgumentException("Invalid or missing JWT token for WebSocket connection");
-            }
+            // Only an access token is accepted; the client fetches a fresh one before each connect (D156)
+            AccessTokenClaims claims = jwtTokenProvider.parseAccessToken(extractToken(accessor))
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid or missing JWT token for WebSocket connection"));
+            UsernamePasswordAuthenticationToken auth =
+                    new UsernamePasswordAuthenticationToken(claims.userId(), null, Collections.emptyList());
+            auth.setDetails(claims.username());
+            accessor.setUser(auth);
         }
         return message;
     }

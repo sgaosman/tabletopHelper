@@ -23,6 +23,14 @@ server:
   error:
     include-message: always
 
+app:
+  jwt:
+    # For local development only; every other environment sets JWT_SECRET (D156)
+    secret: dev-only-jwt-secret-for-local-development-never-used-in-production
+  auth:
+    # Browsers only store a Secure cookie over HTTPS, and local development uses plain HTTP (D156)
+    cookie-secure: false
+
 logging:
   level:
     com.tabletophelper: DEBUG

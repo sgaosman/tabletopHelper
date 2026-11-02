@@ -5,6 +5,8 @@ import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.auth.JwtTokenProvider;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -47,7 +51,7 @@ class HttpSecurityIT extends IntegrationTest {
     @DisplayName("An expired token gets 401")
     void expiredTokenIsRefused() {
         var user = register("aria");
-        String expired = new JwtTokenProvider(jwtSecret, -60_000, -60_000).generateAccessToken(user.id(), "aria");
+        String expired = new JwtTokenProvider(jwtSecret, -60_000).generateAccessToken(user.id(), "aria");
 
         var response = exchange(HttpMethod.GET, "/api/characters", null, expired);
 
@@ -55,14 +59,31 @@ class HttpSecurityIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("A refresh token is accepted as a bearer token")
-    void refreshTokenWorksAsBearer() {
+    @DisplayName("A refresh token is refused as a bearer token")
+    void refreshTokenIsRefusedAsBearer() {
         var user = register("aria");
 
         var response = exchange(HttpMethod.GET, "/api/characters", null, user.refreshToken());
 
-        // R3 (D156): expect 401
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("A correctly signed JWT without type: access gets 401, as tokens issued before D156 do")
+    void untypedTokenIsRefused() {
+        var user = register("aria");
+        Date now = new Date();
+        String untyped = Jwts.builder()
+                .subject(user.id().toString())
+                .claim("username", "aria")
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + 60_000))
+                .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        var response = exchange(HttpMethod.GET, "/api/characters", null, untyped);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test

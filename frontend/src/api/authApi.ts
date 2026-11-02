@@ -1,6 +1,7 @@
 import api from './axiosConfig';
 import type { AuthResponse, LoginRequest, RegisterRequest } from '../types/auth';
 
+// Refreshing goes through tokenStore, which keeps it to one request at a time (D156)
 export const authApi = {
   register(data: RegisterRequest) {
     return api.post<AuthResponse>('/auth/register', data);
@@ -10,7 +11,8 @@ export const authApi = {
     return api.post<AuthResponse>('/auth/login', data);
   },
 
-  refresh(refreshToken: string) {
-    return api.post<AuthResponse>('/auth/refresh', { refreshToken });
+  // The server finds the session from the httpOnly refresh cookie, revokes it and clears the cookie
+  logout() {
+    return api.post<void>('/auth/logout');
   },
 };

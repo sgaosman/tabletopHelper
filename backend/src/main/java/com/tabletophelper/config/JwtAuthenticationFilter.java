@@ -15,7 +15,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -29,18 +28,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        String token = extractToken(request);
-
-        if (token != null && jwtTokenProvider.validateToken(token)) {
-            UUID userId = jwtTokenProvider.getUserIdFromToken(token);
-            String username = jwtTokenProvider.getUsernameFromToken(token);
-
+        // Only an access token authenticates; anything else leaves the request anonymous, and a
+        // protected endpoint then answers 401 (D156)
+        jwtTokenProvider.parseAccessToken(extractToken(request)).ifPresent(claims -> {
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
-            authentication.setDetails(username);
+                    new UsernamePasswordAuthenticationToken(claims.userId(), null, Collections.emptyList());
+            authentication.setDetails(claims.username());
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-        }
+        });
 
         filterChain.doFilter(request, response);
     }

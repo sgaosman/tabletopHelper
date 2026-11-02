@@ -1,6 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { render, screen, setupAuthToken } from '../../test/test-utils';
+import { server } from '../../test/mocks/server';
+import { getAccessToken } from '../../api/tokenStore';
 import AccountMenu from './AccountMenu';
 
 describe('AccountMenu', () => {
@@ -58,7 +61,14 @@ describe('AccountMenu', () => {
     expect(screen.queryByRole('radio', { name: 'Tourmaline' })).not.toBeInTheDocument();
   });
 
-  it('holds Switch Role and Sign Out', async () => {
+  it('holds Switch Role, and Sign Out, which ends the session on the server', async () => {
+    let logoutCalls = 0;
+    server.use(
+      http.post('/api/auth/logout', () => {
+        logoutCalls += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     render(<AccountMenu />);
     await userEvent.click(screen.getByRole('button', { name: 'Account' }));
     await userEvent.click(screen.getByRole('button', { name: 'Switch Role' }));
@@ -66,6 +76,8 @@ describe('AccountMenu', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Account' }));
     await userEvent.click(screen.getByRole('button', { name: 'Sign Out' }));
-    expect(localStorage.getItem('accessToken')).toBeNull();
+
+    await vi.waitFor(() => expect(getAccessToken()).toBeNull());
+    expect(logoutCalls).toBe(1);
   });
 });

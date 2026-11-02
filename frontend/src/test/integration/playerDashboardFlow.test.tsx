@@ -41,7 +41,8 @@ describe('Player Dashboard Flow', () => {
     window.history.pushState({}, '', '/player');
     render(<App />);
     const user = userEvent.setup();
-    const input = screen.getByPlaceholderText('Enter invite code');
+    // The page appears once the session has been restored from the refresh cookie (D156)
+    const input = await screen.findByPlaceholderText('Enter invite code');
     await user.type(input, 'ABC123XY');
     await user.click(screen.getByRole('button', { name: 'Join' }));
     await waitFor(() => {

@@ -9,10 +9,18 @@ describe('Auth Integration', () => {
     clearAuthToken();
   });
 
-  it('renders login page by default (route / redirects to /login)', () => {
+  it('shows a loading state until the refresh cookie has been tried', async () => {
+    window.history.pushState({}, '', '/login');
+    render(<App />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...');
+    expect(await screen.findByLabelText('Username')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('renders login page by default (route / redirects to /login)', async () => {
     window.history.pushState({}, '', '/');
     render(<App />);
-    expect(screen.getByText('Tabletop Helper')).toBeInTheDocument();
+    expect(await screen.findByText('Tabletop Helper')).toBeInTheDocument();
     expect(screen.getByLabelText('Username')).toBeInTheDocument();
   });
 
@@ -21,7 +29,7 @@ describe('Auth Integration', () => {
     render(<App />);
     const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText('Username'), 'testuser');
+    await user.type(await screen.findByLabelText('Username'), 'testuser');
     await user.type(screen.getByLabelText('Password'), 'password123');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
@@ -51,11 +59,19 @@ describe('Auth Integration', () => {
     });
   });
 
-  it('redirects to login when accessing protected route without auth', () => {
+  it('redirects to login when accessing protected route without auth', async () => {
     window.history.pushState({}, '', '/dm');
     render(<App />);
-    expect(screen.getByLabelText('Username')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Username')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('keeps a signed-in user on a protected page after a reload', async () => {
+    setupAuthToken();
+    window.history.pushState({}, '', '/player');
+    render(<App />);
+    expect(await screen.findByText('My Characters')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/player');
   });
 
   it('redirects authenticated user away from login page', async () => {

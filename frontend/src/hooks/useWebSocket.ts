@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import axios from 'axios';
 import { Client, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import { refreshAccessToken } from '../api/tokenStore';
 import type { Encounter } from '../types/encounter';
 
 interface UseWebSocketOptions {
@@ -26,13 +28,23 @@ export function useWebSocket({ encounterId, onStateUpdate, onError, enabled = tr
   useEffect(() => {
     if (!enabled || !encounterId) return;
 
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
-
     const client = new Client({
       webSocketFactory: () => new SockJS(`/ws`),
-      connectHeaders: {
-        Authorization: `Bearer ${token}`,
+      // Runs before every connect and reconnect, so a reconnect never offers an expired token (D156).
+      // It must not throw: the client would stop without scheduling another attempt.
+      beforeConnect: async () => {
+        try {
+          const { accessToken } = await refreshAccessToken();
+          client.connectHeaders = { Authorization: `Bearer ${accessToken}` };
+        } catch (err) {
+          if (!client.active) return;
+          if (axios.isAxiosError(err) && err.response?.status === 401) {
+            // The session is over, so retrying cannot succeed
+            await client.deactivate();
+            onError?.('Your session has ended. Please sign in again.');
+          }
+          // Otherwise the server could not be reached: this attempt fails and the client tries again
+        }
       },
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,

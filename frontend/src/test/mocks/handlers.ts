@@ -19,22 +19,24 @@ export const authHandlers = [
   http.post(`${BASE}/auth/login`, async () => {
     return HttpResponse.json({
       userId: 'user-001', username: 'testuser', displayName: 'Test User',
-      accessToken: 'mock-access-token', refreshToken: 'mock-refresh-token',
+      accessToken: 'mock-access-token',
     } satisfies AuthResponse);
   }),
 
   http.post(`${BASE}/auth/register`, async () => {
     return HttpResponse.json({
       userId: 'user-002', username: 'newuser', displayName: 'New User',
-      accessToken: 'mock-access-token-new', refreshToken: 'mock-refresh-token-new',
+      accessToken: 'mock-access-token-new',
     } satisfies AuthResponse);
   }),
 
+  // No refresh cookie unless a test signs in with setupAuthToken() (test-utils), which overrides this
   http.post(`${BASE}/auth/refresh`, async () => {
-    return HttpResponse.json({
-      userId: 'user-001', username: 'testuser', displayName: 'Test User',
-      accessToken: 'mock-access-token-refreshed', refreshToken: 'mock-refresh-token-refreshed',
-    } satisfies AuthResponse);
+    return HttpResponse.json({ error: 'Your session has ended. Please sign in again.' }, { status: 401 });
+  }),
+
+  http.post(`${BASE}/auth/logout`, async () => {
+    return new HttpResponse(null, { status: 204 });
   }),
 ];
 

@@ -1,13 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { delay, http, HttpResponse } from 'msw';
 import { makeMockEncounter } from '../test/mocks/handlers';
+import { server } from '../test/mocks/server';
 import { MockStompClient } from '../test/mocks/stomp';
-import { setupAuthToken } from '../test/test-utils';
+import { setupAuthToken, TEST_SESSION } from '../test/test-utils';
 import { EncounterProvider, useEncounter } from './EncounterContext';
 
 const STATE_TOPIC = '/topic/encounter/enc-001/state';
 const ERROR_QUEUE = '/user/queue/encounter/errors';
+
+/** Answers each refresh with a new access token, socket-token-1, socket-token-2, and so on. */
+function issueFreshTokens() {
+  let issued = 0;
+  server.use(
+    http.post('/api/auth/refresh', () => {
+      issued += 1;
+      return HttpResponse.json({ ...TEST_SESSION, accessToken: `socket-token-${issued}` });
+    }),
+  );
+  return () => issued;
+}
 
 function EncounterProbe() {
   const { encounter, isConnected, error, sendMessage } = useEncounter();
@@ -45,15 +59,29 @@ describe('EncounterContext', () => {
     expect(await screen.findByText('Goblin Ambush, round 1')).toBeInTheDocument();
   });
 
-  it('subscribes and joins the encounter once connected', async () => {
+  it('connects with a token fetched for the connection, then subscribes and joins', async () => {
     setupAuthToken();
+    issueFreshTokens();
     const { client } = await renderConnected();
 
-    // R3 (D156): the token will be fetched in beforeConnect instead of read from localStorage
-    expect(client.connectHeaders).toEqual({ Authorization: 'Bearer test-access-token' });
+    expect(client.connectHeaders).toEqual({ Authorization: 'Bearer socket-token-1' });
     expect(client.isSubscribed(STATE_TOPIC)).toBe(true);
     expect(client.isSubscribed(ERROR_QUEUE)).toBe(true);
     expect(client.published).toEqual([{ destination: '/app/encounter/enc-001/join', body: '{}', headers: {} }]);
+  });
+
+  it('fetches a fresh token before every connect, including a reconnect after the connection drops', async () => {
+    setupAuthToken();
+    const refreshes = issueFreshTokens();
+    const { client } = await renderConnected();
+
+    await act(() => client.drop());
+
+    expect(refreshes()).toBe(2);
+    expect(client.connectHeaders).toEqual({ Authorization: 'Bearer socket-token-2' });
+    expect(client.connected).toBe(true);
+    expect(client.isSubscribed(STATE_TOPIC)).toBe(true);
+    expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 
   it('replaces the encounter with each state message', async () => {
@@ -108,12 +136,21 @@ describe('EncounterContext', () => {
     expect(client.connected).toBe(false);
   });
 
-  it('does not open a connection without a stored access token', async () => {
+  it('stops without connecting, and says why, when the session cannot be refreshed', async () => {
+    // The refresh is refused after the encounter has loaded, so the encounter does not clear the error
+    server.use(
+      http.post('/api/auth/refresh', async () => {
+        await delay(50);
+        return HttpResponse.json({ error: 'Your session has ended. Please sign in again.' }, { status: 401 });
+      }),
+    );
     renderProvider();
 
     expect(await screen.findByText('Goblin Ambush, round 1')).toBeInTheDocument();
-    // R3 (D156): tokens leave localStorage, so this guard will change with them
-    expect(MockStompClient.instances).toHaveLength(0);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your session has ended. Please sign in again.');
+    const client = MockStompClient.latest();
+    expect(client.active).toBe(false);
+    expect(client.connected).toBe(false);
     expect(screen.getByText('Not connected')).toBeInTheDocument();
   });
 });

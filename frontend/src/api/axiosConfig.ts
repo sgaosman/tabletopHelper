@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearAccessToken, getAccessToken, refreshAccessToken } from './tokenStore';
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,20 +9,12 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
-
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-function onTokenRefreshed(token: string) {
-  refreshSubscribers.forEach(cb => cb(token));
-  refreshSubscribers = [];
-}
 
 // Login, register and refresh report their own failures; refreshing on those would loop (D155)
 function isAuthRequest(url: string | undefined) {
@@ -39,40 +32,17 @@ api.interceptors.response.use(
     if (status === 401 && hadToken && !isAuthRequest(originalRequest.url) && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          refreshSubscribers.push((token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(api(originalRequest));
-          });
-        });
+      // 401s that arrive together share one refresh (tokenStore). The page cannot see the httpOnly
+      // refresh cookie, so it always asks; the server answers 401 when there is no session (D156).
+      try {
+        const { accessToken } = await refreshAccessToken();
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return api(originalRequest);
+      } catch {
+        clearAccessToken();
+        window.location.href = '/login';
+        return new Promise(() => {});
       }
-
-      isRefreshing = true;
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        try {
-          const response = await axios.post('/api/auth/refresh', { refreshToken });
-          const { accessToken, refreshToken: newRefreshToken } = response.data;
-
-          localStorage.setItem('accessToken', accessToken);
-          localStorage.setItem('refreshToken', newRefreshToken);
-
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          onTokenRefreshed(accessToken);
-          isRefreshing = false;
-          return api(originalRequest);
-        } catch {
-          isRefreshing = false;
-          refreshSubscribers = [];
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
-          return new Promise(() => {});
-        }
-      }
-      isRefreshing = false;
     }
 
     return Promise.reject(error);

@@ -15,9 +15,13 @@ server:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:default-dev-secret-that-should-be-changed-in-production-at-least-64-bytes-long-for-hs512}
-    access-token-expiration-ms: 3600000
-    refresh-token-expiration-ms: 604800000
+    # No default: JWT_SECRET must be set, and startup fails if it is shorter than 32 bytes. Only the
+    # dev profile has a secret of its own (D156)
+    secret: ${JWT_SECRET:}
+    access-token-expiration-ms: 900000
+  auth:
+    # The refresh cookie is Secure everywhere except the dev profile, which runs on plain HTTP (D156)
+    cookie-secure: true
 
 # Only the health endpoint is exposed, without details; Caddy does not proxy /actuator (D154)
 management:

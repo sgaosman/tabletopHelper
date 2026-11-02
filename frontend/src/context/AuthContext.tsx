@@ -1,47 +1,33 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, type ReactNode } from 'react';
 import { authApi } from '../api/authApi';
-import type { AuthState, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
+import { clearAccessToken, refreshAccessToken, setAccessToken } from '../api/tokenStore';
+import type { AuthState, AuthStatus, AuthUser, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
 
 type AuthAction =
   | { type: 'LOGIN_SUCCESS'; payload: AuthResponse }
   | { type: 'LOGOUT' };
 
-const initialState: AuthState = {
-  user: null,
-  accessToken: null,
-  refreshToken: null,
-  isAuthenticated: false,
-};
-
-function loadInitialState(): AuthState {
-  const accessToken = localStorage.getItem('accessToken');
-  const refreshToken = localStorage.getItem('refreshToken');
-  const userJson = localStorage.getItem('user');
-
-  if (accessToken && refreshToken && userJson) {
-    try {
-      const user = JSON.parse(userJson);
-      return { user, accessToken, refreshToken, isAuthenticated: true };
-    } catch {
-      return initialState;
-    }
-  }
-  return initialState;
+interface SessionState {
+  status: AuthStatus;
+  user: AuthUser | null;
 }
 
-function authReducer(state: AuthState, action: AuthAction): AuthState {
+const initialState: SessionState = {
+  status: 'loading',
+  user: null,
+};
+
+// Where tokens lived before D156; removed from any browser that still holds them
+const LEGACY_STORAGE_KEYS = ['accessToken', 'refreshToken', 'user'];
+
+function authReducer(state: SessionState, action: AuthAction): SessionState {
   switch (action.type) {
     case 'LOGIN_SUCCESS': {
-      const { userId, username, displayName, accessToken, refreshToken } = action.payload;
-      return {
-        user: { userId, username, displayName },
-        accessToken,
-        refreshToken,
-        isAuthenticated: true,
-      };
+      const { userId, username, displayName } = action.payload;
+      return { status: 'authenticated', user: { userId, username, displayName } };
     }
     case 'LOGOUT':
-      return initialState;
+      return { status: 'anonymous', user: null };
     default:
       return state;
   }
@@ -50,42 +36,61 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 interface AuthContextType extends AuthState {
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(authReducer, initialState, loadInitialState);
+  const [state, dispatch] = useReducer(authReducer, initialState);
 
+  // Nothing is stored in the page, so a load or reload asks the server: the httpOnly refresh
+  // cookie, if the browser has one, becomes a new access token (D156)
   useEffect(() => {
-    if (state.isAuthenticated && state.user) {
-      localStorage.setItem('accessToken', state.accessToken!);
-      localStorage.setItem('refreshToken', state.refreshToken!);
-      localStorage.setItem('user', JSON.stringify(state.user));
-    } else {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-    }
-  }, [state]);
+    LEGACY_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
+
+    let cancelled = false;
+    refreshAccessToken()
+      .then(session => {
+        if (!cancelled) dispatch({ type: 'LOGIN_SUCCESS', payload: session });
+      })
+      .catch(() => {
+        // No cookie, or one the server no longer accepts: the visitor signs in again
+        if (!cancelled) dispatch({ type: 'LOGOUT' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const login = useCallback(async (data: LoginRequest) => {
     const response = await authApi.login(data);
+    setAccessToken(response.data.accessToken);
     dispatch({ type: 'LOGIN_SUCCESS', payload: response.data });
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
     const response = await authApi.register(data);
+    setAccessToken(response.data.accessToken);
     dispatch({ type: 'LOGIN_SUCCESS', payload: response.data });
   }, []);
 
-  const logout = useCallback(() => {
+  // The server revokes the session and clears the cookie. If it cannot be reached, this tab
+  // still signs out; the cookie then lasts until it expires
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch (err) {
+      console.warn('Sign-out request failed', err);
+    }
+    clearAccessToken();
     dispatch({ type: 'LOGOUT' });
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ ...state, isAuthenticated: state.status === 'authenticated', login, register, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

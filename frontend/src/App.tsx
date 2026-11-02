@@ -19,14 +19,25 @@ import PlayerEncounterSessionPage from './pages/player/EncounterSessionPage';
 import CharacterCreateWizard from './pages/player/CharacterCreateWizard';
 import QuickReferencePage from './pages/QuickReferencePage';
 
+// Shown while the app asks the server whether the browser still has a session (D156)
+function AuthLoading() {
+  return (
+    <div className="min-h-screen bg-page flex items-center justify-center">
+      <p role="status" className="font-body text-[16px] text-muted">Loading...</p>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  const { status } = useAuth();
+  if (status === 'loading') return <AuthLoading />;
+  return status === 'authenticated' ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/select-role" replace /> : <>{children}</>;
+  const { status } = useAuth();
+  if (status === 'loading') return <AuthLoading />;
+  return status === 'authenticated' ? <Navigate to="/select-role" replace /> : <>{children}</>;
 }
 
 export default function App() {
