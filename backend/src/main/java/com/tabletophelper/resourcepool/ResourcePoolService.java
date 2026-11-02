@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.ProficiencyBonus;
 import com.tabletophelper.character.dto.MulticlassEntry;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -480,7 +481,7 @@ public class ResourcePoolService {
 
     private Map<String, Integer> buildMonsterContext(Monster monster) {
         Map<String, Integer> ctx = new LinkedHashMap<>();
-        ctx.put("proficiencyBonus", crToProficiencyBonus(monster.getChallengeRating()));
+        ctx.put("proficiencyBonus", ProficiencyBonus.forChallengeRating(monster.getChallengeRating()));
         ctx.put("totalLevel", crToEstimatedLevel(monster.getChallengeRating()));
         ctx.put("strengthModifier", abilityMod(monster.getStrength()));
         ctx.put("dexterityModifier", abilityMod(monster.getDexterity()));
@@ -494,16 +495,6 @@ public class ResourcePoolService {
     private int abilityMod(Integer score) {
         if (score == null) return 0;
         return Math.floorDiv(score - 10, 2);
-    }
-
-    private int crToProficiencyBonus(String cr) {
-        if (cr == null) return 2;
-        try {
-            double crVal = parseCr(cr);
-            return (int) Math.ceil(crVal / 4.0) + 1;
-        } catch (NumberFormatException e) {
-            return 2;
-        }
     }
 
     private int crToEstimatedLevel(String cr) {

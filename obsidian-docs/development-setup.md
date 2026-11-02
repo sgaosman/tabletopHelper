@@ -90,13 +90,17 @@ Hibernate `ddl-auto: update` creates and alters tables automatically when entiti
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request:
 
-- **Backend tests:** `./gradlew test` on Java 21.
+- **Backend tests:** `./gradlew test` on Java 21. These are unit tests and don't need Docker.
+- **Backend integration tests:** `./gradlew integrationTest` runs the tests in `backend/src/integrationTest` against a real PostgreSQL 16 started by Testcontainers. They cover Flyway from an empty database, the custom queries, HTTP security status codes and the encounter WebSocket (D172).
 - **Frontend:** `npm run lint`, `npm run build` (type check plus bundle) and `npm test`.
 - **Docker smoke test:** builds and starts the production stack, then checks that the frontend responds, the backend health endpoint reports UP, and both containers run as non-root users.
 
 To run the same checks locally before pushing:
 - `cd backend && ./gradlew test`
+- `cd backend && ./gradlew integrationTest` — needs Docker Desktop running. Without it the task stops at once with "Docker isn't running: start Docker Desktop and rerun." It isn't part of `./gradlew build`.
 - `cd frontend && npm run lint && npm run build && npm test`
+
+Frontend tests run with MSW in strict mode: a test fails if it makes a request no handler covers (`frontend/vitest.setup.ts`). Add a handler to `src/test/mocks/handlers.ts`, or use `server.use(...)` in the test. STOMP and SockJS are mocked globally; tests drive the encounter socket with `MockStompClient` from `src/test/mocks/stomp.ts`.
 
 ## Troubleshooting
 

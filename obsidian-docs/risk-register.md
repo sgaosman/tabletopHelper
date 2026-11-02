@@ -192,6 +192,8 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Remaining:** No frontend tests (React Testing Library). No integration tests hitting a real database. No end-to-end tests.
 
+**Update (2026-11-02, R2):** frontend component tests now exist (343 Vitest tests, with MSW in strict mode), and `./gradlew integrationTest` runs 40 tests against a real PostgreSQL through Testcontainers (D172). End-to-end browser tests are still missing.
+
 ### R015: IDOR on Character GET Endpoint
 
 **Category:** Security

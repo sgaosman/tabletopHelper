@@ -1671,7 +1671,7 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 ## D140: M12 Test Suite — Full Coverage
 
 **Date:** 2026-07-29
-**Status:** Accepted
+**Status:** Accepted — not met in M12; met by the combat pipeline's tests in R5 (D160, D172)
 
 **Decision:** M12 includes a full test suite: unit tests for MonsterActionResolverEngine (all delivery methods, multiattack, recharge, legendary actions, lair actions, spellcasting), integration tests for new endpoints, and frontend component tests for the accordion action panel. Target: 60-100+ new tests.
 
@@ -2594,6 +2594,8 @@ The full list is settled during R2 planning.
 
 **Related:** D097, D121
 
+**Update (2026-11-02, R2 planning):** the list adds `encounters(campaign_id)` and `campaign_members(user_id)`, both used by repository lookups. `campaign_members(campaign_id)` is covered by its unique constraint. Not indexed: `encounter_participants(monster_id)` and `campaigns(dm_user_id)`, because no query filters on them, and the foreign keys of the small reference tables. V12 uses `IF NOT EXISTS`, since databases Hibernate built before D097 may already have the first five. An integration test fails on any foreign key without an index unless it is on that allow-list.
+
 ## D171: Frontend Architecture — Query Cache, Generated Types, Shared Components
 
 **Date:** 2026-11-01
@@ -2667,6 +2669,8 @@ The full list is settled during R2 planning.
 **Amends:** D085, D102, D126
 
 **Related:** D140, D154, D161, D170
+
+**Update (2026-11-02, R2 planning):** each golden table lands in its own phase: spell slots by caster type in R1 (done); spell slots for every class, and proficiency by level and by CR, in R2; pool sizes in R7, written before D169's level tables because today's formulas are known to be wrong; D161's damage and dying table in R5, written before the `EffectApplier`. Tests for the wizard reducer and the R8 encounter components come in R8. Integration tests assert today's HTTP and STOMP behaviour, and R3 flips the cases that D155–D157 change. `integrationTest` stops at once with a clear message when Docker isn't running, and it isn't part of `./gradlew build`.
 
 ## D173: Selectable Themes and a More Readable Tourmaline
 

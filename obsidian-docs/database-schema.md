@@ -563,17 +563,7 @@ Append-only log of every combat action in an encounter. One row per action.
 
 ## Indexes
 
-### JPA-Managed Indexes (`@Table(indexes)`)
-
-> **Not present in Flyway-built databases (D170).** Hibernate created these under `ddl-auto: update` (D080, D089). Since the switch to Flyway with `ddl-auto: validate` (D097), nothing creates them, so production has none of them. R2 adds them through a migration.
-
-| Table | Column(s) | Index Name | Notes |
-|-------|-----------|------------|-------|
-| player_characters | user_id | idx_pc_user_id | FK lookup for "my characters" |
-| player_characters | campaign_id | idx_pc_campaign_id | FK lookup for campaign character lists |
-| encounter_participants | encounter_id | idx_ep_encounter_id | FK lookup for loading encounter participants |
-| encounter_participants | character_id | idx_ep_character_id | FK lookup for "is this character in combat" checks |
-| combat_logs | encounter_id | idx_cl_encounter_id | FK lookup for combat log retrieval |
+All indexes are created by Flyway migrations (D170). R2 removed the JPA `@Index` annotations, which Hibernate had only applied under `ddl-auto: update` (D080, D089).
 
 ### SQL-Managed Indexes (`schema.sql`)
 
@@ -589,29 +579,17 @@ Append-only log of every combat action in an encounter. One row per action.
 |-------|-----------|------------|------|------------|
 | monsters | lower(name) | idx_monsters_name_trgm | GIN (pg_trgm) | V0 — fuzzy monster search (D019) |
 | spells | classes | idx_spells_classes_gin | GIN | V1 — class filtering on spells |
+| player_characters | user_id | idx_pc_user_id | B-tree | V12 — "my characters" |
+| player_characters | campaign_id | idx_pc_campaign_id | B-tree | V12 — campaign character lists |
+| encounter_participants | encounter_id | idx_ep_encounter_id | B-tree | V12 — loading encounter participants |
+| encounter_participants | character_id | idx_ep_character_id | B-tree | V12 — "is this character in combat" checks |
+| combat_logs | encounter_id | idx_cl_encounter_id | B-tree | V12 — combat log retrieval |
+| encounters | campaign_id | idx_enc_campaign_id | B-tree | V12 — a campaign's encounters |
+| campaign_members | user_id | idx_cm_user_id | B-tree | V12 — a user's campaigns |
 
 PostgreSQL also creates an index automatically for every primary key and UNIQUE constraint: `users.username`, `users.email`, `campaigns.invite_code`, `encounters.session_code`, `conditions.name` and `campaign_members(campaign_id, user_id)`. The last one also serves lookups by `campaign_id`.
 
-### Planned Indexes (R2, D170)
-
-Confirmed by D170, reusing the names above:
-
-| Table | Column(s) | Index Name |
-|-------|-----------|------------|
-| player_characters | user_id | idx_pc_user_id |
-| player_characters | campaign_id | idx_pc_campaign_id |
-| encounter_participants | encounter_id | idx_ep_encounter_id |
-| encounter_participants | character_id | idx_ep_character_id |
-| combat_logs | encounter_id | idx_cl_encounter_id |
-
-Candidates to settle in R2 planning:
-- `encounters(campaign_id)`
-- `campaign_members(user_id)`
-- `encounter_participants(monster_id)`
-- `campaigns(dm_user_id)`
-- `subclasses(character_class_id)`
-- `class_feature_pools(class_id)`, `class_feature_pools(subclass_id)` and `class_feature_pools(pool_id)`
-- `monster_pool_triggers(pool_id)`
+These foreign keys stay unindexed because no query filters on them: `campaigns.dm_user_id`, `encounter_participants.monster_id`, the `race_id`, `class_id`, `subclass_id` and `background_id` columns of `player_characters`, `subclasses.character_class_id`, the three `class_feature_pools` keys and `monster_pool_triggers.pool_id`. `FlywayMigrationIT` fails if any other foreign key has no index, or if one of these gains an index without being taken off its allow-list.
 
 ## Flyway Migration History
 
@@ -629,6 +607,7 @@ Candidates to settle in R2 planning:
 | V9 | `V9__monster_action_templates.sql` | `monsters.action_templates`; monster, legendary, lair, legendary resistance and recharge values for `combat_logs.action_type`; `encounter_participants.last_lair_action_used`; `encounters.monsters_in_lair` (D136, D139) |
 | V10 | `V10__legendary_resistance_metadata.sql` | Legendary Resistance undo columns on `combat_logs` (D145) |
 | V11 | `V11__player_characters_race_id_not_null.sql` | `player_characters.race_id` NOT NULL (D152) |
+| V12 | `V12__foreign_key_indexes.sql` | Indexes on the seven foreign keys used in lookups and joins, all `IF NOT EXISTS` (D170) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -665,7 +644,7 @@ The two data changes run with the dry-run report and backup that D150 requires. 
 
 | Change | Type | Decision |
 |--------|------|----------|
-| Foreign-key indexes (next migration, expected V12) — see [Planned Indexes](#planned-indexes-r2-d170). JPA `@Index` annotations are removed. | Schema | D170 |
+| Foreign-key indexes, done in V12 — see [Flyway-Managed Indexes](#flyway-managed-indexes-what-actually-exists). JPA `@Index` annotations are removed. | Schema | D170 |
 
 ### R3–R7 — Outline
 

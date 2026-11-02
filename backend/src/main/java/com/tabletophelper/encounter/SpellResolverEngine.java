@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.ProficiencyBonus;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.SpellRepository;
 import lombok.RequiredArgsConstructor;
@@ -385,7 +386,7 @@ public class SpellResolverEngine {
         if (dice == null) return null;
         if (dice.contains("SPELL_MOD") || dice.contains("MOD")) {
             int charLevel = getCharacterLevel(caster);
-            int profBonus = (charLevel - 1) / 4 + 2;
+            int profBonus = ProficiencyBonus.forLevel(charLevel);
             int spellMod = spellAttackBonus - profBonus;
             dice = dice.replace("SPELL_MOD", String.valueOf(spellMod));
             dice = dice.replace("MOD", String.valueOf(spellMod));

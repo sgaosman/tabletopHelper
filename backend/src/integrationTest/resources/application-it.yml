@@ -1,0 +1,13 @@
+# Integration tier (D172). The datasource comes from the Testcontainers @ServiceConnection.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    baseline-on-migrate: false
+
+app:
+  jwt:
+    # Its own secret, because R3 removes the default from application.yml (D156)
+    secret: integration-tests-only-secret-that-is-long-enough-for-hs512-signing-0123456789

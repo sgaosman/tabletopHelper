@@ -1078,7 +1078,7 @@ function DmSessionView() {
 
                   {/* Initiative */}
                   <div className="w-9 text-center flex-shrink-0">
-                    <span className="font-heading text-[17px] font-bold text-ink">{p.initiative ?? '&#8212;'}</span>
+                    <span className="font-heading text-[17px] font-bold text-ink">{p.initiative ?? '—'}</span>
                   </div>
 
                   {/* Name + info */}

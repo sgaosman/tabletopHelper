@@ -1,5 +1,14 @@
 import { http, HttpResponse } from 'msw';
-import type { CampaignMember } from '../../types/campaign';
+import type { SpellTargetingInfo } from '../../api/referenceApi';
+import type { AuthResponse } from '../../types/auth';
+import type { Campaign, CampaignMember } from '../../types/campaign';
+import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
+import type { CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
+import type { Encounter, EncounterParticipant, ParticipantType } from '../../types/encounter';
+import type { Monster } from '../../types/monster';
+import type {
+  Background, CharacterClassRef, Condition, Feat, Item, OptionalFeature, PageResponse, Race, Spell, Subclass,
+} from '../../types/reference';
 
 const BASE = '/api';
 
@@ -11,26 +20,26 @@ export const authHandlers = [
     return HttpResponse.json({
       userId: 'user-001', username: 'testuser', displayName: 'Test User',
       accessToken: 'mock-access-token', refreshToken: 'mock-refresh-token',
-    });
+    } satisfies AuthResponse);
   }),
 
   http.post(`${BASE}/auth/register`, async () => {
     return HttpResponse.json({
       userId: 'user-002', username: 'newuser', displayName: 'New User',
       accessToken: 'mock-access-token-new', refreshToken: 'mock-refresh-token-new',
-    });
+    } satisfies AuthResponse);
   }),
 
   http.post(`${BASE}/auth/refresh`, async () => {
     return HttpResponse.json({
       userId: 'user-001', username: 'testuser', displayName: 'Test User',
       accessToken: 'mock-access-token-refreshed', refreshToken: 'mock-refresh-token-refreshed',
-    });
+    } satisfies AuthResponse);
   }),
 ];
 
 // --- Shared data builders ---
-function makeCampaign(id: string, name: string, dmUserId = 'user-001', membersCount = 1) {
+function makeCampaign(id: string, name: string, dmUserId = 'user-001', membersCount = 1): Campaign {
   const members: CampaignMember[] = [
     { userId: dmUserId, username: 'testuser', displayName: 'Test User', role: 'DM', joinedAt: makeTimestamp() },
   ];
@@ -38,9 +47,9 @@ function makeCampaign(id: string, name: string, dmUserId = 'user-001', membersCo
     members.push({ userId: `plr-00${i}`, username: `player${i}`, displayName: `Player ${i}`, role: 'PLAYER' as const, joinedAt: makeTimestamp() });
   }
   return {
-    id, name, description: null, dmUserId, dmDisplayName: 'Test User',
+    id, name, dmUserId, dmDisplayName: 'Test User',
     inviteCode: 'ABC123XY', isActive: true, members, createdAt: makeTimestamp(),
-  };
+  } satisfies Campaign;
 }
 
 // --- Campaigns ---
@@ -88,14 +97,14 @@ export const characterHandlers = [
     return HttpResponse.json([
       { classId: 'cls-fighter', className: 'Fighter', currentClassLevel: 5, currentClass: true, meetsPrerequisites: true, prerequisiteDescription: 'Current class' },
       { classId: 'cls-wizard', className: 'Wizard', currentClassLevel: 0, currentClass: false, meetsPrerequisites: true, prerequisiteDescription: 'INT 13 required' },
-    ]);
+    ] satisfies EligibleClassResponse[]);
   }),
 
   http.post(`${BASE}/characters/:id/level-up`, async () => {
     return HttpResponse.json({
       character: makeMockCharacter('char-001', 'Gimli', 'Fighter', 6),
       pendingChoices: { asiAvailable: false, subclassRequired: false, expertiseAvailable: false, expertiseCount: 0, spellSelectionNeeded: false, newFeatures: ['Extra Attack (2)'], maxSpellLevel: 0 },
-    });
+    } satisfies LevelUpResponse);
   }),
 
   http.post(`${BASE}/characters/:id/level-down`, async () => {
@@ -117,31 +126,50 @@ export const characterHandlers = [
 export const encounterHandlers = [
   http.get(`${BASE}/encounters/campaign/:campaignId`, async () => {
     return HttpResponse.json([
-      { id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush', description: null, status: 'PREPARING', currentTurnIndex: 0, roundNumber: 1, sessionCode: null, participants: [], createdAt: makeTimestamp() },
+      makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] }),
     ]);
   }),
 
   http.post(`${BASE}/encounters`, async () => {
-    return HttpResponse.json({
-      id: 'enc-new', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'New Encounter', description: null, status: 'PREPARING', currentTurnIndex: 0, roundNumber: 1, sessionCode: null, participants: [], createdAt: makeTimestamp(),
-    });
+    return HttpResponse.json(
+      makeMockEncounter({ id: 'enc-new', name: 'New Encounter', status: 'PREPARING', sessionCode: undefined, participants: [] }),
+    );
   }),
 
   http.get(`${BASE}/encounters/join/:code`, async () => {
-    return HttpResponse.json({
-      id: 'enc-join', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Joined Encounter', status: 'ACTIVE', currentTurnIndex: 0, roundNumber: 1, sessionCode: 'XYZ999AA', participants: [], createdAt: makeTimestamp(),
-    });
+    return HttpResponse.json(
+      makeMockEncounter({ id: 'enc-join', name: 'Joined Encounter', sessionCode: 'XYZ999AA', participants: [] }),
+    );
   }),
 
   http.get(`${BASE}/encounters/:id`, async () => {
-    return HttpResponse.json({
-      id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush', status: 'ACTIVE', currentTurnIndex: 0, roundNumber: 1, sessionCode: 'ABC123XY', participants: [makeMockParticipant('part-001', 'Test Goblin', 'MONSTER'), makeMockParticipant('part-002', 'Gimli', 'PLAYER')], createdAt: makeTimestamp(),
-    });
+    return HttpResponse.json(makeMockEncounter());
+  }),
+
+  http.patch(`${BASE}/encounters/:id/participants/:participantId/name`, async () => {
+    return HttpResponse.json(makeMockEncounter({ status: 'PREPARING', sessionCode: undefined }));
+  }),
+
+  http.post(`${BASE}/encounters/:id/initiatives/roll`, async () => {
+    return HttpResponse.json(makeMockEncounter({ status: 'PREPARING', sessionCode: undefined }));
+  }),
+
+  http.post(`${BASE}/encounters/:id/pause`, async () => {
+    return HttpResponse.json(makeMockEncounter({ status: 'PAUSED' }));
+  }),
+
+  http.post(`${BASE}/encounters/:id/resume`, async () => {
+    return HttpResponse.json(makeMockEncounter());
+  }),
+
+  http.post(`${BASE}/encounters/:id/end`, async () => {
+    return HttpResponse.json(makeMockEncounter({ status: 'COMPLETED' }));
   }),
 ];
 
 // --- Encounter Builder (additional handlers for CRUD operations) ---
 export const encounterBuilderHandlers = [
+  // Must stay ahead of GET /monsters/:id in allHandlers.
   http.get(`${BASE}/monsters/search`, async () => {
     return HttpResponse.json([
       makeMockMonster('mon-001', 'Goblin', 'Humanoid', '1/4', 7, 15),
@@ -152,35 +180,28 @@ export const encounterBuilderHandlers = [
 
   http.post(`${BASE}/encounters/:id/participants`, async () => {
     const participant = makeMockParticipant('part-new', 'New Participant', 'MONSTER');
-    return HttpResponse.json({
-      id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush', status: 'PREPARING', currentTurnIndex: 0, roundNumber: 1, sessionCode: null,
+    return HttpResponse.json(makeMockEncounter({
+      status: 'PREPARING', sessionCode: undefined,
       participants: [makeMockParticipant('part-001', 'Test Goblin', 'MONSTER'), participant],
-      createdAt: makeTimestamp(),
-    });
+    }));
   }),
 
   http.delete(`${BASE}/encounters/:id/participants/:participantId`, async () => {
-    return HttpResponse.json({
-      id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush', status: 'PREPARING', currentTurnIndex: 0, roundNumber: 1, sessionCode: null,
-      participants: [],
-      createdAt: makeTimestamp(),
-    });
+    return HttpResponse.json(makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] }));
   }),
 
   http.post(`${BASE}/encounters/:id/initiatives`, async () => {
-    return HttpResponse.json({
-      id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush', status: 'PREPARING', currentTurnIndex: 0, roundNumber: 1, sessionCode: null,
+    return HttpResponse.json(makeMockEncounter({
+      status: 'PREPARING', sessionCode: undefined,
       participants: [makeMockParticipant('part-001', 'Test Goblin', 'MONSTER')],
-      createdAt: makeTimestamp(),
-    });
+    }));
   }),
 
   http.post(`${BASE}/encounters/:id/start`, async () => {
-    return HttpResponse.json({
-      id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush', status: 'ACTIVE', currentTurnIndex: 0, roundNumber: 1, sessionCode: 'SESS123X',
+    return HttpResponse.json(makeMockEncounter({
+      sessionCode: 'SESS123X',
       participants: [makeMockParticipant('part-001', 'Test Goblin', 'MONSTER')],
-      createdAt: makeTimestamp(),
-    });
+    }));
   }),
 
   http.delete(`${BASE}/encounters/:id`, async () => {
@@ -190,21 +211,55 @@ export const encounterBuilderHandlers = [
 
 // --- Combat ---
 export const combatHandlers = [
-  http.post(`${BASE}/encounters/:id/combat/damage`, async () => {
-    return HttpResponse.json({});
-  }),
-  http.post(`${BASE}/encounters/:id/combat/heal`, async () => {
-    return HttpResponse.json({});
-  }),
+  http.post(`${BASE}/encounters/:id/combat/attack`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/damage`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/heal`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/hp`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/condition/add`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/condition/remove`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/death-save`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/concentration`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/spell-slot/use`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/spell-slot/restore`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/cast-spell`, async () => HttpResponse.json(makeMockCastSpellResponse())),
+  http.post(`${BASE}/encounters/:id/combat/turn/next`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/turn/previous`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/repeat-spell-effect`, async () => HttpResponse.json(makeMockCastSpellResponse())),
   http.get(`${BASE}/encounters/:id/combat/log`, async () => {
-    return HttpResponse.json([]);
+    return HttpResponse.json([] satisfies CombatLogEntry[]);
   }),
+  http.post(`${BASE}/encounters/:id/combat/monster-action`, async () => {
+    return HttpResponse.json({
+      resolved: true, description: 'Test Goblin uses Scimitar.', totalDamage: 0, totalHealing: 0,
+      targetResults: [], requiresManualResolution: false, conditionsInflicted: [],
+      legendaryResistanceAvailable: false, legendaryResistanceRemaining: 0,
+      encounterState: makeMockEncounter(),
+    } satisfies MonsterActionResponse);
+  }),
+  http.post(`${BASE}/encounters/:id/combat/monster-spell`, async () => HttpResponse.json(makeMockCastSpellResponse())),
+  http.post(`${BASE}/encounters/:id/combat/legendary-resistance`, async () => HttpResponse.json(makeMockEncounter())),
+  http.get(`${BASE}/encounters/:id/participants/:participantId/actions`, async () => {
+    return HttpResponse.json({
+      actions: [{
+        name: 'Scimitar', attackBonus: 4, deliveryMethod: 'MELEE_WEAPON', automatable: true,
+        effects: [{ effectType: 'DAMAGE', damageDice: '1d6+2', damageType: 'slashing' }],
+      }],
+    } satisfies MonsterActionTemplate);
+  }),
+  http.post(`${BASE}/encounters/:id/combat/lair-status`, async () => HttpResponse.json(makeMockEncounter())),
 ];
 
 // --- Reference Data ---
 export const referenceHandlers = [
   http.get(`${BASE}/reference/spells`, async () => {
-    return HttpResponse.json({ content: [], totalElements: 0, totalPages: 0 });
+    return HttpResponse.json({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 } satisfies PageResponse<Spell>);
+  }),
+  // Must stay ahead of /reference/spells/:id, which would otherwise match "targeting".
+  http.get(`${BASE}/reference/spells/targeting`, async () => {
+    return HttpResponse.json({
+      maxTargets: -1, selfOnly: false, canTargetSelf: true, canTargetAllies: true, canTargetEnemies: true,
+      targetType: 'SINGLE_TARGET', hasRepeatEffect: false,
+    } satisfies SpellTargetingInfo);
   }),
   http.get(`${BASE}/reference/spells/:id`, async () => {
     return HttpResponse.json({
@@ -213,7 +268,7 @@ export const referenceHandlers = [
       components: { verbal: true, somatic: true, material: 'bat guano' },
       concentration: false, ritual: false, description: 'A bright streak flashes...', higherLevels: 'When cast at 4th level...',
       classes: ['Wizard', 'Sorcerer'], damageType: 'fire', damageDice: '8d6', saveAbility: 'DEX', source: 'PHB',
-    });
+    } satisfies Spell);
   }),
   http.get(`${BASE}/reference/spells/filters/schools`, async () => {
     return HttpResponse.json(['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation']);
@@ -227,14 +282,18 @@ export const referenceHandlers = [
   http.get(`${BASE}/reference/spells/filters/subclasses`, async () => {
     return HttpResponse.json(['Cleric (Life)']);
   }),
-  http.get(`${BASE}/reference/spells/targeting`, async () => {
-    return HttpResponse.json({ selfOnly: false, canTargetSelf: true, canTargetAllies: true, canTargetEnemies: true, targetCount: 1, upcastTargetBonus: 0 });
-  }),
   http.get(`${BASE}/reference/conditions`, async () => {
-    return HttpResponse.json([{ id: 'cond-001', name: 'blinded', description: 'Cannot see.', effects: null }]);
+    return HttpResponse.json([{ id: 'cond-001', name: 'blinded', description: 'Cannot see.', effects: null, source: 'PHB' }] satisfies Condition[]);
   }),
   http.get(`${BASE}/reference/items`, async () => {
-    return HttpResponse.json({ content: [], totalElements: 0, totalPages: 0 });
+    return HttpResponse.json({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 } satisfies PageResponse<Item>);
+  }),
+  http.get(`${BASE}/reference/items/:id`, async ({ params }) => {
+    return HttpResponse.json({
+      id: params.id as string, name: 'Longsword', type: 'M', subtype: null, rarity: 'none',
+      description: 'A versatile martial weapon.', properties: null, requiresAttunement: false, attunementCondition: null,
+      weight: 3, cost: '15 gp', damageDice: '1d8', damageType: 'slashing', source: 'PHB',
+    } satisfies Item);
   }),
   http.get(`${BASE}/reference/items/filters/types`, async () => {
     return HttpResponse.json(['Armor', 'Weapon', 'Potion', 'Scroll']);
@@ -245,28 +304,34 @@ export const referenceHandlers = [
   http.get(`${BASE}/reference/items/filters/sources`, async () => {
     return HttpResponse.json(['DMG', 'PHB']);
   }),
+  http.get(`${BASE}/reference/quickref`, async () => {
+    return HttpResponse.json([]);
+  }),
   http.get(`${BASE}/reference/races`, async () => {
     return HttpResponse.json([
-      { id: 'race-human', name: 'Human', source: 'PHB', size: 'Medium', speed: 30, abilityScoreBonuses: JSON.stringify([{ ability: 'STR', bonus: 1 }]), traits: '[]', proficiencies: '{}', resistances: '[]' },
-      { id: 'race-elf', name: 'Elf', source: 'PHB', size: 'Medium', speed: 30, abilityScoreBonuses: JSON.stringify([{ ability: 'DEX', bonus: 2 }]), traits: '[]', proficiencies: '{}', resistances: '[]' },
+      makeMockRace('race-human', 'Human', JSON.stringify([{ ability: 'STR', bonus: 1 }])),
+      makeMockRace('race-elf', 'Elf', JSON.stringify([{ ability: 'DEX', bonus: 2 }])),
     ]);
   }),
-  http.get(`${BASE}/reference/races/sources`, async () => {
+  http.get(`${BASE}/reference/races/filters/sources`, async () => {
     return HttpResponse.json(['PHB', 'DMG']);
   }),
   http.get(`${BASE}/reference/classes`, async () => {
     return HttpResponse.json([
       { id: 'cls-fighter', name: 'Fighter', source: 'PHB', hitDice: 10, primaryAbility: 'STR', savingThrowProficiencies: '["STR","CON"]', armorProficiencies: '["All Armor","Shields"]', weaponProficiencies: '["Simple","Martial"]', toolProficiencies: '[]', skillChoices: '{}', spellcastingAbility: null, features: '[]', startingEquipment: '[]', subclassLevel: 3, isSpellcaster: false, isPreparedCaster: false, isKnownCaster: false, isPactMagic: false, spellSlotProgression: '{}', multiclassRequirements: null, multiclassProficiencies: null },
-    ]);
+    ] satisfies CharacterClassRef[]);
   }),
-  http.get(`${BASE}/reference/subclasses`, async () => {
-    return HttpResponse.json([]);
+  http.get(`${BASE}/reference/classes/:classId/subclasses`, async () => {
+    return HttpResponse.json([] satisfies Subclass[]);
   }),
   http.get(`${BASE}/reference/backgrounds`, async () => {
-    return HttpResponse.json([]);
+    return HttpResponse.json([] satisfies Background[]);
   }),
   http.get(`${BASE}/reference/feats`, async () => {
-    return HttpResponse.json([]);
+    return HttpResponse.json([] satisfies Feat[]);
+  }),
+  http.get(`${BASE}/reference/optional-features`, async () => {
+    return HttpResponse.json([] satisfies OptionalFeature[]);
   }),
 ];
 
@@ -282,10 +347,8 @@ export const monsterHandlers = [
         makeMockMonster('mon-002', 'Owlbear', 'Monstrosity', '3', 59, 13),
       ],
       totalElements: 2, totalPages: page === 0 && size >= 2 ? 1 : Math.ceil(2 / size),
-    });
-  }),
-  http.get(`${BASE}/monsters/search`, async () => {
-    return HttpResponse.json([]);
+      number: page, size,
+    } satisfies PageResponse<Monster>);
   }),
   http.get(`${BASE}/monsters/filters/sources`, async () => {
     return HttpResponse.json(['MM', 'DMG']);
@@ -295,6 +358,9 @@ export const monsterHandlers = [
   }),
   http.get(`${BASE}/monsters/filters/challenge-ratings`, async () => {
     return HttpResponse.json(['0', '1/4', '1/2', '1', '5', '10', '20']);
+  }),
+  http.get(`${BASE}/monsters/:id`, async ({ params }) => {
+    return HttpResponse.json(makeMockMonster(params.id as string, 'Goblin', 'Humanoid', '1/4', 7, 15));
   }),
 ];
 
@@ -325,23 +391,52 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     levelHistory: JSON.stringify([{ characterLevel: 1, classId: 'cls-fighter', className: cls, classLevel: 1, hpGained: 12, featuresGained: [] }]),
     featResources: null, isActive: true,
     createdAt: makeTimestamp(), updatedAt: makeTimestamp(),
-  };
+  } satisfies PlayerCharacter;
 }
 
-export function makeMockParticipant(id: string, displayName: string, type: string) {
-  return {
+export function makeMockParticipant(
+  id: string,
+  displayName: string,
+  type: ParticipantType,
+  overrides: Partial<EncounterParticipant> = {},
+): EncounterParticipant {
+  const participant = {
     id, participantType: type,
     monsterId: type === 'MONSTER' ? 'mon-001' : undefined,
     characterId: type === 'PLAYER' ? 'char-001' : undefined,
     displayName, initiative: 15, initiativeModifier: 2, sortOrder: 1,
     hpMax: 30, hpCurrent: 30, hpTemp: 0, armourClass: 14,
-    activeConditions: null, concentrationSpell: null, concentrationSlotLevel: null,
-    activeSpell: null, activeSpellSlotLevel: null,
-    spellSlotsCurrent: null, spellAttackBonus: null, spellSaveDc: null,
-    spellcastingAbility: null, spellsKnown: null,
     isVisibleToPlayers: true, isAlive: true, isCurrentTurn: false,
-    controlledByUserId: null, deathSaveSuccesses: 0, deathSaveFailures: 0,
-  };
+    deathSaveSuccesses: 0, deathSaveFailures: 0,
+  } satisfies EncounterParticipant;
+  return { ...participant, ...overrides };
+}
+
+export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter {
+  const encounter = {
+    id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush',
+    status: 'ACTIVE', currentTurnIndex: 0, roundNumber: 1, sessionCode: 'ABC123XY',
+    participants: [makeMockParticipant('part-001', 'Test Goblin', 'MONSTER'), makeMockParticipant('part-002', 'Gimli', 'PLAYER')],
+    createdAt: makeTimestamp(),
+  } satisfies Encounter;
+  return { ...encounter, ...overrides };
+}
+
+export function makeMockCastSpellResponse(overrides: Partial<CastSpellResponse> = {}): CastSpellResponse {
+  const response = {
+    encounterState: makeMockEncounter(),
+    spellName: 'Fire Bolt', slotLevelUsed: 0, autoResolved: true,
+    resultSummary: 'Fire Bolt hits Test Goblin for 7 fire damage.',
+    targets: [{ targetId: 'part-001', targetName: 'Test Goblin', outcome: 'hit', damage: 7, conditionsApplied: [], attackRoll: 18 }],
+  } satisfies CastSpellResponse;
+  return { ...response, ...overrides };
+}
+
+export function makeMockLogEntry(id: string, description: string, overrides: Partial<CombatLogEntry> = {}): CombatLogEntry {
+  const entry = {
+    id, roundNumber: 1, actionType: 'DAMAGE', description, createdAt: makeTimestamp(),
+  } satisfies CombatLogEntry;
+  return { ...entry, ...overrides };
 }
 
 export function makeMockMonster(id: string, name: string, type: string, cr: string, hp: number, ac: number) {
@@ -354,7 +449,15 @@ export function makeMockMonster(id: string, name: string, type: string, cr: stri
     damageVulnerabilities: null, conditionImmunities: null, senses: { passive_perception: 11 }, languages: null,
     experiencePoints: 0, traits: [], actions: [], reactions: [], legendaryActions: null, lairActions: null,
     source: 'MM',
-  };
+  } satisfies Monster;
+}
+
+function makeMockRace(id: string, name: string, abilityScoreBonuses: string) {
+  return {
+    id, name, source: 'PHB', size: 'Medium', speed: JSON.stringify({ walk: 30 }), abilityScoreBonuses,
+    creatureType: 'Humanoid', darkvision: null, traits: '[]', proficiencies: '{}', resistances: '[]',
+    raceChoices: null, additionalSpells: null, baseRaceName: null, description: null,
+  } satisfies Race;
 }
 
 export const allHandlers = [

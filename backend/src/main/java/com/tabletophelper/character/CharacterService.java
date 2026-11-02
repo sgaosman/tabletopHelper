@@ -169,9 +169,10 @@ public class CharacterService {
                 hitDiceTotalBuilder.append(mcLevel).append("d").append(mcClassRef.getHitDice());
 
                 boolean isMcClassCaster = Boolean.TRUE.equals(mcClassRef.getIsSpellcaster());
-                boolean isMcThirdCaster = mcSubName != null && THIRD_CASTER_SUBCLASSES.contains(mcSubName) && mcLevel >= 3;
+                boolean isMcThirdCaster = mcSubName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(mcSubName) && mcLevel >= 3;
                 if (isMcClassCaster || isMcThirdCaster) {
-                    String casterType = deriveCasterType(mcClassRef, mcSubName);
+                    String casterType = SpellSlotCalculator.casterType(mcClassName, isMcClassCaster,
+                            Boolean.TRUE.equals(mcClassRef.getIsPactMagic()), mcSubName);
                     if (!"none".equals(casterType)) {
                         spellSlotEntries.put(mcClassName, new SpellSlotCalculator.ClassEntry(mcLevel, casterType));
                     }
@@ -199,7 +200,7 @@ public class CharacterService {
                 CharacterClass mcCasterRef = characterClassRepository.findById(mcCasterId).orElse(null);
                 if (mcCasterRef == null) continue;
                 boolean isClassCaster = Boolean.TRUE.equals(mcCasterRef.getIsSpellcaster());
-                boolean isThirdCaster = mceSubclassName != null && THIRD_CASTER_SUBCLASSES.contains(mceSubclassName) && mceLevel >= 3;
+                boolean isThirdCaster = mceSubclassName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(mceSubclassName) && mceLevel >= 3;
                 if ((isClassCaster || isThirdCaster) && spellcastingAbility == null) {
                     spellcastingAbility = isClassCaster ? mcCasterRef.getSpellcastingAbility() : "INT";
                     int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
@@ -250,12 +251,13 @@ public class CharacterService {
             }
 
             boolean isSingleClassCaster = classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster());
-            boolean isSingleThirdCaster = subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName) && level >= 3;
+            boolean isSingleThirdCaster = subclassName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(subclassName) && level >= 3;
             if ((isSingleClassCaster || isSingleThirdCaster) && spellSlots == null) {
                 if (spellcastingAbility == null) {
                     spellcastingAbility = isSingleClassCaster ? classRef.getSpellcastingAbility() : "INT";
                 }
-                String casterType = deriveCasterType(classRef, subclassName);
+                String casterType = SpellSlotCalculator.casterType(className, isSingleClassCaster,
+                        classRef != null && Boolean.TRUE.equals(classRef.getIsPactMagic()), subclassName);
                 if (!"none".equals(casterType)) {
                     Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
                     entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
@@ -825,9 +827,10 @@ public class CharacterService {
             CharacterClass cc = characterClassRepository.findById(UUID.fromString(classId)).orElse(null);
             if (cc == null) continue;
             boolean isClassCaster = Boolean.TRUE.equals(cc.getIsSpellcaster());
-            boolean isThirdCaster = subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName) && classLevel >= 3;
+            boolean isThirdCaster = subclassName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(subclassName) && classLevel >= 3;
             if (isClassCaster || isThirdCaster) {
-                String casterType = deriveCasterType(cc, subclassName);
+                String casterType = SpellSlotCalculator.casterType(cc.getName(), isClassCaster,
+                        Boolean.TRUE.equals(cc.getIsPactMagic()), subclassName);
                 if (!"none".equals(casterType)) {
                     slotEntries.put(cc.getName(), new SpellSlotCalculator.ClassEntry(classLevel, casterType));
                 }
@@ -1161,23 +1164,7 @@ public class CharacterService {
     }
 
     static int proficiencyBonusForLevel(int level) {
-        if (level <= 4) return 2;
-        if (level <= 8) return 3;
-        if (level <= 12) return 4;
-        if (level <= 16) return 5;
-        return 6;
-    }
-
-    private static final Set<String> THIRD_CASTER_SUBCLASSES = Set.of("Eldritch Knight", "Arcane Trickster");
-
-    private static String deriveCasterType(CharacterClass classRef, String subclassName) {
-        if (Boolean.TRUE.equals(classRef.getIsPactMagic())) return "pact";
-        String name = classRef.getName();
-        if ("Artificer".equals(name)) return "artificer";
-        if ("Paladin".equals(name) || "Ranger".equals(name)) return "half";
-        if (!Boolean.TRUE.equals(classRef.getIsSpellcaster()) && subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName)) return "third";
-        if (Boolean.TRUE.equals(classRef.getIsSpellcaster())) return "full";
-        return "none";
+        return ProficiencyBonus.forLevel(level);
     }
 
     static int getAbilityMod(String ability, PlayerCharacter character) {
