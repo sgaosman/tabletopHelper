@@ -13,11 +13,11 @@ const CHAPTER_NAMES = [
 ];
 
 const CHAPTER_ACCENT: Record<string, string> = {
-  'Character Creation': '#4F46E5',
-  'Equipment': '#B45309',
-  'Playing the Game': '#059669',
-  'Combat': '#DC2626',
-  'Movement': '#7C3AED',
+  'Character Creation': 'var(--color-abj)',
+  'Equipment': 'var(--color-trans)',
+  'Playing the Game': 'var(--color-conj)',
+  'Combat': 'var(--color-evo)',
+  'Movement': 'var(--color-illu)',
 };
 
 interface QuickRefChapter {
@@ -52,7 +52,7 @@ function RichText({ text }: { text: string }) {
 
 function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number }) {
   if (typeof entry === 'string') {
-    return <p className="font-body text-[13px] font-semibold text-muted leading-relaxed mb-2"><RichText text={entry} /></p>;
+    return <p className="font-body text-[15px] font-semibold text-muted leading-relaxed mb-2"><RichText text={entry} /></p>;
   }
 
   if (!entry || typeof entry !== 'object') return null;
@@ -65,7 +65,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
       return (
         <div className={depth > 0 ? 'ml-0 mt-3' : 'mt-4'}>
           {e.name && e.type !== 'section' && (
-            <h4 className="font-heading text-[12px] font-semibold text-ink mb-2 mt-4">{e.name}</h4>
+            <h4 className="font-heading text-[14px] font-semibold text-ink mb-2 mt-4">{e.name}</h4>
           )}
           {e.entries?.map((sub, i) => (
             <EntryRenderer key={i} entry={sub} depth={depth + 1} />
@@ -80,7 +80,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
         <ul className={`mb-3 ${cols > 1 ? 'grid gap-x-4 gap-y-1' : 'space-y-1'}`}
           style={cols > 1 ? { gridTemplateColumns: `repeat(${Math.min(cols, 3)}, minmax(0, 1fr))` } : undefined}>
           {(e.items ?? []).map((item, i) => (
-            <li key={i} className="flex gap-2 font-body text-[12px] font-semibold text-muted">
+            <li key={i} className="flex gap-2 font-body text-[14px] font-semibold text-muted">
               <span className="text-faint mt-0.5 flex-shrink-0">&bull;</span>
               <span>{typeof item === 'string' ? <RichText text={item} /> : <EntryRenderer entry={item} depth={depth + 1} />}</span>
             </li>
@@ -92,13 +92,13 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
     case 'table': {
       return (
         <div className="mb-4 overflow-x-auto">
-          {e.caption && <p className="font-heading text-[9px] font-semibold tracking-[0.04em] uppercase text-faint mb-1">{e.caption}</p>}
+          {e.caption && <p className="font-heading text-[11px] font-semibold tracking-[0.04em] uppercase text-faint mb-1">{e.caption}</p>}
           <table className="w-full border-collapse bg-card border border-rule">
             {e.colLabels && (
               <thead>
                 <tr className="border-b border-rule bg-page">
                   {e.colLabels.map((label, i) => (
-                    <th key={i} className="px-3 py-2 text-left font-heading text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">
+                    <th key={i} className="px-3 py-2 text-left font-heading text-[12px] font-semibold tracking-[0.08em] uppercase text-faint">
                       <RichText text={label} />
                     </th>
                   ))}
@@ -111,7 +111,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
                 return (
                   <tr key={i} className="border-b border-rule-light">
                     {row.map((cell, j) => (
-                      <td key={j} className="px-3 py-1.5 font-body text-[12px] font-semibold text-muted">
+                      <td key={j} className="px-3 py-1.5 font-body text-[14px] font-semibold text-muted">
                         {typeof cell === 'string' ? <RichText text={cell} /> : <EntryRenderer entry={cell} depth={depth + 1} />}
                       </td>
                     ))}
@@ -127,7 +127,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
     case 'inset': {
       return (
         <div className="bg-page-alt border-l-2 border-cls-cleric px-4 py-3 mb-3">
-          {e.name && <p className="font-heading text-[11px] font-semibold text-cls-cleric mb-1">{e.name}</p>}
+          {e.name && <p className="font-heading text-[13px] font-semibold text-cls-cleric mb-1">{e.name}</p>}
           {e.entries?.map((sub, i) => (
             <EntryRenderer key={i} entry={sub} depth={depth + 1} />
           ))}
@@ -138,7 +138,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
     case 'item': {
       const dot = e.nameDot !== false ? '.' : '';
       return (
-        <p className="font-body text-[12px] font-semibold text-muted mb-2">
+        <p className="font-body text-[14px] font-semibold text-muted mb-2">
           <strong className="text-ink">{e.name}{dot}</strong>{' '}
           {e.entry && <RichText text={e.entry} />}
           {e.entries?.map((sub, i) => (
@@ -150,7 +150,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
 
     case 'abilityGeneric': {
       return (
-        <p className="font-body text-[12px] font-semibold text-muted mb-2 bg-page px-3 py-2 border border-rule">
+        <p className="font-body text-[14px] font-semibold text-muted mb-2 bg-page px-3 py-2 border border-rule">
           <RichText text={e.text ?? ''} />
         </p>
       );
@@ -159,7 +159,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
     case 'row': {
       if (!e.row) return null;
       return (
-        <div className="flex gap-4 font-body text-[12px] font-semibold text-muted pl-4 py-0.5">
+        <div className="flex gap-4 font-body text-[14px] font-semibold text-muted pl-4 py-0.5">
           {e.row.map((cell, i) => (
             <span key={i} className={i === 0 ? 'flex-1' : 'w-20 text-right text-faint'}>
               <RichText text={cell} />
@@ -187,7 +187,7 @@ function EntryRenderer({ entry, depth = 0 }: { entry: unknown; depth?: number })
       if (e.entries) {
         return (
           <div className="mb-2">
-            {e.name && <p className="font-heading text-[12px] font-semibold text-ink mb-1">{e.name}</p>}
+            {e.name && <p className="font-heading text-[14px] font-semibold text-ink mb-1">{e.name}</p>}
             {e.entries.map((sub, i) => (
               <EntryRenderer key={i} entry={sub} depth={depth + 1} />
             ))}
@@ -267,19 +267,19 @@ export default function QuickReferencePage() {
       <NavBar />
 
       {loading ? (
-        <div className="text-center py-20 font-body text-[14px] text-muted">Loading quick rules reference...</div>
+        <div className="text-center py-20 font-body text-[16px] text-muted">Loading quick rules reference...</div>
       ) : (
         <div className="flex">
           <aside className="hidden lg:block w-56 flex-shrink-0 border-r border-rule">
             <div className="sticky top-14 max-h-screen overflow-y-auto py-6 px-4">
-              <h3 className="font-heading text-[9px] font-semibold tracking-[0.1em] uppercase text-faint mb-4">Index</h3>
+              <h3 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-4">Index</h3>
               {chapters.map((chapter, ci) => {
                 const chapterName = CHAPTER_NAMES[ci] ?? `Chapter ${ci + 1}`;
-                const accent = CHAPTER_ACCENT[chapterName] ?? '#78716C';
+                const accent = CHAPTER_ACCENT[chapterName] ?? 'var(--color-faint)';
 
                 return (
                   <div key={ci} className="mb-4">
-                    <p className="font-heading text-[9px] font-bold tracking-[0.08em] uppercase mb-1.5" style={{ color: accent }}>
+                    <p className="font-heading text-[11px] font-bold tracking-[0.08em] uppercase mb-1.5" style={{ color: accent }}>
                       {chapterName}
                     </p>
                     <ul className="space-y-0.5">
@@ -292,7 +292,7 @@ export default function QuickReferencePage() {
                           <li key={si}>
                             <button
                               onClick={() => scrollToSection(sectionSlug)}
-                              className={`text-left font-body text-[11px] w-full px-2 py-0.5 transition-colors ${
+                              className={`text-left font-body text-[13px] w-full px-2 py-0.5 transition-colors ${
                                 activeSection === sectionSlug
                                   ? 'bg-page-alt text-ink font-semibold'
                                   : 'text-muted hover:text-ink hover:bg-page-alt'
@@ -313,11 +313,11 @@ export default function QuickReferencePage() {
             <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-8">Quick Rules Reference</h1>
             {chapters.map((chapter, ci) => {
               const chapterName = CHAPTER_NAMES[ci] ?? `Chapter ${ci + 1}`;
-              const accent = CHAPTER_ACCENT[chapterName] ?? '#78716C';
+              const accent = CHAPTER_ACCENT[chapterName] ?? 'var(--color-faint)';
 
               return (
                 <div key={ci} className="mb-10">
-                  <h2 className="font-heading text-[15px] font-semibold mb-4 pb-2 border-b-2" style={{ borderColor: accent, color: accent }}>
+                  <h2 className="font-heading text-[17px] font-semibold mb-4 pb-2 border-b-2" style={{ borderColor: accent, color: accent }}>
                     {chapterName}
                   </h2>
                   {(chapter.entries ?? []).map((rawEntry, si) => {
@@ -332,8 +332,8 @@ export default function QuickReferencePage() {
                         <button
                           onClick={() => toggleSection(combinedKey)}
                           className="w-full text-left px-3 py-2.5 bg-card border border-rule hover:bg-page-alt flex items-center justify-between transition-colors">
-                          <span className="font-heading text-[13px] font-semibold text-ink">{sectionName}</span>
-                          <span className="text-faint text-[11px]">
+                          <span className="font-heading text-[15px] font-semibold text-ink">{sectionName}</span>
+                          <span className="text-faint text-[13px]">
                             {isExpanded ? '▲' : '▼'}
                           </span>
                         </button>

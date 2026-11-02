@@ -41,7 +41,7 @@ export default function ResourcePoolDisplay({
           key={entry.poolId}
           className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm
             ${entry.currentUses === 0
-              ? 'bg-rule text-muted'
+              ? 'bg-rule-light text-muted'
               : 'bg-page-alt text-ink'
             }`}
           title={`${entry.displayName} — ${entry.sourceName || entry.sourceType} — resets on ${entry.resetOn}${entry.resetCheck ? ` (recharge ${entry.resetCheck})` : ''}`}
@@ -51,7 +51,7 @@ export default function ResourcePoolDisplay({
 
           <span className="font-semibold">{entry.displayName}</span>
 
-          <span className={`tabular-nums ${entry.currentUses === 0 ? 'text-red-700' : ''}`}>
+          <span className={`tabular-nums ${entry.currentUses === 0 ? 'text-debuff' : ''}`}>
             {entry.currentUses}/{entry.maxUses}
           </span>
 

@@ -43,8 +43,8 @@ export default function CampaignDetailPage() {
     return mod >= 0 ? `+${mod}` : `${mod}`;
   }
 
-  if (loading) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[14px] text-muted">Loading...</p></div></div>;
-  if (!campaign) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[14px] text-debuff">Campaign not found</p></div></div>;
+  if (loading) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[16px] text-muted">Loading...</p></div></div>;
+  if (!campaign) return <div className="min-h-screen bg-page"><NavBar /><div className="flex items-center justify-center py-20"><p className="font-body text-[16px] text-debuff">Campaign not found</p></div></div>;
 
   return (
     <div className="min-h-screen bg-page">
@@ -53,11 +53,11 @@ export default function CampaignDetailPage() {
       <main className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">{campaign.name}</h1>
-          {campaign.description && <p className="font-body text-[13px] font-semibold text-muted">{campaign.description}</p>}
+          {campaign.description && <p className="font-body text-[15px] font-semibold text-muted">{campaign.description}</p>}
 
           <div className="flex items-center gap-2 mt-4 bg-card border border-rule px-4 py-2.5 w-fit">
-            <span className="font-heading text-[9px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
-            <span className="font-heading text-[15px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
+            <span className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
+            <span className="font-heading text-[17px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
             <button onClick={copyInviteCode} className="ml-2 text-faint hover:text-ink transition-colors">
               {copiedCode ? <Check className="w-4 h-4 text-buff" /> : <Copy className="w-4 h-4" />}
             </button>
@@ -65,17 +65,17 @@ export default function CampaignDetailPage() {
         </div>
 
         <section className="mb-8">
-          <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
+          <h2 className="font-heading text-[13px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
             <Users className="w-3.5 h-3.5" /> Members ({campaign.members.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {campaign.members.map((m) => (
               <div key={m.userId} className="bg-card border border-rule p-3 flex items-center justify-between">
                 <div>
-                  <p className="font-heading text-[13px] font-bold text-ink">{m.displayName}</p>
-                  <p className="font-body text-[11px] font-semibold text-faint">@{m.username}</p>
+                  <p className="font-heading text-[15px] font-bold text-ink">{m.displayName}</p>
+                  <p className="font-body text-[13px] font-semibold text-faint">@{m.username}</p>
                 </div>
-                <span className={`font-heading text-[9px] font-semibold tracking-[0.04em] px-2 py-0.5 border ${m.role === 'DM' ? 'text-cls-cleric bg-cls-cleric-bg border-[#E8DCC4]' : 'text-cls-wizard bg-cls-wizard-bg border-abj-border'}`}>
+                <span className={`font-heading text-[11px] font-semibold tracking-[0.04em] px-2 py-0.5 border ${m.role === 'DM' ? 'text-cls-cleric bg-cls-cleric-bg border-cls-cleric-border' : 'text-cls-wizard bg-cls-wizard-bg border-abj-border'}`}>
                   {m.role}
                 </span>
               </div>
@@ -84,11 +84,11 @@ export default function CampaignDetailPage() {
         </section>
 
         <section>
-          <h2 className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
+          <h2 className="font-heading text-[13px] font-semibold tracking-[0.1em] uppercase text-faint mb-3 flex items-center gap-2">
             <ScrollText className="w-3.5 h-3.5" /> Characters ({characters.length})
           </h2>
           {characters.length === 0 ? (
-            <p className="font-body text-[13px] text-faint">No characters assigned to this campaign yet.</p>
+            <p className="font-body text-[15px] text-faint">No characters assigned to this campaign yet.</p>
           ) : (
             <div className="space-y-2">
               {characters.map((c) => {
@@ -98,15 +98,15 @@ export default function CampaignDetailPage() {
                     style={{ borderLeftWidth: '3px', borderLeftColor: clsColour }}>
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <h3 className="font-heading text-[14px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
-                        <p className="font-body text-[12px] font-semibold text-muted">
+                        <h3 className="font-heading text-[16px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
+                        <p className="font-body text-[14px] font-semibold text-muted">
                           Level {c.level} {c.race} {c.characterClass}{c.subclass ? ` (${c.subclass})` : ''}
                           <span className="text-faint"> — played by {c.ownerDisplayName}</span>
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-heading text-[11px] font-semibold text-ink">HP {c.hpCurrent}/{c.hpMax}</p>
-                        <p className="font-body text-[11px] text-faint">AC {c.armourClass}</p>
+                        <p className="font-heading text-[13px] font-semibold text-ink">HP {c.hpCurrent}/{c.hpMax}</p>
+                        <p className="font-body text-[13px] text-faint">AC {c.armourClass}</p>
                       </div>
                     </div>
                     <div className="flex gap-4 mt-2">
@@ -114,9 +114,9 @@ export default function CampaignDetailPage() {
                         const val = c[stat];
                         const label = stat.slice(0, 3).toUpperCase();
                         return (
-                          <span key={stat} className="font-body text-[11px] text-muted">
-                            <span className="font-heading text-[9px] font-semibold tracking-[0.04em] text-faint">{label}</span>{' '}
-                            <span className="font-heading text-[11px] font-bold text-ink">{val}</span>{' '}
+                          <span key={stat} className="font-body text-[13px] text-muted">
+                            <span className="font-heading text-[11px] font-semibold tracking-[0.04em] text-faint">{label}</span>{' '}
+                            <span className="font-heading text-[13px] font-bold text-ink">{val}</span>{' '}
                             <span className="text-faint">({modifierString(val)})</span>
                           </span>
                         );

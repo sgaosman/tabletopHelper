@@ -8,12 +8,12 @@ import { sourceName } from '../../utils/sourceNames';
 import NavBar from '../../components/common/NavBar';
 
 const RARITY_COLOURS: Record<string, { text: string; bg: string; border: string }> = {
-  'common':    { text: '#78716C', bg: '#F5F5F0', border: '#E7E5E4' },
-  'uncommon':  { text: '#166534', bg: '#F0FDF4', border: '#BBF7D0' },
-  'rare':      { text: '#4F46E5', bg: '#EEF2FF', border: '#C7D2FE' },
-  'very rare': { text: '#9333EA', bg: '#FAF5FF', border: '#D8B4FE' },
-  'legendary': { text: '#B45309', bg: '#FFFBEB', border: '#FDE68A' },
-  'artifact':  { text: '#991B1B', bg: '#FEF2F2', border: '#FECACA' },
+  'common':    { text: 'var(--color-faint)', bg: 'var(--color-page-alt)', border: 'var(--color-rule-light)' },
+  'uncommon':  { text: 'var(--color-buff)', bg: 'var(--color-buff-bg)', border: 'var(--color-buff-border)' },
+  'rare':      { text: 'var(--color-abj)', bg: 'var(--color-abj-bg)', border: 'var(--color-abj-border)' },
+  'very rare': { text: 'var(--color-cls-sorcerer)', bg: 'var(--color-cls-sorcerer-bg)', border: 'var(--color-illu-border)' },
+  'legendary': { text: 'var(--color-trans)', bg: 'var(--color-trans-bg)', border: 'var(--color-trans-border)' },
+  'artifact':  { text: 'var(--color-debuff)', bg: 'var(--color-debuff-bg)', border: 'var(--color-debuff-border)' },
 };
 
 const COLUMNS: { label: string; field: string; hideClass?: string }[] = [
@@ -88,14 +88,14 @@ export default function ItemsPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">Items</h1>
-        <p className="font-body text-[13px] font-semibold text-muted mb-6">Browse weapons, armour, and magic items</p>
+        <p className="font-body text-[15px] font-semibold text-muted mb-6">Browse weapons, armour, and magic items</p>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-2.5 text-faint" size={16} />
             <input type="text" placeholder="Search items..."
               value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none" />
+              className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none" />
           </div>
           <MultiSelect options={types} selected={typeFilter} onChange={setTypeFilter} placeholder="All Types" accentColor="emerald" />
           <MultiSelect options={rarities} selected={rarityFilter} onChange={setRarityFilter} placeholder="All Rarities" accentColor="emerald" />
@@ -103,10 +103,10 @@ export default function ItemsPage() {
         </div>
 
         <div className="flex items-center justify-between mb-4">
-          <p className="font-body text-[12px] font-semibold text-muted">{totalElements} items found</p>
+          <p className="font-body text-[14px] font-semibold text-muted">{totalElements} items found</p>
           {hasFilters && (
             <button onClick={clearFilters}
-              className="flex items-center gap-1.5 px-3 py-1 font-heading text-[9px] font-semibold tracking-[0.04em] text-muted hover:text-ink transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1 font-heading text-[11px] font-semibold tracking-[0.04em] text-muted hover:text-ink transition-colors">
               <RotateCcw size={12} /> Clear Filters
             </button>
           )}
@@ -115,7 +115,7 @@ export default function ItemsPage() {
         <div className="flex gap-0">
           <div className={`min-w-0 transition-all duration-300 ${selectedItem ? 'w-3/5' : 'w-full'}`}>
             {loading ? (
-              <div className="text-center py-12 font-body text-[14px] text-muted">Loading...</div>
+              <div className="text-center py-12 font-body text-[16px] text-muted">Loading...</div>
             ) : (
               <>
                 <div className="bg-card border border-rule overflow-hidden">
@@ -125,7 +125,7 @@ export default function ItemsPage() {
                         {COLUMNS.map(col => (
                           <th key={col.field}
                             onClick={() => handleSort(col.field)}
-                            className={`px-3 py-2.5 text-left font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint cursor-pointer hover:text-ink select-none ${col.hideClass || ''}`}>
+                            className={`px-3 py-2.5 text-left font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint cursor-pointer hover:text-ink select-none ${col.hideClass || ''}`}>
                             <span className="inline-flex items-center gap-1">
                               {col.label}
                               <SortIcon field={col.field} />
@@ -141,21 +141,21 @@ export default function ItemsPage() {
                           <tr key={item.id} onClick={() => setSelectedItem(item)}
                             className={`border-b border-rule-light hover:bg-page-alt cursor-pointer transition-colors ${selectedItem?.id === item.id ? 'bg-page-alt' : ''}`}>
                             <td className="px-3 py-2">
-                              <span className="font-heading text-[13px] font-bold text-ink">{item.name}</span>
-                              {item.requiresAttunement && <span className="ml-2 font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-cls-warlock border border-illu-border bg-illu-bg">A</span>}
+                              <span className="font-heading text-[15px] font-bold text-ink">{item.name}</span>
+                              {item.requiresAttunement && <span className="ml-2 font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-cls-warlock border border-illu-border bg-illu-bg">A</span>}
                             </td>
-                            <td className="px-3 py-2 font-body text-[13px] font-semibold text-muted hidden md:table-cell">{item.type}</td>
+                            <td className="px-3 py-2 font-body text-[15px] font-semibold text-muted hidden md:table-cell">{item.type}</td>
                             <td className="px-3 py-2 hidden md:table-cell">
                               {rarity ? (
-                                <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 capitalize" style={{ color: rarity.text, backgroundColor: rarity.bg, border: `1px solid ${rarity.border}` }}>
+                                <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 capitalize" style={{ color: rarity.text, backgroundColor: rarity.bg, border: `1px solid ${rarity.border}` }}>
                                   {item.rarity}
                                 </span>
                               ) : (
-                                <span className="font-body text-[13px] text-faint">-</span>
+                                <span className="font-body text-[15px] text-faint">-</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 font-body text-[13px] font-semibold text-muted hidden lg:table-cell">{item.cost || '-'}</td>
-                            <td className="px-3 py-2 font-body text-[13px] font-semibold text-faint hidden lg:table-cell">{sourceName(item.source || '')}</td>
+                            <td className="px-3 py-2 font-body text-[15px] font-semibold text-muted hidden lg:table-cell">{item.cost || '-'}</td>
+                            <td className="px-3 py-2 font-body text-[15px] font-semibold text-faint hidden lg:table-cell">{sourceName(item.source || '')}</td>
                           </tr>
                         );
                       })}
@@ -169,7 +169,7 @@ export default function ItemsPage() {
                       className="p-2 bg-card border border-rule hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       <ChevronLeft size={18} className="text-muted" />
                     </button>
-                    <span className="font-body text-[13px] font-semibold text-muted">Page {page + 1} of {totalPages}</span>
+                    <span className="font-body text-[15px] font-semibold text-muted">Page {page + 1} of {totalPages}</span>
                     <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                       className="p-2 bg-card border border-rule hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       <ChevronRight size={18} className="text-muted" />
@@ -200,7 +200,7 @@ export default function ItemsPage() {
         {selectedItem && (
           <div className="md:hidden fixed inset-0 z-50 bg-page overflow-y-auto p-4">
             <button onClick={() => setSelectedItem(null)}
-              className="flex items-center gap-2 font-body text-[14px] font-semibold text-muted hover:text-ink mb-4">
+              className="flex items-center gap-2 font-body text-[16px] font-semibold text-muted hover:text-ink mb-4">
               <ChevronLeft size={18} /> Back to Items
             </button>
             <ItemCard item={selectedItem} />

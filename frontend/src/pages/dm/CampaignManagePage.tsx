@@ -57,51 +57,51 @@ export default function CampaignManagePage() {
           <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink">Campaigns</h1>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[13px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-ink text-card font-body text-[15px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> New Campaign
           </button>
         </div>
 
         {error && (
-          <div className="bg-debuff-bg border border-debuff-border text-debuff font-body text-[13px] p-3 mb-4">{error}</div>
+          <div className="bg-debuff-bg border border-debuff-border text-debuff font-body text-[15px] p-3 mb-4">{error}</div>
         )}
 
         {showCreate && (
           <form onSubmit={handleCreate} className="bg-card border border-rule p-6 mb-6 space-y-4">
-            <h2 className="font-heading text-[15px] font-semibold text-ink">Create Campaign</h2>
+            <h2 className="font-heading text-[17px] font-semibold text-ink">Create Campaign</h2>
             <div>
-              <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">Campaign Name</label>
+              <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">Campaign Name</label>
               <input
                 type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200}
-                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
                 placeholder="e.g. Curse of Strahd"
               />
             </div>
             <div>
-              <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
+              <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
                 Description <span className="text-faint normal-case tracking-normal font-body">(optional)</span>
               </label>
               <textarea
                 value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-                className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none resize-none"
+                className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none resize-none"
                 placeholder="A brief description of your campaign"
               />
             </div>
             <div className="flex gap-3">
-              <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[13px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors">Create</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-page border border-rule font-body text-[13px] font-semibold text-muted hover:border-muted transition-colors">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-ink text-card font-body text-[15px] font-semibold border border-ink hover:bg-muted hover:border-muted transition-colors">Create</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-page border border-rule font-body text-[15px] font-semibold text-muted hover:border-muted transition-colors">Cancel</button>
             </div>
           </form>
         )}
 
         {loading ? (
-          <p className="font-body text-[14px] text-muted">Loading campaigns...</p>
+          <p className="font-body text-[16px] text-muted">Loading campaigns...</p>
         ) : campaigns.length === 0 ? (
           <div className="text-center py-16">
             <Users className="w-10 h-10 text-faint mx-auto mb-4" />
-            <p className="font-body text-[14px] text-muted mb-1">No campaigns yet</p>
-            <p className="font-body text-[12px] text-faint">Create your first campaign to get started</p>
+            <p className="font-body text-[16px] text-muted mb-1">No campaigns yet</p>
+            <p className="font-body text-[14px] text-faint">Create your first campaign to get started</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -109,12 +109,12 @@ export default function CampaignManagePage() {
               <div key={campaign.id} className="bg-card border border-rule p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-heading text-[15px] font-semibold text-ink">{campaign.name}</h3>
-                    {campaign.description && <p className="font-body text-[13px] font-semibold text-muted mt-1">{campaign.description}</p>}
+                    <h3 className="font-heading text-[17px] font-semibold text-ink">{campaign.name}</h3>
+                    {campaign.description && <p className="font-body text-[15px] font-semibold text-muted mt-1">{campaign.description}</p>}
                   </div>
                   <button
                     onClick={() => navigate(`/dm/campaigns/${campaign.id}`)}
-                    className="font-body text-[13px] font-semibold text-ink hover:text-muted transition-colors"
+                    className="font-body text-[15px] font-semibold text-ink hover:text-muted transition-colors"
                   >
                     View Details
                   </button>
@@ -122,13 +122,13 @@ export default function CampaignManagePage() {
 
                 <div className="flex items-center gap-4 mt-4">
                   <div className="flex items-center gap-2 bg-page border border-rule px-3 py-1.5">
-                    <span className="font-heading text-[9px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
-                    <span className="font-heading text-[13px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
+                    <span className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">Invite Code</span>
+                    <span className="font-heading text-[15px] font-bold tracking-wider text-ink">{campaign.inviteCode}</span>
                     <button onClick={() => copyInviteCode(campaign.inviteCode)} className="text-faint hover:text-ink transition-colors">
                       {copiedCode === campaign.inviteCode ? <Check className="w-3.5 h-3.5 text-buff" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  <span className="font-body text-[12px] font-semibold text-muted">
+                  <span className="font-body text-[14px] font-semibold text-muted">
                     {campaign.members.length} member{campaign.members.length !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -136,8 +136,8 @@ export default function CampaignManagePage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {campaign.members.map((m) => (
                     <span key={m.userId} className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-page border border-rule">
-                      <span className="font-body text-[11px] font-semibold text-ink">{m.displayName}</span>
-                      <span className={`font-heading text-[9px] font-semibold ${m.role === 'DM' ? 'text-cls-cleric' : 'text-cls-wizard'}`}>{m.role}</span>
+                      <span className="font-body text-[13px] font-semibold text-ink">{m.displayName}</span>
+                      <span className={`font-heading text-[11px] font-semibold ${m.role === 'DM' ? 'text-cls-cleric' : 'text-cls-wizard'}`}>{m.role}</span>
                     </span>
                   ))}
                 </div>

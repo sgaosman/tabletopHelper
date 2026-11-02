@@ -31,13 +31,13 @@ function formatDescription(text: string) {
 
     if (isBullet) {
       return (
-        <li key={i} className="flex gap-2 font-body text-[12px] font-semibold text-muted leading-relaxed">
+        <li key={i} className="flex gap-2 font-body text-[14px] font-semibold text-muted leading-relaxed">
           <span className="text-debuff mt-0.5 flex-shrink-0">&bull;</span>
           <span>{rendered}</span>
         </li>
       );
     }
-    return <p key={i} className="font-body text-[12px] font-semibold text-muted leading-relaxed">{rendered}</p>;
+    return <p key={i} className="font-body text-[14px] font-semibold text-muted leading-relaxed">{rendered}</p>;
   });
 }
 
@@ -58,10 +58,10 @@ export default function ConditionsPage() {
 
       <div className="max-w-4xl mx-auto px-6 py-8">
         <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">Conditions</h1>
-        <p className="font-body text-[13px] font-semibold text-muted mb-6">Reference conditions and their effects</p>
+        <p className="font-body text-[15px] font-semibold text-muted mb-6">Reference conditions and their effects</p>
 
         {loading ? (
-          <div className="text-center py-12 font-body text-[14px] text-muted">Loading...</div>
+          <div className="text-center py-12 font-body text-[16px] text-muted">Loading...</div>
         ) : (
           <div className="space-y-1.5">
             {conditions.map(c => (
@@ -69,7 +69,7 @@ export default function ConditionsPage() {
                 <button
                   onClick={() => setExpanded(expanded === c.id ? null : c.id)}
                   className="w-full px-3 py-2.5 text-left flex justify-between items-center hover:bg-page-alt transition-colors">
-                  <span className="font-heading text-[14px] font-bold text-debuff">{c.name}</span>
+                  <span className="font-heading text-[16px] font-bold text-debuff">{c.name}</span>
                   {expanded === c.id
                     ? <ChevronDown size={16} className="text-faint" />
                     : <ChevronRight size={16} className="text-faint" />}
@@ -86,7 +86,7 @@ export default function ConditionsPage() {
                             .replace(/\b(incapacitated)\b/gi, '**$1**')
                             .split(/(\*\*[^*]+\*\*)/);
                           return (
-                            <li key={i} className="flex gap-2 font-body text-[12px] font-semibold text-muted leading-relaxed">
+                            <li key={i} className="flex gap-2 font-body text-[14px] font-semibold text-muted leading-relaxed">
                               <span className="text-debuff mt-0.5 flex-shrink-0">&bull;</span>
                               <span>
                                 {parts.map((part, j) => {
@@ -108,7 +108,7 @@ export default function ConditionsPage() {
                       </div>
                     )}
 
-                    <p className="font-body text-[11px] text-faint text-right mt-3">Source: {sourceName(c.source || '')}</p>
+                    <p className="font-body text-[13px] text-faint text-right mt-3">Source: {sourceName(c.source || '')}</p>
                   </div>
                 )}
               </div>

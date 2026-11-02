@@ -1,45 +1,53 @@
-const CLASS_COLOURS: Record<string, { colour: string; bg: string }> = {
-  Barbarian:  { colour: '#DC2626', bg: '#FEF2F2' },
-  Bard:       { colour: '#DB2777', bg: '#FDF2F8' },
-  Cleric:     { colour: '#B8860B', bg: '#FBF6EB' },
-  Druid:      { colour: '#059669', bg: '#ECFDF5' },
-  Fighter:    { colour: '#92400E', bg: '#FFF7ED' },
-  Monk:       { colour: '#CA8A04', bg: '#FFFBEB' },
-  Paladin:    { colour: '#A16207', bg: '#FFFBEB' },
-  Ranger:     { colour: '#166534', bg: '#F0FDF4' },
-  Rogue:      { colour: '#374151', bg: '#F9FAFB' },
-  Sorcerer:   { colour: '#9333EA', bg: '#FAF5FF' },
-  Warlock:    { colour: '#7C3AED', bg: '#F5F3FF' },
-  Wizard:     { colour: '#4F46E5', bg: '#EEF2FF' },
-  Artificer:  { colour: '#B45309', bg: '#FFF7ED' },
+// Class and monster colours for inline styles. They are var() references to the theme tokens
+// in index.css rather than hex values, so they follow the chosen theme (D173).
+const CLASS_TOKENS: Record<string, string> = {
+  Barbarian: 'barbarian',
+  Bard: 'bard',
+  Cleric: 'cleric',
+  Druid: 'druid',
+  Fighter: 'fighter',
+  Monk: 'monk',
+  Paladin: 'paladin',
+  Ranger: 'ranger',
+  Rogue: 'rogue',
+  Sorcerer: 'sorcerer',
+  Warlock: 'warlock',
+  Wizard: 'wizard',
+  Artificer: 'artificer',
 };
 
-const MONSTER_COLOUR = { colour: '#991B1B', bg: '#FEF2F2' };
+const FALLBACK_COLOUR = 'var(--color-faint)';
+const FALLBACK_BG = 'var(--color-page-alt)';
+const MONSTER_COLOUR = 'var(--color-monster)';
+const MONSTER_BG = 'var(--color-monster-bg)';
+
+function classToken(className: string | undefined | null): string | undefined {
+  if (!className) return undefined;
+  return CLASS_TOKENS[className.split('/')[0].trim()];
+}
 
 export function getClassColour(className: string | undefined | null): string {
-  if (!className) return '#78716C';
-  const primary = className.split('/')[0].trim();
-  return CLASS_COLOURS[primary]?.colour ?? '#78716C';
+  const token = classToken(className);
+  return token ? `var(--color-cls-${token})` : FALLBACK_COLOUR;
 }
 
 export function getClassBg(className: string | undefined | null): string {
-  if (!className) return '#F5F5F0';
-  const primary = className.split('/')[0].trim();
-  return CLASS_COLOURS[primary]?.bg ?? '#F5F5F0';
+  const token = classToken(className);
+  return token ? `var(--color-cls-${token}-bg)` : FALLBACK_BG;
 }
 
 export function getMonsterColour() {
-  return MONSTER_COLOUR.colour;
+  return MONSTER_COLOUR;
 }
 
 export function getMonsterBg() {
-  return MONSTER_COLOUR.bg;
+  return MONSTER_BG;
 }
 
 export function getParticipantColour(isMonster: boolean, className?: string | null): string {
-  return isMonster ? MONSTER_COLOUR.colour : getClassColour(className);
+  return isMonster ? MONSTER_COLOUR : getClassColour(className);
 }
 
 export function getParticipantBg(isMonster: boolean, className?: string | null): string {
-  return isMonster ? MONSTER_COLOUR.bg : getClassBg(className);
+  return isMonster ? MONSTER_BG : getClassBg(className);
 }

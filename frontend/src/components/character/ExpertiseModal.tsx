@@ -28,7 +28,7 @@ export default function ExpertiseModal({ character, count, onComplete, onClose }
         <div className="px-5 py-4 border-b border-rule flex items-center justify-between">
           <div>
             <h2 id="expertise-title" className="font-heading text-[17px] font-bold text-ink">Choose Expertise</h2>
-            <p className="font-body text-[11px] font-semibold text-muted mt-0.5">
+            <p className="font-body text-[13px] font-semibold text-muted mt-0.5">
               Select {count} skill{count > 1 ? 's' : ''} to double your proficiency bonus ({selected.length}/{count})
             </p>
           </div>
@@ -37,7 +37,7 @@ export default function ExpertiseModal({ character, count, onComplete, onClose }
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
           {available.length === 0 ? (
-            <p className="font-body text-[13px] text-faint text-center py-4">No eligible skills for expertise.</p>
+            <p className="font-body text-[15px] text-faint text-center py-4">No eligible skills for expertise.</p>
           ) : (
             available.map(skill => {
               const isSelected = selected.includes(skill);
@@ -56,7 +56,7 @@ export default function ExpertiseModal({ character, count, onComplete, onClose }
                   }`}>
                     {isSelected && <Check className="w-4 h-4 text-card" />}
                   </div>
-                  <span className={`font-heading text-[14px] font-semibold ${isSelected ? 'text-ink' : 'text-ink'}`}>
+                  <span className={`font-heading text-[16px] font-semibold ${isSelected ? 'text-ink' : 'text-ink'}`}>
                     {skill}
                   </span>
                 </button>
@@ -66,13 +66,13 @@ export default function ExpertiseModal({ character, count, onComplete, onClose }
         </div>
 
         <div className="px-5 py-4 border-t border-rule flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[13px] font-semibold hover:bg-rule transition-colors">
+          <button onClick={onClose} className="px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[15px] font-semibold hover:bg-rule transition-colors">
             Skip
           </button>
           <button
             onClick={() => onComplete(selected)}
             disabled={selected.length !== count}
-            className="px-5 py-2 bg-ink text-card font-body text-[14px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+            className="px-5 py-2 bg-ink text-card font-body text-[16px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
           >
             Confirm Expertise
           </button>

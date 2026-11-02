@@ -3,12 +3,12 @@ import { BookOpen, ScrollText, Shield, Swords, Users, FlaskConical } from 'lucid
 import NavBar from '../../components/common/NavBar';
 
 const cards = [
-  { title: 'Campaigns', description: 'Manage your campaigns and players', icon: Users, path: '/dm/campaigns', colour: '#4F46E5' },
-  { title: 'Bestiary', description: 'Browse monsters from all sourcebooks', icon: Swords, path: '/dm/bestiary', colour: '#991B1B' },
-  { title: 'Spells', description: 'Search the complete spell list', icon: BookOpen, path: '/dm/spells', colour: '#7C3AED' },
-  { title: 'Items', description: 'Browse weapons, armour, and magic items', icon: Shield, path: '/dm/items', colour: '#B45309' },
-  { title: 'Conditions', description: 'Reference conditions and their effects', icon: FlaskConical, path: '/dm/conditions', colour: '#059669' },
-  { title: 'Encounters', description: 'Build and run combat encounters', icon: ScrollText, path: '/dm/encounters', colour: '#DC2626' },
+  { title: 'Campaigns', description: 'Manage your campaigns and players', icon: Users, path: '/dm/campaigns', colour: 'var(--color-abj)' },
+  { title: 'Bestiary', description: 'Browse monsters from all sourcebooks', icon: Swords, path: '/dm/bestiary', colour: 'var(--color-monster)' },
+  { title: 'Spells', description: 'Search the complete spell list', icon: BookOpen, path: '/dm/spells', colour: 'var(--color-illu)' },
+  { title: 'Items', description: 'Browse weapons, armour, and magic items', icon: Shield, path: '/dm/items', colour: 'var(--color-trans)' },
+  { title: 'Conditions', description: 'Reference conditions and their effects', icon: FlaskConical, path: '/dm/conditions', colour: 'var(--color-conj)' },
+  { title: 'Encounters', description: 'Build and run combat encounters', icon: ScrollText, path: '/dm/encounters', colour: 'var(--color-evo)' },
 ];
 
 export default function DmDashboard() {
@@ -33,8 +33,8 @@ export default function DmDashboard() {
                 className="w-7 h-7 mb-3 group-hover:scale-105 transition-transform"
                 style={{ color: card.colour }}
               />
-              <h3 className="font-heading text-[14px] font-semibold text-ink mb-1">{card.title}</h3>
-              <p className="font-body text-[13px] font-semibold text-muted">{card.description}</p>
+              <h3 className="font-heading text-[16px] font-semibold text-ink mb-1">{card.title}</h3>
+              <p className="font-body text-[15px] font-semibold text-muted">{card.description}</p>
             </button>
           ))}
         </div>

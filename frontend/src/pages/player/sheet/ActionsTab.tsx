@@ -17,7 +17,7 @@ export default function ActionsTab({ char, features }: {
   return (
     <div className="space-y-4">
       <div className="bg-card border border-rule p-4">
-        <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-3">Combat Stats</h3>
+        <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-3">Combat Stats</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard label="Attack Bonus" value={formatMod(abilityMod(char.strength) + char.proficiencyBonus)} sub="STR melee" />
           <StatCard label="Attack Bonus" value={formatMod(abilityMod(char.dexterity) + char.proficiencyBonus)} sub="DEX ranged/finesse" />
@@ -30,13 +30,13 @@ export default function ActionsTab({ char, features }: {
         <div className="space-y-3">
           {actionFeatures.map((f, i) => (
             <div key={i} className="bg-card border border-rule p-4">
-              <h4 className="font-heading text-[13px] font-semibold text-ink">{f.name}</h4>
-              <FormattedDescription text={f.description} className="mt-2 font-body text-[13px] [&_p]:text-muted [&_strong]:text-ink" />
+              <h4 className="font-heading text-[15px] font-semibold text-ink">{f.name}</h4>
+              <FormattedDescription text={f.description} className="mt-2 font-body text-[15px] [&_p]:text-muted [&_strong]:text-ink" />
             </div>
           ))}
         </div>
       ) : (
-        <p className="font-body text-[13px] text-faint">No combat actions configured. Add features in the Features tab.</p>
+        <p className="font-body text-[15px] text-faint">No combat actions configured. Add features in the Features tab.</p>
       )}
     </div>
   );

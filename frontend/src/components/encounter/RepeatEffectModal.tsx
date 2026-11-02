@@ -92,7 +92,7 @@ export default function RepeatEffectModal({ encounterId, caster, participants, s
               <RotateCw className="w-5 h-5 text-cls-warlock" />
               {spellName} — Repeat Effect
             </h2>
-            <p className="font-body text-[11px] font-semibold text-muted mt-0.5">
+            <p className="font-body text-[13px] font-semibold text-muted mt-0.5">
               {caster.displayName}
               {(caster.concentrationSlotLevel || caster.activeSpellSlotLevel) && (
                 <span className="text-cls-warlock ml-1">(slot level {caster.concentrationSlotLevel || caster.activeSpellSlotLevel})</span>
@@ -107,11 +107,11 @@ export default function RepeatEffectModal({ encounterId, caster, participants, s
         <div className="px-5 py-4 space-y-3 overflow-y-auto flex-1 min-h-0">
           <div className="flex items-center gap-2 bg-page-alt border border-cls-warlock/30 px-3 py-2">
             <RotateCw className="w-3.5 h-3.5 text-cls-warlock shrink-0" />
-            <p className="font-body text-[11px] font-semibold text-cls-warlock">No spell slot consumed — repeating existing concentration effect</p>
+            <p className="font-body text-[13px] font-semibold text-cls-warlock">No spell slot consumed — repeating existing concentration effect</p>
           </div>
 
           {error && (
-            <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 font-body text-[13px] font-semibold">{error}</div>
+            <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{error}</div>
           )}
 
           {result ? (
@@ -189,12 +189,12 @@ function TargetStep({ spellName, targets, caster, selectedTargets, onToggle, onP
   return (
     <>
       <div className="flex items-center gap-2 mb-2">
-        <span className="font-heading text-[14px] font-semibold text-ink">{spellName}</span>
-        <span className="font-body text-[11px] font-semibold text-faint">— {targetingLoading ? 'Loading...' : targetLabel}</span>
+        <span className="font-heading text-[16px] font-semibold text-ink">{spellName}</span>
+        <span className="font-body text-[13px] font-semibold text-faint">— {targetingLoading ? 'Loading...' : targetLabel}</span>
       </div>
 
       {targetingLoading ? (
-        <p className="font-body text-[13px] text-faint text-center py-4">Loading targeting info...</p>
+        <p className="font-body text-[15px] text-faint text-center py-4">Loading targeting info...</p>
       ) : (
         <div className="space-y-1">
           {filteredTargets.map(p => {
@@ -214,10 +214,10 @@ function TargetStep({ spellName, targets, caster, selectedTargets, onToggle, onP
               >
                 <div className="flex items-center gap-2">
                   <Target className={`w-3.5 h-3.5 ${isSelected ? 'text-cls-warlock' : 'text-faint'}`} />
-                  <span className={`font-body text-[13px] font-semibold ${isSelected ? 'text-ink' : 'text-muted'}`}>{p.displayName}</span>
-                  {isSelf && <span className="font-body text-[10px] text-faint">(self)</span>}
+                  <span className={`font-body text-[15px] font-semibold ${isSelected ? 'text-ink' : 'text-muted'}`}>{p.displayName}</span>
+                  {isSelf && <span className="font-body text-[12px] text-faint">(self)</span>}
                 </div>
-                <div className="flex items-center gap-2 font-body text-[11px] text-faint">
+                <div className="flex items-center gap-2 font-body text-[13px] text-faint">
                   <span>AC {p.armourClass}</span>
                   <span>{p.hpCurrent}/{p.hpMax} HP</span>
                 </div>
@@ -230,7 +230,7 @@ function TargetStep({ spellName, targets, caster, selectedTargets, onToggle, onP
       <button
         onClick={onProceed}
         disabled={selectedTargets.length === 0}
-        className="w-full mt-2 px-4 py-2.5 bg-ink text-card font-body text-[14px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+        className="w-full mt-2 px-4 py-2.5 bg-ink text-card font-body text-[16px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
       >
         Continue
       </button>
@@ -256,17 +256,17 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
   return (
     <>
       <div className="flex items-center gap-2 mb-3">
-        <button onClick={onBack} className="font-body text-[13px] font-semibold text-muted hover:text-ink">&larr; Back</button>
-        <span className="font-heading text-[14px] font-semibold text-ink">Confirm</span>
+        <button onClick={onBack} className="font-body text-[15px] font-semibold text-muted hover:text-ink">&larr; Back</button>
+        <span className="font-heading text-[16px] font-semibold text-ink">Confirm</span>
       </div>
 
       <div className="bg-page-alt border border-rule p-4 space-y-2">
         <div className="flex items-center gap-2">
           <RotateCw className="w-4 h-4 text-cls-warlock" />
-          <span className="font-heading text-[14px] font-bold text-ink">{spellName}</span>
+          <span className="font-heading text-[16px] font-bold text-ink">{spellName}</span>
         </div>
 
-        <p className="font-body text-[13px] font-semibold text-muted">
+        <p className="font-body text-[15px] font-semibold text-muted">
           <Shield className="w-3.5 h-3.5 inline mr-1" />
           Targeting: {targets.map(t => t.displayName).join(', ') || 'None'}
         </p>
@@ -279,7 +279,7 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
             <button
               key={mode}
               onClick={() => onAdvantageChange(val)}
-              className={`flex-1 py-1.5 font-body text-[12px] font-semibold transition-colors ${
+              className={`flex-1 py-1.5 font-body text-[14px] font-semibold transition-colors ${
                 advantage === val
                   ? 'bg-ink text-card'
                   : 'bg-page-alt border border-rule text-muted hover:text-ink'
@@ -294,23 +294,23 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
       {isMonster && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Spell Attack Bonus</label>
+            <label className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Spell Attack Bonus</label>
             <input
               type="number"
               value={overrideAttackBonus}
               onChange={e => onOverrideAttackBonus(e.target.value)}
               placeholder={String(caster.spellAttackBonus ?? 0)}
-              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted"
+              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
             />
           </div>
           <div>
-            <label className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">Spell Save DC</label>
+            <label className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Spell Save DC</label>
             <input
               type="number"
               value={overrideSaveDC}
               onChange={e => onOverrideSaveDC(e.target.value)}
               placeholder={String(caster.spellSaveDc ?? 10)}
-              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted"
+              className="w-full mt-1 px-3 py-1.5 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
             />
           </div>
         </div>
@@ -319,7 +319,7 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
       <button
         onClick={onRepeat}
         disabled={casting}
-        className="w-full px-4 py-2.5 bg-ink text-card font-body text-[14px] font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 flex items-center justify-center gap-2"
+        className="w-full px-4 py-2.5 bg-ink text-card font-body text-[16px] font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 flex items-center justify-center gap-2"
       >
         <RotateCw className="w-4 h-4" />
         {casting ? 'Repeating...' : 'Repeat Effect'}
@@ -332,17 +332,17 @@ function ResultView({ result, onClose }: { result: CastSpellResponse; onClose: (
   return (
     <div className="space-y-3">
       <div className="bg-page-alt border border-cls-warlock/30 p-4">
-        <p className="font-heading text-[14px] font-bold text-ink mb-1 flex items-center gap-2">
+        <p className="font-heading text-[16px] font-bold text-ink mb-1 flex items-center gap-2">
           <RotateCw className="w-4 h-4 text-cls-warlock" />
           {result.spellName}
-          <span className="font-body text-[11px] font-normal text-faint">repeat effect</span>
+          <span className="font-body text-[13px] font-normal text-faint">repeat effect</span>
         </p>
-        <p className="font-body text-[13px] font-semibold text-muted">{result.resultSummary}</p>
+        <p className="font-body text-[15px] font-semibold text-muted">{result.resultSummary}</p>
       </div>
 
       {!result.autoResolved && result.manualResolutionReason && (
         <div className="bg-page-alt border border-cls-monk/30 p-3">
-          <p className="font-body text-[13px] font-semibold text-cls-monk flex items-center gap-2">
+          <p className="font-body text-[15px] font-semibold text-cls-monk flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
             Requires DM adjudication: {result.manualResolutionReason}
           </p>
@@ -358,9 +358,9 @@ function ResultView({ result, onClose }: { result: CastSpellResponse; onClose: (
                   t.outcome === 'miss' || t.outcome === 'saved' ? 'bg-faint' :
                   t.outcome === 'critical' ? 'bg-debuff' : 'bg-buff'
                 }`} />
-                <span className="font-body text-[13px] font-semibold text-ink">{t.targetName}</span>
+                <span className="font-body text-[15px] font-semibold text-ink">{t.targetName}</span>
               </div>
-              <div className="flex items-center gap-3 font-body text-[11px]">
+              <div className="flex items-center gap-3 font-body text-[13px]">
                 {t.attackRoll != null && (
                   <span className={t.outcome === 'miss' ? 'text-faint' : 'text-buff'}>
                     Roll: {t.attackRoll}
@@ -388,7 +388,7 @@ function ResultView({ result, onClose }: { result: CastSpellResponse; onClose: (
 
       <button
         onClick={onClose}
-        className="w-full px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[14px] font-semibold hover:bg-rule transition-colors"
+        className="w-full px-4 py-2 bg-page-alt border border-rule text-muted font-body text-[16px] font-semibold hover:bg-rule transition-colors"
       >
         Done
       </button>

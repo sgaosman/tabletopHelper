@@ -1,19 +1,21 @@
 @import "tailwindcss";
 
-@theme {
+/* Tourmaline, the default theme (D124, made easier to read in D173).
+   The other themes override these tokens at the end of this file. */
+@theme static {
   /* Surfaces */
-  --color-page: #F5F5F0;
-  --color-card: #FAFAF5;
-  --color-page-alt: #F8F7F2;
+  --color-page: #F3F2EC;
+  --color-card: #FBFAF5;
+  --color-page-alt: #F6F5F0;
 
   /* Text */
-  --color-ink: #000000;
-  --color-muted: #383532;
-  --color-faint: #736e6b;
+  --color-ink: #1C1917;
+  --color-muted: #38332F;
+  --color-faint: #57524C;
 
   /* Borders */
-  --color-rule: #E7E5E4;
-  --color-rule-light: #EEECE8;
+  --color-rule: #C9C4BE;
+  --color-rule-light: #E3E0DA;
 
   /* Class colours */
   --color-cls-barbarian: #DC2626;
@@ -22,6 +24,7 @@
   --color-cls-bard-bg: #FDF2F8;
   --color-cls-cleric: #B8860B;
   --color-cls-cleric-bg: #FBF6EB;
+  --color-cls-cleric-border: #E8DCC4;
   --color-cls-druid: #059669;
   --color-cls-druid-bg: #ECFDF5;
   --color-cls-fighter: #92400E;
@@ -87,18 +90,19 @@
 
   /* Fonts */
   --font-heading: 'Cinzel', serif;
-  --font-body: 'Cormorant Garamond', serif;
+  --font-body: 'Crimson Pro', serif;
 }
 
 /* Base styles */
 html {
-  background-color: #F5F5F0;
+  background-color: var(--color-page);
 }
 
 body {
-  font-family: 'Cormorant Garamond', serif;
-  color: #292524;
-  background-color: #F5F5F0;
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background-color: var(--color-page);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -115,6 +119,125 @@ input, select, textarea, button {
 
 /* Focus ring override */
 *:focus-visible {
-  outline: 1.5px solid #78716C;
+  outline: 1.5px solid var(--color-faint);
   outline-offset: 1px;
 }
+
+/* Themes (D173). The saved choice sets data-theme on <html> before the first paint (see index.html). */
+:root {
+  /* The thin line along the top of the nav bar */
+  --nav-accent: linear-gradient(90deg, #E11D48, #C026D3, #7C3AED, #4F46E5, #0D9488, #059669);
+}
+
+/* Parchment & Ink: warm parchment, sturdy calligraphic body text, dark ink and rules */
+html[data-theme="parchment"] {
+  --font-body: 'Alegreya', serif;
+  --color-page: #F2E8D5;
+  --color-card: #FBF6EC;
+  --color-page-alt: #EFE3CB;
+  --color-ink: #1C140D;
+  --color-muted: #3D3024;
+  --color-faint: #5E4E3D;
+  --color-rule: #A08A66;
+  --color-rule-light: #D9C8A6;
+  --nav-accent: #A08A66;
+}
+
+/* Tavern by Candlelight: dark walnut surfaces, warm off-white text, humanist sans body */
+html[data-theme="tavern"] {
+  color-scheme: dark;
+  --font-body: 'Alegreya Sans', sans-serif;
+  --color-page: #15110D;
+  --color-card: #211A14;
+  --color-page-alt: #1A1511;
+  --color-ink: #F3EADB;
+  --color-muted: #D9CBB4;
+  --color-faint: #B3A38A;
+  --color-rule: #7A6852;
+  --color-rule-light: #3A3027;
+  --nav-accent: #C8963E;
+
+  /* Accents lightened for the dark background, mixed from the Tourmaline colours above */
+  --color-cls-barbarian: color-mix(in srgb, #DC2626 55%, #F3EADB);
+  --color-cls-barbarian-bg: color-mix(in srgb, #DC2626 22%, #211A14);
+  --color-cls-bard: color-mix(in srgb, #DB2777 55%, #F3EADB);
+  --color-cls-bard-bg: color-mix(in srgb, #DB2777 22%, #211A14);
+  --color-cls-cleric: color-mix(in srgb, #B8860B 55%, #F3EADB);
+  --color-cls-cleric-bg: color-mix(in srgb, #B8860B 22%, #211A14);
+  --color-cls-cleric-border: color-mix(in srgb, #B8860B 45%, #211A14);
+  --color-cls-druid: color-mix(in srgb, #059669 55%, #F3EADB);
+  --color-cls-druid-bg: color-mix(in srgb, #059669 22%, #211A14);
+  --color-cls-fighter: color-mix(in srgb, #92400E 55%, #F3EADB);
+  --color-cls-fighter-bg: color-mix(in srgb, #92400E 22%, #211A14);
+  --color-cls-monk: color-mix(in srgb, #CA8A04 55%, #F3EADB);
+  --color-cls-monk-bg: color-mix(in srgb, #CA8A04 22%, #211A14);
+  --color-cls-paladin: color-mix(in srgb, #A16207 55%, #F3EADB);
+  --color-cls-paladin-bg: color-mix(in srgb, #A16207 22%, #211A14);
+  --color-cls-ranger: color-mix(in srgb, #166534 55%, #F3EADB);
+  --color-cls-ranger-bg: color-mix(in srgb, #166534 22%, #211A14);
+  --color-cls-rogue: color-mix(in srgb, #374151 55%, #F3EADB);
+  --color-cls-rogue-bg: color-mix(in srgb, #374151 22%, #211A14);
+  --color-cls-sorcerer: color-mix(in srgb, #9333EA 55%, #F3EADB);
+  --color-cls-sorcerer-bg: color-mix(in srgb, #9333EA 22%, #211A14);
+  --color-cls-warlock: color-mix(in srgb, #7C3AED 55%, #F3EADB);
+  --color-cls-warlock-bg: color-mix(in srgb, #7C3AED 22%, #211A14);
+  --color-cls-wizard: color-mix(in srgb, #4F46E5 55%, #F3EADB);
+  --color-cls-wizard-bg: color-mix(in srgb, #4F46E5 22%, #211A14);
+  --color-cls-artificer: color-mix(in srgb, #B45309 55%, #F3EADB);
+  --color-cls-artificer-bg: color-mix(in srgb, #B45309 22%, #211A14);
+  --color-monster: color-mix(in srgb, #991B1B 55%, #F3EADB);
+  --color-monster-bg: color-mix(in srgb, #991B1B 22%, #211A14);
+  --color-buff: color-mix(in srgb, #166534 55%, #F3EADB);
+  --color-buff-bg: color-mix(in srgb, #166534 22%, #211A14);
+  --color-buff-border: color-mix(in srgb, #166534 45%, #211A14);
+  --color-debuff: color-mix(in srgb, #991B1B 55%, #F3EADB);
+  --color-debuff-bg: color-mix(in srgb, #991B1B 22%, #211A14);
+  --color-debuff-border: color-mix(in srgb, #991B1B 45%, #211A14);
+  --color-hp-healthy: color-mix(in srgb, #166534 55%, #F3EADB);
+  --color-hp-wounded: color-mix(in srgb, #B45309 55%, #F3EADB);
+  --color-hp-critical: color-mix(in srgb, #991B1B 55%, #F3EADB);
+  --color-active: color-mix(in srgb, #059669 55%, #F3EADB);
+  --color-evo: color-mix(in srgb, #DC2626 55%, #F3EADB);
+  --color-evo-bg: color-mix(in srgb, #DC2626 22%, #211A14);
+  --color-evo-border: color-mix(in srgb, #DC2626 45%, #211A14);
+  --color-abj: color-mix(in srgb, #4F46E5 55%, #F3EADB);
+  --color-abj-bg: color-mix(in srgb, #4F46E5 22%, #211A14);
+  --color-abj-border: color-mix(in srgb, #4F46E5 45%, #211A14);
+  --color-conj: color-mix(in srgb, #059669 55%, #F3EADB);
+  --color-conj-bg: color-mix(in srgb, #059669 22%, #211A14);
+  --color-conj-border: color-mix(in srgb, #059669 45%, #211A14);
+  --color-ench: color-mix(in srgb, #DB2777 55%, #F3EADB);
+  --color-ench-bg: color-mix(in srgb, #DB2777 22%, #211A14);
+  --color-ench-border: color-mix(in srgb, #DB2777 45%, #211A14);
+  --color-necro: color-mix(in srgb, #374151 55%, #F3EADB);
+  --color-necro-bg: color-mix(in srgb, #374151 22%, #211A14);
+  --color-necro-border: color-mix(in srgb, #374151 45%, #211A14);
+  --color-div: color-mix(in srgb, #CA8A04 55%, #F3EADB);
+  --color-div-bg: color-mix(in srgb, #CA8A04 22%, #211A14);
+  --color-div-border: color-mix(in srgb, #CA8A04 45%, #211A14);
+  --color-trans: color-mix(in srgb, #B45309 55%, #F3EADB);
+  --color-trans-bg: color-mix(in srgb, #B45309 22%, #211A14);
+  --color-trans-border: color-mix(in srgb, #B45309 45%, #211A14);
+  --color-illu: color-mix(in srgb, #7C3AED 55%, #F3EADB);
+  --color-illu-bg: color-mix(in srgb, #7C3AED 22%, #211A14);
+  --color-illu-border: color-mix(in srgb, #7C3AED 45%, #211A14);
+}
+
+/* Adventurer's Handbook: rulebook page, small-caps headings and primary actions in book red */
+html[data-theme="handbook"] {
+  --font-heading: 'Alegreya SC', serif;
+  --font-body: 'Libre Baskerville', serif;
+  --color-page: #EEE5CE;
+  --color-card: #FDF9EE;
+  --color-page-alt: #F5EDDA;
+  --color-ink: #1B1B1B;
+  --color-muted: #3B3226;
+  --color-faint: #5C4F3F;
+  --color-rule: #A88B5A;
+  --color-rule-light: #DDCBA3;
+  --nav-accent: #6B1D12;
+}
+html[data-theme="handbook"] :is(h1, h2, h3).font-heading { color: #6B1D12; }
+html[data-theme="handbook"] .bg-ink { background-color: #6B1D12; }
+html[data-theme="handbook"] .border-ink { border-color: #6B1D12; }
+html[data-theme="handbook"] .accent-ink { accent-color: #6B1D12; }

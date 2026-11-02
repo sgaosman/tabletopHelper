@@ -23,8 +23,7 @@ describe('ItemsPage', () => {
 
   it('renders page title', async () => {
     render(<ItemsPage />);
-    await waitFor(() => screen.getByText('Items'));
-    expect(screen.getByText('Items')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Items' })).toBeInTheDocument();
     expect(screen.getByText('Browse weapons, armour, and magic items')).toBeInTheDocument();
   });
 

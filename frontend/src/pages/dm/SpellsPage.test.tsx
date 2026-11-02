@@ -23,8 +23,7 @@ describe('SpellsPage', () => {
 
   it('renders page title', async () => {
     render(<SpellsPage />);
-    await waitFor(() => screen.getByText('Spells'));
-    expect(screen.getByText('Spells')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Spells' })).toBeInTheDocument();
     expect(screen.getByText('Search the complete spell list')).toBeInTheDocument();
   });
 

@@ -51,7 +51,7 @@ export default function ReviewStep({
 }: ReviewStepProps) {
   return (
     <div className="space-y-6">
-      <h2 className="font-heading text-[15px] font-semibold text-ink">Review Your Character</h2>
+      <h2 className="font-heading text-[17px] font-semibold text-ink">Review Your Character</h2>
 
       <div className="bg-card border border-rule p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -82,7 +82,7 @@ export default function ReviewStep({
 
         {selectedClassSkills.length > 0 && (
           <div className="border-t border-rule pt-4">
-            <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Class Skills</h3>
+            <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Class Skills</h3>
             <div className="grid grid-cols-2 gap-4">
               <ReviewField label="Skill Proficiencies" value={selectedClassSkills.join(', ')} />
             </div>
@@ -91,7 +91,7 @@ export default function ReviewStep({
 
         {(resolvedRaceChoices.languages.length > 0 || resolvedRaceChoices.skills.length > 0 || resolvedRaceChoices.tools.length > 0 || resolvedRaceChoices.weapons.length > 0 || resolvedRaceChoices.resistances.length > 0 || resolvedRaceChoices.spellAbility || resolvedRaceChoices.feats.length > 0) && (
           <div className="border-t border-rule pt-4">
-            <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Race Choices</h3>
+            <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Race Choices</h3>
             <div className="grid grid-cols-2 gap-4">
               {resolvedRaceChoices.languages.length > 0 && (
                 <ReviewField label="Languages" value={resolvedRaceChoices.languages.join(', ')} />
@@ -120,7 +120,7 @@ export default function ReviewStep({
 
         {(resolvedBgProfs.skills.length > 0 || resolvedBgProfs.tools.length > 0 || resolvedBgProfs.languages.length > 0) && (
           <div className="border-t border-rule pt-4">
-            <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Background Proficiencies</h3>
+            <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Background Proficiencies</h3>
             <div className="grid grid-cols-2 gap-4">
               {resolvedBgProfs.skills.length > 0 && (
                 <ReviewField label="Skills" value={resolvedBgProfs.skills.join(', ')} />
@@ -137,7 +137,7 @@ export default function ReviewStep({
 
         {selectedBgFeat && (
           <div className="border-t border-rule pt-4">
-            <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Feat</h3>
+            <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Feat</h3>
             <div className="grid grid-cols-2 gap-4">
               <ReviewField label="Feat" value={selectedBgFeat} />
               {selectedFeatOption && parsedFeatOptions.length > 1 && (
@@ -191,12 +191,12 @@ export default function ReviewStep({
           if (spellGroups.length === 0) return null;
           return (
             <div className="border-t border-rule pt-4">
-              <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Selected Spells</h3>
+              <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Selected Spells</h3>
               <div className="space-y-2">
                 {spellGroups.map(g => (
                   <div key={g.label}>
-                    <p className="font-body text-[11px] text-faint">{g.label}</p>
-                    <p className="font-body text-[13px] font-semibold text-ink">{g.spells.join(', ')}</p>
+                    <p className="font-body text-[13px] text-faint">{g.label}</p>
+                    <p className="font-body text-[15px] font-semibold text-ink">{g.spells.join(', ')}</p>
                   </div>
                 ))}
               </div>
@@ -220,12 +220,12 @@ export default function ReviewStep({
           if (groups.length === 0) return null;
           return (
             <div className="border-t border-rule pt-4">
-              <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Always Prepared (Subclass)</h3>
+              <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Always Prepared (Subclass)</h3>
               <div className="space-y-2">
                 {groups.map(g => (
                   <div key={g.scName}>
-                    <p className="font-body text-[11px] text-faint">{g.scName}</p>
-                    <p className="font-body text-[13px] font-semibold text-buff">{g.spells.join(', ')}</p>
+                    <p className="font-body text-[13px] text-faint">{g.scName}</p>
+                    <p className="font-body text-[15px] font-semibold text-buff">{g.spells.join(', ')}</p>
                   </div>
                 ))}
               </div>
@@ -234,20 +234,20 @@ export default function ReviewStep({
         })()}
 
         <div className="border-t border-rule pt-4">
-          <h3 className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Ability Scores</h3>
+          <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Ability Scores</h3>
           <div className="grid grid-cols-6 gap-3">
             {ABILITIES.map(a => (
               <div key={a} className="text-center bg-page py-2">
-                <p className="font-heading text-[8px] font-semibold tracking-[0.1em] uppercase text-faint">{ABILITY_LABELS[a]}</p>
+                <p className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">{ABILITY_LABELS[a]}</p>
                 <p className="font-heading text-[17px] font-bold text-ink">{finalScores[a]}</p>
-                <p className="font-body text-[11px] font-semibold text-muted">{formatMod(abilityMod(finalScores[a]))}</p>
+                <p className="font-body text-[13px] font-semibold text-muted">{formatMod(abilityMod(finalScores[a]))}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {error && <p className="font-body text-[13px] font-semibold text-debuff">{error}</p>}
+      {error && <p className="font-body text-[15px] font-semibold text-debuff">{error}</p>}
     </div>
   );
 }
@@ -255,8 +255,8 @@ export default function ReviewStep({
 function ReviewField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="font-heading text-[9px] font-semibold tracking-[0.06em] uppercase text-faint">{label}</p>
-      <p className="font-body text-[13px] font-semibold text-ink">{value}</p>
+      <p className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">{label}</p>
+      <p className="font-body text-[15px] font-semibold text-ink">{value}</p>
     </div>
   );
 }

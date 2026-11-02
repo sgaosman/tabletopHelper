@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Check, Search, X } from 'lucide-react';
 import type { CharacterClassRef, Spell } from '../../../types/reference';
 import { searchSpells } from '../../../api/referenceApi';
+import { useTypeAhead } from '../../../hooks/useTypeAhead';
 import { CANTRIPS_KNOWN, SPELLS_KNOWN, THIRD_CASTER_CANTRIPS, THIRD_CASTER_SPELLS, THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST, maxSpellLevel, wizardSpellbookCount } from '../../../utils/spellConstants';
 import type { ParsedFeatOption } from '../../../utils/featSpellParser';
 import type { ClassEntry } from './types';
@@ -54,10 +55,10 @@ export default function SpellsStep({
         if (maxLvl === 0 && cantrips === 0) {
           return (
             <div className="bg-card border border-rule p-4">
-              <h2 className="font-heading text-[15px] font-semibold text-ink mb-2">
+              <h2 className="font-heading text-[17px] font-semibold text-ink mb-2">
                 {classEntries.length > 1 ? `${selectedClass.name} Spells` : 'Spells'}
               </h2>
-              <p className="font-body text-[13px] font-semibold text-muted">
+              <p className="font-body text-[15px] font-semibold text-muted">
                 {selectedClass.name} does not gain spellcasting until a higher level. No spell selection is needed at level {classLevel}.
               </p>
             </div>
@@ -89,8 +90,8 @@ export default function SpellsStep({
         if (maxLvl === 0 && cantrips === 0) {
           return (
             <div key={entry.cls.id} className="bg-card border border-rule p-4">
-              <h3 className="font-heading text-[13px] font-semibold text-ink mb-2">{entry.cls.name} Spells</h3>
-              <p className="font-body text-[13px] font-semibold text-muted">
+              <h3 className="font-heading text-[15px] font-semibold text-ink mb-2">{entry.cls.name} Spells</h3>
+              <p className="font-body text-[15px] font-semibold text-muted">
                 {entry.cls.name} does not gain spellcasting until a higher level. No spell selection is needed at level {entry.level}.
               </p>
             </div>
@@ -191,10 +192,10 @@ export default function SpellsStep({
         if (warnings.length === 0) return null;
         return (
           <div className="bg-buff-bg border border-buff-border p-3">
-            <p className="font-body text-[11px] font-semibold text-hp-wounded">
+            <p className="font-body text-[13px] font-semibold text-hp-wounded">
               You haven't selected all available spells. You can still proceed, but your character may be underpowered.
             </p>
-            <ul className="font-body text-[11px] font-semibold text-buff mt-1 list-disc list-inside">
+            <ul className="font-body text-[13px] font-semibold text-buff mt-1 list-disc list-inside">
               {warnings.map(w => <li key={w}>{w}</li>)}
             </ul>
           </div>
@@ -262,15 +263,16 @@ function SpellSelectionSection({
     }
   }, [selectedClass.name, maxLevel]);
 
-  function searchCantrips() {
+  // Results follow the search boxes as you type; Enter searches straight away
+  const { searchNow: searchCantrips } = useTypeAhead(cantripSearch, () => {
     const params: Record<string, unknown> = { className: selectedClass.name, level: 0, size: 50 };
     if (cantripSearch.trim()) params.name = cantripSearch.trim();
-    searchSpells(params as any).then(res => setCantripResults(res.content)).catch(() => {});
-  }
+    return searchSpells(params as any).then(res => res.content);
+  }, setCantripResults);
 
-  function searchSpellsList() {
+  const { searchNow: searchSpellsList } = useTypeAhead(spellSearch, () => {
     if (maxLevel <= 0) return;
-    Promise.all(
+    return Promise.all(
       Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => {
         const params: Record<string, unknown> = { className: selectedClass.name, level: lvl, size: 50 };
         if (spellSearch.trim()) params.name = spellSearch.trim();
@@ -279,9 +281,9 @@ function SpellSelectionSection({
     ).then(results => {
       const all = results.flat();
       const seen = new Set<string>();
-      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-    }).catch(() => {});
-  }
+      return all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; });
+    });
+  }, setSpellResults);
 
   function toggleCantrip(spell: Spell) {
     const exists = selectedCantrips.some(s => s.id === spell.id);
@@ -303,8 +305,8 @@ function SpellSelectionSection({
 
   return (
     <div className="space-y-6">
-      <h2 className="font-heading text-[15px] font-semibold text-ink">{title ?? 'Choose Spells'}</h2>
-      <p className="font-body text-[13px] font-semibold text-muted">
+      <h2 className="font-heading text-[17px] font-semibold text-ink">{title ?? 'Choose Spells'}</h2>
+      <p className="font-body text-[15px] font-semibold text-muted">
         {isWizard
           ? `Select spells for your starting spellbook. You begin with ${wizardSpellbookCount(level)} spells.`
           : `Select your starting ${selectedClass.name} spells.`}
@@ -313,8 +315,8 @@ function SpellSelectionSection({
       {cantripsAllowed > 0 && (
         <div className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">Cantrips</h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">{selectedCantrips.length}/{cantripsAllowed} selected</span>
+            <h3 className="font-heading text-[15px] font-semibold text-ink">Cantrips</h3>
+            <span className="font-heading text-[11px] font-semibold text-faint">{selectedCantrips.length}/{cantripsAllowed} selected</span>
           </div>
 
           <div className="flex gap-2">
@@ -325,16 +327,15 @@ function SpellSelectionSection({
                 onChange={e => setCantripSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && searchCantrips()}
                 placeholder="Search cantrips..."
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
-            <button onClick={searchCantrips} className="bg-ink text-card font-heading text-[9px] font-semibold px-3 hover:opacity-90 transition-opacity">Search</button>
           </div>
 
           {selectedCantrips.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedCantrips.map(s => (
-                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[11px] font-semibold border border-rule">
+                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[13px] font-semibold border border-rule">
                   {s.name}
                   <button onClick={() => toggleCantrip(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -351,7 +352,7 @@ function SpellSelectionSection({
                   key={spell.id}
                   onClick={() => !disabled && toggleCantrip(spell)}
                   disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-page-alt text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}
                 >
@@ -367,12 +368,12 @@ function SpellSelectionSection({
       {spellsAllowed > 0 && (
         <div className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">
+            <h3 className="font-heading text-[15px] font-semibold text-ink">
               {isWizard
                 ? (maxLevel > 1 ? `Spellbook (Level 1-${maxLevel})` : 'Spellbook (Level 1)')
                 : (maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells')}
             </h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">{selectedSpells.length}/{spellsAllowed} selected</span>
+            <span className="font-heading text-[11px] font-semibold text-faint">{selectedSpells.length}/{spellsAllowed} selected</span>
           </div>
 
           <div className="flex gap-2">
@@ -383,16 +384,15 @@ function SpellSelectionSection({
                 onChange={e => setSpellSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && searchSpellsList()}
                 placeholder={maxLevel > 1 ? `Search level 1-${maxLevel} spells...` : "Search level 1 spells..."}
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
-            <button onClick={searchSpellsList} className="bg-ink text-card font-heading text-[9px] font-semibold px-3 hover:opacity-90 transition-opacity">Search</button>
           </div>
 
           {selectedSpells.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedSpells.map(s => (
-                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[11px] font-semibold border border-rule">
+                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[13px] font-semibold border border-rule">
                   {s.name}
                   <button onClick={() => toggleSpell(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -409,13 +409,13 @@ function SpellSelectionSection({
                   key={spell.id}
                   onClick={() => !disabled && toggleSpell(spell)}
                   disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-page-alt text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span>{spell.name}</span>
-                    <span className="text-[11px] text-faint">{spell.school}</span>
+                    <span className="text-[13px] text-faint">{spell.school}</span>
                   </div>
                   {selected && <Check className="w-4 h-4 text-ink" />}
                 </button>
@@ -427,8 +427,8 @@ function SpellSelectionSection({
 
       {isPrepared && (
         <div className="bg-card border border-rule p-4">
-          <h3 className="font-heading text-[13px] font-semibold text-ink mb-2">Prepared Spells</h3>
-          <p className="font-body text-[13px] font-semibold text-muted">
+          <h3 className="font-heading text-[15px] font-semibold text-ink mb-2">Prepared Spells</h3>
+          <p className="font-body text-[15px] font-semibold text-muted">
             As a {selectedClass.name}, you prepare spells each day from your class spell list.
             You can change your prepared spells from the character sheet after creation.
           </p>
@@ -486,15 +486,16 @@ function MulticlassSpellSection({
     }
   }, [cls.name, maxLevel]);
 
-  function doSearchCantrips() {
+  // Results follow the search boxes as you type; Enter searches straight away
+  const { searchNow: doSearchCantrips } = useTypeAhead(cantripSearch, () => {
     const params: Record<string, unknown> = { className: cls.name, level: 0, size: 50 };
     if (cantripSearch.trim()) params.name = cantripSearch.trim();
-    searchSpells(params as any).then(res => setCantripResults(res.content)).catch(() => {});
-  }
+    return searchSpells(params as any).then(res => res.content);
+  }, setCantripResults);
 
-  function doSearchSpells() {
+  const { searchNow: doSearchSpells } = useTypeAhead(spellSearch, () => {
     if (maxLevel <= 0) return;
-    Promise.all(
+    return Promise.all(
       Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => {
         const params: Record<string, unknown> = { className: cls.name, level: lvl, size: 50 };
         if (spellSearch.trim()) params.name = spellSearch.trim();
@@ -503,9 +504,9 @@ function MulticlassSpellSection({
     ).then(results => {
       const all = results.flat();
       const seen = new Set<string>();
-      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-    }).catch(() => {});
-  }
+      return all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; });
+    });
+  }, setSpellResults);
 
   function toggleCantrip(spell: Spell) {
     const exists = selectedCantrips.some(s => s.id === spell.id);
@@ -521,8 +522,8 @@ function MulticlassSpellSection({
 
   return (
     <div className="space-y-6">
-      <h2 className="font-heading text-[15px] font-semibold text-ink">{cls.name} Spells</h2>
-      <p className="font-body text-[13px] font-semibold text-muted">
+      <h2 className="font-heading text-[17px] font-semibold text-ink">{cls.name} Spells</h2>
+      <p className="font-body text-[15px] font-semibold text-muted">
         {isWizard
           ? `Select spells for your starting spellbook (${wizardSpellbookCount(classLevel)} spells at class level ${classLevel}).`
           : `Select your starting ${cls.name} spells (class level ${classLevel}).`}
@@ -531,8 +532,8 @@ function MulticlassSpellSection({
       {cantripsAllowed > 0 && (
         <div className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">Cantrips</h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">{selectedCantrips.length}/{cantripsAllowed} selected</span>
+            <h3 className="font-heading text-[15px] font-semibold text-ink">Cantrips</h3>
+            <span className="font-heading text-[11px] font-semibold text-faint">{selectedCantrips.length}/{cantripsAllowed} selected</span>
           </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -542,15 +543,14 @@ function MulticlassSpellSection({
                 onChange={e => setCantripSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && doSearchCantrips()}
                 placeholder="Search cantrips..."
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
-            <button onClick={doSearchCantrips} className="bg-ink text-card font-heading text-[9px] font-semibold px-3 hover:opacity-90 transition-opacity">Search</button>
           </div>
           {selectedCantrips.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedCantrips.map(s => (
-                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[11px] font-semibold border border-rule">
+                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[13px] font-semibold border border-rule">
                   {s.name}
                   <button onClick={() => toggleCantrip(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -566,7 +566,7 @@ function MulticlassSpellSection({
                   key={spell.id}
                   onClick={() => !disabled && toggleCantrip(spell)}
                   disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-page-alt text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}
                 >
@@ -582,12 +582,12 @@ function MulticlassSpellSection({
       {spellsAllowed > 0 && (
         <div className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">
+            <h3 className="font-heading text-[15px] font-semibold text-ink">
               {isWizard
                 ? (maxLevel > 1 ? `Spellbook (Level 1-${maxLevel})` : 'Spellbook (Level 1)')
                 : (maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells')}
             </h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">{selectedSpells.length}/{spellsAllowed} selected</span>
+            <span className="font-heading text-[11px] font-semibold text-faint">{selectedSpells.length}/{spellsAllowed} selected</span>
           </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -597,15 +597,14 @@ function MulticlassSpellSection({
                 onChange={e => setSpellSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && doSearchSpells()}
                 placeholder={maxLevel > 1 ? `Search level 1-${maxLevel} spells...` : "Search level 1 spells..."}
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
-            <button onClick={doSearchSpells} className="bg-ink text-card font-heading text-[9px] font-semibold px-3 hover:opacity-90 transition-opacity">Search</button>
           </div>
           {selectedSpells.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedSpells.map(s => (
-                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[11px] font-semibold border border-rule">
+                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[13px] font-semibold border border-rule">
                   {s.name}
                   <button onClick={() => toggleSpell(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -621,13 +620,13 @@ function MulticlassSpellSection({
                   key={spell.id}
                   onClick={() => !disabled && toggleSpell(spell)}
                   disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-page-alt text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span>{spell.name}</span>
-                    <span className="text-[11px] text-faint">{spell.school}</span>
+                    <span className="text-[13px] text-faint">{spell.school}</span>
                   </div>
                   {selected && <Check className="w-4 h-4 text-ink" />}
                 </button>
@@ -639,8 +638,8 @@ function MulticlassSpellSection({
 
       {isPrepared && (
         <div className="bg-card border border-rule p-4">
-          <h3 className="font-heading text-[13px] font-semibold text-ink mb-2">Prepared Spells</h3>
-          <p className="font-body text-[13px] font-semibold text-muted">
+          <h3 className="font-heading text-[15px] font-semibold text-ink mb-2">Prepared Spells</h3>
+          <p className="font-body text-[15px] font-semibold text-muted">
             As a {cls.name}, you prepare spells each day from your class spell list.
             You can change your prepared spells from the character sheet after creation.
           </p>
@@ -695,6 +694,25 @@ function ThirdCasterSpellSection({
     }
   }, [spellListClass, maxLevel]);
 
+  // Results follow the search boxes as you type; Enter searches straight away
+  const { searchNow: searchCantrips } = useTypeAhead(cantripSearch, () => {
+    const params: Record<string, unknown> = { className: spellListClass, level: 0, size: 50 };
+    if (cantripSearch.trim()) params.name = cantripSearch.trim();
+    return searchSpells(params as any).then(res => res.content);
+  }, setCantripResults);
+
+  const { searchNow: searchSpellsList } = useTypeAhead(spellSearch, () => Promise.all(
+    Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => {
+      const params: Record<string, unknown> = { className: spellListClass, level: lvl, size: 50 };
+      if (spellSearch.trim()) params.name = spellSearch.trim();
+      return searchSpells(params as any).then(r => r.content);
+    })
+  ).then(results => {
+    const all = results.flat();
+    const seen = new Set<string>();
+    return all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; });
+  }), setSpellResults);
+
   function toggleCantrip(spell: Spell) {
     const exists = selectedCantrips.some(s => s.id === spell.id);
     if (exists) onCantripsChange(selectedCantrips.filter(s => s.id !== spell.id));
@@ -709,16 +727,16 @@ function ThirdCasterSpellSection({
 
   return (
     <div className="space-y-6">
-      <h2 className="font-heading text-[15px] font-semibold text-ink">{subclassName} Spells</h2>
-      <p className="font-body text-[13px] font-semibold text-muted">
+      <h2 className="font-heading text-[17px] font-semibold text-ink">{subclassName} Spells</h2>
+      <p className="font-body text-[15px] font-semibold text-muted">
         Select spells from the {spellListClass} spell list for your {subclassName} (1/3 caster).
       </p>
 
       {cantripsAllowed > 0 && (
         <div className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">Cantrips</h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">{selectedCantrips.length}/{cantripsAllowed} selected</span>
+            <h3 className="font-heading text-[15px] font-semibold text-ink">Cantrips</h3>
+            <span className="font-heading text-[11px] font-semibold text-faint">{selectedCantrips.length}/{cantripsAllowed} selected</span>
           </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -726,22 +744,16 @@ function ThirdCasterSpellSection({
               <input
                 value={cantripSearch}
                 onChange={e => setCantripSearch(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    const params: Record<string, unknown> = { className: spellListClass, level: 0, size: 50 };
-                    if (cantripSearch.trim()) params.name = cantripSearch.trim();
-                    searchSpells(params as any).then(res => setCantripResults(res.content)).catch(() => {});
-                  }
-                }}
+                onKeyDown={e => e.key === 'Enter' && searchCantrips()}
                 placeholder="Search cantrips..."
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
           </div>
           {selectedCantrips.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedCantrips.map(s => (
-                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[11px] font-semibold border border-rule">
+                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[13px] font-semibold border border-rule">
                   {s.name}
                   <button onClick={() => toggleCantrip(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -754,7 +766,7 @@ function ThirdCasterSpellSection({
               const disabled = !selected && selectedCantrips.length >= cantripsAllowed;
               return (
                 <button key={spell.id} onClick={() => !disabled && toggleCantrip(spell)} disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-page-alt text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}>
                   <span>{spell.name}</span>
@@ -769,10 +781,10 @@ function ThirdCasterSpellSection({
       {spellsAllowed > 0 && maxLevel > 0 && (
         <div className="bg-card border border-rule p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">
+            <h3 className="font-heading text-[15px] font-semibold text-ink">
               {maxLevel > 1 ? `Spells (Level 1-${maxLevel})` : 'Level 1 Spells'}
             </h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">{selectedSpells.length}/{spellsAllowed} selected</span>
+            <span className="font-heading text-[11px] font-semibold text-faint">{selectedSpells.length}/{spellsAllowed} selected</span>
           </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -780,30 +792,16 @@ function ThirdCasterSpellSection({
               <input
                 value={spellSearch}
                 onChange={e => setSpellSearch(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    Promise.all(
-                      Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl => {
-                        const params: Record<string, unknown> = { className: spellListClass, level: lvl, size: 50 };
-                        if (spellSearch.trim()) params.name = spellSearch.trim();
-                        return searchSpells(params as any).then(r => r.content);
-                      })
-                    ).then(results => {
-                      const all = results.flat();
-                      const seen = new Set<string>();
-                      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-                    }).catch(() => {});
-                  }
-                }}
+                onKeyDown={e => e.key === 'Enter' && searchSpellsList()}
                 placeholder={maxLevel > 1 ? `Search level 1-${maxLevel} spells...` : "Search level 1 spells..."}
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
           </div>
           {selectedSpells.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedSpells.map(s => (
-                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[11px] font-semibold border border-rule">
+                <span key={s.id} className="flex items-center gap-1 bg-page-alt text-ink px-2 py-1 font-body text-[13px] font-semibold border border-rule">
                   {s.name}
                   <button onClick={() => toggleSpell(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -816,12 +814,12 @@ function ThirdCasterSpellSection({
               const disabled = !selected && selectedSpells.length >= spellsAllowed;
               return (
                 <button key={spell.id} onClick={() => !disabled && toggleSpell(spell)} disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-page-alt text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}>
                   <div className="flex items-center gap-2">
                     <span>{spell.name}</span>
-                    <span className="text-[11px] text-faint">{spell.school}</span>
+                    <span className="text-[13px] text-faint">{spell.school}</span>
                   </div>
                   {selected && <Check className="w-4 h-4 text-ink" />}
                 </button>
@@ -897,31 +895,33 @@ function FeatSpellSection({
     }
   }, [option.name]);
 
-  function searchCantripsList() {
+  // Results follow the search boxes as you type; Enter searches straight away.
+  // A fixed spell list is filtered on the page instead (filteredSpellResults)
+  const { searchNow: searchCantripsList } = useTypeAhead(cantripSearch, () => {
     if (!cantripChoice) return;
-    Promise.all(cantripChoice.classes.map(cls => {
+    return Promise.all(cantripChoice.classes.map(cls => {
       const params: Record<string, unknown> = { className: cls, level: 0, size: 50 };
       if (cantripSearch.trim()) params.name = cantripSearch.trim();
       return searchSpells(params as any).then(r => r.content);
     })).then(results => {
       const all = results.flat();
       const seen = new Set<string>();
-      setCantripResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-    }).catch(() => {});
-  }
+      return all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; });
+    });
+  }, setCantripResults);
 
-  function searchSpellsList() {
+  const { searchNow: searchSpellsList } = useTypeAhead(spellSearch, () => {
     if (!spellChoice || spellChoice.fromList) return;
-    Promise.all(spellChoice.classes.map(cls => {
+    return Promise.all(spellChoice.classes.map(cls => {
       const params: Record<string, unknown> = { className: cls, level: 1, size: 50 };
       if (spellSearch.trim()) params.name = spellSearch.trim();
       return searchSpells(params as any).then(r => r.content);
     })).then(results => {
       const all = results.flat();
       const seen = new Set<string>();
-      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-    }).catch(() => {});
-  }
+      return all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; });
+    });
+  }, setSpellResults);
 
   function toggleCantrip(spell: Spell) {
     const exists = featCantrips.some(s => s.name === spell.name);
@@ -950,16 +950,16 @@ function FeatSpellSection({
 
   return (
     <div className="space-y-6">
-      <h2 className="font-heading text-[15px] font-semibold text-ink">{featName} Spells</h2>
-      <p className="font-body text-[13px] font-semibold text-muted">
+      <h2 className="font-heading text-[17px] font-semibold text-ink">{featName} Spells</h2>
+      <p className="font-body text-[15px] font-semibold text-muted">
         Select spells granted by your {featName} feat{option.name !== `Option 1` ? ` (${option.name})` : ''}.
       </p>
 
       {cantripChoice && (
         <div className="bg-card border border-buff-border p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">Cantrips</h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">{featCantrips.length}/{cantripChoice.count} selected</span>
+            <h3 className="font-heading text-[15px] font-semibold text-ink">Cantrips</h3>
+            <span className="font-heading text-[11px] font-semibold text-faint">{featCantrips.length}/{cantripChoice.count} selected</span>
           </div>
 
           <div className="flex gap-2">
@@ -970,16 +970,15 @@ function FeatSpellSection({
                 onChange={e => setCantripSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && searchCantripsList()}
                 placeholder={`Search ${cantripChoice.classes.join('/')} cantrips...`}
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
-            <button onClick={searchCantripsList} className="bg-ink text-card font-heading text-[9px] font-semibold px-3 hover:opacity-90 transition-opacity">Search</button>
           </div>
 
           {featCantrips.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {featCantrips.map(s => (
-                <span key={s.name} className="flex items-center gap-1 bg-buff-bg text-ink px-2 py-1 font-body text-[11px] font-semibold border border-buff-border">
+                <span key={s.name} className="flex items-center gap-1 bg-buff-bg text-ink px-2 py-1 font-body text-[13px] font-semibold border border-buff-border">
                   {s.name}
                   <button onClick={() => toggleCantrip(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -996,7 +995,7 @@ function FeatSpellSection({
                   key={spell.id}
                   onClick={() => !disabled && toggleCantrip(spell)}
                   disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-buff-bg text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}
                 >
@@ -1012,10 +1011,10 @@ function FeatSpellSection({
       {spellChoice && (
         <div className="bg-card border border-buff-border p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-[13px] font-semibold text-ink">
+            <h3 className="font-heading text-[15px] font-semibold text-ink">
               {spellChoice.fromList ? 'Choose Spells' : 'Level 1 Spells'}
             </h3>
-            <span className="font-heading text-[9px] font-semibold text-faint">
+            <span className="font-heading text-[11px] font-semibold text-faint">
               {featSpells.length}/{spellChoice.count} selected ({spellChoice.usesPerDay}/day each)
             </span>
           </div>
@@ -1029,10 +1028,9 @@ function FeatSpellSection({
                   onChange={e => setSpellSearch(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && searchSpellsList()}
                   placeholder={`Search ${spellChoice.classes.join('/')} spells...`}
-                  className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                  className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
                 />
               </div>
-              <button onClick={searchSpellsList} className="bg-ink text-card font-heading text-[9px] font-semibold px-3 hover:opacity-90 transition-opacity">Search</button>
             </div>
           )}
 
@@ -1043,7 +1041,7 @@ function FeatSpellSection({
                 value={spellSearch}
                 onChange={e => setSpellSearch(e.target.value)}
                 placeholder="Filter spells..."
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[13px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               />
             </div>
           )}
@@ -1051,7 +1049,7 @@ function FeatSpellSection({
           {featSpells.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {featSpells.map(s => (
-                <span key={s.name} className="flex items-center gap-1 bg-buff-bg text-ink px-2 py-1 font-body text-[11px] font-semibold border border-buff-border">
+                <span key={s.name} className="flex items-center gap-1 bg-buff-bg text-ink px-2 py-1 font-body text-[13px] font-semibold border border-buff-border">
                   {s.name}
                   <button onClick={() => toggleSpell(s)} className="text-muted hover:text-ink"><X className="w-3 h-3" /></button>
                 </span>
@@ -1068,13 +1066,13 @@ function FeatSpellSection({
                   key={spell.id}
                   onClick={() => !disabled && toggleSpell(spell)}
                   disabled={disabled}
-                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[13px] font-semibold transition-colors ${
+                  className={`w-full flex items-center justify-between py-1.5 px-3 font-body text-[15px] font-semibold transition-colors ${
                     selected ? 'bg-buff-bg text-ink' : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span>{spell.name}</span>
-                    {spell.school && <span className="text-[11px] text-faint">{spell.school}</span>}
+                    {spell.school && <span className="text-[13px] text-faint">{spell.school}</span>}
                   </div>
                   {selected && <Check className="w-4 h-4 text-buff" />}
                 </button>

@@ -49,6 +49,10 @@ export default function App() {
 
       <Route path="/player" element={<ProtectedRoute><PlayerDashboard /></ProtectedRoute>} />
       <Route path="/player/quickref" element={<ProtectedRoute><QuickReferencePage /></ProtectedRoute>} />
+      {/* The reference pages are shared with the DM side */}
+      <Route path="/player/spells" element={<ProtectedRoute><SpellsPage /></ProtectedRoute>} />
+      <Route path="/player/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
+      <Route path="/player/conditions" element={<ProtectedRoute><ConditionsPage /></ProtectedRoute>} />
       <Route path="/player/characters/new" element={<ProtectedRoute><CharacterCreateWizard /></ProtectedRoute>} />
       <Route path="/player/characters/:characterId" element={<ProtectedRoute><CharacterSheetPage /></ProtectedRoute>} />
       <Route path="/player/encounter/join" element={<ProtectedRoute><JoinEncounterPage /></ProtectedRoute>} />

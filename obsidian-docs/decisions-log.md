@@ -1392,7 +1392,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D124: Tourmaline Design System — Tailwind v4 Theme Tokens
 
 **Date:** 2026-07-22
-**Status:** Accepted
+**Status:** Accepted — amended by D173 (selectable themes and a Tourmaline readability pass)
 
 **Decision:** Implement the UI redesign using Tailwind CSS v4's `@theme` block with CSS custom properties, rather than a JS-based design tokens file or a separate CSS variables sheet. All 51 frontend TSX files converted from dark-mode utility classes to semantic token classes (e.g., `bg-gray-900` → `bg-card`, `text-gray-400` → `text-muted`). Typography uses Google Fonts (Cinzel for headings/labels, Cormorant Garamond for body/inputs) loaded via `<link>` in `index.html`. Square corners enforced via global `border-radius: 0 !important`. Class-colored accents provided by `classColours.ts` utility with 13 D&D class colors.
 
@@ -1412,7 +1412,7 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 ## D124: Tourmaline Theme UI Redesign
 
 **Date:** 2026-07-22
-**Status:** Accepted
+**Status:** Accepted — amended by D173 (selectable themes and a Tourmaline readability pass)
 
 **Decision:** Replace the default dark-mode UI with a warm parchment light-mode design system ("Tourmaline Theme") using Cinzel and Cormorant Garamond serif fonts, square corners, class-colored accents, and Tailwind v4 CSS custom property tokens.
 
@@ -2667,3 +2667,33 @@ The full list is settled during R2 planning.
 **Amends:** D085, D102, D126
 
 **Related:** D140, D154, D161, D170
+
+## D173: Selectable Themes and a More Readable Tourmaline
+
+**Date:** 2026-11-01
+**Status:** Accepted — planned (before R2)
+
+**Decision:**
+- **Four themes, chosen per device:** Tourmaline (the default), Parchment & Ink, Tavern by Candlelight (dark) and Adventurer's Handbook. The choice is saved in the browser and applied before the first paint, so pages never flash the wrong theme. Nothing is stored on the server.
+- **Tourmaline readability pass:**
+  - Crimson Pro replaces Cormorant Garamond for body text; Cinzel stays for headings.
+  - Ink #1C1917 replaces pure black (15.6:1 on the page).
+  - Faint text is #57524C (6.9:1, was 4.6:1), and rules are darker.
+  - The nav keeps its gemstone line but drops the rainbow wash.
+- **Larger text in every theme:** every hard-coded 9–15px size in the components goes up 2px, with line height 1.55, in one mechanical pass.
+- **Switcher:** an account menu at the right of the top bar replaces the Switch Role and Sign Out buttons. It holds Theme, Switch Role and Sign Out.
+- **Implementation:**
+  - Each theme is a block of D124's tokens in `index.css`, keyed by `data-theme` on `<html>`.
+  - Colours that bypass the tokens, such as the nav gradient, become theme tokens.
+  - The prototype switcher is removed and kept on a throwaway branch.
+
+**Rationale:** User feedback that Tourmaline is hard to read: a thin body font, 9–11px labels, and pure black beside faint greys (4.6:1). Extra themes cost little once every colour comes from tokens.
+
+**Trade-offs:** Larger text can wrap in tight spots such as the nav, tables and chips. Switch Role and Sign Out move one click deeper. A theme chosen on one device doesn't follow the account to another. The dark theme needs a sweep for hard-coded light colours.
+
+**Alternatives considered:**
+- **A labelled theme dropdown in the top bar** — rejected: the DM bar already holds 10 items.
+- **A floating corner button** — rejected: it covers page content on every screen, including the wizard's Next button on phones.
+- **Saving the theme to the account** — deferred: needs a database column and API change, and per-device suits players who want a dark theme on a phone at the table.
+
+**Amends:** D124

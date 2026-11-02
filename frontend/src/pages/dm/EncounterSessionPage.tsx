@@ -63,13 +63,13 @@ function DeathSaves({ participant, encounterId, onUpdate }: { participant: Encou
   return (
     <div className="flex items-center gap-3 mt-1">
       <div className="flex items-center gap-1">
-        <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted">Saves:</span>
+        <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted">Saves:</span>
         {[0, 1, 2].map(i => (
           <div key={`s${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveSuccesses ? 'bg-buff border-buff' : 'border-rule-light'}`} />
         ))}
       </div>
       <div className="flex items-center gap-1">
-        <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted">Fails:</span>
+        <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted">Fails:</span>
         {[0, 1, 2].map(i => (
           <div key={`f${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveFailures ? 'bg-debuff border-debuff' : 'border-rule-light'}`} />
         ))}
@@ -77,7 +77,7 @@ function DeathSaves({ participant, encounterId, onUpdate }: { participant: Encou
       <button
         onClick={handleRoll}
         disabled={rolling}
-        className="px-2 py-0.5 font-body text-[14px] font-semibold bg-page-alt hover:bg-rule text-muted disabled:opacity-50"
+        className="px-2 py-0.5 font-body text-[16px] font-semibold bg-page-alt hover:bg-rule text-muted disabled:opacity-50"
       >
         {rolling ? '...' : 'Roll'}
       </button>
@@ -109,7 +109,7 @@ function SpellSlotDisplay({ participant, encounterId, onUpdate }: { participant:
         const s = slots[lvl];
         return (
           <div key={lvl} className="flex items-center gap-0.5">
-            <span className="font-heading text-[10px] font-semibold tracking-[0.1em] text-faint">{lvl}:</span>
+            <span className="font-heading text-[12px] font-semibold tracking-[0.1em] text-faint">{lvl}:</span>
             <div className="flex gap-0.5">
               {Array.from({ length: s.max }).map((_, i) => (
                 <button
@@ -221,7 +221,7 @@ function ActionPanel({
   return (
     <div className="bg-card border border-rule p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-heading text-[13px] font-semibold tracking-[0.01em] text-muted">
+        <h3 className="font-heading text-[15px] font-semibold tracking-[0.01em] text-muted">
           {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-cls-fighter" />Attack {selectedTarget.displayName} (AC {selectedTarget.armourClass})</>}
           {actionMode === 'damage' && <><Swords className="w-4 h-4 inline mr-1 text-debuff" />Damage {selectedTarget.displayName}</>}
           {actionMode === 'heal' && <><Heart className="w-4 h-4 inline mr-1 text-buff" />Heal {selectedTarget.displayName}</>}
@@ -240,32 +240,32 @@ function ActionPanel({
               {attacks.map((atk, i) => (
                 <div key={i} className="flex items-end gap-2">
                   <div className="w-20">
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Attack +</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Attack +</label>}
                     <input
                       type="number"
                       value={atk.attackBonus}
                       onChange={e => updateAttack(i, 'attackBonus', e.target.value)}
                       placeholder="+5"
-                      className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+                      className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
                       autoFocus={i === 0}
                     />
                   </div>
                   <div className="w-24">
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Damage</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Damage</label>}
                     <input
                       type="text"
                       value={atk.damageDice}
                       onChange={e => updateAttack(i, 'damageDice', e.target.value)}
                       placeholder="1d8+3"
-                      className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+                      className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
                     />
                   </div>
                   <div className="w-28">
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>}
                     <select
                       value={atk.damageType}
                       onChange={e => updateAttack(i, 'damageType', e.target.value)}
-                      className="w-full h-[38px] px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted"
+                      className="w-full h-[38px] px-2 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
                     >
                       <option value="">&#8212;</option>
                       {DAMAGE_TYPES.map(dt => (
@@ -274,30 +274,30 @@ function ActionPanel({
                     </select>
                   </div>
                   <div>
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Roll</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Roll</label>}
                     <div className="flex gap-1">
                       <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === false ? null : false)}
-                        className={`px-2 py-2 font-body text-[14px] font-semibold ${atk.advantage === false ? 'bg-debuff text-white' : 'bg-page-alt text-muted border border-rule'}`}>
+                        className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.advantage === false ? 'bg-debuff text-card' : 'bg-page-alt text-muted border border-rule'}`}>
                         Dis
                       </button>
                       <button type="button" onClick={() => updateAttack(i, 'advantage', null)}
-                        className={`px-2 py-2 font-body text-[14px] font-semibold ${atk.advantage === null ? 'bg-rule text-ink' : 'bg-page-alt text-muted border border-rule'}`}>
+                        className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.advantage === null ? 'bg-rule text-ink' : 'bg-page-alt text-muted border border-rule'}`}>
                         Norm
                       </button>
                       <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === true ? null : true)}
-                        className={`px-2 py-2 font-body text-[14px] font-semibold ${atk.advantage === true ? 'bg-buff text-white' : 'bg-page-alt text-muted border border-rule'}`}>
+                        className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.advantage === true ? 'bg-buff text-card' : 'bg-page-alt text-muted border border-rule'}`}>
                         Adv
                       </button>
                     </div>
                   </div>
                   <div>
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
                     <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
-                      className={`px-2 py-2 font-body text-[14px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-white' : 'bg-page-alt text-muted border border-rule'}`}>
+                      className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-card' : 'bg-page-alt text-muted border border-rule'}`}>
                       Crit
                     </button>
                     <button type="button" onClick={() => updateAttack(i, 'isRanged', !atk.isRanged)}
-                      className={`px-2 py-2 font-body text-[14px] font-semibold ${atk.isRanged ? 'bg-cls-wizard text-white' : 'bg-page-alt text-muted border border-rule'}`}>
+                      className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.isRanged ? 'bg-cls-wizard text-card' : 'bg-page-alt text-muted border border-rule'}`}>
                       Ranged
                     </button>
                   </div>
@@ -319,7 +319,7 @@ function ActionPanel({
               ))}
               {attacks.length < 5 && (
                 <button type="button" onClick={addAttackRow}
-                  className="flex items-center gap-1 font-body text-[13px] font-semibold text-muted hover:text-ink py-1">
+                  className="flex items-center gap-1 font-body text-[15px] font-semibold text-muted hover:text-ink py-1">
                   <Plus className="w-3 h-3" /> Add attack
                 </button>
               )}
@@ -328,7 +328,7 @@ function ActionPanel({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-ink hover:bg-ink/90 disabled:bg-ink/50 text-card font-body text-[14px] font-semibold whitespace-nowrap"
+                className="px-4 py-2 bg-ink hover:bg-ink/90 disabled:bg-ink/50 text-card font-body text-[16px] font-semibold whitespace-nowrap"
               >
                 {loading ? '...' : `Roll ${attacks.length > 1 ? `${attacks.length} ` : ''}Attack${attacks.length > 1 ? 's' : ''}`}
               </button>
@@ -341,23 +341,23 @@ function ActionPanel({
             {(actionMode === 'damage' || actionMode === 'heal') && (
               <>
                 <div className="flex-1">
-                  <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Amount</label>
+                  <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Amount</label>
                   <input
                     type="number"
                     min="0"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
-                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
                     autoFocus
                   />
                 </div>
                 {actionMode === 'damage' && (
                   <div className="flex-1">
-                    <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>
+                    <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>
                     <select
                       value={damageType}
                       onChange={e => setDamageType(e.target.value)}
-                      className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted"
+                      className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
                     >
                       <option value="">&#8212;</option>
                       {DAMAGE_TYPES.map(dt => (
@@ -372,11 +372,11 @@ function ActionPanel({
             {actionMode === 'condition' && (
               <>
                 <div className="flex-1">
-                  <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Condition</label>
+                  <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Condition</label>
                   <select
                     value={condition}
                     onChange={e => setCondition(e.target.value)}
-                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted"
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted"
                     autoFocus
                   >
                     <option value="">Select condition...</option>
@@ -386,14 +386,14 @@ function ActionPanel({
                   </select>
                 </div>
                 <div className="w-28">
-                  <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Duration (rounds)</label>
+                  <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Duration (rounds)</label>
                   <input
                     type="number"
                     min="1"
                     value={conditionDuration}
                     onChange={e => setConditionDuration(e.target.value)}
                     placeholder="&#8734;"
-                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
                   />
                 </div>
               </>
@@ -401,13 +401,13 @@ function ActionPanel({
 
             {actionMode === 'concentration' && (
               <div className="flex-1">
-                <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Spell Name (blank to clear)</label>
+                <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Spell Name (blank to clear)</label>
                 <input
                   type="text"
                   value={spellName}
                   onChange={e => setSpellName(e.target.value)}
                   placeholder="e.g. Bless, Hold Person"
-                  className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+                  className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
                   autoFocus
                 />
               </div>
@@ -416,7 +416,7 @@ function ActionPanel({
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-ink hover:bg-ink/90 disabled:bg-ink/50 text-card font-body text-[14px] font-semibold"
+              className="px-4 py-2 bg-ink hover:bg-ink/90 disabled:bg-ink/50 text-card font-body text-[16px] font-semibold"
             >
               {loading ? '...' : 'Apply'}
             </button>
@@ -528,8 +528,8 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
       >
         <div className="flex items-center gap-2">
           <ScrollText className="w-4 h-4 text-muted" />
-          <span className="font-heading text-[13px] font-semibold tracking-[0.01em] text-muted">Combat Log</span>
-          <span className="font-body text-[13px] font-semibold text-faint">({logs.length} entries)</span>
+          <span className="font-heading text-[15px] font-semibold tracking-[0.01em] text-muted">Combat Log</span>
+          <span className="font-body text-[15px] font-semibold text-faint">({logs.length} entries)</span>
         </div>
         <ChevronRight className={`w-4 h-4 text-faint transition-transform ${expanded ? 'rotate-90' : ''}`} />
       </button>
@@ -537,7 +537,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
         <div className="relative">
           <div ref={scrollRef} onScroll={handleScroll} aria-live="polite" aria-label="Combat log entries" className="max-h-64 overflow-y-auto border-t border-rule px-4 py-2 space-y-1">
             {logs.length === 0 ? (
-              <p className="text-faint font-body text-[13px] font-semibold py-2">No actions yet</p>
+              <p className="text-faint font-body text-[15px] font-semibold py-2">No actions yet</p>
             ) : (
               logs.map((log, idx) => {
                 const prevLog = idx > 0 ? logs[idx - 1] : null;
@@ -554,21 +554,21 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
                 return (
                   <div key={log.id}>
                     {showRoundHeader && (
-                      <div className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-ink border-b border-rule pb-1 pt-2 mb-1">
+                      <div className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-ink border-b border-rule pb-1 pt-2 mb-1">
                         Round {log.roundNumber}
                       </div>
                     )}
                     {showTurnHeader && (
-                      <div className="font-body text-[13px] font-semibold text-faint py-0.5 pl-2 border-l-2 border-rule my-1">
+                      <div className="font-body text-[15px] font-semibold text-faint py-0.5 pl-2 border-l-2 border-rule my-1">
                         Turn: {turnName}
                       </div>
                     )}
                     {!isTurnChange && (
                       <div className={`bg-page-alt border-l-2 ${getLogBorderColor(log.actionType)} px-2 py-0.5`}>
-                        <span className={`font-body text-[13px] font-semibold ${getLogColor(log.actionType)}`}>{log.description}</span>
+                        <span className={`font-body text-[15px] font-semibold ${getLogColor(log.actionType)}`}>{log.description}</span>
                         {log.legendaryResistanceEligible && !log.lrResolved && (
                           <button
-                            className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[9px] font-semibold tracking-[0.02em]"
+                            className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[11px] font-semibold tracking-[0.02em]"
                             onClick={() => {
                               combatApi.useLegendaryResistance(encounterId, log.id).then(() => {
                                 combatApi.getCombatLog(encounterId).then(res => setLogs(res.data));
@@ -588,7 +588,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
           {!isAtBottom && newCount > 0 && (
             <button
               onClick={scrollToBottom}
-              className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1.5 bg-ink hover:bg-ink/90 text-card font-heading text-[9px] font-semibold shadow-lg"
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1.5 bg-ink hover:bg-ink/90 text-card font-heading text-[11px] font-semibold shadow-lg"
             >
               <ChevronLeft className="w-3 h-3 rotate-[-90deg]" />
               Scroll to bottom ({newCount} new message{newCount !== 1 ? 's' : ''})
@@ -631,9 +631,9 @@ function InlineMonsterActions({
       .catch(err => { setFetchError(err.response?.data?.message || err.response?.status + ' ' + (err.response?.data?.error || err.message)); setLoading(false); });
   }, [encounterId, participant.id]);
 
-  if (loading) return <div className="px-4 py-2 font-body text-[13px] font-semibold text-muted">Loading actions...</div>;
-  if (fetchError) return <div className="px-4 py-2 font-body text-[13px] font-semibold text-debuff">{fetchError}</div>;
-  if (!templates || templates.error) return <div className="px-4 py-2 font-body text-[13px] font-semibold text-debuff">{templates?.error || 'No data'}</div>;
+  if (loading) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-muted">Loading actions...</div>;
+  if (fetchError) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{fetchError}</div>;
+  if (!templates || templates.error) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{templates?.error || 'No data'}</div>;
 
   const actions: any[] = templates.actions || [];
   const legendary: any[] = templates.legendaryActions || [];
@@ -697,21 +697,21 @@ function InlineMonsterActions({
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Castle className="w-4 h-4 text-cls-warlock flex-shrink-0" />
-                  <span className="font-heading text-[13px] font-semibold tracking-[0.01em] text-ink">{a.name}</span>
-                  {a.saveDC && <span className="font-heading text-[9px] font-semibold tracking-[0.02em] text-muted">DC {a.saveDC} {a.saveAbility?.toUpperCase()}</span>}
+                  <span className="font-heading text-[15px] font-semibold tracking-[0.01em] text-ink">{a.name}</span>
+                  {a.saveDC && <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-muted">DC {a.saveDC} {a.saveAbility?.toUpperCase()}</span>}
                   {a.effects?.find((e: any) => e.effectType === 'DAMAGE' && e.damageDice) && (
-                    <span className="font-heading text-[9px] font-semibold tracking-[0.02em] text-muted">
+                    <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-muted">
                       {a.effects.find((e: any) => e.effectType === 'DAMAGE').damageDice} {a.effects.find((e: any) => e.effectType === 'DAMAGE').damageType}
                     </span>
                   )}
                   {isNonAutomatable && (
-                    <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-cls-monk-bg text-cls-monk border border-cls-monk/30 ml-auto">Manual</span>
+                    <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-cls-monk-bg text-cls-monk border border-cls-monk/30 ml-auto">Manual</span>
                   )}
                   {!isNonAutomatable && selectedAction?.name === a.name && (
-                    <span className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-ink text-card ml-auto">Selected</span>
+                    <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-ink text-card ml-auto">Selected</span>
                   )}
                 </div>
-                <p className="font-body text-[13px] font-semibold text-muted leading-snug">{a.description}</p>
+                <p className="font-body text-[15px] font-semibold text-muted leading-snug">{a.description}</p>
               </div>
             );
           })}
@@ -736,7 +736,7 @@ function InlineMonsterActions({
                     setSelectedAction(selectedAction?.name === a.name ? null : a);
                   }
                 }}
-                className={`px-2 py-1 font-heading text-[10px] font-semibold tracking-[0.02em] border transition-colors
+                className={`px-2 py-1 font-heading text-[12px] font-semibold tracking-[0.02em] border transition-colors
                   ${!recharged || legendaryDepleted ? 'opacity-40 cursor-not-allowed border-rule-light bg-card text-muted' :
                     isNonAutomatable ? 'border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20' :
                     selectedAction?.name === a.name ? 'border-ink bg-ink text-card' :
@@ -744,10 +744,10 @@ function InlineMonsterActions({
                 title={legendaryDepleted ? `Not enough legendary actions (need ${actionCost}, have ${legendaryRemaining})` : (a.description || formatActionLabel(a))}
               >
                 {a.name}
-                {a.cost > 0 && <span className="ml-1 text-[9px] opacity-70">({a.cost})</span>}
-                {a.recharge && !recharged && <span className="ml-1 text-[9px]">↻</span>}
-                {a.recharge && recharged && <span className="ml-1 text-[9px] text-buff">✓</span>}
-                {legendaryDepleted && <span className="ml-1 text-[9px]">✗</span>}
+                {a.cost > 0 && <span className="ml-1 text-[11px] opacity-70">({a.cost})</span>}
+                {a.recharge && !recharged && <span className="ml-1 text-[11px]">↻</span>}
+                {a.recharge && recharged && <span className="ml-1 text-[11px] text-buff">✓</span>}
+                {legendaryDepleted && <span className="ml-1 text-[11px]">✗</span>}
               </button>
             );
           })}
@@ -760,7 +760,7 @@ function InlineMonsterActions({
           key={a.name}
           disabled={inlineExecuting}
           onClick={() => onExecute(participant.id, a.name, 'ACTION')}
-          className="px-2 py-1 font-heading text-[10px] font-semibold tracking-[0.02em] border border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20 mr-1 mb-1"
+          className="px-2 py-1 font-heading text-[12px] font-semibold tracking-[0.02em] border border-cls-monk bg-cls-monk-bg text-cls-monk hover:bg-cls-monk/20 mr-1 mb-1"
         >
           ⚔ {a.name}
         </button>
@@ -772,7 +772,7 @@ function InlineMonsterActions({
           <button
             key={t.id}
             onClick={() => onToggleTarget(t.id)}
-            className={`px-2 py-0.5 font-heading text-[9px] font-semibold tracking-[0.02em] border transition-colors
+            className={`px-2 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] border transition-colors
               ${inlineTargets.includes(t.id)
                 ? 'bg-monster text-card border-monster'
                 : 'bg-card border-rule-light hover:bg-monster-bg'}`}
@@ -792,7 +792,7 @@ function InlineMonsterActions({
               onExecute(participant.id, selectedAction.name, tab === 'legendary' ? 'LEGENDARY' : tab === 'lair' ? 'LAIR' : 'ACTION');
               setSelectedAction(null);
             }}
-            className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[10px] font-semibold tracking-[0.02em]"
+            className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[12px] font-semibold tracking-[0.02em]"
           >
             {inlineExecuting ? 'Executing...' : `Execute ${selectedAction.name}${inlineTargets.length > 0 ? ` (${inlineTargets.length} target${inlineTargets.length !== 1 ? 's' : ''})` : ''}`}
           </button>
@@ -801,12 +801,12 @@ function InlineMonsterActions({
 
       {/* Execute + result */}
       {inlineResult && (
-        <div className={`mt-2 p-3 border font-body text-[13px] font-semibold ${inlineResult.error ? 'bg-debuff-bg border-debuff text-debuff' : 'bg-buff-bg border-buff text-buff'}`}>
+        <div className={`mt-2 p-3 border font-body text-[15px] font-semibold ${inlineResult.error ? 'bg-debuff-bg border-debuff text-debuff' : 'bg-buff-bg border-buff text-buff'}`}>
           {inlineResult.error || inlineResult.description}
           {inlineResult.targetResults?.map((tr: any) => (
             <div key={tr.targetId}>{tr.targetName}: {tr.attackOutcome}{tr.damage > 0 ? ` — ${tr.damage} ${tr.damageType}` : ''}{tr.conditionsApplied?.length > 0 ? ` — ${tr.conditionsApplied.join(', ')}` : ''}</div>
           ))}
-          <button className="mt-1 font-body text-[13px] font-semibold text-muted underline hover:text-ink" onClick={onRefresh}>Clear</button>
+          <button className="mt-1 font-body text-[15px] font-semibold text-muted underline hover:text-ink" onClick={onRefresh}>Clear</button>
         </div>
       )}
     </div>
@@ -817,7 +817,7 @@ function TabBtn({ active, onClick, label }: { active: boolean; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className={`px-2 py-0.5 font-heading text-[9px] font-semibold tracking-[0.02em] transition-colors
+      className={`px-2 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors
         ${active ? 'bg-monster text-card' : 'bg-card border border-rule-light text-muted hover:text-ink'}`}
     >
       {label}
@@ -880,7 +880,7 @@ function DmSessionView() {
   }
 
   if (!encounter) {
-    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[13px] font-semibold">Loading encounter...</p></div>;
+    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[15px] font-semibold">Loading encounter...</p></div>;
   }
 
   function copySessionCode() {
@@ -953,13 +953,13 @@ function DmSessionView() {
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
         <div className="flex items-center justify-between">
-          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 text-muted hover:text-ink transition-colors font-body text-[14px] font-semibold">
+          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 text-muted hover:text-ink transition-colors font-body text-[16px] font-semibold">
             <ArrowLeft className="w-4 h-4" /> Builder
           </button>
           <div className="flex items-center gap-4">
             {encounter.sessionCode && (
               <div className="flex items-center gap-2 bg-card border border-rule px-3 py-1.5">
-                <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted">Code:</span>
+                <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted">Code:</span>
                 <span className="text-ink font-mono font-bold tracking-wider">{encounter.sessionCode}</span>
                 <button onClick={copySessionCode} className="text-muted hover:text-ink">
                   {copiedCode ? <Check className="w-3.5 h-3.5 text-buff" /> : <Copy className="w-3.5 h-3.5" />}
@@ -968,51 +968,51 @@ function DmSessionView() {
             )}
             <div className="flex items-center gap-1.5">
               {isConnected ? <Wifi className="w-4 h-4 text-buff" /> : <WifiOff className="w-4 h-4 text-debuff" />}
-              <span className="font-body text-[13px] font-semibold text-muted">{isConnected ? 'Live' : 'Disconnected'}</span>
+              <span className="font-body text-[15px] font-semibold text-muted">{isConnected ? 'Live' : 'Disconnected'}</span>
             </div>
           </div>
         </div>
       </header>
 
       <main className="px-6 py-4">
-        {error && <p className="text-debuff font-body text-[13px] font-semibold mb-4">{error}</p>}
+        {error && <p className="text-debuff font-body text-[15px] font-semibold mb-4">{error}</p>}
 
         {/* Encounter info + controls bar */}
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="font-heading text-[20px] font-bold tracking-[0.02em] text-ink">{encounter.name}</h1>
-            <p className="text-muted font-body text-[13px] font-semibold">
+            <p className="text-muted font-body text-[15px] font-semibold">
               Round {encounter.roundNumber} &middot; {encounter.participants.filter(p => p.isAlive).length}/{encounter.participants.length} alive
             </p>
           </div>
           <div className="flex items-center gap-2">
             {isActive && (
               <>
-                <button onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[14px] font-semibold" title="Previous turn">
+                <button onClick={handlePrevTurn} className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold" title="Previous turn">
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-ink hover:bg-ink/90 text-card font-body text-[14px] font-semibold">
+                <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-ink hover:bg-ink/90 text-card font-body text-[16px] font-semibold">
                   Next Turn <ChevronRight className="w-4 h-4" />
                 </button>
               </>
             )}
             {encounter.status === 'ACTIVE' && (
-              <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-cls-monk hover:bg-cls-monk/90 text-white font-body text-[14px] font-semibold">
+              <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-cls-monk hover:bg-cls-monk/90 text-card font-body text-[16px] font-semibold">
                 <Pause className="w-4 h-4" /> Pause
               </button>
             )}
             {encounter.status === 'PAUSED' && (
-              <button onClick={handleResume} className="flex items-center gap-1.5 px-3 py-2 bg-buff hover:bg-buff/90 text-white font-body text-[14px] font-semibold">
+              <button onClick={handleResume} className="flex items-center gap-1.5 px-3 py-2 bg-buff hover:bg-buff/90 text-card font-body text-[16px] font-semibold">
                 <Play className="w-4 h-4" /> Resume
               </button>
             )}
             {(encounter.status === 'ACTIVE' || encounter.status === 'PAUSED') && (
-              <button onClick={handleEnd} className="flex items-center gap-1.5 px-3 py-2 bg-debuff hover:bg-debuff/90 text-white font-body text-[14px] font-semibold">
+              <button onClick={handleEnd} className="flex items-center gap-1.5 px-3 py-2 bg-debuff hover:bg-debuff/90 text-card font-body text-[16px] font-semibold">
                 <Flag className="w-4 h-4" /> End
               </button>
             )}
             {encounter.status === 'COMPLETED' && (
-              <span className="px-3 py-2 bg-page-alt text-muted font-body text-[14px] font-semibold">Complete</span>
+              <span className="px-3 py-2 bg-page-alt text-muted font-body text-[16px] font-semibold">Complete</span>
             )}
           </div>
         </div>
@@ -1085,10 +1085,10 @@ function DmSessionView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`font-heading text-[13px] font-semibold tracking-[0.01em] text-ink ${!p.isAlive ? 'line-through' : ''}`}
+                        className={`font-heading text-[15px] font-semibold tracking-[0.01em] text-ink ${!p.isAlive ? 'line-through' : ''}`}
                       >{p.displayName}</span>
                       <span
-                        className={`font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5`}
+                        className={`font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5`}
                         style={{ color: getParticipantColour(isMonster), backgroundColor: getParticipantBg(isMonster) }}
                       >
                         {p.participantType}
@@ -1105,7 +1105,7 @@ function DmSessionView() {
                             <button
                               key={c.name}
                               onClick={() => handleRemoveCondition(p.id, c.name)}
-                              className="font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff hover:opacity-75 cursor-pointer"
+                              className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff hover:opacity-75 cursor-pointer"
                               title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}`}
                             >
                               {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''} <X className="w-2.5 h-2.5 inline" />
@@ -1118,7 +1118,7 @@ function DmSessionView() {
                     {/* Concentration */}
                     {p.concentrationSpell && (
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-cls-warlock font-body text-[13px] font-semibold">
+                        <p className="text-cls-warlock font-body text-[15px] font-semibold">
                           Concentrating: {p.concentrationSpell}
                         </p>
                         <button
@@ -1134,7 +1134,7 @@ function DmSessionView() {
                     {/* Active spell (non-concentration persistent) */}
                     {p.activeSpell && (
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <p className="text-cls-monk font-body text-[13px] font-semibold">
+                        <p className="text-cls-monk font-body text-[15px] font-semibold">
                           Active: {p.activeSpell}
                         </p>
                         <button
@@ -1165,8 +1165,8 @@ function DmSessionView() {
                   <div className="w-36 flex-shrink-0">
                     <div className="flex items-center justify-end gap-1.5 mb-1">
                       <Heart className={`w-3.5 h-3.5 ${p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.5 ? 'text-buff' : p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.25 ? 'text-cls-monk' : 'text-debuff'}`} />
-                      <span className="font-heading text-[11px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</span>
-                      {(p.hpTemp || 0) > 0 && <span className="text-cls-wizard font-heading text-[11px] font-semibold">+{p.hpTemp}</span>}
+                      <span className="font-heading text-[13px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</span>
+                      {(p.hpTemp || 0) > 0 && <span className="text-cls-wizard font-heading text-[13px] font-semibold">+{p.hpTemp}</span>}
                     </div>
                     <HpBar participant={p} />
                   </div>
@@ -1174,7 +1174,7 @@ function DmSessionView() {
                   {/* AC */}
                   <div className="flex items-center gap-1 w-12 justify-end flex-shrink-0">
                     <Shield className="w-4 h-4 text-muted" />
-                    <span className="text-muted font-heading text-[11px] font-semibold">{p.armourClass}</span>
+                    <span className="text-muted font-heading text-[13px] font-semibold">{p.armourClass}</span>
                   </div>
 
                   {/* Quick action buttons */}

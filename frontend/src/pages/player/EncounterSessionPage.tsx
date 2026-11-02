@@ -27,7 +27,7 @@ const DAMAGE_TYPES = [
 
 type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
 
-const CONDITION_BADGE = 'font-heading text-[9px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff';
+const CONDITION_BADGE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff';
 
 function HpBar({ participant }: { participant: EncounterParticipant }) {
   const pct = participant.hpMax > 0 ? (participant.hpCurrent / participant.hpMax) * 100 : 0;
@@ -112,14 +112,14 @@ function PlayerSpellSlots({ participant, encounterId, onUpdate }: { participant:
     <div className="bg-card border border-rule p-4 mb-4">
       <div className="flex items-center gap-2 mb-2">
         <Sparkles className="w-4 h-4 text-ink" />
-        <span className="font-heading text-[13px] font-semibold tracking-[0.01em] text-muted">Spell Slots</span>
+        <span className="font-heading text-[15px] font-semibold tracking-[0.01em] text-muted">Spell Slots</span>
       </div>
       <div className="flex items-center gap-4 flex-wrap">
         {levels.map(lvl => {
           const s = slots[lvl];
           return (
             <div key={lvl} className="flex items-center gap-1">
-              <span className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted w-6">Lv{lvl}</span>
+              <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-6">Lv{lvl}</span>
               <div className="flex gap-1">
                 {Array.from({ length: s.max }).map((_, i) => (
                   <button
@@ -220,7 +220,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
       >
         <div className="flex items-center gap-2">
           <ScrollText className="w-4 h-4 text-muted" />
-          <span className="font-heading text-[13px] font-semibold tracking-[0.01em] text-muted">Combat Log</span>
+          <span className="font-heading text-[15px] font-semibold tracking-[0.01em] text-muted">Combat Log</span>
           <span className="font-body text-[12.5px] font-semibold text-faint">({logs.length} entries)</span>
         </div>
         <ChevronRight className={`w-4 h-4 text-faint transition-transform ${expanded ? 'rotate-90' : ''}`} />
@@ -244,7 +244,7 @@ function CombatLogPanel({ encounterId }: { encounterId: string }) {
                 return (
                   <div key={log.id}>
                     {showRoundHeader && (
-                      <div className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-ink border-b border-rule pb-1 pt-2 mb-1">
+                      <div className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-ink border-b border-rule pb-1 pt-2 mb-1">
                         Round {log.roundNumber}
                       </div>
                     )}
@@ -341,7 +341,7 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
   return (
     <div className="bg-card border border-rule p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="font-heading text-[13px] font-semibold tracking-[0.01em] text-ink">
+        <div className="font-heading text-[15px] font-semibold tracking-[0.01em] text-ink">
           {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-cls-fighter" />Attack {target.displayName} (AC {target.armourClass})</>}
           {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-cls-monk" />Add Condition</>}
           {actionMode === 'concentration' && <><Swords className="w-4 h-4 inline mr-1 text-cls-warlock" />Set Concentration</>}
@@ -356,28 +356,28 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
               {attacks.map((atk, i) => (
                 <div key={i} className="flex items-end gap-2">
                   <div className="w-20">
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Attack +</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Attack +</label>}
                     <input type="number" value={atk.attackBonus} onChange={e => updateAttack(i, 'attackBonus', e.target.value)}
-                      placeholder="+5" className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" autoFocus={i === 0} />
+                      placeholder="+5" className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" autoFocus={i === 0} />
                   </div>
                   <div className="w-24">
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Damage</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Damage</label>}
                     <input type="text" value={atk.damageDice} onChange={e => updateAttack(i, 'damageDice', e.target.value)}
-                      placeholder="1d8+3" className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" />
+                      placeholder="1d8+3" className="w-full px-2 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" />
                   </div>
                   <div className="w-28">
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Type</label>}
                     <select value={atk.damageType} onChange={e => updateAttack(i, 'damageType', e.target.value)}
-                      className="w-full h-[38px] px-2 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted">
+                      className="w-full h-[38px] px-2 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted">
                       <option value="">---</option>
                       {DAMAGE_TYPES.map(dt => <option key={dt} value={dt}>{dt}</option>)}
                     </select>
                   </div>
                   <div>
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Roll</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Roll</label>}
                     <div className="flex gap-1">
                       <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === false ? null : false)}
-                        className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.advantage === false ? 'bg-debuff text-white' : 'bg-page-alt text-muted border border-rule'}`}>Dis</button>
+                        className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.advantage === false ? 'bg-debuff text-card' : 'bg-page-alt text-muted border border-rule'}`}>Dis</button>
                       <button type="button" onClick={() => updateAttack(i, 'advantage', null)}
                         className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.advantage === null ? 'bg-rule text-ink' : 'bg-page-alt text-muted border border-rule'}`}>Norm</button>
                       <button type="button" onClick={() => updateAttack(i, 'advantage', atk.advantage === true ? null : true)}
@@ -385,11 +385,11 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
                     </div>
                   </div>
                   <div>
-                    {i === 0 && <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
+                    {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
                     <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
-                      className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-white' : 'bg-page-alt text-muted border border-rule'}`}>Crit</button>
+                      className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-card' : 'bg-page-alt text-muted border border-rule'}`}>Crit</button>
                     <button type="button" onClick={() => updateAttack(i, 'isRanged', !atk.isRanged)}
-                      className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.isRanged ? 'bg-cls-wizard text-white' : 'bg-page-alt text-muted border border-rule'}`}>Ranged</button>
+                      className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.isRanged ? 'bg-cls-wizard text-card' : 'bg-page-alt text-muted border border-rule'}`}>Ranged</button>
                   </div>
                   <div className="flex gap-1">
                     {attacks.length < 5 && (
@@ -415,7 +415,7 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
             </div>
             <div className="flex items-end">
               <button type="submit" disabled={loading}
-                className="px-4 py-2 bg-ink hover:bg-ink/80 disabled:bg-page-alt text-card font-body text-[14px] font-semibold whitespace-nowrap">
+                className="px-4 py-2 bg-ink hover:bg-ink/80 disabled:bg-page-alt text-card font-body text-[16px] font-semibold whitespace-nowrap">
                 {loading ? '...' : `Roll ${attacks.length > 1 ? `${attacks.length} ` : ''}Attack${attacks.length > 1 ? 's' : ''}`}
               </button>
             </div>
@@ -425,20 +425,20 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
         {actionMode === 'condition' && (
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Condition</label>
+              <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Condition</label>
               <select value={condition} onChange={e => setCondition(e.target.value)}
-                className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink focus:outline-none focus:border-muted">
+                className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink focus:outline-none focus:border-muted">
                 <option value="">Select...</option>
                 {ALL_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className="w-24">
-              <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Duration</label>
+              <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Duration</label>
               <input type="number" min="1" value={conditionDuration} onChange={e => setConditionDuration(e.target.value)}
-                placeholder="&#8734;" className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" />
+                placeholder="&#8734;" className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" />
             </div>
             <button type="submit" disabled={loading || !condition}
-              className="px-4 py-2 bg-ink hover:bg-ink/80 disabled:bg-page-alt text-card font-body text-[14px] font-semibold">
+              className="px-4 py-2 bg-ink hover:bg-ink/80 disabled:bg-page-alt text-card font-body text-[16px] font-semibold">
               {loading ? '...' : 'Apply'}
             </button>
           </div>
@@ -447,12 +447,12 @@ function PlayerActionPanel({ myCharacter, encounter, onUpdate, targetId, actionM
         {actionMode === 'concentration' && (
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Spell Name</label>
+              <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Spell Name</label>
               <input type="text" value={spellName} onChange={e => setSpellName(e.target.value)}
-                placeholder="Leave empty to clear" className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" autoFocus />
+                placeholder="Leave empty to clear" className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted" autoFocus />
             </div>
             <button type="submit" disabled={loading}
-              className="px-4 py-2 bg-ink hover:bg-ink/80 disabled:bg-page-alt text-card font-body text-[14px] font-semibold">
+              className="px-4 py-2 bg-ink hover:bg-ink/80 disabled:bg-page-alt text-card font-body text-[16px] font-semibold">
               {loading ? '...' : spellName ? 'Set' : 'Clear'}
             </button>
           </div>
@@ -470,7 +470,7 @@ function PlayerSessionView() {
   const [attackTargetId, setAttackTargetId] = useState<string | null>(null);
 
   if (!encounter) {
-    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[13px] font-semibold">Loading encounter...</p></div>;
+    return <div className="min-h-screen bg-page flex items-center justify-center"><p className="text-muted font-body text-[15px] font-semibold">Loading encounter...</p></div>;
   }
 
   function parseConditions(p: EncounterParticipant): ConditionEntry[] {
@@ -512,15 +512,15 @@ function PlayerSessionView() {
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
         <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <button onClick={() => navigate('/player')} className="flex items-center gap-2 text-muted hover:text-ink transition-colors font-body text-[13px] font-semibold">
+          <button onClick={() => navigate('/player')} className="flex items-center gap-2 text-muted hover:text-ink transition-colors font-body text-[15px] font-semibold">
             <ArrowLeft className="w-4 h-4" /> Dashboard
           </button>
           <div className="flex items-center gap-3">
             {encounter.status === 'COMPLETED' && (
-              <span className="px-2.5 py-1 bg-page-alt text-muted font-heading text-[9px] font-semibold tracking-[0.02em]">Complete</span>
+              <span className="px-2.5 py-1 bg-page-alt text-muted font-heading text-[11px] font-semibold tracking-[0.02em]">Complete</span>
             )}
             {encounter.status === 'PAUSED' && (
-              <span className="px-2.5 py-1 bg-cls-monk/20 text-cls-monk font-heading text-[9px] font-semibold tracking-[0.02em]">Paused</span>
+              <span className="px-2.5 py-1 bg-cls-monk/20 text-cls-monk font-heading text-[11px] font-semibold tracking-[0.02em]">Paused</span>
             )}
             <div className="flex items-center gap-1.5">
               {isConnected ? <Wifi className="w-4 h-4 text-buff" /> : <WifiOff className="w-4 h-4 text-debuff" />}
@@ -531,14 +531,14 @@ function PlayerSessionView() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-4">
-        {error && <p className="text-debuff font-body text-[13px] font-semibold mb-4">{error}</p>}
+        {error && <p className="text-debuff font-body text-[15px] font-semibold mb-4">{error}</p>}
 
         <div className="mb-4">
           <h1 className="font-heading text-[20px] font-bold tracking-[0.02em] text-ink">{encounter.name}</h1>
-          <p className="text-muted font-body text-[13px] font-semibold">Round {encounter.roundNumber}</p>
+          <p className="text-muted font-body text-[15px] font-semibold">Round {encounter.roundNumber}</p>
           {isMyTurn && (
             <div className="mt-2 px-4 py-2.5 bg-cls-fighter/10 border border-cls-fighter/30">
-              <p className="text-cls-fighter font-heading text-[13px] font-semibold tracking-[0.01em]">It&apos;s your turn!</p>
+              <p className="text-cls-fighter font-heading text-[15px] font-semibold tracking-[0.01em]">It&apos;s your turn!</p>
             </div>
           )}
         </div>
@@ -546,7 +546,7 @@ function PlayerSessionView() {
         {/* Own character death saves */}
         {myCharacter && !myCharacter.isAlive && myCharacter.deathSaveFailures < 3 && (
           <div className="bg-debuff/10 border border-debuff/30 p-4 mb-4">
-            <p className="text-debuff font-heading text-[13px] font-semibold tracking-[0.01em] mb-1">You are dying!</p>
+            <p className="text-debuff font-heading text-[15px] font-semibold tracking-[0.01em] mb-1">You are dying!</p>
             <DeathSaves participant={myCharacter} encounterId={encounter.id} onUpdate={refreshEncounter} />
           </div>
         )}
@@ -563,22 +563,22 @@ function PlayerSessionView() {
         {myCharacter && myCharacter.isAlive && (
           <div className="flex items-center gap-2 mb-4">
             <button onClick={() => selectSelfAction('condition')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk font-heading text-[9px] font-semibold tracking-[0.02em] border border-cls-monk/30">
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-monk/30">
               <Zap className="w-3.5 h-3.5" /> Add Condition
             </button>
             <button onClick={() => selectSelfAction('concentration')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock font-heading text-[9px] font-semibold tracking-[0.02em] border border-cls-warlock/30">
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-warlock/30">
               <Swords className="w-3.5 h-3.5" /> {myCharacter.concentrationSpell ? 'Change' : 'Set'} Concentration
             </button>
             {myCharacter.spellsKnown && (
               <button onClick={() => selectSelfAction('spell')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-ink/10 hover:bg-ink/20 text-ink font-heading text-[9px] font-semibold tracking-[0.02em] border border-ink/30">
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-ink/10 hover:bg-ink/20 text-ink font-heading text-[11px] font-semibold tracking-[0.02em] border border-ink/30">
                 <Sparkles className="w-3.5 h-3.5" /> Cast Spell
               </button>
             )}
             {(myCharacter.concentrationSpell || myCharacter.activeSpell) && (
               <button onClick={() => selectSelfAction('repeat-effect')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock font-heading text-[9px] font-semibold tracking-[0.02em] border border-cls-warlock/30">
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-warlock/30">
                 <RotateCw className="w-3.5 h-3.5" /> Repeat Effect
               </button>
             )}
@@ -651,12 +651,12 @@ function PlayerSessionView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`font-heading text-[13px] font-semibold tracking-[0.01em] ${!p.isAlive ? 'line-through' : ''}`}
+                        className={`font-heading text-[15px] font-semibold tracking-[0.01em] ${!p.isAlive ? 'line-through' : ''}`}
                         style={{ color: participantColour }}
                       >
                         {p.displayName}
                       </span>
-                      {isOwn && <span className="px-1.5 py-0.5 font-heading text-[9px] font-semibold tracking-[0.02em] bg-ink/10 text-ink">You</span>}
+                      {isOwn && <span className="px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 text-ink">You</span>}
                       {!p.isAlive && <Skull className="w-4 h-4 text-debuff" />}
                     </div>
                     {conditions.length > 0 && (
@@ -690,19 +690,19 @@ function PlayerSessionView() {
                       <div className="w-28 flex-shrink-0">
                         <div className="flex items-center justify-end gap-1.5 mb-1">
                           <Heart className={`w-3.5 h-3.5 ${p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.5 ? 'text-buff' : p.hpMax > 0 && p.hpCurrent / p.hpMax > 0.25 ? 'text-cls-monk' : 'text-debuff'}`} />
-                          <span className="font-heading text-[11px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</span>
-                          {(p.hpTemp || 0) > 0 && <span className="text-cls-wizard font-heading text-[11px] font-semibold">+{p.hpTemp}</span>}
+                          <span className="font-heading text-[13px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</span>
+                          {(p.hpTemp || 0) > 0 && <span className="text-cls-wizard font-heading text-[13px] font-semibold">+{p.hpTemp}</span>}
                         </div>
                         <HpBar participant={p} />
                       </div>
                       <div className="flex items-center gap-1 w-12 justify-end flex-shrink-0">
                         <Shield className="w-4 h-4 text-muted" />
-                        <span className="text-muted font-heading text-[11px] font-semibold">{p.armourClass}</span>
+                        <span className="text-muted font-heading text-[13px] font-semibold">{p.armourClass}</span>
                       </div>
                     </>
                   ) : (
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-faint font-body text-[13px] font-semibold">{p.participantType === 'MONSTER' ? 'Monster' : 'Player'}</span>
+                      <span className="text-faint font-body text-[15px] font-semibold">{p.participantType === 'MONSTER' ? 'Monster' : 'Player'}</span>
                       {isMyTurn && p.isAlive && !isOwn && (
                         <button onClick={() => selectAttackTarget(p.id)}
                           className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter" title="Attack">

@@ -26,13 +26,13 @@ export default function JournalTab({ char, saveField }: {
       {fields.map(({ key, label }) => (
         <div key={key} className="bg-card border border-rule p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint">{label}</h3>
+            <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint">{label}</h3>
             <button
               onClick={() => {
                 if (editing === key) { save(key); }
                 else { setEditing(key); setEditValue((char[key] as string) || ''); }
               }}
-              className="font-body text-[12px] font-semibold text-muted hover:text-ink transition-colors"
+              className="font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors"
             >
               {editing === key ? 'Save' : 'Edit'}
             </button>
@@ -42,11 +42,11 @@ export default function JournalTab({ char, saveField }: {
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 bg-page border border-rule font-body text-[14px] font-semibold text-ink resize-none focus:outline-none focus:border-muted"
+              className="w-full px-3 py-2 bg-page border border-rule font-body text-[16px] font-semibold text-ink resize-none focus:outline-none focus:border-muted"
               autoFocus
             />
           ) : (
-            <p className="font-body text-[13px] font-semibold text-muted whitespace-pre-line">
+            <p className="font-body text-[15px] font-semibold text-muted whitespace-pre-line">
               {(char[key] as string) || <span className="text-faint italic">Not set</span>}
             </p>
           )}

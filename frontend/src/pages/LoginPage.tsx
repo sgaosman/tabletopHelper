@@ -31,19 +31,19 @@ export default function LoginPage() {
         <h1 className="font-heading text-[20px] font-semibold tracking-[0.02em] text-ink text-center mb-1">
           Tabletop Helper
         </h1>
-        <p className="font-body text-[14px] font-semibold text-muted text-center mb-8">
+        <p className="font-body text-[16px] font-semibold text-muted text-center mb-8">
           Sign in to your account
         </p>
 
         {error && (
-          <div role="alert" className="bg-debuff-bg border border-debuff-border text-debuff text-[13px] font-body p-3 mb-4">
+          <div role="alert" className="bg-debuff-bg border border-debuff-border text-debuff text-[15px] font-body p-3 mb-4">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
+            <label htmlFor="username" className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
               Username
             </label>
             <input
@@ -52,13 +52,13 @@ export default function LoginPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="Enter your username"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block font-heading text-[10px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
+            <label htmlFor="password" className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1.5">
               Password
             </label>
             <input
@@ -67,7 +67,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-card border border-rule font-body text-[14px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
+              className="w-full px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
               placeholder="Enter your password"
             />
           </div>
@@ -75,13 +75,13 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-ink text-card font-body text-[14px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2.5 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="font-body text-[13px] font-semibold text-muted text-center mt-6">
+        <p className="font-body text-[15px] font-semibold text-muted text-center mt-6">
           Don't have an account?{' '}
           <Link to="/register" className="text-ink font-semibold hover:text-muted">
             Sign up
