@@ -3,12 +3,16 @@ package com.tabletophelper.encounter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.NotFoundException;
+import com.tabletophelper.shared.ValidationException;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,11 +36,13 @@ public class CombatService {
     private final MonsterSpellCastService monsterSpellCastService;
     private final ResourcePoolService resourcePoolService;
     private final SpellRepository spellRepository;
+    private final AccessPolicy accessPolicy;
 
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrControllerOnTurn(encounter, userId, actorParticipantId);
+        Encounter encounter = loadEncounter(encounterId);
+        requireControlsOnTurn(encounter, actorParticipantId, userId);
+        requireActive(encounter);
 
         EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
@@ -44,7 +50,7 @@ public class CombatService {
         boolean targetDowned = !target.getIsAlive() && target.getParticipantType() == ParticipantType.PLAYER
                 && target.getDeathSaveFailures() < 3;
         if (!target.getIsAlive() && !targetDowned) {
-            throw new IllegalArgumentException("Target is already dead");
+            throw new ConflictException("Target is already dead");
         }
 
         String actorName = actor != null ? actor.getDisplayName() : "DM";
@@ -163,14 +169,15 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse applyDamage(UUID encounterId, DamageRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrController(encounter, userId, actorParticipantId);
+        Encounter encounter = loadEncounter(encounterId);
+        requireControls(encounter, actorParticipantId, userId);
+        requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
         boolean targetDowned = !target.getIsAlive() && target.getParticipantType() == ParticipantType.PLAYER
                 && target.getDeathSaveFailures() < 3;
         if (!target.getIsAlive() && !targetDowned) {
-            throw new IllegalArgumentException("Target is already dead");
+            throw new ConflictException("Target is already dead");
         }
 
         EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
@@ -225,8 +232,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse applyHealing(UUID encounterId, HealRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrController(encounter, userId, actorParticipantId);
+        Encounter encounter = loadEncounter(encounterId);
+        requireControls(encounter, actorParticipantId, userId);
+        requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
         EncounterParticipant actor = actorParticipantId != null ? findParticipant(encounter, actorParticipantId) : null;
@@ -266,8 +274,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse setHp(UUID encounterId, SetHpRequest request, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
 
@@ -299,8 +308,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse addCondition(UUID encounterId, ConditionRequest request, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrTargetOwner(encounter, userId, request.getTargetId());
+        Encounter encounter = loadEncounter(encounterId);
+        requireControls(encounter, request.getTargetId(), userId);
+        requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
         List<ConditionEntry> conditions = parseConditionEntries(target);
@@ -320,8 +330,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse removeCondition(UUID encounterId, ConditionRequest request, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrTargetOwner(encounter, userId, request.getTargetId());
+        Encounter encounter = loadEncounter(encounterId);
+        requireControls(encounter, request.getTargetId(), userId);
+        requireActive(encounter);
 
         EncounterParticipant target = findParticipant(encounter, request.getTargetId());
         List<ConditionEntry> conditions = parseConditionEntries(target);
@@ -340,18 +351,18 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse rollDeathSave(UUID encounterId, DeathSaveRequest request, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
+        Encounter encounter = loadEncounter(encounterId);
+        requireControls(encounter, request.getParticipantId(), userId);
+        requireActive(encounter);
 
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
 
         if (participant.getIsAlive()) {
-            throw new IllegalArgumentException("Participant is not dying");
+            throw new ConflictException("Participant is not dying");
         }
         if (participant.getParticipantType() != ParticipantType.PLAYER) {
-            throw new IllegalArgumentException("Only player characters make death saving throws");
+            throw new ValidationException("Only player characters make death saving throws");
         }
-
-        verifyDmOrController(encounter, userId, request.getParticipantId());
 
         int roll = ThreadLocalRandom.current().nextInt(1, 21);
         String resultDesc;
@@ -400,8 +411,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse setConcentration(UUID encounterId, ConcentrationRequest request, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrController(encounter, userId, request.getParticipantId());
+        Encounter encounter = loadEncounter(encounterId);
+        requireControls(encounter, request.getParticipantId(), userId);
+        requireActive(encounter);
 
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
 
@@ -419,8 +431,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse useSpellSlot(UUID encounterId, SpellSlotRequest request, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrController(encounter, userId, request.getParticipantId());
+        Encounter encounter = loadEncounter(encounterId);
+        requireControls(encounter, request.getParticipantId(), userId);
+        requireActive(encounter);
 
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
         Map<String, Map<String, Integer>> slots = parseSpellSlots(participant);
@@ -434,7 +447,7 @@ public class CombatService {
             }
         }
         if (slot == null || slot.getOrDefault("remaining", 0) <= 0) {
-            throw new IllegalArgumentException("No level " + request.getSlotLevel() + " spell slots remaining");
+            throw new ConflictException("No level " + request.getSlotLevel() + " spell slots remaining");
         }
 
         slot.put("remaining", slot.get("remaining") - 1);
@@ -450,8 +463,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse restoreSpellSlot(UUID encounterId, SpellSlotRequest request, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
 
         EncounterParticipant participant = findParticipant(encounter, request.getParticipantId());
         Map<String, Map<String, Integer>> slots = parseSpellSlots(participant);
@@ -465,13 +479,13 @@ public class CombatService {
             }
         }
         if (slot == null) {
-            throw new IllegalArgumentException("Participant has no level " + request.getSlotLevel() + " spell slots");
+            throw new ValidationException("Participant has no level " + request.getSlotLevel() + " spell slots");
         }
 
         int remaining = slot.getOrDefault("remaining", 0);
         int max = slot.getOrDefault("max", 0);
         if (remaining >= max) {
-            throw new IllegalArgumentException("Level " + level + " spell slots already at maximum");
+            throw new ConflictException("Level " + level + " spell slots already at maximum");
         }
 
         slot.put("remaining", remaining + 1);
@@ -487,8 +501,9 @@ public class CombatService {
 
     @Transactional
     public CastSpellResponse castSpell(UUID encounterId, CastSpellRequest request, UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrControllerOnTurn(encounter, userId, actorParticipantId);
+        Encounter encounter = loadEncounter(encounterId);
+        requireControlsOnTurn(encounter, actorParticipantId, userId);
+        requireActive(encounter);
 
         EncounterParticipant caster = findParticipant(encounter, actorParticipantId);
 
@@ -501,7 +516,7 @@ public class CombatService {
                     : String.valueOf(request.getSlotLevel());
             Map<String, Integer> slot = slots.get(slotKey);
             if (slot == null || slot.getOrDefault("remaining", 0) <= 0) {
-                throw new IllegalArgumentException("No level " + request.getSlotLevel() + " spell slots remaining");
+                throw new ConflictException("No level " + request.getSlotLevel() + " spell slots remaining");
             }
             slot.put("remaining", slot.get("remaining") - 1);
             caster.setSpellSlotsCurrent(serializeSpellSlots(slots));
@@ -604,8 +619,9 @@ public class CombatService {
     @Transactional
     public CastSpellResponse repeatSpellEffect(UUID encounterId, RepeatSpellEffectRequest request,
                                                 UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDmOrControllerOnTurn(encounter, userId, actorParticipantId);
+        Encounter encounter = loadEncounter(encounterId);
+        requireControlsOnTurn(encounter, actorParticipantId, userId);
+        requireActive(encounter);
 
         EncounterParticipant caster = findParticipant(encounter, actorParticipantId);
 
@@ -618,7 +634,7 @@ public class CombatService {
             spellName = caster.getActiveSpell();
             slotLevel = caster.getActiveSpellSlotLevel() != null ? caster.getActiveSpellSlotLevel() : 0;
         } else {
-            throw new IllegalArgumentException("Caster has no active concentration or persistent spell");
+            throw new ConflictException("Caster has no active concentration or persistent spell");
         }
 
         int spellAttackBonus = request.getOverrideSpellAttackBonus() != null
@@ -753,38 +769,39 @@ public class CombatService {
     @Transactional
     public MonsterActionResponse monsterAction(UUID encounterId, MonsterActionRequest request,
                                                UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
 
         EncounterParticipant monster = encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(request.monsterParticipantId()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Monster participant not found"));
+                .orElseThrow(() -> new ValidationException("Monster participant not found"));
 
         // Load action templates from the monster entity
         Monster monsterEntity = monster.getMonster();
         if (monsterEntity == null || monsterEntity.getActionTemplates() == null) {
-            throw new IllegalArgumentException("Monster has no action templates");
+            throw new ValidationException("Monster has no action templates");
         }
 
         JsonNode templates;
         try {
             templates = objectMapper.readTree(monsterEntity.getActionTemplates());
         } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to parse monster action templates", e);
+            throw new IllegalStateException("Failed to parse monster action templates", e);
         }
 
         // Find the requested action
         JsonNode actionTemplate = findActionByName(templates, request.actionName(), request.actionSource());
         if (actionTemplate == null) {
-            throw new IllegalArgumentException("Action '" + request.actionName() + "' not found in monster's action templates (source: " + request.actionSource() + ")");
+            throw new ValidationException("Action '" + request.actionName() + "' not found in monster's action templates (source: " + request.actionSource() + ")");
         }
 
         // Pre-validation for legendary and recharge actions
         if ("LEGENDARY".equals(request.actionSource())) {
             int cost = actionTemplate.has("cost") ? actionTemplate.get("cost").asInt() : 1;
             if (!resourcePoolService.spendPool(monster, "monster:legendary-actions", cost)) {
-                throw new IllegalStateException("Not enough legendary actions remaining (need " + cost + ")");
+                throw new ConflictException("Not enough legendary actions remaining (need " + cost + ")");
             }
         }
 
@@ -798,7 +815,7 @@ public class CombatService {
                 List<ResourcePoolEntry> pools = resourcePoolService.parsePools(monster.getResourcePoolsCurrent());
                 boolean available = pools.stream().anyMatch(p -> p.poolId().equals(poolId) && p.currentUses() > 0);
                 if (!available) {
-                    throw new IllegalStateException("Recharge action '" + actionName + "' is not yet recharged");
+                    throw new ConflictException("Recharge action '" + actionName + "' is not yet recharged");
                 }
             }
         }
@@ -807,7 +824,7 @@ public class CombatService {
         if ("LAIR".equals(request.actionSource())) {
             String actionName = actionTemplate.get("name").asText();
             if (actionName.equals(monster.getLastLairActionUsed())) {
-                throw new IllegalStateException("Lair action '" + actionName + "' cannot be used two rounds in a row");
+                throw new ConflictException("Lair action '" + actionName + "' cannot be used two rounds in a row");
             }
             monster.setLastLairActionUsed(actionName);
         }
@@ -907,13 +924,14 @@ public class CombatService {
     @Transactional
     public CastSpellResponse monsterSpell(UUID encounterId, CombatService.MonsterSpellRequest request,
                                           UUID actorParticipantId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
 
         EncounterParticipant monster = encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(request.monsterParticipantId()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Monster participant not found"));
+                .orElseThrow(() -> new ValidationException("Monster participant not found"));
 
         // Populate spellcasting data if not already set
         if ((monster.getSpellSlotsCurrent() == null || monster.getSpellSlotsCurrent().isBlank())
@@ -993,19 +1011,21 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse useLegendaryResistance(UUID encounterId, UUID combatLogId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
 
-        // Find the combat log entry
+        // Find the combat log entry; an entry from another encounter counts as missing
         CombatLog logEntry = combatLogRepository.findById(combatLogId)
-                .orElseThrow(() -> new IllegalArgumentException("Combat log entry not found"));
+                .filter(entry -> entry.getEncounter().getId().equals(encounterId))
+                .orElseThrow(() -> new NotFoundException("Combat log entry not found"));
 
         if (logEntry.getLrResolved() != null && logEntry.getLrResolved()) {
-            throw new IllegalStateException("Legendary Resistance already resolved for this entry");
+            throw new ConflictException("Legendary Resistance already resolved for this entry");
         }
 
         if (!Boolean.TRUE.equals(logEntry.getLegendaryResistanceEligible())) {
-            throw new IllegalStateException("This combat log entry is not eligible for Legendary Resistance");
+            throw new ConflictException("This combat log entry is not eligible for Legendary Resistance");
         }
 
         // Find the TARGET participant (the one who failed the save)
@@ -1013,7 +1033,7 @@ public class CombatService {
 
         // 1. Decrement target's legendary resistance pool
         if (!resourcePoolService.spendPool(target, "monster:legendary-resistance", 1)) {
-            throw new IllegalStateException("No legendary resistance remaining");
+            throw new ConflictException("No legendary resistance remaining");
         }
 
         // 2. Revert damage (heal the target by the damage that was dealt)
@@ -1055,8 +1075,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse setLairStatus(UUID encounterId, List<UUID> monsterIds, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
         try {
             encounter.setMonstersInLair(objectMapper.writeValueAsString(monsterIds));
         } catch (Exception e) {
@@ -1067,8 +1088,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse advanceTurn(UUID encounterId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
 
         List<EncounterParticipant> sorted = encounter.getParticipants().stream()
                 .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder() : Integer.MAX_VALUE))
@@ -1113,8 +1135,9 @@ public class CombatService {
 
     @Transactional
     public EncounterResponse previousTurn(UUID encounterId, UUID userId) {
-        Encounter encounter = loadActiveEncounter(encounterId);
-        verifyDm(encounter, userId);
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(campaignId(encounter), userId);
+        requireActive(encounter);
 
         List<EncounterParticipant> sorted = encounter.getParticipants().stream()
                 .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder() : Integer.MAX_VALUE))
@@ -1155,6 +1178,9 @@ public class CombatService {
 
     @Transactional(readOnly = true)
     public List<CombatLogResponse> getCombatLog(UUID encounterId, UUID userId) {
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireMember(campaignId(encounter), userId);
+
         return combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounterId).stream()
                 .map(log -> CombatLogResponse.builder()
                         .id(log.getId())
@@ -1437,20 +1463,24 @@ public class CombatService {
         combatLogRepository.save(log);
     }
 
-    private Encounter loadActiveEncounter(UUID encounterId) {
-        Encounter encounter = encounterRepository.findById(encounterId)
-                .orElseThrow(() -> new IllegalArgumentException("Encounter not found"));
-        if (encounter.getStatus() != EncounterStatus.ACTIVE && encounter.getStatus() != EncounterStatus.PAUSED) {
-            throw new IllegalArgumentException("Encounter is not active");
-        }
-        return encounter;
+    private Encounter loadEncounter(UUID encounterId) {
+        return encounterRepository.findById(encounterId)
+                .orElseThrow(() -> new NotFoundException("Encounter not found"));
     }
 
+    // Checked after the access policy, so only campaign members learn an encounter's status
+    private void requireActive(Encounter encounter) {
+        if (encounter.getStatus() != EncounterStatus.ACTIVE && encounter.getStatus() != EncounterStatus.PAUSED) {
+            throw new ConflictException("Encounter is not active");
+        }
+    }
+
+    // Combat requests name participants in the body or query string, never the path, so an unknown one is a 400
     private EncounterParticipant findParticipant(Encounter encounter, UUID participantId) {
         return encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(participantId))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Participant not found"));
+                .orElseThrow(() -> new ValidationException("Participant not found"));
     }
 
     private String getCurrentTurnName(Encounter encounter) {
@@ -1519,7 +1549,7 @@ public class CombatService {
             }
 
             if (request.getTargetIds().size() > maxTargets) {
-                throw new IllegalArgumentException(
+                throw new ValidationException(
                         request.getSpellName() + " can target at most " + maxTargets
                                 + " creature" + (maxTargets != 1 ? "s" : "")
                                 + " at level " + slotLevel
@@ -1530,56 +1560,36 @@ public class CombatService {
         }
     }
 
-    private void verifyDm(Encounter encounter, UUID userId) {
-        if (!encounter.getCampaign().getDm().getId().equals(userId)) {
-            throw new IllegalArgumentException("Only the DM can perform this action");
-        }
+    private static UUID campaignId(Encounter encounter) {
+        return encounter.getCampaign().getId();
     }
 
-    private void verifyDmOrController(Encounter encounter, UUID userId, UUID participantId) {
-        if (encounter.getCampaign().getDm().getId().equals(userId)) {
-            return;
-        }
-        if (participantId != null) {
-            EncounterParticipant actor = findParticipant(encounter, participantId);
-            if (userId.equals(actor.getControlledByUserId())) {
-                return;
-            }
-        }
-        throw new IllegalArgumentException("You do not have permission to perform this action");
+    /** The DM may act for any participant; a player only for one they control (D028). */
+    private void requireControls(Encounter encounter, UUID participantId, UUID userId) {
+        accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId), userId);
     }
 
-    private void verifyDmOrControllerOnTurn(Encounter encounter, UUID userId, UUID participantId) {
-        if (encounter.getCampaign().getDm().getId().equals(userId)) {
-            return;
-        }
-        if (participantId != null) {
-            EncounterParticipant actor = findParticipant(encounter, participantId);
-            if (userId.equals(actor.getControlledByUserId())) {
-                List<EncounterParticipant> sorted = encounter.getParticipants().stream()
-                        .sorted((a, b) -> (a.getSortOrder() != null ? a.getSortOrder() : 999) - (b.getSortOrder() != null ? b.getSortOrder() : 999))
-                        .toList();
-                int turnIdx = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
-                if (turnIdx < sorted.size() && sorted.get(turnIdx).getId().equals(participantId)) {
-                    return;
-                }
-                throw new IllegalArgumentException("You can only attack on your turn");
-            }
-        }
-        throw new IllegalArgumentException("You do not have permission to perform this action");
+    /** As {@link #requireControls}, and a player only while it is that participant's turn (D028). */
+    private void requireControlsOnTurn(Encounter encounter, UUID participantId, UUID userId) {
+        accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId),
+                isCurrentTurn(encounter, participantId), userId);
     }
 
-    private void verifyDmOrTargetOwner(Encounter encounter, UUID userId, UUID targetId) {
-        if (encounter.getCampaign().getDm().getId().equals(userId)) {
-            return;
-        }
-        if (targetId != null) {
-            EncounterParticipant target = findParticipant(encounter, targetId);
-            if (userId.equals(target.getControlledByUserId())) {
-                return;
-            }
-        }
-        throw new IllegalArgumentException("You do not have permission to perform this action");
+    // Null for monsters and for an unknown or missing participant, so only the DM passes
+    private UUID controllerOf(Encounter encounter, UUID participantId) {
+        return encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId))
+                .findFirst()
+                .map(EncounterParticipant::getControlledByUserId)
+                .orElse(null);
+    }
+
+    private boolean isCurrentTurn(Encounter encounter, UUID participantId) {
+        List<EncounterParticipant> sorted = encounter.getParticipants().stream()
+                .sorted((a, b) -> (a.getSortOrder() != null ? a.getSortOrder() : 999) - (b.getSortOrder() != null ? b.getSortOrder() : 999))
+                .toList();
+        int turnIdx = encounter.getCurrentTurnIndex() != null ? encounter.getCurrentTurnIndex() : 0;
+        return turnIdx < sorted.size() && sorted.get(turnIdx).getId().equals(participantId);
     }
 
     private void expireConditions(Encounter encounter, EncounterParticipant participant) {

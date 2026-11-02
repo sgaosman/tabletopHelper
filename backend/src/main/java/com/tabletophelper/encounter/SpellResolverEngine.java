@@ -7,6 +7,7 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.ProficiencyBonus;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -343,7 +344,7 @@ public class SpellResolverEngine {
                 for (JsonNode c : condArray) {
                     String name = c.isTextual() ? c.asText() : c.path("name").asText("");
                     if ("silenced".equalsIgnoreCase(name) || "silence".equalsIgnoreCase(name)) {
-                        throw new IllegalArgumentException("Cannot cast spells with verbal components while silenced");
+                        throw new ConflictException("Cannot cast spells with verbal components while silenced");
                     }
                 }
             }

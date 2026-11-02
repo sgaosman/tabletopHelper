@@ -1,5 +1,6 @@
 package com.tabletophelper.monster;
 
+import com.tabletophelper.shared.NotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -115,10 +116,10 @@ class MonsterServiceTest {
     }
 
     @Test
-    @DisplayName("getMonster with unknown ID throws IllegalArgumentException")
+    @DisplayName("getMonster with unknown ID throws NotFoundException")
     void getMonsterUnknownId() {
         UUID id = UUID.randomUUID();
         when(monsterRepository.findById(id)).thenReturn(Optional.empty());
-        assertThrows(IllegalArgumentException.class, () -> monsterService.getMonster(id));
+        assertThrows(NotFoundException.class, () -> monsterService.getMonster(id));
     }
 }

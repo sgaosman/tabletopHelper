@@ -3,6 +3,8 @@ package com.tabletophelper.auth;
 import com.tabletophelper.auth.dto.AuthResponse;
 import com.tabletophelper.auth.dto.LoginRequest;
 import com.tabletophelper.auth.dto.RegisterRequest;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,7 +87,7 @@ class AuthServiceTest {
 
         when(userRepository.existsByUsername("thorin")).thenReturn(true);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        ConflictException ex = assertThrows(ConflictException.class,
                 () -> authService.register(request));
 
         assertEquals("Username already taken", ex.getMessage());
@@ -122,7 +124,7 @@ class AuthServiceTest {
         when(userRepository.findByUsername("thorin")).thenReturn(Optional.of(existingUser));
         when(passwordEncoder.matches("WrongPassword", "hashed_password")).thenReturn(false);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        ValidationException ex = assertThrows(ValidationException.class,
                 () -> authService.login(request));
 
         assertEquals("Invalid username or password", ex.getMessage());
@@ -154,7 +156,7 @@ class AuthServiceTest {
 
         when(jwtTokenProvider.validateToken(expiredToken)).thenReturn(false);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        ValidationException ex = assertThrows(ValidationException.class,
                 () -> authService.refresh(expiredToken));
 
         assertEquals("Invalid or expired refresh token", ex.getMessage());

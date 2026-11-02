@@ -5,6 +5,7 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -156,7 +157,7 @@ class SpellResolverEngineTest {
                  "conditionsInflicted":null}""";
             stubSpell("Fire Bolt", template);
 
-            assertThrows(IllegalArgumentException.class, () ->
+            assertThrows(ConflictException.class, () ->
                     engine.resolveSpell(encounter, caster, "Fire Bolt", 0,
                             List.of(target.getId()), 5, 13, null));
         }

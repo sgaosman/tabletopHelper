@@ -2,12 +2,17 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.campaign.AccessPolicy;
+import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.*;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.reference.*;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
+import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import jakarta.validation.ConstraintViolation;
@@ -89,10 +94,10 @@ class CharacterServiceBusinessTest {
         featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
         service = new CharacterService(
                 characterRepository, userRepository, campaignRepository,
-                campaignMemberRepository, raceRepository, characterClassRepository,
+                raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
                 featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,
-                resourcePoolService);
+                resourcePoolService, new AccessPolicy(campaignRepository, campaignMemberRepository));
 
         user = User.builder().id(userId).username("testuser").email("test@test.com")
                 .passwordHash("hash").displayName("Test User").build();
@@ -628,7 +633,7 @@ class CharacterServiceBusinessTest {
             req.setHitDiceToSpend(Map.of("Fighter", 1));
 
             assertThatThrownBy(() -> service.shortRest(pc.getId(), req, userId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(ConflictException.class)
                     .hasMessageContaining("Not enough hit dice remaining");
         }
 
@@ -863,11 +868,101 @@ class CharacterServiceBusinessTest {
 
             // When/Then: other user's attempt to delete should fail
             assertThatThrownBy(() -> service.deleteCharacter(pc.getId(), otherUserId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(ForbiddenException.class)
                     .hasMessageContaining("You do not own this character");
 
             // Character should remain unchanged
             assertThat(pc.getIsActive()).isTrue();
+            verify(characterRepository, never()).save(any());
+        }
+    }
+
+    // ========================================================================
+    // Access (D155)
+    // ========================================================================
+
+    @Nested
+    @DisplayName("Access (D155)")
+    class Access {
+
+        UUID dmUserId = UUID.randomUUID();
+        UUID campaignId = UUID.randomUUID();
+        Campaign campaign;
+
+        @BeforeEach
+        void setUpCampaign() {
+            User dm = User.builder().id(dmUserId).username("dm").email("dm@test.com")
+                    .passwordHash("hash").displayName("DM").build();
+            campaign = Campaign.builder().id(campaignId).name("Lost Mine").dm(dm).inviteCode("ABCD2345").build();
+            lenient().when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+        }
+
+        private PlayerCharacter characterInCampaign() {
+            return PlayerCharacter.builder()
+                    .id(UUID.randomUUID()).user(user).campaign(campaign).name("Aria")
+                    .characterClass("Fighter").level(1)
+                    .strength(16).dexterity(14).constitution(14)
+                    .intelligence(10).wisdom(10).charisma(10)
+                    .hpMax(12).hpCurrent(12).armourClass(10)
+                    .proficiencyBonus(2).speed(30)
+                    .isActive(true)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Another player in the same campaign cannot read the character")
+        void otherPlayerCannotReadCharacter() {
+            PlayerCharacter pc = characterInCampaign();
+            when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
+
+            assertThatThrownBy(() -> service.getCharacter(pc.getId(), otherUserId))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("You do not have access to this character");
+        }
+
+        @Test
+        @DisplayName("The campaign's DM can read a player's character")
+        void campaignDmCanReadCharacter() {
+            PlayerCharacter pc = characterInCampaign();
+            when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
+
+            CharacterResponse response = service.getCharacter(pc.getId(), dmUserId);
+
+            assertThat(response.getName()).isEqualTo("Aria");
+        }
+
+        @Test
+        @DisplayName("An unknown character is a NotFoundException")
+        void unknownCharacterIsNotFound() {
+            UUID unknownId = UUID.randomUUID();
+            when(characterRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.getCharacter(unknownId, userId))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Character not found");
+        }
+
+        @Test
+        @DisplayName("Only the DM can list the campaign's characters")
+        void playerCannotListCampaignCharacters() {
+            assertThatThrownBy(() -> service.getCharactersInCampaign(campaignId, userId))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("Only the DM can perform this action");
+            verify(characterRepository, never()).findByCampaignIdAndIsActiveTrue(any());
+        }
+
+        @Test
+        @DisplayName("A character cannot be created in a campaign its owner has not joined")
+        void cannotCreateCharacterInCampaignNotJoined() {
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            CharacterCreateRequest request = new CharacterCreateRequest();
+            request.setName("Aria");
+            request.setCampaignId(campaignId);
+            request.setRaceId(humanId);
+
+            assertThatThrownBy(() -> service.createCharacter(request, userId))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("You are not a member of this campaign");
             verify(characterRepository, never()).save(any());
         }
     }

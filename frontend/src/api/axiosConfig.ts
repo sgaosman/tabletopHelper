@@ -23,14 +23,20 @@ function onTokenRefreshed(token: string) {
   refreshSubscribers = [];
 }
 
+// Login, register and refresh report their own failures; refreshing on those would loop (D155)
+function isAuthRequest(url: string | undefined) {
+  return url?.startsWith('/auth/') ?? false;
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
 
+    // Only a 401 means the session expired; a 403 is a refusal that a new token would not change (D155)
     const hadToken = originalRequest.headers?.Authorization?.startsWith('Bearer ');
-    if ((status === 401 || status === 403) && hadToken && !originalRequest._retry) {
+    if (status === 401 && hadToken && !isAuthRequest(originalRequest.url) && !originalRequest._retry) {
       originalRequest._retry = true;
 
       if (isRefreshing) {

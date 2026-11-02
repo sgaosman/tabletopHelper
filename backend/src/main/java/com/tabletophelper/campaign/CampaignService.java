@@ -2,6 +2,9 @@ package com.tabletophelper.campaign;
 
 import com.tabletophelper.campaign.dto.CampaignCreateRequest;
 import com.tabletophelper.campaign.dto.CampaignResponse;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.NotFoundException;
+import com.tabletophelper.shared.ValidationException;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import com.tabletophelper.user.UserRole;
@@ -20,6 +23,7 @@ public class CampaignService {
     private final CampaignRepository campaignRepository;
     private final CampaignMemberRepository campaignMemberRepository;
     private final UserRepository userRepository;
+    private final AccessPolicy accessPolicy;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -27,7 +31,7 @@ public class CampaignService {
     @Transactional
     public CampaignResponse createCampaign(CampaignCreateRequest request, UUID dmUserId) {
         User dm = userRepository.findById(dmUserId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         Campaign campaign = Campaign.builder()
                 .name(request.getName())
@@ -53,14 +57,14 @@ public class CampaignService {
     @Transactional
     public CampaignResponse joinCampaign(String inviteCode, UUID userId) {
         Campaign campaign = campaignRepository.findByInviteCode(inviteCode.toUpperCase())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid invite code"));
+                .orElseThrow(() -> new ValidationException("Invalid invite code"));
 
         if (campaignMemberRepository.existsByCampaignIdAndUserId(campaign.getId(), userId)) {
-            throw new IllegalArgumentException("Already a member of this campaign");
+            throw new ConflictException("Already a member of this campaign");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         CampaignMember member = CampaignMember.builder()
                 .campaign(campaign)
@@ -84,13 +88,10 @@ public class CampaignService {
 
     @Transactional(readOnly = true)
     public CampaignResponse getCampaign(UUID campaignId, UUID userId) {
+        accessPolicy.requireMember(campaignId, userId);
+
         Campaign campaign = campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
-
-        if (!campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, userId)) {
-            throw new IllegalArgumentException("You are not a member of this campaign");
-        }
-
+                .orElseThrow(() -> new NotFoundException("Campaign not found"));
         return toResponse(campaign);
     }
 

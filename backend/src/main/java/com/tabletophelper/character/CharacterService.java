@@ -1,7 +1,7 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
-import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.*;
 import com.tabletophelper.character.dto.LevelHistoryEntry;
@@ -10,6 +10,9 @@ import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.reference.*;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.NotFoundException;
+import com.tabletophelper.shared.ValidationException;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +33,6 @@ public class CharacterService {
     private final CharacterRepository characterRepository;
     private final UserRepository userRepository;
     private final CampaignRepository campaignRepository;
-    private final CampaignMemberRepository campaignMemberRepository;
     private final RaceRepository raceRepository;
     private final CharacterClassRepository characterClassRepository;
     private final SubclassRepository subclassRepository;
@@ -42,40 +44,42 @@ public class CharacterService {
     private final CharacterJsonHelper jsonHelper;
     private final ObjectMapper objectMapper;
     private final ResourcePoolService resourcePoolService;
+    private final AccessPolicy accessPolicy;
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         Campaign campaign = null;
         if (request.getCampaignId() != null) {
             campaign = campaignRepository.findById(request.getCampaignId())
-                    .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
+                    .orElseThrow(() -> new ValidationException("Campaign not found"));
+            accessPolicy.requireMember(campaign.getId(), userId);
         }
 
         Race raceRef = null;
         if (request.getRaceId() != null) {
             raceRef = raceRepository.findById(request.getRaceId())
-                    .orElseThrow(() -> new IllegalArgumentException("Race not found"));
+                    .orElseThrow(() -> new ValidationException("Race not found"));
         }
 
         CharacterClass classRef = null;
         if (request.getClassId() != null) {
             classRef = characterClassRepository.findById(request.getClassId())
-                    .orElseThrow(() -> new IllegalArgumentException("Class not found"));
+                    .orElseThrow(() -> new ValidationException("Class not found"));
         }
 
         Subclass subclassRef = null;
         if (request.getSubclassId() != null) {
             subclassRef = subclassRepository.findById(request.getSubclassId())
-                    .orElseThrow(() -> new IllegalArgumentException("Subclass not found"));
+                    .orElseThrow(() -> new ValidationException("Subclass not found"));
         }
 
         Background backgroundRef = null;
         if (request.getBackgroundId() != null) {
             backgroundRef = backgroundRepository.findById(request.getBackgroundId())
-                    .orElseThrow(() -> new IllegalArgumentException("Background not found"));
+                    .orElseThrow(() -> new ValidationException("Background not found"));
         }
 
         String raceName = raceRef != null ? raceRef.getName() : request.getRace();
@@ -101,7 +105,7 @@ public class CharacterService {
                 mcEntries = objectMapper.readValue(request.getMulticlassClassEntries(),
                         new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
             } catch (Exception e) {
-                throw new IllegalArgumentException("Invalid multiclass entries JSON: " + e.getMessage());
+                throw new ValidationException("Invalid multiclass entries JSON: " + e.getMessage());
             }
         }
 
@@ -110,7 +114,7 @@ public class CharacterService {
             for (Map<String, Object> mce : mcEntries) {
                 String cid = (String) mce.get("classId");
                 if (cid != null && !seenClassIds.add(cid)) {
-                    throw new IllegalArgumentException("Duplicate class in multiclass entries: " + cid);
+                    throw new ValidationException("Duplicate class in multiclass entries: " + cid);
                 }
             }
         }
@@ -138,7 +142,7 @@ public class CharacterService {
                 String mcSubclassId = mce.get("subclassId") != null ? (String) mce.get("subclassId") : null;
 
                 CharacterClass mcClassRef = characterClassRepository.findById(mcClassId)
-                        .orElseThrow(() -> new IllegalArgumentException("Class not found: " + mcClassId));
+                        .orElseThrow(() -> new ValidationException("Class not found: " + mcClassId));
                 Subclass mcSubclassRef = null;
                 if (mcSubclassId != null && !mcSubclassId.isEmpty()) {
                     mcSubclassRef = subclassRepository.findById(UUID.fromString(mcSubclassId)).orElse(null);
@@ -342,12 +346,8 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse updateCharacter(UUID characterId, CharacterUpdateRequest request, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-
-        if (!character.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("You do not own this character");
-        }
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
         if (request.getName() != null) character.setName(request.getName());
         if (request.getRace() != null) character.setRace(request.getRace());
@@ -362,25 +362,25 @@ public class CharacterService {
 
         if (request.getRaceId() != null) {
             Race r = raceRepository.findById(request.getRaceId())
-                    .orElseThrow(() -> new IllegalArgumentException("Race not found"));
+                    .orElseThrow(() -> new ValidationException("Race not found"));
             character.setRaceRef(r);
             character.setRace(r.getName());
         }
         if (request.getClassId() != null) {
             CharacterClass cc = characterClassRepository.findById(request.getClassId())
-                    .orElseThrow(() -> new IllegalArgumentException("Class not found"));
+                    .orElseThrow(() -> new ValidationException("Class not found"));
             character.setClassRef(cc);
             character.setCharacterClass(cc.getName());
         }
         if (request.getSubclassId() != null) {
             Subclass sc = subclassRepository.findById(request.getSubclassId())
-                    .orElseThrow(() -> new IllegalArgumentException("Subclass not found"));
+                    .orElseThrow(() -> new ValidationException("Subclass not found"));
             character.setSubclassRef(sc);
             character.setSubclass(sc.getName());
         }
         if (request.getBackgroundId() != null) {
             Background bg = backgroundRepository.findById(request.getBackgroundId())
-                    .orElseThrow(() -> new IllegalArgumentException("Background not found"));
+                    .orElseThrow(() -> new ValidationException("Background not found"));
             character.setBackgroundRef(bg);
             character.setBackground(bg.getName());
         }
@@ -442,7 +442,8 @@ public class CharacterService {
             character.setCampaign(null);
         } else if (request.getCampaignId() != null) {
             Campaign campaign = campaignRepository.findById(request.getCampaignId())
-                    .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
+                    .orElseThrow(() -> new ValidationException("Campaign not found"));
+            accessPolicy.requireMember(campaign.getId(), userId);
             character.setCampaign(campaign);
         }
 
@@ -463,12 +464,10 @@ public class CharacterService {
 
     @Transactional
     public LevelUpResponse levelUp(UUID characterId, LevelUpRequest request, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-        if (!character.getUser().getId().equals(userId))
-            throw new IllegalArgumentException("You do not own this character");
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
         if (character.getLevel() >= 20)
-            throw new IllegalArgumentException("Character is already at maximum level");
+            throw new ConflictException("Character is already at maximum level");
 
         CharacterClass levelClass;
         UUID levelClassId;
@@ -476,22 +475,22 @@ public class CharacterService {
 
         if (request != null && request.getClassId() != null) {
             levelClass = characterClassRepository.findById(request.getClassId())
-                    .orElseThrow(() -> new IllegalArgumentException("Class not found"));
+                    .orElseThrow(() -> new ValidationException("Class not found"));
             levelClassId = levelClass.getId();
 
             Map<String, Integer> currentLevels = MulticlassValidator.parseMulticlassEntries(character.getMulticlassEntries());
             if (!currentLevels.containsKey(levelClassId.toString())) {
                 if (!MulticlassValidator.meetsPrerequisites(levelClass.getMulticlassRequirements(), character))
-                    throw new IllegalArgumentException("Character does not meet multiclass prerequisites for " + levelClass.getName());
+                    throw new ConflictException("Character does not meet multiclass prerequisites for " + levelClass.getName());
                 if (character.getClassRef() != null &&
                         !MulticlassValidator.meetsPrerequisites(character.getClassRef().getMulticlassRequirements(), character))
-                    throw new IllegalArgumentException("Character does not meet exit prerequisites for current class");
+                    throw new ConflictException("Character does not meet exit prerequisites for current class");
                 isNewMulticlass = true;
             }
         } else {
             levelClass = character.getClassRef();
             if (levelClass == null)
-                throw new IllegalArgumentException("Character has no class reference");
+                throw new ConflictException("Character has no class reference");
             levelClassId = levelClass.getId();
         }
 
@@ -581,18 +580,16 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse levelDown(UUID characterId, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-        if (!character.getUser().getId().equals(userId))
-            throw new IllegalArgumentException("You do not own this character");
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
         if (character.getLevel() <= 1)
-            throw new IllegalArgumentException("Character is already at minimum level");
+            throw new ConflictException("Character is already at minimum level");
 
         try {
             List<LevelHistoryEntry> history = new ArrayList<>(objectMapper.readValue(
                     character.getLevelHistory(), new com.fasterxml.jackson.core.type.TypeReference<List<LevelHistoryEntry>>() {}));
             if (history.isEmpty())
-                throw new IllegalArgumentException("No level history to revert");
+                throw new ConflictException("No level history to revert");
 
             LevelHistoryEntry lastEntry = history.remove(history.size() - 1);
             int hpGained = lastEntry.hpGained();
@@ -636,7 +633,7 @@ public class CharacterService {
             character.setLevelHistory(objectMapper.writeValueAsString(history));
             character = characterRepository.save(character);
             return characterMapper.toResponse(character);
-        } catch (IllegalArgumentException e) {
+        } catch (ConflictException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to process level down: " + e.getMessage(), e);
@@ -645,10 +642,8 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse applyChoices(UUID characterId, ApplyChoicesRequest request, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-        if (!character.getUser().getId().equals(userId))
-            throw new IllegalArgumentException("You do not own this character");
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
         try {
             if (request.getAsi() != null) {
@@ -667,7 +662,7 @@ public class CharacterService {
 
             if (request.getSubclassId() != null) {
                 Subclass sc = subclassRepository.findById(request.getSubclassId())
-                        .orElseThrow(() -> new IllegalArgumentException("Subclass not found"));
+                        .orElseThrow(() -> new ValidationException("Subclass not found"));
 
                 UUID targetClassId = request.getClassId() != null ? request.getClassId()
                         : (character.getClassRef() != null ? character.getClassRef().getId() : null);
@@ -695,7 +690,7 @@ public class CharacterService {
             resourcePoolService.syncPoolsForCharacter(character);
             character = characterRepository.save(character);
             return characterMapper.toResponse(character);
-        } catch (IllegalArgumentException e) {
+        } catch (ValidationException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to apply choices: " + e.getMessage(), e);
@@ -704,10 +699,8 @@ public class CharacterService {
 
     @Transactional(readOnly = true)
     public List<EligibleClassResponse> getEligibleClasses(UUID characterId, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-        if (!character.getUser().getId().equals(userId))
-            throw new IllegalArgumentException("You do not own this character");
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
         List<CharacterClass> allClasses = characterClassRepository.findAll();
         return MulticlassValidator.getEligibleClasses(character, allClasses);
@@ -722,7 +715,7 @@ public class CharacterService {
         } else if ("feat".equals(asi.getType())) {
             if (asi.getFeatId() != null) {
                 Feat feat = featRepository.findById(asi.getFeatId())
-                        .orElseThrow(() -> new IllegalArgumentException("Feat not found"));
+                        .orElseThrow(() -> new ValidationException("Feat not found"));
                 FeatEffectResolver.AppliedEffects applied = featEffectResolver.applyFeat(character, feat, asi);
                 jsonHelper.recordFeatInHistory(character,asi, feat.getName(), applied);
             } else if (asi.getFeatName() != null) {
@@ -904,10 +897,8 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-        if (!character.getUser().getId().equals(userId))
-            throw new IllegalArgumentException("You do not own this character");
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
         int conMod = abilityMod(character.getConstitution());
 
@@ -925,9 +916,9 @@ public class CharacterService {
                     int count = entry.getValue();
                     HitDiceEntry hde = hdMap.get(className);
                     if (hde == null)
-                        throw new IllegalArgumentException("No hit dice for class: " + className);
+                        throw new ValidationException("No hit dice for class: " + className);
                     if (hde.remaining() < count)
-                        throw new IllegalArgumentException("Not enough hit dice remaining for " + className);
+                        throw new ConflictException("Not enough hit dice remaining for " + className);
 
                     int healPerDie = (hde.faces() / 2 + 1) + conMod;
                     totalHeal += count * healPerDie;
@@ -936,7 +927,7 @@ public class CharacterService {
 
                 character.setHpCurrent(Math.min(character.getHpMax(), character.getHpCurrent() + totalHeal));
                 character.setHitDiceMap(objectMapper.writeValueAsString(hdMap));
-            } catch (IllegalArgumentException e) {
+            } catch (ValidationException | ConflictException e) {
                 throw e;
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to process hit dice spending: " + e.getMessage(), e);
@@ -956,10 +947,8 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse longRest(UUID characterId, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-        if (!character.getUser().getId().equals(userId))
-            throw new IllegalArgumentException("You do not own this character");
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
         // Restore full HP
         character.setHpCurrent(character.getHpMax());
@@ -1083,19 +1072,15 @@ public class CharacterService {
 
     @Transactional
     public void deleteCharacter(UUID characterId, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-
-        if (!character.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("You do not own this character");
-        }
+        PlayerCharacter character = loadCharacter(characterId);
+        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
         boolean inActiveCombat = encounterParticipantRepository
                 .existsByCharacter_IdAndEncounter_StatusIn(characterId,
                         List.of(EncounterStatus.ACTIVE, EncounterStatus.PAUSED, EncounterStatus.PREPARING));
 
         if (inActiveCombat) {
-            throw new IllegalStateException("Cannot delete a character that is in an active encounter");
+            throw new ConflictException("Cannot delete a character that is in an active encounter");
         }
 
         character.setIsActive(false);
@@ -1111,9 +1096,7 @@ public class CharacterService {
 
     @Transactional(readOnly = true)
     public List<CharacterResponse> getCharactersInCampaign(UUID campaignId, UUID userId) {
-        if (!campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, userId)) {
-            throw new IllegalArgumentException("You are not a member of this campaign");
-        }
+        accessPolicy.requireDm(campaignId, userId);
         return characterRepository.findByCampaignIdAndIsActiveTrue(campaignId).stream()
                 .map(characterMapper::toResponse)
                 .toList();
@@ -1121,18 +1104,16 @@ public class CharacterService {
 
     @Transactional(readOnly = true)
     public CharacterResponse getCharacter(UUID characterId, UUID userId) {
-        PlayerCharacter character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
-
-        boolean isOwner = character.getUser().getId().equals(userId);
-        boolean isCampaignMember = character.getCampaign() != null
-                && campaignMemberRepository.existsByCampaignIdAndUserId(character.getCampaign().getId(), userId);
-
-        if (!isOwner && !isCampaignMember) {
-            throw new IllegalArgumentException("You do not have access to this character");
-        }
+        PlayerCharacter character = loadCharacter(characterId);
+        UUID campaignId = character.getCampaign() != null ? character.getCampaign().getId() : null;
+        accessPolicy.requireOwnerOrDm(character.getUser().getId(), campaignId, userId);
 
         return characterMapper.toResponse(character);
+    }
+
+    private PlayerCharacter loadCharacter(UUID characterId) {
+        return characterRepository.findById(characterId)
+                .orElseThrow(() -> new NotFoundException("Character not found"));
     }
 
     String buildSpellSlotsJson(Map<String, SpellSlotCalculator.ClassEntry> entries) {

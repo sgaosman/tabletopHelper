@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.shared.ValidationException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -76,7 +77,7 @@ public class EncounterController {
         UUID userId = (UUID) authentication.getPrincipal();
         String newName = body.get("displayName");
         if (newName == null || newName.isBlank()) {
-            throw new IllegalArgumentException("displayName is required");
+            throw new ValidationException("displayName is required");
         }
         EncounterResponse response = encounterService.renameParticipant(encounterId, participantId, newName, userId);
         broadcastState(response);
@@ -168,7 +169,8 @@ public class EncounterController {
     public ResponseEntity<EncounterResponse> getBySessionCode(
             @PathVariable String sessionCode,
             Authentication authentication) {
-        return ResponseEntity.ok(encounterService.getEncounterBySessionCode(sessionCode));
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(encounterService.getEncounterBySessionCode(sessionCode, userId));
     }
 
     private void broadcastState(EncounterResponse response) {

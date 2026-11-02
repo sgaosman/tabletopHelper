@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -41,7 +42,7 @@ class DiceRollerTest {
     @DisplayName("9.3 roll(\"1d20-2\"): negative modifier syntax not supported, throws exception")
     void rollNegativeModifierNotSupported() {
         // DiceRoller regex only supports positive modifiers (+), not minus (-)
-        assertThrows(IllegalArgumentException.class, () -> DiceRoller.roll("1d20-2"));
+        assertThrows(ValidationException.class, () -> DiceRoller.roll("1d20-2"));
     }
 
     @Test
@@ -98,13 +99,13 @@ class DiceRollerTest {
     }
 
     @Test
-    @DisplayName("9.8 Invalid expressions throw IllegalArgumentException")
+    @DisplayName("9.8 Invalid expressions throw ValidationException")
     void invalidExpressionThrowsException() {
-        assertThrows(IllegalArgumentException.class, () -> DiceRoller.roll("abc"),
+        assertThrows(ValidationException.class, () -> DiceRoller.roll("abc"),
                 "Alphabetic-only input should throw");
-        assertThrows(IllegalArgumentException.class, () -> DiceRoller.roll("d6d8"),
+        assertThrows(ValidationException.class, () -> DiceRoller.roll("d6d8"),
                 "Malformed expression should throw");
-        assertThrows(IllegalArgumentException.class, () -> DiceRoller.roll(""),
+        assertThrows(ValidationException.class, () -> DiceRoller.roll(""),
                 "Empty string should throw");
     }
 }

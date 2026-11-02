@@ -2,6 +2,7 @@ package com.tabletophelper.encounter;
 
 import com.tabletophelper.encounter.dto.*;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -240,6 +241,6 @@ public class CombatController {
                 "/topic/encounter/" + response.getId() + "/state", response);
     }
 
-    public record LegendaryResistanceRequest(UUID combatLogId) {}
+    public record LegendaryResistanceRequest(@NotNull UUID combatLogId) {}
     public record LairStatusRequest(List<UUID> monsterIds) {}
 }

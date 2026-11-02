@@ -2,6 +2,9 @@ package com.tabletophelper.campaign;
 
 import com.tabletophelper.campaign.dto.CampaignCreateRequest;
 import com.tabletophelper.campaign.dto.CampaignResponse;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
+import com.tabletophelper.shared.ValidationException;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import com.tabletophelper.user.UserRole;
@@ -9,7 +12,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,7 +28,7 @@ class CampaignServiceTest {
     @Mock private CampaignMemberRepository campaignMemberRepository;
     @Mock private UserRepository userRepository;
 
-    @InjectMocks private CampaignService campaignService;
+    private CampaignService campaignService;
 
     private UUID dmUserId;
     private UUID playerUserId;
@@ -35,6 +37,9 @@ class CampaignServiceTest {
 
     @BeforeEach
     void setUp() {
+        campaignService = new CampaignService(campaignRepository, campaignMemberRepository, userRepository,
+                new AccessPolicy(campaignRepository, campaignMemberRepository));
+
         dmUserId = UUID.randomUUID();
         playerUserId = UUID.randomUUID();
 
@@ -125,10 +130,51 @@ class CampaignServiceTest {
 
         when(campaignRepository.findByInviteCode(invalidCode)).thenReturn(Optional.empty());
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        ValidationException ex = assertThrows(ValidationException.class,
                 () -> campaignService.joinCampaign(invalidCode, playerUserId));
 
         assertEquals("Invalid invite code", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Joining a campaign twice is a conflict")
+    void joinCampaign_alreadyMemberConflicts() {
+        Campaign campaign = Campaign.builder()
+                .id(UUID.randomUUID())
+                .name("Test Campaign")
+                .dm(dmUser)
+                .inviteCode("ABC12345")
+                .members(new ArrayList<>())
+                .build();
+
+        when(campaignRepository.findByInviteCode("ABC12345")).thenReturn(Optional.of(campaign));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaign.getId(), playerUserId)).thenReturn(true);
+
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> campaignService.joinCampaign("ABC12345", playerUserId));
+
+        assertEquals("Already a member of this campaign", ex.getMessage());
+        verify(campaignMemberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("getCampaign refuses a user who is not a member")
+    void getCampaign_nonMemberIsForbidden() {
+        UUID campaignId = UUID.randomUUID();
+        Campaign campaign = Campaign.builder()
+                .id(campaignId)
+                .name("Test Campaign")
+                .dm(dmUser)
+                .inviteCode("ABC12345")
+                .members(new ArrayList<>())
+                .build();
+
+        when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> campaignService.getCampaign(campaignId, playerUserId));
+
+        assertEquals("You are not a member of this campaign", ex.getMessage());
     }
 
     @Test

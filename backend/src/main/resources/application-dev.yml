@@ -18,6 +18,11 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
 
+# Unexpected errors show their real message in dev only; elsewhere users get a generic one (D155)
+server:
+  error:
+    include-message: always
+
 logging:
   level:
     com.tabletophelper: DEBUG

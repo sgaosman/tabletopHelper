@@ -1,10 +1,16 @@
 package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
+import com.tabletophelper.campaign.CampaignMemberRepository;
+import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
+import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +38,8 @@ class CombatServiceTest {
     @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
     @Mock private com.tabletophelper.encounter.MonsterActionResolverEngine monsterActionResolverEngine;
     @Mock private com.tabletophelper.encounter.MonsterSpellCastService monsterSpellCastService;
+    @Mock private CampaignRepository campaignRepository;
+    @Mock private CampaignMemberRepository campaignMemberRepository;
 
     private CombatService combatService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -42,7 +50,8 @@ class CombatServiceTest {
 
     @BeforeEach
     void setUp() {
-        combatService = new CombatService(encounterRepository, combatLogRepository, encounterService, objectMapper, spellResolverEngine, monsterActionResolverEngine, monsterSpellCastService, resourcePoolService, spellRepository);
+        combatService = new CombatService(encounterRepository, combatLogRepository, encounterService, objectMapper, spellResolverEngine, monsterActionResolverEngine, monsterSpellCastService, resourcePoolService, spellRepository,
+                new AccessPolicy(campaignRepository, campaignMemberRepository));
 
         dmUserId = UUID.randomUUID();
         encounterId = UUID.randomUUID();
@@ -71,6 +80,7 @@ class CombatServiceTest {
                 .participants(new ArrayList<>())
                 .build();
 
+        lenient().when(campaignRepository.findById(campaign.getId())).thenReturn(Optional.of(campaign));
         lenient().when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
         lenient().when(encounterRepository.save(any(Encounter.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(encounterService.toResponse(any(Encounter.class))).thenReturn(EncounterResponse.builder().build());
@@ -1027,7 +1037,7 @@ class CombatServiceTest {
 
         when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
 
-        assertThrows(IllegalStateException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 combatService.useLegendaryResistance(encounterId, logId, dmUserId));
     }
 
@@ -1048,7 +1058,142 @@ class CombatServiceTest {
 
         when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
 
-        assertThrows(IllegalStateException.class, () ->
+        assertThrows(ConflictException.class, () ->
                 combatService.useLegendaryResistance(encounterId, logId, dmUserId));
+    }
+
+    @Test
+    @DisplayName("LR: a log entry from another encounter is reported as not found, and nothing changes")
+    void legendaryResistanceRefusesEntryFromAnotherEncounter() {
+        EncounterParticipant dragon = addMonster("Adult Red Dragon", 200, 19);
+        Encounter otherEncounter = Encounter.builder()
+                .id(UUID.randomUUID())
+                .campaign(encounter.getCampaign())
+                .name("Other Encounter")
+                .status(EncounterStatus.ACTIVE)
+                .participants(new ArrayList<>())
+                .build();
+
+        UUID logId = UUID.randomUUID();
+        CombatLog logEntry = CombatLog.builder()
+                .id(logId)
+                .encounter(otherEncounter)
+                .roundNumber(1)
+                .actionType(CombatActionType.MONSTER_ACTION)
+                .description("Test")
+                .legendaryResistanceEligible(true)
+                .lrTargetId(dragon.getId())
+                .lrDamageDealt(10)
+                .lrConditionsApplied("")
+                .lrResolved(false)
+                .build();
+
+        when(combatLogRepository.findById(logId)).thenReturn(Optional.of(logEntry));
+
+        NotFoundException ex = assertThrows(NotFoundException.class, () ->
+                combatService.useLegendaryResistance(encounterId, logId, dmUserId));
+
+        assertEquals("Combat log entry not found", ex.getMessage());
+        verify(resourcePoolService, never()).spendPool(any(), any(), anyInt());
+        assertFalse(logEntry.getLrResolved());
+    }
+
+    // ================================================================
+    // Access (D028, D155)
+    // ================================================================
+
+    private EncounterParticipant addPlayerControlledBy(String name, UUID controllerId) {
+        EncounterParticipant p = addPlayer(name, 20, 14);
+        p.setControlledByUserId(controllerId);
+        return p;
+    }
+
+    @Test
+    @DisplayName("A player attacking when it is not their turn gets 403 (D028)")
+    void playerAttackOutOfTurnIsForbidden() {
+        UUID playerUserId = UUID.randomUUID();
+        EncounterParticipant fighter = addPlayer("Fighter", 30, 16);
+        fighter.setIsCurrentTurn(true);
+        EncounterParticipant rogue = addPlayerControlledBy("Rogue", playerUserId);
+        EncounterParticipant goblin = addMonster("Goblin", 7, 15);
+
+        AttackRollRequest request = new AttackRollRequest();
+        request.setTargetId(goblin.getId());
+        request.setAttackBonus(5);
+        request.setDamageDice("1d6");
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                combatService.rollAttack(encounterId, request, rogue.getId(), playerUserId));
+
+        assertEquals("You can only attack on your turn", ex.getMessage());
+        assertEquals(7, goblin.getHpCurrent());
+        verify(combatLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("A player may attack on their own turn (D028)")
+    void playerAttackOnTurnIsAllowed() {
+        UUID playerUserId = UUID.randomUUID();
+        EncounterParticipant rogue = addPlayerControlledBy("Rogue", playerUserId);
+        EncounterParticipant goblin = addMonster("Goblin", 7, 15);
+
+        AttackRollRequest request = new AttackRollRequest();
+        request.setTargetId(goblin.getId());
+        request.setAttackBonus(5);
+        request.setDamageDice("1d6");
+
+        assertDoesNotThrow(() -> combatService.rollAttack(encounterId, request, rogue.getId(), playerUserId));
+        verify(combatLogRepository, atLeastOnce()).save(any(CombatLog.class));
+    }
+
+    @Test
+    @DisplayName("A player cannot add a condition to another player's character")
+    void playerCannotChangeAnotherPlayersConditions() {
+        UUID playerUserId = UUID.randomUUID();
+        addPlayerControlledBy("Rogue", playerUserId);
+        EncounterParticipant cleric = addPlayerControlledBy("Cleric", UUID.randomUUID());
+
+        ConditionRequest request = new ConditionRequest();
+        request.setTargetId(cleric.getId());
+        request.setCondition("prone");
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                combatService.addCondition(encounterId, request, playerUserId));
+
+        assertEquals("You do not have permission to perform this action", ex.getMessage());
+        assertNull(cleric.getActiveConditions());
+    }
+
+    @Test
+    @DisplayName("Reading the combat log requires campaign membership")
+    void combatLogRequiresMembership() {
+        UUID strangerId = UUID.randomUUID();
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                combatService.getCombatLog(encounterId, strangerId));
+
+        assertEquals("You are not a member of this campaign", ex.getMessage());
+        verify(combatLogRepository, never()).findByEncounterIdOrderByCreatedAtAsc(any());
+    }
+
+    @Test
+    @DisplayName("Only the DM can advance the turn")
+    void playerCannotAdvanceTurn() {
+        UUID playerUserId = UUID.randomUUID();
+        addPlayerControlledBy("Rogue", playerUserId);
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
+                combatService.advanceTurn(encounterId, playerUserId));
+
+        assertEquals("Only the DM can perform this action", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("An unknown encounter is a NotFoundException")
+    void unknownEncounterIsNotFound() {
+        UUID unknownId = UUID.randomUUID();
+        when(encounterRepository.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> combatService.advanceTurn(unknownId, dmUserId));
     }
 }

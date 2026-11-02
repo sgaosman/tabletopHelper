@@ -2,6 +2,7 @@ package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
@@ -46,9 +47,7 @@ public class ReferenceController {
             @RequestParam(required = false) String concentration,
             @RequestParam(required = false) String ritual,
             @PageableDefault(size = 20, sort = "name") Pageable pageable) {
-        List<Integer> levelList = (level != null && !level.isBlank())
-                ? Arrays.stream(level.split(",")).map(Integer::parseInt).toList()
-                : List.of();
+        List<Integer> levelList = parseLevels(level);
         List<String> schoolList = splitFilter(school);
         List<String> sourceList = splitFilter(source);
         List<String> classList = new ArrayList<>();
@@ -198,6 +197,15 @@ public class ReferenceController {
     private List<String> splitFilter(String value) {
         if (value == null || value.isBlank()) return List.of();
         return Arrays.asList(value.split(","));
+    }
+
+    private List<Integer> parseLevels(String level) {
+        if (level == null || level.isBlank()) return List.of();
+        try {
+            return Arrays.stream(level.split(",")).map(Integer::parseInt).toList();
+        } catch (NumberFormatException e) {
+            throw new ValidationException("Invalid value for level: " + level);
+        }
     }
 
     @Cacheable(value = "races", key = "#source != null ? #source : 'all'")

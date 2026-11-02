@@ -3,6 +3,8 @@ package com.tabletophelper.auth;
 import com.tabletophelper.auth.dto.AuthResponse;
 import com.tabletophelper.auth.dto.LoginRequest;
 import com.tabletophelper.auth.dto.RegisterRequest;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +21,10 @@ public class AuthService {
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new IllegalArgumentException("Username already taken");
+            throw new ConflictException("Username already taken");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Email already registered");
+            throw new ConflictException("Email already registered");
         }
 
         User user = User.builder()
@@ -39,10 +41,10 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
+                .orElseThrow(() -> new ValidationException("Invalid username or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Invalid username or password");
+            throw new ValidationException("Invalid username or password");
         }
 
         return buildAuthResponse(user);
@@ -50,12 +52,12 @@ public class AuthService {
 
     public AuthResponse refresh(String refreshToken) {
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new IllegalArgumentException("Invalid or expired refresh token");
+            throw new ValidationException("Invalid or expired refresh token");
         }
 
         var userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new ValidationException("User not found"));
 
         return buildAuthResponse(user);
     }

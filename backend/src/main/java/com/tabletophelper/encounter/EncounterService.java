@@ -3,8 +3,8 @@ package com.tabletophelper.encounter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
-import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
@@ -13,6 +13,9 @@ import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.NotFoundException;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,12 +34,12 @@ public class EncounterService {
     private final EncounterRepository encounterRepository;
     private final EncounterParticipantRepository participantRepository;
     private final CampaignRepository campaignRepository;
-    private final CampaignMemberRepository campaignMemberRepository;
     private final CharacterRepository characterRepository;
     private final MonsterRepository monsterRepository;
     private final ObjectMapper objectMapper;
     private final ResourcePoolService resourcePoolService;
     private final MonsterSpellCastService monsterSpellCastService;
+    private final AccessPolicy accessPolicy;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -44,8 +47,8 @@ public class EncounterService {
     @Transactional
     public EncounterResponse createEncounter(EncounterCreateRequest request, UUID userId) {
         Campaign campaign = campaignRepository.findById(request.getCampaignId())
-                .orElseThrow(() -> new IllegalArgumentException("Campaign not found"));
-        verifyDmOwnership(campaign, userId);
+                .orElseThrow(() -> new ValidationException("Campaign not found"));
+        accessPolicy.requireDm(campaign.getId(), userId);
 
         Encounter encounter = Encounter.builder()
                 .campaign(campaign)
@@ -60,13 +63,13 @@ public class EncounterService {
     @Transactional(readOnly = true)
     public EncounterResponse getEncounter(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyMembership(encounter.getCampaign().getId(), userId);
+        accessPolicy.requireMember(encounter.getCampaign().getId(), userId);
         return toResponse(encounter);
     }
 
     @Transactional(readOnly = true)
     public List<EncounterResponse> getEncountersByCampaign(UUID campaignId, UUID userId) {
-        verifyMembership(campaignId, userId);
+        accessPolicy.requireMember(campaignId, userId);
         return encounterRepository.findByCampaignIdOrderByCreatedAtDesc(campaignId).stream()
                 .map(this::toResponse)
                 .toList();
@@ -75,10 +78,10 @@ public class EncounterService {
     @Transactional
     public EncounterResponse addParticipant(UUID encounterId, AddParticipantRequest request, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
         verifyStatus(encounter, EncounterStatus.PREPARING);
 
-        ParticipantType type = ParticipantType.valueOf(request.getParticipantType());
+        ParticipantType type = parseParticipantType(request.getParticipantType());
         int quantity = request.getQuantity() != null ? request.getQuantity() : 1;
 
         if (type == ParticipantType.PLAYER) {
@@ -91,8 +94,12 @@ public class EncounterService {
     }
 
     private void addPlayerParticipant(Encounter encounter, AddParticipantRequest request) {
+        if (request.getCharacterId() == null) {
+            throw new ValidationException("characterId is required for a player participant");
+        }
         PlayerCharacter character = characterRepository.findById(request.getCharacterId())
-                .orElseThrow(() -> new IllegalArgumentException("Character not found"));
+                .orElseThrow(() -> new ValidationException("Character not found"));
+        accessPolicy.requireOwnerIsMember(encounter.getCampaign().getId(), character.getUser().getId());
 
         EncounterParticipant participant = EncounterParticipant.builder()
                 .encounter(encounter)
@@ -116,8 +123,11 @@ public class EncounterService {
     }
 
     private void addMonsterParticipants(Encounter encounter, AddParticipantRequest request, int quantity) {
+        if (request.getMonsterId() == null) {
+            throw new ValidationException("monsterId is required for a monster participant");
+        }
         Monster monster = monsterRepository.findById(request.getMonsterId())
-                .orElseThrow(() -> new IllegalArgumentException("Monster not found"));
+                .orElseThrow(() -> new ValidationException("Monster not found"));
 
         int dexMod = (monster.getDexterity() - 10) / 2;
         String baseName = request.getDisplayName();
@@ -164,12 +174,12 @@ public class EncounterService {
     @Transactional(readOnly = true)
     public Map<String, Object> getMonsterActionTemplates(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyMembership(encounter.getCampaign().getId(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
 
         EncounterParticipant participant = encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(participantId))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Participant not found"));
+                .orElseThrow(() -> new NotFoundException("Participant not found"));
 
         if (participant.getMonster() == null || participant.getMonster().getActionTemplates() == null) {
             return Map.of("error", "No action templates available for this monster");
@@ -201,12 +211,12 @@ public class EncounterService {
     @Transactional
     public EncounterResponse renameParticipant(UUID encounterId, UUID participantId, String newName, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
 
         encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(participantId))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Participant not found"))
+                .orElseThrow(() -> new NotFoundException("Participant not found"))
                 .setDisplayName(newName.trim());
 
         return toResponse(encounterRepository.save(encounter));
@@ -215,7 +225,7 @@ public class EncounterService {
     @Transactional
     public EncounterResponse removeParticipant(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
         verifyStatus(encounter, EncounterStatus.PREPARING);
 
         encounter.getParticipants().removeIf(p -> p.getId().equals(participantId));
@@ -225,7 +235,7 @@ public class EncounterService {
     @Transactional
     public EncounterResponse setInitiatives(UUID encounterId, BulkInitiativeRequest request, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
 
         Map<UUID, Integer> initiativeMap = request.getInitiatives().stream()
                 .collect(Collectors.toMap(SetInitiativeRequest::getParticipantId, SetInitiativeRequest::getInitiative));
@@ -244,7 +254,7 @@ public class EncounterService {
     @Transactional
     public EncounterResponse rollAllInitiatives(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
 
         for (EncounterParticipant p : encounter.getParticipants()) {
             int mod = p.getInitiativeModifier() != null ? p.getInitiativeModifier() : 0;
@@ -259,13 +269,13 @@ public class EncounterService {
     @Transactional
     public EncounterResponse startEncounter(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
         verifyStatus(encounter, EncounterStatus.PREPARING);
 
         boolean allHaveInitiative = encounter.getParticipants().stream()
                 .allMatch(p -> p.getInitiative() != null);
         if (!allHaveInitiative) {
-            throw new IllegalArgumentException("All participants must have initiative set before starting");
+            throw new ConflictException("All participants must have initiative set before starting");
         }
 
         encounter.setStatus(EncounterStatus.ACTIVE);
@@ -285,7 +295,7 @@ public class EncounterService {
     @Transactional
     public EncounterResponse pauseEncounter(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
         encounter.setStatus(EncounterStatus.PAUSED);
         return toResponse(encounterRepository.save(encounter));
     }
@@ -293,7 +303,7 @@ public class EncounterService {
     @Transactional
     public EncounterResponse resumeEncounter(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
         encounter.setStatus(EncounterStatus.ACTIVE);
         return toResponse(encounterRepository.save(encounter));
     }
@@ -301,7 +311,7 @@ public class EncounterService {
     @Transactional
     public EncounterResponse endEncounter(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
         encounter.setStatus(EncounterStatus.COMPLETED);
 
         // Sync resource pool currentUses back to character sheets
@@ -317,38 +327,35 @@ public class EncounterService {
     @Transactional
     public void deleteEncounter(UUID encounterId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        verifyDmOwnership(encounter.getCampaign(), userId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
         verifyStatus(encounter, EncounterStatus.PREPARING);
         encounterRepository.delete(encounter);
     }
 
     @Transactional(readOnly = true)
-    public EncounterResponse getEncounterBySessionCode(String sessionCode) {
+    public EncounterResponse getEncounterBySessionCode(String sessionCode, UUID userId) {
         Encounter encounter = encounterRepository.findBySessionCode(sessionCode.toUpperCase())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid session code"));
+                .orElseThrow(() -> new NotFoundException("Invalid session code"));
+        accessPolicy.requireMember(encounter.getCampaign().getId(), userId);
         return toResponse(encounter);
     }
 
     private Encounter loadEncounter(UUID encounterId) {
         return encounterRepository.findById(encounterId)
-                .orElseThrow(() -> new IllegalArgumentException("Encounter not found"));
-    }
-
-    private void verifyDmOwnership(Campaign campaign, UUID userId) {
-        if (!campaign.getDm().getId().equals(userId)) {
-            throw new IllegalArgumentException("Only the DM can perform this action");
-        }
-    }
-
-    private void verifyMembership(UUID campaignId, UUID userId) {
-        if (!campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, userId)) {
-            throw new IllegalArgumentException("You are not a member of this campaign");
-        }
+                .orElseThrow(() -> new NotFoundException("Encounter not found"));
     }
 
     private void verifyStatus(Encounter encounter, EncounterStatus expected) {
         if (encounter.getStatus() != expected) {
-            throw new IllegalArgumentException("Encounter must be in " + expected + " status");
+            throw new ConflictException("Encounter must be in " + expected + " status");
+        }
+    }
+
+    private ParticipantType parseParticipantType(String participantType) {
+        try {
+            return ParticipantType.valueOf(participantType);
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException("Invalid participant type: " + participantType);
         }
     }
 

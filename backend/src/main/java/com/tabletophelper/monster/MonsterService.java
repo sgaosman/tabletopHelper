@@ -1,5 +1,6 @@
 package com.tabletophelper.monster;
 
+import com.tabletophelper.shared.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,7 +42,7 @@ public class MonsterService {
 
     public Monster getMonster(UUID id) {
         return monsterRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Monster not found"));
+                .orElseThrow(() -> new NotFoundException("Monster not found"));
     }
 
     public List<String> getSources() {

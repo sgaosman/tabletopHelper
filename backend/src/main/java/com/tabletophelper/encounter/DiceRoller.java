@@ -1,5 +1,7 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.shared.ValidationException;
+
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,7 +16,7 @@ public final class DiceRoller {
     public static RollResult roll(String expression) {
         Matcher m = DICE_PATTERN.matcher(expression.trim());
         if (!m.matches()) {
-            throw new IllegalArgumentException("Invalid dice expression: " + expression);
+            throw new ValidationException("Invalid dice expression: " + expression);
         }
 
         int count = Integer.parseInt(m.group(1));
@@ -22,7 +24,7 @@ public final class DiceRoller {
         int modifier = m.group(3) != null ? Integer.parseInt(m.group(3)) : 0;
 
         if (count < 1 || count > 100 || sides < 1 || sides > 100) {
-            throw new IllegalArgumentException("Dice values out of range: " + expression);
+            throw new ValidationException("Dice values out of range: " + expression);
         }
 
         int diceTotal = 0;
@@ -36,7 +38,7 @@ public final class DiceRoller {
     public static RollResult rollCritical(String expression) {
         Matcher m = DICE_PATTERN.matcher(expression.trim());
         if (!m.matches()) {
-            throw new IllegalArgumentException("Invalid dice expression: " + expression);
+            throw new ValidationException("Invalid dice expression: " + expression);
         }
 
         int count = Integer.parseInt(m.group(1));

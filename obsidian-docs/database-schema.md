@@ -646,12 +646,18 @@ The two data changes run with the dry-run report and backup that D150 requires. 
 |--------|------|----------|
 | Foreign-key indexes, done in V12 — see [Flyway-Managed Indexes](#flyway-managed-indexes-what-actually-exists). JPA `@Index` annotations are removed. | Schema | D170 |
 
+### R3 — Access and auth
+
+| Change | Type | Decision |
+|--------|------|----------|
+| New `refresh_tokens` table (V13): `id`, `user_id` (FK → users, indexed), `family_id` (indexed), `token_hash` (SHA-256, unique), `issued_at`, `expires_at`, `replaced_by_id`, `revoked_at` | Schema | D156 |
+| `campaigns.show_exact_monster_hp` BOOLEAN NOT NULL DEFAULT FALSE (V14) | Schema | D157 |
+
 ### R3–R7 — Outline
 
 | Phase | Area | Expected change | Decision |
 |-------|------|-----------------|----------|
-| R3 | Authentication | New `refresh_tokens` table: hashed token, owning user, token family, issue and expiry times, link to the token that replaced it, and revocation time | D156 |
-| R3 | Campaigns | Campaign settings: "show exact monster HP" and "allow player Manual Modifiers" | D157, D164 |
+| R5 | Campaigns | Campaign setting "allow player Manual Modifiers" | D164 |
 | R5 | Encounter participants | `active_conditions` entries gain a Concentration Instance reference, a Condition End Rule and an optional Repeat Save. `concentration_spell` and `concentration_slot_level` are replaced by a Concentration Instance record. | D162 |
 | R5 | Encounter participants | `is_current_turn` dropped (derived from `encounters.current_turn_index`) | D163 |
 | R5 | Encounter participants | `spell_slots_current` normalised to `{max, used}`; innate uses move into `resource_pools_current` | D165, D168 |

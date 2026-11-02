@@ -7,6 +7,8 @@ import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -141,11 +143,11 @@ public class MonsterSpellCastService {
     ) {
         // Look up the spell
         Spell spell = spellRepository.findByNameIgnoreCase(spellName)
-                .orElseThrow(() -> new IllegalArgumentException("Spell not found: " + spellName));
+                .orElseThrow(() -> new ValidationException("Spell not found: " + spellName));
 
         // Verify the monster knows this spell
         if (!monsterKnowsSpell(monster, spell)) {
-            throw new IllegalArgumentException(
+            throw new ValidationException(
                     "Monster " + monster.getDisplayName() + " does not know spell: " + spellName);
         }
 
@@ -168,7 +170,7 @@ public class MonsterSpellCastService {
                 String poolId = "innate:" + toKebabCase(spellName);
                 boolean spent = resourcePoolService.spendPool(monster, poolId, 1);
                 if (!spent) {
-                    throw new IllegalStateException(
+                    throw new ConflictException(
                             "No remaining uses of innate spell: " + spellName);
                 }
             }
@@ -560,20 +562,20 @@ public class MonsterSpellCastService {
     private void deductSpellSlot(EncounterParticipant participant, int slotLevel) {
         String slotsJson = participant.getSpellSlotsCurrent();
         if (slotsJson == null || slotsJson.isBlank()) {
-            throw new IllegalStateException("No spell slots available for " + participant.getDisplayName());
+            throw new ConflictException("No spell slots available for " + participant.getDisplayName());
         }
         try {
             JsonNode slots = objectMapper.readTree(slotsJson);
             String levelKey = String.valueOf(slotLevel);
             JsonNode slotEntry = slots.get(levelKey);
             if (slotEntry == null) {
-                throw new IllegalStateException(
+                throw new ConflictException(
                         "No spell slots at level " + slotLevel + " for " + participant.getDisplayName());
             }
 
             int remaining = slotEntry.get("remaining").asInt(0);
             if (remaining <= 0) {
-                throw new IllegalStateException(
+                throw new ConflictException(
                         "No remaining spell slots at level " + slotLevel + " for " + participant.getDisplayName());
             }
 

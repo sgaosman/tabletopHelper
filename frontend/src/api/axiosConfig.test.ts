@@ -141,16 +141,33 @@ describe('axiosConfig', () => {
     expect(authHeaders).toEqual(['Bearer test-access-token', `Bearer ${REFRESHED.accessToken}`]);
   });
 
-  it('refreshes on a 403 as well', async () => {
-    // R3 (D155): a 403 should no longer trigger a refresh; only a 401 should
+  it('passes a 403 on without a refresh, because a new token would be refused too', async () => {
     setupAuthToken();
-    protectedEndpoint(403);
+    const authHeaders = protectedEndpoint(403);
     const refreshBodies = refreshEndpoint();
 
-    const response = await api.get('/protected');
+    await expect(api.get('/protected')).rejects.toMatchObject({ response: { status: 403 } });
 
-    expect(response.data).toEqual({ ok: true });
-    expect(refreshBodies).toHaveLength(1);
+    expect(authHeaders).toEqual(['Bearer test-access-token']);
+    expect(refreshBodies).toEqual([]);
+  });
+
+  it('never refreshes for a 401 from an /auth request', async () => {
+    setupAuthToken();
+    const loginHeaders: (string | null)[] = [];
+    server.use(
+      http.post('/api/auth/login', ({ request }) => {
+        loginHeaders.push(request.headers.get('Authorization'));
+        return HttpResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+      }),
+    );
+    const refreshBodies = refreshEndpoint();
+
+    await expect(api.post('/auth/login', { username: 'testuser', password: 'wrong' }))
+      .rejects.toMatchObject({ response: { status: 401, data: { error: 'Invalid username or password' } } });
+
+    expect(loginHeaders).toEqual(['Bearer test-access-token']);
+    expect(refreshBodies).toEqual([]);
   });
 
   it('passes other errors on without a refresh', async () => {

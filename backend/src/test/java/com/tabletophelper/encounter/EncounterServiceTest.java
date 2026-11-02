@@ -1,5 +1,7 @@
 package com.tabletophelper.encounter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
@@ -8,12 +10,14 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
+import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,8 +37,9 @@ class EncounterServiceTest {
     @Mock private CharacterRepository characterRepository;
     @Mock private MonsterRepository monsterRepository;
     @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
+    @Mock private MonsterSpellCastService monsterSpellCastService;
 
-    @InjectMocks private EncounterService encounterService;
+    private EncounterService encounterService;
 
     private UUID dmUserId;
     private UUID campaignId;
@@ -43,6 +48,10 @@ class EncounterServiceTest {
 
     @BeforeEach
     void setUp() {
+        encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
+                characterRepository, monsterRepository, new ObjectMapper(), resourcePoolService,
+                monsterSpellCastService, new AccessPolicy(campaignRepository, campaignMemberRepository));
+
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();
 
@@ -61,6 +70,9 @@ class EncounterServiceTest {
                 .inviteCode("TESTCODE")
                 .members(new ArrayList<>())
                 .build();
+
+        // The access policy looks the campaign up to find its DM
+        lenient().when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
     }
 
     @Test
@@ -171,6 +183,7 @@ class EncounterServiceTest {
 
         when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
         when(characterRepository.findById(characterId)).thenReturn(Optional.of(thorin));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         EncounterResponse response = encounterService.addParticipant(encounterId, request, dmUserId);
@@ -426,7 +439,7 @@ class EncounterServiceTest {
 
         when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        ConflictException ex = assertThrows(ConflictException.class,
                 () -> encounterService.startEncounter(encounterId, dmUserId));
 
         assertTrue(ex.getMessage().contains("initiative"));
@@ -500,10 +513,108 @@ class EncounterServiceTest {
                 .build();
 
         when(encounterRepository.findBySessionCode("ABC12345")).thenReturn(Optional.of(encounter));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, dmUserId)).thenReturn(true);
 
-        EncounterResponse response = encounterService.getEncounterBySessionCode("abc12345");
+        EncounterResponse response = encounterService.getEncounterBySessionCode("abc12345", dmUserId);
 
         assertEquals("Found Encounter", response.getName());
         assertEquals(sessionCode, response.getSessionCode());
+    }
+
+    @Test
+    @DisplayName("Session code lookup refuses a user outside the campaign")
+    void getEncounterBySessionCode_refusesNonMember() {
+        UUID strangerId = UUID.randomUUID();
+        Encounter encounter = Encounter.builder()
+                .id(UUID.randomUUID())
+                .campaign(campaign)
+                .name("Found Encounter")
+                .status(EncounterStatus.ACTIVE)
+                .sessionCode("ABC12345")
+                .participants(new ArrayList<>())
+                .build();
+
+        when(encounterRepository.findBySessionCode("ABC12345")).thenReturn(Optional.of(encounter));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> encounterService.getEncounterBySessionCode("ABC12345", strangerId));
+
+        assertEquals("You are not a member of this campaign", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("An unknown session code is a NotFoundException")
+    void getEncounterBySessionCode_unknownCodeIsNotFound() {
+        when(encounterRepository.findBySessionCode("ZZZZ9999")).thenReturn(Optional.empty());
+
+        NotFoundException ex = assertThrows(NotFoundException.class,
+                () -> encounterService.getEncounterBySessionCode("zzzz9999", dmUserId));
+
+        assertEquals("Invalid session code", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("A character whose owner has not joined the campaign cannot be added")
+    void addPcParticipant_refusesCharacterOfNonMember() {
+        UUID encounterId = UUID.randomUUID();
+        User outsider = User.builder().id(UUID.randomUUID()).username("outsider").build();
+        PlayerCharacter stray = PlayerCharacter.builder()
+                .id(UUID.randomUUID()).name("Stray").user(outsider)
+                .hpMax(10).hpCurrent(10).armourClass(12).initiativeBonus(0)
+                .build();
+        Encounter encounter = Encounter.builder()
+                .id(encounterId)
+                .campaign(campaign)
+                .name("Test Encounter")
+                .status(EncounterStatus.PREPARING)
+                .participants(new ArrayList<>())
+                .build();
+
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("PLAYER");
+        request.setCharacterId(stray.getId());
+        request.setDisplayName("Stray");
+
+        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+        when(characterRepository.findById(stray.getId())).thenReturn(Optional.of(stray));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> encounterService.addParticipant(encounterId, request, dmUserId));
+
+        assertEquals("This character's owner is not a member of this campaign", ex.getMessage());
+        assertTrue(encounter.getParticipants().isEmpty());
+        verify(encounterRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Monster action templates are for the DM only")
+    void getMonsterActionTemplates_refusesPlayer() {
+        UUID encounterId = UUID.randomUUID();
+        Encounter encounter = Encounter.builder()
+                .id(encounterId)
+                .campaign(campaign)
+                .name("Test Encounter")
+                .status(EncounterStatus.ACTIVE)
+                .participants(new ArrayList<>())
+                .build();
+
+        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(encounter));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> encounterService.getMonsterActionTemplates(encounterId, UUID.randomUUID(), UUID.randomUUID()));
+
+        assertEquals("Only the DM can perform this action", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("An unknown encounter is a NotFoundException")
+    void getEncounter_unknownIsNotFound() {
+        UUID encounterId = UUID.randomUUID();
+        when(encounterRepository.findById(encounterId)).thenReturn(Optional.empty());
+
+        NotFoundException ex = assertThrows(NotFoundException.class,
+                () -> encounterService.getEncounter(encounterId, dmUserId));
+
+        assertEquals("Encounter not found", ex.getMessage());
     }
 }

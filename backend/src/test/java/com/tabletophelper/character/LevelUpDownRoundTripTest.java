@@ -2,6 +2,7 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.CharacterResponse;
@@ -11,6 +12,8 @@ import com.tabletophelper.character.dto.LevelUpResponse;
 import com.tabletophelper.character.dto.MulticlassEntry;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.reference.*;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.user.User;
 import com.tabletophelper.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,10 +66,10 @@ class LevelUpDownRoundTripTest {
         featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
         service = new CharacterService(
                 characterRepository, userRepository, campaignRepository,
-                campaignMemberRepository, raceRepository, characterClassRepository,
+                raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
                 featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,
-                resourcePoolService);
+                resourcePoolService, new AccessPolicy(campaignRepository, campaignMemberRepository));
 
         user = User.builder().id(userId).displayName("Test").build();
 
@@ -193,7 +196,7 @@ class LevelUpDownRoundTripTest {
             request.setClassId(fighterId);
 
             assertThatThrownBy(() -> service.levelUp(pc.getId(), request, userId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(ConflictException.class)
                     .hasMessageContaining("maximum level");
         }
     }
@@ -230,7 +233,7 @@ class LevelUpDownRoundTripTest {
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
 
             assertThatThrownBy(() -> service.levelDown(pc.getId(), userId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(ConflictException.class)
                     .hasMessageContaining("minimum level");
         }
 
@@ -364,7 +367,7 @@ class LevelUpDownRoundTripTest {
             request.setClassId(fighterId);
 
             assertThatThrownBy(() -> service.levelUp(pc.getId(), request, otherUserId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(ForbiddenException.class)
                     .hasMessageContaining("do not own");
         }
 
@@ -377,7 +380,7 @@ class LevelUpDownRoundTripTest {
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
 
             assertThatThrownBy(() -> service.levelDown(pc.getId(), otherUserId))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(ForbiddenException.class)
                     .hasMessageContaining("do not own");
         }
     }

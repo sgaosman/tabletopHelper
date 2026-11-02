@@ -1847,6 +1847,8 @@ M13 (action economy) changes the same combat code. Building it first would multi
 
 **Update (2026-11-01, R1 planning):** nothing is hosted (the Hetzner server was closed), so R1 no longer turns on HTTPS or installs automated backups. Those move to a Hosting step taken when a new host is chosen (D154). R1 moves only monster spellcasting out of `MonsterActionPanel` (D165).
 
+**Update (2026-11-02, R3 planning):** D155's removal of catch-and-continue blocks moves to the phases that rewrite that code: the combat services in R5, the character services and `ResourcePoolService` in R6, and the seeders in R7.
+
 ## D151: Modular Monolith — Microservices Rejected
 
 **Date:** 2026-11-01
@@ -1878,6 +1880,8 @@ Each module exposes a small public API (services and DTOs) and keeps everything 
 **Revisit when:** one area needs to scale or release independently. The likeliest candidate is `content`: it is read-only, cacheable and shares no transactions with the rest, so it could become a separate service or a static bundle.
 
 **Related:** D001, D004, D021, D166
+
+**Update (2026-11-02, R3 planning):** the boundary test uses ArchUnit. Only a module may use its own `internal` package, and `rules` may use only the JDK and `shared` (the domain exceptions). Spring Modulith's `verify()` would fail on today's `character` ↔ `encounter` dependency cycle. R3 moves `auth`, `user` and the security classes into `identity`. It also moves the static calculators `SpellSlotCalculator`, `SpellSlotTables`, `ProficiencyBonus`, `DiceRoller` and `ExpressionEvaluator` into `rules`. `User` stays public until other modules hold user IDs instead.
 
 ## D152: Remove Startup Character Cleanup
 
@@ -1979,7 +1983,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D155: Access Policy and Error Handling
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R3)
+**Status:** Accepted — planned (R3; catch-and-continue removal in R5–R7)
 
 **Decision:**
 - **One access policy.** An `AccessPolicy` service provides `requireCampaignDm`, `requireCampaignMember`, `requireCharacterOwnerOrDm` and `requireControls(participant)`. Every command and query that touches campaign data calls it first, replacing the ownership checks copied into each service method. It also covers places that have no check today:
@@ -2021,10 +2025,12 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 
 **Related:** D156, D160, [[Error Handling]]
 
+**Update (2026-11-02, R3 planning):** `AccessPolicy` lives in `campaign` and takes IDs, so `campaign` depends on no other module (D151). It adds `requireCharacterOwner`: only the owner can change a character until D158. Reading a character becomes owner-or-DM, and the campaign's character list becomes DM-only. One `ConflictException` covers InvalidState and Conflict. Acting out of turn returns 403. A missing resource named in the URL returns 404; a missing ID in the request body returns 400. Wrong login details still return 400, and a bad refresh cookie returns 401. Error bodies keep the `{"error": ...}` shape.
+
 ## D156: Session Security — In-Memory Access Token, Rotating Refresh Cookie
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R3, after D154's HTTPS)
+**Status:** Accepted — planned (R3; deploying it needs the Hosting step's HTTPS)
 
 **Decision:**
 - **Access tokens** last 15 minutes and are held in the frontend's memory, not localStorage.
@@ -2052,6 +2058,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 **Supersedes:** D003 (token storage and the no-revocation trade-off; JWT access tokens remain), and (together with D155) D017
 
 **Related:** D015, D154, D155
+
+**Update (2026-11-02, R3 planning):** refresh tokens are random values rather than JWTs, and only their SHA-256 hashes are stored (V13). Access tokens carry `type: access`; no other token is accepted as a bearer token or at STOMP CONNECT. Each login starts a token family, and each refresh issues a new 7-day token. The cookie's Secure flag is off only in the dev profile. Browser tabs take turns refreshing (Web Locks API), so two tabs refreshing at once aren't mistaken for reuse. `beforeConnect` always refreshes.
 
 ## D157: Encounter Visibility — Subscription Checks and DM/Player Views
 
@@ -2082,6 +2090,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 **Amends:** D004 (full-state broadcast kept, once per view), D015 (adds SUBSCRIBE checks)
 
 **Related:** D155, [[DM View]], [[Player View]], [[Health Status]]
+
+**Update (2026-11-02, R3 planning):** the Player View is published on `/topic/encounter/{id}/state` and the DM View on `/topic/encounter/{id}/dm-state`. REST responses use the same split. The Player View also removes monster spell slots, spellcasting numbers and resource pools, and action templates become DM-only. Players' combat logs leave out entries whose actor or target is hidden, and drop the Legendary Resistance fields. Only monsters can be hidden. A subscription must name an exact destination, and clients may SEND only to `/app/**`. `/ws` takes its allowed origins from `CORS_ALLOWED_ORIGINS`. **Correction:** players saw exact monster HP in the spell target pickers, not in the initiative list.
 
 ## D158: Server-Authoritative Character Commands and DM Adjustments
 
