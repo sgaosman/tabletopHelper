@@ -2231,7 +2231,7 @@ The pieces:
 ## D161: Damage, Dying and Downed-Target Rules (2014 PHB)
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R5)
+**Status:** Accepted — implemented (R5)
 
 **Decision:** The `EffectApplier` (D160) applies these rules on every path: weapon attacks, spells, monster actions, monster spells and manual DM damage.
 
@@ -2289,6 +2289,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Related:** D101, D160, D162, [[Dying]], [[Stable]], [[Dead]]
 
 **Update (2026-11-02, R5 planning):** `rules.combat.DamageRules` implements the table, and D172's golden test pins it first. A participant's `life_state` (Alive, Dying, Stable, Dead) replaces `is_alive`, because a Stable PC's death saves are reset and can't otherwise be told from a Dying PC's **(choice)**. Dropping to 0 adds unconscious and prone; regaining HP removes the unconscious condition that dropping to 0 added. PCs have no stored vulnerabilities, so none apply until R6 **(choice)**. Manual damage and healing become DM-only again, as D028 says; today a player who names their own participant as the actor can apply both.
+
+**Update (2026-11-02, R5 implementation):** built as decided. `rules.combat.DamageRules` implements the table, and `encounter_participants.life_state` holds Alive, Dying, Stable or Dead (V16). Dropping to 0 makes a PC Dying, unconscious and prone; regaining HP removes that unconsciousness (end rule HP_REGAINED) but leaves prone. A PC added at 0 HP joins Stable and unconscious **(choice)**. Dead creatures can't be targeted (409). A "Within 5 ft" toggle, on by default, replaces Ranged for the downed-target rules. Manual damage and healing are DM-only, and "Set HP / revive", logged as HP_SET, replaces Resurrect. Forced criticals were DM-only in workstream D; workstream F lets players force one as a Manual Modifier when the campaign allows it (D164). PCs have no vulnerabilities until R6.
 
 ## D162: Concentration Instances and Condition End Rules
 
@@ -2381,7 +2383,7 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 ## D164: Attacks and Spells Calculated and Validated by the Server
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R5)
+**Status:** Accepted — Manual Modifiers implemented (R5); weapon attacks come with R5 workstream G
 
 **Decision:**
 - **Weapon attacks.** A player's weapon attack names the weapon and any declared options: advantage or disadvantage, within 5 ft, Great Weapon Master or Sharpshooter. The server calculates:
@@ -2413,10 +2415,12 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Update (2026-11-02, R5 planning):** inventory entries are free text (`{name, quantity, description}`) with no item link. R5 matches an entry's name against the 54 base weapons, whose names are unique, and migrates no characters; item IDs come with R6's typed inventory **(choice)**. Magic bonuses aren't stored (the seeder doesn't keep `bonusWeapon`), so they are Manual Modifiers for now. The setting is `campaigns.allow_player_manual_modifiers`, on by default. A player's forced critical counts as a Manual Modifier, which reconciles D161's DM-only override with this decision and CONTEXT.md **(choice)**. Great Weapon Master and Sharpshooter need the feat among the character's features and a qualifying weapon the character is proficient with. Race and feat spells have no recorded casting ability, so they use the character's main spell attack bonus and save DC **(choice)**.
 
+**Update (2026-11-02, R5 implementation):** workstream F adds `campaigns.allow_player_manual_modifiers` (V18, on by default) and `ManualModifiers`. The DM always, and players while the setting is on, may enter a spell attack bonus, save DC or forced critical; a refused one answers 403, and each use is logged under the action's own type, for example "Manual Modifier (player): Rogue's attack is a critical hit." Players' hand-entered weapon attack numbers stay until workstream G replaces them with weapon attacks the server calculates.
+
 ## D165: Monster Action and Spellcasting Fixes
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R1: monster spellcasting moved out of the panel); R5 for the rest
+**Status:** Accepted — implemented (R1, R5)
 
 **Decision:**
 - **One spellcasting path** for PCs and monsters, paid from a Spell Source: a spell slot, a pact slot, an innate use, or nothing (at will).
@@ -2451,6 +2455,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Correction (2026-11-01, R1 planning):** `MonsterActionPanel` has no lair toggle (`setLairStatus` is never called anywhere), and the legendary resistance prompt already lives in the DM combat log (D145). R1 therefore moves only monster spellcasting. The lair toggle is built in R5 with D163, when the backend starts reading it.
 
 **Update (2026-11-02, R5 planning):** the Spell Sources are `SLOT`, `PACT_SLOT`, `INNATE` and `NONE`. Daily keys such as `1e`, `1/day` and `3e/day each` give uses, never spell levels; an innate spell is cast at its level in `spells`, because the data records no cast level **(choice)**. One `MonsterPools` class builds every monster pool. `rules.Dice` also parses flat damage such as `1` (45 entries) and negative modifiers such as `1d6 - 1` (32 entries); the monster data already lists each damage part separately (882 actions have two or more). **Correction:** the seeded Legendary Resistance trigger is `{"hasField": "legendary"}`, and `hasFeature` is never seeded, so the 50 monsters with legendary actions but no Legendary Resistance, such as the Aboleth, get the pool anyway. A generic breath-weapon trigger also duplicates the per-action recharge pools. The DM's spell modal hid every levelled monster spell, because monster entries carry no `prepared` flag, and then asked for a spell name the server can't cast.
+
+**Update (2026-11-02, R5 implementation):** built in workstream F. Monsters and PCs cast through one path; `MonsterSpellCastService` and the monster-spell endpoint are gone, and `GET /api/encounters/{id}/combat/spell-options` lists what an actor may cast. `SpellSources` picks the Spell Source (SLOT, PACT_SLOT, INNATE or NONE; the server works it out when a cast leaves it out) and checks that a PC's spell is known or prepared, at a legal level, with a slot or use left, answering 400 otherwise; a DM casting for a PC follows the same rules. Innate uses are resource pools named `innate:<spell>`; a PC's start full on its first cast in an encounter and aren't written back until R6 **(choice)**. Race and feat spells with their own uses count as innate uses at their own level and can also be cast with a slot, as Fey Touched and the Multiverse races allow; ones with no recorded uses can only use slots **(choice)**. Always-prepared subclass spells come from the subclass data **(choice)**. `MonsterSpellbook` reads every shape of monster spell list, so daily keys such as `1/day each` give uses (a drow's Darkness is a 2nd-level spell, once read as level 1); `additionalSpellcasting` on 5 monsters and notes such as "as a 5th-level spell" aren't read yet. `MonsterPools` builds every monster pool, replacing `ResourcePoolService`'s monster builders. V18 matches Legendary Resistance to the trait: 336 monsters get the pool instead of 386, and the 50 that lose it, such as the Aboleth, have legendary actions but no Legendary Resistance. The breath-weapon trigger it deletes matched no monster. Monsters already in an encounter keep the pools they joined with, so 10 local participants, Aboleths among them, hold a wrong Legendary Resistance pool until re-added. The DM's spell modal lists a monster's slot, innate and at-will spells.
 
 ## D166: Encounter Lifecycle and Write-Back
 

@@ -105,6 +105,7 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | is_active | BOOLEAN | DEFAULT TRUE | |
 | show_exact_monster_hp | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting. Off: the Player View shows each monster's HP as a Health Status instead of numbers. Set by the DM through `PATCH /api/campaigns/{id}/settings` (V14, D157). |
 | prompt_player_repeat_saves | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting. Off: the server rolls player characters' Repeat Saves, as it does monsters'. On: the condition waits for the player to roll (`repeatSave.awaitingRoll`) (V17, D162). |
+| allow_player_manual_modifiers | BOOLEAN | NOT NULL, DEFAULT TRUE | Campaign setting. On: players may enter Manual Modifiers in combat (a spell attack bonus, save DC or forced critical), as the DM always may; each use is logged. Off: only the DM may (V18, D164). |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
 
@@ -469,12 +470,12 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 | concentration | JSONB | | The Concentration Instance `{id, spell, slotLevel, startedRound, durationRounds}`, or NULL (V16, D162). Replaced `concentration_spell` and `concentration_slot_level`. Conditions it created carry its `id`. |
 | active_spell | VARCHAR(200) | | Non-concentration persistent spell |
 | active_spell_slot_level | INTEGER | | Slot level used to cast the active spell |
-| spell_slots_current | JSONB | | Copied from character on encounter join as `{"1": {max, used}, …}`, with pact slots keyed `pact_N` (V15, D168). V15 removed the innate object that monsters with innate spellcasting held. |
+| spell_slots_current | JSONB | | Copied from character on encounter join as `{"1": {max, used}, …}`, with pact slots keyed `pact_N` (V15, D168). V15 removed the innate object that monsters with innate spellcasting held; innate uses are resource pools (D165). |
 | spell_attack_bonus | INTEGER | | Copied from character on encounter join |
 | spell_save_dc | INTEGER | | Copied from character on encounter join |
 | spellcasting_ability | VARCHAR(20) | | Copied from character on encounter join |
 | spells_known | JSONB | | Copied from character on encounter join |
-| **resource_pools_current** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. Copied from character sheet on join for PCs; generated from monster pool triggers for monsters. |
+| **resource_pools_current** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. Copied from character sheet on join for PCs. For monsters, built by `MonsterPools` from the pool triggers, recharge actions and innate spells, whose uses are pools named `innate:<spell>` (D165). A PC's innate spell uses join on its first cast in an encounter. |
 | is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
 | life_state | VARCHAR(10) | NOT NULL, CHECK | ALIVE, DYING, STABLE or DEAD (V16, D161). Replaced `is_alive`, because a Stable PC's death saves are reset and can't otherwise be told from a Dying PC's. |
 | controlled_by_user_id | UUID | FK → users, NULLABLE | For PLAYER, set to character owner |
@@ -544,10 +545,10 @@ Defines conditions under which a monster automatically receives a resource pool 
 
 The `trigger_condition` JSONB supports these expressions:
 - `{"hasField": "legendary"}` — monster has the `legendary` field (legendary actions)
-- `{"hasRecharge": true}` — monster has any action with a `recharge` property
-- `{"hasFeature": "legendary_resistance"}` — monster has the legendary resistance trait
+- `{"hasRecharge": true}` — monster has any action with a `recharge` property. No trigger uses it since V18: each recharge action gets its own pool.
+- `{"hasFeature": "Legendary Resistance"}` — monster has a trait of that name, ignoring a bracketed note such as "(3/Day)" (V18)
 
-**Known issue (fixed in R5, D165):** the seeded Legendary Resistance trigger is `{"hasField": "legendary"}`, so every monster with legendary actions gets the pool unless its action templates set a count. A generic breath-weapon trigger also duplicates the per-action recharge pools. V18 matches Legendary Resistance against trait names and removes the breath-weapon trigger.
+**Fixed (2026-11-02, V18, D165):** the Legendary Resistance trigger was `{"hasField": "legendary"}`, so every monster with legendary actions got the pool. V18 matches the trait instead: 336 monsters get the pool rather than 386, and the 50 that lose it, such as the Aboleth, have legendary actions but no Legendary Resistance. V18 also deletes the generic breath-weapon trigger, which duplicated the per-action recharge pools and matched no monster. Monsters already in an encounter keep the pools they joined with.
 
 ## Combat Tables (Milestone 5)
 
@@ -634,6 +635,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V15 | `V15__typed_encounter_json.sql` | Participant spell slots become `{max, used}`, with pact slots keyed `pact_N`; the innate slot object becomes NULL; conditions stored as strings become objects; values of the wrong JSON type become NULL (D168) |
 | V16 | `V16__combat_pipeline_state.sql` | `concentration` replaces the two concentration columns; `life_state` replaces `is_alive`; condition entries gain `id` and an end rule, and Dying and Stable PCs gain unconscious and prone; `combat_logs.lr_success_damage` and `lr_condition_ids`; `HP_SET` and `REPEAT_SAVE` action types (D160–D163) |
 | V17 | `V17__turn_order.sql` | `encounters.current_turn_participant_id` and `is_lair_turn` replace `current_turn_index` and `encounter_participants.is_current_turn`; `encounter_participants.death_save_due`; `campaigns.prompt_player_repeat_saves` (D157, D162, D163) |
+| V18 | `V18__manual_modifiers_and_monster_triggers.sql` | `campaigns.allow_player_manual_modifiers` BOOLEAN NOT NULL DEFAULT TRUE; the Legendary Resistance trigger becomes `{"hasFeature": "Legendary Resistance"}`; deletes the breath-weapon trigger (D164, D165) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -697,7 +699,7 @@ V16 backfills existing rows: concentration is built from the old columns and the
 
 V17 stores the current turn by participant rather than by position, because the order is computed from initiative, DEX, the DM's tie order and the Lair's turn, so a stored position drifts as participants come and go (D163).
 
-**Done (2026-11-02):** V15, V16 and V17 are applied to the local database, each after a backup in `tabletopHelper-backups/` and a `preview-migration` dry run. V15 converted 12 slot rows. V16 changed 246 of 261 rows, leaving 57 participants Alive, 1 Dead and 2 Dying. V17 changed 75 rows, and every encounter kept the same creature on its turn. No row failed to load.
+**Done (2026-11-02):** V15, V16, V17 and V18 are applied to the local database, each after a backup in `tabletopHelper-backups/` and a `preview-migration` dry run. V15 converted 12 slot rows. V16 changed 246 of 261 rows, leaving 57 participants Alive, 1 Dead and 2 Dying. V17 changed 75 rows, and every encounter kept the same creature on its turn. V18 changed the two monster pool triggers. No row failed to load.
 
 ### R3–R7 — Outline
 
