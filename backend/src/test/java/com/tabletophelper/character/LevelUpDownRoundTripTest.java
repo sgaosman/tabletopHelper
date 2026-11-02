@@ -11,11 +11,11 @@ import com.tabletophelper.character.dto.LevelUpRequest;
 import com.tabletophelper.character.dto.LevelUpResponse;
 import com.tabletophelper.character.dto.MulticlassEntry;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
+import com.tabletophelper.identity.User;
+import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.*;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
-import com.tabletophelper.user.User;
-import com.tabletophelper.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.*;
 class LevelUpDownRoundTripTest {
 
     @Mock CharacterRepository characterRepository;
-    @Mock UserRepository userRepository;
+    @Mock UserService userService;
     @Mock CampaignRepository campaignRepository;
     @Mock CampaignMemberRepository campaignMemberRepository;
     @Mock RaceRepository raceRepository;
@@ -65,7 +65,7 @@ class LevelUpDownRoundTripTest {
         jsonHelper = new CharacterJsonHelper(objectMapper);
         featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
         service = new CharacterService(
-                characterRepository, userRepository, campaignRepository,
+                characterRepository, userService, campaignRepository,
                 raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
                 featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,

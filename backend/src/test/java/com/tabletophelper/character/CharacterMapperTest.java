@@ -2,9 +2,9 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
-import com.tabletophelper.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

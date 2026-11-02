@@ -1,11 +1,11 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.campaign.Campaign;
+import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Subclass;
-import com.tabletophelper.user.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

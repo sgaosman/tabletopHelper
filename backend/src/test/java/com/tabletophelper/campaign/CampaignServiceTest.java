@@ -3,12 +3,12 @@ package com.tabletophelper.campaign;
 import com.tabletophelper.campaign.dto.CampaignCreateRequest;
 import com.tabletophelper.campaign.dto.CampaignResponse;
 import com.tabletophelper.campaign.dto.CampaignSettingsRequest;
+import com.tabletophelper.identity.User;
+import com.tabletophelper.identity.UserRole;
+import com.tabletophelper.identity.UserService;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
-import com.tabletophelper.user.User;
-import com.tabletophelper.user.UserRepository;
-import com.tabletophelper.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ class CampaignServiceTest {
 
     @Mock private CampaignRepository campaignRepository;
     @Mock private CampaignMemberRepository campaignMemberRepository;
-    @Mock private UserRepository userRepository;
+    @Mock private UserService userService;
 
     private CampaignService campaignService;
 
@@ -38,7 +38,7 @@ class CampaignServiceTest {
 
     @BeforeEach
     void setUp() {
-        campaignService = new CampaignService(campaignRepository, campaignMemberRepository, userRepository,
+        campaignService = new CampaignService(campaignRepository, campaignMemberRepository, userService,
                 new AccessPolicy(campaignRepository, campaignMemberRepository));
 
         dmUserId = UUID.randomUUID();
@@ -68,7 +68,7 @@ class CampaignServiceTest {
         request.setName("Mines of Phandelver");
         request.setDescription("A classic adventure");
 
-        when(userRepository.findById(dmUserId)).thenReturn(Optional.of(dmUser));
+        when(userService.getUser(dmUserId)).thenReturn(dmUser);
         when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> {
             Campaign camp = invocation.getArgument(0);
             camp.setId(UUID.randomUUID());
@@ -110,7 +110,7 @@ class CampaignServiceTest {
 
         when(campaignRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(campaign));
         when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUserId)).thenReturn(false);
-        when(userRepository.findById(playerUserId)).thenReturn(Optional.of(playerUser));
+        when(userService.getUser(playerUserId)).thenReturn(playerUser);
         when(campaignMemberRepository.save(any(CampaignMember.class))).thenAnswer(invocation -> {
             CampaignMember member = invocation.getArgument(0);
             member.setId(UUID.randomUUID());

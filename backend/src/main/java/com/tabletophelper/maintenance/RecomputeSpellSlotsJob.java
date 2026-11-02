@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.SpellSlotCalculator;
+import com.tabletophelper.rules.SpellSlotCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

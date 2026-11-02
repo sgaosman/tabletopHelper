@@ -1,6 +1,6 @@
 package com.tabletophelper.campaign;
 
-import com.tabletophelper.user.User;
+import com.tabletophelper.identity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

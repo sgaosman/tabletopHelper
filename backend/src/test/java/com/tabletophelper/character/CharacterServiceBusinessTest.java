@@ -9,12 +9,12 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.*;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.encounter.EncounterStatus;
+import com.tabletophelper.identity.User;
+import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.*;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
-import com.tabletophelper.user.User;
-import com.tabletophelper.user.UserRepository;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.*;
 class CharacterServiceBusinessTest {
 
     @Mock CharacterRepository characterRepository;
-    @Mock UserRepository userRepository;
+    @Mock UserService userService;
     @Mock CampaignRepository campaignRepository;
     @Mock CampaignMemberRepository campaignMemberRepository;
     @Mock RaceRepository raceRepository;
@@ -93,7 +93,7 @@ class CharacterServiceBusinessTest {
         jsonHelper = new CharacterJsonHelper(objectMapper);
         featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
         service = new CharacterService(
-                characterRepository, userRepository, campaignRepository,
+                characterRepository, userService, campaignRepository,
                 raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
                 featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,
@@ -188,7 +188,7 @@ class CharacterServiceBusinessTest {
             CharacterCreateRequest req = baseCreateRequest("TestFighter", fighterId, humanId);
             req.setLevel(1);
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
             when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
             mockSaveReturnsArg();
@@ -214,7 +214,7 @@ class CharacterServiceBusinessTest {
             req.setConstitution(12);
             req.setIntelligence(16);
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(elfId)).thenReturn(Optional.of(elf));
             when(characterClassRepository.findById(wizardId)).thenReturn(Optional.of(wizard));
             mockSaveReturnsArg();
@@ -242,7 +242,7 @@ class CharacterServiceBusinessTest {
             req.setLevel(2);
             req.setCharisma(16);
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
             when(characterClassRepository.findById(paladinId)).thenReturn(Optional.of(paladin));
             mockSaveReturnsArg();
@@ -266,7 +266,7 @@ class CharacterServiceBusinessTest {
             req.setLevel(1);
             req.setCharisma(16);
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
             when(characterClassRepository.findById(warlockId)).thenReturn(Optional.of(warlock));
             mockSaveReturnsArg();
@@ -298,7 +298,7 @@ class CharacterServiceBusinessTest {
             ));
             req.setMulticlassClassEntries(mcEntries);
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
             when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
             when(characterClassRepository.findById(wizardId)).thenReturn(Optional.of(wizard));
@@ -347,7 +347,7 @@ class CharacterServiceBusinessTest {
             req.setAbilityScoreMethod("Standard Array");
             req.setLevel(1);
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
             when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
             mockSaveReturnsArg();
@@ -377,7 +377,7 @@ class CharacterServiceBusinessTest {
             req.setArmorProficiencies("[\"Light\",\"Medium\",\"Heavy\",\"Shields\"]");
             req.setWeaponProficiencies("[\"Simple\",\"Martial\",\"Longsword\",\"Shortsword\",\"Shortbow\",\"Longbow\"]");
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(elfId)).thenReturn(Optional.of(elf));
             when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
             mockSaveReturnsArg();
@@ -410,7 +410,7 @@ class CharacterServiceBusinessTest {
             req.setToolProficiencies("[\"Playing card set\",\"Vehicles (land)\"]");
             req.setLanguageProficiencies("[\"Common\"]");
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
             when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
             when(backgroundRepository.findById(soldierBgId)).thenReturn(Optional.of(soldierBg));
@@ -441,7 +441,7 @@ class CharacterServiceBusinessTest {
             req.setWisdom(11); // still gets +1
             req.setRacialAbilityBonuses("{\"STR\":2,\"WIS\":1}");
 
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(dwarfId)).thenReturn(Optional.of(dwarf));
             when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
             mockSaveReturnsArg();
@@ -954,7 +954,7 @@ class CharacterServiceBusinessTest {
         @Test
         @DisplayName("A character cannot be created in a campaign its owner has not joined")
         void cannotCreateCharacterInCampaignNotJoined() {
-            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userService.getUser(userId)).thenReturn(user);
             CharacterCreateRequest request = new CharacterCreateRequest();
             request.setName("Aria");
             request.setCampaignId(campaignId);

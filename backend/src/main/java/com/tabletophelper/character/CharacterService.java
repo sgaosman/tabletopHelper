@@ -8,13 +8,15 @@ import com.tabletophelper.character.dto.LevelHistoryEntry;
 import com.tabletophelper.character.dto.MulticlassEntry;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.encounter.EncounterStatus;
+import com.tabletophelper.identity.User;
+import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.*;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.ProficiencyBonus;
+import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
-import com.tabletophelper.user.User;
-import com.tabletophelper.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,7 +33,7 @@ import java.util.*;
 public class CharacterService {
 
     private final CharacterRepository characterRepository;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final CampaignRepository campaignRepository;
     private final RaceRepository raceRepository;
     private final CharacterClassRepository characterClassRepository;
@@ -48,8 +50,7 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+        User user = userService.getUser(userId);
 
         Campaign campaign = null;
         if (request.getCampaignId() != null) {

@@ -3,12 +3,12 @@ package com.tabletophelper.campaign;
 import com.tabletophelper.campaign.dto.CampaignCreateRequest;
 import com.tabletophelper.campaign.dto.CampaignResponse;
 import com.tabletophelper.campaign.dto.CampaignSettingsRequest;
+import com.tabletophelper.identity.User;
+import com.tabletophelper.identity.UserRole;
+import com.tabletophelper.identity.UserService;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
-import com.tabletophelper.user.User;
-import com.tabletophelper.user.UserRepository;
-import com.tabletophelper.user.UserRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +23,7 @@ public class CampaignService {
 
     private final CampaignRepository campaignRepository;
     private final CampaignMemberRepository campaignMemberRepository;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final AccessPolicy accessPolicy;
 
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -31,8 +31,7 @@ public class CampaignService {
 
     @Transactional
     public CampaignResponse createCampaign(CampaignCreateRequest request, UUID dmUserId) {
-        User dm = userRepository.findById(dmUserId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+        User dm = userService.getUser(dmUserId);
 
         Campaign campaign = Campaign.builder()
                 .name(request.getName())
@@ -64,8 +63,7 @@ public class CampaignService {
             throw new ConflictException("Already a member of this campaign");
         }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+        User user = userService.getUser(userId);
 
         CampaignMember member = CampaignMember.builder()
                 .campaign(campaign)

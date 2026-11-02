@@ -2,7 +2,7 @@ package com.tabletophelper.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
-import com.tabletophelper.auth.JwtTokenProvider;
+import com.tabletophelper.identity.internal.JwtTokenProvider;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import io.jsonwebtoken.Jwts;

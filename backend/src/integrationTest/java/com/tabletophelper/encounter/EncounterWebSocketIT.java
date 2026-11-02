@@ -2,6 +2,7 @@ package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.identity.internal.WebSocketAuthInterceptor;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
@@ -19,6 +21,7 @@ import org.springframework.messaging.simp.stomp.StompFrameHandler;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
+import org.springframework.messaging.support.AbstractSubscribableChannel;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
@@ -52,6 +55,16 @@ class EncounterWebSocketIT extends IntegrationTest {
 
     @Autowired
     private MonsterRepository monsterRepository;
+
+    @Autowired
+    @Qualifier("clientInboundChannel")
+    private AbstractSubscribableChannel clientInboundChannel;
+
+    @Autowired
+    private WebSocketAuthInterceptor webSocketAuthInterceptor;
+
+    @Autowired
+    private EncounterSubscriptionGuard encounterSubscriptionGuard;
 
     private WebSocketStompClient stompClient;
     private final List<StompSession> sessions = new ArrayList<>();
@@ -229,6 +242,13 @@ class EncounterWebSocketIT extends IntegrationTest {
 
         assertThat(refused).failsWithin(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         assertThat(allowed.isConnected()).isTrue();
+    }
+
+    @Test
+    @DisplayName("The inbound channel runs the CONNECT check before the subscription guard")
+    void connectCheckRunsBeforeSubscriptionGuard() {
+        assertThat(clientInboundChannel.getInterceptors())
+                .containsSubsequence(webSocketAuthInterceptor, encounterSubscriptionGuard);
     }
 
     // ── Helpers ──────────────────────────────────────────────────
