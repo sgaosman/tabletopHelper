@@ -516,22 +516,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/encounters/{encounterId}/combat/monster-spell": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["monsterSpell"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/encounters/{encounterId}/combat/repeat-save": {
         parameters: {
             query?: never;
@@ -558,6 +542,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["repeatSpellEffect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/spell-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSpellOptions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1431,6 +1431,8 @@ export interface components {
             inviteCode: string;
         };
         CampaignResponse: {
+            /** @description On: players may enter Manual Modifiers in combat, as the DM always may (D164) */
+            allowPlayerManualModifiers: boolean;
             /** Format: date-time */
             createdAt?: string | null;
             description?: string | null;
@@ -1449,6 +1451,7 @@ export interface components {
             showExactMonsterHp: boolean;
         };
         CampaignSettingsRequest: {
+            allowPlayerManualModifiers?: boolean | null;
             promptPlayerRepeatSaves?: boolean | null;
             showExactMonsterHp?: boolean | null;
         };
@@ -1461,8 +1464,9 @@ export interface components {
             /** Format: int32 */
             slotLevel: number;
             spellName: string;
+            /** @enum {string|null} */
+            spellSource?: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE" | null;
             targetIds: string[];
-            usePactSlot?: boolean | null;
         };
         CastSpellResponse: {
             autoResolved: boolean;
@@ -1472,6 +1476,8 @@ export interface components {
             /** Format: int32 */
             slotLevelUsed: number;
             spellName: string;
+            /** @enum {string} */
+            spellSource: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE";
             targets: components["schemas"]["TargetOutcome"][];
         };
         CharacterClass: {
@@ -1859,6 +1865,7 @@ export interface components {
             name: string;
         };
         EncounterResponse: {
+            allowPlayerManualModifiers: boolean;
             /** Format: uuid */
             campaignId: string;
             campaignName: string;
@@ -2055,19 +2062,6 @@ export interface components {
             totalDamage: number;
             /** Format: int32 */
             totalHealing: number;
-        };
-        MonsterSpellRequest: {
-            advantage?: boolean | null;
-            /** Format: uuid */
-            monsterParticipantId: string;
-            /** Format: int32 */
-            overrideAttackBonus?: number | null;
-            /** Format: int32 */
-            overrideSaveDC?: number | null;
-            /** Format: int32 */
-            slotLevel?: number | null;
-            spellName: string;
-            targetParticipantIds: string[];
         };
         OptionalFeature: {
             /** Format: date-time */
@@ -2308,6 +2302,15 @@ export interface components {
             sorted?: boolean | null;
             unsorted?: boolean | null;
         };
+        SourceOption: {
+            levels: number[];
+            /** @enum {string} */
+            source: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE";
+            /** Format: int32 */
+            usesLeft?: number | null;
+            /** Format: int32 */
+            usesMax?: number | null;
+        };
         Spell: {
             castingTime?: string | null;
             classes?: string | null;
@@ -2333,6 +2336,12 @@ export interface components {
             source?: string | null;
             /** Format: date-time */
             updatedAt?: string | null;
+        };
+        SpellOption: {
+            /** Format: int32 */
+            level: number;
+            name: string;
+            sources: components["schemas"]["SourceOption"][];
         };
         SpellSlot: {
             /** Format: int32 */
@@ -3321,34 +3330,6 @@ export interface operations {
             };
         };
     };
-    monsterSpell: {
-        parameters: {
-            query?: {
-                actorId?: string;
-            };
-            header?: never;
-            path: {
-                encounterId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MonsterSpellRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CastSpellResponse"];
-                };
-            };
-        };
-    };
     rollRepeatSave: {
         parameters: {
             query?: never;
@@ -3399,6 +3380,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CastSpellResponse"];
+                };
+            };
+        };
+    };
+    getSpellOptions: {
+        parameters: {
+            query: {
+                participantId: string;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpellOption"][];
                 };
             };
         };

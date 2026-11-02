@@ -150,6 +150,7 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // Player characters and monsters cast alike, paying from a Spell Source (D165)
     @PostMapping("/cast-spell")
     public ResponseEntity<CastSpellResponse> castSpell(
             @PathVariable UUID encounterId,
@@ -159,6 +160,17 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         CastSpellResponse response = spellcastingService.castSpell(encounterId, request, actorId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // What the participant can cast now and what can pay for each spell: the DM's for anyone, a player's for
+    // their own character (D164, D165)
+    @GetMapping("/spell-options")
+    public ResponseEntity<List<SpellOption>> getSpellOptions(
+            @PathVariable UUID encounterId,
+            @RequestParam UUID participantId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(spellcastingService.spellOptions(encounterId, participantId, userId));
     }
 
     @PostMapping("/repeat-spell-effect")
@@ -199,18 +211,6 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         MonsterActionResponse response = monsterActionService.monsterAction(encounterId, request, userId);
-        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
-    }
-
-    // As for monster-action, actorId goes unused
-    @PostMapping("/monster-spell")
-    public ResponseEntity<CastSpellResponse> monsterSpell(
-            @PathVariable UUID encounterId,
-            @Valid @RequestBody MonsterSpellRequest request,
-            @RequestParam(required = false) UUID actorId,
-            Authentication authentication) {
-        UUID userId = (UUID) authentication.getPrincipal();
-        CastSpellResponse response = monsterActionService.monsterSpell(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

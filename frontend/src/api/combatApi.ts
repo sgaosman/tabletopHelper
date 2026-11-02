@@ -7,13 +7,14 @@ import type {
   RepeatSpellEffectRequest,
   MonsterActionRequest,
   MonsterActionResponse,
-  MonsterSpellRequest,
   MonsterActionTemplate,
+  SpellOption,
 } from '../types/combat';
 
 export const combatApi = {
-  // forceCrit is the DM's override (D161); within5Ft decides whether a hit on an unconscious or paralyzed
-  // target is a critical hit, and there is no map, so it defaults to true
+  // forceCrit is a Manual Modifier, which a player may send only while the campaign allows it (D164); within5Ft
+  // decides whether a hit on an unconscious or paralyzed target is a critical hit, and there is no map, so it
+  // defaults to true
   rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, forceCrit?: boolean, actorId?: string, within5Ft = true) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/attack`,
       { targetId, attackBonus, damageDice, damageType, advantage: advantage ?? undefined, forceCrit: forceCrit || undefined, within5Ft },
@@ -67,6 +68,7 @@ export const combatApi = {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/spell-slot/restore`, { participantId, slotLevel });
   },
 
+  // Player characters and monsters cast alike, the caster named by actorId (D165)
   castSpell(encounterId: string, request: CastSpellRequest, actorId?: string) {
     return api.post<CastSpellResponse>(`/encounters/${encounterId}/combat/cast-spell`, request, {
       params: actorId ? { actorId } : undefined,
@@ -79,6 +81,11 @@ export const combatApi = {
 
   previousTurn(encounterId: string) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/turn/previous`);
+  },
+
+  // What the participant can cast now, and what can pay for each spell (D164, D165)
+  getSpellOptions(encounterId: string, participantId: string) {
+    return api.get<SpellOption[]>(`/encounters/${encounterId}/combat/spell-options`, { params: { participantId } });
   },
 
   repeatSpellEffect(encounterId: string, request: RepeatSpellEffectRequest, actorId?: string) {
@@ -95,12 +102,6 @@ export const combatApi = {
 
   monsterAction(encounterId: string, request: MonsterActionRequest, actorId?: string) {
     return api.post<MonsterActionResponse>(`/encounters/${encounterId}/combat/monster-action`, request, {
-      params: actorId ? { actorId } : undefined,
-    });
-  },
-
-  monsterSpell(encounterId: string, request: MonsterSpellRequest, actorId?: string) {
-    return api.post<CastSpellResponse>(`/encounters/${encounterId}/combat/monster-spell`, request, {
       params: actorId ? { actorId } : undefined,
     });
   },

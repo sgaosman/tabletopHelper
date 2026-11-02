@@ -31,6 +31,9 @@ export const queryKeys = {
     /** A monster's action templates and current resource pools, which only the DM may read (D157). */
     monsterActions: (encounterId: string, participantId: string) =>
       ['encounters', encounterId, 'dm', 'participants', participantId, 'actions'] as const,
+    /** What a participant can cast now and what pays for each spell: the DM's for anyone, a player's for their own. */
+    spellOptions: (encounterId: string, view: EncounterView, participantId: string) =>
+      ['encounters', encounterId, view, 'participants', participantId, 'spell-options'] as const,
   },
   monsters: {
     all: () => ['monsters'] as const,

@@ -1317,56 +1317,6 @@
         ]
       }
     },
-    "/api/encounters/{encounterId}/combat/monster-spell": {
-      "post": {
-        "operationId": "monsterSpell",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "encounterId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "in": "query",
-            "name": "actorId",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MonsterSpellRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CastSpellResponse"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "combat-controller"
-        ]
-      }
-    },
     "/api/encounters/{encounterId}/combat/repeat-save": {
       "post": {
         "operationId": "rollRepeatSave",
@@ -1447,6 +1397,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CastSpellResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/spell-options": {
+      "get": {
+        "operationId": "getSpellOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SpellOption"
+                  }
                 }
               }
             },
@@ -3448,6 +3441,7 @@
       },
       "CampaignResponse": {
         "required": [
+          "allowPlayerManualModifiers",
           "dmDisplayName",
           "dmUserId",
           "id",
@@ -3460,6 +3454,10 @@
         ],
         "type": "object",
         "properties": {
+          "allowPlayerManualModifiers": {
+            "type": "boolean",
+            "description": "On: players may enter Manual Modifiers in combat, as the DM always may (D164)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -3508,6 +3506,10 @@
       "CampaignSettingsRequest": {
         "type": "object",
         "properties": {
+          "allowPlayerManualModifiers": {
+            "type": "boolean",
+            "nullable": true
+          },
           "promptPlayerRepeatSaves": {
             "type": "boolean",
             "nullable": true
@@ -3549,16 +3551,22 @@
           "spellName": {
             "type": "string"
           },
+          "spellSource": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "SLOT",
+              "PACT_SLOT",
+              "INNATE",
+              "NONE"
+            ]
+          },
           "targetIds": {
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
-          },
-          "usePactSlot": {
-            "type": "boolean",
-            "nullable": true
           }
         }
       },
@@ -3569,6 +3577,7 @@
           "resultSummary",
           "slotLevelUsed",
           "spellName",
+          "spellSource",
           "targets"
         ],
         "type": "object",
@@ -3592,6 +3601,15 @@
           },
           "spellName": {
             "type": "string"
+          },
+          "spellSource": {
+            "type": "string",
+            "enum": [
+              "SLOT",
+              "PACT_SLOT",
+              "INNATE",
+              "NONE"
+            ]
           },
           "targets": {
             "type": "array",
@@ -4896,6 +4914,7 @@
       },
       "EncounterResponse": {
         "required": [
+          "allowPlayerManualModifiers",
           "campaignId",
           "campaignName",
           "id",
@@ -4908,6 +4927,9 @@
         ],
         "type": "object",
         "properties": {
+          "allowPlayerManualModifiers": {
+            "type": "boolean"
+          },
           "campaignId": {
             "type": "string",
             "format": "uuid"
@@ -5570,49 +5592,6 @@
           "totalHealing": {
             "type": "integer",
             "format": "int32"
-          }
-        }
-      },
-      "MonsterSpellRequest": {
-        "required": [
-          "monsterParticipantId",
-          "spellName",
-          "targetParticipantIds"
-        ],
-        "type": "object",
-        "properties": {
-          "advantage": {
-            "type": "boolean",
-            "nullable": true
-          },
-          "monsterParticipantId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "overrideAttackBonus": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "overrideSaveDC": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "slotLevel": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "spellName": {
-            "type": "string"
-          },
-          "targetParticipantIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         }
       },
@@ -6445,6 +6424,41 @@
           }
         }
       },
+      "SourceOption": {
+        "required": [
+          "levels",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "levels": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "SLOT",
+              "PACT_SLOT",
+              "INNATE",
+              "NONE"
+            ]
+          },
+          "usesLeft": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "usesMax": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
       "Spell": {
         "required": [
           "concentration",
@@ -6533,6 +6547,29 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        }
+      },
+      "SpellOption": {
+        "required": [
+          "level",
+          "name",
+          "sources"
+        ],
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceOption"
+            }
           }
         }
       },

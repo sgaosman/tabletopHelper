@@ -7,11 +7,8 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
-import com.tabletophelper.encounter.MonsterSpellCastService;
-import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
-import com.tabletophelper.encounter.dto.MonsterSpellRequest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.combat.LifeState;
@@ -31,11 +28,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Monster actions, legendary actions, lair actions and monster spells, all the DM's (M12). Legendary actions
- * spend the monster's pool and can't be used on its own turn, a recharge action needs its pool recharged, and
- * a lair action happens only on the Lair's turn and can't repeat two rounds running (D136, D163). Each
- * target's result is logged on its own entry, and a failed save by a creature with Legendary Resistance left
- * is offered for undoing (D163).
+ * Monster actions, legendary actions and lair actions, all the DM's (M12); monsters cast spells through
+ * SpellcastingService, as player characters do (D165). Legendary actions spend the monster's pool and can't
+ * be used on its own turn, a recharge action needs its pool recharged, and a lair action happens only on the
+ * Lair's turn and can't repeat two rounds running (D136, D163). Each target's result is logged on its own
+ * entry, and a failed save by a creature with Legendary Resistance left is offered for undoing (D163).
  */
 @Service
 @RequiredArgsConstructor
@@ -46,7 +43,6 @@ public class MonsterActionService {
     private final Resolver resolver;
     private final CreatureStats stats;
     private final EffectApplier effectApplier;
-    private final MonsterSpellCastService monsterSpellCastService;
     private final ResourcePoolService resourcePoolService;
     private final ObjectMapper objectMapper;
     private final EncounterRepository encounterRepository;
@@ -144,35 +140,6 @@ public class MonsterActionService {
                 results.stream().anyMatch(MonsterActionResponse.TargetResult::legendaryResistanceAvailable),
                 results.stream().mapToInt(MonsterActionResponse.TargetResult::legendaryResistanceRemaining).max().orElse(0),
                 encounterService.toResponse(encounterRepository.save(encounter)));
-    }
-
-    @Transactional
-    public CastSpellResponse monsterSpell(UUID encounterId, MonsterSpellRequest request, UUID userId) {
-        Encounter encounter = access.beginAsDm(encounterId, userId);
-        EncounterParticipant monster = monsterParticipant(encounter, request.monsterParticipantId());
-
-        // Every caster gets its spells, but an innate caster gets no spell slots: its daily uses live in
-        // resource pools (D165)
-        if (monster.getSpellsKnown() == null
-                && monster.getMonster() != null && monster.getMonster().getActionTemplates() != null) {
-            monsterSpellCastService.populateMonsterSpellcasting(monster, monster.getMonster().getActionTemplates());
-            monsterSpellCastService.populateInnateSpellPools(monster, monster.getMonster().getActionTemplates());
-        }
-        List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.targetParticipantIds(), userId);
-
-        SpellCaster.CastResult result = monsterSpellCastService.castMonsterSpell(encounter, monster,
-                request.spellName(), request.slotLevel(), targets, request.overrideAttackBonus(),
-                request.overrideSaveDC(), request.advantage());
-
-        return CastSpellResponse.builder()
-                .encounterState(encounterService.toResponse(encounterRepository.save(encounter)))
-                .spellName(request.spellName())
-                .slotLevelUsed(request.slotLevel())
-                .autoResolved(result.autoResolved())
-                .resultSummary(result.summary())
-                .targets(result.targets())
-                .manualResolutionReason(result.manualReason())
-                .build();
     }
 
     /**

@@ -5,7 +5,6 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
-import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,8 +22,6 @@ class ResourcePoolServiceTest {
 
     @Mock
     private ClassFeaturePoolRepository classFeaturePoolRepository;
-    @Mock
-    private MonsterPoolTriggerRepository monsterPoolTriggerRepository;
 
     private ResourcePoolService service;
     private ObjectMapper objectMapper;
@@ -32,8 +29,7 @@ class ResourcePoolServiceTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        service = new ResourcePoolService(classFeaturePoolRepository,
-                monsterPoolTriggerRepository, objectMapper);
+        service = new ResourcePoolService(classFeaturePoolRepository, objectMapper);
     }
 
     // ── Pool reset: full reset ────────────────────────────────────

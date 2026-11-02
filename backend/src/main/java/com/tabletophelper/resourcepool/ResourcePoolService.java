@@ -1,20 +1,15 @@
 package com.tabletophelper.resourcepool;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.MulticlassEntry;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
-import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
-import com.tabletophelper.reference.MonsterPoolTrigger;
-import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.rules.ExpressionEvaluator;
-import com.tabletophelper.rules.ProficiencyBonus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,7 +25,6 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>syncPoolsForCharacter — creates/reconciles pools on the character sheet</li>
  *   <li>copyToParticipant — copies currentUses to encounter participant on join</li>
- *   <li>createForMonster — creates fresh pools for monsters on encounter join</li>
  *   <li>Spend/recover during combat — tracked independently on participant</li>
  *   <li>syncBackToCharacter — writes currentUses back to character sheet on COMPLETED</li>
  *   <li>resetPools — applies rest recovery (short/long) or per-turn resets</li>
@@ -62,7 +56,6 @@ public class ResourcePoolService {
     ) {}
 
     private final ClassFeaturePoolRepository classFeaturePoolRepository;
-    private final MonsterPoolTriggerRepository monsterPoolTriggerRepository;
     private final ObjectMapper objectMapper;
 
     private static final TypeReference<List<ResourcePoolEntry>> POOL_LIST_TYPE =
@@ -156,140 +149,6 @@ public class ResourcePoolService {
             character.setResourcePools(serializePools(updated));
         } catch (Exception e) {
             log.error("Failed to sync pools back to character {}", character.getId(), e);
-        }
-    }
-
-    // ── Monster pools ────────────────────────────────────────────
-
-    /**
-     * Creates fresh resource pools for a monster based on matching
-     * {@link MonsterPoolTrigger} conditions.
-     */
-    public void createForMonster(EncounterParticipant participant, Monster monster) {
-        try {
-            List<ResourcePoolEntry> pools = new ArrayList<>();
-
-            // 1. Seed from monster_pool_triggers reference table (existing behaviour)
-            List<MonsterPoolTrigger> triggers = monsterPoolTriggerRepository.findAllByOrderByPriorityAsc();
-            for (MonsterPoolTrigger trigger : triggers) {
-                if (matchesTrigger(trigger, monster)) {
-                    ResourcePoolDefinition def = trigger.getPoolDefinition();
-                    if (def == null) continue;
-
-                    Map<String, Integer> context = buildMonsterContext(monster);
-                    int maxUses = evaluateMaxUses(def.getMaxUsesFormula(), context, def.getPoolId());
-
-                    pools.add(buildEntry(def, maxUses, maxUses));
-                }
-            }
-
-            // 2. Enhance from action_templates JSONB (M12)
-            if (monster.getActionTemplates() != null && !monster.getActionTemplates().isBlank()) {
-                JsonNode templates = objectMapper.readTree(monster.getActionTemplates());
-
-                // Legendary action count from data overrides trigger-based pool
-                if (templates.has("legendaryActionCount")) {
-                    int count = templates.get("legendaryActionCount").asInt();
-                    // Remove any existing legendary-actions pool and re-add with correct count
-                    pools.removeIf(p -> "monster:legendary-actions".equals(p.poolId()));
-                    pools.add(new ResourcePoolEntry(
-                            "monster:legendary-actions", "Legendary Actions",
-                            "MONSTER", monster.getName(),
-                            count, null, count,
-                            "turn", null, null, "FREE", "crown", Map.of()));
-                }
-
-                // Legendary resistance count from data
-                if (templates.has("legendaryResistanceCount")) {
-                    int count = templates.get("legendaryResistanceCount").asInt();
-                    pools.removeIf(p -> "monster:legendary-resistance".equals(p.poolId()));
-                    pools.add(new ResourcePoolEntry(
-                            "monster:legendary-resistance", "Legendary Resistance",
-                            "MONSTER", monster.getName(),
-                            count, null, count,
-                            "longRest", null, null, "FREE", "shield", Map.of()));
-                }
-
-                // Rechargeable actions
-                JsonNode actions = templates.get("actions");
-                if (actions != null && actions.isArray()) {
-                    for (JsonNode action : actions) {
-                        if (action.has("recharge")) {
-                            String recharge = action.get("recharge").asText();
-                            // Only create recharge pools for per-turn recharge (5-6, 6, 4-6)
-                            if (recharge.matches("^[4-6]-[5-6]$") || recharge.matches("^[4-6]$")) {
-                                String actionName = action.get("name").asText();
-                                String kebab = actionName.toLowerCase().replaceAll("[^a-z0-9]+", "-")
-                                        .replaceAll("-+", "-").replaceAll("^-|-$", "");
-                                String poolId = "monster:recharge:" + kebab;
-                                String resetCheck = recharge.contains("-")
-                                        ? "1d6>=" + recharge.split("-")[0]
-                                        : "1d6>=" + recharge;
-
-                                // Don't duplicate if already present
-                                if (pools.stream().noneMatch(p -> p.poolId().equals(poolId))) {
-                                    pools.add(new ResourcePoolEntry(
-                                            poolId, actionName,
-                                            "MONSTER", monster.getName(),
-                                            1, null, 1,
-                                            null, null, resetCheck,
-                                            "ACTION", "zap", Map.of()));
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Innate spell uses
-                JsonNode spellcasting = templates.get("spellcasting");
-                if (spellcasting != null && spellcasting.has("innateSpells")
-                        && spellcasting.get("innateSpells").asBoolean(false)
-                        && spellcasting.has("dailySpells")) {
-                    JsonNode dailySpells = spellcasting.get("dailySpells");
-                    var fields = dailySpells.fields();
-                    while (fields.hasNext()) {
-                        var entry = fields.next();
-                        String usageKey = entry.getKey(); // e.g. "1e", "1/day", "2/day", "3/day"
-                        int dailyLimit = parseDailyLimit(usageKey);
-                        if (dailyLimit > 0 && entry.getValue().isArray()) {
-                            for (JsonNode spellNameNode : entry.getValue()) {
-                                String spellName = spellNameNode.asText();
-                                String kebab = spellName.toLowerCase().replaceAll("[^a-z0-9]+", "-")
-                                        .replaceAll("-+", "-").replaceAll("^-|-$", "");
-                                String poolId = "innate:" + kebab;
-
-                                if (pools.stream().noneMatch(p -> p.poolId().equals(poolId))) {
-                                    pools.add(new ResourcePoolEntry(
-                                            poolId, spellName,
-                                            "MONSTER", monster.getName(),
-                                            dailyLimit, null, dailyLimit,
-                                            "longRest", null, null,
-                                            "ACTION", "sparkles", Map.of()));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            participant.setResourcePoolsCurrent(pools);
-        } catch (Exception e) {
-            log.error("Failed to create resource pools for monster participant {}", participant.getId(), e);
-        }
-    }
-
-    /**
-     * Parses the daily usage limit from an innate spellcasting usage key.
-     * "1e" or "1/day" → 1, "2/day" → 2, "3/day" → 3.
-     */
-    private int parseDailyLimit(String usageKey) {
-        if (usageKey == null) return 0;
-        try {
-            // "1e" or "1e/day" or just "1"
-            String num = usageKey.replaceAll("[^0-9]", "");
-            return num.isEmpty() ? 0 : Integer.parseInt(num);
-        } catch (NumberFormatException e) {
-            return 0;
         }
     }
 
@@ -463,41 +322,9 @@ public class ResourcePoolService {
         return ctx;
     }
 
-    private Map<String, Integer> buildMonsterContext(Monster monster) {
-        Map<String, Integer> ctx = new LinkedHashMap<>();
-        ctx.put("proficiencyBonus", ProficiencyBonus.forChallengeRating(monster.getChallengeRating()));
-        ctx.put("totalLevel", crToEstimatedLevel(monster.getChallengeRating()));
-        ctx.put("strengthModifier", abilityMod(monster.getStrength()));
-        ctx.put("dexterityModifier", abilityMod(monster.getDexterity()));
-        ctx.put("constitutionModifier", abilityMod(monster.getConstitution()));
-        ctx.put("intelligenceModifier", abilityMod(monster.getIntelligence()));
-        ctx.put("wisdomModifier", abilityMod(monster.getWisdom()));
-        ctx.put("charismaModifier", abilityMod(monster.getCharisma()));
-        return ctx;
-    }
-
     private int abilityMod(Integer score) {
         if (score == null) return 0;
         return Math.floorDiv(score - 10, 2);
-    }
-
-    private int crToEstimatedLevel(String cr) {
-        if (cr == null) return 1;
-        try {
-            return Math.max(1, (int) Math.ceil(parseCr(cr)));
-        } catch (NumberFormatException e) {
-            return 1;
-        }
-    }
-
-    private double parseCr(String cr) {
-        return switch (cr) {
-            case "0" -> 0.0;
-            case "1/8" -> 0.125;
-            case "1/4" -> 0.25;
-            case "1/2" -> 0.5;
-            default -> Double.parseDouble(cr);
-        };
     }
 
     // ── JSON helpers ─────────────────────────────────────────────
@@ -534,59 +361,5 @@ public class ResourcePoolService {
             log.warn("Failed to parse multiclass entries, returning empty", e);
             return new ArrayList<>();
         }
-    }
-
-    // ── Trigger matching ─────────────────────────────────────────
-
-    private boolean matchesTrigger(MonsterPoolTrigger trigger, Monster monster) {
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> condition = objectMapper.readValue(
-                    trigger.getTriggerCondition(), Map.class);
-            if (condition == null) return false;
-
-            if (condition.containsKey("hasField")) {
-                String field = (String) condition.get("hasField");
-                return switch (field) {
-                    case "legendary" -> monster.getLegendaryActions() != null
-                            && !monster.getLegendaryActions().isBlank()
-                            && !"[]".equals(monster.getLegendaryActions().trim());
-                    default -> false;
-                };
-            }
-
-            if (Boolean.TRUE.equals(condition.get("hasRecharge"))) {
-                return hasRechargeAbility(monster);
-            }
-
-            if (condition.containsKey("hasFeature")) {
-                String feature = (String) condition.get("hasFeature");
-                return hasFeature(monster, feature);
-            }
-
-            return false;
-        } catch (Exception e) {
-            log.warn("Failed to evaluate monster trigger condition", e);
-            return false;
-        }
-    }
-
-    private boolean hasRechargeAbility(Monster monster) {
-        // Check actions JSON for "recharge" key
-        String actions = monster.getActions();
-        if (actions != null && actions.contains("\"recharge\"")) return true;
-        return false;
-    }
-
-    private boolean hasFeature(Monster monster, String featureName) {
-        // Check traits JSON for the feature name
-        String traits = monster.getTraits();
-        if (traits != null && traits.toLowerCase().contains(featureName.toLowerCase())) return true;
-
-        // Also check legendary actions
-        String la = monster.getLegendaryActions();
-        if (la != null && la.toLowerCase().contains("legendary")) return true;
-
-        return false;
     }
 }

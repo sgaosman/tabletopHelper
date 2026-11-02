@@ -2,7 +2,9 @@ import { http, HttpResponse } from 'msw';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
-import type { CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
+import type {
+  CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, SpellOption,
+} from '../../types/combat';
 import type {
   ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, TurnEntry,
 } from '../../types/encounter';
@@ -52,7 +54,8 @@ export function makeCampaign(id: string, name: string, dmUserId = 'user-001', me
   }
   return {
     id, name, dmUserId, dmDisplayName: 'Test User',
-    inviteCode: 'ABC123XY', isActive: true, showExactMonsterHp: false, promptPlayerRepeatSaves: false, members,
+    inviteCode: 'ABC123XY', isActive: true, showExactMonsterHp: false, promptPlayerRepeatSaves: false,
+    allowPlayerManualModifiers: true, members,
     createdAt: makeTimestamp(),
   } satisfies Campaign;
 }
@@ -241,6 +244,8 @@ export const combatHandlers = [
   http.post(`${BASE}/encounters/:id/combat/spell-slot/use`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/spell-slot/restore`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/cast-spell`, async () => HttpResponse.json(makeMockCastSpellResponse())),
+  // A caster with nothing to cast; tests that cast serve the options they need (D164, D165)
+  http.get(`${BASE}/encounters/:id/combat/spell-options`, async () => HttpResponse.json([] satisfies SpellOption[])),
   http.post(`${BASE}/encounters/:id/combat/turn/next`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/turn/previous`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/repeat-spell-effect`, async () => HttpResponse.json(makeMockCastSpellResponse())),
@@ -255,7 +260,6 @@ export const combatHandlers = [
       encounterState: makeMockEncounter(),
     } satisfies MonsterActionResponse);
   }),
-  http.post(`${BASE}/encounters/:id/combat/monster-spell`, async () => HttpResponse.json(makeMockCastSpellResponse())),
   http.post(`${BASE}/encounters/:id/combat/legendary-resistance`, async () => HttpResponse.json(makeMockEncounter())),
   http.get(`${BASE}/encounters/:id/participants/:participantId/actions`, async () => {
     return HttpResponse.json({
@@ -481,7 +485,7 @@ export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter
     id: 'enc-001', campaignId: 'camp-001', campaignName: 'Test Campaign', name: 'Goblin Ambush',
     status: 'ACTIVE', currentTurnIndex: current >= 0 ? current : null, roundNumber: 1, sessionCode: 'ABC123XY',
     participants, turnOrder, monstersInLair: [],
-    createdAt: makeTimestamp(),
+    createdAt: makeTimestamp(), allowPlayerManualModifiers: true,
   } satisfies Encounter;
   return { ...encounter, ...overrides };
 }
@@ -489,7 +493,7 @@ export function makeMockEncounter(overrides: Partial<Encounter> = {}): Encounter
 export function makeMockCastSpellResponse(overrides: Partial<CastSpellResponse> = {}): CastSpellResponse {
   const response = {
     encounterState: makeMockEncounter(),
-    spellName: 'Fire Bolt', slotLevelUsed: 0, autoResolved: true,
+    spellName: 'Fire Bolt', slotLevelUsed: 0, spellSource: 'NONE', autoResolved: true,
     resultSummary: 'Fire Bolt hits Test Goblin for 7 fire damage.',
     targets: [{ targetId: 'part-001', targetName: 'Test Goblin', outcome: 'hit', damage: 7, conditionsApplied: [], attackRoll: 18 }],
   } satisfies CastSpellResponse;

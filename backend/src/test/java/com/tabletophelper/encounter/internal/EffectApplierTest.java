@@ -9,12 +9,12 @@ import com.tabletophelper.encounter.dto.ConditionRequest;
 import com.tabletophelper.encounter.dto.DamageRequest;
 import com.tabletophelper.encounter.dto.HealRequest;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
-import com.tabletophelper.encounter.dto.MonsterSpellRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +27,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -56,6 +57,7 @@ class EffectApplierTest {
         wizard = f.player("Wizard", 30, 12);
         wizard.setSpellAttackBonus(5);
         wizard.setSpellSaveDc(15);
+        wizard.setSpellSlotsCurrent(Map.of("1", new SpellSlot(9, 0)));
         ogre = f.monster("Ogre", 59, 11);
         mage = f.monster("Mage", 40, 12);
         mage.getMonster().setActionTemplates("""
@@ -210,17 +212,17 @@ class EffectApplierTest {
         }
     }
 
+    // The wizard or the mage casts the level 1 Test Spell with a level 1 slot, through the one cast path (D165)
     private void cast(Path path, EncounterParticipant... targets) {
-        List<UUID> targetIds = Arrays.stream(targets).map(EncounterParticipant::getId).toList();
+        CastSpellRequest request = new CastSpellRequest();
+        request.setSpellName("Test Spell");
+        request.setSlotLevel(1);
+        request.setTargetIds(Arrays.stream(targets).map(EncounterParticipant::getId).toList());
         if (path == Path.SPELL) {
-            CastSpellRequest request = new CastSpellRequest();
-            request.setSpellName("Test Spell");
-            request.setSlotLevel(0);
-            request.setTargetIds(targetIds);
+            f.knows(wizard, "Test Spell");
             f.spellcasting.castSpell(f.encounterId(), request, wizard.getId(), f.dmUserId);
         } else {
-            f.monsterActions.monsterSpell(f.encounterId(),
-                    new MonsterSpellRequest(mage.getId(), "Test Spell", 1, targetIds, null, null, null), f.dmUserId);
+            f.spellcasting.castSpell(f.encounterId(), request, mage.getId(), f.dmUserId);
         }
     }
 

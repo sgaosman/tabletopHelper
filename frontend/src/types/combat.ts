@@ -23,7 +23,13 @@ export type MonsterActionTargetResult = Schemas['TargetResult'];
 
 export type MonsterActionResponse = Schemas['MonsterActionResponse'];
 
-export type MonsterSpellRequest = Schemas['MonsterSpellRequest'];
+/** What pays for a cast spell: a spell slot, a pact slot, an innate use, or nothing (D165). */
+export type SpellSource = Schemas['SourceOption']['source'];
+
+/** A spell a participant can cast now, with each Spell Source that can pay for it (D164, D165). */
+export type SpellOption = Schemas['SpellOption'];
+
+export type SpellSourceOption = Schemas['SourceOption'];
 
 export interface MonsterActionTemplate {
   actions: MonsterAction[];

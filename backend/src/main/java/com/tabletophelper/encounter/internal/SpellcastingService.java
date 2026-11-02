@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -10,10 +11,13 @@ import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.ConcentrationRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
+import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.SpellSlot;
+import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,58 +30,71 @@ import java.util.OptionalInt;
 import java.util.UUID;
 
 /**
- * A participant's spellcasting in combat: casting with the numbers the caster gives (until R5 workstream F
- * checks Spell Sources), using a lasting spell's effect again, spell slots, and concentration set by hand.
- * A player acts only for their own character, and casts only on its turn (D028).
+ * A participant's spellcasting in combat: casting a spell paid for from a Spell Source, the same way for player
+ * characters and monsters (D165); using a lasting spell's effect again; spell slots; and concentration set by
+ * hand. A player acts only for their own character, casting only on its turn (D028) and only what the character
+ * can cast now (D164). A spell attack bonus or save DC entered in place of the caster's is a Manual Modifier,
+ * which a player may enter only while the campaign allows it.
  */
 @Service
 @RequiredArgsConstructor
 public class SpellcastingService {
 
     private final CombatAccess access;
+    private final AccessPolicy accessPolicy;
+    private final CasterSpells casterSpells;
     private final SpellCaster spellCaster;
     private final SpellEffects spellEffects;
     private final EffectApplier effectApplier;
+    private final ManualModifiers manualModifiers;
     private final CombatLogWriter combatLog;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
+    /**
+     * Casts a spell for a player character or a monster: everything is checked before anything is spent, then
+     * the Spell Source pays, and the spell is cast at the level that source gives.
+     */
     @Transactional
     public CastSpellResponse castSpell(UUID encounterId, CastSpellRequest request, UUID actorParticipantId,
                                        UUID userId) {
         Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
-        requireTargetCount(request);
+        List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(caster, request.getOverrideSpellAttackBonus(),
+                request.getOverrideSpellSaveDC());
+        manualModifiers.require(encounter, userId, modifiers);
+        SpellSources.Payment payment = casterSpells.payment(caster, request.getSpellName(), request.getSpellSource(),
+                request.getSlotLevel());
+        requireTargetCount(payment, request.getTargetIds().size());
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
 
-        int slotLevel = request.getSlotLevel();
-        if (slotLevel > 0) {
-            String slotKey = Boolean.TRUE.equals(request.getUsePactSlot()) ? "pact_" + slotLevel
-                    : String.valueOf(slotLevel);
-            Map<String, SpellSlot> slots = slotsOf(caster);
-            SpellSlot slot = slots.get(slotKey);
-            if (slot == null || slot.remaining() <= 0) {
-                throw new ConflictException("No level " + slotLevel + " spell slots remaining");
-            }
-            SpellSlot spent = slot.spend();
-            slots.put(slotKey, spent);
-            caster.setSpellSlotsCurrent(slots);
-            combatLog.write(encounter, CombatActionType.SPELL_SLOT_USE, caster.getDisplayName() + " uses a level "
-                    + slotLevel + " spell slot (" + spent.remaining() + "/" + spent.max() + " remaining)", null, caster);
-        }
+        casterSpells.spend(encounter, caster, payment);
+        manualModifiers.log(encounter, CombatActionType.SPELL_CAST, caster,
+                caster.getDisplayName() + "'s " + payment.spellName(), userId, modifiers);
+        SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
+                targets, attackBonus(caster, request.getOverrideSpellAttackBonus()),
+                saveDc(caster, request.getOverrideSpellSaveDC()), request.getAdvantage());
 
-        int attackBonus = request.getOverrideSpellAttackBonus() != null ? request.getOverrideSpellAttackBonus()
-                : caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0;
-        int saveDc = request.getOverrideSpellSaveDC() != null ? request.getOverrideSpellSaveDC()
-                : caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10;
-        SpellCaster.CastResult result = spellCaster.cast(encounter, caster, request.getSpellName(), slotLevel,
-                targets, attackBonus, saveDc, request.getAdvantage());
-
-        if (!result.concentration() && spellEffects.persistsWithoutConcentration(request.getSpellName())) {
-            caster.setActiveSpell(request.getSpellName());
-            caster.setActiveSpellSlotLevel(slotLevel);
+        if (!result.concentration() && spellEffects.persistsWithoutConcentration(payment.spellName())) {
+            caster.setActiveSpell(payment.spellName());
+            caster.setActiveSpellSlotLevel(payment.castLevel());
         }
-        return response(encounter, result, slotLevel);
+        return response(encounter, result, payment.castLevel(), payment.source());
+    }
+
+    /**
+     * The spells a participant can cast now, with what can pay for each (D164, D165): the DM may read anyone's,
+     * a player only their own character's. It changes nothing, so it needs no lock and any status will do.
+     */
+    @Transactional(readOnly = true)
+    public List<SpellOption> spellOptions(UUID encounterId, UUID participantId, UUID userId) {
+        Encounter encounter = encounterRepository.findById(encounterId)
+                .orElseThrow(() -> new NotFoundException("Encounter not found"));
+        UUID campaignId = encounter.getCampaign().getId();
+        accessPolicy.requireMember(campaignId, userId);
+        EncounterParticipant participant = CombatAccess.target(encounter, participantId, userId);
+        accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
+        return casterSpells.options(participant);
     }
 
     /** Uses the caster's concentration spell's effect again, or else its lasting spell's. */
@@ -86,6 +103,9 @@ public class SpellcastingService {
                                                UUID actorParticipantId, UUID userId) {
         Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
+        List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(caster, request.getOverrideSpellAttackBonus(),
+                request.getOverrideSpellSaveDC());
+        manualModifiers.require(encounter, userId, modifiers);
 
         String spellName;
         int slotLevel;
@@ -101,13 +121,12 @@ public class SpellcastingService {
         }
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
 
-        int attackBonus = request.getOverrideSpellAttackBonus() != null ? request.getOverrideSpellAttackBonus()
-                : caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0;
-        int saveDc = request.getOverrideSpellSaveDC() != null ? request.getOverrideSpellSaveDC()
-                : caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10;
+        manualModifiers.log(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster,
+                caster.getDisplayName() + "'s " + spellName, userId, modifiers);
         SpellCaster.CastResult result = spellCaster.repeat(encounter, caster, spellName, slotLevel, targets,
-                attackBonus, saveDc, request.getAdvantage());
-        return response(encounter, result, slotLevel);
+                attackBonus(caster, request.getOverrideSpellAttackBonus()),
+                saveDc(caster, request.getOverrideSpellSaveDC()), request.getAdvantage());
+        return response(encounter, result, slotLevel, SpellSource.NONE);
     }
 
     @Transactional
@@ -170,11 +189,13 @@ public class SpellcastingService {
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
-    private CastSpellResponse response(Encounter encounter, SpellCaster.CastResult result, int slotLevel) {
+    private CastSpellResponse response(Encounter encounter, SpellCaster.CastResult result, int castLevel,
+                                       SpellSource source) {
         return CastSpellResponse.builder()
                 .encounterState(encounterService.toResponse(encounterRepository.save(encounter)))
                 .spellName(result.spellName())
-                .slotLevelUsed(slotLevel)
+                .slotLevelUsed(castLevel)
+                .spellSource(source)
                 .autoResolved(result.autoResolved())
                 .resultSummary(result.summary())
                 .targets(result.targets())
@@ -182,14 +203,25 @@ public class SpellcastingService {
                 .build();
     }
 
-    private void requireTargetCount(CastSpellRequest request) {
-        OptionalInt max = spellEffects.maxTargets(request.getSpellName(), request.getSlotLevel());
-        if (max.isPresent() && request.getTargetIds().size() > max.getAsInt()) {
+    private void requireTargetCount(SpellSources.Payment payment, int targetCount) {
+        OptionalInt max = spellEffects.maxTargets(payment.spellName(), payment.castLevel());
+        if (max.isPresent() && targetCount > max.getAsInt()) {
             int limit = max.getAsInt();
-            throw new ValidationException(request.getSpellName() + " can target at most " + limit
-                    + " creature" + (limit != 1 ? "s" : "") + " at level " + request.getSlotLevel()
-                    + ", but " + request.getTargetIds().size() + " targets were selected");
+            throw new ValidationException(payment.spellName() + " can target at most " + limit
+                    + " creature" + (limit != 1 ? "s" : "") + " at level " + payment.castLevel()
+                    + ", but " + targetCount + " targets were selected");
         }
+    }
+
+    // The caster's own numbers unless a Manual Modifier replaces them; a caster without them has +0 and DC 10
+    private static int attackBonus(EncounterParticipant caster, Integer entered) {
+        if (entered != null) return entered;
+        return caster.getSpellAttackBonus() != null ? caster.getSpellAttackBonus() : 0;
+    }
+
+    private static int saveDc(EncounterParticipant caster, Integer entered) {
+        if (entered != null) return entered;
+        return caster.getSpellSaveDc() != null ? caster.getSpellSaveDc() : 10;
     }
 
     // A level's slots, or a Warlock's pact slots of that level when there are none

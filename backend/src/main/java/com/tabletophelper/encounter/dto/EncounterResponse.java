@@ -79,6 +79,10 @@ public class EncounterResponse {
     @JsonIgnore
     private boolean showExactMonsterHp;
 
+    // The campaign's setting, which the session pages read to offer players Manual Modifiers (D164)
+    @Schema(requiredMode = REQUIRED)
+    private boolean allowPlayerManualModifiers;
+
     @Data
     @Builder(toBuilder = true)
     public static class ParticipantResponse {

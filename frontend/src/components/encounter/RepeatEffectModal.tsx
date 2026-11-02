@@ -15,13 +15,14 @@ interface Props {
   participants: EncounterParticipant[];
   spellName: string;
   onClose: () => void;
-  isMonster?: boolean;
+  /** Offers a spell attack bonus and save DC typed by hand: always for the DM, for players while the campaign allows it (D164). */
+  allowManualModifiers?: boolean;
 }
 
 type Step = 'target' | 'confirm';
 
 /** Repeats a spell's effect in the live encounter of the surrounding EncounterProvider, whose state the result updates. */
-export default function RepeatEffectModal({ caster, participants, spellName, onClose, isMonster }: Props) {
+export default function RepeatEffectModal({ caster, participants, spellName, onClose, allowManualModifiers = false }: Props) {
   const actions = useEncounterAction();
   const [step, setStep] = useState<Step>('target');
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
@@ -113,7 +114,7 @@ export default function RepeatEffectModal({ caster, participants, spellName, onC
             casting={casting}
             onRepeat={repeatEffect}
             onBack={() => setStep('target')}
-            isMonster={isMonster}
+            allowManualModifiers={allowManualModifiers}
             overrideAttackBonus={overrideAttackBonus}
             overrideSaveDC={overrideSaveDC}
             onOverrideAttackBonus={setOverrideAttackBonus}
@@ -211,7 +212,7 @@ function TargetStep({ spellName, targets, caster, selectedTargets, onToggle, onP
   );
 }
 
-function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange, casting, onRepeat, onBack, isMonster, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC }: {
+function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange, casting, onRepeat, onBack, allowManualModifiers, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC }: {
   spellName: string;
   targets: EncounterParticipant[];
   caster: EncounterParticipant;
@@ -220,7 +221,7 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
   casting: boolean;
   onRepeat: () => void;
   onBack: () => void;
-  isMonster?: boolean;
+  allowManualModifiers: boolean;
   overrideAttackBonus: string;
   overrideSaveDC: string;
   onOverrideAttackBonus: (v: string) => void;
@@ -266,7 +267,7 @@ function ConfirmStep({ spellName, targets, caster, advantage, onAdvantageChange,
         })}
       </div>
 
-      {isMonster && (
+      {allowManualModifiers && (
         <div className="grid grid-cols-2 gap-2">
           <Input
             label="Spell Attack Bonus"

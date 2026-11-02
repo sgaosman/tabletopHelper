@@ -496,19 +496,12 @@ public class ResourcePoolSeeder {
                 .priority(1)
                 .build());
 
-        // Legendary resistance: any monster with legendary actions (same trigger field)
+        // Legendary resistance: a monster with the Legendary Resistance trait, matched by its exact name (D165).
+        // Recharge actions get a pool each from the monster's action templates, so no trigger adds one.
         triggers.add(MonsterPoolTrigger.builder()
                 .poolDefinition(poolDefRepo.findById("monster:legendary-resistance").orElse(null))
-                .triggerCondition("{\"hasField\": \"legendary\"}")
+                .triggerCondition("{\"hasFeature\": \"Legendary Resistance\"}")
                 .priority(2)
-                .build());
-
-        // Breath weapon (any recharge): triggers for any monster with a recharge ability
-        // Default to 5-6; 6-only creatures get the stricter one
-        triggers.add(MonsterPoolTrigger.builder()
-                .poolDefinition(poolDefRepo.findById("monster:breath-weapon-5-6").orElse(null))
-                .triggerCondition("{\"hasRecharge\": true}")
-                .priority(3)
                 .build());
 
         monsterTriggerRepo.saveAll(triggers);

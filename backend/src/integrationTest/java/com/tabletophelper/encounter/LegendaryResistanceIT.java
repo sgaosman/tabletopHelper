@@ -3,6 +3,7 @@ package com.tabletophelper.encounter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -72,6 +73,7 @@ class LegendaryResistanceIT extends IntegrationTest {
         EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
         aria.setSpellSlotsCurrent(Map.of("3", new SpellSlot(2, 0)));
         aria.setSpellSaveDc(15);
+        aria.setSpellsKnown(List.of(new KnownSpell(null, "Fireball", 3, "class:Wizard", true, null, null, null, null)));
         participantRepository.save(aria);
         EncounterParticipant dragonParticipant = participantRepository.findById(UUID.fromString(dragonId)).orElseThrow();
         dragonParticipant.setResourcePoolsCurrent(new ArrayList<>(List.of(new ResourcePoolEntry(

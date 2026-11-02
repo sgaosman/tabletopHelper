@@ -44,6 +44,10 @@ public class CampaignResponse {
             description = "On: players roll their characters' Repeat Saves when prompted; off: the server rolls them (D162)")
     private Boolean promptPlayerRepeatSaves;
 
+    @Schema(requiredMode = REQUIRED,
+            description = "On: players may enter Manual Modifiers in combat, as the DM always may (D164)")
+    private Boolean allowPlayerManualModifiers;
+
     @Schema(requiredMode = REQUIRED)
     private List<MemberResponse> members;
 

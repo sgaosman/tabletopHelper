@@ -139,7 +139,7 @@ describe('RepeatEffectModal', () => {
     expect(screen.getByRole('button', { name: /Orc/ })).toBeDisabled();
   });
 
-  it('lets a monster caster override its attack bonus and save DC', async () => {
+  it('offers Manual Modifiers for the attack bonus and save DC when they are allowed (D164)', async () => {
     targeting({ canTargetEnemies: true });
     const ghoul = makeMockParticipant('part-ghoul', 'Ghoul Priest', 'MONSTER', {
       concentrationSpell: 'Hold Person', concentrationSlotLevel: 2, spellAttackBonus: 6, spellSaveDc: 14,
@@ -151,7 +151,7 @@ describe('RepeatEffectModal', () => {
         return HttpResponse.json(makeMockCastSpellResponse({ spellName: 'Hold Person', resultSummary: 'Legolas resists.' }));
       }),
     );
-    const { user } = await renderModal({ caster: ghoul, participants: [ghoul, legolas], isMonster: true });
+    const { user } = await renderModal({ caster: ghoul, participants: [ghoul, legolas], allowManualModifiers: true });
 
     await user.click(await screen.findByRole('button', { name: /Legolas/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -162,6 +162,17 @@ describe('RepeatEffectModal', () => {
 
     expect(await screen.findByText('Legolas resists.')).toBeInTheDocument();
     expect(repeatBody).toEqual({ targetIds: ['part-legolas'], advantage: null, overrideSpellSaveDC: 16 });
+  });
+
+  it('offers no Manual Modifiers when they are not allowed', async () => {
+    targeting({ canTargetEnemies: true });
+    const { user } = await renderModal();
+
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByRole('button', { name: 'Repeat Effect' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Spell Save DC')).not.toBeInTheDocument();
   });
 
   it('shows the server error when the repeat fails, and lets you try again', async () => {

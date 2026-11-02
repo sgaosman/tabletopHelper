@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.dto;
 
+import com.tabletophelper.encounter.state.SpellSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
@@ -20,8 +21,13 @@ public class CastSpellResponse {
     @Schema(requiredMode = REQUIRED)
     private String spellName;
 
+    // The level it was cast at: the slot's, the pact slots', or the spell's own (D165)
     @Schema(requiredMode = REQUIRED)
     private int slotLevelUsed;
+
+    // What paid for it; a repeated effect pays nothing
+    @Schema(requiredMode = REQUIRED)
+    private SpellSource spellSource;
 
     @Schema(requiredMode = REQUIRED)
     private boolean autoResolved;

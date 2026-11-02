@@ -253,11 +253,17 @@ class CampaignServiceTest {
         Campaign campaign = savedCampaign();
 
         CampaignResponse response = campaignService.updateSettings(campaign.getId(),
-                new CampaignSettingsRequest(null, true), dmUserId);
+                new CampaignSettingsRequest(null, true, null), dmUserId);
 
         assertTrue(response.getPromptPlayerRepeatSaves());
         assertTrue(campaign.getPromptPlayerRepeatSaves());
         assertFalse(response.getShowExactMonsterHp());
+    }
+
+    @Test
+    @DisplayName("A new campaign allows players Manual Modifiers (D164)")
+    void newCampaign_allowsPlayerManualModifiers() {
+        assertTrue(savedCampaign().getAllowPlayerManualModifiers());
     }
 
     @Test
@@ -266,10 +272,24 @@ class CampaignServiceTest {
         Campaign campaign = savedCampaign();
 
         CampaignResponse response = campaignService.updateSettings(campaign.getId(),
-                new CampaignSettingsRequest(true, null), dmUserId);
+                new CampaignSettingsRequest(true, null, null), dmUserId);
 
         assertTrue(response.getShowExactMonsterHp());
         assertTrue(campaign.getShowExactMonsterHp());
+    }
+
+    @Test
+    @DisplayName("The DM can turn off players' Manual Modifiers, leaving the other settings as they were (D164)")
+    void updateSettings_dmTurnsOffPlayerManualModifiers() {
+        Campaign campaign = savedCampaign();
+
+        CampaignResponse response = campaignService.updateSettings(campaign.getId(),
+                new CampaignSettingsRequest(null, null, false), dmUserId);
+
+        assertFalse(response.getAllowPlayerManualModifiers());
+        assertFalse(campaign.getAllowPlayerManualModifiers());
+        assertFalse(response.getShowExactMonsterHp());
+        assertFalse(response.getPromptPlayerRepeatSaves());
     }
 
     @Test
@@ -279,9 +299,11 @@ class CampaignServiceTest {
         campaign.setShowExactMonsterHp(true);
 
         CampaignResponse response = campaignService.updateSettings(campaign.getId(),
-                new CampaignSettingsRequest(null, null), dmUserId);
+                new CampaignSettingsRequest(null, null, null), dmUserId);
 
         assertTrue(response.getShowExactMonsterHp());
+        assertTrue(response.getAllowPlayerManualModifiers());
+        assertFalse(response.getPromptPlayerRepeatSaves());
     }
 
     @Test
@@ -290,11 +312,13 @@ class CampaignServiceTest {
         Campaign campaign = savedCampaign();
 
         ForbiddenException ex = assertThrows(ForbiddenException.class, () ->
-                campaignService.updateSettings(campaign.getId(), new CampaignSettingsRequest(true, true), playerUserId));
+                campaignService.updateSettings(campaign.getId(), new CampaignSettingsRequest(true, true, false),
+                        playerUserId));
 
         assertEquals("Only the DM can perform this action", ex.getMessage());
         assertFalse(campaign.getShowExactMonsterHp());
         assertFalse(campaign.getPromptPlayerRepeatSaves());
+        assertTrue(campaign.getAllowPlayerManualModifiers());
         verify(campaignRepository, never()).save(any());
     }
 }

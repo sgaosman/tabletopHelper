@@ -123,7 +123,7 @@ class AttackServiceTest {
     }
 
     @Test
-    @DisplayName("10.20 The DM's forced critical hits as a critical hit whatever the roll")
+    @DisplayName("10.20 The DM's forced critical hits as a critical hit whatever the roll, logged as a Manual Modifier")
     void forcedCritical() {
         EncounterParticipant goblin = f.monster("Goblin", 30, 15);
         AttackRollRequest request = request(goblin, 5, "1d8+3");
@@ -132,7 +132,8 @@ class AttackServiceTest {
         attack(request, 5, 6, 6);
 
         assertEquals(15, goblin.getHpCurrent());
-        assertTrue(f.descriptions().getFirst().contains("critical hit (forced by the DM)"));
+        assertEquals("Manual Modifier (DM): Rogue's attack is a critical hit.", f.descriptions().getFirst());
+        assertTrue(f.descriptions().get(1).contains("critical hit (forced)"));
     }
 
     @Test
@@ -174,9 +175,26 @@ class AttackServiceTest {
     }
 
     @Test
-    @DisplayName("Only the DM can force a critical hit; a player gets 403 and nothing rolls (D161)")
-    void playerCannotForceACritical() {
+    @DisplayName("A player's forced critical is a Manual Modifier: used and logged while the campaign allows it (D164)")
+    void playerForcesACritical() {
         UUID playerUserId = f.playerControlling(rogue);
+        EncounterParticipant goblin = f.monster("Goblin", 30, 15);
+        rogue.setSortOrder(0);
+        AttackRollRequest request = request(goblin, 5, "1d6");
+        request.setForceCrit(true);
+
+        f.dice.script(3, 4, 4);
+        f.attacks.rollAttack(f.encounterId(), request, rogue.getId(), playerUserId);
+
+        assertEquals(22, goblin.getHpCurrent());
+        assertEquals("Manual Modifier (player): Rogue's attack is a critical hit.", f.descriptions().getFirst());
+    }
+
+    @Test
+    @DisplayName("A player's forced critical is a 403 when the campaign doesn't allow Manual Modifiers; nothing rolls")
+    void playerCannotForceACriticalWhenDisallowed() {
+        UUID playerUserId = f.playerControlling(rogue);
+        f.campaign.setAllowPlayerManualModifiers(false);
         EncounterParticipant goblin = f.monster("Goblin", 7, 15);
         AttackRollRequest request = request(goblin, 5, "1d6");
         request.setForceCrit(true);
@@ -184,8 +202,9 @@ class AttackServiceTest {
         ForbiddenException ex = assertThrows(ForbiddenException.class,
                 () -> f.attacks.rollAttack(f.encounterId(), request, rogue.getId(), playerUserId));
 
-        assertEquals("Only the DM can force a critical hit", ex.getMessage());
+        assertEquals("This campaign doesn't allow players to enter Manual Modifiers", ex.getMessage());
         assertEquals(7, goblin.getHpCurrent());
+        assertTrue(f.log.isEmpty());
     }
 
     @Test

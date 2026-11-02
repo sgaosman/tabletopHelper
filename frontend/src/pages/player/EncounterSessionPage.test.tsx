@@ -118,11 +118,13 @@ describe('Player EncounterSessionPage', () => {
   });
 
   it('offers the participants in the Player View as spell targets, with a Health Status for monsters', async () => {
+    server.use(http.get('/api/encounters/:id/combat/spell-options', () =>
+      HttpResponse.json([{ name: 'Fire Bolt', level: 0, sources: [{ source: 'NONE', levels: [0] }] }])));
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Cast Spell' }));
-    await user.click(screen.getByRole('button', { name: /Fire Bolt/ }));
+    await user.click(await screen.findByRole('button', { name: /Fire Bolt/ }));
 
     const dialog = screen.getByRole('dialog', { name: 'Cast Spell' });
     const goblinTarget = await within(dialog).findByRole('button', { name: /Test Goblin/ });
@@ -234,11 +236,11 @@ describe('Player EncounterSessionPage', () => {
       expect(screen.getByText('Dead')).toBeInTheDocument();
     });
 
-    it('attacks from within 5 feet unless the player says otherwise, and offers no forced critical', async () => {
+    it('attacks from within 5 feet unless the player says otherwise, and offers no forced critical when the campaign disallows Manual Modifiers', async () => {
       const attackRequests: unknown[] = [];
       server.use(
         http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
-          participants: [gimli({ isCurrentTurn: true }), goblin()],
+          participants: [gimli({ isCurrentTurn: true }), goblin()], allowPlayerManualModifiers: false,
         }))),
         http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
           attackRequests.push(await request.json());
@@ -257,6 +259,32 @@ describe('Player EncounterSessionPage', () => {
 
       await waitFor(() => expect(attackRequests).toEqual([
         { targetId: 'part-goblin', attackBonus: 5, damageDice: '1d8+3', within5Ft: false },
+      ]));
+    });
+
+    it('offers a forced critical as a Manual Modifier while the campaign allows them (D164)', async () => {
+      const attackRequests: unknown[] = [];
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [gimli({ isCurrentTurn: true }), goblin()],
+        }))),
+        http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
+          attackRequests.push(await request.json());
+          return HttpResponse.json(makeMockEncounter({ participants: [gimli({ isCurrentTurn: true }), goblin()] }));
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      await user.click(screen.getByRole('button', { name: 'Crit' }));
+      expect(screen.getByRole('button', { name: 'Crit' })).toHaveAttribute('aria-pressed', 'true');
+      await user.type(screen.getByPlaceholderText('+5'), '5');
+      await user.type(screen.getByPlaceholderText('1d8+3'), '1d8+3');
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(attackRequests).toEqual([
+        { targetId: 'part-goblin', attackBonus: 5, damageDice: '1d8+3', forceCrit: true, within5Ft: true },
       ]));
     });
   });

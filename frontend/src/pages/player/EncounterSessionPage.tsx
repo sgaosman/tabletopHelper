@@ -32,8 +32,9 @@ type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat
 
 const CONDITION_BADGE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff';
 
-// A new attack row: within 5 feet by default, since there is no map (D161). A forced critical is the DM's.
-const NEW_ATTACK = { attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, within5Ft: true };
+// A new attack row: within 5 feet by default, since there is no map (D161). A forced critical is a Manual
+// Modifier, offered while the campaign allows players them (D164).
+const NEW_ATTACK = { attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false, within5Ft: true };
 
 /** Dying, Stable or Dead, from the participant's life state (D161); nothing while it is up. */
 function LifeStateBadge({ participant }: { participant: EncounterParticipant }) {
@@ -295,7 +296,7 @@ function CombatLogPanel() {
 
 function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClose }: {
   myCharacter: EncounterParticipant;
-  encounter: { participants: EncounterParticipant[] };
+  encounter: { participants: EncounterParticipant[]; allowPlayerManualModifiers: boolean };
   targetId: string | null;
   actionMode: PlayerAction;
   onClose: () => void;
@@ -338,7 +339,8 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await actions.rollAttack(targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, undefined, myCharacter.id, atk.within5Ft);
+            const forceCrit = encounter.allowPlayerManualModifiers && atk.forceCrit ? true : undefined;
+            await actions.rollAttack(targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, forceCrit, myCharacter.id, atk.within5Ft);
           }
         }
       } else if (actionMode === 'condition' && condition) {
@@ -400,6 +402,11 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
                   </div>
                   <div>
                     {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
+                    {/* A forced critical is a Manual Modifier, which the combat log notes (D164) */}
+                    {encounter.allowPlayerManualModifiers && (
+                      <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)} aria-pressed={atk.forceCrit}
+                        className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-card' : 'bg-page-alt text-muted border border-rule'}`}>Crit</button>
+                    )}
                     {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}
                     <button type="button" onClick={() => updateAttack(i, 'within5Ft', !atk.within5Ft)} aria-pressed={atk.within5Ft}
                       className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.within5Ft ? 'bg-cls-wizard text-card' : 'bg-page-alt text-muted border border-rule'}`}>Within 5 ft</button>
@@ -622,6 +629,7 @@ function PlayerSessionView() {
             caster={myCharacter}
             participants={encounter.participants}
             onClose={() => { setActionMode(null); setAttackTargetId(null); }}
+            allowManualModifiers={encounter.allowPlayerManualModifiers}
           />
         )}
 
@@ -632,6 +640,7 @@ function PlayerSessionView() {
             participants={encounter.participants}
             spellName={(myCharacter.concentrationSpell || myCharacter.activeSpell)!}
             onClose={() => { setActionMode(null); setAttackTargetId(null); }}
+            allowManualModifiers={encounter.allowPlayerManualModifiers}
           />
         )}
 

@@ -61,6 +61,26 @@ describe('CampaignDetailPage', () => {
     expect(screen.getByRole('checkbox', { name: /Show exact monster HP/ })).not.toBeChecked();
   });
 
+  it("turns off players' Manual Modifiers, sending only that setting (D164)", async () => {
+    let settingsRequest: unknown;
+    server.use(
+      http.patch('/api/campaigns/:id/settings', async ({ params, request }) => {
+        settingsRequest = await request.json();
+        return HttpResponse.json({ ...makeCampaign(params.id as string, 'Test Campaign'), allowPlayerManualModifiers: false });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    const setting = await screen.findByRole('checkbox', { name: /Allow players Manual Modifiers/ });
+    expect(setting).toBeChecked();
+    await user.click(setting);
+
+    await waitFor(() => expect(setting).not.toBeChecked());
+    expect(settingsRequest).toEqual({ allowPlayerManualModifiers: false });
+    expect(screen.getByRole('checkbox', { name: /Show exact monster HP/ })).not.toBeChecked();
+  });
+
   it('shows the setting as saved on the campaign', async () => {
     server.use(
       http.get('/api/campaigns/:id', ({ params }) =>

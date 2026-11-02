@@ -22,8 +22,8 @@ public class AttackRollRequest {
 
     private Boolean advantage;
 
-    // The DM's override: the attack is a critical hit whatever the roll (D161). Players get Manual
-    // Modifiers in R5 workstream F/G.
+    // A Manual Modifier: the attack is a critical hit whatever the roll (D161). The DM may always force one,
+    // and a player while the campaign allows Manual Modifiers (D164).
     private Boolean forceCrit;
 
     // Whether the attacker is within 5 feet of the target, which makes a hit on an unconscious or paralyzed

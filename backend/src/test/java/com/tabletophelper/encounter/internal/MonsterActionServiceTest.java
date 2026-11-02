@@ -4,11 +4,8 @@ import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
-import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
-import com.tabletophelper.encounter.dto.MonsterSpellRequest;
-import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -24,9 +21,9 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Monster actions and monster spells (M12, D160). The old CombatServiceTest had no monster action cases; these
- * cover the legendary, recharge and lair rules it kept, and the monster paths through the EffectApplier, whose
- * rules EffectApplierTest runs on every path.
+ * Monster actions (M12, D160). The old CombatServiceTest had no monster action cases; these cover the legendary,
+ * recharge and lair rules it kept, and the monster paths through the EffectApplier, whose rules EffectApplierTest
+ * runs on every path. Monster spells moved to SpellcastingServiceTest when they joined the one cast path (D165).
  */
 class MonsterActionServiceTest {
 
@@ -233,59 +230,5 @@ class MonsterActionServiceTest {
         assertThrows(ForbiddenException.class, () -> f.monsterActions.monsterAction(f.encounterId(),
                 new MonsterActionRequest(dragon.getId(), "Bite", "ACTION", List.of(fighter.getId()), null, null, null),
                 playerUserId));
-    }
-
-    @Test
-    @DisplayName("A monster's concentration spell starts its Concentration Instance and spends a slot (D162)")
-    void monsterConcentrationSpell() {
-        EncounterParticipant mage = f.monster("Mage", 40, 12);
-        mage.getMonster().setActionTemplates("""
-                {"spellcasting": {"ability": "INT", "attackBonus": 6, "saveDC": 14, "slots": {"2": 3},
-                 "spellsByLevel": {"2": ["Hold Person"]}}}""");
-        f.spell("Hold Person", 2, """
-                {"spellLevel": 2, "deliveryMethod": "SAVING_THROW", "saveAbility": "WIS", "halfOnSave": false,
-                 "concentration": true, "durationRounds": 10, "effects": [], "conditionsInflicted": ["paralyzed"]}""");
-
-        f.dice.script(4);
-        CastSpellResponse response = f.monsterActions.monsterSpell(f.encounterId(),
-                new MonsterSpellRequest(mage.getId(), "Hold Person", 2, List.of(fighter.getId()), null, null, null),
-                f.dmUserId);
-
-        assertEquals("failed_save", response.getTargets().getFirst().getOutcome());
-        assertEquals("Hold Person", mage.getConcentration().spell());
-        assertEquals(EndRule.CONCENTRATION, fighter.getActiveConditions().getFirst().endRule());
-        assertEquals(mage.getConcentration().id(), fighter.getActiveConditions().getFirst().concentrationInstanceId());
-        assertEquals(1, mage.getSpellSlotsCurrent().get("2").used());
-        assertEquals(List.of("Mage casts Hold Person.",
-                "Mage casts Hold Person at Fighter: WIS save d20(4) + 0 = 4 vs DC 14 — fails, gains paralyzed."),
-                f.descriptions());
-    }
-
-    @Test
-    @DisplayName("An innate monster spell spends its daily use, and an at-will spell nothing")
-    void innateSpells() {
-        EncounterParticipant djinni = f.monster("Djinni", 161, 17);
-        djinni.getMonster().setActionTemplates("""
-                {"spellcasting": {"innateSpells": true, "ability": "CHA", "saveDC": 17,
-                 "atWillSpells": ["Detect Evil"], "dailySpells": {"1e": ["Thunderwave"]}}}""");
-        f.spell("Thunderwave", 1, """
-                {"spellLevel": 1, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "halfOnSave": true,
-                 "effects": [{"effectType": "DAMAGE", "damageDice": "2d8", "damageType": "thunder"}]}""");
-        f.spell("Detect Evil", 1, """
-                {"spellLevel": 1, "deliveryMethod": "NONE", "concentration": true, "effects": []}""");
-
-        f.dice.script(4, 4, 18);
-        f.monsterActions.monsterSpell(f.encounterId(),
-                new MonsterSpellRequest(djinni.getId(), "Thunderwave", 0, List.of(fighter.getId()), null, null, null),
-                f.dmUserId);
-        f.monsterActions.monsterSpell(f.encounterId(),
-                new MonsterSpellRequest(djinni.getId(), "Detect Evil", 0, List.of(), null, null, null), f.dmUserId);
-
-        assertEquals(0, pool(djinni, "innate:thunderwave"));
-        assertEquals(36, fighter.getHpCurrent());
-        assertEquals("Detect Evil", djinni.getConcentration().spell());
-        assertThrows(ConflictException.class, () -> f.monsterActions.monsterSpell(f.encounterId(),
-                new MonsterSpellRequest(djinni.getId(), "Thunderwave", 0, List.of(fighter.getId()), null, null, null),
-                f.dmUserId));
     }
 }

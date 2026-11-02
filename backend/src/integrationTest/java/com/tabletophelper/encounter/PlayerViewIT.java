@@ -2,6 +2,7 @@ package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -117,8 +118,11 @@ class PlayerViewIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Only the DM forces a critical hit, and a player can't target the hidden monster (D157, D161)")
+    @DisplayName("A player forces a critical hit only while the campaign allows Manual Modifiers, and can't target "
+            + "the hidden monster (D157, D164)")
     void playerAttackLimits() {
+        expect(HttpStatus.OK, exchange(HttpMethod.PATCH, "/api/campaigns/" + campaignId + "/settings",
+                Map.of("allowPlayerManualModifiers", false), dm.accessToken()));
         var forced = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/attack?actorId=" + characterId,
                 Map.of("targetId", goblinId, "attackBonus", 0, "damageDice", "4", "forceCrit", true),
                 player.accessToken());
@@ -126,7 +130,8 @@ class PlayerViewIT extends IntegrationTest {
                 Map.of("targetId", bugbearId, "attackBonus", 0, "damageDice", "4"), player.accessToken());
 
         assertThat(forced.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(json(forced).get("error").asText()).isEqualTo("Only the DM can force a critical hit");
+        assertThat(json(forced).get("error").asText())
+                .isEqualTo("This campaign doesn't allow players to enter Manual Modifiers");
         // The same answer as for a participant that doesn't exist
         assertThat(hidden.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(json(hidden).get("error").asText()).isEqualTo("Participant not found");
@@ -143,6 +148,7 @@ class PlayerViewIT extends IntegrationTest {
                  "conditionsInflicted": null}""").build());
         EncounterParticipant aria = participantRepository.findById(UUID.fromString(characterId)).orElseThrow();
         aria.setSpellSlotsCurrent(Map.of("3", new SpellSlot(1, 0)));
+        aria.setSpellsKnown(List.of(new KnownSpell(null, "Fireball", 3, "class:Sorcerer", null, null, null, null, null)));
         participantRepository.save(aria);
 
         // The DM casts it for Aria: 8 on 8d6, and both monsters fail their saves

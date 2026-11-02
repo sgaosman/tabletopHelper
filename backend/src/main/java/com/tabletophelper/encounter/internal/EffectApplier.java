@@ -760,7 +760,7 @@ public class EffectApplier {
                 description.append(": ").append(rolls(outcome)).append(signed(attack.bonus())).append(" = ")
                         .append(outcome.total()).append(" vs AC ").append(target.getArmourClass());
                 results.add(switch (outcome.outcome()) {
-                    case CRITICAL -> attack.forcedCritical() ? "critical hit (forced by the DM)" : "critical hit";
+                    case CRITICAL -> attack.forcedCritical() ? "critical hit (forced)" : "critical hit";
                     case MISS -> outcome.d20() == 1 ? "natural 1, miss" : "miss";
                     default -> "hit";
                 });

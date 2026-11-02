@@ -49,7 +49,7 @@ class EncounterServiceTest {
     @Mock private CharacterRepository characterRepository;
     @Mock private MonsterRepository monsterRepository;
     @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
-    @Mock private MonsterSpellCastService monsterSpellCastService;
+    @Mock private com.tabletophelper.encounter.internal.MonsterPools monsterPools;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private CombatLogRepository combatLogRepository;
 
@@ -69,7 +69,7 @@ class EncounterServiceTest {
                 new CreatureStats(objectMapper), combatLog, resourcePoolService), combatLog);
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
                 characterRepository, monsterRepository, objectMapper, resourcePoolService,
-                monsterSpellCastService, accessPolicy,
+                monsterPools, accessPolicy,
                 new EncounterCommands(encounterRepository, accessPolicy, eventPublisher),
                 new CombatLogReader(combatLogRepository), turnProcessor);
 

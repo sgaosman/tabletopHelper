@@ -51,6 +51,11 @@ public class Campaign {
     @Builder.Default
     private Boolean promptPlayerRepeatSaves = false;
 
+    // On: players may enter Manual Modifiers in combat, as the DM always may (D164)
+    @Column(name = "allow_player_manual_modifiers", nullable = false)
+    @Builder.Default
+    private Boolean allowPlayerManualModifiers = true;
+
     @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CampaignMember> members = new ArrayList<>();

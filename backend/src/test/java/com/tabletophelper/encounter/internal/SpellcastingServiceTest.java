@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -7,12 +8,17 @@ import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.ConcentrationRequest;
 import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
+import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
+import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
+import com.tabletophelper.encounter.state.SpellSource;
+import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Casting in combat, end to end through SpellCaster and the EffectApplier. From the old CombatServiceTest:
  * the two spell slot cases. From the old SpellResolverEngineTest: the silence check, the deliveries applied to
  * their targets, multi-target resolution and the result description; its template reading went to
- * SpellEffectsTest.
+ * SpellEffectsTest. From MonsterActionServiceTest, whose monster spells now go through castSpell (D165): a
+ * monster's concentration spell spending a slot, and its innate and at-will spells. SpellSourcesTest covers the
+ * rules of each Spell Source on their own.
  */
 class SpellcastingServiceTest {
 
@@ -68,13 +76,35 @@ class SpellcastingServiceTest {
         goblin.getMonster().setDexterity(14);
     }
 
+    // The wizard, who knows the spell and has it prepared, casts it with a slot of slotLevel, or 0 for a cantrip
     private CastSpellResponse cast(String spell, int slotLevel, List<EncounterParticipant> targets, int... rolls) {
+        f.knows(wizard, spell);
         f.dice.script(rolls);
+        return f.spellcasting.castSpell(f.encounterId(), request(spell, slotLevel, targets), wizard.getId(),
+                f.dmUserId);
+    }
+
+    private static CastSpellRequest request(String spell, int slotLevel, List<EncounterParticipant> targets) {
         CastSpellRequest request = new CastSpellRequest();
         request.setSpellName(spell);
         request.setSlotLevel(slotLevel);
         request.setTargetIds(targets.stream().map(EncounterParticipant::getId).toList());
-        return f.spellcasting.castSpell(f.encounterId(), request, wizard.getId(), f.dmUserId);
+        return request;
+    }
+
+    private static CastSpellRequest request(String spell, SpellSource source, int slotLevel,
+                                            List<EncounterParticipant> targets) {
+        CastSpellRequest request = request(spell, slotLevel, targets);
+        request.setSpellSource(source);
+        return request;
+    }
+
+    private static int pool(EncounterParticipant participant, String poolId) {
+        return participant.getResourcePoolsCurrent().stream()
+                .filter(pool -> pool.poolId().equals(poolId))
+                .mapToInt(ResourcePoolEntry::currentUses)
+                .findFirst()
+                .orElseThrow();
     }
 
     @Nested
@@ -291,13 +321,12 @@ class SpellcastingServiceTest {
             EncounterParticipant bugbear = f.monster("Bugbear", 27, 16);
             bugbear.setIsVisibleToPlayers(false);
             f.spell("Fire Bolt", 0, FIRE_BOLT);
-            CastSpellRequest request = new CastSpellRequest();
-            request.setSpellName("Fire Bolt");
-            request.setSlotLevel(0);
-            request.setTargetIds(List.of(bugbear.getId()));
+            f.knows(wizard, "Fire Bolt");
+            CastSpellRequest request = request("Fire Bolt", 0, List.of(bugbear));
 
-            assertThrows(ValidationException.class,
+            ValidationException ex = assertThrows(ValidationException.class,
                     () -> f.spellcasting.castSpell(f.encounterId(), request, wizard.getId(), playerUserId));
+            assertEquals("Participant not found", ex.getMessage());
         }
     }
 
@@ -411,23 +440,364 @@ class SpellcastingServiceTest {
         }
 
         @Test
-        @DisplayName("A cast with a slot spends it, a pact slot when asked, and a level with none left is a 409")
+        @DisplayName("A cast with a slot spends it, a pact slot when asked, and a level with none left is a 400")
         void castSpendsASlot() {
             f.spell("Fire Bolt", 0, FIRE_BOLT);
             f.spell("Hold Person", 2, HOLD_PERSON);
             wizard.setSpellSlotsCurrent(Map.of("2", new SpellSlot(1, 0), "pact_2", new SpellSlot(1, 0)));
 
             cast("Hold Person", 2, List.of(goblin), 18);
-            CastSpellRequest pact = new CastSpellRequest();
-            pact.setSpellName("Hold Person");
-            pact.setSlotLevel(2);
-            pact.setUsePactSlot(true);
-            pact.setTargetIds(List.of(goblin.getId()));
             f.dice.script(18);
-            f.spellcasting.castSpell(f.encounterId(), pact, wizard.getId(), f.dmUserId);
+            f.spellcasting.castSpell(f.encounterId(), request("Hold Person", SpellSource.PACT_SLOT, 2, List.of(goblin)),
+                    wizard.getId(), f.dmUserId);
 
             assertEquals(Map.of("2", new SpellSlot(1, 1), "pact_2", new SpellSlot(1, 1)), wizard.getSpellSlotsCurrent());
-            assertThrows(ConflictException.class, () -> cast("Hold Person", 2, List.of(goblin), 18));
+            ValidationException ex = assertThrows(ValidationException.class,
+                    () -> cast("Hold Person", 2, List.of(goblin), 18));
+            assertEquals("Wizard has no level 2 spell slots left", ex.getMessage());
+            assertEquals(List.of("Wizard uses a level 2 spell slot (0/1 remaining)",
+                    "Wizard uses a level 2 pact slot (0/1 remaining)"),
+                    f.entries(CombatActionType.SPELL_SLOT_USE).stream().map(CombatLog::getDescription).toList());
+        }
+    }
+
+    @Nested
+    @DisplayName("Spell legality for player characters (D164)")
+    class Legality {
+
+        @Test
+        @DisplayName("A spell the character doesn't have is a 400, and nothing is spent")
+        void unknownSpell() {
+            f.spell("Fireball", 3, FIREBALL);
+
+            ValidationException ex = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Fireball", 3, List.of(goblin)), wizard.getId(), f.dmUserId));
+
+            assertEquals("Wizard can't cast Fireball: it isn't one of their spells", ex.getMessage());
+            assertEquals(new SpellSlot(3, 0), wizard.getSpellSlotsCurrent().get("3"));
+            assertTrue(f.log.isEmpty());
+        }
+
+        @Test
+        @DisplayName("A prepared caster's unprepared spell is a 400; a known caster's needs no preparing")
+        void preparedSpells() {
+            f.spell("Fireball", 3, FIREBALL);
+            f.knows(wizard, new KnownSpell(null, "Fireball", 3, "class:Wizard", false, null, null, null, null));
+            EncounterParticipant sorcerer = f.player("Sorcerer", 30, 12);
+            sorcerer.setSpellSaveDc(14);
+            sorcerer.setSpellSlotsCurrent(Map.of("3", new SpellSlot(2, 0)));
+            f.knows(sorcerer, new KnownSpell(null, "Fireball", 3, "class:Sorcerer", false, null, null, null, null));
+
+            ValidationException ex = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Fireball", 3, List.of(goblin)), wizard.getId(), f.dmUserId));
+            f.dice.script(1, 1, 1, 1, 1, 1, 1, 1, 20);
+            f.spellcasting.castSpell(f.encounterId(), request("Fireball", 3, List.of(goblin)), sorcerer.getId(),
+                    f.dmUserId);
+
+            assertEquals("Wizard hasn't prepared Fireball", ex.getMessage());
+            assertEquals(new SpellSlot(2, 1), sorcerer.getSpellSlotsCurrent().get("3"));
+        }
+
+        @Test
+        @DisplayName("A levelled spell needs a slot of at least its level: no slot, or a lower one, is a 400")
+        void levelledSpellNeedsASlot() {
+            f.spell("Hold Person", 2, HOLD_PERSON);
+            f.knows(wizard, "Hold Person");
+
+            ValidationException free = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Hold Person", 0, List.of(goblin)), wizard.getId(), f.dmUserId));
+            ValidationException low = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Hold Person", 1, List.of(goblin)), wizard.getId(), f.dmUserId));
+
+            assertEquals("Hold Person is a level 2 spell, so it needs a spell slot, a pact slot or an innate use",
+                    free.getMessage());
+            assertEquals("Hold Person is a level 2 spell, so it needs a slot of level 2 or higher", low.getMessage());
+            assertEquals(new SpellSlot(4, 0), wizard.getSpellSlotsCurrent().get("1"));
+            assertNull(wizard.getConcentration());
+        }
+
+        @Test
+        @DisplayName("A subclass's always-prepared spells, which the sheet doesn't list, can be cast from their level")
+        void subclassSpells() {
+            f.spell("Bless", 1, """
+                    {"spellLevel": 1, "deliveryMethod": "AUTO_HIT", "concentration": true, "durationRounds": 10,
+                     "effects": [], "conditionsInflicted": ["blessed"]}""");
+            f.spell("Spiritual Weapon", 2, """
+                    {"spellLevel": 2, "deliveryMethod": "NONE", "effects": []}""");
+            EncounterParticipant cleric = f.player("Cleric", 30, 16);
+            cleric.setSpellSlotsCurrent(Map.of("1", new SpellSlot(2, 0), "2", new SpellSlot(1, 0)));
+            cleric.getCharacter().setCharacterClass("Cleric");
+            cleric.getCharacter().setSubclassRef(Subclass.builder().id(UUID.randomUUID()).name("Life Domain")
+                    .alwaysPreparedSpells("{\"1\": [\"bless\"], \"3\": [\"spiritual weapon\"]}").build());
+
+            f.spellcasting.castSpell(f.encounterId(), request("Bless", 1, List.of(cleric)), cleric.getId(), f.dmUserId);
+            ValidationException locked = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Spiritual Weapon", 2, List.of()), cleric.getId(), f.dmUserId));
+
+            assertEquals("Bless", cleric.getConcentration().spell());
+            assertEquals("Cleric can't cast Spiritual Weapon: it isn't one of their spells", locked.getMessage());
+        }
+
+        @Test
+        @DisplayName("A race spell with uses of its own spends one from a pool started full, from the level it unlocks at")
+        void raceSpellUsesItsOwnUses() {
+            f.spell("Hellish Rebuke", 1, """
+                    {"spellLevel": 1, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "halfOnSave": true,
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "2d10", "damageType": "fire",
+                       "upcastScaling": {"additionalDicePerLevel": "1d10"}}]}""");
+            EncounterParticipant tiefling = f.player("Tiefling", 30, 12);
+            tiefling.setSpellSaveDc(13);
+            tiefling.setSpellSlotsCurrent(Map.of("2", new SpellSlot(1, 0)));
+            f.knows(tiefling, new KnownSpell(null, "Hellish Rebuke", 1, "race:Tiefling", null, null, null, 1, 3));
+
+            ValidationException locked = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Hellish Rebuke", SpellSource.INNATE, 0, List.of(goblin)),
+                    tiefling.getId(), f.dmUserId));
+            tiefling.getCharacter().setLevel(3);
+            f.dice.script(5, 5, 1);
+            CastSpellResponse response = f.spellcasting.castSpell(f.encounterId(),
+                    request("Hellish Rebuke", SpellSource.INNATE, 0, List.of(goblin)), tiefling.getId(), f.dmUserId);
+            ValidationException spent = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Hellish Rebuke", SpellSource.INNATE, 0, List.of(goblin)),
+                    tiefling.getId(), f.dmUserId));
+
+            assertEquals("Tiefling can cast Hellish Rebuke from level 3", locked.getMessage());
+            assertEquals(SpellSource.INNATE, response.getSpellSource());
+            assertEquals(1, response.getSlotLevelUsed());
+            assertEquals(10, goblin.getHpCurrent());
+            assertEquals(0, pool(tiefling, "innate:hellish-rebuke"));
+            assertEquals("Tiefling has no uses of Hellish Rebuke left", spent.getMessage());
+            assertEquals(new SpellSlot(1, 0), tiefling.getSpellSlotsCurrent().get("2"));
+            assertTrue(f.descriptions().contains("Tiefling uses an innate use of Hellish Rebuke (0/1 remaining)"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Spell Sources (D165)")
+    class Sources {
+
+        @Test
+        @DisplayName("A pact slot casts at the pact slots' level, upcasting the spell, and the response says so")
+        void pactSlotCastsAtItsLevel() {
+            f.spell("Hold Person", 2, HOLD_PERSON);
+            EncounterParticipant warlock = f.player("Warlock", 30, 13);
+            warlock.setSpellSaveDc(14);
+            warlock.setSpellSlotsCurrent(Map.of("pact_3", new SpellSlot(2, 0)));
+            f.knows(warlock, new KnownSpell(null, "Hold Person", 2, "class:Warlock", null, null, null, null, null));
+            EncounterParticipant orc = f.monster("Orc", 15, 13);
+
+            f.dice.script(2, 2);
+            CastSpellResponse response = f.spellcasting.castSpell(f.encounterId(),
+                    request("Hold Person", SpellSource.PACT_SLOT, 0, List.of(goblin, orc)), warlock.getId(),
+                    f.dmUserId);
+
+            assertEquals(3, response.getSlotLevelUsed());
+            assertEquals(SpellSource.PACT_SLOT, response.getSpellSource());
+            assertEquals(new SpellSlot(2, 1), warlock.getSpellSlotsCurrent().get("pact_3"));
+            assertEquals(3, warlock.getConcentration().slotLevel());
+            assertEquals(List.of("paralyzed"), CombatFixture.conditionNames(orc));
+        }
+
+        @Test
+        @DisplayName("A cantrip costs nothing, and naming a slot for one is a 400")
+        void cantripsAreFree() {
+            f.spell("Fire Bolt", 0, FIRE_BOLT);
+
+            CastSpellResponse response = cast("Fire Bolt", 0, List.of(goblin), 15, 4);
+            ValidationException ex = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Fire Bolt", SpellSource.NONE, 2, List.of(goblin)), wizard.getId(),
+                    f.dmUserId));
+
+            assertEquals(SpellSource.NONE, response.getSpellSource());
+            assertEquals("Fire Bolt is a cantrip, so it is cast without a slot", ex.getMessage());
+            assertTrue(f.entries(CombatActionType.SPELL_SLOT_USE).isEmpty());
+        }
+
+        @Test
+        @DisplayName("The options list what the character can cast now and what pays for each; unprepared spells aren't")
+        void options() {
+            f.spell("Fire Bolt", 0, FIRE_BOLT);
+            f.spell("Fireball", 3, FIREBALL);
+            f.spell("Hold Person", 2, HOLD_PERSON);
+            f.knows(wizard, "Fire Bolt");
+            f.knows(wizard, "Fireball");
+            f.knows(wizard, new KnownSpell(null, "Hold Person", 2, "class:Wizard", false, null, null, null, null));
+            wizard.setSpellSlotsCurrent(Map.of("3", new SpellSlot(3, 3), "4", new SpellSlot(2, 0)));
+
+            List<SpellOption> options = f.spellcasting.spellOptions(f.encounterId(), wizard.getId(), f.dmUserId);
+
+            assertEquals(List.of("Fire Bolt", "Fireball"), options.stream().map(SpellOption::name).toList());
+            assertEquals(List.of(new SpellOption.SourceOption(SpellSource.SLOT, List.of(4), null, null)),
+                    options.get(1).sources());
+        }
+
+        @Test
+        @DisplayName("A player reads only their own character's options")
+        void optionsAreForTheController() {
+            UUID playerUserId = f.playerControlling(wizard);
+            EncounterParticipant cleric = f.player("Cleric", 30, 16);
+            f.playerControlling(cleric);
+
+            assertTrue(f.spellcasting.spellOptions(f.encounterId(), wizard.getId(), playerUserId).isEmpty());
+            assertThrows(ForbiddenException.class,
+                    () -> f.spellcasting.spellOptions(f.encounterId(), cleric.getId(), playerUserId));
+            assertThrows(ForbiddenException.class,
+                    () -> f.spellcasting.spellOptions(f.encounterId(), goblin.getId(), playerUserId));
+        }
+    }
+
+    @Nested
+    @DisplayName("Monster spells, cast the way player characters cast (D165)")
+    class MonsterSpells {
+
+        private EncounterParticipant fighter;
+
+        @BeforeEach
+        void setUpFighter() {
+            fighter = f.player("Fighter", 40, 18);
+        }
+
+        @Test
+        @DisplayName("A monster's concentration spell spends a slot and starts its Concentration Instance (D162)")
+        void monsterConcentrationSpell() {
+            EncounterParticipant mage = f.monster("Mage", 40, 12);
+            mage.getMonster().setActionTemplates("""
+                    {"spellcasting": {"ability": "INT", "attackBonus": 6, "saveDC": 14, "slots": {"2": 3},
+                     "spellsByLevel": {"2": ["Hold Person"]}}}""");
+            f.spell("Hold Person", 2, HOLD_PERSON);
+
+            f.dice.script(4);
+            CastSpellResponse response = f.spellcasting.castSpell(f.encounterId(),
+                    request("Hold Person", 2, List.of(fighter)), mage.getId(), f.dmUserId);
+
+            assertEquals("failed_save", response.getTargets().getFirst().getOutcome());
+            assertEquals("Hold Person", mage.getConcentration().spell());
+            assertEquals(EndRule.CONCENTRATION, fighter.getActiveConditions().getFirst().endRule());
+            assertEquals(mage.getConcentration().id(), fighter.getActiveConditions().getFirst().concentrationInstanceId());
+            assertEquals(1, mage.getSpellSlotsCurrent().get("2").used());
+            assertEquals(List.of("Mage uses a level 2 spell slot (2/3 remaining)", "Mage casts Hold Person.",
+                    "Mage casts Hold Person at Fighter: WIS save d20(4) + 0 = 4 vs DC 14 — fails, gains paralyzed."),
+                    f.descriptions());
+        }
+
+        @Test
+        @DisplayName("An innate spell spends a daily use, never a slot; at will costs nothing; none left is a 400")
+        void innateSpells() {
+            EncounterParticipant djinni = f.monster("Djinni", 161, 17);
+            djinni.getMonster().setActionTemplates("""
+                    {"spellcasting": {"innateSpells": true, "ability": "CHA", "saveDC": 17,
+                     "atWillSpells": ["Detect Evil"], "dailySpells": {"3e/day each": ["Thunderwave"]}}}""");
+            f.spell("Thunderwave", 1, """
+                    {"spellLevel": 1, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "halfOnSave": true,
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "2d8", "damageType": "thunder"}]}""");
+            f.spell("Detect Evil", 1, """
+                    {"spellLevel": 1, "deliveryMethod": "NONE", "concentration": true, "effects": []}""");
+
+            f.dice.script(4, 4, 18);
+            CastSpellResponse thunderwave = f.spellcasting.castSpell(f.encounterId(),
+                    request("Thunderwave", 0, List.of(fighter)), djinni.getId(), f.dmUserId);
+            f.spellcasting.castSpell(f.encounterId(), request("Detect Evil", 0, List.of()), djinni.getId(), f.dmUserId);
+            ValidationException upcast = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Thunderwave", SpellSource.INNATE, 2, List.of(fighter)), djinni.getId(),
+                    f.dmUserId));
+
+            // "3e/day each" gives three uses of a level 1 spell, not a level 3 one
+            assertEquals(1, thunderwave.getSlotLevelUsed());
+            assertEquals(SpellSource.INNATE, thunderwave.getSpellSource());
+            assertEquals(2, pool(djinni, "innate:thunderwave"));
+            assertEquals(36, fighter.getHpCurrent());
+            assertEquals("Detect Evil", djinni.getConcentration().spell());
+            assertEquals("Thunderwave is cast at its own level, 1, with an innate use: innate spells aren't upcast",
+                    upcast.getMessage());
+
+            djinni.setResourcePoolsCurrent(List.of(SpellSources.innatePool("Thunderwave", 3, "MONSTER", "Djinni")
+                    .withCurrentUses(0)));
+            ValidationException spent = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Thunderwave", 0, List.of(fighter)), djinni.getId(), f.dmUserId));
+            assertEquals("Djinni has no uses of Thunderwave left", spent.getMessage());
+        }
+
+        @Test
+        @DisplayName("A monster can't cast a spell its stat block doesn't list, or a levelled spell without a slot")
+        void monsterRefusals() {
+            EncounterParticipant mage = f.monster("Mage", 40, 12);
+            mage.getMonster().setActionTemplates("""
+                    {"spellcasting": {"saveDC": 14, "slots": {"1": 4}, "spellsByLevel": {"1": ["Thunderwave"]}}}""");
+            f.spell("Thunderwave", 1, "{\"spellLevel\": 1, \"deliveryMethod\": \"NONE\", \"effects\": []}");
+            f.spell("Fireball", 3, FIREBALL);
+
+            ValidationException unknown = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Fireball", 3, List.of(fighter)), mage.getId(), f.dmUserId));
+            ValidationException free = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
+                    f.encounterId(), request("Thunderwave", 0, List.of(fighter)), mage.getId(), f.dmUserId));
+
+            assertEquals("Mage can't cast Fireball: it isn't one of their spells", unknown.getMessage());
+            assertEquals("Thunderwave is a level 1 spell, so it needs a spell slot, a pact slot or an innate use",
+                    free.getMessage());
+            assertEquals(0, mage.getSpellSlotsCurrent().get("1").used());
+        }
+    }
+
+    @Nested
+    @DisplayName("Manual Modifiers (D164)")
+    class ManualModifierCases {
+
+        @Test
+        @DisplayName("The DM's spell attack bonus replaces the caster's, and is logged with its value")
+        void dmOverride() {
+            f.spell("Fire Bolt", 0, FIRE_BOLT);
+            f.knows(wizard, "Fire Bolt");
+            CastSpellRequest request = request("Fire Bolt", 0, List.of(goblin));
+            request.setOverrideSpellAttackBonus(9);
+
+            f.dice.script(6, 4);
+            CastSpellResponse response = f.spellcasting.castSpell(f.encounterId(), request, wizard.getId(), f.dmUserId);
+
+            assertEquals(15, response.getTargets().getFirst().getAttackRoll());
+            assertEquals("Manual Modifier (DM): Wizard's Fire Bolt uses spell attack bonus +9 instead of +5.",
+                    f.descriptions().getFirst());
+        }
+
+        @Test
+        @DisplayName("A player's save DC is used and logged while the campaign allows players Manual Modifiers")
+        void playerOverrideAllowed() {
+            UUID playerUserId = f.playerControlling(wizard);
+            f.spell("Hold Person", 2, HOLD_PERSON);
+            f.knows(wizard, "Hold Person");
+            CastSpellRequest request = request("Hold Person", 2, List.of(goblin));
+            request.setOverrideSpellSaveDC(20);
+
+            f.dice.script(17);
+            CastSpellResponse response = f.spellcasting.castSpell(f.encounterId(), request, wizard.getId(),
+                    playerUserId);
+
+            assertEquals("failed_save", response.getTargets().getFirst().getOutcome());
+            assertTrue(f.descriptions().contains(
+                    "Manual Modifier (player): Wizard's Hold Person uses spell save DC 20 instead of 15."));
+        }
+
+        @Test
+        @DisplayName("A player's Manual Modifier is a 403 when the campaign doesn't allow them, and nothing is spent")
+        void playerOverrideRefused() {
+            UUID playerUserId = f.playerControlling(wizard);
+            f.campaign.setAllowPlayerManualModifiers(false);
+            f.spell("Hold Person", 2, HOLD_PERSON);
+            f.knows(wizard, "Hold Person");
+            CastSpellRequest request = request("Hold Person", 2, List.of(goblin));
+            request.setOverrideSpellSaveDC(20);
+            RepeatSpellEffectRequest repeat = new RepeatSpellEffectRequest();
+            repeat.setTargetIds(List.of(goblin.getId()));
+            repeat.setOverrideSpellAttackBonus(9);
+
+            ForbiddenException cast = assertThrows(ForbiddenException.class,
+                    () -> f.spellcasting.castSpell(f.encounterId(), request, wizard.getId(), playerUserId));
+            ForbiddenException again = assertThrows(ForbiddenException.class,
+                    () -> f.spellcasting.repeatSpellEffect(f.encounterId(), repeat, wizard.getId(), playerUserId));
+
+            assertEquals("This campaign doesn't allow players to enter Manual Modifiers", cast.getMessage());
+            assertEquals(cast.getMessage(), again.getMessage());
+            assertEquals(new SpellSlot(3, 0), wizard.getSpellSlotsCurrent().get("2"));
+            assertTrue(f.log.isEmpty());
         }
     }
 }

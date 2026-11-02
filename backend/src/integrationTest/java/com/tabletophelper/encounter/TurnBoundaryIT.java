@@ -2,6 +2,7 @@ package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;
@@ -31,6 +32,7 @@ class TurnBoundaryIT extends IntegrationTest {
 
     @Autowired private MonsterRepository monsterRepository;
     @Autowired private SpellRepository spellRepository;
+    @Autowired private EncounterParticipantRepository participantRepository;
 
     private RegisteredUser dm;
     private RegisteredUser player;
@@ -76,6 +78,12 @@ class TurnBoundaryIT extends IntegrationTest {
                 Map.of("participantType", "PLAYER", "characterId", character, "displayName", "Aria")), "Aria");
         ghoulId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", ghoul.getId(), "displayName", "Ghoul")), "Ghoul");
+        // Aria knows both cantrips, so the spell rules let her cast them (D165)
+        EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
+        aria.setSpellsKnown(List.of(
+                new KnownSpell(null, "Hideous Laugh", 0, "class:Fighter", null, null, null, null, null),
+                new KnownSpell(null, "Sickening Ray", 0, "class:Fighter", null, null, null, null, null)));
+        participantRepository.save(aria);
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/initiatives",
                 Map.of("initiatives", List.of(Map.of("participantId", ariaId, "initiative", 20),
                         Map.of("participantId", ghoulId, "initiative", 10))), dm.accessToken()));

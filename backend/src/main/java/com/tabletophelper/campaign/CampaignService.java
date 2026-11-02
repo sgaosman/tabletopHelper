@@ -107,6 +107,9 @@ public class CampaignService {
         if (request.promptPlayerRepeatSaves() != null) {
             campaign.setPromptPlayerRepeatSaves(request.promptPlayerRepeatSaves());
         }
+        if (request.allowPlayerManualModifiers() != null) {
+            campaign.setAllowPlayerManualModifiers(request.allowPlayerManualModifiers());
+        }
         return toResponse(campaignRepository.save(campaign));
     }
 
@@ -131,6 +134,7 @@ public class CampaignService {
                 .isActive(campaign.getIsActive())
                 .showExactMonsterHp(campaign.getShowExactMonsterHp())
                 .promptPlayerRepeatSaves(campaign.getPromptPlayerRepeatSaves())
+                .allowPlayerManualModifiers(campaign.getAllowPlayerManualModifiers())
                 .members(memberResponses)
                 .createdAt(campaign.getCreatedAt())
                 .build();

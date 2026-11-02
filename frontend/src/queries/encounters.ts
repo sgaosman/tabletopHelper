@@ -187,6 +187,19 @@ export function useMonsterActionTemplates(participantId: string) {
   });
 }
 
+/**
+ * The spells a participant can cast now, with what can pay for each (D164, D165). Casting spends slots and uses,
+ * so the options load again each time they are shown.
+ */
+export function useSpellOptions(participantId: string) {
+  const { encounterId, view } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.spellOptions(encounterId, view, participantId),
+    queryFn: async () => (await combatApi.getSpellOptions(encounterId, participantId)).data,
+    staleTime: 0,
+  });
+}
+
 /** An API call that changes an encounter, minus the encounter's ID, which the session page supplies. */
 type EncounterRequest<A extends unknown[], T> = (encounterId: string, ...args: A) => Promise<AxiosResponse<T>>;
 
@@ -242,7 +255,6 @@ export function useEncounterAction() {
       spendLegendaryResistance: change(combatApi.useLegendaryResistance),
       castSpell: resolve(combatApi.castSpell),
       repeatSpellEffect: resolve(combatApi.repeatSpellEffect),
-      monsterSpell: resolve(combatApi.monsterSpell),
       monsterAction: resolve(combatApi.monsterAction),
     };
   }, [queryClient, encounterId, view, socketMessages]);

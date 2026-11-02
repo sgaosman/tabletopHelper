@@ -1121,7 +1121,7 @@ function DmSessionView() {
             caster={selectedTarget}
             participants={encounter.participants}
             onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
-            isMonster={selectedTarget.participantType === 'MONSTER'}
+            allowManualModifiers
           />
         )}
 
@@ -1132,7 +1132,7 @@ function DmSessionView() {
             participants={encounter.participants}
             spellName={(selectedTarget.concentrationSpell || selectedTarget.activeSpell)!}
             onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
-            isMonster={selectedTarget.participantType === 'MONSTER'}
+            allowManualModifiers
           />
         )}
 

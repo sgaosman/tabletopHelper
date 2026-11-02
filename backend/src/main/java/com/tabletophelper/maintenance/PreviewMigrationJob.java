@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.reference.MonsterPoolTrigger;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.FlushMode;
 import org.hibernate.Session;
@@ -42,9 +43,9 @@ import java.util.stream.Collectors;
 
 /**
  * Dry-runs a pending Flyway migration (D150, D168). It runs {@code db/migration/V<N>__*.sql} in a
- * transaction it always rolls back, reports each encounter, participant and combat log row the
- * migration would change, before and after, and checks that every row then loads with the current
- * entity mappings. It never writes: Flyway applies the migration at the next normal start.
+ * transaction it always rolls back, reports each encounter, participant, combat log and monster pool
+ * trigger row the migration would change, before and after, and checks that every row then loads with
+ * the current entity mappings. It never writes: Flyway applies the migration at the next normal start.
  * <p>
  * Start the app with Flyway's target below the migration, so it stays pending, and with
  * {@code --server.port=0} to stay clear of a running backend. For V15:
@@ -60,10 +61,11 @@ public class PreviewMigrationJob implements MaintenanceJob {
         TABLES.put("encounters", Encounter.class);
         TABLES.put("encounter_participants", EncounterParticipant.class);
         TABLES.put("combat_logs", CombatLog.class);
+        TABLES.put("monster_pool_triggers", MonsterPoolTrigger.class);
     }
 
     // The columns that name a row in the report
-    private static final List<String> LABEL_COLUMNS = List.of("display_name", "name", "action_type");
+    private static final List<String> LABEL_COLUMNS = List.of("display_name", "name", "action_type", "pool_id");
 
     private static final Pattern MIGRATION_FILE = Pattern.compile("V(\\d+)__.+\\.sql");
 

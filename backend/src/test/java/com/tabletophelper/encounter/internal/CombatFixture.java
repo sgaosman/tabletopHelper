@@ -16,16 +16,17 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
 import com.tabletophelper.encounter.EncounterStatus;
-import com.tabletophelper.encounter.MonsterSpellCastService;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.LifeState;
@@ -38,6 +39,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
@@ -55,14 +57,16 @@ class CombatFixture {
     final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     final EncounterService encounterService = mock(EncounterService.class);
     final SpellRepository spellRepository = mock(SpellRepository.class);
+    final SubclassRepository subclassRepository = mock(SubclassRepository.class);
+    final MonsterPoolTriggerRepository monsterPoolTriggerRepository = mock(MonsterPoolTriggerRepository.class);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final ScriptedDice dice = new ScriptedDice();
     final Resolver resolver = new Resolver(dice);
     final CreatureStats stats = new CreatureStats(objectMapper);
     final CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
-    final ResourcePoolService resourcePoolService = new ResourcePoolService(
-            mock(ClassFeaturePoolRepository.class), mock(MonsterPoolTriggerRepository.class), objectMapper);
+    final ResourcePoolService resourcePoolService =
+            new ResourcePoolService(mock(ClassFeaturePoolRepository.class), objectMapper);
     final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog, resourcePoolService);
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final CombatAccess access = new CombatAccess(
@@ -70,19 +74,20 @@ class CombatFixture {
     final SpellEffects spellEffects = new SpellEffects(spellRepository, objectMapper, stats);
     final SpellCaster spellCaster = new SpellCaster(spellEffects, resolver, effectApplier, stats);
     final MonsterEffects monsterEffects = new MonsterEffects(dice);
-    final MonsterSpellCastService monsterSpellCastService =
-            new MonsterSpellCastService(spellCaster, resourcePoolService, objectMapper, spellRepository);
+    final MonsterPools monsterPools = new MonsterPools(monsterPoolTriggerRepository, spellRepository, objectMapper);
+    final ManualModifiers manualModifiers = new ManualModifiers(combatLog);
+    final CasterSpells casterSpells = new CasterSpells(monsterPools, resourcePoolService, combatLog, spellRepository,
+            subclassRepository, objectMapper);
 
     final HitPointService hitPoints = new HitPointService(access, effectApplier, encounterRepository, encounterService);
     final ConditionService conditionService =
             new ConditionService(access, effectApplier, encounterRepository, encounterService);
-    final AttackService attacks =
-            new AttackService(access, resolver, stats, effectApplier, encounterRepository, encounterService);
-    final SpellcastingService spellcasting = new SpellcastingService(access, spellCaster, spellEffects,
-            effectApplier, combatLog, encounterRepository, encounterService);
+    final AttackService attacks = new AttackService(access, resolver, stats, effectApplier, manualModifiers,
+            encounterRepository, encounterService);
+    final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
+            spellEffects, effectApplier, manualModifiers, combatLog, encounterRepository, encounterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, monsterEffects, resolver, stats,
-            effectApplier, monsterSpellCastService, resourcePoolService, objectMapper, encounterRepository,
-            encounterService);
+            effectApplier, resourcePoolService, objectMapper, encounterRepository, encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatLog, encounterRepository, encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
@@ -227,11 +232,28 @@ class CombatFixture {
 
     // ── Spells ───────────────────────────────────────────────────
 
-    /** Makes the spell repository return the spell with this effect template. */
+    /** Makes the spell repository return the spell with this effect template, for its name in any case. */
     Spell spell(String name, int level, String template) {
         Spell spell = Spell.builder().id(UUID.randomUUID()).name(name).level(level).effectTemplate(template).build();
-        lenient().when(spellRepository.findByNameIgnoreCase(name)).thenReturn(Optional.of(spell));
+        lenient().when(spellRepository.findByNameIgnoreCase(argThat(name::equalsIgnoreCase)))
+                .thenReturn(Optional.of(spell));
         return spell;
+    }
+
+    /** Gives a player character a spell {@link #spell} made, prepared, as a Wizard's (D164). */
+    void knows(EncounterParticipant pc, String spellName) {
+        int level = spellRepository.findByNameIgnoreCase(spellName).map(Spell::getLevel).orElseThrow();
+        knows(pc, new KnownSpell(null, spellName, level, "class:Wizard", true, null, null, null, null));
+    }
+
+    /** Adds the entry to the participant's known spells, unless it is there already. */
+    void knows(EncounterParticipant participant, KnownSpell spell) {
+        List<KnownSpell> spells = participant.getSpellsKnown() != null
+                ? new ArrayList<>(participant.getSpellsKnown()) : new ArrayList<>();
+        if (!spells.contains(spell)) {
+            spells.add(spell);
+            participant.setSpellsKnown(spells);
+        }
     }
 
     // ── The log ──────────────────────────────────────────────────

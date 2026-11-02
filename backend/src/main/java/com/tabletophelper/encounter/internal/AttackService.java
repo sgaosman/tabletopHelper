@@ -10,7 +10,6 @@ import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Resolver;
-import com.tabletophelper.shared.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +20,8 @@ import java.util.UUID;
 /**
  * Weapon attacks with the numbers the attacker gives (D022, until R5 workstream G calculates them). An attack
  * on an unconscious or paralyzed target has advantage, and a hit from within 5 feet is a critical hit; attacks
- * never hit automatically, and the dead can't be attacked (D161).
+ * never hit automatically, and the dead can't be attacked (D161). A forced critical hit is a Manual Modifier
+ * (D164).
  */
 @Service
 @RequiredArgsConstructor
@@ -31,21 +31,22 @@ public class AttackService {
     private final Resolver resolver;
     private final CreatureStats stats;
     private final EffectApplier effectApplier;
+    private final ManualModifiers manualModifiers;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
     /**
      * An attack by the actor, or by the DM as no one when actorParticipantId is null. A player attacks only
-     * with their own character on its turn (D028), and only the DM may force a critical hit (D161).
+     * with their own character on its turn (D028), and forces a critical hit only while the campaign allows
+     * players Manual Modifiers; the DM always may (D164).
      */
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId,
                                         UUID userId) {
         Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
         boolean forcedCritical = Boolean.TRUE.equals(request.getForceCrit());
-        if (forcedCritical && !CombatAccess.isDm(encounter, userId)) {
-            throw new ForbiddenException("Only the DM can force a critical hit");
-        }
+        List<ManualModifiers.Use> modifiers = ManualModifiers.forAttack(forcedCritical);
+        manualModifiers.require(encounter, userId, modifiers);
         EncounterParticipant actor = actorParticipantId != null
                 ? CombatAccess.participant(encounter, actorParticipantId) : null;
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
@@ -61,6 +62,8 @@ public class AttackService {
 
         EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
                 CombatActionType.ATTACK, "attacks", "", null, null);
+        manualModifiers.log(encounter, CombatActionType.ATTACK, actor,
+                actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack", userId, modifiers);
         effectApplier.apply(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))));
         return encounterService.toResponse(encounterRepository.save(encounter));
     }

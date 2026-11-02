@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Zap, Shield, Target, Sparkles, AlertTriangle } from 'lucide-react';
-import { useEncounterAction } from '../../queries/encounters';
+import { useEncounterAction, useSpellOptions } from '../../queries/encounters';
 import { useFetchSpellTargeting } from '../../queries/reference';
-import type { EncounterParticipant, KnownSpell } from '../../types/encounter';
-import type { CastSpellResponse } from '../../types/combat';
+import { apiErrorMessage } from '../../api/errors';
+import type { EncounterParticipant, SpellSlot } from '../../types/encounter';
+import type { CastSpellResponse, SpellOption, SpellSource } from '../../types/combat';
 import type { SpellTargetingInfo } from '../../types/reference';
 import { healthLabel } from '../../utils/healthStatus';
 import Button from '../ui/Button';
@@ -14,20 +15,40 @@ interface Props {
   caster: EncounterParticipant;
   participants: EncounterParticipant[];
   onClose: () => void;
-  isMonster?: boolean;
+  /** Offers a spell attack bonus and save DC typed by hand: always for the DM, for players while the campaign allows it (D164). */
+  allowManualModifiers?: boolean;
 }
 
 type Step = 'spell' | 'slot' | 'target' | 'confirm';
 
-/** Casts a spell in the live encounter of the surrounding EncounterProvider, whose state the result updates. */
-export default function SpellCastModal({ caster, participants, onClose, isMonster }: Props) {
+/** How the chosen spell is paid for: a Spell Source, and the level that casts it at (D165). */
+interface CastChoice {
+  source: SpellSource;
+  level: number;
+}
+
+/** A way to pay for the spell, as the source step shows it; one that is spent is shown but can't be picked. */
+interface ChoiceRow extends CastChoice {
+  key: string;
+  label: string;
+  available: boolean;
+  left?: number;
+  max?: number;
+}
+
+/**
+ * Casts a spell in the live encounter of the surrounding EncounterProvider, whose state the result updates. The
+ * server lists what the caster can cast now and what can pay for each spell, for player characters and monsters
+ * alike, so only those are offered (D164, D165).
+ */
+export default function SpellCastModal({ caster, participants, onClose, allowManualModifiers = false }: Props) {
   const actions = useEncounterAction();
   const lookUpTargeting = useFetchSpellTargeting();
+  const spellOptions = useSpellOptions(caster.id);
   const [step, setStep] = useState<Step>('spell');
   const [search, setSearch] = useState('');
-  const [selectedSpell, setSelectedSpell] = useState<KnownSpell | null>(null);
-  const [selectedSlotLevel, setSelectedSlotLevel] = useState<number>(0);
-  const [usePactSlot, setUsePactSlot] = useState(false);
+  const [selectedSpell, setSelectedSpell] = useState<SpellOption | null>(null);
+  const [choice, setChoice] = useState<CastChoice | null>(null);
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
   const [advantage, setAdvantage] = useState<boolean | null>(null);
   const [casting, setCasting] = useState(false);
@@ -57,55 +78,34 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
     setStep('target');
   }, [lookUpTargeting]);
 
-  const spells = useMemo(() => caster.spellsKnown ?? [], [caster.spellsKnown]);
-  const slots = useMemo(() => caster.spellSlotsCurrent ?? {}, [caster.spellSlotsCurrent]);
-
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
-    const filtered = spells.filter(s =>
-      (s.prepared || s.alwaysPrepared || s.atWill || s.level === 0) &&
-      s.name.toLowerCase().includes(q)
-    );
-    return filtered.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-  }, [spells, search]);
+    return (spellOptions.data ?? []).filter(s => s.name.toLowerCase().includes(q));
+  }, [spellOptions.data, search]);
 
   const cantrips = filteredSpells.filter(s => s.level === 0);
   const leveled = filteredSpells.filter(s => s.level > 0);
 
-  const availableSlotLevels = useMemo(() => {
-    if (!selectedSpell || selectedSpell.level === 0) return [];
-    const levels: { level: number; remaining: number; max: number; isPact: boolean }[] = [];
+  const choiceRows = useMemo(
+    () => (selectedSpell ? rowsFor(selectedSpell, caster.spellSlotsCurrent ?? {}) : []),
+    [selectedSpell, caster.spellSlotsCurrent],
+  );
 
-    for (const [key, val] of Object.entries(slots)) {
-      const isPact = key.startsWith('pact_');
-      const lvl = isPact ? parseInt(key.replace('pact_', '')) : parseInt(key);
-      if (isNaN(lvl) || lvl < selectedSpell.level) continue;
-      levels.push({ level: lvl, remaining: val.max - val.used, max: val.max, isPact });
-    }
-
-    return levels.sort((a, b) => {
-      if (a.isPact !== b.isPact) return a.isPact ? 1 : -1;
-      return a.level - b.level;
-    });
-  }, [selectedSpell, slots]);
-
-  function selectSpell(spell: KnownSpell) {
-    setSelectedSpell(spell);
-    setError('');
-
-    if (spell.level === 0) {
-      setSelectedSlotLevel(0);
-      fetchTargeting(spell.name, 0);
-    } else {
-      setSelectedSlotLevel(spell.level);
-      setStep('slot');
-    }
+  function choose(spell: SpellOption, next: CastChoice) {
+    setChoice(next);
+    fetchTargeting(spell.name, next.level);
   }
 
-  function selectSlot(level: number, isPact: boolean) {
-    setSelectedSlotLevel(level);
-    setUsePactSlot(isPact);
-    if (selectedSpell) fetchTargeting(selectedSpell.name, level);
+  // A spell that only costs nothing, or only an innate use, has nothing to choose
+  function selectSpell(spell: SpellOption) {
+    setSelectedSpell(spell);
+    setError('');
+    const available = rowsFor(spell, caster.spellSlotsCurrent ?? {}).filter(row => row.available);
+    if (available.length === 1 && (available[0].source === 'NONE' || available[0].source === 'INNATE')) {
+      choose(spell, available[0]);
+    } else {
+      setStep('slot');
+    }
   }
 
   function toggleTarget(id: string) {
@@ -122,43 +122,36 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
   }
 
   async function cast() {
-    if (!selectedSpell) return;
+    if (!selectedSpell || !choice) return;
     setCasting(true);
     setError('');
 
     try {
-      const attackOverride = overrideAttackBonus ? parseInt(overrideAttackBonus) : undefined;
-      const saveDcOverride = overrideSaveDC ? parseInt(overrideSaveDC) : undefined;
-      // Monsters cast through their own endpoint so their slots and innate uses are spent (D165)
-      const cast = isMonster
-        ? await actions.monsterSpell({
-            monsterParticipantId: caster.id,
-            spellName: selectedSpell.name,
-            slotLevel: selectedSlotLevel,
-            targetParticipantIds: selectedTargets,
-            advantage,
-            overrideAttackBonus: attackOverride,
-            overrideSaveDC: saveDcOverride,
-          }, caster.id)
-        : await actions.castSpell({
-            spellName: selectedSpell.name,
-            slotLevel: selectedSlotLevel,
-            targetIds: selectedTargets,
-            advantage,
-            usePactSlot: usePactSlot || undefined,
-            overrideSpellAttackBonus: attackOverride,
-            overrideSpellSaveDC: saveDcOverride,
-          }, caster.id);
+      const attackOverride = allowManualModifiers && overrideAttackBonus ? parseInt(overrideAttackBonus) : undefined;
+      const saveDcOverride = allowManualModifiers && overrideSaveDC ? parseInt(overrideSaveDC) : undefined;
+      // Player characters and monsters cast through the one endpoint, which spends the chosen source (D165)
+      const response = await actions.castSpell({
+        spellName: selectedSpell.name,
+        spellSource: choice.source,
+        slotLevel: choice.level,
+        targetIds: selectedTargets,
+        advantage,
+        overrideSpellAttackBonus: attackOverride,
+        overrideSpellSaveDC: saveDcOverride,
+      }, caster.id);
 
-      setResult(cast);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to cast spell');
+      setResult(response);
+    } catch (err) {
+      setError(apiErrorMessage(err));
       setCasting(false);
     }
   }
 
-  function resetAndClose() {
-    onClose();
+  // Back from targeting or confirm: to the source step when there was a choice, else to the spells
+  function backToSource() {
+    const available = choiceRows.filter(row => row.available);
+    const skipped = available.length === 1 && (available[0].source === 'NONE' || available[0].source === 'INNATE');
+    setStep(skipped ? 'spell' : 'slot');
   }
 
   // The dead are out of reach, but the dying and stable can still be healed or harmed (D161)
@@ -177,7 +170,7 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
         )}
 
         {result ? (
-          <ResultView result={result} onClose={resetAndClose} />
+          <ResultView result={result} onClose={onClose} />
         ) : step === 'spell' ? (
           <SpellSelectionStep
             cantrips={cantrips}
@@ -185,13 +178,14 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
             search={search}
             onSearch={setSearch}
             onSelect={selectSpell}
-            isMonster={isMonster}
+            loading={spellOptions.isPending}
+            loadError={spellOptions.isError ? apiErrorMessage(spellOptions.error) : null}
           />
         ) : step === 'slot' ? (
-          <SlotSelectionStep
+          <SourceSelectionStep
             spell={selectedSpell!}
-            levels={availableSlotLevels}
-            onSelect={selectSlot}
+            rows={choiceRows}
+            onSelect={row => choose(selectedSpell!, row)}
             onBack={() => setStep('spell')}
           />
         ) : step === 'target' ? (
@@ -201,7 +195,7 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
             caster={caster}
             selectedTargets={selectedTargets}
             onToggle={toggleTarget}
-            onBack={() => selectedSpell!.level === 0 ? setStep('spell') : setStep('slot')}
+            onBack={backToSource}
             onProceed={proceedToConfirm}
             targetingInfo={targetingInfo}
             targetingLoading={targetingLoading}
@@ -209,8 +203,8 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
         ) : (
           <ConfirmStep
             spell={selectedSpell!}
-            slotLevel={selectedSlotLevel}
-            usePactSlot={usePactSlot}
+            choice={choice!}
+            choiceRow={choiceRows.find(row => row.source === choice!.source && row.level === choice!.level)}
             targets={participants.filter(p => selectedTargets.includes(p.id))}
             caster={caster}
             advantage={advantage}
@@ -220,12 +214,12 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
             onBack={() => {
               const noTargets = targetingInfo && !targetingInfo.selfOnly && !targetingInfo.canTargetSelf && !targetingInfo.canTargetAllies && !targetingInfo.canTargetEnemies;
               if (noTargets) {
-                setStep(selectedSpell!.level === 0 ? 'spell' : 'slot');
+                backToSource();
               } else {
                 setStep('target');
               }
             }}
-            isMonster={isMonster}
+            allowManualModifiers={allowManualModifiers}
             overrideAttackBonus={overrideAttackBonus}
             overrideSaveDC={overrideSaveDC}
             onOverrideAttackBonus={setOverrideAttackBonus}
@@ -237,13 +231,54 @@ export default function SpellCastModal({ caster, participants, onClose, isMonste
   );
 }
 
-function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isMonster }: {
-  cantrips: KnownSpell[];
-  leveled: KnownSpell[];
+/**
+ * Each way to pay for the spell: its slot levels from its own up, with the slots each has left (spent ones too,
+ * to show why they can't be picked), the pact slot, an innate use, or nothing.
+ */
+function rowsFor(spell: SpellOption, slots: Record<string, SpellSlot>): ChoiceRow[] {
+  const rows: ChoiceRow[] = [];
+  for (const option of spell.sources) {
+    if (option.source === 'SLOT') {
+      const levels = Object.entries(slots)
+        .filter(([key, slot]) => !key.startsWith('pact_') && parseInt(key) >= spell.level && slot.max > 0)
+        .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+      for (const [key, slot] of levels) {
+        const level = parseInt(key);
+        rows.push({
+          key, source: 'SLOT', level, label: `Level ${level}`,
+          available: option.levels.includes(level), left: slot.max - slot.used, max: slot.max,
+        });
+      }
+    } else if (option.source === 'PACT_SLOT') {
+      const pactKey = Object.keys(slots).find(key => key.startsWith('pact_'));
+      const level = option.levels[0] ?? (pactKey ? parseInt(pactKey.replace('pact_', '')) : spell.level);
+      rows.push({
+        key: `pact_${level}`, source: 'PACT_SLOT', level, label: `Level ${level} (Pact)`,
+        available: option.levels.length > 0, left: option.usesLeft ?? 0, max: option.usesMax ?? 0,
+      });
+    } else if (option.source === 'INNATE') {
+      rows.push({
+        key: 'innate', source: 'INNATE', level: spell.level, label: 'Innate use',
+        available: option.levels.length > 0, left: option.usesLeft ?? 0, max: option.usesMax ?? 0,
+      });
+    } else {
+      rows.push({
+        key: 'none', source: 'NONE', level: spell.level, label: spell.level === 0 ? 'Cantrip' : 'At will',
+        available: true,
+      });
+    }
+  }
+  return rows;
+}
+
+function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, loading, loadError }: {
+  cantrips: SpellOption[];
+  leveled: SpellOption[];
   search: string;
   onSearch: (s: string) => void;
-  onSelect: (spell: KnownSpell) => void;
-  isMonster?: boolean;
+  onSelect: (spell: SpellOption) => void;
+  loading: boolean;
+  loadError: string | null;
 }) {
   return (
     <>
@@ -257,10 +292,16 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isM
         autoFocus
       />
 
-      {cantrips.length === 0 && leveled.length === 0 && (
-        <p className="font-body text-[15px] font-semibold text-faint text-center py-4">
-          {isMonster ? 'Enter a spell name to cast' : 'No prepared spells found'}
-        </p>
+      {loadError && (
+        <p role="alert" className="font-body text-[15px] font-semibold text-debuff text-center py-4">{loadError}</p>
+      )}
+
+      {loading && (
+        <p className="font-body text-[15px] font-semibold text-faint text-center py-4">Loading spells...</p>
+      )}
+
+      {!loading && !loadError && cantrips.length === 0 && leveled.length === 0 && (
+        <p className="font-body text-[15px] font-semibold text-faint text-center py-4">No spells to cast</p>
       )}
 
       {cantrips.length > 0 && (
@@ -279,7 +320,7 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isM
           <p className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1.5">Spells</p>
           <div className="space-y-1">
             {leveled.map(s => (
-              <SpellRow key={s.name + s.level} spell={s} onClick={() => onSelect(s)} />
+              <SpellRow key={s.name} spell={s} onClick={() => onSelect(s)} />
             ))}
           </div>
         </div>
@@ -288,20 +329,31 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, isM
   );
 }
 
-function SpellRow({ spell, onClick }: { spell: KnownSpell; onClick: () => void }) {
+// A spell whose every source is spent stays listed, so the caster can see why it can't be cast
+function SpellRow({ spell, onClick }: { spell: SpellOption; onClick: () => void }) {
+  const castable = spell.sources.some(s => s.levels.length > 0);
+  const atWill = spell.level > 0 && spell.sources.some(s => s.source === 'NONE');
+  const innate = spell.sources.find(s => s.source === 'INNATE');
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center justify-between px-3 py-2 bg-page-alt hover:bg-rule text-left transition-colors group"
+      disabled={!castable}
+      className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors group ${
+        castable ? 'bg-page-alt hover:bg-rule' : 'bg-page-alt/50 opacity-50 cursor-not-allowed'
+      }`}
     >
       <div className="flex items-center gap-2">
         <Zap className="w-3.5 h-3.5 text-ink shrink-0" />
         <span className="font-body text-[15px] font-semibold text-ink">{spell.name}</span>
       </div>
       <div className="flex items-center gap-2">
-        {spell.alwaysPrepared && <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-cls-monk">always</span>}
-        {spell.atWill && <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-buff">at will</span>}
+        {atWill && <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-buff">at will</span>}
+        {innate && (
+          <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-cls-monk">
+            innate {innate.usesLeft ?? 0}/{innate.usesMax ?? 0}
+          </span>
+        )}
         <span className="font-body text-[13px] font-semibold text-faint">
           {spell.level === 0 ? 'Cantrip' : `Lvl ${spell.level}`}
         </span>
@@ -310,10 +362,10 @@ function SpellRow({ spell, onClick }: { spell: KnownSpell; onClick: () => void }
   );
 }
 
-function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
-  spell: KnownSpell;
-  levels: { level: number; remaining: number; max: number; isPact: boolean }[];
-  onSelect: (level: number, isPact: boolean) => void;
+function SourceSelectionStep({ spell, rows, onSelect, onBack }: {
+  spell: SpellOption;
+  rows: ChoiceRow[];
+  onSelect: (row: ChoiceRow) => void;
   onBack: () => void;
 }) {
   return (
@@ -321,42 +373,42 @@ function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
       <div className="flex items-center gap-2 mb-2">
         <Button variant="ghost" size="sm" onClick={onBack}>&larr; Back</Button>
         <span className="font-heading text-[16px] font-semibold text-ink">{spell.name}</span>
-        <span className="font-body text-[13px] font-semibold text-faint">— Select slot level</span>
+        <span className="font-body text-[13px] font-semibold text-faint">— Choose how to cast it</span>
       </div>
 
-      {levels.length === 0 && (
-        <p className="font-body text-[15px] font-semibold text-debuff text-center py-4">No spell slots available at level {spell.level} or above</p>
+      {rows.every(row => !row.available) && (
+        <p className="font-body text-[15px] font-semibold text-debuff text-center py-4">Nothing left to cast {spell.name} with</p>
       )}
 
       <div className="space-y-1.5">
-        {levels.map(l => (
+        {rows.map(row => (
           <button
-            key={l.isPact ? `pact_${l.level}` : String(l.level)}
+            key={row.key}
             type="button"
-            onClick={() => l.remaining > 0 && onSelect(l.level, l.isPact)}
-            disabled={l.remaining <= 0}
+            onClick={() => row.available && onSelect(row)}
+            disabled={!row.available}
             className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors
-              ${l.remaining > 0
+              ${row.available
                 ? 'bg-page-alt hover:bg-rule border border-rule'
                 : 'bg-page-alt/50 opacity-50 cursor-not-allowed border border-rule'
               }
-              ${l.level === spell.level && !l.isPact ? 'border-2 border-ink' : ''}
+              ${row.source === 'SLOT' && row.level === spell.level ? 'border-2 border-ink' : ''}
             `}
           >
             <div>
-              <span className="font-body text-[15px] font-semibold text-ink">
-                Level {l.level}{l.isPact ? ' (Pact)' : ''}
-              </span>
-              {l.level > spell.level && (
-                <span className="font-body text-[13px] font-semibold text-muted ml-2">Upcast +{l.level - spell.level}</span>
+              <span className="font-body text-[15px] font-semibold text-ink">{row.label}</span>
+              {row.level > spell.level && (
+                <span className="font-body text-[13px] font-semibold text-muted ml-2">Upcast +{row.level - spell.level}</span>
               )}
             </div>
-            <div className="flex items-center gap-1.5">
-              {Array.from({ length: l.max }, (_, i) => (
-                <div key={i} className={`w-2 h-2 rounded-full ${i < l.remaining ? 'bg-ink' : 'bg-rule'}`} />
-              ))}
-              <span className="font-body text-[13px] font-semibold text-faint ml-1">{l.remaining}/{l.max}</span>
-            </div>
+            {row.max !== undefined && row.left !== undefined && (
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: row.max }, (_, i) => (
+                  <div key={i} className={`w-2 h-2 rounded-full ${i < row.left! ? 'bg-ink' : 'bg-rule'}`} />
+                ))}
+                <span className="font-body text-[13px] font-semibold text-faint ml-1">{row.left}/{row.max}</span>
+              </div>
+            )}
           </button>
         ))}
       </div>
@@ -365,7 +417,7 @@ function SlotSelectionStep({ spell, levels, onSelect, onBack }: {
 }
 
 function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle, onBack, onProceed, targetingInfo, targetingLoading }: {
-  spell: KnownSpell;
+  spell: SpellOption;
   targets: EncounterParticipant[];
   caster: EncounterParticipant;
   selectedTargets: string[];
@@ -453,10 +505,24 @@ function TargetSelectionStep({ spell, targets, caster, selectedTargets, onToggle
   );
 }
 
-function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage, onAdvantageChange, casting, onCast, onBack, isMonster, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC }: {
-  spell: KnownSpell;
-  slotLevel: number;
-  usePactSlot: boolean;
+// What the chosen source spends, as the confirm step words it
+function sourceText(choice: CastChoice, spell: SpellOption, row: ChoiceRow | undefined): string | null {
+  switch (choice.source) {
+    case 'SLOT':
+      return `Using level ${choice.level} slot`;
+    case 'PACT_SLOT':
+      return `Using level ${choice.level} pact slot`;
+    case 'INNATE':
+      return `Using an innate use (${row?.left ?? 0}/${row?.max ?? 0} left)`;
+    default:
+      return spell.level > 0 ? 'Cast at will' : null;
+  }
+}
+
+function ConfirmStep({ spell, choice, choiceRow, targets, caster, advantage, onAdvantageChange, casting, onCast, onBack, allowManualModifiers, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC }: {
+  spell: SpellOption;
+  choice: CastChoice;
+  choiceRow: ChoiceRow | undefined;
   targets: EncounterParticipant[];
   caster: EncounterParticipant;
   advantage: boolean | null;
@@ -464,13 +530,14 @@ function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage
   casting: boolean;
   onCast: () => void;
   onBack: () => void;
-  isMonster?: boolean;
+  allowManualModifiers: boolean;
   overrideAttackBonus: string;
   overrideSaveDC: string;
   onOverrideAttackBonus: (v: string) => void;
   onOverrideSaveDC: (v: string) => void;
 }) {
   const hasConcentration = !!caster.concentrationSpell;
+  const paidWith = sourceText(choice, spell, choiceRow);
 
   return (
     <>
@@ -486,10 +553,10 @@ function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage
           <span className="font-body text-[13px] font-semibold text-faint">{spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}</span>
         </div>
 
-        {slotLevel > 0 && (
+        {paidWith && (
           <p className="font-body text-[15px] font-semibold text-muted">
-            Using level {slotLevel}{usePactSlot ? ' pact' : ''} slot
-            {slotLevel > spell.level && <span className="text-muted ml-1">(upcast +{slotLevel - spell.level})</span>}
+            {paidWith}
+            {choice.level > spell.level && <span className="text-muted ml-1">(upcast +{choice.level - spell.level})</span>}
           </p>
         )}
 
@@ -529,22 +596,27 @@ function ConfirmStep({ spell, slotLevel, usePactSlot, targets, caster, advantage
         })}
       </div>
 
-      {isMonster && (
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            label="Spell Attack Bonus"
-            type="number"
-            value={overrideAttackBonus}
-            onChange={e => onOverrideAttackBonus(e.target.value)}
-            placeholder={String(caster.spellAttackBonus ?? 0)}
-          />
-          <Input
-            label="Spell Save DC"
-            type="number"
-            value={overrideSaveDC}
-            onChange={e => onOverrideSaveDC(e.target.value)}
-            placeholder={String(caster.spellSaveDc ?? 10)}
-          />
+      {allowManualModifiers && (
+        <div className="space-y-1">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              label="Spell Attack Bonus"
+              type="number"
+              value={overrideAttackBonus}
+              onChange={e => onOverrideAttackBonus(e.target.value)}
+              placeholder={String(caster.spellAttackBonus ?? 0)}
+            />
+            <Input
+              label="Spell Save DC"
+              type="number"
+              value={overrideSaveDC}
+              onChange={e => onOverrideSaveDC(e.target.value)}
+              placeholder={String(caster.spellSaveDc ?? 10)}
+            />
+          </div>
+          <p className="font-body text-[13px] font-semibold text-faint">
+            Manual Modifiers: leave blank to use the caster&apos;s own. Any you enter is noted in the combat log.
+          </p>
         </div>
       )}
 

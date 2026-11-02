@@ -12,6 +12,7 @@ import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.EncounterTurns;
+import com.tabletophelper.encounter.internal.MonsterPools;
 import com.tabletophelper.encounter.internal.StoredJson;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
@@ -47,7 +48,7 @@ public class EncounterService {
     private final MonsterRepository monsterRepository;
     private final ObjectMapper objectMapper;
     private final ResourcePoolService resourcePoolService;
-    private final MonsterSpellCastService monsterSpellCastService;
+    private final MonsterPools monsterPools;
     private final AccessPolicy accessPolicy;
     private final EncounterCommands encounterCommands;
     private final CombatLogReader combatLogReader;
@@ -169,13 +170,8 @@ public class EncounterService {
                     .armourClass(monster.getArmourClass())
                     .build();
 
-            resourcePoolService.createForMonster(participant, monster);
-
-            // M12: Populate monster spellcasting data from action templates
-            if (monster.getActionTemplates() != null && !monster.getActionTemplates().isBlank()) {
-                monsterSpellCastService.populateMonsterSpellcasting(participant, monster.getActionTemplates());
-                monsterSpellCastService.populateInnateSpellPools(participant, monster.getActionTemplates());
-            }
+            // Its pools, innate uses included, and its spell slots and spells (D165)
+            monsterPools.setUp(participant, monster);
 
             encounter.getParticipants().add(participant);
         }
@@ -526,6 +522,7 @@ public class EncounterService {
                 .createdAt(encounter.getCreatedAt())
                 .dmUserId(campaign.getDm().getId())
                 .showExactMonsterHp(Boolean.TRUE.equals(campaign.getShowExactMonsterHp()))
+                .allowPlayerManualModifiers(!Boolean.FALSE.equals(campaign.getAllowPlayerManualModifiers()))
                 .build();
     }
 

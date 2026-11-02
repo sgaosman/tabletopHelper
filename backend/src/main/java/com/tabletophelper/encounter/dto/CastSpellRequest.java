@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.dto;
 
+import com.tabletophelper.encounter.state.SpellSource;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -9,12 +10,21 @@ import lombok.Data;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * A spell cast by a player character or a monster, paid for from a Spell Source (D165). The caster's spell attack
+ * bonus and save DC are used unless overridden; an override is a Manual Modifier (D164).
+ */
 @Data
 public class CastSpellRequest {
 
     @NotBlank
     private String spellName;
 
+    // Left out, a slot level above 0 means a slot, and 0 means nothing for a cantrip or at-will spell, otherwise
+    // an innate use
+    private SpellSource spellSource;
+
+    // The slot's level for SLOT; the pact slots' level or 0 for PACT_SLOT; the spell's own level or 0 otherwise
     @NotNull
     @Min(0)
     @Max(9)
@@ -24,8 +34,6 @@ public class CastSpellRequest {
     private List<UUID> targetIds;
 
     private Boolean advantage;
-
-    private Boolean usePactSlot;
 
     private Integer overrideSpellAttackBonus;
 
