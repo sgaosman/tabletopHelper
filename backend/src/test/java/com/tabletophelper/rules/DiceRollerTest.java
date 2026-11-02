@@ -39,10 +39,17 @@ class DiceRollerTest {
     }
 
     @Test
-    @DisplayName("9.3 roll(\"1d20-2\"): negative modifier syntax not supported, throws exception")
-    void rollNegativeModifierNotSupported() {
-        // DiceRoller regex only supports positive modifiers (+), not minus (-)
-        assertThrows(ValidationException.class, () -> DiceRoller.roll("1d20-2"));
+    @DisplayName("9.3 roll(\"1d20-2\"): a negative modifier is subtracted, and the total never goes below 0")
+    void rollNegativeModifier() {
+        for (int i = 0; i < 100; i++) {
+            DiceRoller.RollResult result = DiceRoller.roll("1d20-2");
+            assertEquals(-2, result.modifier());
+            assertEquals(1, result.diceCount());
+            assertEquals(20, result.diceSides());
+            assertEquals(Math.max(0, result.diceTotal() - 2), result.total());
+            assertTrue(result.total() >= 0 && result.total() <= 18,
+                    "Total should be between 0 and 18, got: " + result.total());
+        }
     }
 
     @Test
@@ -107,5 +114,37 @@ class DiceRollerTest {
                 "Malformed expression should throw");
         assertThrows(ValidationException.class, () -> DiceRoller.roll(""),
                 "Empty string should throw");
+    }
+
+    @Test
+    @DisplayName("9.9 roll(\"1\") and rollCritical(\"1\"): flat damage rolls no dice, and a critical hit doesn't change it")
+    void flatDamage() {
+        DiceRoller.RollResult result = DiceRoller.roll("1");
+        assertEquals(1, result.total());
+        assertEquals(0, result.diceTotal());
+        assertEquals(1, result.modifier());
+        assertEquals(0, result.diceCount());
+        assertEquals(0, result.diceSides());
+        assertEquals(1, DiceRoller.rollCritical("1").total());
+    }
+
+    @Test
+    @DisplayName("9.10 roll(\"1d4 - 3\") with a scripted 2: the dice show 2 and the total stops at 0")
+    void scriptedNegativeRollStopsAtZero() {
+        DiceRoller.RollResult result = DiceRoller.roll("1d4 - 3", Rng.scripted(2));
+        assertEquals(2, result.diceTotal());
+        assertEquals(-3, result.modifier());
+        assertEquals(0, result.total());
+    }
+
+    @Test
+    @DisplayName("9.11 rollCritical(\"1d8+3\") with scripted 2 and 7: two dice, one modifier, total 12")
+    void scriptedCritical() {
+        DiceRoller.RollResult result = DiceRoller.rollCritical("1d8+3", Rng.scripted(2, 7));
+        assertEquals(9, result.diceTotal());
+        assertEquals(3, result.modifier());
+        assertEquals(12, result.total());
+        assertEquals(2, result.diceCount());
+        assertEquals(8, result.diceSides());
     }
 }

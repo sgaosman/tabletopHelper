@@ -2095,6 +2095,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 
 **Update (2026-11-02, R3 planning):** the Player View is published on `/topic/encounter/{id}/state` and the DM View on `/topic/encounter/{id}/dm-state`. REST responses use the same split. The Player View also removes monster spell slots, spellcasting numbers and resource pools, and action templates become DM-only. Players' combat logs leave out entries whose actor or target is hidden, and drop the Legendary Resistance fields. Only monsters can be hidden. A subscription must name an exact destination, and clients may SEND only to `/app/**`. `/ws` takes its allowed origins from `CORS_ALLOWED_ORIGINS`. **Correction:** players saw exact monster HP in the spell target pickers, not in the initiative list.
 
+**Update (2026-11-02, R5 planning):** the Player View numbers `sortOrder` and `currentTurnIndex` over the participants players can see, and shows no current turn while a hidden participant acts **(choice)**. Spell log entries give each target its own entry, which the existing filter removes, so a multi-target spell no longer names hidden targets. A player who names a hidden participant as a target gets 400, as for an unknown one.
+
 ## D158: Server-Authoritative Character Commands and DM Adjustments
 
 **Date:** 2026-11-01
@@ -2218,6 +2220,8 @@ The pieces:
 
 **Related:** D161, D162, D163, D164, D165, D168, [[Effect]]
 
+**Update (2026-11-02, R5 planning):** the resolver is `rules.combat.Resolver`, with an injected `Rng` so tests can script dice. `EffectApplier` in `encounter.internal` is the only class that changes participants. A command checks access by campaign ID, then loads the encounter under `PESSIMISTIC_WRITE` with a 5-second timeout that answers 409 **(choice)**. Services publish `EncounterChanged`; `EncounterBroadcaster` handles it after commit and reloads the committed state, so a late broadcast never sends older state. Manual damage, healing, Set HP and death saves go to a seventh service, `HitPointService` **(choice)**.
+
 ## D161: Damage, Dying and Downed-Target Rules (2014 PHB)
 
 **Date:** 2026-11-01
@@ -2278,6 +2282,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Related:** D101, D160, D162, [[Dying]], [[Stable]], [[Dead]]
 
+**Update (2026-11-02, R5 planning):** `rules.combat.DamageRules` implements the table, and D172's golden test pins it first. A participant's `life_state` (Alive, Dying, Stable, Dead) replaces `is_alive`, because a Stable PC's death saves are reset and can't otherwise be told from a Dying PC's **(choice)**. Dropping to 0 adds unconscious and prone; regaining HP removes the unconscious condition that dropping to 0 added. PCs have no stored vulnerabilities, so none apply until R6 **(choice)**. Manual damage and healing become DM-only again, as D028 says; today a player who names their own participant as the actor can apply both.
+
 ## D162: Concentration Instances and Condition End Rules
 
 **Date:** 2026-11-01
@@ -2323,6 +2329,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Related:** D028, D113, D114, D160, D161, [[Concentration Instance]], [[Condition End Rule]], [[Repeat Save]]
 
+**Update (2026-11-02, R5 planning):** a Concentration Instance is a `concentration` JSONB value `{id, spell, slotLevel, startedRound, durationRounds}`. Condition entries gain `id`, `concentrationInstanceId`, `endRule` and `repeatSave`; end rule types are `AFTER_ROUNDS`, `START_OF_TURN`, `END_OF_TURN`, `CONCENTRATION`, `REPEAT_SAVE` and `MANUAL`. End rules come only from data that already has them (43 spell conditions with durations, 7 with repeat saves, and the monster `saveToEnd*` fields); every other condition is manual until R7's data files fill the gaps **(choice)**. The DM's preference for PC Repeat Saves is the campaign setting `prompt_player_repeat_saves`, off by default, so the server rolls them **(choice)**. A spell's duration ends at the start of its caster's turn **(choice)**.
+
 ## D163: Legendary, Lair and Turn-Order Rules
 
 **Date:** 2026-11-01
@@ -2358,6 +2366,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Related:** D135, D146, D147, D160, D165, [[Legendary Resistance]], [[Legendary Action]], [[Lair Action]]
 
+**Update (2026-11-02, R5 planning):** `rules.combat.TurnOrder` sorts by initiative, then higher DEX, then the DM's order for ties, kept in `sort_order`. The Lair is an entry in the turn order named "Lair Actions", at initiative 20 and losing ties, present while a monster listed in `monsters_in_lair` is alive; it is not a participant row **(choice)**. Lair actions run only on the Lair turn. Legendary Resistance log entries store the success-outcome damage and the IDs of the conditions that save applied. Using Legendary Resistance on the save that killed a monster brings it back with the refunded HP, because it undoes the save **(choice)**. CR 0 proficiency was already fixed in R2.
+
 ## D164: Attacks and Spells Calculated and Validated by the Server
 
 **Date:** 2026-11-01
@@ -2390,6 +2400,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Amends:** D028 (the on-turn attack permission is unchanged)
 
 **Related:** D104, D131, D158, D160, [[Manual Modifier]]
+
+**Update (2026-11-02, R5 planning):** inventory entries are free text (`{name, quantity, description}`) with no item link. R5 matches an entry's name against the 54 base weapons, whose names are unique, and migrates no characters; item IDs come with R6's typed inventory **(choice)**. Magic bonuses aren't stored (the seeder doesn't keep `bonusWeapon`), so they are Manual Modifiers for now. The setting is `campaigns.allow_player_manual_modifiers`, on by default. A player's forced critical counts as a Manual Modifier, which reconciles D161's DM-only override with this decision and CONTEXT.md **(choice)**. Great Weapon Master and Sharpshooter need the feat among the character's features and a qualifying weapon the character is proficient with. Race and feat spells have no recorded casting ability, so they use the character's main spell attack bonus and save DC **(choice)**.
 
 ## D165: Monster Action and Spellcasting Fixes
 
@@ -2428,6 +2440,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Correction (2026-11-01, R1 planning):** `MonsterActionPanel` has no lair toggle (`setLairStatus` is never called anywhere), and the legendary resistance prompt already lives in the DM combat log (D145). R1 therefore moves only monster spellcasting. The lair toggle is built in R5 with D163, when the backend starts reading it.
 
+**Update (2026-11-02, R5 planning):** the Spell Sources are `SLOT`, `PACT_SLOT`, `INNATE` and `NONE`. Daily keys such as `1e`, `1/day` and `3e/day each` give uses, never spell levels; an innate spell is cast at its level in `spells`, because the data records no cast level **(choice)**. One `MonsterPools` class builds every monster pool. `rules.Dice` also parses flat damage such as `1` (45 entries) and negative modifiers such as `1d6 - 1` (32 entries); the monster data already lists each damage part separately (882 actions have two or more). **Correction:** the seeded Legendary Resistance trigger is `{"hasField": "legendary"}`, and `hasFeature` is never seeded, so the 50 monsters with legendary actions but no Legendary Resistance, such as the Aboleth, get the pool anyway. A generic breath-weapon trigger also duplicates the per-action recharge pools. The DM's spell modal hid every levelled monster spell, because monster entries carry no `prepared` flag, and then asked for a spell name the server can't cast.
+
 ## D166: Encounter Lifecycle and Write-Back
 
 **Date:** 2026-11-01
@@ -2463,6 +2477,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Partially supersedes:** D024 (combat results now reach the character record; the per-encounter copies stay)
 
 **Related:** D125, D158, [[Encounter Lifecycle]], [[Write-back]]
+
+**Update (2026-11-02, R5 planning):** combat commands need an Active encounter. A Paused encounter can only resume or complete **(choice)**. Completing an encounter still syncs pools back, but only once, because Completed is final. The apply-results question and Write-back come in R6.
 
 ## D167: Character Progression — Derived HP and Exact Reversal
 
@@ -2535,6 +2551,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 **Amends:** D078 (extended to every column and to the API)
 
 **Related:** D009, D160, D171
+
+**Update (2026-11-02, R5 planning):** R5 types these participant fields: conditions, spell slots (`{max, used}`, pact slots keyed `pact_N`), resource pools, known spells and the Concentration Instance, plus the encounter's `monsters_in_lair`. Spell and monster templates are read into the rules module's Effect model where they are used; their columns get record types with R7's data files **(choice)**. Before V15 or V16 runs, the `preview-migration` maintenance job runs it inside a transaction that is always rolled back, prints every changed row before and after, and checks that each converted row loads. A backup comes first.
 
 ## D169: Game Content as Data Files with Idempotent Seeding
 

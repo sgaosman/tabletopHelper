@@ -113,6 +113,21 @@ class ExpressionEvaluatorTest {
         assertEquals(2, ExpressionEvaluator.evaluate("floor(maxUses/2)", Map.of("maxUses", 5)));
     }
 
+    // ── Dice ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Dice in a formula roll from the Rng passed in: 2d6+1 rolling 3 and 4 → 8")
+    void diceRollFromTheGivenRng() {
+        assertEquals(8, ExpressionEvaluator.evaluate("2d6+1", Map.of(), Rng.scripted(3, 4)));
+    }
+
+    @Test
+    @DisplayName("A bare d20 is one die, after variables are substituted: d20 + proficiencyBonus rolling 15 → 17")
+    void bareDieAfterVariables() {
+        Map<String, Integer> ctx = Map.of("proficiencyBonus", 2);
+        assertEquals(17, ExpressionEvaluator.evaluate("d20 + proficiencyBonus", ctx, Rng.scripted(15)));
+    }
+
     // ── Recharge checks ───────────────────────────────────────────
 
     @Test
@@ -137,6 +152,20 @@ class ExpressionEvaluatorTest {
         // Should succeed roughly 1/6 ≈ 16.7% of the time
         assertTrue(successes >= 80 && successes <= 250,
                 "Expected ~167 successes out of 1000, got " + successes);
+    }
+
+    @Test
+    @DisplayName("A recharge check rolls its d6 from the Rng passed in")
+    void rechargeRollsFromTheGivenRng() {
+        ExpressionEvaluator.RechargeResult recharged =
+                ExpressionEvaluator.evaluateRechargeCheckWithRoll("1d6>=5", Rng.scripted(5));
+        assertTrue(recharged.success());
+        assertEquals(5, recharged.rollValue());
+
+        ExpressionEvaluator.RechargeResult notRecharged =
+                ExpressionEvaluator.evaluateRechargeCheckWithRoll("1d6>=5", Rng.scripted(4));
+        assertFalse(notRecharged.success());
+        assertEquals(4, notRecharged.rollValue());
     }
 
     @Test

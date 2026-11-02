@@ -1,57 +1,33 @@
 package com.tabletophelper.rules;
 
-import com.tabletophelper.shared.ValidationException;
-
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
+/**
+ * Rolls damage and healing expressions for the combat code. {@link Dice} reads them, and the numbers come from
+ * an {@link Rng}: random unless one is passed in.
+ */
 public final class DiceRoller {
-
-    private static final Pattern DICE_PATTERN = Pattern.compile(
-            "^(\\d+)d(\\d+)(?:\\s*\\+\\s*(\\d+))?$", Pattern.CASE_INSENSITIVE);
 
     private DiceRoller() {}
 
     public static RollResult roll(String expression) {
-        Matcher m = DICE_PATTERN.matcher(expression.trim());
-        if (!m.matches()) {
-            throw new ValidationException("Invalid dice expression: " + expression);
-        }
-
-        int count = Integer.parseInt(m.group(1));
-        int sides = Integer.parseInt(m.group(2));
-        int modifier = m.group(3) != null ? Integer.parseInt(m.group(3)) : 0;
-
-        if (count < 1 || count > 100 || sides < 1 || sides > 100) {
-            throw new ValidationException("Dice values out of range: " + expression);
-        }
-
-        int diceTotal = 0;
-        for (int i = 0; i < count; i++) {
-            diceTotal += ThreadLocalRandom.current().nextInt(1, sides + 1);
-        }
-
-        return new RollResult(diceTotal, modifier, diceTotal + modifier, count, sides);
+        return roll(expression, Rng.random());
     }
 
+    public static RollResult roll(String expression, Rng rng) {
+        return result(Dice.parse(expression), rng);
+    }
+
+    /** A critical hit: the dice twice over, the modifier once (PHB p.196). */
     public static RollResult rollCritical(String expression) {
-        Matcher m = DICE_PATTERN.matcher(expression.trim());
-        if (!m.matches()) {
-            throw new ValidationException("Invalid dice expression: " + expression);
-        }
+        return rollCritical(expression, Rng.random());
+    }
 
-        int count = Integer.parseInt(m.group(1));
-        int sides = Integer.parseInt(m.group(2));
-        int modifier = m.group(3) != null ? Integer.parseInt(m.group(3)) : 0;
-        int doubledCount = count * 2;
+    public static RollResult rollCritical(String expression, Rng rng) {
+        return result(Dice.parse(expression).doubled(), rng);
+    }
 
-        int diceTotal = 0;
-        for (int i = 0; i < doubledCount; i++) {
-            diceTotal += ThreadLocalRandom.current().nextInt(1, sides + 1);
-        }
-
-        return new RollResult(diceTotal, modifier, diceTotal + modifier, doubledCount, sides);
+    private static RollResult result(Dice dice, Rng rng) {
+        int diceTotal = dice.rollDice(rng);
+        return new RollResult(diceTotal, dice.modifier(), dice.total(diceTotal), dice.count(), dice.sides());
     }
 
     public record RollResult(int diceTotal, int modifier, int total, int diceCount, int diceSides) {}

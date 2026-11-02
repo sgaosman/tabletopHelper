@@ -546,7 +546,7 @@ The `trigger_condition` JSONB supports these expressions:
 - `{"hasRecharge": true}` — monster has any action with a `recharge` property
 - `{"hasFeature": "legendary_resistance"}` — monster has the legendary resistance trait
 
-**Known issue (fixed in R5, D165):** the `hasFeature` check returns true for any monster whose legendary actions text contains "legendary", so monsters with legendary actions but no Legendary Resistance still get a Legendary Resistance pool. R5 matches exact feature names.
+**Known issue (fixed in R5, D165):** the seeded Legendary Resistance trigger is `{"hasField": "legendary"}`, so every monster with legendary actions gets the pool unless its action templates set a count. A generic breath-weapon trigger also duplicates the per-action recharge pools. V18 matches Legendary Resistance against trait names and removes the breath-weapon trigger.
 
 ## Combat Tables (Milestone 5)
 
@@ -675,15 +675,21 @@ The two data changes run with the dry-run report and backup that D150 requires. 
 | New `refresh_tokens` table (V13): `id`, `user_id` (FK → users, indexed), `family_id` (indexed), `token_hash` (SHA-256, unique), `issued_at`, `expires_at`, `replaced_by_id`, `revoked_at` | Schema | D156 |
 | `campaigns.show_exact_monster_hp` BOOLEAN NOT NULL DEFAULT FALSE (V14) | Schema | D157 |
 
+### R5 — Combat pipeline
+
+| Migration | Lands in | Change |
+|---|---|---|
+| `V15__typed_encounter_json.sql` | C | `encounter_participants.spell_slots_current` changes from `{remaining, max}` to `{max, used}`; the innate object becomes NULL; `active_conditions` stored as string arrays become objects |
+| `V16__combat_pipeline_state.sql` | D | **Participants:** `concentration` JSONB replaces `concentration_spell` and `concentration_slot_level`; `life_state` VARCHAR(10) NOT NULL CHECK (ALIVE, DYING, STABLE, DEAD) replaces `is_alive`; condition entries gain `id` and a MANUAL `endRule`. **`combat_logs`:** adds `lr_success_damage` INTEGER and `lr_condition_ids` JSONB; `action_type` adds `HP_SET` and `REPEAT_SAVE` |
+| `V17__turn_order.sql` | E | Drops `encounter_participants.is_current_turn`; adds `campaigns.prompt_player_repeat_saves` BOOLEAN NOT NULL DEFAULT FALSE |
+| `V18__manual_modifiers_and_monster_triggers.sql` | F | Adds `campaigns.allow_player_manual_modifiers` BOOLEAN NOT NULL DEFAULT TRUE; changes the Legendary Resistance trigger to `{"hasFeature": "Legendary Resistance"}`; deletes the breath-weapon trigger |
+
+V16 backfills existing rows: concentration is built from the old columns and the encounter's current round; a downed monster becomes DEAD; a downed PC becomes DEAD with three failures, STABLE with three successes (both counts reset), and DYING otherwise. Each of V15 and V16 gets a backup and a `preview-migration` dry run first (D168).
+
 ### R3–R7 — Outline
 
 | Phase | Area | Expected change | Decision |
 |-------|------|-----------------|----------|
-| R5 | Campaigns | Campaign setting "allow player Manual Modifiers" | D164 |
-| R5 | Encounter participants | `active_conditions` entries gain a Concentration Instance reference, a Condition End Rule and an optional Repeat Save. `concentration_spell` and `concentration_slot_level` are replaced by a Concentration Instance record. | D162 |
-| R5 | Encounter participants | `is_current_turn` dropped (derived from `encounters.current_turn_index`) | D163 |
-| R5 | Encounter participants | `spell_slots_current` normalised to `{max, used}`; innate uses move into `resource_pools_current` | D165, D168 |
-| R5 | Combat log | Legendary Resistance metadata records enough to apply the success outcome. `action_type` gains new values as needed, e.g. repeat saves and DM overrides. | D161, D162, D163 |
 | R6 | Player characters | `spell_slots` normalised to `{max, used}`. Every JSONB column gets a typed shape, with migrations that normalise existing rows. | D168 |
 | R6 | Player characters | Storage for Pending Choices and DM Adjustments. `level_history` entries gain the hit die result and the ability score increase actually applied. `hp_max` becomes a derived value; R6 decides whether to keep a stored copy. | D158, D159, D167 |
 | R6 | Encounters | Participants keep the values each character joined with, so Write-back can apply changes. Encounters record whether results were applied at completion. | D166 |

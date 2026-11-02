@@ -1,7 +1,6 @@
 package com.tabletophelper.rules;
 
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,8 +21,8 @@ import java.util.regex.Pattern;
  *
  * <p>Dice notation ({@code NdM±C}) is expanded to the sum of N rolls
  * of a dM plus an optional constant. A bare {@code dM} defaults to 1 die.
- * Dice rolls use {@link ThreadLocalRandom} and are evaluated after
- * variable substitution but before integer arithmetic.</p>
+ * Dice rolls come from an {@link Rng}, random unless one is passed in, and
+ * are evaluated after variable substitution but before integer arithmetic.</p>
  */
 public final class ExpressionEvaluator {
 
@@ -44,19 +43,31 @@ public final class ExpressionEvaluator {
      * @return the evaluated integer, or 0 if the formula is blank
      */
     public static int evaluate(String formula, Map<String, Integer> context) {
+        return evaluate(formula, context, Rng.random());
+    }
+
+    /**
+     * Evaluates a formula string against a variable context, rolling any dice with the given Rng.
+     *
+     * @param formula the expression to evaluate (e.g. "1d6 + proficiencyBonus")
+     * @param context variable name → value mappings
+     * @param rng     where dice rolls come from
+     * @return the evaluated integer, or 0 if the formula is blank
+     */
+    public static int evaluate(String formula, Map<String, Integer> context, Rng rng) {
         if (formula == null || formula.isBlank()) {
             return 0;
         }
         String expr = formula.trim();
 
         // Resolve ceil/floor functions first (uses double arithmetic internally)
-        expr = resolveFunctions(expr, context);
+        expr = resolveFunctions(expr, context, rng);
 
         // Substitute remaining variables
         expr = substituteVariables(expr, context);
 
         // Roll any dice expressions (e.g. 1d6+1) before integer arithmetic
-        expr = resolveDice(expr);
+        expr = resolveDice(expr, rng);
 
         // Evaluate remaining integer arithmetic
         return evaluateArithmetic(expr);
@@ -87,11 +98,22 @@ public final class ExpressionEvaluator {
      * @return RechargeResult with success and rollValue, or null if the expression is invalid
      */
     public static RechargeResult evaluateRechargeCheckWithRoll(String rechargeExpression) {
+        return evaluateRechargeCheckWithRoll(rechargeExpression, Rng.random());
+    }
+
+    /**
+     * Rolls a d6 from the given Rng and checks if the result &gt;= threshold.
+     *
+     * @param rechargeExpression e.g. "1d6>=5"
+     * @param rng                where the d6 comes from
+     * @return RechargeResult with success and rollValue, or null if the expression is invalid
+     */
+    public static RechargeResult evaluateRechargeCheckWithRoll(String rechargeExpression, Rng rng) {
         if (rechargeExpression == null) return null;
         Matcher m = RECHARGE_PATTERN.matcher(rechargeExpression.trim());
         if (!m.matches()) return null;
         int threshold = Integer.parseInt(m.group(1));
-        int roll = ThreadLocalRandom.current().nextInt(1, 7);
+        int roll = rng.roll(6);
         return new RechargeResult(roll >= threshold, roll);
     }
 
@@ -105,7 +127,7 @@ public final class ExpressionEvaluator {
      * <p>Runs after variable substitution so context variables like
      * {@code maxUses} have already been replaced with their integer values.</p>
      */
-    static String resolveDice(String expr) {
+    static String resolveDice(String expr, Rng rng) {
         Matcher m = DICE_PATTERN.matcher(expr);
         if (!m.find()) return expr;
         m.reset(); // rewind — find() consumed the first match
@@ -121,7 +143,7 @@ public final class ExpressionEvaluator {
             }
             int total = modifier;
             for (int i = 0; i < count; i++) {
-                total += ThreadLocalRandom.current().nextInt(1, faces + 1);
+                total += rng.roll(faces);
             }
             m.appendReplacement(sb, String.valueOf(total));
         }
@@ -129,7 +151,7 @@ public final class ExpressionEvaluator {
         return sb.toString();
     }
 
-    private static String resolveFunctions(String expr, Map<String, Integer> context) {
+    private static String resolveFunctions(String expr, Map<String, Integer> context, Rng rng) {
         Matcher m;
         // Process innermost function calls first by repeatedly matching
         while ((m = FUNCTION_PATTERN.matcher(expr)).find()) {
@@ -139,7 +161,7 @@ public final class ExpressionEvaluator {
             // Substitute variables in the inner expression, then evaluate
             // with double arithmetic so division produces fractional results
             String innerSubbed = substituteVariables(inner, context);
-            innerSubbed = resolveDice(innerSubbed);
+            innerSubbed = resolveDice(innerSubbed, rng);
             double innerVal = evaluateDoubleArithmetic(innerSubbed);
             int result = "ceil".equals(func)
                     ? (int) Math.ceil(innerVal)
