@@ -66,6 +66,18 @@ describe('Player EncounterSessionPage', () => {
     expect(await screen.findByText('Live')).toBeInTheDocument();
   });
 
+  it('shows each player character in its class colour, and a monster in the monster colour', async () => {
+    server.use(
+      http.get('/api/encounters/:id', () =>
+        HttpResponse.json(makeMockEncounter({ participants: [legolas({ characterClass: 'Ranger' }), goblin()] })),
+      ),
+    );
+    renderPage();
+
+    expect((await screen.findByText('Legolas')).getAttribute('style')).toContain('var(--color-cls-ranger)');
+    expect(screen.getByText('Test Goblin').getAttribute('style')).toContain('var(--color-monster)');
+  });
+
   it('shows exact monster HP when the DM allows it', async () => {
     server.use(
       http.get('/api/encounters/:id', () =>
@@ -282,6 +294,8 @@ describe('Player EncounterSessionPage', () => {
       const first = await screen.findByRole('group', { name: 'Attack 1' });
       await user.click(within(first).getByRole('button', { name: 'Crit' }));
       expect(within(first).getByRole('button', { name: 'Crit' })).toHaveAttribute('aria-pressed', 'true');
+      // The darker gold, whose light text reads in every theme
+      expect(within(first).getByRole('button', { name: 'Crit' })).toHaveClass('bg-cls-paladin', 'text-card');
       await user.type(within(first).getByLabelText('Extra +'), '1');
       await user.type(within(first).getByLabelText('Extra dmg'), '2d6');
       await user.selectOptions(within(first).getByLabelText('Its type'), 'fire');

@@ -12,13 +12,16 @@ import LairToggle from '../../components/encounter/LairToggle';
 import LairTurnRow from '../../components/encounter/LairTurnRow';
 import MultiattackPicker from '../../components/encounter/MultiattackPicker';
 import RepeatSavePrompt from '../../components/encounter/RepeatSavePrompt';
+import TieOrderArrows from '../../components/encounter/TieOrderArrows';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
+import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
+import Modal from '../../components/ui/Modal';
 import { getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
-  ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Heart, HeartPulse, Shield, Skull, Swords,
-  Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles, RotateCw, Castle
+  ChevronRight, ChevronLeft, Heart, HeartPulse, Shield, Skull, Swords,
+  Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles, RotateCw, Castle, Trash2
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 
@@ -330,8 +333,9 @@ function ActionPanel({
                   </div>
                   <div>
                     {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
+                    {/* Paladin's darker gold, so the light text reads in every theme (WCAG AA) */}
                     <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)} aria-pressed={atk.forceCrit}
-                      className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-card' : 'bg-page-alt text-muted border border-rule'}`}>
+                      className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.forceCrit ? 'bg-cls-paladin text-card' : 'bg-page-alt text-muted border border-rule'}`}>
                       Crit
                     </button>
                     {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}
@@ -945,6 +949,10 @@ function DmSessionView() {
   const [inlineResult, setInlineResult] = useState<any>(null);
   const [inlineExecuting, setInlineExecuting] = useState(false);
   const [turnError, setTurnError] = useState('');
+  // The participant the DM is asked to confirm removing, and why the removal failed
+  const [removeTarget, setRemoveTarget] = useState<EncounterParticipant | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState('');
 
   // The targets chosen in the inline selector, unless the action brings its own, as a multiattack does (D165)
   async function executeInlineAction(participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR',
@@ -1044,6 +1052,38 @@ function DmSessionView() {
     await actions.setVisibility(participantId, visible);
   }
 
+  function askToRemove(participant: EncounterParticipant) {
+    setRemoveError('');
+    setRemoveTarget(participant);
+  }
+
+  function closeRemove() {
+    setRemoveTarget(null);
+    setRemoveError('');
+  }
+
+  // Mid-fight the server ends the creature's concentration and passes the turn on if it was theirs (D166)
+  async function confirmRemove() {
+    if (!removeTarget) return;
+    setRemoving(true);
+    try {
+      await actions.removeParticipant(removeTarget.id);
+      if (selectedTargetId === removeTarget.id) {
+        setSelectedTargetId(null);
+        setActionMode(null);
+      }
+      if (expandedMonsterId === removeTarget.id) {
+        setExpandedMonsterId(null);
+      }
+      setInlineTargets(prev => prev.filter(id => id !== removeTarget.id));
+      closeRemove();
+    } catch (err: unknown) {
+      setRemoveError(apiErrorMessage(err));
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   function selectTarget(participantId: string, mode: ActionMode) {
     setSelectedTargetId(participantId);
     setActionMode(mode);
@@ -1061,15 +1101,8 @@ function DmSessionView() {
   // Completed one is final (D166)
   const isActive = encounter.status === 'ACTIVE';
   const isPaused = encounter.status === 'PAUSED';
-
-  // Swaps a participant with its neighbour in a tie on initiative and DEX, which only the DM's order breaks
-  const moveInTie = (index: number, offset: -1 | 1) => {
-    const group = turns[index].tieGroup;
-    const ids = turns.filter(turn => turn.tieGroup === group).flatMap(turn => turn.participantId ?? []);
-    const at = ids.indexOf(turns[index].participantId ?? '');
-    [ids[at], ids[at + offset]] = [ids[at + offset], ids[at]];
-    return attemptTurnChange(() => actions.reorderTie(ids));
-  };
+  // The server removes participants while the encounter is being prepared or fought
+  const canRemove = isActive || encounter.status === 'PREPARING';
 
   // The whole list of monsters fighting in their lair, with this one in it or out of it
   const setInLair = (participantId: string, inLair: boolean) => {
@@ -1124,8 +1157,10 @@ function DmSessionView() {
                 </button>
               </>
             )}
+            {/* Gold dark enough for the light text in every theme; the hover darkens, since fading the gold would not
+                read (WCAG AA) */}
             {encounter.status === 'ACTIVE' && (
-              <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-cls-monk hover:bg-cls-monk/90 text-card font-body text-[16px] font-semibold">
+              <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-cls-paladin hover:bg-cls-fighter text-card font-body text-[16px] font-semibold">
                 <Pause className="w-4 h-4" /> Pause
               </button>
             )}
@@ -1175,6 +1210,31 @@ function DmSessionView() {
           />
         )}
 
+        {/* Asks before removing a participant; adding one is for an encounter still being prepared (D166) */}
+        {removeTarget && (
+          <Modal
+            title={`Remove ${removeTarget.displayName}?`}
+            onClose={closeRemove}
+            dismissible={!removing}
+            size="sm"
+            footer={(
+              <>
+                <Button variant="secondary" onClick={closeRemove} disabled={removing}>Cancel</Button>
+                <Button variant="danger" onClick={confirmRemove} loading={removing}>
+                  {removing ? 'Removing...' : 'Remove'}
+                </Button>
+              </>
+            )}
+          >
+            <p className="font-body text-[15px] font-semibold text-muted">
+              {removeTarget.displayName} leaves the encounter.
+              {isActive && ' Any spell they are concentrating on ends, and if it is their turn, the turn passes to the'
+                + ' next creature. Nobody can join once the fight has started, so they can\'t be added back.'}
+            </p>
+            {removeError && <p role="alert" className="text-debuff font-body text-[15px] mt-3">{removeError}</p>}
+          </Modal>
+        )}
+
         {/* Action panel */}
         {isActive && actionMode !== 'spell' && (
           <ActionPanel
@@ -1192,8 +1252,6 @@ function DmSessionView() {
             }
             const p = participantsById.get(turn.participantId ?? '');
             if (!p) return null;
-            const tiedBefore = turn.tieGroup != null && turns[index - 1]?.tieGroup === turn.tieGroup;
-            const tiedAfter = turn.tieGroup != null && turns[index + 1]?.tieGroup === turn.tieGroup;
             const conditions = p.activeConditions ?? [];
             const isSelected = p.id === selectedTargetId;
             const isMonster = p.participantType === 'MONSTER';
@@ -1211,7 +1269,7 @@ function DmSessionView() {
                   isSelected ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
                   'border-t-rule border-r-rule border-b-rule'
                 } ${!isUp ? 'opacity-60' : ''}`}
-                style={{ borderLeftColor: getParticipantColour(isMonster) }}
+                style={{ borderLeftColor: getParticipantColour(isMonster, p.characterClass) }}
               >
                 <div className="flex items-center gap-3">
                   {/* Turn indicator */}
@@ -1225,25 +1283,13 @@ function DmSessionView() {
                   </div>
 
                   {/* The DM's order among participants tied on initiative and DEX (D163) */}
-                  {isActive && turn.tieGroup != null && (
-                    <div className="flex flex-col flex-shrink-0 -my-1">
-                      <IconButton
-                        label={`Move ${p.displayName} up the tie`}
-                        disabled={!tiedBefore}
-                        onClick={() => moveInTie(index, -1)}
-                        className="p-0.5 text-faint hover:text-ink disabled:opacity-30"
-                      >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </IconButton>
-                      <IconButton
-                        label={`Move ${p.displayName} down the tie`}
-                        disabled={!tiedAfter}
-                        onClick={() => moveInTie(index, 1)}
-                        className="p-0.5 text-faint hover:text-ink disabled:opacity-30"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </IconButton>
-                    </div>
+                  {isActive && (
+                    <TieOrderArrows
+                      turns={turns}
+                      index={index}
+                      name={p.displayName}
+                      onReorder={ids => attemptTurnChange(() => actions.reorderTie(ids))}
+                    />
                   )}
 
                   {/* Name + info */}
@@ -1254,7 +1300,7 @@ function DmSessionView() {
                       >{p.displayName}</span>
                       <span
                         className={`font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5`}
-                        style={{ color: getParticipantColour(isMonster), backgroundColor: getParticipantBg(isMonster) }}
+                        style={{ color: getParticipantColour(isMonster, p.characterClass), backgroundColor: getParticipantBg(isMonster, p.characterClass) }}
                       >
                         {p.participantType}
                       </span>
@@ -1444,6 +1490,17 @@ function DmSessionView() {
                         </IconButton>
                       )}
                     </div>
+                  )}
+
+                  {/* Removing a participant, mid-fight too, asks the DM first */}
+                  {canRemove && (
+                    <IconButton
+                      label={`Remove ${p.displayName}`}
+                      onClick={() => askToRemove(p)}
+                      className="p-1.5 flex-shrink-0 text-faint hover:text-debuff hover:bg-debuff/10"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </IconButton>
                   )}
                 </div>
               </div>

@@ -82,9 +82,11 @@ class PlayerViewIT extends IntegrationTest {
         assertThat(goblin.get("hpCurrent").isNull()).isTrue();
         assertThat(goblin.get("hpMax").isNull()).isTrue();
         assertThat(goblin.get("monsterId").isNull()).isTrue();
-        // The player's own character keeps its numbers
+        // The player's own character keeps its numbers, and its class gives its colour
         assertThat(participant(encounter, characterId).get("hpCurrent").isNull()).isFalse();
         assertThat(participant(encounter, characterId).get("healthStatus").isNull()).isTrue();
+        assertThat(participant(encounter, characterId).get("characterClass").asText()).isEqualTo("Fighter");
+        assertThat(goblin.get("characterClass").isNull()).isTrue();
         // The view's context stays on the server
         assertThat(encounter.has("dmUserId")).isFalse();
         assertThat(encounter.has("showExactMonsterHp")).isFalse();
@@ -99,6 +101,8 @@ class PlayerViewIT extends IntegrationTest {
         assertThat(participant(encounter, bugbearId).get("isVisibleToPlayers").asBoolean()).isFalse();
         assertThat(participant(encounter, goblinId).get("hpCurrent").asInt()).isEqualTo(7);
         assertThat(participant(encounter, goblinId).get("healthStatus").isNull()).isTrue();
+        assertThat(participant(encounter, characterId).get("characterClass").asText()).isEqualTo("Fighter");
+        assertThat(participant(encounter, goblinId).get("characterClass").isNull()).isTrue();
     }
 
     @Test

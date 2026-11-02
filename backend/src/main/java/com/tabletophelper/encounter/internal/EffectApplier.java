@@ -48,7 +48,8 @@ import java.util.stream.Collectors;
  *       the damage. Concentration ends on a failed save, at 0 HP or death, and on an incapacitating
  *       condition; ending it removes exactly the conditions its Concentration Instance created (D162).</li>
  *   <li>A failed save by a creature with Legendary Resistance left is offered for undoing: its entry records
- *       the damage a success would have left and the conditions the save applied (D163).</li>
+ *       the damage a success would have left and the conditions the save applied (D163). That includes the save
+ *       an attack's hit calls for against some of its conditions, which leaves the hit's damage as it is.</li>
  *   <li>At the turn boundaries {@link TurnProcessor} reaches, it ends conditions, rolls Repeat Saves or waits
  *       for the player's, gives a creature its turn's actions and pools back, and marks a death save due
  *       (D162, D163).</li>
@@ -144,7 +145,11 @@ public class EffectApplier {
                 : addEffectConditions(encounter, target, outcome.conditions(), use, effect);
 
         int remaining = legendaryResistanceRemaining(target);
-        boolean offered = outcome.outcome() == Outcome.SAVE_FAIL && remaining > 0;
+        // A hit's failed save gave only the conditions it guards, and gave nothing to a creature the hit killed
+        boolean failedHitSave = outcome.hitSave() != null && !outcome.hitSave().success();
+        List<ConditionEntry> fromSave = failedHitSave ? guardedByHitSave(effect, added) : added;
+        boolean offered = remaining > 0 && (outcome.outcome() == Outcome.SAVE_FAIL
+                || failedHitSave && target.getLifeState() != LifeState.DEAD);
 
         String description = describe(use, effect, target, outcome, damage, healed, added);
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
@@ -157,10 +162,10 @@ public class EffectApplier {
             entry.legendaryResistanceEligible(true)
                     .lrTargetId(target.getId())
                     .lrDamageDealt(hitPointsLost(before, damage.total()))
-                    .lrConditionsApplied(String.join(",", added.stream().map(ConditionEntry::name).toList()))
+                    .lrConditionsApplied(String.join(",", fromSave.stream().map(ConditionEntry::name).toList()))
                     .lrResolved(false)
                     .lrSuccessDamage(defended(target, outcome.successDamage()).total())
-                    .lrConditionIds(added.stream().map(ConditionEntry::id).toList());
+                    .lrConditionIds(fromSave.stream().map(ConditionEntry::id).toList());
         }
         combatLog.save(entry);
 
@@ -718,6 +723,14 @@ public class EffectApplier {
         return added;
     }
 
+    // The conditions added that the Effect's attack gives only on a failed hit save
+    private static List<ConditionEntry> guardedByHitSave(Effect effect, List<ConditionEntry> added) {
+        if (!(effect.delivery() instanceof Effect.Attack attack) || attack.hitSave() == null) {
+            return List.of();
+        }
+        return added.stream().filter(c -> attack.hitSave().conditions().contains(c.name())).toList();
+    }
+
     // ── Damage after defences ────────────────────────────────────
 
     private record DefendedPart(String type, int amount, Set<Defence> defences) {
@@ -787,6 +800,9 @@ public class EffectApplier {
         if (outcome.outcome() != Outcome.MISS && !damage.parts().isEmpty()) {
             results.add(damageText(damage) + (outcome.outcome() == Outcome.SAVE_SUCCESS ? " (half)" : ""));
         }
+        if (outcome.hitSave() != null && effect.delivery() instanceof Effect.Attack attack && attack.hitSave() != null) {
+            results.add(hitSaveText(attack.hitSave(), outcome.hitSave()));
+        }
         if (healed > 0) {
             results.add("regains " + healed + " HP");
         }
@@ -801,6 +817,19 @@ public class EffectApplier {
         }
         boolean rolled = effect.delivery() instanceof Effect.Attack || effect.delivery() instanceof Effect.Save;
         return description.append(rolled ? " — " : ": ").append(String.join(", ", results)).append('.').toString();
+    }
+
+    // "STR save d20(8) + 0 = 8 vs DC 13 fails", "... succeeds against prone", or "STR save vs DC 13 fails
+    // automatically"
+    private static String hitSaveText(Effect.HitSave save, Resolver.SaveRoll roll) {
+        String ability = save.ability().name() + " save";
+        if (roll.autoFailed()) {
+            return ability + " vs DC " + save.dc() + " fails automatically";
+        }
+        String rolled = ability + " d20(" + roll.d20() + ")" + signed(roll.total() - roll.d20()) + " = "
+                + roll.total() + " vs DC " + save.dc();
+        return roll.success() ? rolled + " succeeds against " + String.join(", ", save.conditions())
+                : rolled + " fails";
     }
 
     // "d20(14)", or both dice with advantage or disadvantage and the one that counts

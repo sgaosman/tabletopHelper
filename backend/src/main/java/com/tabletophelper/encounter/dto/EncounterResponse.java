@@ -96,6 +96,10 @@ public class EncounterResponse {
         private UUID characterId;
         private UUID monsterId;
 
+        // A player character's class as its sheet names it, which picks its class colour; null for a monster.
+        // It comes from the sheet, so no request sets it
+        private String characterClass;
+
         @Schema(requiredMode = REQUIRED)
         private String displayName;
 

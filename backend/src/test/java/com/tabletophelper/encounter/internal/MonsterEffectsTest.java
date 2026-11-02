@@ -217,6 +217,167 @@ class MonsterEffectsTest {
     }
 
     @Nested
+    @DisplayName("Saves an attack's hit calls for against its conditions")
+    class HitSaves {
+
+        // The Dire Wolf's bite as seeded (MM): a DC 13 Strength save recorded on its prone
+        private static final String DIRE_WOLF_BITE = """
+                {"name": "Bite", "reach": 5, "effects": [
+                   {"damageDice": "2d6 + 3", "damageType": "piercing", "effectType": "DAMAGE"},
+                   {"saveDC": 13, "condition": "prone", "effectType": "CONDITION", "saveAbility": "STR"}],
+                 "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 5, "targetCount": 1,
+                 "deliveryMethod": "ATTACK_ROLL"}""";
+
+        @Test
+        @DisplayName("The Dire Wolf's bite knocks a creature prone only on a failed DC 13 Strength save, which its "
+                + "data records on the condition")
+        void saveOnTheCondition() {
+            Effect effect = plan(DIRE_WOLF_BITE, List.of(aria)).steps().getFirst().effect();
+
+            assertEquals(new Effect.Attack(5, RollMode.NORMAL, true, false,
+                    new Effect.HitSave(Ability.STR, 13, List.of("prone"))), effect.delivery());
+            assertEquals(List.of("prone"), effect.conditions());
+            assertEquals(Ability.STR, effect.saveAbility());
+        }
+
+        @Test
+        @DisplayName("A save the data records on the action guards a condition that records none, as the "
+                + "Chupacabra's bite does")
+        void saveOnTheAction() {
+            Effect effect = plan("""
+                    {"name": "Bite", "reach": 5, "saveDC": 13, "effects": [
+                       {"damageDice": "2d4 + 2", "damageType": "piercing", "effectType": "DAMAGE"},
+                       {"condition": "prone", "effectType": "CONDITION"}],
+                     "actionType": "ACTION", "attackType": "MELEE_WEAPON", "halfOnSave": false, "attackBonus": 4,
+                     "saveAbility": "STR", "targetCount": 1, "deliveryMethod": "ATTACK_ROLL"}""", List.of(aria))
+                    .steps().getFirst().effect();
+
+            assertEquals(new Effect.HitSave(Ability.STR, 13, List.of("prone")),
+                    ((Effect.Attack) effect.delivery()).hitSave());
+        }
+
+        @Test
+        @DisplayName("A condition with no save, or a save without an ability, comes with the hit: the Grell's "
+                + "grapple, and the Rug of Smothering's blinded")
+        void conditionsThatComeWithTheHit() {
+            Effect grell = plan("""
+                    {"name": "Tentacle", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 4, "effects": [
+                       {"damageDice": "1d10 + 2", "damageType": "piercing", "effectType": "DAMAGE"},
+                       {"saveDC": 11, "condition": "poisoned", "effectType": "CONDITION", "saveAbility": "CON"},
+                       {"escapeDC": 15, "condition": "grappled", "effectType": "CONDITION"}]}""", List.of(aria))
+                    .steps().getFirst().effect();
+            Effect rug = plan("""
+                    {"name": "Smother", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 5, "effects": [
+                       {"escapeDC": 13, "condition": "grappled", "effectType": "CONDITION"},
+                       {"saveDC": 13, "condition": "blinded", "effectType": "CONDITION", "saveAbility": null}]}""",
+                    List.of(aria)).steps().getFirst().effect();
+
+            assertEquals(new Effect.HitSave(Ability.CON, 11, List.of("poisoned")),
+                    ((Effect.Attack) grell.delivery()).hitSave());
+            assertEquals(List.of("poisoned", "grappled"), grell.conditions());
+            assertNull(((Effect.Attack) rug.delivery()).hitSave());
+            assertEquals(List.of("grappled", "blinded"), rug.conditions());
+        }
+
+        @Test
+        @DisplayName("The Mind Flayer's tentacles grapple on the hit and stun only on a failed DC 15 Intelligence save, "
+                + "which its data keeps apart from saveDC (MM)")
+        void mindFlayerGrapplesAndStunsOnAFailedSave() {
+            Effect effect = plan("""
+                    {"name": "Tentacle", "reach": 5, "effects": [
+                       {"damageDice": "2d10+4", "damageType": "psychic", "effectType": "DAMAGE"},
+                       {"escapeDC": 15, "condition": "grappled", "effectType": "CONDITION", "durationText": "until escape",
+                        "durationRounds": null},
+                       {"condition": "stunned", "effectType": "CONDITION"}],
+                     "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 7, "targetCount": 1,
+                     "deliveryMethod": "ATTACK_ROLL", "secondarySaveDC": 15, "secondarySaveAbility": "INT"}""",
+                    List.of(aria)).steps().getFirst().effect();
+
+            assertEquals(new Effect.HitSave(Ability.INT, 15, List.of("stunned")),
+                    ((Effect.Attack) effect.delivery()).hitSave());
+            assertEquals(List.of("grappled", "stunned"), effect.conditions());
+        }
+
+        @Test
+        @DisplayName("A save recorded on the action never guards a grapple, as the Mind Flayer Prophet's doesn't, but one "
+                + "recorded on the grapple itself does, as the Mindwitness's")
+        void grappleOnlyBehindItsOwnSave() {
+            Effect prophet = plan("""
+                    {"name": "Tentacle", "reach": 5, "saveDC": 16, "effects": [
+                       {"damageDice": "2d10 + 5", "damageType": "psychic", "effectType": "DAMAGE"},
+                       {"condition": "grappled", "effectType": "CONDITION"},
+                       {"condition": "stunned", "effectType": "CONDITION"}],
+                     "actionType": "ACTION", "attackType": "MELEE_WEAPON", "halfOnSave": false, "attackBonus": 8,
+                     "saveAbility": "INT", "deliveryMethod": "ATTACK_ROLL"}""", List.of(aria)).steps().getFirst().effect();
+            Effect mindwitness = plan("""
+                    {"name": "Tentacle", "reach": 10, "effects": [
+                       {"damageDice": "4d8 + 2", "damageType": "psychic", "effectType": "DAMAGE"},
+                       {"saveDC": 13, "condition": "grappled", "effectType": "CONDITION", "saveAbility": "INT"},
+                       {"saveDC": 13, "condition": "restrained", "effectType": "CONDITION", "saveAbility": "INT"}],
+                     "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 5, "targetCount": 1,
+                     "deliveryMethod": "ATTACK_ROLL"}""", List.of(aria)).steps().getFirst().effect();
+
+            assertEquals(new Effect.HitSave(Ability.INT, 16, List.of("stunned")),
+                    ((Effect.Attack) prophet.delivery()).hitSave());
+            assertEquals(new Effect.HitSave(Ability.INT, 13, List.of("grappled", "restrained")),
+                    ((Effect.Attack) mindwitness.delivery()).hitSave());
+        }
+
+        @Test
+        @DisplayName("The DM's override of the DC is the hit's save's DC too")
+        void overrideHitSaveDc() {
+            Effect effect = plan(DIRE_WOLF_BITE, List.of(aria), new MonsterEffects.Overrides(null, 15, null))
+                    .steps().getFirst().effect();
+
+            assertEquals(new Effect.HitSave(Ability.STR, 15, List.of("prone")),
+                    ((Effect.Attack) effect.delivery()).hitSave());
+        }
+
+        @Test
+        @DisplayName("Conditions that record different saves are left to the DM, since a hit makes one save")
+        void differentSaves() {
+            var plan = plan("""
+                    {"name": "Sting", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 5, "effects": [
+                       {"saveDC": 11, "condition": "poisoned", "effectType": "CONDITION", "saveAbility": "CON"},
+                       {"saveDC": 13, "condition": "prone", "effectType": "CONDITION", "saveAbility": "STR"}]}""",
+                    List.of(aria));
+
+            assertFalse(plan.automated());
+            assertEquals("Sting's conditions record different saving throws", plan.manualReason());
+        }
+
+        @Test
+        @DisplayName("A condition's Repeat Save defaults to the save it records, as the Ghoul's paralysis does (D162)")
+        void repeatSaveDefaultsToTheConditionsSave() {
+            Effect effect = plan("""
+                    {"name": "Claw", "reach": 5, "effects": [
+                       {"damageDice": "2d4 + 2", "damageType": "slashing", "effectType": "DAMAGE"},
+                       {"saveDC": 10, "condition": "paralyzed", "effectType": "CONDITION", "saveAbility": "CON",
+                        "durationText": "1 minute", "durationRounds": 10, "saveToEndEachTurn": true}],
+                     "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 4, "targetCount": 1,
+                     "deliveryMethod": "ATTACK_ROLL"}""", List.of(aria)).steps().getFirst().effect();
+
+            assertEquals(new Effect.ConditionEnd(10, new Effect.RepeatSave(Ability.CON, 10)),
+                    effect.conditionEnds().get("paralyzed"));
+            assertEquals(new Effect.HitSave(Ability.CON, 10, List.of("paralyzed")),
+                    ((Effect.Attack) effect.delivery()).hitSave());
+        }
+
+        @Test
+        @DisplayName("A multiattack's attack keeps its hit's save")
+        void multiattackComponent() {
+            MonsterTemplates wolf = templates("{\"actions\": [{\"name\": \"Multiattack\", \"isMultiattack\": true, "
+                    + "\"multiattackComponents\": [\"Bite\", \"Bite\"]}, " + DIRE_WOLF_BITE + "]}");
+
+            MonsterEffects.Multiattack multiattack = monsterEffects.multiattack(wolf.actions().getFirst(), wolf,
+                    MonsterEffects.Overrides.NONE);
+
+            assertEquals(new Effect.HitSave(Ability.STR, 13, List.of("prone")),
+                    ((Effect.Attack) multiattack.components().getFirst().effect().delivery()).hitSave());
+        }
+    }
+
+    @Nested
     @DisplayName("Multiattack (D165)")
     class Multiattacks {
 

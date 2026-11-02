@@ -28,7 +28,8 @@ public record MonsterActionResponse(
     }
 
     /**
-     * One target's result. damage is what it took after its defences; legendaryResistanceAvailable is set on a
+     * One target's result. damage is what it took after its defences; savedSuccessfully is set when it made its
+     * save, the one a hit calls for against its conditions included; legendaryResistanceAvailable is set on a
      * failed save by a creature with Legendary Resistance left (D163).
      */
     public record TargetResult(

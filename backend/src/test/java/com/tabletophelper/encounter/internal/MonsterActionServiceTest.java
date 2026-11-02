@@ -17,15 +17,18 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * Monster actions (M12, D160). The old CombatServiceTest had no monster action cases; these cover the legendary,
  * recharge and lair rules it kept, the monster paths through the EffectApplier, whose rules EffectApplierTest runs on
- * every path, and a multiattack's target per attack (D165). Monster spells moved to SpellcastingServiceTest when they
- * joined the one cast path (D165).
+ * every path, a multiattack's target per attack (D165), and the save a hit calls for against its conditions, with
+ * Legendary Resistance on it (D163). Monster spells moved to SpellcastingServiceTest when they joined the one cast
+ * path (D165).
  */
 class MonsterActionServiceTest {
 
@@ -321,6 +324,152 @@ class MonsterActionServiceTest {
         assertTrue(entry.getLegendaryResistanceEligible());
         assertEquals(0, entry.getLrSuccessDamage());
         assertEquals(List.of(lich.getActiveConditions().getFirst().id()), entry.getLrConditionIds());
+    }
+
+    // ── Saves a hit calls for against its conditions ─────────────
+
+    // The Dire Wolf's bite as seeded (MM): its prone needs a failed DC 13 Strength save; and a grell-like tentacle,
+    // whose grapple comes with the hit and whose poison needs a failed DC 11 Constitution save
+    private static final String WOLF_AND_GRELL = """
+            {"actions": [
+               {"name": "Bite", "reach": 5, "effects": [
+                  {"damageDice": "2d6 + 3", "damageType": "piercing", "effectType": "DAMAGE"},
+                  {"saveDC": 13, "condition": "prone", "effectType": "CONDITION", "saveAbility": "STR"}],
+                "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 5, "targetCount": 1,
+                "deliveryMethod": "ATTACK_ROLL"},
+               {"name": "Tentacle", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 5, "effects": [
+                  {"damageDice": "4", "damageType": "piercing", "effectType": "DAMAGE"},
+                  {"escapeDC": 15, "condition": "grappled", "effectType": "CONDITION"},
+                  {"saveDC": 11, "condition": "poisoned", "effectType": "CONDITION", "saveAbility": "CON"}]}]}""";
+
+    private MonsterActionResponse actionBy(EncounterParticipant monster, String action, EncounterParticipant target,
+                                           int... rolls) {
+        f.dice.script(rolls);
+        return f.monsterActions.monsterAction(f.encounterId(), new MonsterActionRequest(monster.getId(), action,
+                "ACTION", List.of(target.getId()), null, null, null, null), f.dmUserId);
+    }
+
+    private EncounterParticipant direWolf() {
+        EncounterParticipant wolf = f.monster("Dire Wolf", 37, 14);
+        wolf.getMonster().setActionTemplates(WOLF_AND_GRELL);
+        return wolf;
+    }
+
+    @Test
+    @DisplayName("A hit's failed save knocks the target prone, and its entry logs the save")
+    void hitSaveFails() {
+        EncounterParticipant wolf = direWolf();
+
+        // 15 + 5 hits AC 18 for 4 + 3 + 3; the Fighter's STR save of 5 + 0 misses DC 13
+        MonsterActionResponse response = actionBy(wolf, "Bite", fighter, 15, 4, 3, 5);
+
+        assertEquals(30, fighter.getHpCurrent());
+        assertEquals(List.of("prone"), CombatFixture.conditionNames(fighter));
+        MonsterActionResponse.TargetResult result = response.targetResults().getFirst();
+        assertEquals("HIT", result.attackOutcome());
+        assertFalse(result.savedSuccessfully());
+        assertEquals(List.of("prone"), result.conditionsApplied());
+        assertEquals("Dire Wolf uses Bite on Fighter: d20(15) + 5 = 20 vs AC 18 — hit, 10 piercing damage, "
+                + "STR save d20(5) + 0 = 5 vs DC 13 fails, gains prone.", f.entriesAbout(fighter).getFirst()
+                .getDescription());
+        assertEquals(0, f.dice.remaining());
+    }
+
+    @Test
+    @DisplayName("A hit's successful save leaves the target standing; the damage still lands")
+    void hitSaveSucceeds() {
+        EncounterParticipant wolf = direWolf();
+
+        MonsterActionResponse response = actionBy(wolf, "Bite", fighter, 15, 4, 3, 17);
+
+        assertEquals(30, fighter.getHpCurrent());
+        assertTrue(CombatFixture.conditionNames(fighter).isEmpty());
+        assertTrue(response.targetResults().getFirst().savedSuccessfully());
+        assertTrue(response.conditionsInflicted().isEmpty());
+        assertEquals("Dire Wolf uses Bite on Fighter: d20(15) + 5 = 20 vs AC 18 — hit, 10 piercing damage, "
+                + "STR save d20(17) + 0 = 17 vs DC 13 succeeds against prone.", f.entriesAbout(fighter).getFirst()
+                .getDescription());
+    }
+
+    @Test
+    @DisplayName("A mind flayer's tentacles grapple on every hit, and stun only on a failed Intelligence save (MM)")
+    void mindFlayerGrapplesAndStunsOnAFailedSave() {
+        EncounterParticipant mindFlayer = f.monster("Mind Flayer", 71, 15);
+        mindFlayer.getMonster().setActionTemplates("""
+                {"actions": [{"name": "Tentacle", "reach": 5, "effects": [
+                   {"damageDice": "2d10+4", "damageType": "psychic", "effectType": "DAMAGE"},
+                   {"escapeDC": 15, "condition": "grappled", "effectType": "CONDITION", "durationText": "until escape",
+                    "durationRounds": null},
+                   {"condition": "stunned", "effectType": "CONDITION"}],
+                 "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 7, "targetCount": 1,
+                 "deliveryMethod": "ATTACK_ROLL", "secondarySaveDC": 15, "secondarySaveAbility": "INT"}]}""");
+        EncounterParticipant rogue = f.player("Rogue", 30, 14);
+
+        // Each hits: 15 + 7 against AC 18 and 14, for 5 + 5 + 4. The Fighter's INT save of 16 + 0 makes DC 15;
+        // the Rogue's 4 + 0 doesn't
+        actionBy(mindFlayer, "Tentacle", fighter, 15, 5, 5, 16);
+        actionBy(mindFlayer, "Tentacle", rogue, 15, 5, 5, 4);
+
+        assertEquals(List.of("grappled"), CombatFixture.conditionNames(fighter));
+        assertEquals(List.of("grappled", "stunned"), CombatFixture.conditionNames(rogue));
+        assertEquals("Mind Flayer uses Tentacle on Fighter: d20(15) + 7 = 22 vs AC 18 — hit, 14 psychic damage, "
+                + "INT save d20(16) + 0 = 16 vs DC 15 succeeds against stunned, gains grappled.",
+                f.entriesAbout(fighter).getFirst().getDescription());
+        assertEquals("Mind Flayer uses Tentacle on Rogue: d20(15) + 7 = 22 vs AC 14 — hit, 14 psychic damage, "
+                + "INT save d20(4) + 0 = 4 vs DC 15 fails, gains grappled, stunned.",
+                f.entriesAbout(rogue).getFirst().getDescription());
+        assertEquals(0, f.dice.remaining());
+    }
+
+    @Test
+    @DisplayName("A hit's failed save by a creature with Legendary Resistance left is offered for undoing: it "
+            + "removes only the conditions the save gave, and the damage stands (D163)")
+    void legendaryResistanceOnAHitSave() {
+        EncounterParticipant wolf = direWolf();
+        EncounterParticipant lich = f.monster("Lich", 135, 17);
+        lich.setResourcePoolsCurrent(CombatFixture.legendaryResistance(3));
+
+        // A flat 4 piercing, the grapple, and a CON save of 2 + 0 against DC 11 that fails
+        MonsterActionResponse response = actionBy(wolf, "Tentacle", lich, 15, 2);
+
+        assertTrue(response.legendaryResistanceAvailable());
+        assertEquals(List.of("grappled", "poisoned"), CombatFixture.conditionNames(lich));
+        CombatLog entry = f.entriesAbout(lich).getFirst();
+        assertTrue(entry.getLegendaryResistanceEligible());
+        assertEquals("poisoned", entry.getLrConditionsApplied());
+        assertEquals(List.of(lich.getActiveConditions().get(1).id()), entry.getLrConditionIds());
+        assertEquals(4, entry.getLrDamageDealt());
+        assertEquals(4, entry.getLrSuccessDamage());
+
+        when(f.combatLogRepository.findById(entry.getId())).thenReturn(Optional.of(entry));
+        f.legendaryResistance.useLegendaryResistance(f.encounterId(), entry.getId(), f.dmUserId);
+
+        assertEquals(List.of("grappled"), CombatFixture.conditionNames(lich));
+        assertEquals(131, lich.getHpCurrent());
+        assertEquals(2, pool(lich, EffectApplier.LEGENDARY_RESISTANCE_POOL));
+        assertEquals("Lich uses Legendary Resistance and succeeds on the save instead: loses poisoned (2 remaining)",
+                f.log.getLast().getDescription());
+    }
+
+    @Test
+    @DisplayName("Legendary Resistance isn't offered on a hit's successful save, or on a failed one by a creature "
+            + "the hit killed")
+    void legendaryResistanceNotOfferedOnAHitSave() {
+        EncounterParticipant wolf = direWolf();
+        EncounterParticipant lich = f.monster("Lich", 135, 17);
+        lich.setResourcePoolsCurrent(CombatFixture.legendaryResistance(3));
+        EncounterParticipant imp = f.monster("Imp", 3, 13);
+        imp.setResourcePoolsCurrent(CombatFixture.legendaryResistance(3));
+
+        MonsterActionResponse saved = actionBy(wolf, "Bite", lich, 15, 4, 3, 18);
+        MonsterActionResponse killed = actionBy(wolf, "Bite", imp, 15, 4, 3, 2);
+
+        assertFalse(saved.legendaryResistanceAvailable());
+        assertNull(f.entriesAbout(lich).getFirst().getLegendaryResistanceEligible());
+        assertEquals(LifeState.DEAD, imp.getLifeState());
+        assertFalse(killed.legendaryResistanceAvailable());
+        assertNull(f.entriesAbout(imp).getFirst().getLegendaryResistanceEligible());
+        assertTrue(CombatFixture.conditionNames(imp).isEmpty());
     }
 
     @Test

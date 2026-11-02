@@ -12,10 +12,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Reading monster action templates into records (D168). The JSON is the seeded data as the local database holds it,
- * cut to the entries each case needs: the Adult Red Dragon (MM), the Illithilich, the Pixie, the Octopus and the
- * Beholder. Across all 2,357 monsters, every key the records read has one JSON type, except two: a legendary
- * action's cost, which is a number or, twice, the text "1-3", and spellcasting's innateSpells, a flag on 750
- * monsters and an object on 18.
+ * cut to the entries each case needs: the Adult Red Dragon (MM), the Illithilich, the Pixie, the Octopus, the
+ * Beholder, the Dire Wolf, the Rug of Smothering and the Mind Flayer. Across all 2,357 monsters, every key the records
+ * read has one JSON type, except two: a legendary action's cost, which is a number or, twice, the text "1-3", and
+ * spellcasting's innateSpells, a flag on 750 monsters and an object on 18.
  */
 class MonsterTemplatesTest {
 
@@ -88,12 +88,49 @@ class MonsterTemplatesTest {
         assertEquals("ATTACK_ROLL", bite.deliveryMethod());
         assertEquals(14, bite.attackBonus());
         assertEquals(1, bite.targetCount());
-        assertEquals(List.of(new MonsterTemplates.Part("DAMAGE", "2d10+8", "piercing", null, null, false, null, null),
-                new MonsterTemplates.Part("DAMAGE", "2d6", "fire", null, null, false, null, null)), bite.effects());
+        assertEquals(List.of(
+                new MonsterTemplates.Part("DAMAGE", "2d10+8", "piercing", null, null, null, null, false, null, null),
+                new MonsterTemplates.Part("DAMAGE", "2d6", "fire", null, null, null, null, false, null, null)),
+                bite.effects());
 
         MonsterTemplates.Part frightened = dragon.actions().get(4).effects().getFirst();
-        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "frightened", 10, true, 19, "WIS"), frightened);
+        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "frightened", null, null, 10, true, 19, "WIS"),
+                frightened);
         assertEquals("5-6", dragon.actions().get(5).recharge());
+    }
+
+    @Test
+    @DisplayName("An attack reads the save its data keeps apart from saveDC, as the Mind Flayer's tentacles do")
+    void secondarySave() {
+        MonsterTemplates.Action tentacle = parse("""
+                {"actions": [{"name": "Tentacle", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 7,
+                  "secondarySaveDC": 15, "secondarySaveAbility": "INT",
+                  "effects": [{"condition": "stunned", "effectType": "CONDITION"}]}]}""").actions().getFirst();
+
+        assertEquals(15, tentacle.secondarySaveDc());
+        assertEquals("INT", tentacle.secondarySaveAbility());
+        assertNull(tentacle.saveDc());
+    }
+
+    @Test
+    @DisplayName("A condition an attack gives on a hit reads the save the data records on it, as the Dire Wolf's prone "
+            + "does, or no ability where the data has none, as the Rug of Smothering's blinded")
+    void conditionSaves() {
+        MonsterTemplates wolf = parse("""
+                {"actions": [{"name": "Bite", "reach": 5, "effects": [
+                   {"damageDice": "2d6 + 3", "damageType": "piercing", "effectType": "DAMAGE"},
+                   {"saveDC": 13, "condition": "prone", "effectType": "CONDITION", "saveAbility": "STR"}],
+                  "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 5, "targetCount": 1,
+                  "deliveryMethod": "ATTACK_ROLL"}]}""");
+        MonsterTemplates rug = parse("""
+                {"actions": [{"name": "Smother", "effects": [
+                   {"saveDC": 13, "condition": "blinded", "effectType": "CONDITION", "saveAbility": null}],
+                  "deliveryMethod": "ATTACK_ROLL"}]}""");
+
+        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "prone", 13, "STR", null, false, null, null),
+                wolf.actions().getFirst().effects().get(1));
+        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "blinded", 13, null, null, false, null, null),
+                rug.actions().getFirst().effects().getFirst());
     }
 
     @Test

@@ -277,7 +277,7 @@ public class MonsterActionService {
                 applied.target().getDisplayName(),
                 applied.damageTaken(),
                 applied.healed(),
-                outcome.outcome() == Outcome.SAVE_SUCCESS,
+                outcome.outcome() == Outcome.SAVE_SUCCESS || outcome.hitSave() != null && outcome.hitSave().success(),
                 applied.conditionNames(),
                 switch (outcome.outcome()) {
                     case SAVE_SUCCESS -> "SAVED";

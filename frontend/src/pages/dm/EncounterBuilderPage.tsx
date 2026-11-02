@@ -6,7 +6,8 @@ import { useCampaigns } from '../../queries/campaigns';
 import { useCampaignCharacters } from '../../queries/characters';
 import {
   useAddParticipant, useCampaignEncounters, useCreateEncounter, useDeleteEncounter, useRemoveParticipant,
-  useRenameParticipant, useRollInitiatives, useSetInitiatives, useSetParticipantVisibility, useStartEncounter,
+  useRenameParticipant, useReorderTie, useRollInitiatives, useSetInitiatives, useSetParticipantVisibility,
+  useStartEncounter,
 } from '../../queries/encounters';
 import { useMonsterSearch } from '../../queries/monsters';
 import type { PlayerCharacter } from '../../types/character';
@@ -14,6 +15,7 @@ import type { Monster } from '../../types/monster';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
 import { Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Check } from 'lucide-react';
 import NavBar from '../../components/common/NavBar';
+import TieOrderArrows from '../../components/encounter/TieOrderArrows';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
 import IconButton from '../../components/ui/IconButton';
 import { getClassColour, getParticipantColour } from '../../utils/classColours';
@@ -66,6 +68,7 @@ export default function EncounterBuilderPage() {
   const setParticipantVisibility = useSetParticipantVisibility();
   const setInitiatives = useSetInitiatives();
   const rollInitiatives = useRollInitiatives();
+  const reorderTie = useReorderTie();
   const startEncounter = useStartEncounter();
 
   // Searches once typing pauses
@@ -171,6 +174,11 @@ export default function EncounterBuilderPage() {
     if (saved) setEditingInitiative(prev => { const next = { ...prev }; delete next[participantId]; return next; });
   }
 
+  async function handleReorderTie(participantIds: string[]) {
+    if (!selectedEncounter) return;
+    await attempt(() => reorderTie.mutateAsync({ encounter: selectedEncounter, participantIds }));
+  }
+
   async function handleRenameParticipant(participantId: string, newName: string) {
     if (!selectedEncounter || !newName.trim()) return;
     const saved = await attempt(() => renameParticipant.mutateAsync({
@@ -213,6 +221,8 @@ export default function EncounterBuilderPage() {
 
   const allHaveInitiative = selectedEncounter?.participants.every(p => p.initiative != null) ?? false;
   const hasParticipants = (selectedEncounter?.participants.length ?? 0) > 0;
+  // The server takes the DM's order for a tie while the encounter is being prepared or fought (D163)
+  const canReorderTies = selectedEncounter?.status === 'PREPARING' || selectedEncounter?.status === 'ACTIVE';
 
   if (campaignsQuery.isPending) {
     return <div className="min-h-screen bg-page flex items-center justify-center"><p className="font-body text-muted">Loading...</p></div>;
@@ -513,7 +523,7 @@ export default function EncounterBuilderPage() {
                             <tbody>
                               {selectedEncounter.participants.map((p: EncounterParticipant) => {
                                 const isMonster = p.participantType === 'MONSTER';
-                                const pColour = getParticipantColour(isMonster);
+                                const pColour = getParticipantColour(isMonster, p.characterClass);
                                 return (
                                   <tr key={p.id} className="border-b border-rule-light">
                                     <td className="px-4 py-3">
@@ -557,44 +567,55 @@ export default function EncounterBuilderPage() {
                                     <td className="px-4 py-3 font-heading text-[14px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</td>
                                     <td className="px-4 py-3 font-heading text-[14px] font-semibold text-ink">{p.armourClass}</td>
                                     <td className="px-4 py-3">
-                                      {selectedEncounter.status === 'PREPARING' ? (
-                                        <div className="flex items-center gap-1.5">
-                                          <input
-                                            type="number"
-                                            value={editingInitiative[p.id] ?? (p.initiative != null ? String(p.initiative) : '')}
-                                            onChange={e => setEditingInitiative(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                            onBlur={e => {
-                                              const val = e.target.value;
-                                              if (val && !isNaN(parseInt(val))) {
-                                                handleSetInitiative(p.id, val);
-                                              } else {
-                                                setEditingInitiative(prev => { const next = { ...prev }; delete next[p.id]; return next; });
-                                              }
-                                            }}
-                                            onKeyDown={e => {
-                                              if (e.key === 'Enter') {
-                                                (e.target as HTMLInputElement).blur();
-                                              }
-                                            }}
-                                            placeholder="—"
-                                            className="w-16 px-2 py-1 bg-page border border-rule font-heading text-[16px] font-bold text-ink text-center focus:outline-none focus:border-muted placeholder-faint"
+                                      <div className="flex items-center gap-1.5">
+                                        {selectedEncounter.status === 'PREPARING' ? (
+                                          <>
+                                            <input
+                                              type="number"
+                                              value={editingInitiative[p.id] ?? (p.initiative != null ? String(p.initiative) : '')}
+                                              onChange={e => setEditingInitiative(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                              onBlur={e => {
+                                                const val = e.target.value;
+                                                if (val && !isNaN(parseInt(val))) {
+                                                  handleSetInitiative(p.id, val);
+                                                } else {
+                                                  setEditingInitiative(prev => { const next = { ...prev }; delete next[p.id]; return next; });
+                                                }
+                                              }}
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                  (e.target as HTMLInputElement).blur();
+                                                }
+                                              }}
+                                              placeholder="—"
+                                              className="w-16 px-2 py-1 bg-page border border-rule font-heading text-[16px] font-bold text-ink text-center focus:outline-none focus:border-muted placeholder-faint"
+                                            />
+                                            {p.initiativeModifier != null && (
+                                              <span className="font-body text-[13px] font-semibold text-faint whitespace-nowrap">
+                                                ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
+                                              </span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span className="font-heading text-[16px] font-bold text-ink">
+                                            {p.initiative != null ? p.initiative : <span className="text-faint">—</span>}
+                                            {p.initiativeModifier != null && (
+                                              <span className="font-body text-[13px] font-semibold text-faint ml-1">
+                                                ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
+                                        {/* The DM's order among participants tied on initiative and DEX, as on the session page */}
+                                        {canReorderTies && (
+                                          <TieOrderArrows
+                                            turns={selectedEncounter.turnOrder}
+                                            index={selectedEncounter.turnOrder.findIndex(turn => turn.participantId === p.id)}
+                                            name={p.displayName}
+                                            onReorder={handleReorderTie}
                                           />
-                                          {p.initiativeModifier != null && (
-                                            <span className="font-body text-[13px] font-semibold text-faint whitespace-nowrap">
-                                              ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
-                                            </span>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <span className="font-heading text-[16px] font-bold text-ink">
-                                          {p.initiative != null ? p.initiative : <span className="text-faint">—</span>}
-                                          {p.initiativeModifier != null && (
-                                            <span className="font-body text-[13px] font-semibold text-faint ml-1">
-                                              ({p.initiativeModifier >= 0 ? '+' : ''}{p.initiativeModifier})
-                                            </span>
-                                          )}
-                                        </span>
-                                      )}
+                                        )}
+                                      </div>
                                     </td>
                                     {selectedEncounter.status === 'PREPARING' && (
                                       <td className="px-4 py-3">

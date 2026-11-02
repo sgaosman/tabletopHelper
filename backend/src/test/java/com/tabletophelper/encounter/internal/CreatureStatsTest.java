@@ -3,11 +3,14 @@ package com.tabletophelper.encounter.internal;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
+import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -85,6 +88,25 @@ class CreatureStatsTest {
     @DisplayName("An unknown ability is a modifier of 0")
     void nullAbility() {
         assertEquals(0, f.stats.saveModifier(f.monster("Goblin", 7, 15), null));
+    }
+
+    @Test
+    @DisplayName("A target's save modifier is for the Effect's save: its delivery's, or the one its attack's hit "
+            + "calls for")
+    void targetSaveModifier() {
+        EncounterParticipant fighter = f.player("Fighter", 30, 18);
+        fighter.getCharacter().setStrength(16);
+        fighter.getCharacter().setDexterity(12);
+        Effect bite = new Effect("Bite", new Effect.Attack(5, RollMode.NORMAL, true, false,
+                new Effect.HitSave(Ability.STR, 13, List.of("prone"))), List.of(), null, List.of("prone"), false, null);
+        Effect breath = new Effect("Breath", new Effect.Save(Ability.DEX, 15, true), List.of(), null, List.of(),
+                false, null);
+        Effect claw = new Effect("Claw", new Effect.Attack(5, RollMode.NORMAL, true, false), List.of(), null,
+                List.of(), false, null);
+
+        assertEquals(3, f.stats.target(fighter, bite).saveModifier());
+        assertEquals(1, f.stats.target(fighter, breath).saveModifier());
+        assertEquals(0, f.stats.target(fighter, claw).saveModifier());
     }
 
     @Test

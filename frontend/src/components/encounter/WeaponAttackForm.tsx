@@ -224,10 +224,11 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
               {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}
               <button type="button" onClick={() => update(i, { within5Ft: !row.within5Ft })} aria-pressed={row.within5Ft}
                 className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.within5Ft ? 'bg-cls-wizard text-card' : TOGGLE_OFF}`}>Within 5 ft</button>
-              {/* A forced critical is a Manual Modifier, which the combat log notes (D164) */}
+              {/* A forced critical is a Manual Modifier, which the combat log notes (D164). Paladin's darker gold, so
+                  the light text reads in every theme (WCAG AA) */}
               {allowManualModifiers && (
                 <button type="button" onClick={() => update(i, { forceCrit: !row.forceCrit })} aria-pressed={row.forceCrit}
-                  className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.forceCrit ? 'bg-cls-monk text-card' : TOGGLE_OFF}`}>Crit</button>
+                  className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.forceCrit ? 'bg-cls-paladin text-card' : TOGGLE_OFF}`}>Crit</button>
               )}
             </div>
 

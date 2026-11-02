@@ -43,6 +43,12 @@ class ResolverTest {
         return new Effect("Fireball", new Effect.Save(ability, dc, half), List.of(damage), null, conditions, false, null);
     }
 
+    // A +5 melee attack whose hit calls for the save against the conditions it guards
+    private static Effect hitWithSave(Effect.HitSave hitSave, List<String> conditions, Effect.DamagePart... damage) {
+        return new Effect("Bite", new Effect.Attack(5, RollMode.NORMAL, true, false, hitSave), List.of(damage), null,
+                conditions, false, null);
+    }
+
     private static int total(List<Resolver.Damage> damage) {
         return damage.stream().mapToInt(Resolver.Damage::amount).sum();
     }
@@ -283,6 +289,80 @@ class ResolverTest {
             assertTrue(success.success());
             assertEquals(10, success.total());
             assertFalse(failure.success());
+        }
+    }
+
+    @Nested
+    @DisplayName("Saves a hit calls for against its conditions")
+    class HitSaves {
+
+        @Test
+        @DisplayName("A hit's failed save, rolled after the damage, gives the conditions it guards, and keeps all of "
+                + "the damage as the success outcome for Legendary Resistance")
+        void failedHitSave() {
+            // 15 + 5 hits AC 12; 2d6 + 3 rolls 4 + 3 + 3; the STR save of 8 + 1 misses DC 13
+            var dice = Rng.scripted(15, 4, 3, 8);
+            var outcome = new Resolver(dice).resolve(hitWithSave(new Effect.HitSave(Ability.STR, 13, List.of("prone")),
+                    List.of("prone"), part("2d6 + 3", "piercing")), List.of(target(GOBLIN, 12, 1))).getFirst();
+
+            assertEquals(Outcome.HIT, outcome.outcome());
+            assertEquals(List.of(new Resolver.Damage("piercing", 10)), outcome.damage());
+            assertEquals(new Resolver.SaveRoll(8, 9, false, false), outcome.hitSave());
+            assertEquals(List.of("prone"), outcome.conditions());
+            assertEquals(outcome.damage(), outcome.successDamage());
+            assertFalse(outcome.autoFailed());
+            assertEquals(0, dice.remaining());
+        }
+
+        @Test
+        @DisplayName("A hit's successful save prevents only the conditions it guards; the damage and the other "
+                + "conditions come with the hit")
+        void successfulHitSave() {
+            var outcome = new Resolver(Rng.scripted(15, 6, 14)).resolve(
+                    hitWithSave(new Effect.HitSave(Ability.CON, 11, List.of("poisoned")),
+                            List.of("grappled", "poisoned"), part("1d10", "piercing")),
+                    List.of(target(GOBLIN, 12, 0))).getFirst();
+
+            assertEquals(new Resolver.SaveRoll(14, 14, true, false), outcome.hitSave());
+            assertEquals(List.of("grappled"), outcome.conditions());
+            assertEquals(List.of(new Resolver.Damage("piercing", 6)), outcome.damage());
+            assertTrue(outcome.successDamage().isEmpty());
+        }
+
+        @Test
+        @DisplayName("A miss rolls no save and gives no conditions")
+        void missRollsNoSave() {
+            var dice = Rng.scripted(3);
+            var outcome = new Resolver(dice).resolve(hitWithSave(new Effect.HitSave(Ability.STR, 13, List.of("prone")),
+                    List.of("prone"), part("2d6 + 3", "piercing")), List.of(target(GOBLIN, 12, 1))).getFirst();
+
+            assertEquals(Outcome.MISS, outcome.outcome());
+            assertNull(outcome.hitSave());
+            assertTrue(outcome.conditions().isEmpty());
+            assertEquals(0, dice.remaining());
+        }
+
+        @Test
+        @DisplayName("A STR save a hit calls for fails automatically for a paralyzed target, with no roll (D161)")
+        void automaticFailure() {
+            // Paralyzed and within 5 feet: advantage, and the hit is a critical hit that doubles the d6
+            var dice = Rng.scripted(9, 12, 2, 3);
+            var outcome = new Resolver(dice).resolve(hitWithSave(new Effect.HitSave(Ability.STR, 13, List.of("prone")),
+                    List.of("prone"), part("1d6", "piercing")), List.of(target(GOBLIN, 12, 20, "paralyzed"))).getFirst();
+
+            assertEquals(Outcome.CRITICAL, outcome.outcome());
+            assertEquals(new Resolver.SaveRoll(null, null, false, true), outcome.hitSave());
+            assertEquals(List.of("prone"), outcome.conditions());
+            assertEquals(0, dice.remaining());
+        }
+
+        @Test
+        @DisplayName("The Effect's saving throw is its delivery's, or the one its attack's hit calls for")
+        void saveAbility() {
+            assertEquals(Ability.STR, hitWithSave(new Effect.HitSave(Ability.STR, 13, List.of("prone")),
+                    List.of("prone")).saveAbility());
+            assertEquals(Ability.DEX, save(Ability.DEX, 15, true, List.of()).saveAbility());
+            assertNull(attack(5, RollMode.NORMAL, true, false).saveAbility());
         }
     }
 

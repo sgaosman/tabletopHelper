@@ -9,21 +9,27 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Reads monster action templates into Effects (D030, D160). Every DAMAGE part of an action counts, each with its own
- * damage type, such as a bite's piercing and fire. A multiattack becomes one step per component (D165), each against
- * the targets chosen for it or, as before, every component against the same targets; Eye Rays become one saving
- * throw per ray, each at the next target in turn. An action the template leaves to the DM comes back with the reason
- * and no steps.
+ * damage type, such as a bite's piercing and fire. An attack's condition that the data gives a save, on the condition
+ * or on the action, comes only on a failed save, as a dire wolf's prone does ({@link Effect.HitSave}); a grapple comes
+ * with the hit unless the save is recorded on the grapple itself, as a mind flayer's tentacles grapple and only a
+ * failed save stuns. A multiattack becomes one step per component (D165), each against the targets chosen for it or,
+ * as before, every component against the same targets; Eye Rays become one saving throw per ray, each at the next
+ * target in turn. An action the template leaves to the DM comes back with the reason and no steps.
  */
 @Component
 @RequiredArgsConstructor
 public class MonsterEffects {
+
+    private static final String GRAPPLED = "grappled";
 
     // Chooses which eye rays fire
     private final Rng rng;
@@ -200,7 +206,12 @@ public class MonsterEffects {
         }
 
         int saveDc = overrides.saveDc() != null ? overrides.saveDc() : orZero(action.saveDc());
-        Parts parts = parts(effects, overrides.saveDc(), saveDc, action.saveAbility());
+        // The action's conditions take the save it records, or else the one its data keeps apart for a hit
+        boolean recordsSave = action.saveDc() != null || action.saveAbility() != null;
+        int conditionSaveDc = overrides.saveDc() != null ? overrides.saveDc()
+                : orZero(recordsSave ? action.saveDc() : action.secondarySaveDc());
+        Parts parts = parts(effects, overrides.saveDc(), conditionSaveDc,
+                recordsSave ? action.saveAbility() : action.secondarySaveAbility());
         if (parts == null) {
             return Read.manual(name + "'s damage dice can't be rolled automatically");
         }
@@ -215,8 +226,19 @@ public class MonsterEffects {
         Effect.Delivery delivery;
         List<String> conditions = parts.conditions();
         switch (deliveryMethod.toUpperCase()) {
-            case "ATTACK_ROLL" -> delivery = new Effect.Attack(attackBonus, SpellEffects.rollMode(overrides.advantage()),
-                    withinFiveFeet(action.attackType()), false);
+            case "ATTACK_ROLL" -> {
+                // A hit makes one save at most, so conditions that record different ones are the DM's
+                Set<ConditionSave> saves = new LinkedHashSet<>(parts.conditionSaves().values());
+                if (saves.size() > 1) {
+                    return Read.manual(name + "'s conditions record different saving throws");
+                }
+                Effect.HitSave hitSave = saves.stream().findFirst()
+                        .map(save -> new Effect.HitSave(save.ability(), save.dc(),
+                                List.copyOf(parts.conditionSaves().keySet())))
+                        .orElse(null);
+                delivery = new Effect.Attack(attackBonus, SpellEffects.rollMode(overrides.advantage()),
+                        withinFiveFeet(action.attackType()), false, hitSave);
+            }
             case "SAVING_THROW" -> delivery = new Effect.Save(Ability.parse(action.saveAbility()).orElse(null), saveDc,
                     action.halfOnSave());
             case "AUTO_HIT" -> delivery = new Effect.Automatic();
@@ -272,22 +294,33 @@ public class MonsterEffects {
         return new MonsterAction(name, steps, null, List.of());
     }
 
-    // Damage parts, condition names and how each condition ends, and whether there is healing or another
-    // effect type, both of which are left to the DM; null when a part's dice can't be read
+    // Damage parts, condition names, how each condition ends and the save the data gives against it, and whether
+    // there is healing or another effect type, both of which are left to the DM; null when a part's dice can't be read
     private record Parts(List<Effect.DamagePart> damage, List<String> conditions,
-                         Map<String, Effect.ConditionEnd> conditionEnds, boolean healing, boolean other) {
+                         Map<String, Effect.ConditionEnd> conditionEnds, Map<String, ConditionSave> conditionSaves,
+                         boolean healing, boolean other) {
+    }
+
+    // A saving throw against a condition: its ability and DC
+    private record ConditionSave(Ability ability, int dc) {
     }
 
     /**
-     * The effects' parts. A condition lasts the rounds its effect gives, and one its creature saves to end at
-     * the end of each of its turns gets that Repeat Save (D162): against the DM's override of the DC, else
-     * the effect's own DC, else the action's, in the effect's ability or else the action's.
+     * The effects' parts. A condition's save is the one its effect records, else the action's: the DM's override
+     * of the DC, else the effect's own DC, else the action's, in the effect's ability or else the action's. An
+     * attack's hit calls for it only when both its ability and DC are known; one without either can't be read, so
+     * its condition comes with the hit, as before. A grapple comes with the hit too unless its own effect records the
+     * save: in the 2014 stat blocks a grapple on a hit is automatic, and its DC is for escaping it. A condition lasts
+     * the rounds its effect gives, and one its creature saves to end at the end of each of its turns gets that Repeat
+     * Save (D162): against the DM's override of the DC, else the effect's own repeat DC, else the condition's save, in
+     * the effect's repeat ability or else the condition's save's.
      */
     private static Parts parts(List<MonsterTemplates.Part> effects, Integer overrideSaveDc, int actionSaveDc,
                                String actionSaveAbility) {
         List<Effect.DamagePart> damage = new ArrayList<>();
         List<String> conditions = new ArrayList<>();
         Map<String, Effect.ConditionEnd> conditionEnds = new LinkedHashMap<>();
+        Map<String, ConditionSave> conditionSaves = new LinkedHashMap<>();
         boolean healing = false;
         boolean other = false;
         for (MonsterTemplates.Part effect : effects) {
@@ -308,9 +341,18 @@ public class MonsterEffects {
                     if (effect.condition() != null && !effect.condition().isBlank()) {
                         String name = effect.condition().trim().toLowerCase();
                         conditions.add(name);
-                        Effect.ConditionEnd end = conditionEnd(effect, overrideSaveDc, actionSaveDc, actionSaveAbility);
+                        int saveDc = overrideSaveDc != null ? overrideSaveDc
+                                : effect.saveDc() != null ? effect.saveDc() : actionSaveDc;
+                        Optional<Ability> saveAbility = Ability.parse(effect.saveAbility())
+                                .or(() -> Ability.parse(actionSaveAbility));
+                        Effect.ConditionEnd end = conditionEnd(effect, overrideSaveDc, saveDc, saveAbility);
                         if (end != null) {
                             conditionEnds.put(name, end);
+                        }
+                        boolean ownSave = effect.saveDc() != null || effect.saveAbility() != null;
+                        if (ownSave || !GRAPPLED.equals(name)) {
+                            saveAbility.filter(ability -> saveDc > 0)
+                                    .ifPresent(ability -> conditionSaves.put(name, new ConditionSave(ability, saveDc)));
                         }
                     }
                 }
@@ -318,20 +360,20 @@ public class MonsterEffects {
                 default -> other = true;
             }
         }
-        return new Parts(damage, conditions, conditionEnds, healing, other);
+        return new Parts(damage, conditions, conditionEnds, conditionSaves, healing, other);
     }
 
     // Null when the effect gives the condition neither a duration nor a Repeat Save
     private static Effect.ConditionEnd conditionEnd(MonsterTemplates.Part effect, Integer overrideSaveDc,
-                                                    int actionSaveDc, String actionSaveAbility) {
+                                                    int saveDc, Optional<Ability> saveAbility) {
         Integer duration = effect.durationRounds() != null && effect.durationRounds() > 0
                 ? effect.durationRounds() : null;
         Effect.RepeatSave repeatSave = null;
         if (effect.saveToEndEachTurn()) {
             int dc = overrideSaveDc != null ? overrideSaveDc
-                    : effect.saveToEndDc() != null ? effect.saveToEndDc() : actionSaveDc;
+                    : effect.saveToEndDc() != null ? effect.saveToEndDc() : saveDc;
             repeatSave = Ability.parse(effect.saveToEndAbility())
-                    .or(() -> Ability.parse(actionSaveAbility))
+                    .or(() -> saveAbility)
                     .filter(ability -> dc > 0)
                     .map(ability -> new Effect.RepeatSave(ability, dc))
                     .orElse(null);

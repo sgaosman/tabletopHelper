@@ -2219,6 +2219,7 @@ export interface components {
             /** Format: int32 */
             armourClass: number;
             bonusActionUsed: boolean;
+            characterClass?: string | null;
             /** Format: uuid */
             characterId?: string | null;
             /** Format: int32 */

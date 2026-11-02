@@ -45,11 +45,13 @@ public class CreatureStats {
                 : participant.getActiveConditions().stream().map(ConditionEntry::name).toList();
     }
 
-    /** The participant as the Resolver needs it for this Effect: AC, save modifier and conditions. */
+    /**
+     * The participant as the Resolver needs it for this Effect: AC, the modifier for the Effect's saving throw,
+     * the hit's save included, and conditions.
+     */
     public Resolver.Target target(EncounterParticipant participant, Effect effect) {
-        Ability saveAbility = effect.delivery() instanceof Effect.Save save ? save.ability() : null;
         return new Resolver.Target(participant.getId(), participant.getArmourClass(),
-                saveModifier(participant, saveAbility), conditionNames(participant));
+                saveModifier(participant, effect.saveAbility()), conditionNames(participant));
     }
 
     /** Each participant as the Resolver needs it for this Effect, in the same order. */

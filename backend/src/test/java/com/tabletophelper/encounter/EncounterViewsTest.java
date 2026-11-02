@@ -70,6 +70,7 @@ class EncounterViewsTest {
         return ParticipantResponse.builder()
                 .id(gimliId)
                 .participantType("PLAYER")
+                .characterClass("Fighter")
                 .displayName("Gimli")
                 .hpMax(30)
                 .hpCurrent(12)
@@ -162,11 +163,14 @@ class EncounterViewsTest {
         }
 
         @Test
-        @DisplayName("Leaves player characters exactly as the DM sees them")
+        @DisplayName("Leaves player characters exactly as the DM sees them, their class included")
         void leavesPlayerCharactersAlone() {
             var dmGimli = gimli();
 
-            assertEquals(dmGimli, find(EncounterViews.playerView(encounter(false, dmGimli)), gimliId));
+            ParticipantResponse playerGimli = find(EncounterViews.playerView(encounter(false, dmGimli)), gimliId);
+
+            assertEquals(dmGimli, playerGimli);
+            assertEquals("Fighter", playerGimli.getCharacterClass());
         }
 
         @Test

@@ -123,6 +123,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      *                                none means AUTO_HIT for an action with effects
      * @param attackType              such as MELEE_WEAPON or RANGED_SPELL
      * @param targetCount             how many creatures it targets, when the data says
+     * @param secondarySaveDc         the DC of the save an attack's hit calls for, where the data records it apart
+     *                                from saveDC, as the Mind Flayer's tentacles do (MM)
+     * @param secondarySaveAbility    that save's ability
      * @param recharge                the d6 rolls that recharge it, such as "5-6"
      * @param cost                    a legendary action's cost: a number, or a range such as "1-3" for a spell that
      *                                costs one per spell level
@@ -135,8 +138,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
                          String attackType, Integer attackBonus, @JsonProperty("saveDC") Integer saveDc,
-                         String saveAbility, boolean halfOnSave, Integer targetCount, List<Part> effects,
-                         String recharge, String cost,
+                         String saveAbility, boolean halfOnSave, Integer targetCount,
+                         @JsonProperty("secondarySaveDC") Integer secondarySaveDc, String secondarySaveAbility,
+                         List<Part> effects, String recharge, String cost,
                          @JsonProperty("isMultiattack") boolean multiattack, List<String> multiattackComponents,
                          String multiattackDescription, @JsonProperty("_multiattackNote") String multiattackNote,
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays) {
@@ -160,13 +164,17 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param effectType        DAMAGE, CONDITION or HEAL; any other is the DM's
      * @param damageDice        damage as dice or a flat amount, such as "2d10 + 6" or "1"; a flat amount also carries
      *                          a flatDamage flag, which adds nothing
+     * @param saveDc            the DC of the save against a condition an attack gives on a hit, when the data records
+     *                          it on the condition rather than the action
+     * @param saveAbility       that save's ability, as the data records it
      * @param durationRounds    how many rounds a condition lasts, when the data says
      * @param saveToEndEachTurn whether the condition's creature repeats a save at the end of each of its turns
-     * @param saveToEndDc       that save's DC, when it isn't the action's
-     * @param saveToEndAbility  that save's ability, when it isn't the action's
+     * @param saveToEndDc       that save's DC, when it isn't the condition's or the action's
+     * @param saveToEndAbility  that save's ability, when it isn't the condition's or the action's
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String effectType, String damageDice, String damageType, String condition,
+                       @JsonProperty("saveDC") Integer saveDc, String saveAbility,
                        Integer durationRounds, boolean saveToEndEachTurn,
                        @JsonProperty("saveToEndDC") Integer saveToEndDc, String saveToEndAbility) {
     }

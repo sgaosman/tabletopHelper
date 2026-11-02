@@ -471,6 +471,7 @@ public class EncounterService {
                         .id(p.getId())
                         .participantType(p.getParticipantType().name())
                         .characterId(p.getCharacter() != null ? p.getCharacter().getId() : null)
+                        .characterClass(p.getCharacter() != null ? p.getCharacter().getCharacterClass() : null)
                         .monsterId(p.getMonster() != null ? p.getMonster().getId() : null)
                         .displayName(p.getDisplayName())
                         .initiative(p.getInitiative())

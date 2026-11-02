@@ -358,9 +358,11 @@ describe('DM EncounterSessionPage', () => {
       ],
     });
 
+    // Removing a participant goes too: the server allows it only while the encounter is prepared or fought
     const COMBAT_CONTROLS: (string | RegExp)[] = [
       'Previous turn', /Next Turn/, 'Attack roll', 'Deal damage', 'Heal', 'Set HP / revive', 'Add condition',
       'Set concentration', 'Cast spell', 'Monster actions', 'Repeat spell effect', 'Roll', /level 1 slot/, /prone/,
+      /^Remove /,
     ];
 
     function expectNoCombatControls() {
@@ -469,6 +471,85 @@ describe('DM EncounterSessionPage', () => {
       }
       expect(screen.queryByText(PAUSED_NOTICE)).not.toBeInTheDocument();
     });
+  });
+
+  describe('removing a participant mid-fight (D166)', () => {
+    it('removes a participant once the DM confirms, and shows the state the server answers with', async () => {
+      const removed: string[] = [];
+      server.use(http.delete('/api/encounters/:id/participants/:participantId', ({ params }) => {
+        removed.push(params.participantId as string);
+        return HttpResponse.json(makeMockEncounter({ participants: [gimli(), bugbear()] }));
+      }));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Remove Test Goblin' }));
+      const dialog = screen.getByRole('dialog', { name: 'Remove Test Goblin?' });
+      expect(dialog).toHaveTextContent('if it is their turn, the turn passes to the next creature');
+      expect(removed).toEqual([]);
+      await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(removed).toEqual(['part-goblin']);
+      expect(screen.queryByText('Test Goblin')).not.toBeInTheDocument();
+      expect(screen.getByText('Round 1 · 2/2 alive')).toBeInTheDocument();
+    });
+
+    it('removes nobody when the DM cancels', async () => {
+      const removed: string[] = [];
+      server.use(http.delete('/api/encounters/:id/participants/:participantId', ({ params }) => {
+        removed.push(params.participantId as string);
+        return HttpResponse.json(makeMockEncounter({ participants: [goblin(), bugbear()] }));
+      }));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Remove Gimli' }));
+      await user.click(within(screen.getByRole('dialog', { name: 'Remove Gimli?' })).getByRole('button', { name: 'Cancel' }));
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByText('Gimli')).toBeInTheDocument();
+      expect(removed).toEqual([]);
+    });
+
+    it('shows why the server refused, and keeps the dialog open', async () => {
+      server.use(http.delete('/api/encounters/:id/participants/:participantId', () =>
+        HttpResponse.json({ error: 'Participants can be removed only while the encounter is prepared or active' },
+          { status: 409 })));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Remove Test Goblin' }));
+      const dialog = screen.getByRole('dialog', { name: 'Remove Test Goblin?' });
+      await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+      expect(await within(dialog).findByRole('alert'))
+        .toHaveTextContent('Participants can be removed only while the encounter is prepared or active');
+      expect(within(dialog).getByRole('button', { name: 'Remove' })).toBeEnabled();
+    });
+  });
+
+  it('shows a player character in its class colour, and a monster in the monster colour', async () => {
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+      participants: [gimli({ characterClass: 'Fighter' }), goblin()],
+    }))));
+    await renderLoaded();
+
+    expect(screen.getByText('PLAYER').getAttribute('style')).toContain('var(--color-cls-fighter)');
+    expect(screen.getByText('PLAYER').getAttribute('style')).toContain('var(--color-cls-fighter-bg)');
+    expect(screen.getByText('MONSTER').getAttribute('style')).toContain('var(--color-monster)');
+  });
+
+  it('gives Pause and a forced Crit the darker gold, whose light text reads in every theme', async () => {
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    expect(screen.getByRole('button', { name: /Pause/ })).toHaveClass('bg-cls-paladin', 'text-card');
+    await user.click(screen.getAllByRole('button', { name: 'Attack roll' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Crit' }));
+
+    expect(screen.getByRole('button', { name: 'Crit' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Crit' })).toHaveClass('bg-cls-paladin', 'text-card');
   });
 
   describe('multiattack (D165)', () => {

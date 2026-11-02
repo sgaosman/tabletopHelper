@@ -6151,6 +6151,10 @@
           "bonusActionUsed": {
             "type": "boolean"
           },
+          "characterClass": {
+            "type": "string",
+            "nullable": true
+          },
           "characterId": {
             "type": "string",
             "format": "uuid",

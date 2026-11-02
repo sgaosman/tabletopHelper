@@ -100,6 +100,12 @@ export function useRollInitiatives() {
   return useEncounterChange(({ encounter }: { encounter: EncounterRef }) => encounterApi.rollInitiatives(encounter.id));
 }
 
+/** The DM's order for participants tied on initiative and DEX: all of them, first to act first (D163). */
+export function useReorderTie() {
+  return useEncounterChange(({ encounter, participantIds }: { encounter: EncounterRef; participantIds: string[] }) =>
+    encounterApi.reorderTie(encounter.id, participantIds));
+}
+
 export function useStartEncounter() {
   return useEncounterChange(({ encounter }: { encounter: EncounterRef }) => encounterApi.start(encounter.id));
 }
@@ -263,6 +269,7 @@ export function useEncounterAction() {
       resume: change(encounterApi.resume),
       end: change(encounterApi.end),
       setVisibility: change(encounterApi.setVisibility),
+      removeParticipant: change(encounterApi.removeParticipant),
       nextTurn: change(combatApi.advanceTurn),
       previousTurn: change(combatApi.previousTurn),
       reorderTie: change(encounterApi.reorderTie),

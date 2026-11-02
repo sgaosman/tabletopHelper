@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render, setupAuthToken } from '../../test/test-utils';
+import type { EncounterParticipant } from '../../types/encounter';
 import EncounterBuilderPage from './EncounterBuilderPage';
 
 describe('EncounterBuilderPage', () => {
@@ -124,6 +125,59 @@ describe('EncounterBuilderPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Encounter must be in PREPARING status');
     expect(await screen.findByRole('button', { name: /Go to Session/ })).toBeInTheDocument();
     expect(listRequests).toBe(2);
+  });
+
+  it('reorders a tie on initiative and DEX with the arrows the session page has, and shows the order the server answers with', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter, makeMockParticipant } = await import('../../test/mocks/handlers');
+    const goblin = makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { initiative: 12, sortOrder: 0 });
+    const gimli = makeMockParticipant('part-gimli', 'Gimli', 'PLAYER', { initiative: 12, sortOrder: 1 });
+    const tied = (participants: EncounterParticipant[]) => makeMockEncounter({
+      status: 'PREPARING', sessionCode: undefined, participants,
+      turnOrder: participants.map(p => ({
+        participantId: p.id, name: p.displayName, initiative: 12, lair: false, skipped: false, current: false, tieGroup: 0,
+      })),
+    });
+    let requested: unknown;
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => HttpResponse.json([tied([goblin, gimli])])),
+      http.put('/api/encounters/:id/initiatives/tie-order', async ({ request }) => {
+        requested = await request.json();
+        return HttpResponse.json(tied([gimli, goblin]));
+      }),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+
+    expect(screen.getByRole('button', { name: 'Move Test Goblin up the tie' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Move Gimli up the tie' }));
+
+    await waitFor(() => expect(requested).toEqual({ participantIds: ['part-gimli', 'part-goblin'] }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Move Gimli up the tie' })).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Move Test Goblin down the tie' })).toBeDisabled();
+  });
+
+  it('shows a player character in its class colour among the participants, and a monster in the monster colour', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter, makeMockParticipant } = await import('../../test/mocks/handlers');
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => HttpResponse.json([makeMockEncounter({
+        status: 'PREPARING', sessionCode: undefined,
+        participants: [
+          makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER'),
+          makeMockParticipant('part-gimli', 'Gimli', 'PLAYER', { characterClass: 'Cleric' }),
+        ],
+      })])),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+
+    expect(screen.getByDisplayValue('Gimli').getAttribute('style')).toContain('var(--color-cls-cleric)');
+    expect(screen.getByDisplayValue('Test Goblin').getAttribute('style')).toContain('var(--color-monster)');
   });
 
   it('selects a new encounter as soon as it is created', async () => {

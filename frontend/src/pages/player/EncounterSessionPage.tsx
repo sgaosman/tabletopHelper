@@ -560,7 +560,7 @@ function PlayerSessionView() {
             const isOwn = p.controlledByUserId === user?.userId;
             const conditions = p.activeConditions ?? [];
             const isMonster = p.participantType === 'MONSTER';
-            const participantColour = getParticipantColour(isMonster);
+            const participantColour = getParticipantColour(isMonster, p.characterClass);
             const hpRatio = p.hpCurrent != null && p.hpMax ? p.hpCurrent / p.hpMax : 0;
             const monsterHealth = isMonster ? healthLabel(p) : null;
 

@@ -17,7 +17,8 @@ import java.util.UUID;
  * returns each target's outcome, changing nothing. Its dice come from the {@link Rng} it is given, so tests
  * can script them, and it rolls them in a fixed order: an Effect with a saving throw or none rolls its damage
  * and healing once, shared by every target (D161), then each target's save; an attack rolls each target's
- * d20s and, on a hit, that hit's own damage, doubled on a critical hit (PHB p.196).
+ * d20s and, on a hit, that hit's own damage, doubled on a critical hit (PHB p.196), then the target's save
+ * against the conditions the hit calls for one against.
  */
 public final class Resolver {
 
@@ -31,7 +32,7 @@ public final class Resolver {
      * A creature an Effect is resolved against.
      *
      * @param armourClass  its AC, for attack rolls
-     * @param saveModifier its modifier for the Effect's saving throw, when it has one
+     * @param saveModifier its modifier for the Effect's saving throw, when it has one ({@link Effect#saveAbility})
      * @param conditions   its conditions by name, which can change attack rolls and fail saves (D161)
      */
     public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions) {
@@ -54,17 +55,21 @@ public final class Resolver {
      * @param d20           the d20 that counts, or null when none was rolled
      * @param total         that d20 plus the attack bonus or save modifier, or null when none was rolled
      * @param rollMode      how an attack was rolled once the target's conditions count; NORMAL otherwise
-     * @param autoFailed    the target failed its save without rolling
+     * @param autoFailed    the target failed the Effect's save without rolling
      * @param damage        the damage it takes by type, before its own defences: after a successful save, half
      *                      of it or none
      * @param successDamage on a failed save, the damage a successful one would have left, kept so Legendary
-     *                      Resistance can apply that outcome instead (D163); empty for any other outcome
+     *                      Resistance can apply that outcome instead (D163): after a hit's save, all of it;
+     *                      empty for any other outcome
      * @param healing       the hit points it regains
      * @param conditions    the conditions it gets
+     * @param hitSave       the save it made, once an attack hit it, against the conditions the hit's save guards
+     *                      ({@link Effect.HitSave}); null when it made none
      */
     public record TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
                                 RollMode rollMode, boolean autoFailed, List<Damage> damage,
-                                List<Damage> successDamage, int healing, List<String> conditions) {
+                                List<Damage> successDamage, int healing, List<String> conditions,
+                                SaveRoll hitSave) {
 
         public TargetOutcome {
             d20s = List.copyOf(d20s);
@@ -138,12 +143,22 @@ public final class Resolver {
         int total = d20 + attack.bonus();
         if (outcome == Outcome.MISS) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    List.of(), List.of(), 0, List.of());
+                    List.of(), List.of(), 0, List.of(), null);
         }
         List<Damage> damage = rollDamage(effect.damage(), outcome == Outcome.CRITICAL);
         int healing = rollHealing(effect.healing());
+        Effect.HitSave hitSave = attack.hitSave();
+        if (hitSave == null) {
+            return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
+                    damage, List.of(), healing, effect.conditions(), null);
+        }
+        // The save decides only the conditions it guards, so a success would leave all of the damage
+        SaveRoll save = savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions());
+        List<String> conditions = effect.conditions().stream()
+                .filter(condition -> !save.success() || !hitSave.conditions().contains(condition))
+                .toList();
         return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                damage, List.of(), healing, effect.conditions());
+                damage, save.success() ? List.of() : damage, healing, conditions, save);
     }
 
     private TargetOutcome save(Effect effect, Effect.Save save, Target target, List<Damage> damage, int healing) {
@@ -152,10 +167,10 @@ public final class Resolver {
         List<Damage> onSuccess = save.halfDamageOnSuccess() ? halved(damage) : List.of();
         if (roll.success()) {
             return new TargetOutcome(target.id(), Outcome.SAVE_SUCCESS, d20s, roll.d20(), roll.total(),
-                    RollMode.NORMAL, false, onSuccess, List.of(), healing, List.of());
+                    RollMode.NORMAL, false, onSuccess, List.of(), healing, List.of(), null);
         }
         return new TargetOutcome(target.id(), Outcome.SAVE_FAIL, d20s, roll.d20(), roll.total(),
-                RollMode.NORMAL, roll.autoFailed(), damage, onSuccess, healing, effect.conditions());
+                RollMode.NORMAL, roll.autoFailed(), damage, onSuccess, healing, effect.conditions(), null);
     }
 
     private List<TargetOutcome> automatic(Effect effect, List<Target> targets) {
@@ -163,7 +178,7 @@ public final class Resolver {
         int healing = rollHealing(effect.healing());
         return targets.stream()
                 .map(target -> new TargetOutcome(target.id(), Outcome.AUTOMATIC, List.of(), null, null,
-                        RollMode.NORMAL, false, damage, List.of(), healing, effect.conditions()))
+                        RollMode.NORMAL, false, damage, List.of(), healing, effect.conditions(), null))
                 .toList();
     }
 
