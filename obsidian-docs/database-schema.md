@@ -78,6 +78,21 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | created_at | TIMESTAMPTZ | | Auto-set |
 | updated_at | TIMESTAMPTZ | | Auto-updated |
 
+### refresh_tokens
+
+Added in V13 (D156). One row per refresh token. The browser holds the random token in the `refresh_token` cookie; only its hash is stored. Every token issued from one login or registration shares a `family_id`. Each refresh replaces the token, and presenting a replaced token, or logging out, revokes the whole family (see [[auth-flow]]). The table has no `created_at`/`updated_at`; `issued_at` records creation. Expired and revoked rows are not cleaned up yet.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK, DEFAULT gen_random_uuid() | |
+| user_id | UUID | FK → users, NOT NULL | Indexed (`idx_rt_user_id`) |
+| family_id | UUID | NOT NULL | Shared by every token from one login. Indexed (`idx_rt_family_id`) for revoking a family. |
+| token_hash | VARCHAR(64) | UNIQUE, NOT NULL | SHA-256 of the token as lowercase hex. The token itself is never stored. |
+| issued_at | TIMESTAMPTZ | NOT NULL | |
+| expires_at | TIMESTAMPTZ | NOT NULL | 7 days after `issued_at` |
+| replaced_by_id | UUID | | The token this one was exchanged for, set when it is used. No foreign key constraint. |
+| revoked_at | TIMESTAMPTZ | | Set on every unrevoked token in the family at logout or on reuse |
+
 ### campaigns
 
 | Column | Type | Constraints | Notes |
@@ -88,6 +103,7 @@ PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs.
 | dm_user_id | UUID | FK → users, NOT NULL | |
 | invite_code | VARCHAR(8) | UNIQUE, NOT NULL | Random alphanumeric, excludes ambiguous chars (0/O, 1/I/L) |
 | is_active | BOOLEAN | DEFAULT TRUE | |
+| show_exact_monster_hp | BOOLEAN | NOT NULL, DEFAULT FALSE | Campaign setting. Off: the Player View shows each monster's HP as a Health Status instead of numbers. Set by the DM through `PATCH /api/campaigns/{id}/settings` (V14, D157). |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
 
@@ -586,8 +602,10 @@ All indexes are created by Flyway migrations (D170). R2 removed the JPA `@Index`
 | combat_logs | encounter_id | idx_cl_encounter_id | B-tree | V12 — combat log retrieval |
 | encounters | campaign_id | idx_enc_campaign_id | B-tree | V12 — a campaign's encounters |
 | campaign_members | user_id | idx_cm_user_id | B-tree | V12 — a user's campaigns |
+| refresh_tokens | user_id | idx_rt_user_id | B-tree | V13 — keeps the foreign key indexed (D156) |
+| refresh_tokens | family_id | idx_rt_family_id | B-tree | V13 — revoking a token family on logout or reuse (D156) |
 
-PostgreSQL also creates an index automatically for every primary key and UNIQUE constraint: `users.username`, `users.email`, `campaigns.invite_code`, `encounters.session_code`, `conditions.name` and `campaign_members(campaign_id, user_id)`. The last one also serves lookups by `campaign_id`.
+PostgreSQL also creates an index automatically for every primary key and UNIQUE constraint: `users.username`, `users.email`, `campaigns.invite_code`, `encounters.session_code`, `conditions.name`, `refresh_tokens.token_hash` and `campaign_members(campaign_id, user_id)`. The last one also serves lookups by `campaign_id`.
 
 These foreign keys stay unindexed because no query filters on them: `campaigns.dm_user_id`, `encounter_participants.monster_id`, the `race_id`, `class_id`, `subclass_id` and `background_id` columns of `player_characters`, `subclasses.character_class_id`, the three `class_feature_pools` keys and `monster_pool_triggers.pool_id`. `FlywayMigrationIT` fails if any other foreign key has no index, or if one of these gains an index without being taken off its allow-list.
 
@@ -608,6 +626,8 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V10 | `V10__legendary_resistance_metadata.sql` | Legendary Resistance undo columns on `combat_logs` (D145) |
 | V11 | `V11__player_characters_race_id_not_null.sql` | `player_characters.race_id` NOT NULL (D152) |
 | V12 | `V12__foreign_key_indexes.sql` | Indexes on the seven foreign keys used in lookups and joins, all `IF NOT EXISTS` (D170) |
+| V13 | `V13__refresh_tokens.sql` | `refresh_tokens` table with `idx_rt_user_id` and `idx_rt_family_id` (D156) |
+| V14 | `V14__campaign_show_exact_monster_hp.sql` | `campaigns.show_exact_monster_hp` BOOLEAN NOT NULL DEFAULT FALSE (D157) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -626,7 +646,7 @@ Add `--maintenance.apply=true` to write the changes.
 
 ## Planned Schema Changes (Refactor Phase, D150–D172)
 
-Approved 2026-11-01; D150 defines the phases. R1 and R2 are concrete. Later phases are outlines: their exact columns are decided in each phase's plan, and this section is updated then.
+Approved 2026-11-01; D150 defines the phases. R1, R2 and R3 are concrete. Later phases are outlines: their exact columns are decided in each phase's plan, and this section is updated then.
 
 ### R1 — Safety and hygiene
 
@@ -647,6 +667,8 @@ The two data changes run with the dry-run report and backup that D150 requires. 
 | Foreign-key indexes, done in V12 — see [Flyway-Managed Indexes](#flyway-managed-indexes-what-actually-exists). JPA `@Index` annotations are removed. | Schema | D170 |
 
 ### R3 — Access and auth
+
+**Done (2026-11-02):** V13 and V14 are added; see [refresh_tokens](#refresh_tokens) and [campaigns](#campaigns).
 
 | Change | Type | Decision |
 |--------|------|----------|

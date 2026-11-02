@@ -74,6 +74,8 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 - No server-side token revocation/blacklist — complexity not warranted for 9 users
 - Tokens stored in localStorage (vulnerable to XSS) — acceptable for personal-use app with no financial data
 
+**Update (2026-11-02, R3):** D156 closed both accepted gaps. Access tokens now last 15 minutes and live only in the frontend's memory. Refresh tokens are random values in an HttpOnly, SameSite=Strict cookie, stored only as hashes, replaced on every use and revocable: logout revokes the login's token family, and so does reusing a replaced token. `JWT_SECRET` has no default outside dev and must be at least 32 bytes. Still open: an access token can't be revoked before it expires, and the Secure cookie needs HTTPS, which waits for the Hosting step (D154).
+
 ### R006: Single Point of Failure (VPS)
 
 **Category:** Infrastructure
@@ -203,6 +205,8 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Resolution:** Added ownership and campaign membership validation to `GET /api/characters/{id}`. Users can now only view characters they own or that belong to a campaign they're a member of.
 
+**Update (2026-11-02, R3):** reading a character is now limited to its owner and the DM of its campaign; other campaign members get 403 (D155).
+
 ## Resolved Risks
 
 ### R-RESOLVED-001: Vite 8 Build Failures with Type Imports
@@ -222,6 +226,8 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 **Problem:** When a user's 1-hour access token expired, all API calls returned 403. The Axios interceptor only caught 401 responses, so expired tokens were not refreshed — pages showed blank or empty results with no feedback. Users had to manually log out and back in.
 
 **Resolution:** Extended the Axios response interceptor to catch both 401 and 403, with a `hadToken` guard so only requests that actually carried a Bearer token trigger the refresh flow. Concurrent requests are queued during refresh. If the refresh token is also expired, localStorage is cleared and the user is redirected to login.
+
+**Superseded in R3 (D155, D156):** Spring now answers a missing or expired token with 401, and the interceptor refreshes on 401 only, since a 403 means "not allowed". The refresh uses the HttpOnly `refresh_token` cookie, and nothing is kept in localStorage.
 
 ### R-RESOLVED-003: sockjs-client `global` Crash on Vite 8
 

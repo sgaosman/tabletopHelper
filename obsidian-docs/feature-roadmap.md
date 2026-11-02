@@ -933,4 +933,4 @@ These are documented for future reference and explicitly **not in scope** for th
 ## Planned UX Improvements
 
 - ~~**Character creation constraints**~~ — **Covered by M9.** Race/class/subclass dropdowns, ability score methods, derived stat auto-calculation. See [[feature-roadmap#Milestone 9: Character Builder Overhaul]].
-- ~~**Graceful stale token handling**~~ — **Done.** Axios interceptor now catches 401 and 403, silently refreshes using the refresh token, queues concurrent requests, and redirects to login only when the refresh token is also expired. See [[decisions-log#D017]].
+- ~~**Graceful stale token handling**~~ — **Done.** Axios interceptor now catches 401 and 403, silently refreshes using the refresh token, queues concurrent requests, and redirects to login only when the refresh token is also expired. See [[decisions-log#D017]]. *(Superseded in R3: the interceptor refreshes on 401 only, through the HttpOnly refresh cookie; see D155, D156 and [[auth-flow]].)*

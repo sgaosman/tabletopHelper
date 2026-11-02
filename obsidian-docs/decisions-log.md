@@ -1809,7 +1809,7 @@ Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and
 ## D150: Refactor Phase Before M13 — Phases R1–R8
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned
+**Status:** Accepted — in progress (R1–R3 done; R4–R8 to come)
 
 **Decision:** Feature milestones (M13 onward) are paused until the refactor phase is complete. The phase runs in eight steps. Each step leaves the app deployable, with CI green and the project docs updated.
 
@@ -1852,7 +1852,7 @@ M13 (action economy) changes the same combat code. Building it first would multi
 ## D151: Modular Monolith — Microservices Rejected
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (skeleton in R3, then each phase)
+**Status:** Accepted — implemented (skeleton in R3); each later phase moves its area into its module
 
 **Decision:** The backend stays a single deployable Spring Boot application, organised into modules with enforced boundaries:
 
@@ -1886,7 +1886,7 @@ Each module exposes a small public API (services and DTOs) and keeps everything 
 ## D152: Remove Startup Character Cleanup
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R1)
+**Status:** Accepted — implemented (R1)
 
 **Decision:** Delete `DataSeeder.cleanupLegacyCharacters()`. Make `raceId` required in `CharacterCreateRequest` (`@NotNull`), and add a Flyway migration making `player_characters.race_id` `NOT NULL`. If homebrew races are ever needed, they are added as race reference rows rather than left null.
 
@@ -1911,7 +1911,7 @@ The one-off migration the method existed for is finished. No production row can 
 ## D153: Spell Slots — A Single Spellcasting Class Uses Its Own Table
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R1)
+**Status:** Accepted — implemented (R1)
 
 **Decision:**
 - `SpellSlotCalculator` uses the combined multiclass table only when a character has two or more Spellcasting Classes.
@@ -1944,7 +1944,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D154: Production and Delivery Baseline — HTTPS, CI, Operations
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R1; HTTPS and backups in the Hosting step; Spring Boot upgrade in R8)
+**Status:** Accepted — implemented (R1 parts); HTTPS and backups in the Hosting step; Spring Boot upgrade in R8
 
 **Decision:**
 - **HTTPS:** a domain name (bought, or a free dynamic-DNS subdomain) points at the server. Caddy provisions certificates automatically, HTTP redirects to HTTPS, and HSTS is enabled.
@@ -1983,7 +1983,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D155: Access Policy and Error Handling
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R3; catch-and-continue removal in R5–R7)
+**Status:** Accepted — implemented (R3); catch-and-continue removal in R5–R7
 
 **Decision:**
 - **One access policy.** An `AccessPolicy` service provides `requireCampaignDm`, `requireCampaignMember`, `requireCharacterOwnerOrDm` and `requireControls(participant)`. Every command and query that touches campaign data calls it first, replacing the ownership checks copied into each service method. It also covers places that have no check today:
@@ -2030,7 +2030,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D156: Session Security — In-Memory Access Token, Rotating Refresh Cookie
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R3; deploying it needs the Hosting step's HTTPS)
+**Status:** Accepted — implemented (R3); deploying it needs the Hosting step's HTTPS
 
 **Decision:**
 - **Access tokens** last 15 minutes and are held in the frontend's memory, not localStorage.
@@ -2064,7 +2064,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D157: Encounter Visibility — Subscription Checks and DM/Player Views
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R3)
+**Status:** Accepted — implemented (R3)
 
 **Decision:**
 - **Subscription checks.** The WebSocket channel interceptor checks SUBSCRIBE frames as well as CONNECT. Only campaign members may subscribe to an encounter, and only its DM may subscribe to the DM destination.
@@ -2392,7 +2392,7 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 ## D165: Monster Action and Spellcasting Fixes
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R1 for moving the panel's UI; R5 for the rest)
+**Status:** Accepted — implemented (R1: monster spellcasting moved out of the panel); R5 for the rest
 
 **Decision:**
 - **One spellcasting path** for PCs and monsters, paid from a Spell Source: a spell slot, a pact slot, an innate use, or nothing (at will).
@@ -2537,7 +2537,7 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 ## D169: Game Content as Data Files with Idempotent Seeding
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R7; feat reseeding fix in R1)
+**Status:** Accepted — feat reseeding fix implemented (R1); the rest planned (R7)
 
 **Decision:**
 - **Data files.** Game data we write ourselves lives in JSON files under `backend/src/main/resources/data/`, and the seeders become generic loaders. That covers:
@@ -2581,7 +2581,7 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 ## D170: Indexes Managed Only by Flyway
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R2)
+**Status:** Accepted — implemented (R2)
 
 **Decision:** All indexes are created in Flyway migrations, and JPA `@Index` annotations are removed. A new migration adds indexes on the foreign keys used in lookups and joins. These include at least:
 
@@ -2651,7 +2651,7 @@ The full list is settled during R2 planning.
 ## D172: Testing Strategy — Three Tiers and Golden Rules Tables
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R2, extended in every phase)
+**Status:** Accepted — implemented (R2 tiers); extended in every phase
 
 **Decision:**
 - **Unit tier:** the `rules` module and services, with plain JUnit and Mockito, as today.
@@ -2685,7 +2685,7 @@ The full list is settled during R2 planning.
 ## D173: Selectable Themes and a More Readable Tourmaline
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (before R2)
+**Status:** Accepted — implemented (before R2)
 
 **Decision:**
 - **Four themes, chosen per device:** Tourmaline (the default), Parchment & Ink, Tavern by Candlelight (dark) and Adventurer's Handbook. The choice is saved in the browser and applied before the first paint, so pages never flash the wrong theme. Nothing is stored on the server.

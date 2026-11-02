@@ -59,7 +59,7 @@ TabletopHelper replaces the scattered collection of PDFs, paper notes, and brows
 | Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4 |
 | Database | PostgreSQL 16 (Docker) |
 | Real-time | WebSocket with STOMP over SockJS |
-| Auth | JWT (access + refresh tokens) |
+| Auth | JWT access tokens plus a rotating, HttpOnly refresh cookie (D156) |
 
 ## Getting Started
 

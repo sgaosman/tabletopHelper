@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:8080/api` (dev) or `https://yourdomain.com/api` (prod)
 
-All authenticated endpoints require the header: `Authorization: Bearer <accessToken>`
+All authenticated endpoints require the header: `Authorization: Bearer <accessToken>`. An access token lasts 15 minutes; `POST /auth/refresh` exchanges the `refresh_token` cookie for a new one (see [[auth-flow]]). The `/auth/*` endpoints need no access token.
 
 ## Authentication
 
@@ -26,13 +26,15 @@ Create a new user account.
   "userId": "uuid",
   "username": "aragorn",
   "displayName": "Aragorn",
-  "accessToken": "eyJ...",
-  "refreshToken": "eyJ..."
+  "accessToken": "eyJ..."
 }
 ```
 
+The response also sets the `refresh_token` cookie (HttpOnly, SameSite=Strict, Path=/api/auth, 7 days; Secure outside the dev profile), which starts a new token family. Since R3 the body has no `refreshToken` (D156).
+
 **Errors:**
-- `400` — Username already taken / Email already registered / Validation failed
+- `409` — Username already taken / Email already registered
+- `400` — Validation failed
 
 ### POST /auth/login
 
@@ -44,26 +46,27 @@ Create a new user account.
 }
 ```
 
-**Response (200):** Same shape as register response.
+**Response (200):** Same shape as register response, and sets a new `refresh_token` cookie that starts a new token family.
 
 **Errors:**
 - `400` — Invalid username or password
 
 ### POST /auth/refresh
 
-Exchange a valid refresh token for new access + refresh tokens.
+Exchange the `refresh_token` cookie for a new access token. The request has no body: the browser sends the cookie. The presented refresh token is replaced, and the response sets a cookie with the new one (rotation, D156).
 
-**Request:**
-```json
-{
-  "refreshToken": "eyJ..."
-}
-```
-
-**Response (200):** Same shape as register response (new token pair).
+**Response (200):** Same shape as register response.
 
 **Errors:**
-- `400` — Invalid or expired refresh token
+- `401` — `{"error": "Your session has ended. Please sign in again."}` when the cookie is missing, unknown, expired or revoked. Presenting a refresh token that was already replaced also revokes its whole family (reuse detection).
+
+Before R3 this endpoint took `{"refreshToken": "..."}` in the body, returned a new token pair, and answered a bad token with 400 (superseded in R3, D156).
+
+### POST /auth/logout
+
+Sign out. Revokes every refresh token from the cookie's login (its token family) and deletes the cookie (`Max-Age=0`). A missing or unknown cookie is ignored. Needs no access token. New in R3 (D156).
+
+**Response (204):** No Content.
 
 ## Campaigns
 
@@ -91,6 +94,7 @@ Create a new campaign. The authenticated user becomes the DM.
   "dmDisplayName": "Aragorn",
   "inviteCode": "X43EWPQ2",
   "isActive": true,
+  "showExactMonsterHp": false,
   "members": [
     {
       "userId": "uuid",
@@ -118,7 +122,8 @@ Join an existing campaign via invite code. The authenticated user becomes a PLAY
 **Response (200):** Full campaign response including updated members list.
 
 **Errors:**
-- `400` — Invalid invite code / Already a member
+- `400` — Invalid invite code
+- `409` — Already a member
 
 ### GET /campaigns
 
@@ -133,7 +138,29 @@ Get full details of a specific campaign. User must be a member.
 **Response (200):** Campaign object with members list.
 
 **Errors:**
-- `400` — Campaign not found / Not a member
+- `404` — Campaign not found
+- `403` — Not a member
+
+### PATCH /campaigns/{campaignId}/settings
+
+Change the campaign's settings. DM only. New in R3 (D157).
+
+**Request:**
+```json
+{
+  "showExactMonsterHp": true
+}
+```
+
+- `showExactMonsterHp` — `true` lets players see exact monster HP; `false` (the default) shows them a Health Status instead (see [[websocket-protocol#Player View (D157)]]).
+
+Every setting is optional: one left out, or sent as `null`, keeps its current value. A live encounter's Player View picks up the change with its next update.
+
+**Response (200):** Campaign object.
+
+**Errors:**
+- `403` — Not the campaign's DM
+- `404` — Campaign not found
 
 ## Characters
 
@@ -186,16 +213,21 @@ The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceNa
 
 **Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus, subclassAlwaysPreparedSpells). The `subclassAlwaysPreparedSpells` field is a JSON object keyed by class level (e.g. `{"3":["Hold Person","Spike Growth"],"5":["Sleet Storm"]}`) — populated from the Subclass entity's seeded 5etools data.
 
+**Errors:**
+- `400` — Unknown `raceId`, `classId`, `subclassId`, `backgroundId` or `campaignId` (IDs in the body are a 400, not a 404), or validation failed
+- `403` — `campaignId` names a campaign the user isn't a member of (D155)
+
 ### PUT /characters/{characterId}
 
 Update an existing character. Only the owner can update. All fields are optional — only provided fields are updated.
 
-**Request:** Any subset of character fields. Includes `clearCampaign` (boolean) — set to `true` to unassign the character from its campaign (since `campaignId: null` is indistinguishable from "not provided" in a partial update).
+**Request:** Any subset of character fields. Includes `clearCampaign` (boolean) — set to `true` to unassign the character from its campaign (since `campaignId: null` is indistinguishable from "not provided" in a partial update). Assigning a `campaignId` requires the owner to be a member of that campaign.
 
 **Response (200):** Full updated character object.
 
 **Errors:**
-- `400` — Character not found / Not the owner
+- `404` — Character not found
+- `403` — Not the owner, or not a member of the assigned campaign
 
 ### GET /characters
 
@@ -205,9 +237,13 @@ List all active characters owned by the authenticated user.
 
 ### GET /characters/{characterId}
 
-Get a specific character by ID.
+Get a specific character by ID. Only its owner, or the DM of the campaign it belongs to, may read it (D155, R3).
 
 **Response (200):** Full character object.
+
+**Errors:**
+- `404` — Character not found
+- `403` — Neither the owner nor the campaign's DM
 
 ### DELETE /characters/{characterId}
 
@@ -216,17 +252,19 @@ Soft-delete a character (sets `isActive = false`). Only the owner can delete. Ch
 **Response (204):** No Content.
 
 **Errors:**
-- `400` — Character not found / Not the owner
+- `404` — Character not found
+- `403` — Not the owner
 - `409` — Character is in active combat
 
 ### GET /characters/campaign/{campaignId}
 
-List all active characters assigned to a campaign. User must be a member of the campaign.
+List all active characters assigned to a campaign. DM only since R3; before it, any member could list them (D155).
 
 **Response (200):** Array of character objects.
 
 **Errors:**
-- `400` — Not a member of this campaign
+- `403` — Not the campaign's DM
+- `404` — Campaign not found
 
 ### POST /characters/{characterId}/level-up
 
@@ -257,7 +295,8 @@ Level up a character. Supports multiclassing — if classId differs from the cha
 If `asiAvailable` is true, the client should prompt for ASI/feat choice via `/apply-choices`. If `subclassRequired` is true, the client should prompt for subclass selection.
 
 **Errors:**
-- `400` — Character at max level (20) / Multiclass prerequisites not met / Class not found
+- `409` — Character at max level (20) / Multiclass prerequisites not met
+- `400` — Class not found
 
 ### POST /characters/{characterId}/level-down
 
@@ -266,7 +305,7 @@ Remove the most recent level. Reverses HP, features, ASI choices, hit dice, and 
 **Response (200):** Full character object.
 
 **Errors:**
-- `400` — Character at minimum level (1)
+- `409` — Character at minimum level (1) / No level history to revert
 
 ### POST /characters/{characterId}/apply-choices
 
@@ -473,9 +512,11 @@ List optional features (Eldritch Invocations, Fighting Styles, Battle Maneuvers,
 
 ## Encounters
 
-All endpoints require authentication. The authenticated user must be the DM of the encounter's campaign (except `GET /encounters/join/{code}`).
+All endpoints require authentication. The three reads (`GET /encounters/{id}`, `GET /encounters/campaign/{campaignId}` and `GET /encounters/join/{sessionCode}`) need membership of the encounter's campaign; every other endpoint is for the campaign's DM only (D155). An action in the wrong encounter status, for example deleting an encounter that isn't PREPARING, returns 409.
 
-After every mutation, the updated encounter state is broadcast via WebSocket to `/topic/encounter/{id}/state`.
+**Every encounter response is the caller's view** (D157): the DM View, with everything, for the campaign's DM, and the Player View for everyone else. The Player View leaves out hidden participants, strips monsters' DM-only fields and, unless the campaign shows exact monster HP, replaces their HP with a Health Status; see [[websocket-protocol#Player View (D157)]].
+
+After every mutation, the server publishes the DM View to `/topic/encounter/{id}/dm-state` and the Player View to `/topic/encounter/{id}/state`. (Before R3, one unfiltered state went to `/topic/encounter/{id}/state` and to every caller.)
 
 ### POST /encounters
 
@@ -490,7 +531,7 @@ Create a new encounter in PREPARING status.
 }
 ```
 
-**Response (200):** Full encounter object with empty participants list.
+**Response (201):** Full encounter object with empty participants list.
 
 ### GET /encounters/campaign/{campaignId}
 
@@ -543,6 +584,26 @@ Rename a participant. Updates the `displayName` while preserving the underlying 
 
 **Errors:**
 - `400` — displayName is required / blank
+- `404` — Participant not found
+
+### PATCH /encounters/{id}/participants/{participantId}/visibility
+
+Hide a monster from players, or show it again, in any encounter status. DM only. New in R3 (D157); it is the first endpoint that sets `isVisibleToPlayers`.
+
+**Request:**
+```json
+{
+  "visible": false
+}
+```
+
+A hidden monster is left out of the Player View, so players don't see it in the initiative list or the spell target pickers, and their combat log leaves out entries about it.
+
+**Response (200):** Full encounter object (the caller's view).
+
+**Errors:**
+- `400` — `visible` is missing, or the participant isn't a monster ("Only monsters can be hidden from players")
+- `404` — Participant not found
 
 ### DELETE /encounters/{id}/participants/{participantId}
 
@@ -574,7 +635,7 @@ Roll initiative (1d20 + modifier) for all participants. Updates sort order.
 
 ### POST /encounters/{id}/start
 
-Transition from PREPARING to ACTIVE. Requires all participants to have initiative set. Generates a session code and marks the first participant (by initiative order) as current turn.
+Transition from PREPARING to ACTIVE. Requires all participants to have initiative set (409 otherwise). Generates a session code and marks the first participant (by initiative order) as current turn.
 
 **Response (200):** Full encounter object with session code.
 
@@ -592,12 +653,13 @@ Transition to COMPLETED.
 
 ### GET /encounters/join/{sessionCode}
 
-Look up an encounter by session code. Used by players to join a live encounter. Does not require campaign membership.
+Look up an encounter by session code. Used by players to join a live encounter. Requires membership of the encounter's campaign since R3; before it, anyone signed in could look one up (D155).
 
-**Response (200):** Full encounter object.
+**Response (200):** Full encounter object (the caller's view).
 
 **Errors:**
-- `400` — Encounter not found
+- `404` — Invalid session code
+- `403` — Not a member of the encounter's campaign
 
 ### Encounter Response Shape
 
@@ -635,16 +697,21 @@ Look up an encounter by session code. Used by players to join a live encounter. 
       "controlledByUserId": "uuid",
       "deathSaveSuccesses": 0,
       "deathSaveFailures": 0,
-      "notes": null
+      "notes": null,
+      "healthStatus": null
     }
   ],
   "createdAt": "2026-07-18T10:00:00Z"
 }
 ```
 
+`healthStatus` is set only in the Player View, on a monster whose HP it hides: `UNHARMED`, `INJURED`, `BLOODIED` or `DOWN`, with `hpCurrent`, `hpMax` and `hpTemp` then `null`. The Player View also sets a monster's `monsterId`, `notes`, `spellsKnown`, `spellSlotsCurrent`, `spellAttackBonus`, `spellSaveDc`, `spellcastingAbility` and `resourcePoolsCurrent` to `null`, and leaves out participants hidden from players (D157).
+
 ## Combat
 
-All combat endpoints are under `/api/encounters/{encounterId}/combat`. The encounter must be in ACTIVE or PAUSED status. After every mutation, the updated encounter state is broadcast via WebSocket.
+All combat endpoints are under `/api/encounters/{encounterId}/combat`. The encounter must be in ACTIVE or PAUSED status (409 otherwise). The DM may act for any participant; a player may act only for a participant they control, and may attack or cast spells only on that participant's turn (403 otherwise, D028, D155). Setting HP, restoring spell slots, monster actions and spells, Legendary Resistance, lair status and turn changes are DM only. A participant named in the body or query string that isn't in the encounter is a 400.
+
+After every mutation, the server publishes the DM View and the Player View, and the response, including `encounterState` in spell results, is the caller's view (D157).
 
 ### POST /encounters/{id}/combat/attack
 
@@ -789,7 +856,7 @@ Use a spell slot. Decrements the remaining count for the specified level. Player
 ```
 
 **Errors:**
-- `400` — No remaining slots at that level
+- `409` — No remaining slots at that level
 
 ### POST /encounters/{id}/combat/spell-slot/restore
 
@@ -798,7 +865,8 @@ Restore a spell slot (DM only). Increments the remaining count.
 **Request:** Same shape as use.
 
 **Errors:**
-- `400` — Already at maximum
+- `409` — Already at maximum
+- `400` — The participant has no slots at that level
 
 ### POST /encounters/{id}/combat/cast-spell
 
@@ -864,7 +932,10 @@ Cast a spell as a combat action. Auto-resolves ~184 spells using the SpellResolv
 - Conditions applied with source tracking (`sourceSpellName`, `sourceParticipantId`, `sourceRequiresConcentration`)
 
 **Errors:**
-- `400` — No spell slot available, caster is silenced and spell requires verbal component, spell not found
+- `409` — No spell slot remaining at that level / Caster is silenced and the spell has a verbal component
+- `400` — More targets than the spell allows at that level
+
+A spell the resolver can't automate, including an unknown spell, is not an error: the slot is spent and the response has `autoResolved: false` with a `manualResolutionReason`.
 
 ### POST /encounters/{id}/combat/repeat-spell-effect
 
@@ -896,7 +967,9 @@ Repeat the damaging effect of a concentration spell without consuming a spell sl
 - Logged as `SPELL_EFFECT_REPEAT` action type
 
 **Errors:**
-- `400` — Caster has no active concentration, spell has no repeatable effect
+- `409` — Caster has no active concentration or persistent spell
+
+A spell with no repeatable effect is not an error: the response has `autoResolved: false` with a `manualResolutionReason`.
 
 ### POST /encounters/{id}/combat/turn/next
 
@@ -908,7 +981,7 @@ Go back to the previous participant. Decrements round number when wrapping (mini
 
 ### GET /encounters/{id}/combat/log
 
-Get the full combat log for the encounter, ordered chronologically.
+Get the full combat log for the encounter, ordered chronologically. Campaign members only (D155, R3; before it, any signed-in user could read it). The DM gets every entry. Players get the log without entries whose actor, target or Legendary Resistance target is hidden, without the Legendary Resistance fields (`legendaryResistanceEligible`, `lrTargetId`, `lrDamageDealt`, `lrConditionsApplied`, `lrResolved`), and with `turnParticipantName` cleared on entries logged during a hidden participant's turn (D157).
 
 **Response (200):**
 ```json
@@ -944,12 +1017,15 @@ All errors return a consistent format:
 }
 ```
 
-HTTP status codes used:
+HTTP status codes used (D155, R3). Services throw the domain exceptions in `shared/`, and `GlobalExceptionHandler` maps them:
 - `200` — Success
 - `201` — Created
-- `204` — No Content (successful deletion)
-- `400` — Bad request (validation, business logic)
-- `401` — Unauthorized (missing/invalid token)
-- `403` — Forbidden (valid token but insufficient permissions)
-- `409` — Conflict (character is in active combat and cannot be deleted)
-- `409` — Conflict (character in active encounter, optimistic lock conflict)
+- `204` — No Content (successful deletion, logout)
+- `400` — Bad input (`ValidationException` and Spring's binding errors): failed validation, with a message per field; an unknown ID in the request body, such as a `raceId` or a participant ID; a malformed UUID or a parameter of the wrong type (e.g. `?level=abc`); a missing or unreadable body; a missing required parameter; wrong login details
+- `401` — Unauthorized: no access token, or an expired or invalid one, on a protected endpoint; or a missing, expired, revoked or reused refresh cookie on `/auth/refresh`. The frontend answers a 401 with one refresh and a retry
+- `403` — Forbidden (`ForbiddenException`): signed in but not allowed. Not a member of the campaign, not its DM, not the character's owner, acting for a participant you don't control, or a player attacking or casting outside their turn
+- `404` — Not found (`NotFoundException`): the resource named in the URL doesn't exist (campaign, character, encounter, participant, session code, combat log entry), or the path is unknown
+- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again.")
+- `500` — Anything unexpected. Outside the dev profile the body is always `{"error": "Something went wrong. Please try again."}`; only dev returns the real message (`server.error.include-message: always`)
+
+Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentException`), an expired token returned 403, and optimistic-lock conflicts returned 500 (superseded in R3, D155).

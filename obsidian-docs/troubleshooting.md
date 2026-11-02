@@ -69,14 +69,15 @@ Add before the app script in `index.html`:
 <script>globalThis.global = globalThis;</script>
 ```
 
-### API calls return 403
+### API calls return 401 or 403
 
-**Cause:** JWT token is missing, expired, or invalid.
+**Cause (since R3, D155):** a 401 means the access token is missing, expired or invalid, and the app answers it with one refresh before sending you to `/login`. A 403 means you are signed in but not allowed: not a member of the campaign, not its DM, or not the character's owner. Before R3 an expired token also produced a 403.
 
 **Checks:**
-1. Is the user logged in? Check `localStorage.getItem('accessToken')` in browser console.
-2. Is the token expired? Decode it at jwt.io and check the `exp` field.
-3. Is the backend running? Try `curl http://localhost:8080/api/auth/login -X POST -H 'Content-Type: application/json' -d '{"username":"test","password":"test"}'`
+1. Is the user signed in? Tokens are no longer in localStorage: the access token lives only in memory. In DevTools, Network should show a successful `POST /api/auth/refresh` on page load, and Application → Cookies should hold `refresh_token`. If the refresh answers 401, sign in again; everyone has to sign in once after R3.
+2. Is the token expired, or the wrong kind? Copy it from a request's `Authorization` header, decode it at jwt.io and check `exp` and `type: access`.
+3. For a 403, the response's `error` message says which check failed, for example "You are not a member of this campaign".
+4. Is the backend running? Try `curl http://localhost:8080/api/auth/login -X POST -H 'Content-Type: application/json' -d '{"username":"test","password":"test"}'`
 
 ### Frontend can't reach backend API
 
