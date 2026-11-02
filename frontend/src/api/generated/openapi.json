@@ -3231,13 +3231,13 @@
             "type": "boolean",
             "nullable": true
           },
-          "isRanged": {
-            "type": "boolean",
-            "nullable": true
-          },
           "targetId": {
             "type": "string",
             "format": "uuid"
+          },
+          "within5Ft": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },
@@ -4489,7 +4489,9 @@
               "LAIR_ACTION",
               "LEGENDARY_RESISTANCE_USED",
               "RECHARGE_SUCCESS",
-              "RECHARGE_FAILURE"
+              "RECHARGE_FAILURE",
+              "HP_SET",
+              "REPEAT_SAVE"
             ]
           },
           "actorId": {
@@ -4526,6 +4528,14 @@
             "type": "boolean",
             "nullable": true
           },
+          "lrConditionIds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           "lrConditionsApplied": {
             "type": "string",
             "nullable": true
@@ -4537,6 +4547,11 @@
           },
           "lrResolved": {
             "type": "boolean",
+            "nullable": true
+          },
+          "lrSuccessDamage": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "lrTargetId": {
@@ -4625,6 +4640,8 @@
       "ConditionEntry": {
         "required": [
           "appliedRound",
+          "endRule",
+          "id",
           "name"
         ],
         "type": "object",
@@ -4633,10 +4650,22 @@
             "type": "integer",
             "format": "int32"
           },
+          "concentrationInstanceId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "duration": {
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "endRule": {
+            "$ref": "#/components/schemas/EndRule"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           },
           "name": {
             "type": "string"
@@ -4827,6 +4856,26 @@
               "ACTIVE",
               "PAUSED",
               "COMPLETED"
+            ]
+          }
+        }
+      },
+      "EndRule": {
+        "required": [
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "AFTER_ROUNDS",
+              "START_OF_TURN",
+              "END_OF_TURN",
+              "CONCENTRATION",
+              "REPEAT_SAVE",
+              "HP_REGAINED",
+              "MANUAL"
             ]
           }
         }
@@ -5749,8 +5798,8 @@
           "deathSaveSuccesses",
           "displayName",
           "id",
-          "isAlive",
           "isCurrentTurn",
+          "lifeState",
           "participantType",
           "reactionUsed"
         ],
@@ -5851,15 +5900,21 @@
             "format": "int32",
             "nullable": true
           },
-          "isAlive": {
-            "type": "boolean"
-          },
           "isCurrentTurn": {
             "type": "boolean"
           },
           "isVisibleToPlayers": {
             "type": "boolean",
             "nullable": true
+          },
+          "lifeState": {
+            "type": "string",
+            "enum": [
+              "ALIVE",
+              "DYING",
+              "STABLE",
+              "DEAD"
+            ]
           },
           "monsterId": {
             "type": "string",

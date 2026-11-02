@@ -74,7 +74,7 @@ class EncounterBroadcasterTest {
                 .hpCurrent(20)
                 .armourClass(14)
                 .isVisibleToPlayers(visible)
-                .isAlive(true)
+                .lifeState("ALIVE")
                 .build();
     }
 

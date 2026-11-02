@@ -44,6 +44,7 @@ class EncounterServiceTest {
     @Mock private com.tabletophelper.resourcepool.ResourcePoolService resourcePoolService;
     @Mock private MonsterSpellCastService monsterSpellCastService;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private CombatLogRepository combatLogRepository;
 
     private EncounterService encounterService;
 
@@ -58,7 +59,8 @@ class EncounterServiceTest {
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
                 characterRepository, monsterRepository, new ObjectMapper(), resourcePoolService,
                 monsterSpellCastService, accessPolicy,
-                new EncounterCommands(encounterRepository, accessPolicy, eventPublisher));
+                new EncounterCommands(encounterRepository, accessPolicy, eventPublisher),
+                new CombatLogReader(combatLogRepository));
 
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();
@@ -210,6 +212,118 @@ class EncounterServiceTest {
         assertEquals(45, participant.getHpCurrent());
         assertEquals(18, participant.getArmourClass());
         assertEquals(2, participant.getInitiativeModifier());
+        assertEquals("ALIVE", participant.getLifeState());
+    }
+
+    @Test
+    @DisplayName("A PC who joins at 0 HP is Stable and unconscious, so their hit points and life state agree (D161)")
+    void addPcParticipant_atZeroHpIsStable() {
+        UUID encounterId = UUID.randomUUID();
+        User playerUser = User.builder().id(UUID.randomUUID()).username("player1").email("player1@test.com")
+                .passwordHash("hash").build();
+        PlayerCharacter thorin = PlayerCharacter.builder()
+                .id(UUID.randomUUID()).name("Thorin").user(playerUser)
+                .strength(16).dexterity(14).constitution(14).intelligence(10).wisdom(12).charisma(8)
+                .hpMax(45).hpCurrent(0).armourClass(18)
+                .build();
+        Encounter encounter = Encounter.builder()
+                .id(encounterId).campaign(campaign).name("Test Encounter")
+                .status(EncounterStatus.PREPARING).participants(new ArrayList<>())
+                .build();
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("PLAYER");
+        request.setCharacterId(thorin.getId());
+        request.setDisplayName("Thorin");
+        stubLock(encounter);
+        when(characterRepository.findById(thorin.getId())).thenReturn(Optional.of(thorin));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        EncounterResponse.ParticipantResponse participant =
+                encounterService.addParticipant(encounterId, request, dmUserId).getParticipants().get(0);
+
+        assertEquals(0, participant.getHpCurrent());
+        assertEquals("STABLE", participant.getLifeState());
+        assertEquals(List.of("unconscious"),
+                participant.getActiveConditions().stream().map(c -> c.name()).toList());
+        assertEquals(com.tabletophelper.encounter.state.EndRule.HP_REGAINED,
+                participant.getActiveConditions().get(0).endRule());
+    }
+
+    @Test
+    @DisplayName("The response shows the participant's life state, and its Concentration Instance's spell and slot")
+    void toResponse_showsLifeStateAndConcentration() {
+        EncounterParticipant wizard = participant("Wizard", ParticipantType.PLAYER);
+        wizard.setConcentration(com.tabletophelper.encounter.state.ConcentrationInstance.start("Haste", 3, 2, 10));
+        EncounterParticipant goblin = participant("Goblin", ParticipantType.MONSTER);
+        goblin.setHpCurrent(0);
+        goblin.setLifeState(com.tabletophelper.rules.combat.LifeState.DEAD);
+        Encounter encounter = activeEncounterWith(wizard, goblin);
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, dmUserId)).thenReturn(true);
+
+        EncounterResponse response = encounterService.getEncounter(encounter.getId(), dmUserId);
+
+        EncounterResponse.ParticipantResponse wizardView = response.getParticipants().stream()
+                .filter(p -> p.getDisplayName().equals("Wizard")).findFirst().orElseThrow();
+        EncounterResponse.ParticipantResponse goblinView = response.getParticipants().stream()
+                .filter(p -> p.getDisplayName().equals("Goblin")).findFirst().orElseThrow();
+        assertEquals("Haste", wizardView.getConcentrationSpell());
+        assertEquals(3, wizardView.getConcentrationSlotLevel());
+        assertEquals("ALIVE", wizardView.getLifeState());
+        assertNull(goblinView.getConcentrationSpell());
+        assertEquals("DEAD", goblinView.getLifeState());
+    }
+
+    // ── The combat log (D157), from CombatServiceTest ──────────
+
+    @Test
+    @DisplayName("Reading the combat log requires campaign membership")
+    void combatLogRequiresMembership() {
+        Encounter encounter = activeEncounterWith(participant("Goblin", ParticipantType.MONSTER));
+        UUID strangerId = UUID.randomUUID();
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> encounterService.getCombatLog(encounter.getId(), strangerId));
+
+        assertEquals("You are not a member of this campaign", ex.getMessage());
+        verify(combatLogRepository, never()).findByEncounterIdOrderByCreatedAtAsc(any());
+    }
+
+    @Test
+    @DisplayName("A player's combat log leaves out entries about hidden monsters; the DM's keeps them (D157)")
+    void combatLogLeavesOutHiddenMonstersForPlayers() {
+        UUID playerUserId = UUID.randomUUID();
+        EncounterParticipant rogue = participant("Rogue", ParticipantType.PLAYER);
+        EncounterParticipant goblin = participant("Goblin", ParticipantType.MONSTER);
+        EncounterParticipant bugbear = participant("Bugbear", ParticipantType.MONSTER);
+        bugbear.setIsVisibleToPlayers(false);
+        Encounter encounter = activeEncounterWith(rogue, goblin, bugbear);
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUserId)).thenReturn(true);
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, dmUserId)).thenReturn(true);
+        when(combatLogRepository.findByEncounterIdOrderByCreatedAtAsc(encounter.getId())).thenReturn(List.of(
+                logEntry(encounter, "Rogue hits Goblin", rogue, goblin),
+                logEntry(encounter, "Bugbear hits Rogue", bugbear, rogue)));
+
+        var playerLog = encounterService.getCombatLog(encounter.getId(), playerUserId);
+        var dmLog = encounterService.getCombatLog(encounter.getId(), dmUserId);
+
+        assertEquals(List.of("Rogue hits Goblin"), playerLog.stream().map(CombatLogResponse::getDescription).toList());
+        assertEquals(2, dmLog.size());
+    }
+
+    private static CombatLog logEntry(Encounter encounter, String description, EncounterParticipant actor,
+                                      EncounterParticipant target) {
+        return CombatLog.builder()
+                .id(UUID.randomUUID())
+                .encounter(encounter)
+                .roundNumber(1)
+                .actorId(actor.getId())
+                .actorName(actor.getDisplayName())
+                .targetId(target.getId())
+                .targetName(target.getDisplayName())
+                .actionType(CombatActionType.ATTACK)
+                .description(description)
+                .build();
     }
 
     @Test

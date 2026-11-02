@@ -14,7 +14,7 @@ import RepeatEffectModal from './RepeatEffectModal';
 const cleric = makeMockParticipant('part-cleric', 'Brother Tuck', 'PLAYER', { concentrationSpell: 'Hold Person', concentrationSlotLevel: 2 });
 const goblin = makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { hpMax: 7, hpCurrent: 7, armourClass: 15 });
 const orc = makeMockParticipant('part-orc', 'Orc', 'MONSTER', { hpMax: 15, hpCurrent: 15, armourClass: 13 });
-const kobold = makeMockParticipant('part-kobold', 'Fallen Kobold', 'MONSTER', { hpCurrent: 0, isAlive: false });
+const kobold = makeMockParticipant('part-kobold', 'Fallen Kobold', 'MONSTER', { hpCurrent: 0, lifeState: 'DEAD' });
 const legolas = makeMockParticipant('part-legolas', 'Legolas', 'PLAYER', { hpMax: 25, hpCurrent: 25 });
 const participants = [cleric, goblin, orc, kobold, legolas];
 

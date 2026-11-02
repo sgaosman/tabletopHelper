@@ -1,6 +1,13 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.AttackService;
+import com.tabletophelper.encounter.internal.ConditionService;
+import com.tabletophelper.encounter.internal.HitPointService;
+import com.tabletophelper.encounter.internal.LegendaryResistanceService;
+import com.tabletophelper.encounter.internal.MonsterActionService;
+import com.tabletophelper.encounter.internal.SpellcastingService;
+import com.tabletophelper.encounter.internal.TurnService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -9,7 +16,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 // Every encounter state returned here is the caller's view: the DM View for the DM, the Player View for anyone else (D157)
@@ -18,7 +24,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CombatController {
 
-    private final CombatService combatService;
+    private final TurnService turnService;
+    private final AttackService attackService;
+    private final SpellcastingService spellcastingService;
+    private final MonsterActionService monsterActionService;
+    private final LegendaryResistanceService legendaryResistanceService;
+    private final ConditionService conditionService;
+    private final HitPointService hitPointService;
+    private final EncounterService encounterService;
 
     @PostMapping("/attack")
     public ResponseEntity<EncounterResponse> rollAttack(
@@ -27,10 +40,11 @@ public class CombatController {
             @RequestParam(required = false) UUID actorId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.rollAttack(encounterId, request, actorId, userId);
+        EncounterResponse response = attackService.rollAttack(encounterId, request, actorId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // The DM's alone (D028, D161)
     @PostMapping("/damage")
     public ResponseEntity<EncounterResponse> applyDamage(
             @PathVariable UUID encounterId,
@@ -38,10 +52,11 @@ public class CombatController {
             @RequestParam(required = false) UUID actorId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.applyDamage(encounterId, request, actorId, userId);
+        EncounterResponse response = hitPointService.applyDamage(encounterId, request, actorId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // The DM's alone (D028, D161)
     @PostMapping("/heal")
     public ResponseEntity<EncounterResponse> applyHealing(
             @PathVariable UUID encounterId,
@@ -49,17 +64,18 @@ public class CombatController {
             @RequestParam(required = false) UUID actorId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.applyHealing(encounterId, request, actorId, userId);
+        EncounterResponse response = hitPointService.applyHealing(encounterId, request, actorId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // The DM's Set HP / revive (D161)
     @PostMapping("/hp")
     public ResponseEntity<EncounterResponse> setHp(
             @PathVariable UUID encounterId,
             @Valid @RequestBody SetHpRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.setHp(encounterId, request, userId);
+        EncounterResponse response = hitPointService.setHp(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -69,7 +85,7 @@ public class CombatController {
             @Valid @RequestBody ConditionRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.addCondition(encounterId, request, userId);
+        EncounterResponse response = conditionService.addCondition(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -79,7 +95,7 @@ public class CombatController {
             @Valid @RequestBody ConditionRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.removeCondition(encounterId, request, userId);
+        EncounterResponse response = conditionService.removeCondition(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -89,7 +105,7 @@ public class CombatController {
             @Valid @RequestBody DeathSaveRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.rollDeathSave(encounterId, request, userId);
+        EncounterResponse response = hitPointService.rollDeathSave(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -99,7 +115,7 @@ public class CombatController {
             @Valid @RequestBody ConcentrationRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.setConcentration(encounterId, request, userId);
+        EncounterResponse response = spellcastingService.setConcentration(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -109,7 +125,7 @@ public class CombatController {
             @Valid @RequestBody SpellSlotRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.useSpellSlot(encounterId, request, userId);
+        EncounterResponse response = spellcastingService.useSpellSlot(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -119,7 +135,7 @@ public class CombatController {
             @Valid @RequestBody SpellSlotRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.restoreSpellSlot(encounterId, request, userId);
+        EncounterResponse response = spellcastingService.restoreSpellSlot(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -130,7 +146,7 @@ public class CombatController {
             @RequestParam(required = false) UUID actorId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        CastSpellResponse response = combatService.castSpell(encounterId, request, actorId, userId);
+        CastSpellResponse response = spellcastingService.castSpell(encounterId, request, actorId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -141,7 +157,7 @@ public class CombatController {
             @RequestParam(required = false) UUID actorId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        CastSpellResponse response = combatService.repeatSpellEffect(encounterId, request, actorId, userId);
+        CastSpellResponse response = spellcastingService.repeatSpellEffect(encounterId, request, actorId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -150,7 +166,7 @@ public class CombatController {
             @PathVariable UUID encounterId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.advanceTurn(encounterId, userId);
+        EncounterResponse response = turnService.advanceTurn(encounterId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -159,30 +175,31 @@ public class CombatController {
             @PathVariable UUID encounterId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.previousTurn(encounterId, userId);
+        EncounterResponse response = turnService.previousTurn(encounterId, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // actorId stays in the API but goes unused: the request names the monster
     @PostMapping("/monster-action")
-    public ResponseEntity<CombatService.MonsterActionResponse> monsterAction(
+    public ResponseEntity<MonsterActionResponse> monsterAction(
             @PathVariable UUID encounterId,
-            @Valid @RequestBody CombatService.MonsterActionRequest request,
+            @Valid @RequestBody MonsterActionRequest request,
             @RequestParam(required = false) UUID actorId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        CombatService.MonsterActionResponse response = combatService.monsterAction(
-                encounterId, request, actorId, userId);
+        MonsterActionResponse response = monsterActionService.monsterAction(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // As for monster-action, actorId goes unused
     @PostMapping("/monster-spell")
     public ResponseEntity<CastSpellResponse> monsterSpell(
             @PathVariable UUID encounterId,
-            @Valid @RequestBody CombatService.MonsterSpellRequest request,
+            @Valid @RequestBody MonsterSpellRequest request,
             @RequestParam(required = false) UUID actorId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        CastSpellResponse response = combatService.monsterSpell(encounterId, request, actorId, userId);
+        CastSpellResponse response = monsterActionService.monsterSpell(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -192,7 +209,7 @@ public class CombatController {
             @Valid @RequestBody LegendaryResistanceRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.useLegendaryResistance(
+        EncounterResponse response = legendaryResistanceService.useLegendaryResistance(
                 encounterId, request.combatLogId(), userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
@@ -203,8 +220,7 @@ public class CombatController {
             @Valid @RequestBody LairStatusRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = combatService.setLairStatus(
-                encounterId, request.monsterIds(), userId);
+        EncounterResponse response = turnService.setLairStatus(encounterId, request.monsterIds(), userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
@@ -214,7 +230,7 @@ public class CombatController {
             @PathVariable UUID encounterId,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        List<CombatLogResponse> log = combatService.getCombatLog(encounterId, userId);
+        List<CombatLogResponse> log = encounterService.getCombatLog(encounterId, userId);
         return ResponseEntity.ok(log);
     }
 

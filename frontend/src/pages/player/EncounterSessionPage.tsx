@@ -30,6 +30,23 @@ type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat
 
 const CONDITION_BADGE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff';
 
+// A new attack row: within 5 feet by default, since there is no map (D161). A forced critical is the DM's.
+const NEW_ATTACK = { attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, within5Ft: true };
+
+/** Dying, Stable or Dead, from the participant's life state (D161); nothing while it is up. */
+function LifeStateBadge({ participant }: { participant: EncounterParticipant }) {
+  switch (participant.lifeState) {
+    case 'DEAD':
+      return <span className="inline-flex items-center gap-1 font-heading text-[11px] font-semibold tracking-[0.02em] text-debuff"><Skull className="w-4 h-4" />Dead</span>;
+    case 'DYING':
+      return <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff">Dying</span>;
+    case 'STABLE':
+      return <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-buff border border-buff">Stable</span>;
+    default:
+      return null;
+  }
+}
+
 function HpBar({ participant }: { participant: EncounterParticipant }) {
   const hpMax = participant.hpMax ?? 0;
   const pct = hpMax > 0 ? ((participant.hpCurrent ?? 0) / hpMax) * 100 : 0;
@@ -49,7 +66,8 @@ function HpBar({ participant }: { participant: EncounterParticipant }) {
   );
 }
 
-function DeathSaves({ participant }: { participant: EncounterParticipant }) {
+// The Roll button shows only while the encounter is Active, since combat needs it (D166)
+function DeathSaves({ participant, canRoll }: { participant: EncounterParticipant; canRoll: boolean }) {
   const actions = useEncounterAction();
   const [rolling, setRolling] = useState(false);
 
@@ -76,18 +94,21 @@ function DeathSaves({ participant }: { participant: EncounterParticipant }) {
           <div key={`f${i}`} className={`w-3 h-3 rounded-full border ${i < participant.deathSaveFailures ? 'bg-debuff border-debuff' : 'border-rule-light'}`} />
         ))}
       </div>
-      <button
-        onClick={handleRoll}
-        disabled={rolling}
-        className="px-2 py-0.5 font-body text-[12.5px] font-semibold bg-rule hover:bg-page-alt text-muted disabled:opacity-50"
-      >
-        {rolling ? '...' : 'Roll Death Save'}
-      </button>
+      {canRoll && (
+        <button
+          onClick={handleRoll}
+          disabled={rolling}
+          className="px-2 py-0.5 font-body text-[12.5px] font-semibold bg-rule hover:bg-page-alt text-muted disabled:opacity-50"
+        >
+          {rolling ? '...' : 'Roll Death Save'}
+        </button>
+      )}
     </div>
   );
 }
 
-function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }) {
+// Slots are spent only while the encounter is Active; otherwise they are shown read-only (D166)
+function PlayerSpellSlots({ participant, canChange }: { participant: EncounterParticipant; canChange: boolean }) {
   const actions = useEncounterAction();
   const slots = participant.spellSlotsCurrent;
   if (!slots) return null;
@@ -113,7 +134,7 @@ function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }
             <div key={lvl} className="flex items-center gap-1">
               <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-6">Lv{lvl}</span>
               <div className="flex gap-1">
-                {Array.from({ length: s.max }).map((_, i) => (
+                {Array.from({ length: s.max }).map((_, i) => canChange ? (
                   <IconButton
                     key={i}
                     label={i < remaining ? `Use level ${lvl} slot` : `Level ${lvl} slot used`}
@@ -124,6 +145,12 @@ function PlayerSpellSlots({ participant }: { participant: EncounterParticipant }
                         ? 'bg-ink border-ink hover:bg-ink/80 cursor-pointer'
                         : 'border-rule-light cursor-default'
                     }`}
+                  />
+                ) : (
+                  <span
+                    key={i}
+                    aria-hidden="true"
+                    className={`w-3.5 h-3.5 rounded-full border ${i < remaining ? 'bg-ink border-ink' : 'border-rule-light'}`}
                   />
                 ))}
               </div>
@@ -193,6 +220,7 @@ function CombatLogPanel() {
       case 'CONDITION_ADD': return 'text-cls-monk';
       case 'CONDITION_REMOVE': return 'text-cls-wizard';
       case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-faint';
+      case 'HP_SET': return 'text-buff';
       default: return 'text-muted';
     }
   }
@@ -274,7 +302,7 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
   const [condition, setCondition] = useState('');
   const [conditionDuration, setConditionDuration] = useState('');
   const [spellName, setSpellName] = useState('');
-  const [attacks, setAttacks] = useState([{ attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false, isRanged: false }]);
+  const [attacks, setAttacks] = useState([{ ...NEW_ATTACK }]);
   const [loading, setLoading] = useState(false);
 
   const target = encounter.participants.find(p => p.id === targetId);
@@ -286,7 +314,7 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
 
   function addAttackRow() {
     if (attacks.length >= 5) return;
-    setAttacks(prev => [...prev, { attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false, isRanged: false }]);
+    setAttacks(prev => [...prev, { ...NEW_ATTACK }]);
   }
 
   function cloneAttackRow(index: number) {
@@ -308,7 +336,7 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await actions.rollAttack(targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, myCharacter.id, atk.isRanged || undefined);
+            await actions.rollAttack(targetId, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, undefined, myCharacter.id, atk.within5Ft);
           }
         }
       } else if (actionMode === 'condition' && condition) {
@@ -370,10 +398,9 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
                   </div>
                   <div>
                     {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
-                    <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
-                      className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-card' : 'bg-page-alt text-muted border border-rule'}`}>Crit</button>
-                    <button type="button" onClick={() => updateAttack(i, 'isRanged', !atk.isRanged)}
-                      className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.isRanged ? 'bg-cls-wizard text-card' : 'bg-page-alt text-muted border border-rule'}`}>Ranged</button>
+                    {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}
+                    <button type="button" onClick={() => updateAttack(i, 'within5Ft', !atk.within5Ft)} aria-pressed={atk.within5Ft}
+                      className={`px-2 py-2 font-body text-[12.5px] font-semibold ${atk.within5Ft ? 'bg-cls-wizard text-card' : 'bg-page-alt text-muted border border-rule'}`}>Within 5 ft</button>
                   </div>
                   <div className="flex gap-1">
                     {attacks.length < 5 && (
@@ -468,6 +495,9 @@ function PlayerSessionView() {
   const sorted = [...encounter.participants].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
   const isMyTurn = encounter.participants.some(p => p.isCurrentTurn && p.controlledByUserId === user?.userId);
   const myCharacter = encounter.participants.find(p => p.controlledByUserId === user?.userId);
+  // Actions show only while the encounter is Active: the server refuses them while it is Paused or
+  // Completed (D166)
+  const isActive = encounter.status === 'ACTIVE';
 
   function selectAttackTarget(targetId: string) {
     setAttackTargetId(targetId);
@@ -520,24 +550,34 @@ function PlayerSessionView() {
           )}
         </div>
 
-        {/* Own character death saves */}
-        {myCharacter && !myCharacter.isAlive && myCharacter.deathSaveFailures < 3 && (
+        {/* Own character at 0 HP: death saves only while Dying (D161) */}
+        {myCharacter?.lifeState === 'DYING' && (
           <div className="bg-debuff/10 border border-debuff/30 p-4 mb-4">
             <p className="text-debuff font-heading text-[15px] font-semibold tracking-[0.01em] mb-1">You are dying!</p>
-            <DeathSaves participant={myCharacter} />
+            <DeathSaves participant={myCharacter} canRoll={isActive} />
+          </div>
+        )}
+        {myCharacter?.lifeState === 'STABLE' && (
+          <div role="status" className="bg-page-alt border border-rule p-4 mb-4">
+            <p className="text-muted font-heading text-[15px] font-semibold tracking-[0.01em]">You are stable: unconscious at 0 HP, and making no death saves.</p>
+          </div>
+        )}
+        {myCharacter?.lifeState === 'DEAD' && (
+          <div role="status" className="bg-debuff/10 border border-debuff/30 p-4 mb-4">
+            <p className="text-debuff font-heading text-[15px] font-semibold tracking-[0.01em]">You have died. Only a revival can bring you back.</p>
           </div>
         )}
 
         {/* Own character spell slots */}
-        {myCharacter && myCharacter.isAlive && myCharacter.spellSlotsCurrent && (
-          <PlayerSpellSlots participant={myCharacter} />
+        {myCharacter && myCharacter.lifeState === 'ALIVE' && myCharacter.spellSlotsCurrent && (
+          <PlayerSpellSlots participant={myCharacter} canChange={isActive} />
         )}
 
         {/* Resource pools (M24.5) */}
         {myCharacter && <ResourcePoolDisplay pools={myCharacter.resourcePoolsCurrent} />}
 
         {/* Player self-action buttons */}
-        {myCharacter && myCharacter.isAlive && (
+        {isActive && myCharacter && myCharacter.lifeState === 'ALIVE' && (
           <div className="flex items-center gap-2 mb-4">
             <button onClick={() => selectSelfAction('condition')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-monk/30">
@@ -563,7 +603,7 @@ function PlayerSessionView() {
         )}
 
         {/* Spell cast modal */}
-        {actionMode === 'spell' && myCharacter && (
+        {isActive && actionMode === 'spell' && myCharacter && (
           <SpellCastModal
             caster={myCharacter}
             participants={encounter.participants}
@@ -572,7 +612,7 @@ function PlayerSessionView() {
         )}
 
         {/* Repeat spell effect modal */}
-        {actionMode === 'repeat-effect' && myCharacter && (myCharacter.concentrationSpell || myCharacter.activeSpell) && (
+        {isActive && actionMode === 'repeat-effect' && myCharacter && (myCharacter.concentrationSpell || myCharacter.activeSpell) && (
           <RepeatEffectModal
             caster={myCharacter}
             participants={encounter.participants}
@@ -582,7 +622,7 @@ function PlayerSessionView() {
         )}
 
         {/* Action panel */}
-        {actionMode && actionMode !== 'spell' && myCharacter && (
+        {isActive && actionMode && actionMode !== 'spell' && myCharacter && (
           <PlayerActionPanel
             myCharacter={myCharacter}
             encounter={encounter}
@@ -611,7 +651,7 @@ function PlayerSessionView() {
                     : isOwn
                       ? 'border-ink/50'
                       : 'border-rule'
-                } ${!p.isAlive ? 'opacity-60' : ''}`}
+                } ${p.lifeState !== 'ALIVE' ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-5 flex-shrink-0">
@@ -625,26 +665,26 @@ function PlayerSessionView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`font-heading text-[15px] font-semibold tracking-[0.01em] ${!p.isAlive ? 'line-through' : ''}`}
+                        className={`font-heading text-[15px] font-semibold tracking-[0.01em] ${p.lifeState === 'DEAD' ? 'line-through' : ''}`}
                         style={{ color: participantColour }}
                       >
                         {p.displayName}
                       </span>
                       {isOwn && <span className="px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 text-ink">You</span>}
-                      {!p.isAlive && <Skull className="w-4 h-4 text-debuff" />}
+                      <LifeStateBadge participant={p} />
                     </div>
                     {conditions.length > 0 && (
                       <div className="flex gap-1 mt-1 flex-wrap">
                         {conditions.map(c => {
                           const remaining = c.duration != null ? Math.max(0, c.duration - (encounter.roundNumber - c.appliedRound)) : null;
-                          return isOwn ? (
-                            <button key={c.name} onClick={() => removeCondition(c.name)}
+                          return isOwn && isActive ? (
+                            <button key={c.id} onClick={() => removeCondition(c.name)}
                               className={`${CONDITION_BADGE} hover:opacity-70`}
                               title="Click to remove">
                               {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''} x
                             </button>
                           ) : (
-                            <span key={c.name} className={CONDITION_BADGE}>
+                            <span key={c.id} className={CONDITION_BADGE}>
                               {c.name}{c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}{remaining != null ? ` (${remaining})` : ''}
                             </span>
                           );
@@ -680,7 +720,8 @@ function PlayerSessionView() {
                       {monsterHealth && (
                         <span className="font-heading text-[13px] font-semibold text-muted">{monsterHealth}</span>
                       )}
-                      {isMyTurn && p.isAlive && !isOwn && (
+                      {/* The dead can't be attacked; the dying can (D161) */}
+                      {isActive && isMyTurn && p.lifeState !== 'DEAD' && !isOwn && (
                         <IconButton label="Attack" onClick={() => selectAttackTarget(p.id)}
                           className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
                           <Crosshair className="w-3.5 h-3.5" />

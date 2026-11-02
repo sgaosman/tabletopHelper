@@ -2,10 +2,12 @@ package com.tabletophelper.encounter;
 
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.rules.combat.LifeState;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -78,11 +80,10 @@ public class EncounterParticipant {
     @Column(name = "active_conditions", columnDefinition = "jsonb")
     private List<ConditionEntry> activeConditions;
 
-    @Column(name = "concentration_spell", length = 200)
-    private String concentrationSpell;
-
-    @Column(name = "concentration_slot_level")
-    private Integer concentrationSlotLevel;
+    // The casting it is concentrating on, if any (D162)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "concentration", columnDefinition = "jsonb")
+    private ConcentrationInstance concentration;
 
     @Column(name = "active_spell", length = 200)
     private String activeSpell;
@@ -128,9 +129,11 @@ public class EncounterParticipant {
     @Builder.Default
     private Boolean isVisibleToPlayers = true;
 
-    @Column(name = "is_alive")
+    // Kept consistent with the hit points and death saves, as rules.combat.Vitals requires (D161)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "life_state", length = 10, nullable = false)
     @Builder.Default
-    private Boolean isAlive = true;
+    private LifeState lifeState = LifeState.ALIVE;
 
     @Column(name = "is_current_turn")
     @Builder.Default

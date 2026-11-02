@@ -418,18 +418,22 @@ export function makeMockParticipant(
     characterId: type === 'PLAYER' ? 'char-001' : undefined,
     displayName, initiative: 15, initiativeModifier: 2, sortOrder: 1,
     hpMax: 30, hpCurrent: 30, hpTemp: 0, armourClass: 14,
-    isVisibleToPlayers: true, isAlive: true, isCurrentTurn: false,
+    isVisibleToPlayers: true, lifeState: 'ALIVE', isCurrentTurn: false,
     deathSaveSuccesses: 0, deathSaveFailures: 0,
     actionUsed: false, bonusActionUsed: false, reactionUsed: false,
   } satisfies EncounterParticipant;
   return { ...participant, ...overrides };
 }
 
-/** A condition as the server writes one: applied in round 1, lasting until removed, with no source. */
+/**
+ * A condition as the server writes one: applied in round 1, lasting until removed by hand, with no source.
+ * Its ID comes from its name, so two mocks of one condition are the same entry.
+ */
 export function makeMockCondition(name: string, overrides: Partial<ConditionEntry> = {}): ConditionEntry {
   const condition = {
-    name, duration: null, appliedRound: 1,
+    id: `cond-${name}`, name, duration: null, appliedRound: 1,
     sourceSpellName: null, sourceParticipantId: null, sourceRequiresConcentration: null,
+    concentrationInstanceId: null, endRule: { type: 'MANUAL' },
   } satisfies ConditionEntry;
   return { ...condition, ...overrides };
 }

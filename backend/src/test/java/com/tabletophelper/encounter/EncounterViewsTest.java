@@ -27,7 +27,7 @@ class EncounterViewsTest {
     private final UUID bugbearId = UUID.randomUUID();
     private final UUID gimliId = UUID.randomUUID();
 
-    private static final List<ConditionEntry> PRONE = List.of(ConditionEntry.unsourced("prone", null, 1));
+    private static final List<ConditionEntry> PRONE = List.of(ConditionEntry.manual("prone", null, 1));
 
     private ParticipantResponse goblin(int hpCurrent) {
         return ParticipantResponse.builder()
@@ -41,7 +41,7 @@ class EncounterViewsTest {
                 .armourClass(15)
                 .activeConditions(PRONE)
                 .isVisibleToPlayers(true)
-                .isAlive(hpCurrent > 0)
+                .lifeState(hpCurrent > 0 ? "ALIVE" : "DEAD")
                 .notes("Carries the key to the cellar")
                 .spellsKnown(List.of(KnownSpell.monster(UUID.randomUUID(), "Shield", 1)))
                 .spellSlotsCurrent(Map.of("1", new SpellSlot(2, 1)))

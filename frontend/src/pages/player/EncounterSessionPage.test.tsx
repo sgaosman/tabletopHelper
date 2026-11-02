@@ -156,6 +156,111 @@ describe('Player EncounterSessionPage', () => {
     expect(encounterRequests).toBe(1);
   });
 
+  describe('lifecycle (D166)', () => {
+    // Gimli's turn, with a condition and a spell slot, so every action a player has would show
+    const busyTable = (status: 'ACTIVE' | 'PAUSED' | 'COMPLETED') => makeMockEncounter({
+      status,
+      participants: [
+        legolas(),
+        gimli({
+          isCurrentTurn: true,
+          activeConditions: [makeMockCondition('prone')],
+          spellSlotsCurrent: { 1: { max: 2, used: 0 } },
+        }),
+        goblin(),
+      ],
+    });
+    const ACTIONS: (string | RegExp)[] = ['Add Condition', /Concentration/, 'Cast Spell', 'Attack', /prone/, /level 1 slot/];
+
+    it('shows every action while the encounter is Active', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))));
+      renderPage();
+      await screen.findByRole('heading', { name: 'Goblin Ambush' });
+
+      for (const name of ACTIONS) {
+        expect(screen.getAllByRole('button', { name }).length).toBeGreaterThan(0);
+      }
+    });
+
+    it.each(['PAUSED', 'COMPLETED'] as const)('hides every action while the encounter is %s, keeping the table readable', async status => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable(status))));
+      renderPage();
+      await screen.findByRole('heading', { name: 'Goblin Ambush' });
+
+      for (const name of ACTIONS) {
+        expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+      }
+      expect(screen.getByText('prone')).toBeInTheDocument();
+      expect(screen.getByText('2/2')).toBeInTheDocument();
+    });
+
+    it('hides an open action panel when the DM pauses', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))));
+      const user = userEvent.setup();
+      renderPage();
+      await user.click(await screen.findByRole('button', { name: 'Add Condition' }));
+      expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+      await screen.findByText('Live');
+
+      act(() => MockStompClient.latest().emit('/topic/encounter/enc-001/state', busyTable('PAUSED')));
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument());
+    });
+  });
+
+  describe('dying (D161)', () => {
+    it('shows death saves only while Dying', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [gimli({ hpCurrent: 0, lifeState: 'DYING', deathSaveFailures: 1 }), goblin()],
+      }))));
+      renderPage();
+
+      expect(await screen.findByText('You are dying!')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Roll Death Save' })).toBeInTheDocument();
+      expect(screen.getByText('Dying')).toBeInTheDocument();
+      // A character at 0 HP takes no actions
+      expect(screen.queryByRole('button', { name: 'Add Condition' })).not.toBeInTheDocument();
+    });
+
+    it('a Stable or Dead character makes no death saves', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [gimli({ hpCurrent: 0, lifeState: 'STABLE' }), goblin({ lifeState: 'DEAD', healthStatus: 'DOWN' })],
+      }))));
+      renderPage();
+
+      expect(await screen.findByText(/You are stable/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Roll Death Save' })).not.toBeInTheDocument();
+      expect(screen.getByText('Stable')).toBeInTheDocument();
+      expect(screen.getByText('Dead')).toBeInTheDocument();
+    });
+
+    it('attacks from within 5 feet unless the player says otherwise, and offers no forced critical', async () => {
+      const attackRequests: unknown[] = [];
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [gimli({ isCurrentTurn: true }), goblin()],
+        }))),
+        http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
+          attackRequests.push(await request.json());
+          return HttpResponse.json(makeMockEncounter({ participants: [gimli({ isCurrentTurn: true }), goblin()] }));
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole('button', { name: 'Attack' }));
+      expect(screen.queryByRole('button', { name: 'Crit' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Within 5 ft' }));
+      await user.type(screen.getByPlaceholderText('+5'), '5');
+      await user.type(screen.getByPlaceholderText('1d8+3'), '1d8+3');
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(attackRequests).toEqual([
+        { targetId: 'part-goblin', attackBonus: 5, damageDice: '1d8+3', within5Ft: false },
+      ]));
+    });
+  });
+
   describe('combat log', () => {
     afterEach(() => {
       vi.useRealTimers();

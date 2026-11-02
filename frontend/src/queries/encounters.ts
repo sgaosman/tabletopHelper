@@ -229,6 +229,7 @@ export function useEncounterAction() {
       rollAttack: change(combatApi.rollAttack),
       applyDamage: change(combatApi.applyDamage),
       applyHealing: change(combatApi.applyHealing),
+      setHp: change(combatApi.setHp),
       addCondition: change(combatApi.addCondition),
       removeCondition: change(combatApi.removeCondition),
       rollDeathSave: change(combatApi.rollDeathSave),

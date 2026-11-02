@@ -44,6 +44,8 @@ public class CombatLogReader {
                 .lrDamageDealt(log.getLrDamageDealt())
                 .lrConditionsApplied(log.getLrConditionsApplied())
                 .lrResolved(log.getLrResolved())
+                .lrSuccessDamage(log.getLrSuccessDamage())
+                .lrConditionIds(log.getLrConditionIds())
                 .createdAt(log.getCreatedAt())
                 .build();
     }

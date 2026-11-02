@@ -66,7 +66,7 @@ describe('DM EncounterSessionPage', () => {
 
     act(() => MockStompClient.latest().emit(DM_STATE_TOPIC, makeMockEncounter({
       roundNumber: 2,
-      participants: [gimli({ isCurrentTurn: true }), goblin({ hpCurrent: 0, isAlive: false }), bugbear()],
+      participants: [gimli({ isCurrentTurn: true }), goblin({ hpCurrent: 0, lifeState: 'DEAD' }), bugbear()],
     })));
 
     expect(await screen.findByText('Round 2 · 2/3 alive')).toBeInTheDocument();
@@ -217,6 +217,7 @@ describe('DM EncounterSessionPage', () => {
     it('uses Legendary Resistance from the log with one request, and the log the server sends next resolves it', async () => {
       const unresolved = makeMockLogEntry('log-lr', 'Gimli\'s Hold Person paralyzes Test Goblin.', {
         legendaryResistanceEligible: true, lrResolved: false, lrTargetId: 'part-goblin',
+        lrSuccessDamage: 0, lrConditionIds: ['cond-paralyzed'],
       });
       let logRequests = 0;
       let resistance: unknown;
@@ -241,6 +242,102 @@ describe('DM EncounterSessionPage', () => {
       await waitFor(() => expect(screen.queryByRole('button', { name: 'Use Legendary Resistance' })).not.toBeInTheDocument());
       expect(logRequests).toBe(1);
     });
+
+    it('offers no Legendary Resistance on an entry logged before R5, which lacks the success outcome (D163)', async () => {
+      server.use(
+        http.get('/api/encounters/:id/combat/log', () => HttpResponse.json([
+          makeMockLogEntry('log-old', 'Aboleth uses Enslave on Test Goblin: FAILED_SAVE', {
+            legendaryResistanceEligible: true, lrResolved: false, lrTargetId: 'part-goblin',
+            lrDamageDealt: 0, lrConditionsApplied: 'charmed',
+          }),
+        ])),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+      await user.click(await screen.findByRole('button', { name: /Combat Log/ }));
+
+      expect(await screen.findByText('Aboleth uses Enslave on Test Goblin: FAILED_SAVE')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Use Legendary Resistance' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('dying and the DM\'s corrections (D161)', () => {
+    it('shows Dying, Stable and Dead, with death save controls only while Dying', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [
+          gimli({ lifeState: 'DYING', hpCurrent: 0, deathSaveFailures: 1 }),
+          makeMockParticipant('part-aria', 'Aria', 'PLAYER', { sortOrder: 4, hpCurrent: 0, lifeState: 'STABLE' }),
+          goblin({ hpCurrent: 0, lifeState: 'DEAD' }),
+        ],
+      }))));
+      await renderLoaded();
+
+      expect(screen.getByText('Dying')).toBeInTheDocument();
+      expect(screen.getByText('Stable')).toBeInTheDocument();
+      expect(screen.getByText('Dead')).toBeInTheDocument();
+      // One set of death saves, Gimli's
+      expect(screen.getAllByRole('button', { name: 'Roll' })).toHaveLength(1);
+      expect(screen.getAllByText('Saves:')).toHaveLength(1);
+      // The dead goblin can't be attacked, damaged or healed, only revived
+      expect(screen.getAllByRole('button', { name: 'Attack roll' })).toHaveLength(2);
+      expect(screen.getAllByRole('button', { name: 'Heal' })).toHaveLength(2);
+      expect(screen.getAllByRole('button', { name: 'Set HP / revive' })).toHaveLength(3);
+      expect(screen.queryByRole('button', { name: 'Resurrect' })).not.toBeInTheDocument();
+    });
+
+    it('revives with Set HP, sending the HP and any temporary HP', async () => {
+      let setHpRequest: unknown;
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [gimli(), goblin({ hpCurrent: 0, lifeState: 'DEAD' })],
+        }))),
+        http.post('/api/encounters/:id/combat/hp', async ({ request }) => {
+          setHpRequest = await request.json();
+          return HttpResponse.json(makeMockEncounter({ participants: [gimli(), goblin({ hpCurrent: 4 })] }));
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getAllByRole('button', { name: 'Set HP / revive' })[0]);
+      expect(screen.getByRole('heading', { name: 'Set HP / revive Test Goblin' })).toBeInTheDocument();
+      await user.type(screen.getByLabelText('HP (of 7)'), '4');
+      await user.type(screen.getByLabelText('Temp HP'), '2');
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+      expect(await screen.findByText('4/7')).toBeInTheDocument();
+      expect(setHpRequest).toEqual({ targetId: 'part-goblin', hpCurrent: 4, hpTemp: 2 });
+    });
+
+    it('attacks from within 5 feet unless the DM says otherwise', async () => {
+      const attackRequests: unknown[] = [];
+      server.use(http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
+        attackRequests.push(await request.json());
+        return HttpResponse.json(encounterWith());
+      }));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getAllByRole('button', { name: 'Attack roll' })[0]);
+      const within = screen.getByRole('button', { name: 'Within 5 ft' });
+      expect(within).toHaveAttribute('aria-pressed', 'true');
+      await user.type(screen.getByPlaceholderText('+5'), '4');
+      await user.type(screen.getByPlaceholderText('1d8+3'), '1d6');
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+      await waitFor(() => expect(attackRequests).toHaveLength(1));
+
+      await user.click(screen.getAllByRole('button', { name: 'Attack roll' })[0]);
+      await user.click(screen.getByRole('button', { name: 'Within 5 ft' }));
+      await user.type(screen.getByPlaceholderText('+5'), '4');
+      await user.type(screen.getByPlaceholderText('1d8+3'), '1d6');
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(attackRequests).toHaveLength(2));
+      expect(attackRequests).toEqual([
+        { targetId: 'part-goblin', attackBonus: 4, damageDice: '1d6', within5Ft: true },
+        { targetId: 'part-goblin', attackBonus: 4, damageDice: '1d6', within5Ft: false },
+      ]);
+    });
   });
 
   describe('lifecycle (D166)', () => {
@@ -251,7 +348,7 @@ describe('DM EncounterSessionPage', () => {
     const busyTable = (status: Encounter['status']) => makeMockEncounter({
       status,
       participants: [
-        gimli({ isAlive: false, hpCurrent: 0, deathSaveFailures: 1 }),
+        gimli({ lifeState: 'DYING', hpCurrent: 0, deathSaveFailures: 1 }),
         goblin({
           activeConditions: [makeMockCondition('prone')],
           concentrationSpell: 'Bless',
@@ -261,8 +358,8 @@ describe('DM EncounterSessionPage', () => {
     });
 
     const COMBAT_CONTROLS: (string | RegExp)[] = [
-      'Previous turn', /Next Turn/, 'Attack roll', 'Deal damage', 'Heal', 'Add condition', 'Set concentration',
-      'Cast spell', 'Monster actions', 'Repeat spell effect', 'Roll', /level 1 slot/, /prone/,
+      'Previous turn', /Next Turn/, 'Attack roll', 'Deal damage', 'Heal', 'Set HP / revive', 'Add condition',
+      'Set concentration', 'Cast spell', 'Monster actions', 'Repeat spell effect', 'Roll', /level 1 slot/, /prone/,
     ];
 
     function expectNoCombatControls() {
@@ -346,6 +443,7 @@ describe('DM EncounterSessionPage', () => {
         http.get('/api/encounters/:id/combat/log', () => HttpResponse.json([
           makeMockLogEntry('log-lr', 'Gimli\'s Hold Person paralyzes Test Goblin.', {
             legendaryResistanceEligible: true, lrResolved: false, lrTargetId: 'part-goblin',
+            lrSuccessDamage: 0, lrConditionIds: ['cond-paralyzed'],
           }),
         ])),
       );

@@ -22,7 +22,11 @@ public class AttackRollRequest {
 
     private Boolean advantage;
 
+    // The DM's override: the attack is a critical hit whatever the roll (D161). Players get Manual
+    // Modifiers in R5 workstream F/G.
     private Boolean forceCrit;
 
-    private Boolean isRanged;
+    // Whether the attacker is within 5 feet of the target, which makes a hit on an unconscious or paralyzed
+    // target a critical hit (D161). There is no map, so leaving it out, or null, counts as true.
+    private Boolean within5Ft = true;
 }

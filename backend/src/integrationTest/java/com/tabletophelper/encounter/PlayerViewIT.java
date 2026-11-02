@@ -2,8 +2,11 @@ package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.reference.Spell;
+import com.tabletophelper.reference.SpellRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,10 @@ class PlayerViewIT extends IntegrationTest {
 
     @Autowired
     private MonsterRepository monsterRepository;
+    @Autowired
+    private SpellRepository spellRepository;
+    @Autowired
+    private EncounterParticipantRepository participantRepository;
 
     private RegisteredUser dm;
     private RegisteredUser player;
@@ -96,16 +103,66 @@ class PlayerViewIT extends IntegrationTest {
     @Test
     @DisplayName("A player's attack response is the Player View, with the goblin Bloodied")
     void playerAttackResponseIsThePlayerView() {
-        // A forced critical with 1d1+2 always deals 2d1+2 = 4 damage, leaving the goblin on 3 of 7
+        // 15 hits the goblin's AC 12, and 4 flat damage leaves it on 3 of 7
+        dice.script(15);
         JsonNode encounter = expect(HttpStatus.OK, exchange(HttpMethod.POST,
                 "/api/encounters/" + encounterId + "/combat/attack?actorId=" + characterId,
-                Map.of("targetId", goblinId, "attackBonus", 0, "damageDice", "1d1+2", "forceCrit", true),
+                Map.of("targetId", goblinId, "attackBonus", 0, "damageDice", "4"),
                 player.accessToken()));
 
         assertThat(participantIds(encounter)).containsExactly(characterId, goblinId);
         assertThat(participant(encounter, goblinId).get("healthStatus").asText()).isEqualTo("BLOODIED");
         assertThat(participant(encounter, goblinId).get("hpCurrent").isNull()).isTrue();
         assertThat(participant(getEncounter(dm.accessToken()), goblinId).get("hpCurrent").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("Only the DM forces a critical hit, and a player can't target the hidden monster (D157, D161)")
+    void playerAttackLimits() {
+        var forced = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/attack?actorId=" + characterId,
+                Map.of("targetId", goblinId, "attackBonus", 0, "damageDice", "4", "forceCrit", true),
+                player.accessToken());
+        var hidden = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/attack?actorId=" + characterId,
+                Map.of("targetId", bugbearId, "attackBonus", 0, "damageDice", "4"), player.accessToken());
+
+        assertThat(forced.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(json(forced).get("error").asText()).isEqualTo("Only the DM can force a critical hit");
+        // The same answer as for a participant that doesn't exist
+        assertThat(hidden.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(json(hidden).get("error").asText()).isEqualTo("Participant not found");
+        assertThat(participant(getEncounter(dm.accessToken()), goblinId).get("hpCurrent").asInt()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("A Fireball that hits the hidden bugbear leaves its name out of the players' log (D157)")
+    void fireballOnAHiddenMonster() {
+        spellRepository.save(Spell.builder().name("Fireball").level(3).source("PHB").effectTemplate("""
+                {"spellName": "Fireball", "spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX",
+                 "halfOnSave": true, "concentration": false, "components": {"verbal": true},
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "8d6", "damageType": "fire"}],
+                 "conditionsInflicted": null}""").build());
+        EncounterParticipant aria = participantRepository.findById(UUID.fromString(characterId)).orElseThrow();
+        aria.setSpellSlotsCurrent(Map.of("3", new SpellSlot(1, 0)));
+        participantRepository.save(aria);
+
+        // The DM casts it for Aria: 8 on 8d6, and both monsters fail their saves
+        dice.script(1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST,
+                "/api/encounters/" + encounterId + "/combat/cast-spell?actorId=" + characterId,
+                Map.of("spellName", "Fireball", "slotLevel", 3, "targetIds", List.of(goblinId, bugbearId)),
+                dm.accessToken()));
+
+        JsonNode playerLog = expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, player.accessToken()));
+        JsonNode dmLog = expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, dm.accessToken()));
+
+        assertThat(playerLog.toString()).doesNotContain("Bugbear").doesNotContain(bugbearId);
+        assertThat(descriptions(playerLog)).contains("Aria casts Fireball.")
+                .anySatisfy(description -> assertThat(description).startsWith("Aria casts Fireball at Goblin:"));
+        assertThat(descriptions(dmLog))
+                .anySatisfy(description -> assertThat(description).startsWith("Aria casts Fireball at Bugbear:"));
+        assertThat(participant(getEncounter(dm.accessToken()), bugbearId).get("hpCurrent").asInt()).isEqualTo(19);
     }
 
     @Test

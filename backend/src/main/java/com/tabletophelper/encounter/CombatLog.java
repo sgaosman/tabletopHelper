@@ -3,8 +3,11 @@ package com.tabletophelper.encounter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -75,6 +78,16 @@ public class CombatLog {
 
     @Column(name = "lr_resolved")
     private Boolean lrResolved;
+
+    // What the target takes if Legendary Resistance turns its failed save into a success, after its
+    // defences, and the conditions that save applied, which it removes (D163). Entries logged before R5
+    // have neither, and Legendary Resistance can't undo them.
+    @Column(name = "lr_success_damage")
+    private Integer lrSuccessDamage;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "lr_condition_ids", columnDefinition = "jsonb")
+    private List<UUID> lrConditionIds;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

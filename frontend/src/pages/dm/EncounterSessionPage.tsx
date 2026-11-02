@@ -12,7 +12,7 @@ import IconButton from '../../components/ui/IconButton';
 import { getParticipantColour, getParticipantBg } from '../../utils/classColours';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check, Wifi, WifiOff,
-  ChevronRight, ChevronLeft, Heart, Shield, Skull, Swords,
+  ChevronRight, ChevronLeft, Heart, HeartPulse, Shield, Skull, Swords,
   Plus, Minus, X, ScrollText, Zap, Crosshair, Sparkles, RotateCw, Castle
 } from 'lucide-react';
 import { useState, useEffect, useRef, type FormEvent } from 'react';
@@ -28,7 +28,24 @@ const DAMAGE_TYPES = [
   'force', 'lightning', 'necrotic', 'poison', 'psychic', 'radiant', 'thunder',
 ];
 
-type ActionMode = 'attack' | 'damage' | 'heal' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
+type ActionMode = 'attack' | 'damage' | 'heal' | 'set-hp' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
+
+// A new attack row: within 5 feet by default, since there is no map (D161)
+const NEW_ATTACK = { attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false, within5Ft: true };
+
+/** Dying, Stable or Dead, from the participant's life state (D161); nothing while it is up. */
+function LifeStateBadge({ participant }: { participant: EncounterParticipant }) {
+  switch (participant.lifeState) {
+    case 'DEAD':
+      return <span className="inline-flex items-center gap-1 font-heading text-[11px] font-semibold tracking-[0.02em] text-debuff"><Skull className="w-4 h-4" />Dead</span>;
+    case 'DYING':
+      return <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff">Dying</span>;
+    case 'STABLE':
+      return <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-buff border border-buff">Stable</span>;
+    default:
+      return null;
+  }
+}
 
 function HpBar({ participant }: { participant: EncounterParticipant }) {
   const hpMax = participant.hpMax ?? 0;
@@ -158,8 +175,9 @@ function ActionPanel({
   const [damageType, setDamageType] = useState('');
   const [condition, setCondition] = useState('');
   const [spellName, setSpellName] = useState('');
-  const [attacks, setAttacks] = useState([{ attackBonus: '', damageDice: '', damageType: '', advantage: null as boolean | null, forceCrit: false, isRanged: false }]);
+  const [attacks, setAttacks] = useState([{ ...NEW_ATTACK }]);
   const [conditionDuration, setConditionDuration] = useState('');
+  const [tempHp, setTempHp] = useState('');
   const [loading, setLoading] = useState(false);
 
   function updateAttack(index: number, field: string, value: string | boolean | null) {
@@ -168,7 +186,7 @@ function ActionPanel({
 
   function addAttackRow() {
     if (attacks.length >= 5) return;
-    setAttacks(prev => [...prev, { attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false, isRanged: false }]);
+    setAttacks(prev => [...prev, { ...NEW_ATTACK }]);
   }
 
   function cloneAttackRow(index: number) {
@@ -191,13 +209,15 @@ function ActionPanel({
       if (actionMode === 'attack') {
         for (const atk of attacks) {
           if (atk.attackBonus !== '' && atk.damageDice) {
-            await actions.rollAttack(selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, undefined, atk.isRanged || undefined);
+            await actions.rollAttack(selectedTarget.id, parseInt(atk.attackBonus), atk.damageDice, atk.damageType || undefined, atk.advantage, atk.forceCrit || undefined, undefined, atk.within5Ft);
           }
         }
       } else if (actionMode === 'damage' && amount) {
         await actions.applyDamage(selectedTarget.id, parseInt(amount), damageType || undefined);
       } else if (actionMode === 'heal' && amount) {
         await actions.applyHealing(selectedTarget.id, parseInt(amount));
+      } else if (actionMode === 'set-hp' && amount !== '') {
+        await actions.setHp(selectedTarget.id, parseInt(amount), tempHp !== '' ? parseInt(tempHp) : undefined);
       } else if (actionMode === 'condition' && condition) {
         await actions.addCondition(selectedTarget.id, condition, conditionDuration ? parseInt(conditionDuration) : undefined);
       } else if (actionMode === 'concentration') {
@@ -207,8 +227,9 @@ function ActionPanel({
       setDamageType('');
       setCondition('');
       setSpellName('');
-      setAttacks([{ attackBonus: '', damageDice: '', damageType: '', advantage: null, forceCrit: false, isRanged: false }]);
+      setAttacks([{ ...NEW_ATTACK }]);
       setConditionDuration('');
+      setTempHp('');
     } finally {
       setLoading(false);
     }
@@ -223,6 +244,7 @@ function ActionPanel({
           {actionMode === 'attack' && <><Crosshair className="w-4 h-4 inline mr-1 text-cls-fighter" />Attack {selectedTarget.displayName} (AC {selectedTarget.armourClass})</>}
           {actionMode === 'damage' && <><Swords className="w-4 h-4 inline mr-1 text-debuff" />Damage {selectedTarget.displayName}</>}
           {actionMode === 'heal' && <><Heart className="w-4 h-4 inline mr-1 text-buff" />Heal {selectedTarget.displayName}</>}
+          {actionMode === 'set-hp' && <><HeartPulse className="w-4 h-4 inline mr-1 text-buff" />Set HP / revive {selectedTarget.displayName}</>}
           {actionMode === 'condition' && <><Zap className="w-4 h-4 inline mr-1 text-cls-monk" />Add Condition to {selectedTarget.displayName}</>}
           {actionMode === 'concentration' && <><Zap className="w-4 h-4 inline mr-1 text-cls-warlock" />Concentration for {selectedTarget.displayName}</>}
         </h3>
@@ -290,13 +312,14 @@ function ActionPanel({
                   </div>
                   <div>
                     {i === 0 && <label className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">&nbsp;</label>}
-                    <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)}
+                    <button type="button" onClick={() => updateAttack(i, 'forceCrit', !atk.forceCrit)} aria-pressed={atk.forceCrit}
                       className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.forceCrit ? 'bg-cls-monk text-card' : 'bg-page-alt text-muted border border-rule'}`}>
                       Crit
                     </button>
-                    <button type="button" onClick={() => updateAttack(i, 'isRanged', !atk.isRanged)}
-                      className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.isRanged ? 'bg-cls-wizard text-card' : 'bg-page-alt text-muted border border-rule'}`}>
-                      Ranged
+                    {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}
+                    <button type="button" onClick={() => updateAttack(i, 'within5Ft', !atk.within5Ft)} aria-pressed={atk.within5Ft}
+                      className={`px-2 py-2 font-body text-[16px] font-semibold ${atk.within5Ft ? 'bg-cls-wizard text-card' : 'bg-page-alt text-muted border border-rule'}`}>
+                      Within 5 ft
                     </button>
                   </div>
                   <div className="flex gap-1">
@@ -336,6 +359,36 @@ function ActionPanel({
 
         {actionMode !== 'attack' && (
           <div className="flex items-end gap-3">
+            {actionMode === 'set-hp' && (
+              <>
+                <div className="flex-1">
+                  <label htmlFor="set-hp-current" className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">HP (of {selectedTarget.hpMax})</label>
+                  <input
+                    id="set-hp-current"
+                    type="number"
+                    min="0"
+                    max={selectedTarget.hpMax ?? undefined}
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+                    autoFocus
+                  />
+                </div>
+                <div className="w-32">
+                  <label htmlFor="set-hp-temp" className="block font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1">Temp HP</label>
+                  <input
+                    id="set-hp-temp"
+                    type="number"
+                    min="0"
+                    value={tempHp}
+                    onChange={e => setTempHp(e.target.value)}
+                    placeholder="unchanged"
+                    className="w-full px-3 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+                  />
+                </div>
+              </>
+            )}
+
             {(actionMode === 'damage' || actionMode === 'heal') && (
               <>
                 <div className="flex-1">
@@ -490,6 +543,7 @@ function CombatLogPanel({ canUseLegendaryResistance }: { canUseLegendaryResistan
       case 'LEGENDARY_RESISTANCE_USED': return 'text-cls-monk';
       case 'RECHARGE_SUCCESS': return 'text-buff';
       case 'RECHARGE_FAILURE': return 'text-faint';
+      case 'HP_SET': return 'text-buff';
       default: return 'text-muted';
     }
   }
@@ -499,7 +553,7 @@ function CombatLogPanel({ canUseLegendaryResistance }: { canUseLegendaryResistan
       case 'ATTACK': case 'DAMAGE': case 'KILL': case 'DEATH_SAVE':
       case 'CONDITION_ADD': case 'CONCENTRATION_LOST':
         return 'border-debuff';
-      case 'HEAL': case 'REVIVE': case 'STABILIZE': case 'CONDITION_REMOVE':
+      case 'HEAL': case 'REVIVE': case 'STABILIZE': case 'CONDITION_REMOVE': case 'HP_SET':
         return 'border-buff';
       // M12 action types
       case 'MONSTER_ACTION': return 'border-monster';
@@ -558,7 +612,8 @@ function CombatLogPanel({ canUseLegendaryResistance }: { canUseLegendaryResistan
                     {!isTurnChange && (
                       <div className={`bg-page-alt border-l-2 ${getLogBorderColor(log.actionType)} px-2 py-0.5`}>
                         <span className={`font-body text-[15px] font-semibold ${getLogColor(log.actionType)}`}>{log.description}</span>
-                        {canUseLegendaryResistance && log.legendaryResistanceEligible && !log.lrResolved && (
+                        {/* Only entries logged since R5 record the success outcome Legendary Resistance applies (D163) */}
+                        {canUseLegendaryResistance && log.legendaryResistanceEligible && !log.lrResolved && log.lrSuccessDamage != null && (
                           <button
                             className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[11px] font-semibold tracking-[0.02em]"
                             onClick={() => { void actions.spendLegendaryResistance(log.id); }}
@@ -746,7 +801,7 @@ function InlineMonsterActions({
 
       {/* Target selector for automatable actions */}
       <div className="flex flex-wrap gap-1 mt-2">
-        {participants.filter(t => t.id !== participant.id && t.isAlive).map(t => (
+        {participants.filter(t => t.id !== participant.id && t.lifeState !== 'DEAD').map(t => (
           <button
             key={t.id}
             onClick={() => onToggleTarget(t.id)}
@@ -947,7 +1002,7 @@ function DmSessionView() {
           <div>
             <h1 className="font-heading text-[20px] font-bold tracking-[0.02em] text-ink">{encounter.name}</h1>
             <p className="text-muted font-body text-[15px] font-semibold">
-              Round {encounter.roundNumber} &middot; {encounter.participants.filter(p => p.isAlive).length}/{encounter.participants.length} alive
+              Round {encounter.roundNumber} &middot; {encounter.participants.filter(p => p.lifeState !== 'DEAD').length}/{encounter.participants.length} alive
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1026,6 +1081,9 @@ function DmSessionView() {
             const isSelected = p.id === selectedTargetId;
             const isMonster = p.participantType === 'MONSTER';
             const hpRatio = p.hpCurrent != null && p.hpMax ? p.hpCurrent / p.hpMax : 0;
+            // Alive, Dying, Stable or Dead (D161): the dead can only be revived with Set HP
+            const isUp = p.lifeState === 'ALIVE';
+            const isDead = p.lifeState === 'DEAD';
 
             return (
               <Fragment key={p.id}>
@@ -1034,7 +1092,7 @@ function DmSessionView() {
                   p.isCurrentTurn ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
                   isSelected ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
                   'border-t-rule border-r-rule border-b-rule'
-                } ${!p.isAlive ? 'opacity-60' : ''}`}
+                } ${!isUp ? 'opacity-60' : ''}`}
                 style={{ borderLeftColor: getParticipantColour(isMonster) }}
               >
                 <div className="flex items-center gap-3">
@@ -1052,7 +1110,7 @@ function DmSessionView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`font-heading text-[15px] font-semibold tracking-[0.01em] text-ink ${!p.isAlive ? 'line-through' : ''}`}
+                        className={`font-heading text-[15px] font-semibold tracking-[0.01em] text-ink ${isDead ? 'line-through' : ''}`}
                       >{p.displayName}</span>
                       <span
                         className={`font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5`}
@@ -1063,7 +1121,7 @@ function DmSessionView() {
                       {isMonster && (
                         <VisibilityToggle participant={p} onToggle={visible => handleSetVisibility(p.id, visible)} />
                       )}
-                      {!p.isAlive && <Skull className="w-4 h-4 text-debuff" />}
+                      <LifeStateBadge participant={p} />
                     </div>
 
                     {/* Conditions */}
@@ -1074,7 +1132,7 @@ function DmSessionView() {
                           const label = `${c.name}${c.sourceSpellName ? ` (${c.sourceSpellName})` : ''}${remaining != null ? ` (${remaining})` : ''}`;
                           return isActive ? (
                             <button
-                              key={c.name}
+                              key={c.id}
                               onClick={() => handleRemoveCondition(p.id, c.name)}
                               className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff hover:opacity-75 cursor-pointer"
                               title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}`}
@@ -1083,7 +1141,7 @@ function DmSessionView() {
                             </button>
                           ) : (
                             <span
-                              key={c.name}
+                              key={c.id}
                               className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 text-debuff bg-debuff-bg border border-debuff"
                               title={remaining != null ? `${remaining} rounds left` : undefined}
                             >
@@ -1130,13 +1188,13 @@ function DmSessionView() {
                       </div>
                     )}
 
-                    {/* Death saves for downed players */}
-                    {!p.isAlive && p.participantType === 'PLAYER' && p.deathSaveFailures < 3 && (
+                    {/* Death saves only while Dying: a Stable PC makes none, and the dead are past them (D161) */}
+                    {p.lifeState === 'DYING' && (
                       <DeathSaves participant={p} canRoll={isActive} />
                     )}
 
                     {/* Spell slots */}
-                    {p.isAlive && p.spellSlotsCurrent && (
+                    {isUp && p.spellSlotsCurrent && (
                       <SpellSlotDisplay participant={p} canChange={isActive} />
                     )}
 
@@ -1174,7 +1232,8 @@ function DmSessionView() {
                           <Swords className="w-3.5 h-3.5" />
                         </IconButton>
                       )}
-                      {(p.isAlive || (p.participantType === 'PLAYER' && p.deathSaveFailures < 3)) && (
+                      {/* The dead can't be attacked, damaged or healed; Set HP / revive brings them back (D161) */}
+                      {!isDead && (
                         <IconButton
                           label="Attack roll"
                           onClick={() => selectTarget(p.id, 'attack')}
@@ -1183,16 +1242,18 @@ function DmSessionView() {
                           <Crosshair className="w-3.5 h-3.5" />
                         </IconButton>
                       )}
-                      <IconButton
-                        label="Deal damage"
-                        onClick={() => selectTarget(p.id, 'damage')}
-                        className="p-1.5 bg-debuff/10 hover:bg-debuff/20 text-debuff"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </IconButton>
-                      {(p.isAlive || p.participantType === 'PLAYER') && (
+                      {!isDead && (
                         <IconButton
-                          label={!p.isAlive && p.deathSaveFailures >= 3 ? "Resurrect" : "Heal"}
+                          label="Deal damage"
+                          onClick={() => selectTarget(p.id, 'damage')}
+                          className="p-1.5 bg-debuff/10 hover:bg-debuff/20 text-debuff"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </IconButton>
+                      )}
+                      {!isDead && (
+                        <IconButton
+                          label="Heal"
                           onClick={() => selectTarget(p.id, 'heal')}
                           className="p-1.5 bg-buff/10 hover:bg-buff/20 text-buff"
                         >
@@ -1200,13 +1261,20 @@ function DmSessionView() {
                         </IconButton>
                       )}
                       <IconButton
+                        label="Set HP / revive"
+                        onClick={() => selectTarget(p.id, 'set-hp')}
+                        className="p-1.5 bg-buff/10 hover:bg-buff/20 text-buff"
+                      >
+                        <HeartPulse className="w-3.5 h-3.5" />
+                      </IconButton>
+                      <IconButton
                         label="Add condition"
                         onClick={() => selectTarget(p.id, 'condition')}
                         className="p-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk"
                       >
                         <Zap className="w-3.5 h-3.5" />
                       </IconButton>
-                      {p.isAlive && (
+                      {isUp && (
                         <IconButton
                           label="Set concentration"
                           onClick={() => selectTarget(p.id, 'concentration')}
@@ -1215,7 +1283,7 @@ function DmSessionView() {
                           <Swords className="w-3.5 h-3.5" />
                         </IconButton>
                       )}
-                      {p.isAlive && (
+                      {isUp && (
                         <IconButton
                           label="Cast spell"
                           onClick={() => selectTarget(p.id, 'spell')}

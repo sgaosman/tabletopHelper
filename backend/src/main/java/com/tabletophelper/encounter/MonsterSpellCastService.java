@@ -1,9 +1,10 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.internal.SpellCaster;
+import com.tabletophelper.encounter.internal.StoredJson;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.reference.Spell;
@@ -26,7 +27,9 @@ import java.util.regex.Pattern;
 /**
  * Manages monster spellcasting in an encounter context: populating spellcasting
  * metadata on participants, handling slot and innate resource tracking, and
- * delegating spell resolution to {@link SpellResolverEngine}.
+ * casting through the same {@link SpellCaster} path as player characters, so the
+ * EffectApplier makes every change (D160). R5 workstream F replaces it with
+ * Spell Sources (D165).
  *
  * <p>Monster spellcasting comes in two flavours:</p>
  * <ul>
@@ -42,9 +45,10 @@ import java.util.regex.Pattern;
 @Slf4j
 public class MonsterSpellCastService {
 
-    private static final Pattern DAILY_SPELL_KEY_PATTERN = Pattern.compile("^(\\d+).*");
+    // A daily-spell or spell-level key's leading number, as in "1e" or "3e\day"
+    private static final Pattern LEADING_NUMBER = Pattern.compile("^(\\d{1,3}).*");
 
-    private final SpellResolverEngine spellResolverEngine;
+    private final SpellCaster spellCaster;
     private final ResourcePoolService resourcePoolService;
     private final ObjectMapper objectMapper;
     private final SpellRepository spellRepository;
@@ -99,28 +103,28 @@ public class MonsterSpellCastService {
     }
 
     /**
-     * Resolves a monster casting a spell during an encounter.
+     * Casts a monster's spell during an encounter.
      *
      * <p>Validates that the monster knows the spell, deducts the appropriate
      * resource (slot for slot-based casters, pool usage for innate casters),
-     * then delegates resolution to {@link SpellResolverEngine}.</p>
+     * then casts it through {@link SpellCaster}.</p>
      *
      * @param encounter           the active encounter
      * @param monster             the casting participant
      * @param spellName           the name of the spell being cast
      * @param slotLevel           the level at which the spell is cast (0 for innate/at-will)
-     * @param targetIds           target participant UUIDs
+     * @param targets             the target participants, already checked
      * @param overrideAttackBonus optional override for spell attack bonus (null = use monster default)
      * @param overrideSaveDC      optional override for spell save DC (null = use monster default)
      * @param advantage           true=advantage, false=disadvantage, null=normal
-     * @return the resolved spell cast result
+     * @return what the cast did
      */
-    public SpellResolverEngine.SpellCastResult castMonsterSpell(
+    public SpellCaster.CastResult castMonsterSpell(
             Encounter encounter,
             EncounterParticipant monster,
             String spellName,
             int slotLevel,
-            List<UUID> targetIds,
+            List<EncounterParticipant> targets,
             Integer overrideAttackBonus,
             Integer overrideSaveDC,
             Boolean advantage
@@ -138,19 +142,13 @@ public class MonsterSpellCastService {
         // Determine if this is innate spellcasting based on the monster's data
         String actionTemplatesJson = monster.getMonster() != null
                 ? monster.getMonster().getActionTemplates() : null;
-        boolean isInnate = false;
-        if (actionTemplatesJson != null) {
-            JsonNode spellcasting = extractSpellcastingNode(actionTemplatesJson);
-            if (spellcasting != null) {
-                isInnate = spellcasting.path("innateSpells").asBoolean(false);
-            }
-        }
+        JsonNode spellcasting = extractSpellcastingNode(actionTemplatesJson);
+        boolean isInnate = spellcasting != null && spellcasting.path("innateSpells").asBoolean(false);
 
         // Deduct resource (slot or pool)
         if (isInnate) {
             // Check if at-will — at-will spells have no pool and no slot cost
-            boolean isAtWill = isAtWillSpell(actionTemplatesJson, spellName);
-            if (!isAtWill) {
+            if (!isAtWillSpell(spellcasting, spellName)) {
                 String poolId = "innate:" + toKebabCase(spellName);
                 boolean spent = resourcePoolService.spendPool(monster, poolId, 1);
                 if (!spent) {
@@ -173,10 +171,7 @@ public class MonsterSpellCastService {
                 ? overrideSaveDC
                 : (monster.getSpellSaveDc() != null ? monster.getSpellSaveDc() : 10);
 
-        // Delegate to the spell resolver engine
-        return spellResolverEngine.resolveSpell(
-                encounter, monster, spellName, slotLevel, targetIds,
-                attackBonus, saveDC, advantage);
+        return spellCaster.cast(encounter, monster, spellName, slotLevel, targets, attackBonus, saveDC, advantage);
     }
 
     /**
@@ -266,7 +261,7 @@ public class MonsterSpellCastService {
 
         // Also add any existing pools that aren't from dailySpells (e.g. pools from createForMonster)
         for (ResourcePoolEntry existingEntry : existing) {
-            if (!pools.stream().anyMatch(p -> p.poolId().equals(existingEntry.poolId()))) {
+            if (pools.stream().noneMatch(p -> p.poolId().equals(existingEntry.poolId()))) {
                 pools.add(existingEntry);
             }
         }
@@ -359,26 +354,15 @@ public class MonsterSpellCastService {
     /**
      * Extracts the {@code spellcasting} node from the monster's action templates JSON.
      * The action templates may be either a JSON object (single monster) or a JSON array
-     * (array of monster entries — uses the first entry's spellcasting).
+     * (array of monster entries — uses the first entry's spellcasting). Null when there is none.
      */
     private JsonNode extractSpellcastingNode(String actionTemplatesJson) {
-        if (actionTemplatesJson == null || actionTemplatesJson.isBlank()) {
-            return null;
+        JsonNode root = StoredJson.read(objectMapper, actionTemplatesJson, "The monster's action templates");
+        if (root.isArray() && !root.isEmpty()) {
+            root = root.get(0);
         }
-        try {
-            JsonNode root = objectMapper.readTree(actionTemplatesJson);
-            if (root.isArray() && root.size() > 0) {
-                root = root.get(0);
-            }
-            JsonNode spellcasting = root.get("spellcasting");
-            if (spellcasting == null || spellcasting.isNull()) {
-                return null;
-            }
-            return spellcasting;
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to parse action templates JSON for spellcasting", e);
-            return null;
-        }
+        JsonNode spellcasting = root.path("spellcasting");
+        return spellcasting.isMissingNode() || spellcasting.isNull() ? null : spellcasting;
     }
 
     /**
@@ -422,22 +406,11 @@ public class MonsterSpellCastService {
     /**
      * Checks whether a spell is in the monster's at-will list (innate only).
      */
-    private boolean isAtWillSpell(String actionTemplatesJson, String spellName) {
-        if (actionTemplatesJson == null) return false;
-        try {
-            JsonNode spellcasting = extractSpellcastingNode(actionTemplatesJson);
-            if (spellcasting == null) return false;
-
-            JsonNode atWillSpells = spellcasting.get("atWillSpells");
-            if (atWillSpells == null || !atWillSpells.isArray()) return false;
-
-            for (JsonNode node : atWillSpells) {
-                if (spellName.equalsIgnoreCase(node.asText())) {
-                    return true;
-                }
+    private static boolean isAtWillSpell(JsonNode spellcasting, String spellName) {
+        for (JsonNode node : spellcasting.path("atWillSpells")) {
+            if (spellName.equalsIgnoreCase(node.asText())) {
+                return true;
             }
-        } catch (Exception e) {
-            // fall through
         }
         return false;
     }
@@ -474,15 +447,8 @@ public class MonsterSpellCastService {
      */
     private int parseDailySpellLimit(String key) {
         if (key == null || key.isBlank()) return 1;
-        Matcher matcher = DAILY_SPELL_KEY_PATTERN.matcher(key.trim());
-        if (matcher.matches()) {
-            try {
-                return Integer.parseInt(matcher.group(1));
-            } catch (NumberFormatException e) {
-                return 1;
-            }
-        }
-        return 1;
+        Matcher matcher = LEADING_NUMBER.matcher(key.trim());
+        return matcher.matches() ? Integer.parseInt(matcher.group(1)) : 1;
     }
 
     /**
@@ -496,22 +462,8 @@ public class MonsterSpellCastService {
      */
     private int parseSpellLevelKey(String key) {
         if (key == null || key.isBlank()) return 0;
-        String trimmed = key.trim();
-        if ("at_will".equals(trimmed)) return 0;
-        try {
-            return Integer.parseInt(trimmed);
-        } catch (NumberFormatException e) {
-            // Try to extract a leading number (e.g., "1e" → 1)
-            Matcher matcher = DAILY_SPELL_KEY_PATTERN.matcher(trimmed);
-            if (matcher.matches()) {
-                try {
-                    return Integer.parseInt(matcher.group(1));
-                } catch (NumberFormatException ex) {
-                    return 0;
-                }
-            }
-            return 0;
-        }
+        Matcher matcher = LEADING_NUMBER.matcher(key.trim());
+        return matcher.matches() ? Integer.parseInt(matcher.group(1)) : 0;
     }
 
     /**

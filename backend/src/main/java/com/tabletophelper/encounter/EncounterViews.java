@@ -4,6 +4,7 @@ import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.CombatLogResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
+import com.tabletophelper.encounter.dto.MonsterActionResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -31,8 +32,7 @@ public final class EncounterViews {
     }
 
     /** As {@link #forUser(EncounterResponse, UUID)}, for the encounter state inside a monster action result. */
-    public static CombatService.MonsterActionResponse forUser(CombatService.MonsterActionResponse response,
-                                                              UUID userId) {
+    public static MonsterActionResponse forUser(MonsterActionResponse response, UUID userId) {
         return response.withEncounterState(forUser(response.encounterState(), userId));
     }
 
@@ -72,6 +72,8 @@ public final class EncounterViews {
                         .lrDamageDealt(null)
                         .lrConditionsApplied(null)
                         .lrResolved(null)
+                        .lrSuccessDamage(null)
+                        .lrConditionIds(null)
                         .build())
                 .toList();
     }

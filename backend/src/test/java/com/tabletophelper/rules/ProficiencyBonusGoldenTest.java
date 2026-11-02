@@ -43,7 +43,7 @@ class ProficiencyBonusGoldenTest {
         assertEquals(expected, ProficiencyBonus.forChallengeRating(cr));
     }
 
-    // SpellResolverEngine passes a monster's challenge rating, rounded up, as its level
+    // CreatureStats takes a monster's challenge rating, rounded up, as its level for the spellcasting modifier
     @ParameterizedTest(name = "Level {0}: +{1}")
     @CsvSource({
             "21, 7", "22, 7", "23, 7", "24, 7",

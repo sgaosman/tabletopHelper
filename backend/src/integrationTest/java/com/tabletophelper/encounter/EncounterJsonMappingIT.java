@@ -5,13 +5,16 @@ import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.internal.UserRepository;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.rules.combat.LifeState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,9 +28,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The typed encounter JSON columns (D168): each record is written to PostgreSQL in the shape V15
+ * The typed encounter JSON columns (D168): each record is written to PostgreSQL in the shape V15 and V16
  * normalises rows to, and reads back equal.
  */
 class EncounterJsonMappingIT extends IntegrationTest {
@@ -64,20 +68,54 @@ class EncounterJsonMappingIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Conditions round-trip, with or without a source")
+    @DisplayName("Conditions round-trip, with or without a source, each with its ID and end rule")
     void conditionsRoundTrip() {
+        ConcentrationInstance causeFear = ConcentrationInstance.start("Cause Fear", 1, 3, 10);
         List<ConditionEntry> conditions = List.of(
-                new ConditionEntry("frightened", 2, 3, "Cause Fear", UUID.randomUUID(), true),
-                ConditionEntry.unsourced("prone", null, 1));
+                ConditionEntry.fromEffect("frightened", 2, 3, "Cause Fear", UUID.randomUUID(), causeFear),
+                ConditionEntry.manual("prone", null, 1),
+                ConditionEntry.unconsciousAtZeroHp(2));
 
         UUID id = saveParticipant(EncounterParticipant.builder().activeConditions(conditions), null);
 
         assertThat(reload(id).getActiveConditions()).isEqualTo(conditions);
+        assertThat(column("SELECT active_conditions -> 0 -> 'endRule' ->> 'type' FROM encounter_participants "
+                + "WHERE id = ?", id)).isEqualTo("CONCENTRATION");
+        assertThat(column("SELECT active_conditions -> 0 ->> 'concentrationInstanceId' FROM encounter_participants "
+                + "WHERE id = ?", id)).isEqualTo(causeFear.id().toString());
+        assertThat(column("SELECT active_conditions -> 2 -> 'endRule' ->> 'type' FROM encounter_participants "
+                + "WHERE id = ?", id)).isEqualTo("HP_REGAINED");
         // Every field is written, null or not, as the server always has
         assertThat(column("SELECT active_conditions -> 1 ->> 'name' FROM encounter_participants WHERE id = ?", id))
                 .isEqualTo("prone");
         assertThat(column("SELECT jsonb_typeof(active_conditions -> 1 -> 'sourceParticipantId') "
                 + "FROM encounter_participants WHERE id = ?", id)).isEqualTo("null");
+    }
+
+    @Test
+    @DisplayName("A Concentration Instance and the life state round-trip (D161, D162)")
+    void concentrationAndLifeStateRoundTrip() {
+        ConcentrationInstance haste = ConcentrationInstance.start("Haste", 3, 2, 10);
+
+        UUID id = saveParticipant(EncounterParticipant.builder().concentration(haste), null);
+        assertThat(column("SELECT life_state FROM encounter_participants WHERE id = ?", id)).isEqualTo("ALIVE");
+        jdbcTemplate.update("UPDATE encounter_participants SET hp_current = 0, life_state = 'DEAD' WHERE id = ?", id);
+
+        EncounterParticipant reloaded = reload(id);
+        assertThat(reloaded.getConcentration()).isEqualTo(haste);
+        assertThat(reloaded.getLifeState()).isEqualTo(LifeState.DEAD);
+        assertThat(column("SELECT concentration ->> 'spell' FROM encounter_participants WHERE id = ?", id))
+                .isEqualTo("Haste");
+    }
+
+    @Test
+    @DisplayName("The database refuses a life state that isn't one of the four")
+    void lifeStateIsChecked() {
+        UUID id = saveParticipant(EncounterParticipant.builder(), null);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE encounter_participants SET life_state = 'UNDEAD' WHERE id = ?", id))
+                .hasMessageContaining("encounter_participants_life_state_check");
     }
 
     @Test
@@ -167,7 +205,14 @@ class EncounterJsonMappingIT extends IntegrationTest {
         assertThat(reload(UUID.fromString(mageId)).getSpellSlotsCurrent())
                 .isEqualTo(Map.of("1", new SpellSlot(4, 0), "3", new SpellSlot(3, 2)));
         assertThat(reload(UUID.fromString(mageId)).getActiveConditions())
-                .containsExactly(ConditionEntry.unsourced("prone", 2, 1));
+                .singleElement()
+                .satisfies(condition -> {
+                    assertThat(condition.name()).isEqualTo("prone");
+                    assertThat(condition.duration()).isEqualTo(2);
+                    assertThat(condition.appliedRound()).isEqualTo(1);
+                    assertThat(condition.endRule()).isEqualTo(EndRule.MANUAL);
+                    assertThat(condition.id()).isNotNull();
+                });
     }
 
     @Test

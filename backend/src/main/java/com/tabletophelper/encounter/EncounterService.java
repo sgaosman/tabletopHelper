@@ -1,7 +1,7 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
@@ -11,11 +11,14 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.StoredJson;
+import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -44,6 +47,7 @@ public class EncounterService {
     private final MonsterSpellCastService monsterSpellCastService;
     private final AccessPolicy accessPolicy;
     private final EncounterCommands encounterCommands;
+    private final CombatLogReader combatLogReader;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -104,21 +108,27 @@ public class EncounterService {
                 .orElseThrow(() -> new ValidationException("Character not found"));
         accessPolicy.requireOwnerIsMember(encounter.getCampaign().getId(), character.getUser().getId());
 
+        // The hit points and life state must agree (D161). A character who arrives at 0 HP is stable and
+        // unconscious: the sheet doesn't say how they got there, so they make no death saves until hit.
+        int hpMax = Math.max(1, character.getHpMax() != null ? character.getHpMax() : 1);
+        int hp = Math.max(0, Math.min(hpMax, character.getHpCurrent() != null ? character.getHpCurrent() : hpMax));
         EncounterParticipant participant = EncounterParticipant.builder()
                 .encounter(encounter)
                 .participantType(ParticipantType.PLAYER)
                 .character(character)
                 .displayName(character.getName())
                 .initiativeModifier(character.getInitiativeBonus())
-                .hpMax(character.getHpMax())
-                .hpCurrent(character.getHpCurrent())
+                .hpMax(hpMax)
+                .hpCurrent(hp)
+                .lifeState(hp > 0 ? LifeState.ALIVE : LifeState.STABLE)
+                .activeConditions(hp > 0 ? null : new ArrayList<>(List.of(ConditionEntry.unconsciousAtZeroHp(1))))
                 .armourClass(character.getArmourClass())
                 .controlledByUserId(character.getUser().getId())
-                .spellSlotsCurrent(convertSpellSlotsFormat(character.getSpellSlots()))
+                .spellSlotsCurrent(convertSpellSlotsFormat(character))
                 .spellAttackBonus(character.getSpellAttackBonus())
                 .spellSaveDc(character.getSpellSaveDc())
                 .spellcastingAbility(character.getSpellcastingAbility())
-                .spellsKnown(readSpellsKnown(character.getSpellsKnown()))
+                .spellsKnown(readSpellsKnown(character))
                 .build();
 
         resourcePoolService.copyToParticipant(participant, character);
@@ -159,15 +169,8 @@ public class EncounterService {
 
             // M12: Populate monster spellcasting data from action templates
             if (monster.getActionTemplates() != null && !monster.getActionTemplates().isBlank()) {
-                try {
-                    monsterSpellCastService.populateMonsterSpellcasting(participant,
-                            monster.getActionTemplates());
-                    monsterSpellCastService.populateInnateSpellPools(participant,
-                            monster.getActionTemplates());
-                } catch (Exception e) {
-                    log.warn("Failed to populate monster spellcasting for {}: {}",
-                            participant.getDisplayName(), e.getMessage());
-                }
+                monsterSpellCastService.populateMonsterSpellcasting(participant, monster.getActionTemplates());
+                monsterSpellCastService.populateInnateSpellPools(participant, monster.getActionTemplates());
             }
 
             encounter.getParticipants().add(participant);
@@ -187,28 +190,28 @@ public class EncounterService {
         if (participant.getMonster() == null || participant.getMonster().getActionTemplates() == null) {
             return Map.of("error", "No action templates available for this monster");
         }
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> templates = objectMapper.readValue(
-                    participant.getMonster().getActionTemplates(), Map.class);
-
-            // Attach current resource pool states
-            List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent() != null
-                    ? participant.getResourcePoolsCurrent() : List.of();
-            Map<String, Object> poolStates = new LinkedHashMap<>();
-            for (ResourcePoolEntry p : pools) {
-                poolStates.put(p.poolId(), Map.of(
-                        "currentUses", p.currentUses(),
-                        "maxUses", p.maxUses(),
-                        "displayName", p.displayName()
-                ));
-            }
-            templates.put("resourcePools", poolStates);
-
-            return templates;
-        } catch (Exception e) {
-            return Map.of("error", "Failed to parse action templates: " + e.getMessage());
+        JsonNode templatesNode = StoredJson.read(objectMapper, participant.getMonster().getActionTemplates(),
+                participant.getMonster().getName() + "'s action templates");
+        if (!templatesNode.isObject()) {
+            return Map.of("error", "No action templates available for this monster");
         }
+        Map<String, Object> templates = objectMapper.convertValue(templatesNode,
+                new TypeReference<LinkedHashMap<String, Object>>() {});
+
+        // Attach current resource pool states
+        List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent() != null
+                ? participant.getResourcePoolsCurrent() : List.of();
+        Map<String, Object> poolStates = new LinkedHashMap<>();
+        for (ResourcePoolEntry p : pools) {
+            poolStates.put(p.poolId(), Map.of(
+                    "currentUses", p.currentUses(),
+                    "maxUses", p.maxUses(),
+                    "displayName", p.displayName()
+            ));
+        }
+        templates.put("resourcePools", poolStates);
+
+        return templates;
     }
 
     @Transactional
@@ -396,7 +399,8 @@ public class EncounterService {
         return code;
     }
 
-    EncounterResponse toResponse(Encounter encounter) {
+    /** The DM View of an encounter, which EncounterViews narrows for players (D157). */
+    public EncounterResponse toResponse(Encounter encounter) {
         List<EncounterResponse.ParticipantResponse> participantResponses = encounter.getParticipants().stream()
                 .sorted(Comparator.comparing(p -> p.getSortOrder() != null ? p.getSortOrder() : Integer.MAX_VALUE))
                 .map(p -> EncounterResponse.ParticipantResponse.builder()
@@ -413,13 +417,13 @@ public class EncounterService {
                         .hpTemp(p.getHpTemp())
                         .armourClass(p.getArmourClass())
                         .activeConditions(p.getActiveConditions())
-                        .concentrationSpell(p.getConcentrationSpell())
-                        .concentrationSlotLevel(p.getConcentrationSlotLevel())
+                        .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
+                        .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
                         .activeSpell(p.getActiveSpell())
                         .activeSpellSlotLevel(p.getActiveSpellSlotLevel())
                         .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
-                        .isAlive(p.getIsAlive())
+                        .lifeState(p.getLifeState().name())
                         .isCurrentTurn(p.getIsCurrentTurn())
                         .controlledByUserId(p.getControlledByUserId())
                         .deathSaveSuccesses(p.getDeathSaveSuccesses())
@@ -454,35 +458,50 @@ public class EncounterService {
                 .build();
     }
 
-    // The character sheet keeps {total, used} until R6 types it; participants hold {max, used} (D168)
-    private Map<String, SpellSlot> convertSpellSlotsFormat(String characterSpellSlots) {
-        if (characterSpellSlots == null) return null;
-        try {
-            Map<String, Map<String, Integer>> charSlots = objectMapper.readValue(characterSpellSlots,
-                    new TypeReference<LinkedHashMap<String, Map<String, Integer>>>() {});
-            Map<String, SpellSlot> encounterSlots = new LinkedHashMap<>();
-            for (var entry : charSlots.entrySet()) {
-                Map<String, Integer> slot = entry.getValue();
-                int max = slot.getOrDefault("max", slot.getOrDefault("total", 0));
-                int used = slot.containsKey("used") ? slot.get("used")
-                        : slot.containsKey("remaining") ? max - slot.get("remaining") : 0;
-                encounterSlots.put(entry.getKey(), new SpellSlot(max, Math.max(0, Math.min(max, used))));
-            }
-            return encounterSlots;
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to convert spell slots format: {}", e.getMessage());
-            return null;
+    /**
+     * The encounter's combat log as the user may read it: all of it for the DM, and for players without the
+     * entries about hidden participants or the Legendary Resistance fields (D157).
+     */
+    @Transactional(readOnly = true)
+    public List<CombatLogResponse> getCombatLog(UUID encounterId, UUID userId) {
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireMember(encounter.getCampaign().getId(), userId);
+
+        List<CombatLogResponse> entries = combatLogReader.dmLog(encounterId);
+        if (userId.equals(encounter.getCampaign().getDm().getId())) {
+            return entries;
         }
+        Map<UUID, String> hiddenParticipants = encounter.getParticipants().stream()
+                .filter(p -> Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
+                .collect(Collectors.toMap(EncounterParticipant::getId, EncounterParticipant::getDisplayName));
+        return EncounterViews.playerLog(entries, hiddenParticipants);
+    }
+
+    // The character sheet keeps {total, used} until R6 types it; participants hold {max, used} (D168). A
+    // level whose value isn't an object is left out.
+    private Map<String, SpellSlot> convertSpellSlotsFormat(PlayerCharacter character) {
+        if (character.getSpellSlots() == null) return null;
+        JsonNode charSlots = StoredJson.read(objectMapper, character.getSpellSlots(),
+                character.getName() + "'s spell slots");
+        if (!charSlots.isObject()) return null;
+        Map<String, SpellSlot> encounterSlots = new LinkedHashMap<>();
+        charSlots.fields().forEachRemaining(entry -> {
+            JsonNode slot = entry.getValue();
+            if (!slot.isObject()) return;
+            int max = slot.path("max").asInt(slot.path("total").asInt(0));
+            int used = slot.has("used") ? slot.path("used").asInt(0)
+                    : slot.has("remaining") ? max - slot.path("remaining").asInt(0) : 0;
+            encounterSlots.put(entry.getKey(), new SpellSlot(max, Math.max(0, Math.min(max, used))));
+        });
+        return encounterSlots;
     }
 
     // The character sheet keeps its spells as a JSON string until R6 types it (D168)
-    private List<KnownSpell> readSpellsKnown(String characterSpellsKnown) {
-        if (characterSpellsKnown == null) return null;
-        try {
-            return objectMapper.readValue(characterSpellsKnown, new TypeReference<List<KnownSpell>>() {});
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to read spells known: {}", e.getMessage());
-            return null;
-        }
+    private List<KnownSpell> readSpellsKnown(PlayerCharacter character) {
+        if (character.getSpellsKnown() == null) return null;
+        JsonNode spells = StoredJson.read(objectMapper, character.getSpellsKnown(),
+                character.getName() + "'s known spells");
+        if (!spells.isArray()) return null;
+        return objectMapper.convertValue(spells, new TypeReference<List<KnownSpell>>() {});
     }
 }

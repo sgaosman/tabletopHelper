@@ -23,5 +23,9 @@ public enum CombatActionType {
     LAIR_ACTION,
     LEGENDARY_RESISTANCE_USED,
     RECHARGE_SUCCESS,
-    RECHARGE_FAILURE
+    RECHARGE_FAILURE,
+    // The DM's Set HP / revive (D161)
+    HP_SET,
+    // A save to end a condition, which R5 workstream E rolls (D162)
+    REPEAT_SAVE
 }

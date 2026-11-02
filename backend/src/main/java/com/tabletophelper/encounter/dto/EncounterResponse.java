@@ -8,6 +8,7 @@ import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.encounter.state.SpellSlot;
+import com.tabletophelper.rules.combat.LifeState;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
@@ -102,6 +103,8 @@ public class EncounterResponse {
         private Integer armourClass;
 
         private List<ConditionEntry> activeConditions;
+
+        // The spell and slot level of the Concentration Instance it holds, if any (D162)
         private String concentrationSpell;
         private Integer concentrationSlotLevel;
         private String activeSpell;
@@ -113,17 +116,18 @@ public class EncounterResponse {
         // Null counts as visible (D157)
         private Boolean isVisibleToPlayers;
 
+        // Alive, Dying, Stable or Dead (D161); the column is NOT NULL
+        @Schema(requiredMode = REQUIRED, implementation = LifeState.class)
+        private String lifeState;
+
         // The columns allow null, but participants are only created through the entity's builder,
         // which starts each of these, and combat code reads them without a null check
-        @Schema(requiredMode = REQUIRED)
-        private Boolean isAlive;
-
         @Schema(requiredMode = REQUIRED)
         private Boolean isCurrentTurn;
 
         private UUID controlledByUserId;
 
-        // As isAlive
+        // As isCurrentTurn
         @Schema(requiredMode = REQUIRED)
         private Integer deathSaveSuccesses;
 

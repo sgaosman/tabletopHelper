@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * /error.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, ScriptedDiceConfiguration.class})
 @ActiveProfiles("it")
 public abstract class IntegrationTest {
 
@@ -54,6 +54,8 @@ public abstract class IntegrationTest {
     @Autowired protected ObjectMapper objectMapper;
     @Autowired protected RaceRepository raceRepository;
     @Autowired protected CharacterClassRepository characterClassRepository;
+    // Combat's dice: random unless a test scripts them
+    @Autowired protected ScriptedDiceConfiguration.ScriptedDice dice;
     @Autowired private CacheManager cacheManager;
 
     @AfterEach
@@ -64,6 +66,7 @@ public abstract class IntegrationTest {
         jdbcTemplate.execute("TRUNCATE TABLE " + String.join(", ", tables) + " CASCADE");
         // Reference endpoints are @Cacheable, so drop entries that point at deleted rows
         cacheManager.getCacheNames().forEach(name -> cacheManager.getCache(name).clear());
+        dice.clear();
     }
 
     // ── Users and reference rows ─────────────────────────────────

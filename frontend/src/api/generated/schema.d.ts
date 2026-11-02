@@ -1361,9 +1361,9 @@ export interface components {
             damageDice: string;
             damageType?: string | null;
             forceCrit?: boolean | null;
-            isRanged?: boolean | null;
             /** Format: uuid */
             targetId: string;
+            within5Ft?: boolean | null;
         };
         AuthResponse: {
             accessToken: string;
@@ -1723,7 +1723,7 @@ export interface components {
         };
         CombatLogResponse: {
             /** @enum {string} */
-            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE";
+            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE";
             /** Format: uuid */
             actorId?: string | null;
             actorName?: string | null;
@@ -1737,10 +1737,13 @@ export interface components {
             /** Format: uuid */
             id: string;
             legendaryResistanceEligible?: boolean | null;
+            lrConditionIds?: string[] | null;
             lrConditionsApplied?: string | null;
             /** Format: int32 */
             lrDamageDealt?: number | null;
             lrResolved?: boolean | null;
+            /** Format: int32 */
+            lrSuccessDamage?: number | null;
             /** Format: uuid */
             lrTargetId?: string | null;
             /** Format: int32 */
@@ -1772,8 +1775,13 @@ export interface components {
         ConditionEntry: {
             /** Format: int32 */
             appliedRound: number;
+            /** Format: uuid */
+            concentrationInstanceId?: string | null;
             /** Format: int32 */
             duration?: number | null;
+            endRule: components["schemas"]["EndRule"];
+            /** Format: uuid */
+            id: string;
             name: string;
             /** Format: uuid */
             sourceParticipantId?: string | null;
@@ -1832,6 +1840,10 @@ export interface components {
             sessionCode?: string | null;
             /** @enum {string} */
             status: "PREPARING" | "ACTIVE" | "PAUSED" | "COMPLETED";
+        };
+        EndRule: {
+            /** @enum {string} */
+            type: "AFTER_ROUNDS" | "START_OF_TURN" | "END_OF_TURN" | "CONCENTRATION" | "REPEAT_SAVE" | "HP_REGAINED" | "MANUAL";
         };
         Feat: {
             abilityScoreIncrease?: string | null;
@@ -2135,9 +2147,10 @@ export interface components {
             initiative?: number | null;
             /** Format: int32 */
             initiativeModifier?: number | null;
-            isAlive: boolean;
             isCurrentTurn: boolean;
             isVisibleToPlayers?: boolean | null;
+            /** @enum {string} */
+            lifeState: "ALIVE" | "DYING" | "STABLE" | "DEAD";
             /** Format: uuid */
             monsterId?: string | null;
             notes?: string | null;

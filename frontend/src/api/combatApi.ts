@@ -12,9 +12,11 @@ import type {
 } from '../types/combat';
 
 export const combatApi = {
-  rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, forceCrit?: boolean, actorId?: string, isRanged?: boolean) {
+  // forceCrit is the DM's override (D161); within5Ft decides whether a hit on an unconscious or paralyzed
+  // target is a critical hit, and there is no map, so it defaults to true
+  rollAttack(encounterId: string, targetId: string, attackBonus: number, damageDice: string, damageType?: string, advantage?: boolean | null, forceCrit?: boolean, actorId?: string, within5Ft = true) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/attack`,
-      { targetId, attackBonus, damageDice, damageType, advantage: advantage ?? undefined, forceCrit: forceCrit || undefined, isRanged: isRanged || undefined },
+      { targetId, attackBonus, damageDice, damageType, advantage: advantage ?? undefined, forceCrit: forceCrit || undefined, within5Ft },
       { params: actorId ? { actorId } : undefined },
     );
   },
@@ -31,6 +33,7 @@ export const combatApi = {
     });
   },
 
+  // The DM's Set HP / revive: a correction, or the only way back from Dead (D161)
   setHp(encounterId: string, targetId: string, hpCurrent: number, hpTemp?: number) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/hp`, { targetId, hpCurrent, hpTemp });
   },

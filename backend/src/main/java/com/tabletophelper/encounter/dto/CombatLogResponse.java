@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
@@ -42,6 +43,11 @@ public class CombatLogResponse {
     private Integer lrDamageDealt;
     private String lrConditionsApplied;
     private Boolean lrResolved;
+
+    // Set on entries logged since R5, the only ones Legendary Resistance can undo (D163): what the target
+    // takes on a success instead, and the conditions the failed save applied
+    private Integer lrSuccessDamage;
+    private List<UUID> lrConditionIds;
 
     // The log is only read back after its entries are inserted, when @CreationTimestamp has filled it in
     @Schema(requiredMode = REQUIRED)

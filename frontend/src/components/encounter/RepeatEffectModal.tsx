@@ -63,7 +63,8 @@ export default function RepeatEffectModal({ caster, participants, spellName, onC
     }
   }
 
-  const otherParticipants = participants.filter(p => p.id !== caster.id && p.isAlive);
+  // The dead are out of reach, but the dying and stable can still be healed or harmed (D161)
+  const otherParticipants = participants.filter(p => p.id !== caster.id && p.lifeState !== 'DEAD');
 
   return (
     <Modal
