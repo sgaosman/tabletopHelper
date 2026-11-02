@@ -18,6 +18,7 @@ import JoinEncounterPage from './pages/player/JoinEncounterPage';
 import PlayerEncounterSessionPage from './pages/player/EncounterSessionPage';
 import CharacterCreateWizard from './pages/player/CharacterCreateWizard';
 import QuickReferencePage from './pages/QuickReferencePage';
+import PrototypeThemeSwitcher from './components/common/PrototypeThemeSwitcher';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -31,6 +32,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <>
     <Routes>
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
@@ -57,5 +59,8 @@ export default function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
+    {/* PROTOTYPE: theme readability study, dev only */}
+    {import.meta.env.DEV && import.meta.env.MODE !== 'test' && <PrototypeThemeSwitcher />}
+    </>
   );
 }
