@@ -10,7 +10,9 @@ import java.util.Map;
  * What applying a feat changed on the sheet, as the level history records it so that levelling down can reverse
  * exactly that (D168). Only what the feat changed is recorded: an empty list or a bonus of 0 is left out.
  *
- * @param abilityIncreases each ability increased, spelled out or abbreviated in lower case, and by how much
+ * @param abilityIncreases each ability increased, spelled out or abbreviated in lower case, and by how much: the
+ *                         amount actually applied under the maximum (D167), or for a feat taken before R6 the amount
+ *                         the feat gives
  * @param resource         the limited uses the feat added to {@code feat_resources}
  * @param spellsAdded      the spells the feat added to the known spells
  * @param featName         the feat, whose feature entry levelling down removes

@@ -28,6 +28,8 @@ function mockCharacter(overrides: Partial<PlayerCharacter> = {}): PlayerCharacte
     proficiencyBonus: 3,
     deathSaveSuccesses: 0,
     deathSaveFailures: 0,
+    spellcasting: [],
+    abilityScoreMaximums: { strength: 20, dexterity: 20, constitution: 20, intelligence: 20, wisdom: 20, charisma: 20 },
     isActive: true,
     createdAt: '2024-01-01',
     updatedAt: '2024-01-01',

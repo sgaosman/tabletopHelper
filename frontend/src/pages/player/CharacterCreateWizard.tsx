@@ -3,15 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft } from 'lucide-react';
 import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
-import type { HitDicePool, PlayerCharacter } from '../../types/character';
+import type { PlayerCharacter } from '../../types/character';
 import type { SpellEntry } from './sheet/types';
 import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
 import AsiModal from '../../components/character/AsiModal';
-import { THIRD_CASTER_SUBCLASSES, THIRD_CASTER_ABILITY, proficiencyBonusForLevel } from '../../utils/spellConstants';
+import { THIRD_CASTER_SUBCLASSES, THIRD_CASTER_ABILITY } from '../../utils/spellConstants';
 import { parseFeatOptions } from '../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../utils/featSpellParser';
 import { parseAbilityScoreIncrease } from '../../utils/featPrerequisites';
-import { ABILITIES, ABILITY_FROM_ABBR, ALL_SKILLS, abilityMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../utils/dndRules';
+import { ABILITIES, ABILITY_FROM_ABBR, ALL_SKILLS, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../utils/dndRules';
 
 import {
   ALL_STEPS, ALL_LANGUAGES, ALL_TOOLS, ARTISANS_TOOLS, MUSICAL_INSTRUMENTS,
@@ -664,10 +664,8 @@ export default function CharacterCreateWizard() {
   async function handleCreate() {
     if (!selectedRace || !selectedClass || !selectedBackground) return;
     setSubmitting(true); setError('');
-    const conMod = abilityMod(finalScores.constitution);
-    const hpMax = selectedClass.hitDice + conMod;
+    // Hit points, speed, armour class, initiative, Hit Dice, slots and spell DCs are the server's to work out (D167)
     const savingThrows = safeJsonParse<string[]>(selectedClass.savingThrowProficiencies, []);
-    const speed = safeJsonParse<{ walk?: number }>(selectedRace.speed, { walk: 30 });
     const resistances = [...safeJsonParse<string[]>(selectedRace.resistances, []), ...resolvedRaceChoices.resistances];
     const raceProfs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[]; weapons?: string[] }>(selectedRace.proficiencies, {});
     const isMulticlass = classEntries.length > 1;
@@ -700,18 +698,6 @@ export default function CharacterCreateWizard() {
     let resolvedSpellAbility: string | undefined = selectedClass.spellcastingAbility ?? undefined;
     if (!resolvedSpellAbility) { const thirdCasterEntry = classEntries.find(e => e.subclass && THIRD_CASTER_SUBCLASSES.has(e.subclass.name)); if (thirdCasterEntry) resolvedSpellAbility = THIRD_CASTER_ABILITY[thirdCasterEntry.subclass!.name]; }
     if (!resolvedSpellAbility && featSpellAbility) resolvedSpellAbility = featSpellAbility;
-    let spellSaveDc: number | undefined;
-    let spellAttackBonus: number | undefined;
-    if (resolvedSpellAbility && !selectedClass.isSpellcaster) {
-      const profBonus = proficiencyBonusForLevel(level);
-      const abilityKey = ABILITY_FROM_ABBR[resolvedSpellAbility] as keyof typeof finalScores | undefined;
-      const mod = abilityMod(abilityKey ? finalScores[abilityKey] : 10);
-      spellSaveDc = 8 + profBonus + mod;
-      spellAttackBonus = profBonus + mod;
-    }
-    const hitDice: Record<string, HitDicePool> = {};
-    for (const entry of classEntries) hitDice[entry.cls.name] = { total: entry.level, remaining: entry.level, dieSize: entry.cls.hitDice };
-    if (classEntries.length === 0) hitDice[selectedClass.name] = { total: level, remaining: level, dieSize: selectedClass.hitDice };
     const multiclassClassEntries = isMulticlass ? classEntries.map(e => ({ classId: e.cls.id, subclassId: e.subclass?.id ?? null, level: e.level })) : undefined;
     try {
       const res = await characterApi.create({
@@ -722,8 +708,6 @@ export default function CharacterCreateWizard() {
         racialAbilityBonuses: bonusAssignments.map(a => ({ ability: a.ability ? ABILITY_LABELS[a.ability] : null, bonus: a.bonus })),
         strength: finalScores.strength, dexterity: finalScores.dexterity, constitution: finalScores.constitution,
         intelligence: finalScores.intelligence, wisdom: finalScores.wisdom, charisma: finalScores.charisma,
-        ...(level === 1 && !isMulticlass ? { hpMax: hpMax as number } : {}),
-        speed: speed.walk ?? 30,
         savingThrowProficiencies: savingThrows,
         skillProficiencies: allSkills.length > 0 ? [...new Set(allSkills)] : undefined,
         skillExpertises: selectedExpertise.length > 0 ? selectedExpertise : undefined,
@@ -732,10 +716,10 @@ export default function CharacterCreateWizard() {
         toolProficiencies: allTools.length > 0 ? [...new Set(allTools)] : undefined,
         languageProficiencies: allLanguages.length > 0 ? [...new Set(allLanguages)] : undefined,
         damageResistances: resistances.length > 0 ? resistances : undefined,
-        spellcastingAbility: resolvedSpellAbility, spellSaveDc, spellAttackBonus,
+        spellcastingAbility: resolvedSpellAbility,
         spellsKnown: buildSpellsKnown(),
         features: featFeatures.length > 0 ? featFeatures : undefined,
-        hitDice, multiclassClassEntries,
+        multiclassClassEntries,
       });
       localStorage.removeItem(DRAFT_KEY);
       const asiCount = countAsiLevels(classEntries);

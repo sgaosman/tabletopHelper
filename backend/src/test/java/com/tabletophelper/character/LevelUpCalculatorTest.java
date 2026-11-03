@@ -1,5 +1,8 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
@@ -8,78 +11,44 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * The levels a character is created with. Since R6 workstream C each level records its Hit Die Result rather than the
+ * hit points it gave, and the rules behind them are rules.character's: the HP gain cases became Hit Die Result cases
+ * here, with the arithmetic in HitPointsGoldenTest and the hit point maximums in CharacterStatsTest, and the ASI level
+ * cases are ClassProgressionGoldenTest's.
+ */
 class LevelUpCalculatorTest {
 
     @Test
-    @DisplayName("Level 1 HP gain = full hit dice + CON mod")
-    void level1HpGainIsMaxDie() {
-        assertEquals(12, LevelUpCalculator.calculateHpGain(1, 10, 2));
-        assertEquals(14, LevelUpCalculator.calculateHpGain(1, 12, 2));
-        assertEquals(6, LevelUpCalculator.calculateHpGain(1, 8, -2));
-    }
-
-    @Test
-    @DisplayName("Level 2+ HP gain = average die + CON mod")
-    void level2PlusHpGainIsAverage() {
-        assertEquals(8, LevelUpCalculator.calculateHpGain(2, 10, 2));
-        assertEquals(9, LevelUpCalculator.calculateHpGain(5, 12, 2));
-        assertEquals(3, LevelUpCalculator.calculateHpGain(3, 8, -2));
-    }
-
-    @Test
-    @DisplayName("Standard ASI levels are 4, 8, 12, 16, 19")
-    void standardAsiLevels() {
-        for (int level : List.of(4, 8, 12, 16, 19)) {
-            assertTrue(LevelUpCalculator.isAsiLevel("Wizard", level), "Wizard should have ASI at level " + level);
-            assertTrue(LevelUpCalculator.isAsiLevel("Cleric", level), "Cleric should have ASI at level " + level);
-        }
-        for (int level : List.of(1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 20)) {
-            assertFalse(LevelUpCalculator.isAsiLevel("Wizard", level), "Wizard should NOT have ASI at level " + level);
-        }
-    }
-
-    @Test
-    @DisplayName("Fighter gets extra ASI at levels 6 and 14")
-    void fighterExtraAsiLevels() {
-        assertTrue(LevelUpCalculator.isAsiLevel("Fighter", 6));
-        assertTrue(LevelUpCalculator.isAsiLevel("Fighter", 14));
-        assertFalse(LevelUpCalculator.isAsiLevel("Fighter", 10));
-    }
-
-    @Test
-    @DisplayName("Rogue gets extra ASI at level 10")
-    void rogueExtraAsiLevels() {
-        assertTrue(LevelUpCalculator.isAsiLevel("Rogue", 10));
-        assertFalse(LevelUpCalculator.isAsiLevel("Rogue", 6));
-        assertFalse(LevelUpCalculator.isAsiLevel("Rogue", 14));
-    }
-
-    @Test
-    @DisplayName("Build single-class progression yields correct total HP")
-    void singleClassProgressionHp() {
+    @DisplayName("Build single-class progression: the die's maximum at level 1 and its fixed average after")
+    void singleClassProgressionHitDieResults() {
         UUID classId = UUID.randomUUID();
         List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
-                5, classId, "Fighter", 10, 2,
+                5, classId, "Fighter", 10,
                 null, null, null, 99
         );
         assertEquals(5, progression.size());
 
-        // Level 1: 10 + 2 = 12
-        assertEquals(12, progression.get(0).hpGained());
-        // Levels 2-5: (10/2 + 1) + 2 = 8 each
+        assertEquals(10, progression.get(0).hitDieResult());
         for (int i = 1; i < 5; i++) {
-            assertEquals(8, progression.get(i).hpGained());
+            assertEquals(6, progression.get(i).hitDieResult());
         }
-
-        int totalHp = LevelUpCalculator.totalHp(progression);
-        assertEquals(12 + 4 * 8, totalHp);
+        // Fighters improve at 4th level
+        assertTrue(progression.get(3).asiAvailable());
+        assertFalse(progression.get(4).asiAvailable());
     }
 
     @Test
-    @DisplayName("Negative CON modifier still applies")
-    void negativeConModifier() {
-        assertEquals(6, LevelUpCalculator.calculateHpGain(1, 8, -2));
-        assertEquals(3, LevelUpCalculator.calculateHpGain(2, 8, -2));
+    @DisplayName("Hit Die Results with a d6 and a d12: 6 then 4, and 12 then 7")
+    void d6AndD12HitDieResults() {
+        List<LevelUpCalculator.LevelGain> wizard = LevelUpCalculator.buildProgression(
+                2, UUID.randomUUID(), "Wizard", 6, null, null, null, 2);
+        List<LevelUpCalculator.LevelGain> barbarian = LevelUpCalculator.buildProgression(
+                2, UUID.randomUUID(), "Barbarian", 12, null, null, null, 3);
+
+        assertEquals(List.of(6, 4), wizard.stream().map(LevelUpCalculator.LevelGain::hitDieResult).toList());
+        assertEquals(List.of(12, 7), barbarian.stream().map(LevelUpCalculator.LevelGain::hitDieResult).toList());
+        assertTrue(wizard.get(1).subclassAvailable());
     }
 
     @Test
@@ -113,29 +82,18 @@ class LevelUpCalculatorTest {
     }
 
     @Test
-    @DisplayName("HP with d6 hit die: Wizard level 1 max 6 + CON, level 2 average 4 + CON")
-    void d6HitDieHpCalculation() {
-        // Level 1 Wizard with CON 12 (+1): max d6 (6) + 1 = 7
-        assertEquals(7, LevelUpCalculator.calculateHpGain(1, 6, 1));
-        // Level 2: average d6 (6/2+1=4) + 1 = 5
-        assertEquals(5, LevelUpCalculator.calculateHpGain(2, 6, 1));
+    @DisplayName("Class features that can't be read are a 409, not a level without them (D155)")
+    void unreadableFeaturesAreConflict() {
+        ConflictException e = assertThrows(ConflictException.class, () -> LevelUpCalculator.collectFeaturesForLevel(
+                "{not json", null, 1, "Fighter", null));
+        assertEquals("The features of the class Fighter can't be read", e.getMessage());
     }
 
     @Test
-    @DisplayName("HP with d12 hit die: Barbarian level 1 max 12 + CON, level 2 average 7 + CON")
-    void d12HitDieHpCalculation() {
-        // Level 1 Barbarian with CON 16 (+3): max d12 (12) + 3 = 15
-        assertEquals(15, LevelUpCalculator.calculateHpGain(1, 12, 3));
-        // Level 2: average d12 (12/2+1=7) + 3 = 10
-        assertEquals(10, LevelUpCalculator.calculateHpGain(2, 12, 3));
-    }
-
-    @Test
-    @DisplayName("Multiclass progression uses new class hit die for HP")
+    @DisplayName("Multiclass progression: only the first class's first level has the die's maximum (PHB p.163)")
     void multiclassProgressionUsesNewClassHitDie() {
         UUID fighterId = UUID.randomUUID();
         UUID wizardId = UUID.randomUUID();
-        int conMod = 2; // CON 14
 
         List<LevelUpCalculator.ClassInput> classInputs = List.of(
                 new LevelUpCalculator.ClassInput(fighterId, "Fighter", 3, 10,
@@ -145,21 +103,22 @@ class LevelUpCalculatorTest {
         );
 
         List<LevelUpCalculator.LevelGain> progression =
-                LevelUpCalculator.buildMulticlassProgression(classInputs, conMod);
+                LevelUpCalculator.buildMulticlassProgression(classInputs);
         assertEquals(4, progression.size());
 
-        // Fighter level 1 (character level 1): max d10 + CON = 12
-        assertEquals(12, progression.get(0).hpGained());
+        // Fighter level 1 (character level 1): the d10's maximum
+        assertEquals(10, progression.get(0).hitDieResult());
         assertEquals("Fighter", progression.get(0).className());
 
-        // Fighter levels 2-3: avg d10 (6) + CON (2) = 8
-        assertEquals(8, progression.get(1).hpGained());
-        assertEquals(8, progression.get(2).hpGained());
+        // Fighter levels 2-3: the d10's fixed value, 6
+        assertEquals(6, progression.get(1).hitDieResult());
+        assertEquals(6, progression.get(2).hitDieResult());
 
-        // Wizard level 1 (character level 4): avg d6 (4) + CON (2) = 6
-        // Not max die because this is not the first class in the list
-        assertEquals(6, progression.get(3).hpGained());
+        // Wizard level 1 (character level 4): the d6's fixed value, not its maximum
+        assertEquals(4, progression.get(3).hitDieResult());
         assertEquals("Wizard", progression.get(3).className());
+        assertEquals(4, progression.get(3).characterLevel());
+        assertEquals(1, progression.get(3).classLevel());
     }
 
     @Test
@@ -197,7 +156,7 @@ class LevelUpCalculatorTest {
     void buildProgressionTotalLevelsMatchInput() {
         UUID classId = UUID.randomUUID();
         List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
-                5, classId, "Fighter", 10, 2,
+                5, classId, "Fighter", 10,
                 null, null, null, 99);
         assertEquals(5, progression.size());
 
@@ -209,24 +168,15 @@ class LevelUpCalculatorTest {
     }
 
     @Test
-    @DisplayName("buildProgression with existing HP: level 4 gain adds to existing base")
-    void buildProgressionWithExistingHp() {
+    @DisplayName("levelHistory records each level's Hit Die Result with no choices, its hit points to be filled in")
+    void levelHistoryRecordsHitDieResults() {
         UUID classId = UUID.randomUUID();
-        int conMod = 2; // CON 14
+        List<LevelHistoryEntry> history = LevelUpCalculator.levelHistory(LevelUpCalculator.buildProgression(
+                2, classId, "Fighter", 10, null, null, null, 3));
 
-        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
-                4, classId, "Fighter", 10, conMod,
-                null, null, null, 99);
-
-        // Levels 1-3 give: (10+2) + (6+2) + (6+2) = 12 + 8 + 8 = 28
-        int hpAfter3 = progression.subList(0, 3).stream()
-                .mapToInt(LevelUpCalculator.LevelGain::hpGained).sum();
-        assertEquals(28, hpAfter3);
-
-        // Level 4 adds: avg d10 (6) + CON mod (2) = 8
-        assertEquals(8, progression.get(3).hpGained());
-
-        // Total HP = 28 + 8 = 36
-        assertEquals(36, LevelUpCalculator.totalHp(progression));
+        assertEquals(List.of(10, 6), history.stream().map(LevelHistoryEntry::hitDieResult).toList());
+        assertEquals(List.of(0, 0), history.stream().map(LevelHistoryEntry::hpGained).toList());
+        assertEquals(LevelChoices.NONE, history.get(1).choices());
+        assertEquals(classId, history.get(1).classId());
     }
 }

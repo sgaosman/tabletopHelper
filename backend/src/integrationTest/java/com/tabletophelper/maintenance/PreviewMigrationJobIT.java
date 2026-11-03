@@ -38,13 +38,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * schema of its own that Flyway takes only to V15, so its backfill is checked row by row (D161, D162); its
  * preview, which loads the rows with entities now at V17, gave way to V17's. V17 is previewed through
  * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163). V19 is
- * previewed and applied the same way, against player characters in a schema at V18 (D168).
+ * previewed and applied the same way, against player characters in a schema at V18 (D168), and so is V20, against
+ * level histories in a schema at V19 (D167).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
     private static final String V16_SCHEMA = "v16_preview";
     private static final String V17_SCHEMA = "v17_preview";
     private static final String V19_SCHEMA = "v19_preview";
+    private static final String V20_SCHEMA = "v20_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -65,6 +67,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V16_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V17_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V19_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V20_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -537,5 +540,108 @@ class PreviewMigrationJobIT extends IntegrationTest {
         assertThat(v19Column("features", rows.get("Broken"))).isNull();
         assertThat(v19Column("skill_proficiencies", rows.get("Settled"))).isEqualTo("[\"Stealth\"]");
         assertThat(v19Column("hit_dice", rows.get("Settled"))).isNull();
+    }
+
+    // ── V20: hit die results (D167) ──────────────────────────────
+
+    /**
+     * Takes a schema of its own to V19 and fills it with level histories as the old code wrote them, without hit die
+     * results: a single-class Fighter, a Fighter with a Wizard dip, a level whose class row is gone but whose Hit Dice
+     * the sheet still has, a character created without a class, a level that already has a result, and a character
+     * without history.
+     */
+    private Map<String, UUID> v20Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V20_SCHEMA).locations("classpath:db/migration")
+                .target("19").load().migrate();
+        UUID owner = UUID.randomUUID();
+        UUID race = UUID.randomUUID();
+        UUID fighter = UUID.randomUUID();
+        UUID wizard = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V20_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'aria', 'aria@example.com', 'hash')", owner);
+        jdbcTemplate.update("INSERT INTO " + V20_SCHEMA + ".races (id, name) VALUES (?, 'Human')", race);
+        jdbcTemplate.update("INSERT INTO " + V20_SCHEMA + ".character_classes (id, name, hit_dice) VALUES (?, 'Fighter', 10)",
+                fighter);
+        jdbcTemplate.update("INSERT INTO " + V20_SCHEMA + ".character_classes (id, name, hit_dice) VALUES (?, 'Wizard', 6)",
+                wizard);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        rows.put("Fighter", v19Character(owner, race, "Fighter", "[" + level(1, fighter, "Fighter", 1, 12) + ", "
+                + level(2, fighter, "Fighter", 2, 8) + ", " + level(3, fighter, "Fighter", 3, 8) + "]", null));
+        rows.put("Dip", v19Character(owner, race, "Dip", "[" + level(1, fighter, "Fighter", 1, 12) + ", "
+                + level(2, wizard, "Wizard", 1, 6) + "]", null));
+        rows.put("Gone", v19Character(owner, race, "Gone", "[" + level(1, UUID.randomUUID(), "Sorcerer", 1, 8) + ", "
+                + level(2, UUID.randomUUID(), "Sorcerer", 2, 6) + "]",
+                "{\"Sorcerer\": {\"dieSize\": 6, \"total\": 2, \"remaining\": 2}}"));
+        rows.put("Classless", v19Character(owner, race, "Classless",
+                "[{\"characterLevel\": 1, \"classLevel\": 1, \"hpGained\": 9, \"featuresGained\": [], \"choices\": {}}]",
+                null));
+        rows.put("Recorded", v19Character(owner, race, "Recorded", "[{\"characterLevel\": 1, \"classId\": \"" + fighter
+                + "\", \"className\": \"Fighter\", \"classLevel\": 1, \"hpGained\": 12, \"hitDieResult\": 10, "
+                + "\"featuresGained\": [], \"choices\": {}}]", null));
+        rows.put("Empty", v19Character(owner, race, "Empty", null, null));
+        return rows;
+    }
+
+    private static String level(int characterLevel, UUID classId, String className, int classLevel, int hpGained) {
+        return "{\"characterLevel\": " + characterLevel + ", \"classId\": \"" + classId + "\", \"className\": \""
+                + className + "\", \"classLevel\": " + classLevel + ", \"hpGained\": " + hpGained
+                + ", \"featuresGained\": [], \"choices\": {}}";
+    }
+
+    private UUID v19Character(UUID owner, UUID race, String name, String levelHistory, String hitDice) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V20_SCHEMA + ".player_characters (id, user_id, race_id, name, strength, "
+                + "dexterity, constitution, intelligence, wisdom, charisma, hp_max, hp_current, armour_class, "
+                + "level_history, hit_dice) VALUES (?, ?, ?, ?, 10, 10, 14, 10, 10, 10, 8, 8, 10, ?::jsonb, ?::jsonb)",
+                id, owner, race, name, levelHistory, hitDice);
+        return id;
+    }
+
+    private List<Integer> hitDieResults(UUID id) {
+        return jdbcTemplate.queryForList("SELECT (e ->> 'hitDieResult')::int FROM " + V20_SCHEMA
+                + ".player_characters, jsonb_array_elements(level_history) e WHERE id = ?", Integer.class, id);
+    }
+
+    @Test
+    @DisplayName("Previews V20 on a database at V19: each history without hit die results is reported, every row loads, nothing is written")
+    void previewsV20() {
+        Map<String, UUID> rows = v20Rows();
+        DataSource v20 = schemaDataSource(V20_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v20, new JdbcTemplate(v20), entityManagerFactory,
+                objectMapper, "20").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(report.examined()).isEqualTo(6);
+        // The recorded and empty histories don't change
+        assertThat(report.changes()).hasSize(4);
+        assertThat(characterChange(report, rows.get("Dip")))
+                .contains("(Dip)")
+                .contains("\"hitDieResult\":10")
+                .contains("\"hitDieResult\":4");
+        assertThat(hitDieResults(rows.get("Fighter"))).containsOnlyNulls();
+    }
+
+    @Test
+    @DisplayName("V20 gives each level the die's maximum at character level 1 and half the die plus 1 after, as calculateHpGain did")
+    void appliesV20() {
+        Map<String, UUID> rows = v20Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V20_SCHEMA).locations("classpath:db/migration")
+                .target("20").load().migrate();
+
+        assertThat(hitDieResults(rows.get("Fighter"))).containsExactly(10, 6, 6);
+        // A dip's first level isn't character level 1, so it has the average (PHB p.163)
+        assertThat(hitDieResults(rows.get("Dip"))).containsExactly(10, 4);
+        // A class row that is gone leaves the sheet's own Hit Dice, and no class at all the d8 the old code used
+        assertThat(hitDieResults(rows.get("Gone"))).containsExactly(6, 4);
+        assertThat(hitDieResults(rows.get("Classless"))).containsExactly(8);
+        assertThat(hitDieResults(rows.get("Recorded"))).containsExactly(10);
+        assertThat(jdbcTemplate.queryForObject("SELECT level_history IS NULL FROM " + V20_SCHEMA
+                + ".player_characters WHERE id = ?", Boolean.class, rows.get("Empty"))).isTrue();
+        // Everything else in an entry is kept
+        assertThat(jdbcTemplate.queryForObject("SELECT level_history -> 1 ->> 'hpGained' FROM " + V20_SCHEMA
+                + ".player_characters WHERE id = ?", String.class, rows.get("Fighter"))).isEqualTo("8");
     }
 }

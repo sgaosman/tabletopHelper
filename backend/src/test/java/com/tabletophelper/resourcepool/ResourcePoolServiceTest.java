@@ -1,9 +1,13 @@
 package com.tabletophelper.resourcepool;
 
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
+import com.tabletophelper.reference.ResourcePoolDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,8 +17,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ResourcePoolServiceTest {
@@ -187,6 +193,75 @@ class ResourcePoolServiceTest {
                 barbarian.getResourcePools());
     }
 
+    @Test
+    @DisplayName("syncBackToCharacter takes the first of two participant pools with one ID rather than failing")
+    void syncBackTakesTheFirstOfTwoPools() {
+        PlayerCharacter barbarian = PlayerCharacter.builder()
+                .resourcePools(List.of(entry("rage", 3, 3, "longRest", null)))
+                .build();
+        EncounterParticipant participant = EncounterParticipant.builder()
+                .resourcePoolsCurrent(List.of(entry("rage", 3, 1, "longRest", null), entry("rage", 3, 0, "longRest", null)))
+                .build();
+
+        service.syncBackToCharacter(participant, barbarian);
+
+        assertEquals(List.of(entry("rage", 3, 1, "longRest", null)), barbarian.getResourcePools());
+    }
+
+    @Test
+    @DisplayName("reconciledPools adds an innate pool for each levelled spell the character can cast now with uses of its own, keeping its uses (D165)")
+    void syncAddsInnatePools() {
+        ResourcePoolEntry spent = ResourcePoolEntry.innate("Hellish Rebuke", 1, "RACE", "Tiefling").withCurrentUses(0);
+        PlayerCharacter tiefling = PlayerCharacter.builder().level(3)
+                .spellsKnown(List.of(
+                        new KnownSpell(null, "Thaumaturgy", 0, "race:Tiefling", null, null, true, null, null),
+                        new KnownSpell(null, "Hellish Rebuke", 1, "race:Tiefling", null, null, null, 1, 3),
+                        new KnownSpell(null, "Darkness", 2, "race:Tiefling", null, null, null, 1, 5),
+                        new KnownSpell(null, "Hellish Rebuke", 1, "class:Warlock", null, null, null, null, null),
+                        new KnownSpell(null, "Misty Step", 2, "feat:Fey Touched", null, null, null, 1, null)))
+                .resourcePools(List.of(spent, entry("orphan", 1, 1, "longRest", null)))
+                .build();
+
+        assertEquals(List.of(spent, ResourcePoolEntry.innate("Misty Step", 1, "FEAT", "Fey Touched")),
+                reconcile(tiefling));
+    }
+
+    @Test
+    @DisplayName("A class pool keeps the uses it has spent through a sync, whatever its new maximum, and a new one starts full")
+    void syncKeepsSpentUses() {
+        UUID classId = UUID.randomUUID();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(classId, 2))
+                .thenReturn(List.of(featurePool("class:ki", "5"), featurePool("class:surge", "1"),
+                        featurePool("class:wind", "2")));
+        PlayerCharacter monk = PlayerCharacter.builder().level(2)
+                .multiclassEntries(List.of(new ClassEntry(classId, "Monk", null, null, 2)))
+                .resourcePools(List.of(entry("class:ki", 3, 1, "shortRest", null),
+                        entry("class:surge", 3, 1, "shortRest", null)))
+                .build();
+
+        List<ResourcePoolEntry> pools = reconcile(monk);
+
+        // Ki had 2 of 3 spent: 3 of 5 left; Surge had 2 spent, more than its new maximum of 1
+        assertEquals(List.of(5, 1, 2), pools.stream().map(ResourcePoolEntry::maxUses).toList());
+        assertEquals(List.of(3, 0, 2), pools.stream().map(ResourcePoolEntry::currentUses).toList());
+    }
+
+    @Test
+    @DisplayName("A sync that fails stops the command and leaves the sheet's pools as they were, rather than carrying on (D155)")
+    void syncFailureStopsTheCommand() {
+        UUID classId = UUID.randomUUID();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(classId, 1))
+                .thenThrow(new IllegalStateException("The pool definitions can't be read"));
+        List<ResourcePoolEntry> pools = List.of(entry("rage", 2, 1, "longRest", null));
+        PlayerCharacter psion = PlayerCharacter.builder().level(1)
+                .multiclassEntries(List.of(new ClassEntry(classId, "Psion", null, null, 1)))
+                .resourcePools(pools)
+                .build();
+
+        assertThrows(IllegalStateException.class, () -> reconcile(psion));
+        assertEquals(pools, psion.getResourcePools());
+    }
+
     // ── Participant pools (typed since R5, D168) ─────────────────
 
     @Test
@@ -265,6 +340,16 @@ class ResourcePoolServiceTest {
         return new ResourcePoolEntry(poolId, poolId, "MONSTER", "Test",
                 maxUses, null, currentUses, resetOn,
                 null, resetCheck, "ACTION", null, Map.of());
+    }
+
+    private List<ResourcePoolEntry> reconcile(PlayerCharacter character) {
+        return service.reconciledPools(character, service.buildCharacterContext(character));
+    }
+
+    private static ClassFeaturePool featurePool(String poolId, String formula) {
+        return ClassFeaturePool.builder().minLevel(1).poolDefinition(ResourcePoolDefinition.builder()
+                .poolId(poolId).displayName(poolId).sourceType("CLASS").maxUsesFormula(formula).resetOn("shortRest")
+                .build()).build();
     }
 
     private ResourcePoolEntry findPool(List<ResourcePoolEntry> pools, String poolId) {

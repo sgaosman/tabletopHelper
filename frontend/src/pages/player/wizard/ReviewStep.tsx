@@ -69,7 +69,7 @@ export default function ReviewStep({
           ))}
           <ReviewField label="Background" value={selectedBackground?.name || '—'} />
           <ReviewField label="Proficiency Bonus" value={`+${proficiencyBonusForLevel(level)}`} />
-          <ReviewField label="Hit Points" value={level === 1 && classEntries.length <= 1 ? String((selectedClass?.hitDice || 0) + abilityMod(finalScores.constitution)) : `Calculated by server for level ${level}`} />
+          <ReviewField label="Hit Points" value="Worked out when the character is created" />
           <ReviewField label="Speed" value={(() => {
             const sp = safeJsonParse<Record<string, number | boolean>>(selectedRace?.speed ?? null, { walk: 30 });
             const w = typeof sp.walk === 'number' ? sp.walk : 30;

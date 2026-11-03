@@ -5,6 +5,10 @@ import org.junit.jupiter.api.DisplayName;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * CharacterService's static helpers. The Expertise levels they once held are ClassProgression's since R6 workstream
+ * C, and ClassProgressionGoldenTest checks them for every class.
+ */
 class CharacterServiceStaticTest {
 
     @Test
@@ -38,30 +42,6 @@ class CharacterServiceStaticTest {
         assertEquals(5, CharacterService.proficiencyBonusForLevel(16));
         assertEquals(6, CharacterService.proficiencyBonusForLevel(17));
         assertEquals(6, CharacterService.proficiencyBonusForLevel(20));
-    }
-
-    @Test
-    @DisplayName("Rogue expertise at level 1 and 6")
-    void rogueExpertise() {
-        assertTrue(CharacterService.isExpertiseLevel("Rogue", 1));
-        assertTrue(CharacterService.isExpertiseLevel("Rogue", 6));
-        assertFalse(CharacterService.isExpertiseLevel("Rogue", 3));
-    }
-
-    @Test
-    @DisplayName("Bard expertise at level 3 and 10")
-    void bardExpertise() {
-        assertTrue(CharacterService.isExpertiseLevel("Bard", 3));
-        assertTrue(CharacterService.isExpertiseLevel("Bard", 10));
-        assertFalse(CharacterService.isExpertiseLevel("Bard", 1));
-    }
-
-    @Test
-    @DisplayName("Other classes have no expertise levels")
-    void noExpertise() {
-        assertFalse(CharacterService.isExpertiseLevel("Fighter", 1));
-        assertFalse(CharacterService.isExpertiseLevel("Fighter", 6));
-        assertFalse(CharacterService.isExpertiseLevel("Wizard", 3));
     }
 
     @Test

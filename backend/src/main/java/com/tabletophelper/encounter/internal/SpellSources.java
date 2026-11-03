@@ -91,9 +91,11 @@ final class SpellSources {
      * @param castLevel  the level it is cast at: the slot's, the pact slots', or the spell's own
      * @param slotKey    the slot spent, such as "3" or "pact_3", for SLOT and PACT_SLOT
      * @param innatePool the pool that holds the spell's innate uses, full, as a caster without it starts it
+     * @param origin     where the spell cast comes from, such as "class:Wizard" or "race:Tiefling": the entry with the
+     *                   innate use for INNATE, and otherwise a class's entry when the caster has the spell from one
      */
     record Payment(String spellName, int spellLevel, SpellSource source, int castLevel, String slotKey,
-                   ResourcePoolEntry innatePool) {
+                   ResourcePoolEntry innatePool, String origin) {
     }
 
     // ── Options ──────────────────────────────────────────────────
@@ -232,6 +234,7 @@ final class SpellSources {
         SourceOption chosen = source(option, source).orElseThrow(() -> new ValidationException(source == SpellSource.NONE
                 ? name + " is a level " + level + " spell, so it needs a spell slot, a pact slot or an innate use"
                 : name + " can't be cast " + with(source)));
+        String origin = origin(castable);
         return switch (source) {
             case SLOT -> {
                 if (slotLevel < level) {
@@ -241,7 +244,7 @@ final class SpellSources {
                 if (!chosen.levels().contains(slotLevel)) {
                     throw new ValidationException(casterName + " has no level " + slotLevel + " spell slots left");
                 }
-                yield new Payment(name, level, SpellSource.SLOT, slotLevel, String.valueOf(slotLevel), null);
+                yield new Payment(name, level, SpellSource.SLOT, slotLevel, String.valueOf(slotLevel), null, origin);
             }
             case PACT_SLOT -> {
                 if (chosen.levels().isEmpty()) {
@@ -252,7 +255,7 @@ final class SpellSources {
                     throw new ValidationException("Pact slots are level " + pactLevel + ", so a pact slot casts "
                             + name + " at level " + pactLevel);
                 }
-                yield new Payment(name, level, SpellSource.PACT_SLOT, pactLevel, "pact_" + pactLevel, null);
+                yield new Payment(name, level, SpellSource.PACT_SLOT, pactLevel, "pact_" + pactLevel, null, origin);
             }
             case INNATE -> {
                 if (slotLevel != 0 && slotLevel != level) {
@@ -264,7 +267,8 @@ final class SpellSources {
                 }
                 Known innate = castable.stream().filter(Known::hasOwnUses).findFirst().orElseThrow();
                 yield new Payment(name, level, SpellSource.INNATE, level, null,
-                        innatePool(name, innate.uses(), sourceType(innate.origin()), sourceName(innate.origin())));
+                        innatePool(name, innate.uses(), sourceType(innate.origin()), sourceName(innate.origin())),
+                        innate.origin());
             }
             case NONE -> {
                 if (slotLevel != 0 && slotLevel != level) {
@@ -272,9 +276,21 @@ final class SpellSources {
                             ? name + " is a cantrip, so it is cast without a slot"
                             : name + " is cast at will, at its own level, " + level);
                 }
-                yield new Payment(name, level, SpellSource.NONE, level, null, null);
+                yield new Payment(name, level, SpellSource.NONE, level, null, null, origin);
             }
         };
+    }
+
+    /**
+     * Where a spell its caster has from several places is cast from, unless an innate use pays: a class it has the
+     * spell from, whose save DC and attack bonus it then uses (D164), or else the first place.
+     */
+    static String origin(List<Known> entries) {
+        return entries.stream()
+                .map(Known::origin)
+                .filter(origin -> origin != null && origin.startsWith("class:"))
+                .findFirst()
+                .orElse(entries.isEmpty() ? null : entries.getFirst().origin());
     }
 
     private static SpellSource inferred(SpellOption option, int slotLevel) {
@@ -315,17 +331,17 @@ final class SpellSources {
 
     // ── Innate pools ─────────────────────────────────────────────
 
-    /** The resource pool that holds a spell's innate uses: "innate:" and its name in kebab case. */
+    /**
+     * The resource pool that holds a spell's innate uses: "innate:" and its name in kebab case, the pool a character
+     * sheet keeps them in too (D165).
+     */
     static String innatePoolId(String spellName) {
-        return "innate:" + spellName.trim().toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-|-$", "");
+        return ResourcePoolEntry.innatePoolId(spellName);
     }
 
     /** A full pool of a spell's innate uses, which come back on a long rest. */
     static ResourcePoolEntry innatePool(String spellName, int uses, String sourceType, String sourceName) {
-        return new ResourcePoolEntry(innatePoolId(spellName), spellName, sourceType, sourceName, uses, null, uses,
-                "longRest", null, null, "ACTION", "sparkles", Map.of());
+        return ResourcePoolEntry.innate(spellName, uses, sourceType, sourceName);
     }
 
     // RACE or FEAT for a player character's spell, MONSTER for a monster's

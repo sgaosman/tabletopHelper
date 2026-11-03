@@ -5,104 +5,83 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.rules.character.HitPoints;
+import com.tabletophelper.shared.ConflictException;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * The levels a character is created with, or gains: the features each brings, from the class and subclass data, and
+ * its Hit Die Result (D167). The rules themselves are rules.character's.
+ */
 public class LevelUpCalculator {
 
-    private static final Logger log = LoggerFactory.getLogger(LevelUpCalculator.class);
     private static final ObjectMapper mapper = new ObjectMapper();
 
     public record FeatureEntry(String name, String description, String source) {}
 
+    /**
+     * @param hitDieResult the die's maximum at character level 1 and its fixed average after (HitPoints)
+     */
     public record LevelGain(
             int characterLevel,
             UUID classId,
             String className,
             int classLevel,
-            int hpGained,
+            int hitDieResult,
             List<FeatureEntry> featuresGained,
             boolean asiAvailable,
             boolean subclassAvailable
     ) {}
 
-    private static final Set<Integer> STANDARD_ASI_LEVELS = Set.of(4, 8, 12, 16, 19);
-    private static final Set<Integer> FIGHTER_ASI_LEVELS = Set.of(4, 6, 8, 12, 14, 16, 19);
-    private static final Set<Integer> ROGUE_ASI_LEVELS = Set.of(4, 8, 10, 12, 16, 19);
-
-    public static int calculateHpGain(int classLevel, int hitDice, int conMod) {
-        if (classLevel == 1) return hitDice + conMod;
-        return (hitDice / 2 + 1) + conMod;
-    }
-
-    public static boolean isAsiLevel(String className, int classLevel) {
-        return switch (className) {
-            case "Fighter" -> FIGHTER_ASI_LEVELS.contains(classLevel);
-            case "Rogue" -> ROGUE_ASI_LEVELS.contains(classLevel);
-            default -> STANDARD_ASI_LEVELS.contains(classLevel);
-        };
-    }
-
+    /**
+     * The features a class level brings, from the class's features and, once the subclass has been chosen, the
+     * subclass's.
+     *
+     * @throws ConflictException when the class or subclass data can't be read (D155)
+     */
     public static List<FeatureEntry> collectFeaturesForLevel(
             String classFeatureJson, String subclassFeatureJson,
             int classLevel, String className, String subclassName) {
         List<FeatureEntry> result = new ArrayList<>();
-
         if (classFeatureJson != null) {
-            try {
-                List<Map<String, Object>> features = mapper.readValue(
-                        classFeatureJson, new TypeReference<>() {});
-                for (Map<String, Object> f : features) {
-                    int level = f.get("level") instanceof Number n ? n.intValue() : 0;
-                    if (level == classLevel) {
-                        result.add(new FeatureEntry(
-                                (String) f.get("name"),
-                                (String) f.getOrDefault("description", ""),
-                                className
-                        ));
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse class features JSON for {}: {}", className, e.getMessage());
-            }
+            result.addAll(featuresAt(classFeatureJson, classLevel, className, "class " + className));
         }
-
         if (subclassFeatureJson != null && subclassName != null) {
-            try {
-                List<Map<String, Object>> features = mapper.readValue(
-                        subclassFeatureJson, new TypeReference<>() {});
-                for (Map<String, Object> f : features) {
-                    int level = f.get("level") instanceof Number n ? n.intValue() : 0;
-                    if (level == classLevel) {
-                        result.add(new FeatureEntry(
-                                (String) f.get("name"),
-                                (String) f.getOrDefault("description", ""),
-                                subclassName
-                        ));
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse subclass features JSON for {}: {}", subclassName, e.getMessage());
+            result.addAll(featuresAt(subclassFeatureJson, classLevel, subclassName, "subclass " + subclassName));
+        }
+        return result;
+    }
+
+    private static List<FeatureEntry> featuresAt(String featureJson, int classLevel, String source, String what) {
+        List<Map<String, Object>> features;
+        try {
+            features = mapper.readValue(featureJson, new TypeReference<>() {});
+        } catch (Exception e) {
+            throw new ConflictException("The features of the " + what + " can't be read");
+        }
+        List<FeatureEntry> result = new ArrayList<>();
+        for (Map<String, Object> f : features) {
+            int level = f.get("level") instanceof Number n ? n.intValue() : 0;
+            if (level == classLevel) {
+                result.add(new FeatureEntry((String) f.get("name"), (String) f.getOrDefault("description", ""),
+                        source));
             }
         }
-
         return result;
     }
 
     public static List<LevelGain> buildProgression(
             int targetLevel, UUID classId, String className,
-            int hitDice, int conMod,
+            int hitDice,
             String classFeatureJson, String subclassFeatureJson,
             String subclassName, int subclassLevel) {
 
         List<LevelGain> progression = new ArrayList<>();
 
         for (int lvl = 1; lvl <= targetLevel; lvl++) {
-            int hpGained = calculateHpGain(lvl, hitDice, conMod);
-
             String scFeatures = (subclassName != null && lvl >= subclassLevel)
                     ? subclassFeatureJson : null;
             String scName = (subclassName != null && lvl >= subclassLevel)
@@ -111,12 +90,10 @@ public class LevelUpCalculator {
             List<FeatureEntry> features = collectFeaturesForLevel(
                     classFeatureJson, scFeatures, lvl, className, scName);
 
-            boolean asiAvailable = isAsiLevel(className, lvl);
-            boolean subclassAvail = (lvl == subclassLevel);
-
             progression.add(new LevelGain(
                     lvl, classId, className, lvl,
-                    hpGained, features, asiAvailable, subclassAvail));
+                    HitPoints.fixedHitDieResult(lvl, hitDice), features,
+                    className != null && ClassProgression.isAsiLevel(className, lvl), lvl == subclassLevel));
         }
 
         return progression;
@@ -126,17 +103,17 @@ public class LevelUpCalculator {
                                 int hitDice, String classFeatureJson, String subclassFeatureJson,
                                 String subclassName, int subclassLevel) {}
 
-    public static List<LevelGain> buildMulticlassProgression(List<ClassInput> classInputs, int conMod) {
+    /**
+     * Each class's levels in the order given, so only the first class's first level is character level 1, with the
+     * die's maximum; every other class's first level has the average (PHB p.163).
+     */
+    public static List<LevelGain> buildMulticlassProgression(List<ClassInput> classInputs) {
         List<LevelGain> progression = new ArrayList<>();
         int characterLevel = 0;
 
         for (ClassInput ci : classInputs) {
             for (int clsLvl = 1; clsLvl <= ci.classLevel(); clsLvl++) {
                 characterLevel++;
-                boolean isFirstClassLevel = (clsLvl == 1 && ci == classInputs.get(0));
-                int hpGained = isFirstClassLevel
-                        ? ci.hitDice() + conMod
-                        : (ci.hitDice() / 2 + 1) + conMod;
 
                 String scFeatures = (ci.subclassName() != null && clsLvl >= ci.subclassLevel())
                         ? ci.subclassFeatureJson() : null;
@@ -146,20 +123,14 @@ public class LevelUpCalculator {
                 List<FeatureEntry> features = collectFeaturesForLevel(
                         ci.classFeatureJson(), scFeatures, clsLvl, ci.className(), scName);
 
-                boolean asiAvailable = isAsiLevel(ci.className(), clsLvl);
-                boolean subclassAvail = (clsLvl == ci.subclassLevel());
-
                 progression.add(new LevelGain(
                         characterLevel, ci.classId(), ci.className(), clsLvl,
-                        hpGained, features, asiAvailable, subclassAvail));
+                        HitPoints.fixedHitDieResult(characterLevel, ci.hitDice()), features,
+                        ClassProgression.isAsiLevel(ci.className(), clsLvl), clsLvl == ci.subclassLevel()));
             }
         }
 
         return progression;
-    }
-
-    public static int totalHp(List<LevelGain> progression) {
-        return progression.stream().mapToInt(LevelGain::hpGained).sum();
     }
 
     public static List<FeatureEntry> allFeatures(List<LevelGain> progression) {
@@ -168,12 +139,16 @@ public class LevelUpCalculator {
                 .collect(Collectors.toList());
     }
 
-    /** The level history a new character starts with: one entry for each level, with no choices yet. */
+    /**
+     * The level history a new character starts with: one entry for each level with its Hit Die Result and no
+     * choices yet. What each level added to the hit point maximum is filled in once the character is worked out.
+     */
     public static List<LevelHistoryEntry> levelHistory(List<LevelGain> progression) {
         List<LevelHistoryEntry> history = new ArrayList<>();
         for (LevelGain gain : progression) {
             history.add(new LevelHistoryEntry(gain.characterLevel(), gain.classId(), gain.className(),
-                    gain.classLevel(), gain.hpGained(), features(gain.featuresGained()), LevelChoices.NONE));
+                    gain.classLevel(), 0, gain.hitDieResult(), features(gain.featuresGained()), LevelChoices.NONE,
+                    null, null));
         }
         return history;
     }

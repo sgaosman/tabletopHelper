@@ -72,6 +72,20 @@ class CasterSpells {
     }
 
     /**
+     * Where a player character has a spell from, a class it has the spell from first, as a cast of it would be paid
+     * (D164); null for a monster, or a spell it doesn't have.
+     */
+    String origin(EncounterParticipant caster, String spellName) {
+        if (caster.getParticipantType() == ParticipantType.MONSTER || spellName == null) {
+            return null;
+        }
+        String key = spellName.trim();
+        return SpellSources.origin(playerSpells(caster).stream()
+                .filter(known -> known.name().equalsIgnoreCase(key))
+                .toList());
+    }
+
+    /**
      * Spends what the payment names, and logs it: a slot or pact slot, or an innate use from the spell's pool,
      * which a caster without the pool yet starts full.
      */

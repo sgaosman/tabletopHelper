@@ -46,19 +46,6 @@ export function wizardSpellbookCount(level: number): number {
   return 6 + (level - 1) * 2;
 }
 
-// Half-casters that use abilityMod + floor(level/2) for prepared count
-export const HALF_CASTERS = new Set(['Paladin']);
-
-export function getPreparedCount(className: string, level: number, abilityMod: number): number {
-  if (HALF_CASTERS.has(className)) {
-    return Math.max(1, abilityMod + Math.floor(level / 2));
-  }
-  if (className === 'Artificer') {
-    return Math.max(1, abilityMod + Math.floor(level / 2));
-  }
-  return Math.max(1, abilityMod + level);
-}
-
 const FULL_CASTER_CLASSES = new Set(['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wizard']);
 const HALF_CASTER_CLASSES = new Set(['Paladin', 'Ranger']);
 const PACT_CASTER_CLASSES = new Set(['Warlock']);

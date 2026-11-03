@@ -67,6 +67,29 @@ describe('AsiModal', () => {
     expect(screen.getByText('2 points remaining')).toBeInTheDocument();
   });
 
+  it('stops each score at the maximum the server gives it', async () => {
+    render(<AsiModal character={{ ...character, strength: 19 }} onComplete={() => {}} onClose={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    expect(screen.getByRole('button', { name: 'Increase Strength' })).toBeDisabled();
+    expect(screen.getByText('1 point remaining')).toBeInTheDocument();
+    expect(screen.queryByText(/^max /)).not.toBeInTheDocument();
+  });
+
+  it("lets STR and CON go to 24 once the server gives Primal Champion's maximums", async () => {
+    const champion = {
+      ...character, strength: 20,
+      abilityScoreMaximums: { ...character.abilityScoreMaximums, strength: 24, constitution: 24 },
+    };
+    render(<AsiModal character={champion} onComplete={() => {}} onClose={() => {}} />);
+    const user = userEvent.setup();
+    expect(screen.getAllByText('max 24')).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    expect(screen.getByText('0 points remaining')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
+  });
+
   it('disables Apply until exactly 2 points spent', () => {
     render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();

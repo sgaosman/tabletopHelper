@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
+import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,6 +19,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * A character as the API returns it: its sheet, with what each class casts with and the ability score maximums
+ * worked out by CharacterStats, since the sheet stores neither (D158, D167).
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -26,6 +32,7 @@ public class CharacterMapper {
 
     private final ObjectMapper objectMapper;
     private final SubclassRepository subclassRepository;
+    private final CharacterStats characterStats;
 
     public CharacterResponse toResponse(PlayerCharacter c) {
         return CharacterResponse.builder()
@@ -77,7 +84,9 @@ public class CharacterMapper {
                 .spellSlots(c.getSpellSlots())
                 .spellSaveDc(c.getSpellSaveDc())
                 .spellAttackBonus(c.getSpellAttackBonus())
-                .spellcastingAbility(c.getSpellcastingAbility())
+                .spellcastingAbility(characterStats.mainSpellcastingAbility(c))
+                .spellcasting(characterStats.spellcasting(c))
+                .abilityScoreMaximums(characterStats.abilityScoreMaximums(c))
                 .subclassAlwaysPreparedSpells(buildAllSubclassAlwaysPreparedSpells(c))
                 .equipment(c.getEquipment())
                 .currency(c.getCurrency())
@@ -123,14 +132,16 @@ public class CharacterMapper {
         return combined.isEmpty() ? null : combined;
     }
 
-    // A subclass's always-prepared spells by the class level they come at, as the reference data stores them
+    // A subclass's always-prepared spells by the class level they come at, as the reference data stores them; data
+    // that can't be read is a 409 rather than a sheet without them (D155)
     private Optional<Map<String, List<String>>> alwaysPreparedSpells(Subclass subclass) {
         if (subclass.getAlwaysPreparedSpells() == null) return Optional.empty();
         try {
             return Optional.ofNullable(objectMapper.readValue(subclass.getAlwaysPreparedSpells(), SPELLS_BY_CLASS_LEVEL));
         } catch (JsonProcessingException e) {
             log.warn("Failed to parse always-prepared spells for subclass {}", subclass.getName(), e);
-            return Optional.empty();
+            throw new ConflictException("The always-prepared spells of the subclass " + subclass.getName()
+                    + " can't be read");
         }
     }
 }

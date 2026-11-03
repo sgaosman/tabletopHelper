@@ -14,6 +14,7 @@ import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
@@ -36,7 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * The typed player character JSON columns (D168): each record is written to PostgreSQL in the shape V19 normalises
  * rows to and reads back equal, the deprecated columns are no longer written, and the API takes and returns the
- * records as JSON rather than JSON inside strings.
+ * records as JSON rather than JSON inside strings. Since R6 workstream C the level history records hit die results,
+ * the amounts improvements applied, Expertise, and the proficiencies and ability increases levels added, and the
+ * Derived Stats a request sends are ignored (D167).
  */
 class CharacterJsonMappingIT extends IntegrationTest {
 
@@ -70,6 +73,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
     @DisplayName("Every typed column round-trips")
     void everyColumnRoundTrips() {
         UUID fighterId = UUID.randomUUID();
+        UUID wizardId = UUID.randomUUID();
         UUID championId = UUID.randomUUID();
         Map<String, SpellSlot> slots = new LinkedHashMap<>();
         slots.put("1", new SpellSlot(4, 1));
@@ -78,10 +82,17 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 null, null, null, 2, null, null, new FeatResourceEntry("Tough", "Grit", 1, 1, "longRest"),
                 List.of(new KnownSpell(null, "Shield", 1, "feat:Tough", null, null, null, 1, null)), "Tough");
         List<LevelHistoryEntry> history = List.of(
-                new LevelHistoryEntry(1, fighterId, "Fighter", 1, 12,
-                        List.of(new Feature("Second Wind", "Heal on a bonus action", "Fighter")), LevelChoices.NONE),
-                new LevelHistoryEntry(4, fighterId, "Fighter", 4, 7, List.of(), new LevelChoices(
-                        new AbilityScoreImprovement("feat", null, "Tough", UUID.randomUUID(), null, tough))));
+                new LevelHistoryEntry(1, fighterId, "Fighter", 1, 12, 10,
+                        List.of(new Feature("Second Wind", "Heal on a bonus action", "Fighter")), LevelChoices.NONE,
+                        null, null),
+                new LevelHistoryEntry(4, fighterId, "Fighter", 4, 7, 6, List.of(), new LevelChoices(
+                        new AbilityScoreImprovement("ability", List.of(new AbilityBonus("constitution", 2)), null,
+                                null, null, null, List.of(new AbilityBonus("constitution", 1))), List.of("Athletics")),
+                        null, null),
+                new LevelHistoryEntry(5, wizardId, "Wizard", 1, 5, 4, List.of(), LevelChoices.NONE.withAsi(
+                        new AbilityScoreImprovement("feat", null, "Tough", UUID.randomUUID(), null, tough, null)),
+                        new ProficienciesGained(null, List.of("Dagger"), null),
+                        List.of(new AbilityBonus("strength", 4))));
 
         PlayerCharacter saved = characterRepository.save(character()
                 .savingThrowProficiencies(List.of("STR", "CON"))
@@ -144,10 +155,22 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 .isEqualTo("{\"name\": \"Rope, hempen (50 feet)\"}");
         assertThat(column("SELECT level_history -> 0 ->> 'choices' FROM player_characters WHERE id = ?", id))
                 .isEqualTo("{}");
-        assertThat(column("SELECT level_history -> 1 -> 'choices' -> 'asi' -> 'appliedEffects' ->> 'hpPerLevel' "
+        assertThat(column("SELECT level_history -> 2 -> 'choices' -> 'asi' -> 'appliedEffects' ->> 'hpPerLevel' "
                 + "FROM player_characters WHERE id = ?", id)).isEqualTo("2");
-        assertThat(column("SELECT (level_history -> 1 -> 'choices' -> 'asi' -> 'appliedEffects' -> 'speedBonus' "
+        assertThat(column("SELECT (level_history -> 2 -> 'choices' -> 'asi' -> 'appliedEffects' -> 'speedBonus' "
                 + "IS NULL)::text FROM player_characters WHERE id = ?", id)).isEqualTo("true");
+        // R6 workstream C's additions: the hit die result, the amount an improvement applied, the Expertise chosen,
+        // and the proficiencies and ability increases a level added, each left out when there are none (D167)
+        assertThat(column("SELECT level_history -> 1 ->> 'hitDieResult' FROM player_characters WHERE id = ?", id))
+                .isEqualTo("6");
+        assertThat(column("SELECT level_history -> 1 -> 'choices' ->> 'expertise' FROM player_characters WHERE id = ?",
+                id)).isEqualTo("[\"Athletics\"]");
+        assertThat(column("SELECT level_history -> 1 -> 'choices' -> 'asi' ->> 'applied' FROM player_characters "
+                + "WHERE id = ?", id)).isEqualTo("[{\"bonus\": 1, \"ability\": \"constitution\"}]");
+        assertThat(column("SELECT level_history -> 2 ->> 'proficienciesGained' FROM player_characters WHERE id = ?",
+                id)).isEqualTo("{\"weapons\": [\"Dagger\"]}");
+        assertThat(column("SELECT (level_history -> 0 -> 'proficienciesGained' IS NULL)::text FROM player_characters "
+                + "WHERE id = ?", id)).isEqualTo("true");
     }
 
     @Test
@@ -161,9 +184,9 @@ class CharacterJsonMappingIT extends IntegrationTest {
                     currency = '{"cp": 1, "sp": 0, "ep": 0, "gp": 7, "pp": 0, "gems": 3}',
                     spells_known = '[{"name": "Shield", "level": 1, "colour": "blue"}]',
                     level_history = '[{"characterLevel": 1, "className": "Fighter", "classLevel": 1, "hpGained": 12,
-                        "featuresGained": [], "hitDieResult": 10,
+                        "featuresGained": [], "hitDieResult": 10, "rolled": false,
                         "choices": {"asi": {"type": "ability", "increases": [{"ability": "strength", "bonus": 2}]},
-                                    "expertise": ["Stealth"]}}]'
+                                    "expertise": ["Stealth"], "fightingStyle": "Archery"}}]'
                 WHERE id = ?""", id);
 
         PlayerCharacter character = reload(id);
@@ -175,7 +198,9 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 .containsExactly(new KnownSpell(null, "Shield", 1, null, null, null, null, null, null));
         assertThat(character.getLevelHistory()).singleElement().satisfies(entry -> {
             assertThat(entry.hpGained()).isEqualTo(12);
+            assertThat(entry.hitDieResult()).isEqualTo(10);
             assertThat(entry.choices().asi().increases()).containsExactly(new AbilityBonus("strength", 2));
+            assertThat(entry.choices().expertise()).containsExactly("Stealth");
         });
     }
 
@@ -210,7 +235,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
     @DisplayName("The API takes and returns the records as JSON, and a JSON field sent as a string gets 400")
     void apiCarriesJson() {
         RegisteredUser player = register("bram");
-        UUID classId = insertClass("Fighter", 10);
+        UUID classId = insertCaster("Wizard", 6, "INT", false);
         Map<String, Object> create = new LinkedHashMap<>(Map.of(
                 "name", "Bram", "raceId", insertRace("Elf"), "classId", classId,
                 "strength", 16, "dexterity", 14, "constitution", 12,
@@ -219,7 +244,10 @@ class CharacterJsonMappingIT extends IntegrationTest {
         create.put("racialAbilityBonuses", List.of(Map.of("ability", "DEX", "bonus", 2)));
         create.put("features", List.of(Map.of("name", "Fey Ancestry", "description", "Advantage against charm",
                 "source", "Race")));
-        create.put("hitDice", Map.of("Fighter", Map.of("dieSize", 10, "total", 1, "remaining", 1)));
+        // Stats the server works out are no longer taken from the request
+        create.put("hitDice", Map.of("Wizard", Map.of("dieSize", 12, "total", 9, "remaining", 9)));
+        create.put("hpMax", 99);
+        create.put("spellSaveDc", 30);
 
         JsonNode created = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", create,
                 player.accessToken()));
@@ -229,7 +257,13 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(created.get("skillProficiencies").get(1).asText()).isEqualTo("Perception");
         assertThat(created.get("racialAbilityBonuses").get(0).get("bonus").asInt()).isEqualTo(2);
         assertThat(created.get("features").get(0).get("source").asText()).isEqualTo("Race");
-        assertThat(created.get("hitDice").get("Fighter").get("dieSize").asInt()).isEqualTo(10);
+        assertThat(created.get("hitDice").get("Wizard").get("dieSize").asInt()).isEqualTo(6);
+        assertThat(created.get("hitDice").get("Wizard").get("total").asInt()).isEqualTo(1);
+        assertThat(created.get("hpMax").asInt()).isEqualTo(7);
+        assertThat(created.get("spellSaveDc").asInt()).isEqualTo(10);
+        assertThat(created.get("spellcasting").get(0).get("preparedSpells").asInt()).isEqualTo(1);
+        assertThat(created.get("abilityScoreMaximums").get("strength").asInt()).isEqualTo(20);
+        assertThat(created.get("levelHistory").get(0).get("hitDieResult").asInt()).isEqualTo(6);
         assertThat(created.get("currency").get("gp").asInt()).isZero();
         assertThat(created.get("multiclassEntries").get(0).get("classId").asText()).isEqualTo(classId.toString());
         assertThat(created.get("levelHistory").get(0).get("choices").isObject()).isTrue();
@@ -237,7 +271,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(created.has("hitDiceTotal")).isFalse();
 
         expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + id, Map.of(
-                "spellSlots", Map.of("1", Map.of("max", 2, "used", 1)),
+                "spellSlots", Map.of("1", Map.of("max", 9, "used", 1)),
                 "currency", Map.of("cp", 0, "sp", 5, "ep", 0, "gp", 12, "pp", 0),
                 "equipment", List.of(Map.of("name", "Longsword", "quantity", 1, "equipped", true))),
                 player.accessToken()));
@@ -263,7 +297,8 @@ class CharacterJsonMappingIT extends IntegrationTest {
         JsonNode campaign = createCampaign(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
-        UUID characterId = createCharacter(player.accessToken(), insertRace("Tiefling"), insertClass("Warlock", 8));
+        UUID characterId = createCharacter(player.accessToken(), insertRace("Tiefling"),
+                insertCaster("Warlock", 8, "CHA", true));
         expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + characterId, Map.of(
                 "spellSlots", Map.of("pact_1", Map.of("max", 1, "used", 1)),
                 "spellsKnown", List.of(Map.of("name", "Hellish Rebuke", "level", 1, "source", "race:Tiefling",
@@ -277,5 +312,8 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(participant.get("spellSlotsCurrent").get("pact_1").get("used").asInt()).isEqualTo(1);
         assertThat(participant.get("spellsKnown").get(0).get("name").asText()).isEqualTo("Hellish Rebuke");
         assertThat(participant.get("spellsKnown").get(0).get("usesPerLongRest").asInt()).isEqualTo(1);
+        // The sheet keeps the race spell's innate use as a pool, which the participant joins with (D165)
+        assertThat(participant.get("resourcePoolsCurrent").get(0).get("poolId").asText())
+                .isEqualTo("innate:hellish-rebuke");
     }
 }

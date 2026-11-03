@@ -157,7 +157,8 @@ class SpellSourcesTest {
         void slot() {
             SpellSources.Payment payment = pay("hold person", SpellSource.SLOT, 4);
 
-            assertEquals(new SpellSources.Payment("Hold Person", 2, SpellSource.SLOT, 4, "4", null), payment);
+            assertEquals(new SpellSources.Payment("Hold Person", 2, SpellSource.SLOT, 4, "4", null, "class:Sorcerer"),
+                    payment);
         }
 
         @Test
@@ -180,6 +181,7 @@ class SpellSourcesTest {
             assertEquals("FEAT", payment.innatePool().sourceType());
             assertEquals("Fey Touched", payment.innatePool().sourceName());
             assertEquals("longRest", payment.innatePool().resetOn());
+            assertEquals("feat:Fey Touched", payment.origin());
             assertEquals("Misty Step is cast at its own level, 2, with an innate use: innate spells aren't upcast",
                     refusal("Misty Step", SpellSource.INNATE, 3));
         }
@@ -232,6 +234,23 @@ class SpellSourcesTest {
                     () -> SpellSources.pay("Wizard", wizard, new SpellSources.Purse(Map.of(), List.of(), 4),
                             "Darkness", SpellSource.INNATE, 0)).getMessage());
         }
+    }
+
+    @Test
+    @DisplayName("A spell had from a race and a class is cast from the class, whose numbers it uses (D164), unless an innate use pays")
+    void originPrefersAClass() {
+        List<SpellSources.Known> tiefling = List.of(
+                new SpellSources.Known("Hellish Rebuke", 1, "race:Tiefling", false, false, false, 1, null),
+                classSpell("Hellish Rebuke", 1, "Warlock", false));
+        SpellSources.Purse purse = purse(Map.of("pact_1", new SpellSlot(1, 0)));
+
+        assertEquals("class:Warlock", SpellSources.origin(tiefling));
+        assertEquals("class:Warlock",
+                SpellSources.pay("Tiefling", tiefling, purse, "Hellish Rebuke", SpellSource.PACT_SLOT, 0).origin());
+        assertEquals("race:Tiefling",
+                SpellSources.pay("Tiefling", tiefling, purse, "Hellish Rebuke", SpellSource.INNATE, 0).origin());
+        assertEquals("race:Tiefling", SpellSources.origin(tiefling.subList(0, 1)));
+        assertNull(SpellSources.origin(List.of()));
     }
 
     @Test

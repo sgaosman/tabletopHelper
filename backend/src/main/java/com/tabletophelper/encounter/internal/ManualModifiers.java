@@ -33,14 +33,21 @@ public class ManualModifiers {
 
     /** The spell attack bonus and save DC entered for a spell, each against the caster's own. */
     static List<Use> forSpell(EncounterParticipant caster, Integer attackBonus, Integer saveDc) {
+        return forSpell(caster.getSpellAttackBonus(), caster.getSpellSaveDc(), attackBonus, saveDc);
+    }
+
+    /**
+     * The spell attack bonus and save DC entered for a spell, each against the numbers the spell would use: a class
+     * spell's class's, or the caster's main ones (D164).
+     */
+    static List<Use> forSpell(Integer ownAttackBonus, Integer ownSaveDc, Integer attackBonus, Integer saveDc) {
         List<Use> uses = new ArrayList<>();
         if (attackBonus != null) {
             uses.add(new Use("uses spell attack bonus " + signed(attackBonus)
-                    + (caster.getSpellAttackBonus() != null ? " instead of " + signed(caster.getSpellAttackBonus()) : "")));
+                    + (ownAttackBonus != null ? " instead of " + signed(ownAttackBonus) : "")));
         }
         if (saveDc != null) {
-            uses.add(new Use("uses spell save DC " + saveDc
-                    + (caster.getSpellSaveDc() != null ? " instead of " + caster.getSpellSaveDc() : "")));
+            uses.add(new Use("uses spell save DC " + saveDc + (ownSaveDc != null ? " instead of " + ownSaveDc : "")));
         }
         return uses;
     }

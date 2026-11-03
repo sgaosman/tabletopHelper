@@ -1,14 +1,11 @@
 package com.tabletophelper.character.dto;
 
 import com.tabletophelper.character.state.AbilityBonus;
-import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
 import com.tabletophelper.character.state.FeatResourceEntry;
-import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
-import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import jakarta.validation.constraints.Max;
@@ -20,25 +17,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** A field left out, or null, keeps its value; a JSON field given replaces the whole value. */
+/**
+ * A field left out, or null, keeps its value; a JSON field given replaces the whole value. The Derived Stats, and the
+ * level, class, features and level history, aren't here: the server works them out, and only levelling changes the
+ * rest (D158, D167). Workstream D replaces this request with intent endpoints.
+ */
 @Data
 public class CharacterUpdateRequest {
 
     @Size(max = 100)
     private String name;
     private String race;
-    private String characterClass;
-    private String subclass;
-    @Min(1) @Max(20)
-    private Integer level;
     @Min(0)
     private Integer experiencePoints;
     private String background;
     private String alignment;
 
     private UUID raceId;
-    private UUID classId;
-    private UUID subclassId;
     private UUID backgroundId;
     private String abilityScoreMethod;
     private List<AbilityBonus> racialAbilityBonuses;
@@ -56,19 +51,11 @@ public class CharacterUpdateRequest {
     @Min(1) @Max(30)
     private Integer charisma;
 
-    @Min(1)
-    private Integer hpMax;
+    // At most the hit point maximum
     @Min(0)
     private Integer hpCurrent;
     @Min(0)
     private Integer hpTemp;
-    @Min(0)
-    private Integer armourClass;
-    private Integer initiativeBonus;
-    @Min(0)
-    private Integer speed;
-    @Min(2) @Max(6)
-    private Integer proficiencyBonus;
 
     private List<String> savingThrowProficiencies;
     private List<String> skillProficiencies;
@@ -81,12 +68,10 @@ public class CharacterUpdateRequest {
     private List<String> damageImmunities;
     private List<String> conditionImmunities;
 
-    private List<Feature> features;
     private List<KnownSpell> spellsKnown;
+
+    // Only each slot's used count is read, for a slot the character has, between 0 and its maximum
     private Map<String, SpellSlot> spellSlots;
-    private Integer spellSaveDc;
-    private Integer spellAttackBonus;
-    private String spellcastingAbility;
 
     private List<InventoryItem> equipment;
     private Currency currency;
@@ -101,12 +86,11 @@ public class CharacterUpdateRequest {
     private UUID campaignId;
     private Boolean clearCampaign;
 
-    private List<ClassEntry> multiclassEntries;
-
-    // Keyed by class name
+    // Keyed by class name; only each class's remaining count is read, between 0 and its total
     private Map<String, HitDicePool> hitDice;
 
-    private List<LevelHistoryEntry> levelHistory;
     private List<FeatResourceEntry> featResources;
+
+    // Only each pool's current uses are read, for a pool the character has, between 0 and its maximum
     private List<ResourcePoolEntry> resourcePools;
 }

@@ -1,30 +1,32 @@
 package com.tabletophelper.character;
 
-import com.tabletophelper.character.dto.ApplyChoicesRequest;
+import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Feature;
-import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Subclass;
+import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.character.AbilityScores;
+import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.shared.ValidationException;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Changes to a character's typed sheet state that levelling up and down and applying choices share: features, Hit
- * Dice, class entries, proficiencies and the level history (D168). The state records are immutable, so each change
- * builds a new list or map and sets it.
+ * Changes to a character's typed sheet state that levelling up and down and applying choices share: features, class
+ * entries, proficiencies and the level history (D168). The state records are immutable, so each change builds a new
+ * list and sets it. Hit Dice, like the other Derived Stats, are CharacterStats' to work out (D167).
  */
 final class CharacterUpdates {
 
@@ -41,41 +43,34 @@ final class CharacterUpdates {
         character.setFeatures(features);
     }
 
-    /** Removes each feature with the same name and source as one gained. */
+    /**
+     * Removes one feature for each one gained, with the same name and source: the latest, so a feature several levels
+     * give, such as a fighter's Ability Score Improvement, keeps the earlier levels' copies.
+     */
     static void removeFeatures(PlayerCharacter character, List<Feature> featuresGained) {
-        Set<String> keysToRemove = new HashSet<>();
-        for (Feature f : featuresGained) {
-            keysToRemove.add(f.name() + "|" + f.source());
-        }
         List<Feature> features = copy(character.getFeatures());
-        features.removeIf(f -> keysToRemove.contains(f.name() + "|" + f.source()));
+        for (Feature gained : featuresGained) {
+            for (int i = features.size() - 1; i >= 0; i--) {
+                Feature f = features.get(i);
+                if (Objects.equals(f.name(), gained.name()) && Objects.equals(f.source(), gained.source())) {
+                    features.remove(i);
+                    break;
+                }
+            }
+        }
         character.setFeatures(features);
     }
 
+    /** Removes the latest feature with the name, as a feat named only by its name added it. */
     static void removeFeatureByName(PlayerCharacter character, String name) {
         List<Feature> features = copy(character.getFeatures());
-        features.removeIf(f -> name.equals(f.name()));
-        character.setFeatures(features);
-    }
-
-    // ── Hit Dice ─────────────────────────────────────────────────
-
-    /**
-     * Adds Hit Dice of a class, or takes them away for a negative delta, to the total and the remaining alike. A
-     * class left with none is removed.
-     */
-    static void updateHitDice(PlayerCharacter character, String className, int dieSize, int delta) {
-        Map<String, HitDicePool> hitDice = character.getHitDice() != null
-                ? new LinkedHashMap<>(character.getHitDice()) : new LinkedHashMap<>();
-        HitDicePool existing = hitDice.get(className);
-        int total = (existing != null ? existing.total() : 0) + delta;
-        int remaining = (existing != null ? existing.remaining() : 0) + delta;
-        if (total <= 0) {
-            hitDice.remove(className);
-        } else {
-            hitDice.put(className, new HitDicePool(dieSize, total, Math.max(0, remaining)));
+        for (int i = features.size() - 1; i >= 0; i--) {
+            if (name.equals(features.get(i).name())) {
+                features.remove(i);
+                break;
+            }
         }
-        character.setHitDice(hitDice);
+        character.setFeatures(features);
     }
 
     // ── Class entries ────────────────────────────────────────────
@@ -137,6 +132,62 @@ final class CharacterUpdates {
         character.setMulticlassEntries(entries);
     }
 
+    // ── Ability scores ───────────────────────────────────────────
+
+    /**
+     * Raises an ability score by as much of the amount as fits under its maximum, 20, or 24 for Strength and
+     * Constitution after Primal Champion (D167), and returns what it added. Hit points follow from the score:
+     * CharacterStats works them out.
+     *
+     * @throws ValidationException for a name that isn't an ability
+     */
+    static int increaseAbility(PlayerCharacter character, String abilityName, int amount) {
+        Ability ability = ability(abilityName);
+        int score = score(character, ability);
+        int applied = AbilityScores.increase(ability, score, amount, CharacterStats.primalChampion(character));
+        setScore(character, ability, score + applied);
+        return applied;
+    }
+
+    /** Lowers an ability score by exactly what an increase added, as levelling down does. */
+    static void decreaseAbility(PlayerCharacter character, String abilityName, int amount) {
+        Ability ability = ability(abilityName);
+        setScore(character, ability, score(character, ability) - amount);
+    }
+
+    /**
+     * The ability a name stands for, abbreviated or spelled out.
+     *
+     * @throws ValidationException for a name that isn't an ability
+     */
+    static Ability ability(String abilityName) {
+        return Ability.parse(abilityName)
+                .orElseThrow(() -> new ValidationException("'" + abilityName + "' is not an ability"));
+    }
+
+    static int score(PlayerCharacter character, Ability ability) {
+        Integer score = switch (ability) {
+            case STR -> character.getStrength();
+            case DEX -> character.getDexterity();
+            case CON -> character.getConstitution();
+            case INT -> character.getIntelligence();
+            case WIS -> character.getWisdom();
+            case CHA -> character.getCharisma();
+        };
+        return score != null ? score : 10;
+    }
+
+    private static void setScore(PlayerCharacter character, Ability ability, int score) {
+        switch (ability) {
+            case STR -> character.setStrength(score);
+            case DEX -> character.setDexterity(score);
+            case CON -> character.setConstitution(score);
+            case INT -> character.setIntelligence(score);
+            case WIS -> character.setWisdom(score);
+            case CHA -> character.setCharisma(score);
+        }
+    }
+
     // ── Proficiencies ────────────────────────────────────────────
 
     /** The list with each new item added once, after those it already has. */
@@ -150,45 +201,117 @@ final class CharacterUpdates {
         return list;
     }
 
+    /** The new items the list doesn't have yet, each once: what merging them adds. */
+    static List<String> added(List<String> current, Collection<String> newItems) {
+        List<String> added = new ArrayList<>();
+        for (String item : newItems) {
+            if (!orEmpty(current).contains(item) && !added.contains(item)) {
+                added.add(item);
+            }
+        }
+        return added;
+    }
+
+    /** The list without the items a level gained, which levelling down takes away. */
+    static List<String> without(List<String> current, Collection<String> toRemove) {
+        List<String> list = copy(current);
+        if (toRemove != null) {
+            list.removeAll(toRemove);
+        }
+        return list;
+    }
+
+    /** Takes away the proficiencies a level added, leaving any kind it added none of as it is. */
+    static void removeProficiencies(PlayerCharacter character, ProficienciesGained gained) {
+        if (gained == null) {
+            return;
+        }
+        if (gained.armor() != null && !gained.armor().isEmpty()) {
+            character.setArmorProficiencies(without(character.getArmorProficiencies(), gained.armor()));
+        }
+        if (gained.weapons() != null && !gained.weapons().isEmpty()) {
+            character.setWeaponProficiencies(without(character.getWeaponProficiencies(), gained.weapons()));
+        }
+        if (gained.tools() != null && !gained.tools().isEmpty()) {
+            character.setToolProficiencies(without(character.getToolProficiencies(), gained.tools()));
+        }
+    }
+
     // ── Level history ────────────────────────────────────────────
 
+    /**
+     * Records a level as it is gained, with what it added to the hit point maximum filled in once the character is
+     * worked out again.
+     */
     static void appendLevelHistory(PlayerCharacter character, int characterLevel, UUID classId, String className,
-                                   int classLevel, int hpGained, List<LevelUpCalculator.FeatureEntry> features) {
+                                   int classLevel, int hitDieResult, List<LevelUpCalculator.FeatureEntry> features,
+                                   ProficienciesGained proficienciesGained, List<AbilityBonus> abilityIncreases) {
         List<LevelHistoryEntry> history = copy(character.getLevelHistory());
         List<Feature> featuresGained = features.stream()
                 .map(f -> new Feature(f.name(), f.description(), f.source()))
                 .toList();
-        history.add(new LevelHistoryEntry(characterLevel, classId, className, classLevel, hpGained, featuresGained,
-                LevelChoices.NONE));
+        history.add(new LevelHistoryEntry(characterLevel, classId, className, classLevel, 0, hitDieResult,
+                featuresGained, LevelChoices.NONE,
+                addedAny(proficienciesGained) ? proficienciesGained : null,
+                abilityIncreases != null && !abilityIncreases.isEmpty() ? abilityIncreases : null));
         character.setLevelHistory(history);
     }
 
+    /** Sets what the latest level added to the hit point maximum. */
+    static void recordHpGained(PlayerCharacter character, int hpGained) {
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        if (!history.isEmpty()) {
+            history.set(history.size() - 1, history.getLast().withHpGained(hpGained));
+            character.setLevelHistory(history);
+        }
+    }
+
     /**
-     * The entry an Ability Score Improvement is recorded on: the first at an ASI level of its class with none
-     * recorded yet, or else the last entry; null for no history.
+     * Where an Ability Score Improvement is owed: the latest level that brings one in its class, by
+     * ClassProgression, with none recorded yet. -1 when none is owed.
      */
-    static LevelHistoryEntry findNextAsiEntry(List<LevelHistoryEntry> history) {
-        for (LevelHistoryEntry entry : history) {
-            if (LevelUpCalculator.isAsiLevel(entry.className(), entry.classLevel())
+    static int owedAsiLevel(List<LevelHistoryEntry> history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            LevelHistoryEntry entry = history.get(i);
+            if (entry.className() != null && ClassProgression.isAsiLevel(entry.className(), entry.classLevel())
                     && (entry.choices() == null || entry.choices().asi() == null)) {
-                return entry;
+                return i;
             }
         }
-        return history.isEmpty() ? null : history.get(history.size() - 1);
+        return -1;
     }
 
-    static void recordAsiInHistory(PlayerCharacter character, ApplyChoicesRequest.AsiChoice asi) {
-        List<AbilityBonus> increases = asi.getIncreases() != null
-                ? asi.getIncreases().stream().map(i -> new AbilityBonus(i.getAbility(), i.getBonus())).toList()
-                : null;
-        recordInHistory(character, new AbilityScoreImprovement(asi.getType(), increases, asi.getFeatName(), null,
-                asi.getFeatAbility(), null));
+    /**
+     * Where Expertise is owed: the latest level that brings it in its class, by ClassProgression, with none recorded
+     * yet. -1 when none is owed.
+     */
+    static int owedExpertiseLevel(List<LevelHistoryEntry> history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            LevelHistoryEntry entry = history.get(i);
+            if (entry.className() != null && ClassProgression.expertiseChoices(entry.className(), entry.classLevel()) > 0
+                    && (entry.choices() == null || entry.choices().expertise() == null)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
-    static void recordFeatInHistory(PlayerCharacter character, ApplyChoicesRequest.AsiChoice asi, String featName,
-                                    FeatEffectResolver.AppliedEffects applied) {
-        recordInHistory(character, new AbilityScoreImprovement("feat", null, featName, asi.getFeatId(), null,
-                recordedEffects(applied, featName)));
+    /** Records an Ability Score Improvement, or the feat taken instead, on the level history entry at the index. */
+    static void recordAsi(PlayerCharacter character, int index, AbilityScoreImprovement improvement) {
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        LevelHistoryEntry target = history.get(index);
+        LevelChoices choices = target.choices() != null ? target.choices() : LevelChoices.NONE;
+        history.set(index, target.withChoices(choices.withAsi(improvement)));
+        character.setLevelHistory(history);
+    }
+
+    /** Records the skills given Expertise on the level history entry at the index. */
+    static void recordExpertise(PlayerCharacter character, int index, List<String> skills) {
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        LevelHistoryEntry target = history.get(index);
+        LevelChoices choices = target.choices() != null ? target.choices() : LevelChoices.NONE;
+        history.set(index, target.withChoices(choices.withExpertise(List.copyOf(skills))));
+        character.setLevelHistory(history);
     }
 
     /** What the history records of a feat's effects: those it had, without its optional features. */
@@ -213,17 +336,12 @@ final class CharacterUpdates {
                 featName);
     }
 
-    private static void recordInHistory(PlayerCharacter character, AbilityScoreImprovement improvement) {
-        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
-        LevelHistoryEntry target = findNextAsiEntry(history);
-        if (target != null) {
-            LevelChoices choices = target.choices() != null ? target.choices() : LevelChoices.NONE;
-            history.set(history.indexOf(target), target.withChoices(choices.withAsi(improvement)));
-            character.setLevelHistory(history);
-        }
-    }
-
     // ── Helpers ──────────────────────────────────────────────────
+
+    private static boolean addedAny(ProficienciesGained gained) {
+        return gained != null && (nonEmpty(gained.armor()) != null || nonEmpty(gained.weapons()) != null
+                || nonEmpty(gained.tools()) != null);
+    }
 
     static <T> List<T> copy(List<T> list) {
         return list != null ? new ArrayList<>(list) : new ArrayList<>();

@@ -39,5 +39,15 @@ export type ClassEntry = Schemas['ClassEntry'];
 /** A character's Hit Dice from one class, which the sheet keys by class name. */
 export type HitDicePool = Schemas['HitDicePool'];
 
+/**
+ * What one of a character's classes casts with, worked out by the server from the class's own table (D167): its
+ * ability, save DC and attack bonus, the highest level of spell it can learn or prepare, and its cantrips, spells
+ * known or spells prepared.
+ */
+export type ClassSpellcasting = Schemas['ClassSpellcasting'];
+
+/** The highest each ability score can be increased to: 20, or 24 for STR and CON after Primal Champion. */
+export type AbilityScoreMaximums = Schemas['AbilityScoreMaximums'];
+
 /** One entry of a character's featResources, a feat's limited uses. */
 export type FeatResource = Schemas['FeatResourceEntry'];

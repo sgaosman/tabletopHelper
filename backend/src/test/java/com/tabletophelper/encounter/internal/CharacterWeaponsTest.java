@@ -128,9 +128,9 @@ class CharacterWeaponsTest {
         assertEquals(Set.of(PowerAttack.GREAT_WEAPON_MASTER), weapons.feats(character));
 
         character.setFeatures(null);
-        character.setLevelHistory(List.of(new LevelHistoryEntry(4, null, "Fighter", 4, 0, null,
-                new LevelChoices(new AbilityScoreImprovement("feat", null, "Great Weapon Master", UUID.randomUUID(),
-                        null, null)))));
+        character.setLevelHistory(List.of(new LevelHistoryEntry(4, null, "Fighter", 4, 0, null, null,
+                LevelChoices.NONE.withAsi(new AbilityScoreImprovement("feat", null, "Great Weapon Master",
+                        UUID.randomUUID(), null, null, null)), null, null)));
         assertEquals(Set.of(PowerAttack.GREAT_WEAPON_MASTER), weapons.feats(character));
     }
 

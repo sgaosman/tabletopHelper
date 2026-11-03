@@ -5,6 +5,7 @@ import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
+import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.InventoryItem;
@@ -67,6 +68,8 @@ class CombatFixture {
     final SubclassRepository subclassRepository = mock(SubclassRepository.class);
     final MonsterPoolTriggerRepository monsterPoolTriggerRepository = mock(MonsterPoolTriggerRepository.class);
     final ItemRepository itemRepository = mock(ItemRepository.class);
+    // A class spell's numbers come from the character module; unstubbed, a spell uses the caster's main numbers
+    final CharacterService characterService = mock(CharacterService.class);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final ScriptedDice dice = new ScriptedDice();
@@ -93,7 +96,8 @@ class CombatFixture {
     final AttackService attacks = new AttackService(access, accessPolicy, characterWeapons, resolver, stats,
             effectApplier, manualModifiers, encounterRepository, encounterService);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
-            spellEffects, effectApplier, manualModifiers, combatLog, encounterRepository, encounterService);
+            spellEffects, effectApplier, manualModifiers, combatLog, encounterRepository, encounterService,
+            characterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
             stats, effectApplier, resourcePoolService, objectMapper, encounterRepository, encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
@@ -284,8 +288,9 @@ class CombatFixture {
 
     /** A level history entry recording a feat taken instead of an Ability Score Improvement. */
     static LevelHistoryEntry featTaken(String featName) {
-        return new LevelHistoryEntry(4, null, null, 4, 0, null,
-                new LevelChoices(new AbilityScoreImprovement("feat", null, featName, null, null, null)));
+        return new LevelHistoryEntry(4, null, null, 4, 0, null, null,
+                LevelChoices.NONE.withAsi(new AbilityScoreImprovement("feat", null, featName, null, null, null, null)),
+                null, null);
     }
 
     /** Gives a player character's sheet these inventory entries, by name, and these weapon proficiencies. */

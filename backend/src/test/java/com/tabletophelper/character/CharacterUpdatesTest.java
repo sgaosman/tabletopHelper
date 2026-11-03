@@ -8,9 +8,11 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Subclass;
+import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +23,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * The typed sheet changes that level-up, level-down and choices share. These were CharacterJsonHelperTest's cases
  * 7.1 to 7.16, kept with their numbers; 7.7 and 7.8, the "5d10" hit dice text, are now the sheet's to format
- * (StatsTab.test.tsx), since the server no longer stores it.
+ * (StatsTab.test.tsx), since the server no longer stores it. In R6 workstream C the Hit Dice became a Derived Stat, so
+ * 7.4 to 7.6 and the case after them, on updateHitDice, are CharacterStatsTest's Hit Dice cases; 7.14 and 7.15 record
+ * on the level that owes the improvement, which owedAsiLevel finds in place of findNextAsiEntry.
  */
 class CharacterUpdatesTest {
 
@@ -53,8 +57,8 @@ class CharacterUpdatesTest {
     private static List<LevelHistoryEntry> fighterHistory(UUID classId, int levels) {
         List<LevelHistoryEntry> history = new ArrayList<>();
         for (int level = 1; level <= levels; level++) {
-            history.add(new LevelHistoryEntry(level, classId, "Fighter", level, level == 1 ? 12 : 8, List.of(),
-                    LevelChoices.NONE));
+            history.add(new LevelHistoryEntry(level, classId, "Fighter", level, level == 1 ? 12 : 8,
+                    level == 1 ? 10 : 6, List.of(), LevelChoices.NONE, null, null));
         }
         return history;
     }
@@ -105,64 +109,17 @@ class CharacterUpdatesTest {
         assertEquals("Second Wind", c.getFeatures().get(0).name());
     }
 
-    // --- 7.4 updateHitDice: increment on level up ---
-
     @Test
-    @DisplayName("7.4 updateHitDice increments count on level up")
-    void updateHitDiceIncrement() {
+    @DisplayName("removeFeatures takes away one copy for each feature gained, the latest, so earlier levels keep theirs")
+    void removeFeaturesTakesOneCopy() {
         PlayerCharacter c = baseCharacter();
-        c.setHitDice(Map.of("Fighter", new HitDicePool(10, 3, 3)));
+        Feature asi = new Feature("Ability Score Improvement", "Level 4", "Fighter");
+        Feature laterAsi = new Feature("Ability Score Improvement", "Level 6", "Fighter");
+        c.setFeatures(List.of(asi, new Feature("Extra Attack", null, "Fighter"), laterAsi));
 
-        CharacterUpdates.updateHitDice(c, "Fighter", 10, 1);
+        CharacterUpdates.removeFeatures(c, List.of(new Feature("Ability Score Improvement", "Level 6", "Fighter")));
 
-        assertEquals(new HitDicePool(10, 4, 4), c.getHitDice().get("Fighter"));
-    }
-
-    // --- 7.5 updateHitDice: decrement on level down ---
-
-    @Test
-    @DisplayName("7.5 updateHitDice decrements count on level down")
-    void updateHitDiceDecrement() {
-        PlayerCharacter c = baseCharacter();
-        c.setHitDice(Map.of("Fighter", new HitDicePool(10, 4, 4)));
-
-        CharacterUpdates.updateHitDice(c, "Fighter", 10, -1);
-
-        assertEquals(3, c.getHitDice().get("Fighter").total());
-        assertEquals(3, c.getHitDice().get("Fighter").remaining());
-    }
-
-    // --- 7.6 updateHitDice: remove class entry at count 0 ---
-
-    @Test
-    @DisplayName("7.6 updateHitDice removes class entry when count reaches 0")
-    void updateHitDiceRemoveAtZero() {
-        PlayerCharacter c = baseCharacter();
-        Map<String, HitDicePool> hitDice = new LinkedHashMap<>();
-        hitDice.put("Fighter", new HitDicePool(10, 3, 3));
-        hitDice.put("Wizard", new HitDicePool(6, 1, 1));
-        c.setHitDice(hitDice);
-
-        CharacterUpdates.updateHitDice(c, "Wizard", 6, -1);
-
-        assertNull(c.getHitDice().get("Wizard"));
-        assertEquals(3, c.getHitDice().get("Fighter").total());
-    }
-
-    @Test
-    @DisplayName("updateHitDice never leaves fewer than 0 remaining, and starts a class the character didn't have")
-    void updateHitDiceClampsRemainingAndAddsAClass() {
-        PlayerCharacter c = baseCharacter();
-        Map<String, HitDicePool> hitDice = new LinkedHashMap<>();
-        hitDice.put("Fighter", new HitDicePool(10, 3, 0));
-        c.setHitDice(hitDice);
-
-        CharacterUpdates.updateHitDice(c, "Fighter", 10, -1);
-        CharacterUpdates.updateHitDice(c, "Wizard", 6, 1);
-
-        assertEquals(new HitDicePool(10, 2, 0), c.getHitDice().get("Fighter"));
-        assertEquals(new HitDicePool(6, 1, 1), c.getHitDice().get("Wizard"));
-        assertEquals(List.of("Fighter", "Wizard"), new ArrayList<>(c.getHitDice().keySet()));
+        assertEquals(List.of(asi, new Feature("Extra Attack", null, "Fighter")), c.getFeatures());
     }
 
     // --- 7.9 updateClassEntry: add new class entry ---
@@ -247,6 +204,24 @@ class CharacterUpdatesTest {
         assertEquals(List.of("Longsword", "Shortsword", "Longbow"), c.getWeaponProficiencies());
     }
 
+    @Test
+    @DisplayName("added lists what merging would add, once each; removeProficiencies takes away only what a level added")
+    void addedAndRemovedProficiencies() {
+        PlayerCharacter c = baseCharacter();
+        c.setArmorProficiencies(List.of("Light"));
+        c.setToolProficiencies(null);
+
+        assertEquals(List.of("Medium", "Shield"),
+                CharacterUpdates.added(c.getArmorProficiencies(), List.of("Light", "Medium", "Shield", "Medium")));
+
+        c.setArmorProficiencies(List.of("Light", "Medium", "Shield"));
+        CharacterUpdates.removeProficiencies(c, new ProficienciesGained(List.of("Medium", "Shield"), null, List.of()));
+
+        assertEquals(List.of("Light"), c.getArmorProficiencies());
+        // A kind the level added none of is left as it was, null included
+        assertNull(c.getToolProficiencies());
+    }
+
     // --- 7.13 appendLevelHistory: adds correct entry ---
 
     @Test
@@ -255,13 +230,15 @@ class CharacterUpdatesTest {
         PlayerCharacter c = baseCharacter();
         UUID classId = UUID.randomUUID();
         c.setLevelHistory(List.of(
-                new LevelHistoryEntry(1, classId, "Fighter", 1, 12,
-                        List.of(new Feature("Second Wind", "Heal", "Fighter")), LevelChoices.NONE),
-                new LevelHistoryEntry(2, classId, "Fighter", 2, 8,
-                        List.of(new Feature("Action Surge", "Extra action", "Fighter")), LevelChoices.NONE)));
+                new LevelHistoryEntry(1, classId, "Fighter", 1, 12, 10,
+                        List.of(new Feature("Second Wind", "Heal", "Fighter")), LevelChoices.NONE, null, null),
+                new LevelHistoryEntry(2, classId, "Fighter", 2, 8, 6,
+                        List.of(new Feature("Action Surge", "Extra action", "Fighter")), LevelChoices.NONE, null, null)));
 
-        CharacterUpdates.appendLevelHistory(c, 3, classId, "Fighter", 3, 8, List.of(
-                new LevelUpCalculator.FeatureEntry("Martial Archetype", "Choose a subclass", "Fighter")));
+        CharacterUpdates.appendLevelHistory(c, 3, classId, "Fighter", 3, 6, List.of(
+                new LevelUpCalculator.FeatureEntry("Martial Archetype", "Choose a subclass", "Fighter")),
+                new ProficienciesGained(List.of(), null, null), List.of());
+        CharacterUpdates.recordHpGained(c, 8);
 
         List<LevelHistoryEntry> history = c.getLevelHistory();
         assertEquals(3, history.size());
@@ -270,39 +247,41 @@ class CharacterUpdatesTest {
         assertEquals(classId, entry.classId());
         assertEquals(3, entry.classLevel());
         assertEquals(8, entry.hpGained());
+        assertEquals(6, entry.hitDieResult());
         assertEquals("Martial Archetype", entry.featuresGained().get(0).name());
         assertEquals(LevelChoices.NONE, entry.choices());
+        // A level that added no proficiencies or ability increases records none
+        assertNull(entry.proficienciesGained());
+        assertNull(entry.abilityIncreases());
     }
 
-    // --- 7.14 recordAsiInHistory: ASI choice recorded ---
+    // --- 7.14 recordAsi: ASI choice recorded ---
 
     @Test
-    @DisplayName("7.14 recordAsiInHistory records ASI choice on correct entry")
-    void recordAsiInHistory() {
+    @DisplayName("7.14 recordAsi records the ASI choice, with the amount applied, on the level that owes it")
+    void recordAsi() {
         PlayerCharacter c = baseCharacter();
         c.setLevel(4);
         c.setLevelHistory(fighterHistory(UUID.randomUUID(), 4));
 
-        ApplyChoicesRequest.AsiChoice asi = new ApplyChoicesRequest.AsiChoice();
-        asi.setType("ability");
-        ApplyChoicesRequest.AbilityIncrease inc = new ApplyChoicesRequest.AbilityIncrease();
-        inc.setAbility("strength");
-        inc.setBonus(2);
-        asi.setIncreases(List.of(inc));
+        int owed = CharacterUpdates.owedAsiLevel(c.getLevelHistory());
+        CharacterUpdates.recordAsi(c, owed, new AbilityScoreImprovement("ability",
+                List.of(new AbilityBonus("strength", 2)), null, null, null, null,
+                List.of(new AbilityBonus("strength", 2))));
 
-        CharacterUpdates.recordAsiInHistory(c, asi);
-
+        assertEquals(3, owed);
         AbilityScoreImprovement recorded = c.getLevelHistory().get(3).choices().asi();
         assertNotNull(recorded);
         assertEquals("ability", recorded.type());
         assertEquals(List.of(new AbilityBonus("strength", 2)), recorded.increases());
+        assertEquals(List.of(new AbilityBonus("strength", 2)), recorded.applied());
         assertNull(c.getLevelHistory().get(2).choices().asi());
     }
 
     // --- 7.15 recordFeatInHistory: feat choice recorded ---
 
     @Test
-    @DisplayName("7.15 recordFeatInHistory records feat choice with applied effects")
+    @DisplayName("7.15 recordAsi records a feat choice with only the effects it had")
     void recordFeatInHistory() {
         PlayerCharacter c = baseCharacter();
         c.setLevel(4);
@@ -318,7 +297,9 @@ class CharacterUpdatesTest {
                 0, 5, 0, 0, 0, null, List.of(), List.of()
         );
 
-        CharacterUpdates.recordFeatInHistory(c, asi, "Alert", applied);
+        CharacterUpdates.recordAsi(c, CharacterUpdates.owedAsiLevel(c.getLevelHistory()),
+                new AbilityScoreImprovement("feat", null, "Alert", asi.getFeatId(), null,
+                        CharacterUpdates.recordedEffects(applied, "Alert"), null));
 
         AbilityScoreImprovement recorded = c.getLevelHistory().get(3).choices().asi();
         assertNotNull(recorded);
@@ -333,21 +314,60 @@ class CharacterUpdatesTest {
     }
 
     @Test
-    @DisplayName("The next ASI goes on the first ASI level without one, or else on the last level")
-    void findNextAsiEntry() {
+    @DisplayName("An ASI is owed by the latest ASI level without one, so one taken at 6th level isn't put on 4th; none owed is -1")
+    void owedAsiLevel() {
         UUID classId = UUID.randomUUID();
-        List<LevelHistoryEntry> history = fighterHistory(classId, 6);
-        assertSame(history.get(3), CharacterUpdates.findNextAsiEntry(history));
+        List<LevelHistoryEntry> history = fighterHistory(classId, 7);
+        // Fighters also improve at level 6
+        assertEquals(5, CharacterUpdates.owedAsiLevel(history));
 
         AbilityScoreImprovement taken = new AbilityScoreImprovement("ability",
-                List.of(new AbilityBonus("strength", 2)), null, null, null, null);
-        history.set(3, history.get(3).withChoices(new LevelChoices(taken)));
-        // Fighters also improve at level 6
-        assertSame(history.get(5), CharacterUpdates.findNextAsiEntry(history));
+                List.of(new AbilityBonus("strength", 2)), null, null, null, null, null);
+        history.set(5, history.get(5).withChoices(LevelChoices.NONE.withAsi(taken)));
+        assertEquals(3, CharacterUpdates.owedAsiLevel(history));
 
-        history.set(5, history.get(5).withChoices(new LevelChoices(taken)));
-        assertSame(history.get(5), CharacterUpdates.findNextAsiEntry(history));
-        assertNull(CharacterUpdates.findNextAsiEntry(List.of()));
+        history.set(3, history.get(3).withChoices(LevelChoices.NONE.withAsi(taken)));
+        assertEquals(-1, CharacterUpdates.owedAsiLevel(history));
+        assertEquals(-1, CharacterUpdates.owedAsiLevel(List.of()));
+    }
+
+    @Test
+    @DisplayName("Expertise is owed by the latest level that gives it, and recordExpertise records the skills there")
+    void owedExpertise() {
+        UUID rogueId = UUID.randomUUID();
+        List<LevelHistoryEntry> history = new ArrayList<>();
+        for (int level = 1; level <= 6; level++) {
+            history.add(new LevelHistoryEntry(level, rogueId, "Rogue", level, 6, level == 1 ? 8 : 5, List.of(),
+                    LevelChoices.NONE, null, null));
+        }
+        PlayerCharacter c = baseCharacter();
+        c.setLevelHistory(history);
+
+        int owed = CharacterUpdates.owedExpertiseLevel(history);
+        CharacterUpdates.recordExpertise(c, owed, List.of("Stealth", "Perception"));
+
+        assertEquals(5, owed);
+        assertEquals(List.of("Stealth", "Perception"), c.getLevelHistory().get(5).choices().expertise());
+        // Rogue 1st level gives Expertise too
+        assertEquals(0, CharacterUpdates.owedExpertiseLevel(c.getLevelHistory()));
+    }
+
+    @Test
+    @DisplayName("increaseAbility adds what fits under the maximum, 24 for Strength after Primal Champion; decreaseAbility takes off what it is given")
+    void increaseAndDecreaseAbility() {
+        PlayerCharacter c = baseCharacter();
+        c.setStrength(19);
+
+        assertEquals(1, CharacterUpdates.increaseAbility(c, "strength", 2));
+        assertEquals(20, c.getStrength());
+
+        c.setMulticlassEntries(List.of(new ClassEntry(UUID.randomUUID(), "Barbarian", null, null, 20)));
+        assertEquals(4, CharacterUpdates.increaseAbility(c, "STR", 4));
+        assertEquals(24, c.getStrength());
+
+        CharacterUpdates.decreaseAbility(c, "Strength", 4);
+        assertEquals(20, c.getStrength());
+        assertThrows(ValidationException.class, () -> CharacterUpdates.increaseAbility(c, "luck", 1));
     }
 
     // --- 7.16 setClassEntrySubclass: sets subclass ---

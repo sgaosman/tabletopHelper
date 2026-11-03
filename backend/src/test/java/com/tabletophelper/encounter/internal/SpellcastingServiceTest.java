@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -28,9 +29,14 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Casting in combat, end to end through SpellCaster and the EffectApplier. From the old CombatServiceTest:
@@ -569,6 +575,50 @@ class SpellcastingServiceTest {
             assertEquals("Tiefling has no uses of Hellish Rebuke left", spent.getMessage());
             assertEquals(new SpellSlot(1, 0), tiefling.getSpellSlotsCurrent().get("2"));
             assertTrue(f.descriptions().contains("Tiefling uses an innate use of Hellish Rebuke (0/1 remaining)"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Class spell numbers (D164)")
+    class ClassSpellNumbers {
+
+        @Test
+        @DisplayName("A class spell uses its class's save DC, worked out from the live sheet, not the caster's main one")
+        void classSpellUsesItsClassDc() {
+            f.spell("Hold Person", 2, HOLD_PERSON);
+            EncounterParticipant mystic = f.player("Mystic", 30, 12);
+            mystic.setSpellSaveDc(15);
+            mystic.setSpellSlotsCurrent(Map.of("2", new SpellSlot(2, 0)));
+            f.knows(mystic, new KnownSpell(null, "Hold Person", 2, "class:Cleric", true, null, null, null, null));
+            when(f.characterService.classSpellcasting(mystic.getCharacter(), "Cleric")).thenReturn(Optional.of(
+                    new ClassSpellcasting("Cleric", null, 3, "WIS", 13, 5, 2, 3, null, 4, false)));
+
+            f.dice.script(14);
+            f.spellcasting.castSpell(f.encounterId(), request("Hold Person", 2, List.of(goblin)), mystic.getId(),
+                    f.dmUserId);
+
+            // 14 saves against the Cleric's DC 13, though it would fail against the main DC 15
+            assertEquals(List.of(), CombatFixture.conditionNames(goblin));
+        }
+
+        @Test
+        @DisplayName("A race spell keeps the caster's main save DC, and asks the character module for no class's")
+        void raceSpellKeepsTheMainDc() {
+            f.spell("Hellish Rebuke", 1, """
+                    {"spellLevel": 1, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "halfOnSave": true,
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "2d10", "damageType": "fire"}]}""");
+            EncounterParticipant tiefling = f.player("Tiefling", 30, 12);
+            tiefling.setSpellSaveDc(15);
+            tiefling.getCharacter().setLevel(3);
+            f.knows(tiefling, new KnownSpell(null, "Hellish Rebuke", 1, "race:Tiefling", null, null, null, 1, 3));
+
+            f.dice.script(5, 5, 12);
+            f.spellcasting.castSpell(f.encounterId(),
+                    request("Hellish Rebuke", SpellSource.INNATE, 0, List.of(goblin)), tiefling.getId(), f.dmUserId);
+
+            // 12 + the goblin's DEX 2 fails against DC 15, so it takes all 10
+            assertEquals(10, goblin.getHpCurrent());
+            verify(f.characterService, never()).classSpellcasting(any(), any());
         }
     }
 

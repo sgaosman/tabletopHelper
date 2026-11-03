@@ -1,7 +1,10 @@
 package com.tabletophelper.character;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.dto.AbilityScoreMaximums;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.dto.ClassSpellcasting;
+import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
 import com.tabletophelper.character.state.Feature;
@@ -13,6 +16,7 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
+import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,11 +40,14 @@ class CharacterMapperTest {
     @Mock
     private SubclassRepository subclassRepository;
 
+    @Mock
+    private CharacterStats characterStats;
+
     private CharacterMapper mapper;
 
     @BeforeEach
     void setUp() {
-        mapper = new CharacterMapper(objectMapper, subclassRepository);
+        mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats);
     }
 
     private User testUser() {
@@ -128,7 +135,8 @@ class CharacterMapperTest {
         PlayerCharacter c = baseCharacter(user);
         UUID fighterId = UUID.randomUUID();
         c.setMulticlassEntries(List.of(new ClassEntry(fighterId, "Fighter", null, null, 3)));
-        c.setLevelHistory(List.of(new LevelHistoryEntry(1, fighterId, "Fighter", 1, 12, List.of(), LevelChoices.NONE)));
+        c.setLevelHistory(List.of(new LevelHistoryEntry(1, fighterId, "Fighter", 1, 12, 10, List.of(), LevelChoices.NONE,
+                null, null)));
         c.setHitDice(Map.of("Fighter", new HitDicePool(10, 5, 5)));
         c.setFeatures(List.of(new Feature("Second Wind", null, "Fighter")));
         c.setSpellsKnown(List.of(new KnownSpell(null, "Shield", 1, null, null, null, null, null, null)));
@@ -217,5 +225,35 @@ class CharacterMapperTest {
 
         assertEquals(List.of("Life Domain", "Oath of Devotion"), List.copyOf(spells.keySet()));
         assertEquals(Map.of("3", List.of("Sanctuary")), spells.get("Oath of Devotion"));
+    }
+
+    @Test
+    @DisplayName("8.6 toResponse adds what each class casts with, the main spellcasting ability and the ability score maximums, which the sheet doesn't store")
+    void toResponseAddsDerivedSpellcasting() {
+        PlayerCharacter c = baseCharacter(testUser());
+        List<ClassSpellcasting> spellcasting = List.of(
+                new ClassSpellcasting("Wizard", null, 3, "INT", 13, 5, 2, 3, null, 6, false));
+        AbilityScoreMaximums maximums = new AbilityScoreMaximums(20, 20, 20, 20, 20, 20);
+        when(characterStats.spellcasting(c)).thenReturn(spellcasting);
+        when(characterStats.mainSpellcastingAbility(c)).thenReturn("INT");
+        when(characterStats.abilityScoreMaximums(c)).thenReturn(maximums);
+
+        CharacterResponse response = mapper.toResponse(c);
+
+        assertEquals(spellcasting, response.getSpellcasting());
+        assertEquals("INT", response.getSpellcastingAbility());
+        assertEquals(maximums, response.getAbilityScoreMaximums());
+    }
+
+    @Test
+    @DisplayName("8.7 A subclass whose always-prepared spells can't be read is a 409, not a sheet without them (D155)")
+    void unreadableAlwaysPreparedSpellsIsConflict() {
+        PlayerCharacter c = baseCharacter(testUser());
+        c.setSubclassRef(Subclass.builder().id(UUID.randomUUID()).name("Life Domain")
+                .alwaysPreparedSpells("{not json").build());
+
+        ConflictException e = assertThrows(ConflictException.class, () -> mapper.toResponse(c));
+
+        assertEquals("The always-prepared spells of the subclass Life Domain can't be read", e.getMessage());
     }
 }

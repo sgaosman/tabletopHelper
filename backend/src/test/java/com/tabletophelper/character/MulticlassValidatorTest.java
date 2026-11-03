@@ -3,6 +3,7 @@ package com.tabletophelper.character;
 import com.tabletophelper.character.dto.EligibleClassResponse;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.reference.CharacterClass;
+import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
@@ -186,5 +187,33 @@ class MulticlassValidatorTest {
                 .filter(r -> r.getClassName().equals("Bard")).findFirst().orElseThrow();
         assertFalse(bardResult.isCurrentClass());
         assertFalse(bardResult.isMeetsPrerequisites());
+    }
+
+    @Test
+    @DisplayName("Requirements that can't be read are a 409, never no prerequisites (D155)")
+    void unreadableRequirementsAreConflict() {
+        var pc = characterWithScores(10, 10, 10, 10, 10, 10);
+
+        assertThrows(ConflictException.class, () -> MulticlassValidator.meetsPrerequisites("{not json", pc));
+        assertThrows(ConflictException.class,
+                () -> MulticlassValidator.meetsPrerequisites("[{\"ability\":\"Luck\",\"minimum\":13}]", pc));
+    }
+
+    @Test
+    @DisplayName("unmetPrerequisites names the new class, then each current class the scores miss; none for a class the character has")
+    void unmetPrerequisitesOfEveryClass() {
+        var pc = characterWithScores(16, 14, 12, 10, 10, 12);
+        CharacterClass fighter = CharacterClass.builder().id(UUID.randomUUID()).name("Fighter")
+                .multiclassRequirements("[{\"ability\":\"STR\",\"minimum\":13,\"operator\":\"OR\"},"
+                        + "{\"ability\":\"DEX\",\"minimum\":13,\"operator\":\"OR\"}]").build();
+        CharacterClass paladin = CharacterClass.builder().id(UUID.randomUUID()).name("Paladin")
+                .multiclassRequirements("[{\"ability\":\"STR\",\"minimum\":13},{\"ability\":\"CHA\",\"minimum\":13}]")
+                .build();
+        CharacterClass bard = CharacterClass.builder().id(UUID.randomUUID()).name("Bard")
+                .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]").build();
+
+        assertEquals(List.of("Bard", "Paladin"),
+                MulticlassValidator.unmetPrerequisites(pc, bard, List.of(fighter, paladin)));
+        assertEquals(List.of(), MulticlassValidator.unmetPrerequisites(pc, paladin, List.of(fighter, paladin)));
     }
 }

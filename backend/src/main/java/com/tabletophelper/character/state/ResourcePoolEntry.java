@@ -3,6 +3,9 @@ package com.tabletophelper.character.state;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.util.Locale;
+import java.util.Map;
+
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 /**
@@ -50,5 +53,21 @@ public record ResourcePoolEntry(
                 maxUses, maxUsesFormula, newCurrentUses,
                 resetOn, resetAmount, resetCheck,
                 spendActionType, icon, metadata);
+    }
+
+    /**
+     * The pool that holds a spell's innate uses, on a character sheet or a participant: "innate:" and the spell's name
+     * in kebab case (D165).
+     */
+    public static String innatePoolId(String spellName) {
+        return "innate:" + spellName.trim().toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
+    }
+
+    /** A full pool of a spell's innate uses, which come back on a long rest (D165). */
+    public static ResourcePoolEntry innate(String spellName, int uses, String sourceType, String sourceName) {
+        return new ResourcePoolEntry(innatePoolId(spellName), spellName, sourceType, sourceName, uses, null, uses,
+                "longRest", null, null, "ACTION", "sparkles", Map.of());
     }
 }

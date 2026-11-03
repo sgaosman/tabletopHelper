@@ -3,24 +3,28 @@ import { ArrowLeft, Lock, Search, X, Plus, Check } from 'lucide-react';
 import { searchSpells, getFeats } from '../../../api/referenceApi';
 import { useTypeAhead } from '../../../hooks/useTypeAhead';
 import SpellCard from '../../../components/reference/SpellCard';
-import type { PlayerCharacter, CharacterUpdateRequest } from '../../../types/character';
+import type { PlayerCharacter, CharacterUpdateRequest, ClassSpellcasting } from '../../../types/character';
 import type { SpellSlot } from '../../../types/encounter';
 import type { Spell, Feat } from '../../../types/reference';
-import { CANTRIPS_KNOWN, SPELLS_KNOWN, THIRD_CASTER_CANTRIPS, THIRD_CASTER_SPELLS, THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST, getPreparedCount } from '../../../utils/spellConstants';
+import { THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST } from '../../../utils/spellConstants';
 import { parseFeatOptions } from '../../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../../utils/featSpellParser';
-import { ABILITY_FROM_ABBR, abilityMod, formatMod } from '../../../utils/dndRules';
+import { formatMod } from '../../../utils/dndRules';
 import type { SpellEntry } from './types';
 import StatCard from './StatCard';
 
-const CASTER_ABILITY: Record<string, string> = {
-  Bard: 'CHA', Cleric: 'WIS', Druid: 'WIS', Paladin: 'CHA', Ranger: 'WIS',
-  Sorcerer: 'CHA', Warlock: 'CHA', Wizard: 'INT', Artificer: 'INT',
-};
-const THIRD_CASTER_ABILITY_MAP: Record<string, string> = {
-  'Eldritch Knight': 'INT', 'Arcane Trickster': 'INT',
-};
+// The class a class's spells come from: the Wizard's list for an Eldritch Knight or Arcane Trickster
+function spellListOf(casting: ClassSpellcasting | undefined, className: string) {
+  return casting?.subclassName && THIRD_CASTER_SUBCLASSES.has(casting.subclassName)
+    ? THIRD_CASTER_SPELL_LIST[casting.subclassName]
+    : className;
+}
 
+/**
+ * The character's spells by where they come from. What each class casts with, its save DC, attack bonus, highest
+ * spell level and cantrip, known and prepared limits, is the server's (char.spellcasting, D167); race and feat spells
+ * use the main numbers.
+ */
 export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pendingSpellManage, onSpellManageHandled }: {
   char: PlayerCharacter;
   spellsKnown: SpellEntry[];
@@ -66,30 +70,10 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     return groups;
   }, [char.subclassAlwaysPreparedSpells, char.multiclassEntries, char.level]);
 
-  const multiclassSpellStats = useMemo(() => {
-    const entries = char.multiclassEntries ?? [];
-    if (entries.length <= 1) return [];
-    const stats: Array<{ className: string; ability: string; saveDc: number; attackBonus: number }> = [];
-    const seen = new Set<string>();
-    for (const e of entries) {
-      let ability = CASTER_ABILITY[e.className ?? ''];
-      if (!ability && e.subclassName) ability = THIRD_CASTER_ABILITY_MAP[e.subclassName];
-      if (!ability || seen.has(ability)) continue;
-      seen.add(ability);
-      const abilityKey = ABILITY_FROM_ABBR[ability] as keyof PlayerCharacter;
-      const score = (char[abilityKey] as number) || 10;
-      const mod = abilityMod(score);
-      stats.push({
-        className: e.className ?? '',
-        ability,
-        saveDc: 8 + char.proficiencyBonus + mod,
-        attackBonus: char.proficiencyBonus + mod,
-      });
-    }
-    return stats.length > 1 ? stats : [];
-  }, [char.multiclassEntries, char.proficiencyBonus, char.strength, char.dexterity, char.constitution, char.intelligence, char.wisdom, char.charisma]);
+  const classCasting = char.spellcasting;
 
-  const hasSpells = char.spellcastingAbility || spellsKnown.length > 0 || subclassAlwaysPreparedGroups.length > 0;
+  const hasSpells = classCasting.length > 0 || char.spellcastingAbility || spellsKnown.length > 0
+    || subclassAlwaysPreparedGroups.length > 0;
   if (!hasSpells) {
     return <p className="font-body text-[15px] text-faint">This character is not a spellcaster.</p>;
   }
@@ -124,16 +108,11 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     }
   }
 
-  const SPELLCASTER_CLASSES = ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Warlock', 'Wizard', 'Artificer'];
-
   const mcEntries = char.multiclassEntries ?? [];
-  for (const entry of mcEntries) {
-    const source = `class:${entry.className}`;
-    if (classGroups.some(g => g.source === source)) continue;
-    const isCasterClass = SPELLCASTER_CLASSES.includes(entry.className ?? '');
-    const isThirdCaster = entry.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName) && entry.level >= 3;
-    if (isCasterClass || isThirdCaster) {
-      classGroups.push({ source, className: entry.className ?? '', spells: [] });
+  for (const casting of classCasting) {
+    const source = `class:${casting.className}`;
+    if (!classGroups.some(g => g.source === source)) {
+      classGroups.push({ source, className: casting.className, spells: [] });
     }
   }
 
@@ -176,14 +155,17 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     await saveField({ spellsKnown: updated });
   }
 
+  // A class the server gives no spellcasting still lists the spells the sheet has from it, with no limits
   function getClassCasterInfo(className: string) {
-    const isPrepared = ['Cleric', 'Druid', 'Paladin', 'Wizard', 'Artificer'].includes(className);
-    const mcEntry = mcEntries.find(e => e.className === className);
-    const isThirdCaster = mcEntry?.subclassName ? THIRD_CASTER_SUBCLASSES.has(mcEntry.subclassName) : false;
-    const isKnown = ['Bard', 'Ranger', 'Sorcerer', 'Warlock'].includes(className) || isThirdCaster;
-    const isPact = className === 'Warlock';
-    const thirdCasterSubclass = isThirdCaster ? mcEntry!.subclassName! : null;
-    return { isPrepared, isKnown, isPact, isThirdCaster, thirdCasterSubclass };
+    const casting = classCasting.find(c => c.className === className);
+    const thirdCasterSubclass = casting?.subclassName && THIRD_CASTER_SUBCLASSES.has(casting.subclassName)
+      ? casting.subclassName : null;
+    return {
+      casting,
+      isPrepared: casting?.preparedSpells != null,
+      isKnown: casting ? casting.spellsKnown != null : true,
+      thirdCasterSubclass,
+    };
   }
 
   function renderSpellRow(spell: SpellEntry, showPrepared: boolean) {
@@ -241,18 +223,28 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
 
   return (
     <div className="space-y-6">
-      {/* Spellcasting stats */}
-      {multiclassSpellStats.length > 0 ? (
+      {/* Spellcasting stats: each class's own, from the server */}
+      {classCasting.length > 0 ? (
         <div className="bg-card border border-rule p-4 space-y-3">
-          <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1">Spellcasting by Class</h3>
-          {multiclassSpellStats.map(s => (
-            <div key={s.className} className="grid grid-cols-4 gap-2">
-              <StatCard label={s.className} value={s.ability} />
-              <StatCard label="Save DC" value={String(s.saveDc)} />
-              <StatCard label="Attack" value={formatMod(s.attackBonus)} />
-              <div />
+          <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-1">
+            {classCasting.length > 1 ? 'Spellcasting by Class' : 'Spellcasting'}
+          </h3>
+          {classCasting.map(c => (
+            <div key={c.className} className="grid grid-cols-4 gap-2">
+              <StatCard label={c.className} value={c.ability} />
+              <StatCard label="Save DC" value={String(c.spellSaveDc)} />
+              <StatCard label="Attack" value={formatMod(c.spellAttackBonus)} />
+              <StatCard label="Spell Level" value={c.highestSpellLevel > 0 ? String(c.highestSpellLevel) : '-'} />
             </div>
           ))}
+          {(raceGroups.length > 0 || featGroups.length > 0) && char.spellSaveDc != null && char.spellAttackBonus != null && (
+            <div className="grid grid-cols-4 gap-2">
+              <StatCard label="Race & Feat" value={char.spellcastingAbility || '-'} />
+              <StatCard label="Save DC" value={String(char.spellSaveDc)} />
+              <StatCard label="Attack" value={formatMod(char.spellAttackBonus)} />
+              <div />
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-card border border-rule p-4">
@@ -276,18 +268,11 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
         const leveled = spells.filter(s => s.level > 0);
         const prepared = leveled.filter(s => s.prepared || s.alwaysPrepared);
         const classEntry = mcEntries.find(e => e.className === className);
-        const classLevel = classEntry ? classEntry.level : char.level;
-        const abilityMod_ = char.spellcastingAbility
-          ? abilityMod(char[ABILITY_FROM_ABBR[char.spellcastingAbility] as keyof PlayerCharacter] as number || 10)
-          : 0;
-        const prepLimit = info.isPrepared ? getPreparedCount(className, classLevel, abilityMod_) : 0;
-        const knownLimit = info.isThirdCaster && info.thirdCasterSubclass
-          ? (THIRD_CASTER_SPELLS[info.thirdCasterSubclass]?.[classLevel] ?? 0)
-          : (SPELLS_KNOWN[className]?.[classLevel] ?? 0);
-        const cantripLimit = info.isThirdCaster && info.thirdCasterSubclass
-          ? (THIRD_CASTER_CANTRIPS[info.thirdCasterSubclass]?.[classLevel] ?? 0)
-          : (CANTRIPS_KNOWN[className]?.[classLevel]);
-        const spellListClass = info.thirdCasterSubclass ? THIRD_CASTER_SPELL_LIST[info.thirdCasterSubclass] : className;
+        const classLevel = info.casting?.classLevel ?? (classEntry ? classEntry.level : char.level);
+        const prepLimit = info.casting?.preparedSpells ?? 0;
+        const knownLimit = info.casting?.spellsKnown ?? 0;
+        const cantripLimit = info.casting?.cantripsKnown;
+        const spellListClass = spellListOf(info.casting, className);
         const displayName = info.thirdCasterSubclass ? `${className} (${info.thirdCasterSubclass})` : className;
 
         const isWizard = className === 'Wizard';
@@ -484,8 +469,9 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
           char={char}
           type={manageModal.type}
           className={manageModal.className}
-          spellListClass={manageModal.spellListClass}
-          classLevel={manageModal.classLevel}
+          casting={classCasting.find(c => c.className === manageModal.className)}
+          spellListClass={manageModal.spellListClass ?? spellListOf(
+            classCasting.find(c => c.className === manageModal.className), manageModal.className)}
           currentSpells={taggedSpells}
           saveField={saveField}
           onClose={() => setManageModal(null)}
@@ -504,12 +490,13 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
   );
 }
 
-function ManageSpellsModal({ char, type, className, spellListClass, classLevel, currentSpells, saveField, onClose }: {
+function ManageSpellsModal({ char, type, className, casting, spellListClass, currentSpells, saveField, onClose }: {
   char: PlayerCharacter;
   type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook';
   className: string;
+  // What the class casts with, from the server; a class without spellcasting has no limits
+  casting?: ClassSpellcasting;
   spellListClass?: string;
-  classLevel?: number;
   currentSpells: SpellEntry[];
   saveField: (u: CharacterUpdateRequest) => Promise<void>;
   onClose: () => void;
@@ -524,25 +511,18 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
   const classSpells = localSpells.filter(s => s.source === source);
   const leveled = classSpells.filter(s => s.level > 0);
   const preparedCount = leveled.filter(s => s.prepared || s.alwaysPrepared).length;
-  const abilityMod_ = char.spellcastingAbility
-    ? abilityMod(char[ABILITY_FROM_ABBR[char.spellcastingAbility] as keyof PlayerCharacter] as number || 10)
-    : 0;
-  const prepLimit = getPreparedCount(className, char.level, abilityMod_);
-  const effectiveClassLevel = classLevel ?? char.level;
-  const thirdCasterSub = spellListClass && spellListClass !== className
-    ? Object.entries(THIRD_CASTER_SPELL_LIST).find(([, v]) => v === spellListClass)?.[0] ?? null
-    : null;
-  const knownLimit = thirdCasterSub
-    ? (THIRD_CASTER_SPELLS[thirdCasterSub]?.[effectiveClassLevel] ?? 0)
-    : (SPELLS_KNOWN[className]?.[effectiveClassLevel] ?? 0);
+  const prepLimit = casting?.preparedSpells ?? 0;
+  const knownLimit = casting?.spellsKnown ?? 0;
 
   const isWizardPrepared = type === 'prepared' && className === 'Wizard';
   const isSpellbookMode = type === 'spellbook';
   const isRemoveSpellbook = type === 'remove-spellbook';
   const needsApiSearch = !isWizardPrepared && !isRemoveSpellbook;
 
+  // The highest level the class itself can learn or prepare, from its own table, whatever slots a multiclass
+  // character has (PHB p.164)
   const slots = char.spellSlots ?? {};
-  const maxSlotLevel = Math.max(0, ...Object.keys(slots).map(k => {
+  const maxSlotLevel = casting ? casting.highestSpellLevel : Math.max(0, ...Object.keys(slots).map(k => {
     if (k.startsWith('pact_')) return parseInt(k.replace('pact_', ''));
     const n = parseInt(k);
     return isNaN(n) ? 0 : n;

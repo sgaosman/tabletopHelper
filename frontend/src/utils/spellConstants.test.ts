@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   wizardSpellbookCount,
-  getPreparedCount,
   maxSpellLevel,
   proficiencyBonusForLevel,
   thirdCasterMulticlassContribution,
@@ -31,30 +30,8 @@ describe('spellConstants', () => {
     });
   });
 
-  // 19.2 getPreparedCount for full caster (Cleric)
-  describe('getPreparedCount', () => {
-    it('returns level + abilityMod for full caster (Cleric level 5, WIS +3 -> 8)', () => {
-      expect(getPreparedCount('Cleric', 5, 3)).toBe(8);
-    });
-
-    // 19.3 getPreparedCount for half caster (Paladin)
-    it('returns floor(level/2) + abilityMod for half caster (Paladin level 6, CHA +2 -> 5)', () => {
-      expect(getPreparedCount('Paladin', 6, 2)).toBe(5);
-    });
-
-    // 19.4 getPreparedCount: minimum 1 with negative modifier
-    it('returns minimum 1 when result would be 0 or negative (Cleric level 1, WIS -1)', () => {
-      expect(getPreparedCount('Cleric', 1, -1)).toBe(1);
-    });
-
-    it('returns minimum 1 for Paladin with negative modifier', () => {
-      expect(getPreparedCount('Paladin', 2, -3)).toBe(1);
-    });
-
-    it('uses half-caster formula for Artificer', () => {
-      expect(getPreparedCount('Artificer', 6, 3)).toBe(6); // floor(6/2) + 3 = 6
-    });
-  });
+  // 19.2 to 19.4, the prepared-spell limits, are the server's since R6 workstream C: the sheet reads each class's
+  // from char.spellcasting, and ClassProgressionGoldenTest checks them for every class
 
   // 19.5 maxSpellLevel for full caster
   describe('maxSpellLevel', () => {

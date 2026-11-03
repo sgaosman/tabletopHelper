@@ -33,8 +33,8 @@ class RelinkFeatIdsJobTest {
     }
 
     private static List<LevelHistoryEntry> history(String featName) {
-        return List.of(new LevelHistoryEntry(4, null, null, 0, 0, null, new LevelChoices(
-                new AbilityScoreImprovement("feat", null, featName, STALE_ID, null, null))));
+        return List.of(new LevelHistoryEntry(4, null, null, 0, 0, null, null, LevelChoices.NONE.withAsi(
+                new AbilityScoreImprovement("feat", null, featName, STALE_ID, null, null, null)), null, null));
     }
 
     private static PlayerCharacter character(List<LevelHistoryEntry> levelHistory) {

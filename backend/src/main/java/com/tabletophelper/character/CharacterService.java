@@ -1,9 +1,13 @@
 package com.tabletophelper.character;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.*;
+import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.ClassEntry;
@@ -13,6 +17,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
@@ -24,24 +29,35 @@ import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
+import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.rules.character.HitPoints;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
 
 import static com.tabletophelper.character.CharacterUpdates.copy;
+import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 
-@Slf4j
+/**
+ * Characters: creating them, levelling them up and down, the choices levels bring, rests and the interim PUT. After
+ * every change CharacterStats works out the Derived Stats again, writes their stored copies and syncs the pools
+ * (D158, D167), so nothing here does that arithmetic itself.
+ */
 @Service
 @RequiredArgsConstructor
 public class CharacterService {
+
+    // Primal Champion, the barbarian's 20th-level feature, adds 4 to Strength and Constitution (PHB p.49)
+    private static final String BARBARIAN = "Barbarian";
+    private static final int PRIMAL_CHAMPION_LEVEL = 20;
+    private static final int PRIMAL_CHAMPION_INCREASE = 4;
+    // A class with no subclass level never asks for one
+    private static final int NO_SUBCLASS_LEVEL = 99;
 
     private final CharacterRepository characterRepository;
     private final UserService userService;
@@ -57,6 +73,9 @@ public class CharacterService {
     private final ObjectMapper objectMapper;
     private final ResourcePoolService resourcePoolService;
     private final AccessPolicy accessPolicy;
+    private final CharacterStats characterStats;
+
+    // ── Creating ─────────────────────────────────────────────────
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
@@ -99,15 +118,6 @@ public class CharacterService {
         String backgroundName = backgroundRef != null ? backgroundRef.getName() : request.getBackground();
 
         int level = request.getLevel() != null ? request.getLevel() : 1;
-        int profBonus = proficiencyBonusForLevel(level);
-
-        Integer speed = request.getSpeed();
-        if (speed == null && raceRef != null) {
-            speed = extractWalkSpeed(raceRef.getSpeed());
-        }
-        if (speed == null) speed = 30;
-
-        int conMod = abilityMod(request.getConstitution());
 
         List<ClassEntry> mcEntries = request.getMulticlassClassEntries();
         if (mcEntries != null) {
@@ -123,18 +133,19 @@ public class CharacterService {
 
         List<LevelUpCalculator.LevelGain> progression;
         List<ClassEntry> multiclassEntries;
-        Map<String, HitDicePool> hitDicePools = request.getHitDice();
-        Map<String, SpellSlot> spellSlots = request.getSpellSlots();
-        Integer spellSaveDc = request.getSpellSaveDc();
-        Integer spellAttackBonus = request.getSpellAttackBonus();
-        String spellcastingAbility = request.getSpellcastingAbility();
         String characterClassName = className;
 
         if (isMulticlass) {
+            if (mcEntries.stream().anyMatch(e -> e.level() < 1)) {
+                throw new ValidationException("Each class needs at least one level");
+            }
+            int classLevels = mcEntries.stream().mapToInt(ClassEntry::level).sum();
+            if (classLevels != level) {
+                throw new ValidationException("The class levels add up to " + classLevels + ", but the character is level "
+                        + level);
+            }
             List<LevelUpCalculator.ClassInput> classInputs = new ArrayList<>();
             List<ClassEntry> mcEntryList = new ArrayList<>();
-            Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries = new LinkedHashMap<>();
-            Map<String, HitDicePool> hitDiceBuilder = new LinkedHashMap<>();
 
             for (ClassEntry mce : mcEntries) {
                 UUID mcClassId = mce.classId();
@@ -150,114 +161,39 @@ public class CharacterService {
 
                 String mcClassName = mcClassRef.getName();
                 String mcSubName = mcSubclassRef != null ? mcSubclassRef.getName() : null;
-                int mcSubLevel = mcClassRef.getSubclassLevel() != null ? mcClassRef.getSubclassLevel() : 99;
 
                 classInputs.add(new LevelUpCalculator.ClassInput(
                         mcClassId, mcClassName, mcLevel, mcClassRef.getHitDice(),
                         mcClassRef.getFeatures(),
                         mcSubclassRef != null ? mcSubclassRef.getFeatures() : null,
-                        mcSubName, mcSubLevel));
+                        mcSubName, subclassLevel(mcClassRef)));
 
                 mcEntryList.add(new ClassEntry(mcClassId, mcClassName,
                         mcSubclassRef != null ? mcSubclassRef.getId() : null, mcSubName, mcLevel));
-
-                hitDiceBuilder.put(mcClassName, new HitDicePool(mcClassRef.getHitDice(), mcLevel, mcLevel));
-
-                boolean isMcClassCaster = Boolean.TRUE.equals(mcClassRef.getIsSpellcaster());
-                boolean isMcThirdCaster = mcSubName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(mcSubName) && mcLevel >= 3;
-                if (isMcClassCaster || isMcThirdCaster) {
-                    String casterType = SpellSlotCalculator.casterType(mcClassName, isMcClassCaster,
-                            Boolean.TRUE.equals(mcClassRef.getIsPactMagic()), mcSubName);
-                    if (!"none".equals(casterType)) {
-                        spellSlotEntries.put(mcClassName, new SpellSlotCalculator.ClassEntry(mcLevel, casterType));
-                    }
-                }
             }
 
-            progression = LevelUpCalculator.buildMulticlassProgression(classInputs, conMod);
-
+            progression = LevelUpCalculator.buildMulticlassProgression(classInputs);
             multiclassEntries = mcEntryList;
-
-            if (hitDicePools == null) {
-                hitDicePools = hitDiceBuilder;
-            }
-
-            if (!spellSlotEntries.isEmpty() && spellSlots == null) {
-                spellSlots = buildSpellSlots(spellSlotEntries);
-            }
-
-            for (ClassEntry mce : mcEntries) {
-                UUID mcCasterId = mce.classId();
-                String mceSubclassName = mce.subclassName();
-                int mceLevel = mce.level();
-                CharacterClass mcCasterRef = characterClassRepository.findById(mcCasterId).orElse(null);
-                if (mcCasterRef == null) continue;
-                boolean isClassCaster = Boolean.TRUE.equals(mcCasterRef.getIsSpellcaster());
-                boolean isThirdCaster = mceSubclassName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(mceSubclassName) && mceLevel >= 3;
-                if ((isClassCaster || isThirdCaster) && spellcastingAbility == null) {
-                    spellcastingAbility = isClassCaster ? mcCasterRef.getSpellcastingAbility() : "INT";
-                    int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
-                    spellSaveDc = 8 + profBonus + abilityModVal;
-                    spellAttackBonus = profBonus + abilityModVal;
-                    break;
-                }
-            }
-
             characterClassName = classInputs.stream()
                     .map(LevelUpCalculator.ClassInput::className)
                     .reduce((a, b) -> a + " / " + b).orElse(className);
-
         } else {
-            String classFeatureJson = classRef != null ? classRef.getFeatures() : null;
-            String subclassFeatureJson = subclassRef != null ? subclassRef.getFeatures() : null;
-            int subclassLvl = classRef != null && classRef.getSubclassLevel() != null ? classRef.getSubclassLevel() : 99;
-            int hitDice = classRef != null ? classRef.getHitDice() : 8;
-
             progression = LevelUpCalculator.buildProgression(
                     level, classRef != null ? classRef.getId() : null, className,
-                    hitDice, conMod,
-                    classFeatureJson, subclassFeatureJson,
-                    subclassName, subclassLvl);
+                    classRef != null ? classRef.getHitDice() : 8,
+                    classRef != null ? classRef.getFeatures() : null,
+                    subclassRef != null ? subclassRef.getFeatures() : null,
+                    subclassName, classRef != null ? subclassLevel(classRef) : NO_SUBCLASS_LEVEL);
 
-            if (hitDicePools == null && classRef != null) {
-                hitDicePools = new LinkedHashMap<>(Map.of(className, new HitDicePool(hitDice, level, level)));
-            }
-
-            if (classRef != null) {
-                multiclassEntries = List.of(new ClassEntry(classRef.getId(), className,
-                        subclassRef != null ? subclassRef.getId() : null, subclassRef != null ? subclassName : null,
-                        level));
-            } else {
-                multiclassEntries = null;
-            }
-
-            boolean isSingleClassCaster = classRef != null && Boolean.TRUE.equals(classRef.getIsSpellcaster());
-            boolean isSingleThirdCaster = subclassName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(subclassName) && level >= 3;
-            if ((isSingleClassCaster || isSingleThirdCaster) && spellSlots == null) {
-                if (spellcastingAbility == null) {
-                    spellcastingAbility = isSingleClassCaster ? classRef.getSpellcastingAbility() : "INT";
-                }
-                String casterType = SpellSlotCalculator.casterType(className, isSingleClassCaster,
-                        classRef != null && Boolean.TRUE.equals(classRef.getIsPactMagic()), subclassName);
-                if (!"none".equals(casterType)) {
-                    Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
-                    entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
-                    spellSlots = buildSpellSlots(entries);
-                }
-
-                int abilityModVal = getSpellcastingAbilityMod(spellcastingAbility, request);
-                if (spellSaveDc == null) spellSaveDc = 8 + profBonus + abilityModVal;
-                if (spellAttackBonus == null) spellAttackBonus = profBonus + abilityModVal;
-            }
+            multiclassEntries = classRef != null
+                    ? List.of(new ClassEntry(classRef.getId(), className,
+                            subclassRef != null ? subclassRef.getId() : null, subclassRef != null ? subclassName : null,
+                            level))
+                    : null;
         }
 
-        int computedHp = LevelUpCalculator.totalHp(progression);
-        Integer hpMax = level > 1 || isMulticlass ? computedHp : (request.getHpMax() != null ? request.getHpMax() : computedHp);
-
-        List<LevelUpCalculator.FeatureEntry> classFeatures = LevelUpCalculator.allFeatures(progression);
-        List<Feature> mergedFeatures = LevelUpCalculator.mergeFeatures(request.getFeatures(), classFeatures);
-
-        List<LevelHistoryEntry> levelHistory = LevelUpCalculator.levelHistory(progression);
+        List<Feature> mergedFeatures = LevelUpCalculator.mergeFeatures(request.getFeatures(),
+                LevelUpCalculator.allFeatures(progression));
 
         PlayerCharacter character = PlayerCharacter.builder()
                 .user(user)
@@ -281,12 +217,8 @@ public class CharacterService {
                 .intelligence(request.getIntelligence())
                 .wisdom(request.getWisdom())
                 .charisma(request.getCharisma())
-                .hpMax(hpMax)
-                .hpCurrent(hpMax)
-                .armourClass(request.getArmourClass() != null ? request.getArmourClass() : 10 + abilityMod(request.getDexterity()))
-                .initiativeBonus(request.getInitiativeBonus() != null ? request.getInitiativeBonus() : abilityMod(request.getDexterity()))
-                .speed(speed)
-                .proficiencyBonus(request.getProficiencyBonus() != null ? request.getProficiencyBonus() : profBonus)
+                // Armour isn't modelled, so the armour class starts at 10 + DEX and changes only through the DM (D158)
+                .armourClass(10 + abilityMod(request.getDexterity()))
                 .savingThrowProficiencies(request.getSavingThrowProficiencies())
                 .skillProficiencies(request.getSkillProficiencies())
                 .skillExpertises(request.getSkillExpertises())
@@ -297,21 +229,38 @@ public class CharacterService {
                 .features(mergedFeatures)
                 .damageResistances(request.getDamageResistances())
                 .spellsKnown(request.getSpellsKnown())
-                .spellSlots(spellSlots)
-                .spellSaveDc(spellSaveDc)
-                .spellAttackBonus(spellAttackBonus)
-                .spellcastingAbility(spellcastingAbility)
+                .spellcastingAbility(chosenSpellcastingAbility(request.getSpellcastingAbility()))
                 .equipment(request.getEquipment())
                 .currency(request.getCurrency() != null ? request.getCurrency() : Currency.NONE)
-                .hitDice(hitDicePools)
                 .multiclassEntries(multiclassEntries)
-                .levelHistory(levelHistory)
+                .levelHistory(LevelUpCalculator.levelHistory(progression))
                 .build();
 
-        resourcePoolService.syncPoolsForCharacter(character);
+        recordCreationHpGains(character);
+        characterStats.apply(character);
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
     }
+
+    // The ability race and feat spells use, abbreviated; null for none
+    private static String chosenSpellcastingAbility(String ability) {
+        if (ability == null || ability.isBlank()) return null;
+        return CharacterUpdates.ability(ability).name();
+    }
+
+    // What each level a character is created with added to the hit point maximum, its first included
+    private void recordCreationHpGains(PlayerCharacter character) {
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        int previous = 0;
+        for (int i = 0; i < history.size(); i++) {
+            int maximum = characterStats.hitPointMaximum(character, history.subList(0, i + 1));
+            history.set(i, history.get(i).withHpGained(maximum - previous));
+            previous = maximum;
+        }
+        character.setLevelHistory(history);
+    }
+
+    // ── The interim PUT ──────────────────────────────────────────
 
     @Transactional
     public CharacterResponse updateCharacter(UUID characterId, CharacterUpdateRequest request, UUID userId) {
@@ -320,9 +269,6 @@ public class CharacterService {
 
         if (request.getName() != null) character.setName(request.getName());
         if (request.getRace() != null) character.setRace(request.getRace());
-        if (request.getCharacterClass() != null) character.setCharacterClass(request.getCharacterClass());
-        if (request.getSubclass() != null) character.setSubclass(request.getSubclass());
-        if (request.getLevel() != null) character.setLevel(request.getLevel());
         if (request.getExperiencePoints() != null) character.setExperiencePoints(request.getExperiencePoints());
         if (request.getBackground() != null) character.setBackground(request.getBackground());
         if (request.getAlignment() != null) character.setAlignment(request.getAlignment());
@@ -334,18 +280,6 @@ public class CharacterService {
                     .orElseThrow(() -> new ValidationException("Race not found"));
             character.setRaceRef(r);
             character.setRace(r.getName());
-        }
-        if (request.getClassId() != null) {
-            CharacterClass cc = characterClassRepository.findById(request.getClassId())
-                    .orElseThrow(() -> new ValidationException("Class not found"));
-            character.setClassRef(cc);
-            character.setCharacterClass(cc.getName());
-        }
-        if (request.getSubclassId() != null) {
-            Subclass sc = subclassRepository.findById(request.getSubclassId())
-                    .orElseThrow(() -> new ValidationException("Subclass not found"));
-            character.setSubclassRef(sc);
-            character.setSubclass(sc.getName());
         }
         if (request.getBackgroundId() != null) {
             Background bg = backgroundRepository.findById(request.getBackgroundId())
@@ -361,13 +295,8 @@ public class CharacterService {
         if (request.getWisdom() != null) character.setWisdom(request.getWisdom());
         if (request.getCharisma() != null) character.setCharisma(request.getCharisma());
 
-        if (request.getHpMax() != null) character.setHpMax(request.getHpMax());
         if (request.getHpCurrent() != null) character.setHpCurrent(request.getHpCurrent());
         if (request.getHpTemp() != null) character.setHpTemp(request.getHpTemp());
-        if (request.getArmourClass() != null) character.setArmourClass(request.getArmourClass());
-        if (request.getInitiativeBonus() != null) character.setInitiativeBonus(request.getInitiativeBonus());
-        if (request.getSpeed() != null) character.setSpeed(request.getSpeed());
-        if (request.getProficiencyBonus() != null) character.setProficiencyBonus(request.getProficiencyBonus());
 
         if (request.getSavingThrowProficiencies() != null) character.setSavingThrowProficiencies(request.getSavingThrowProficiencies());
         if (request.getSkillProficiencies() != null) character.setSkillProficiencies(request.getSkillProficiencies());
@@ -380,12 +309,10 @@ public class CharacterService {
         if (request.getDamageImmunities() != null) character.setDamageImmunities(request.getDamageImmunities());
         if (request.getConditionImmunities() != null) character.setConditionImmunities(request.getConditionImmunities());
 
-        if (request.getFeatures() != null) character.setFeatures(request.getFeatures());
         if (request.getSpellsKnown() != null) character.setSpellsKnown(request.getSpellsKnown());
-        if (request.getSpellSlots() != null) character.setSpellSlots(request.getSpellSlots());
-        if (request.getSpellSaveDc() != null) character.setSpellSaveDc(request.getSpellSaveDc());
-        if (request.getSpellAttackBonus() != null) character.setSpellAttackBonus(request.getSpellAttackBonus());
-        if (request.getSpellcastingAbility() != null) character.setSpellcastingAbility(request.getSpellcastingAbility());
+        if (request.getSpellSlots() != null) {
+            character.setSpellSlots(withUsedCounts(character.getSpellSlots(), request.getSpellSlots()));
+        }
 
         if (request.getEquipment() != null) character.setEquipment(request.getEquipment());
         if (request.getCurrency() != null) character.setCurrency(request.getCurrency());
@@ -397,11 +324,13 @@ public class CharacterService {
         if (request.getNotes() != null) character.setNotes(request.getNotes());
         if (request.getPortraitUrl() != null) character.setPortraitUrl(request.getPortraitUrl());
 
-        if (request.getMulticlassEntries() != null) character.setMulticlassEntries(request.getMulticlassEntries());
-        if (request.getHitDice() != null) character.setHitDice(request.getHitDice());
-        if (request.getLevelHistory() != null) character.setLevelHistory(request.getLevelHistory());
+        if (request.getHitDice() != null) {
+            character.setHitDice(withRemainingCounts(character.getHitDice(), request.getHitDice()));
+        }
         if (request.getFeatResources() != null) character.setFeatResources(request.getFeatResources());
-        if (request.getResourcePools() != null) character.setResourcePools(request.getResourcePools());
+        if (request.getResourcePools() != null) {
+            character.setResourcePools(withCurrentUses(character.getResourcePools(), request.getResourcePools()));
+        }
 
         if (Boolean.TRUE.equals(request.getClearCampaign())) {
             character.setCampaign(null);
@@ -412,20 +341,56 @@ public class CharacterService {
             character.setCampaign(campaign);
         }
 
-        // Recalculate spell stats if ability scores changed and spellcasting is present
-        if (character.getSpellcastingAbility() != null &&
-                (request.getStrength() != null || request.getDexterity() != null || request.getConstitution() != null ||
-                 request.getIntelligence() != null || request.getWisdom() != null || request.getCharisma() != null)) {
-            int profBonus = character.getProficiencyBonus();
-            int abilityModVal = getAbilityMod(character.getSpellcastingAbility(), character);
-            character.setSpellSaveDc(8 + profBonus + abilityModVal);
-            character.setSpellAttackBonus(profBonus + abilityModVal);
-        }
-
-        resourcePoolService.syncPoolsForCharacter(character);
+        characterStats.apply(character);
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
     }
+
+    // The slots with the used counts asked for, each between 0 and the slot's maximum; a slot the character
+    // doesn't have is ignored
+    private static Map<String, SpellSlot> withUsedCounts(Map<String, SpellSlot> slots, Map<String, SpellSlot> asked) {
+        if (slots == null) return null;
+        Map<String, SpellSlot> updated = new LinkedHashMap<>();
+        slots.forEach((key, slot) -> {
+            SpellSlot wanted = asked.get(key);
+            updated.put(key, wanted != null ? new SpellSlot(slot.max(), clamp(wanted.used(), slot.max())) : slot);
+        });
+        return updated;
+    }
+
+    // The Hit Dice with the remaining counts asked for, each between 0 and the class's total
+    private static Map<String, HitDicePool> withRemainingCounts(Map<String, HitDicePool> hitDice,
+                                                                Map<String, HitDicePool> asked) {
+        if (hitDice == null) return null;
+        Map<String, HitDicePool> updated = new LinkedHashMap<>();
+        hitDice.forEach((className, pool) -> {
+            HitDicePool wanted = asked.get(className);
+            updated.put(className, wanted != null
+                    ? new HitDicePool(pool.dieSize(), pool.total(), clamp(wanted.remaining(), pool.total())) : pool);
+        });
+        return updated;
+    }
+
+    // The pools with the uses asked for, each between 0 and the pool's maximum; a pool the character doesn't have is
+    // ignored
+    private static List<ResourcePoolEntry> withCurrentUses(List<ResourcePoolEntry> pools,
+                                                           List<ResourcePoolEntry> asked) {
+        if (pools == null) return null;
+        Map<String, Integer> wanted = new HashMap<>();
+        for (ResourcePoolEntry pool : asked) {
+            if (pool != null && pool.poolId() != null) wanted.putIfAbsent(pool.poolId(), pool.currentUses());
+        }
+        return pools.stream()
+                .map(pool -> wanted.containsKey(pool.poolId())
+                        ? pool.withCurrentUses(clamp(wanted.get(pool.poolId()), pool.maxUses())) : pool)
+                .toList();
+    }
+
+    private static int clamp(int value, int maximum) {
+        return Math.max(0, Math.min(value, maximum));
+    }
+
+    // ── Levelling up ─────────────────────────────────────────────
 
     @Transactional
     public LevelUpResponse levelUp(UUID characterId, LevelUpRequest request, UUID userId) {
@@ -435,40 +400,30 @@ public class CharacterService {
             throw new ConflictException("Character is already at maximum level");
 
         CharacterClass levelClass;
-        UUID levelClassId;
-        boolean isNewMulticlass = false;
-
         if (request != null && request.getClassId() != null) {
             levelClass = characterClassRepository.findById(request.getClassId())
                     .orElseThrow(() -> new ValidationException("Class not found"));
-            levelClassId = levelClass.getId();
-
-            Map<UUID, Integer> currentLevels = MulticlassValidator.classLevels(character.getMulticlassEntries());
-            if (!currentLevels.containsKey(levelClassId)) {
-                if (!MulticlassValidator.meetsPrerequisites(levelClass.getMulticlassRequirements(), character))
-                    throw new ConflictException("Character does not meet multiclass prerequisites for " + levelClass.getName());
-                if (character.getClassRef() != null &&
-                        !MulticlassValidator.meetsPrerequisites(character.getClassRef().getMulticlassRequirements(), character))
-                    throw new ConflictException("Character does not meet exit prerequisites for current class");
-                isNewMulticlass = true;
-            }
         } else {
             levelClass = character.getClassRef();
             if (levelClass == null)
                 throw new ConflictException("Character has no class reference");
-            levelClassId = levelClass.getId();
         }
-
-        int newCharLevel = character.getLevel() + 1;
+        UUID levelClassId = levelClass.getId();
 
         Map<UUID, Integer> classLevels = new LinkedHashMap<>(
                 MulticlassValidator.classLevels(character.getMulticlassEntries()));
+        boolean isNewClass = !classLevels.containsKey(levelClassId);
+        if (isNewClass) {
+            // A new class needs its own prerequisites and those of every class the character has (PHB p.163)
+            List<String> unmet = MulticlassValidator.unmetPrerequisites(character, levelClass, currentClasses(character));
+            if (!unmet.isEmpty())
+                throw new ConflictException("Character does not meet multiclass prerequisites for "
+                        + String.join(" and ", unmet));
+        }
+
+        int newCharLevel = character.getLevel() + 1;
         int newClassLevel = classLevels.getOrDefault(levelClassId, 0) + 1;
         classLevels.put(levelClassId, newClassLevel);
-
-        int hitDice = levelClass.getHitDice();
-        int conMod = abilityMod(character.getConstitution());
-        int hpGained = LevelUpCalculator.calculateHpGain(newClassLevel, hitDice, conMod);
 
         Subclass levelSubclass = null;
         if (levelClassId.equals(character.getClassRef() != null ? character.getClassRef().getId() : null)) {
@@ -480,59 +435,50 @@ public class CharacterService {
             }
         }
 
-        String scFeatures = (levelSubclass != null && newClassLevel >= levelClass.getSubclassLevel())
-                ? levelSubclass.getFeatures() : null;
-        String scName = (levelSubclass != null && newClassLevel >= levelClass.getSubclassLevel())
-                ? levelSubclass.getName() : null;
-
+        boolean subclassFeatures = levelSubclass != null && newClassLevel >= subclassLevel(levelClass);
         List<LevelUpCalculator.FeatureEntry> newFeatures = LevelUpCalculator.collectFeaturesForLevel(
-                levelClass.getFeatures(), scFeatures, newClassLevel, levelClass.getName(), scName);
+                levelClass.getFeatures(), subclassFeatures ? levelSubclass.getFeatures() : null, newClassLevel,
+                levelClass.getName(), subclassFeatures ? levelSubclass.getName() : null);
 
-        boolean asiAvailable = LevelUpCalculator.isAsiLevel(levelClass.getName(), newClassLevel);
-        boolean subclassRequired = newClassLevel == levelClass.getSubclassLevel() && levelSubclass == null;
-        boolean expertiseAvailable = isExpertiseLevel(levelClass.getName(), newClassLevel);
-        int expertiseSlots = expertiseAvailable ? 2 : 0;
+        boolean asiAvailable = ClassProgression.isAsiLevel(levelClass.getName(), newClassLevel);
+        boolean subclassRequired = newClassLevel == subclassLevel(levelClass) && levelSubclass == null;
+        int expertiseCount = ClassProgression.expertiseChoices(levelClass.getName(), newClassLevel);
 
         character.setLevel(newCharLevel);
-        character.setHpMax(character.getHpMax() + hpGained);
-        character.setHpCurrent(character.getHpCurrent() + hpGained);
-        character.setProficiencyBonus(proficiencyBonusForLevel(newCharLevel));
-
         CharacterUpdates.appendFeatures(character, newFeatures);
-        CharacterUpdates.updateHitDice(character, levelClass.getName(), hitDice, 1);
-
         CharacterUpdates.updateClassEntry(character, levelClassId, levelClass, levelSubclass, classLevels);
+        ProficienciesGained proficienciesGained = isNewClass ? applyMulticlassProficiencies(character, levelClass) : null;
+        List<AbilityBonus> abilityIncreases = applyPrimalChampion(character, levelClass, newClassLevel);
+        CharacterUpdates.appendLevelHistory(character, newCharLevel, levelClassId, levelClass.getName(), newClassLevel,
+                HitPoints.fixedHitDieResult(newCharLevel, levelClass.getHitDice()), newFeatures, proficienciesGained,
+                abilityIncreases);
 
-        recalculateSpellSlots(character);
-
-        CharacterUpdates.appendLevelHistory(character, newCharLevel, levelClassId, levelClass.getName(),
-                newClassLevel, hpGained, newFeatures);
-
-        if (isNewMulticlass) {
-            applyMulticlassProficiencies(character, levelClass);
-        }
-
-        resourcePoolService.syncPoolsForCharacter(character);
+        int oldHpMax = character.getHpMax();
+        DerivedStats stats = characterStats.apply(character);
+        CharacterUpdates.recordHpGained(character, stats.hpMax() - oldHpMax);
         character = characterRepository.save(character);
 
-        boolean isCasterClass = Boolean.TRUE.equals(levelClass.getIsSpellcaster());
-        boolean spellSelectionNeeded = isCasterClass;
-        String spellSelectionType = null;
-        if (spellSelectionNeeded) {
-            boolean isKnownCaster = List.of("Bard", "Ranger", "Sorcerer", "Warlock").contains(levelClass.getName());
-            spellSelectionType = isKnownCaster ? "known" : "prepared";
-        }
+        // The class's own table says whether this level brings spells to learn or prepare, an Eldritch Knight's and
+        // an Arcane Trickster's included, and how high they go (PHB p.164)
+        ClassSpellcasting casting = stats.spellcasting().stream()
+                .filter(c -> c.className().equals(levelClass.getName()))
+                .findFirst()
+                .orElse(null);
+        boolean spellSelectionNeeded = casting != null
+                && (casting.highestSpellLevel() > 0 || casting.cantripsKnown() > 0);
+        String spellSelectionType = spellSelectionNeeded
+                ? (casting.preparedSpells() != null ? "prepared" : "known") : null;
 
         List<String> featureNames = newFeatures.stream().map(LevelUpCalculator.FeatureEntry::name).toList();
         LevelUpResponse.PendingChoices choices = LevelUpResponse.PendingChoices.builder()
                 .asiAvailable(asiAvailable)
                 .subclassRequired(subclassRequired)
-                .expertiseAvailable(expertiseAvailable)
-                .expertiseCount(expertiseSlots)
+                .expertiseAvailable(expertiseCount > 0)
+                .expertiseCount(expertiseCount)
                 .spellSelectionNeeded(spellSelectionNeeded)
                 .spellSelectionType(spellSelectionType)
                 .newFeatures(featureNames)
-                .maxSpellLevel(0)
+                .maxSpellLevel(casting != null ? casting.highestSpellLevel() : 0)
                 .build();
 
         return LevelUpResponse.builder()
@@ -541,6 +487,80 @@ public class CharacterService {
                 .build();
     }
 
+    // The classes the character has, as the class data has them
+    private List<CharacterClass> currentClasses(PlayerCharacter character) {
+        List<CharacterClass> classes = new ArrayList<>();
+        for (ClassEntry entry : orEmpty(character.getMulticlassEntries())) {
+            classes.add(characterClassRepository.findById(entry.classId())
+                    .orElseThrow(() -> new ConflictException("The class " + entry.className()
+                            + " that the character has can't be found")));
+        }
+        return classes;
+    }
+
+    private static int subclassLevel(CharacterClass characterClass) {
+        return characterClass.getSubclassLevel() != null ? characterClass.getSubclassLevel() : NO_SUBCLASS_LEVEL;
+    }
+
+    /**
+     * The armour, weapon and tool proficiencies multiclassing into a class grants (PHB p.164), less those the
+     * character has, which the level records so that levelling down removes them (D167). A skill to choose isn't
+     * offered yet.
+     */
+    private ProficienciesGained applyMulticlassProficiencies(PlayerCharacter character, CharacterClass newClass) {
+        String json = newClass.getMulticlassProficiencies();
+        if (json == null || json.isBlank()) return null;
+        JsonNode grants;
+        try {
+            grants = objectMapper.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new ConflictException("The multiclassing proficiencies of the class " + newClass.getName()
+                    + " can't be read");
+        }
+        List<String> armor = CharacterUpdates.added(character.getArmorProficiencies(), texts(grants.path("armor")));
+        List<String> weapons = CharacterUpdates.added(character.getWeaponProficiencies(), texts(grants.path("weapons")));
+        List<String> tools = CharacterUpdates.added(character.getToolProficiencies(), texts(grants.path("tools")));
+        if (!armor.isEmpty()) {
+            character.setArmorProficiencies(CharacterUpdates.merged(character.getArmorProficiencies(), armor));
+        }
+        if (!weapons.isEmpty()) {
+            character.setWeaponProficiencies(CharacterUpdates.merged(character.getWeaponProficiencies(), weapons));
+        }
+        if (!tools.isEmpty()) {
+            character.setToolProficiencies(CharacterUpdates.merged(character.getToolProficiencies(), tools));
+        }
+        return new ProficienciesGained(armor, weapons, tools);
+    }
+
+    private static List<String> texts(JsonNode array) {
+        List<String> texts = new ArrayList<>();
+        for (JsonNode item : array) {
+            if (item.isTextual() && !item.asText().isBlank()) texts.add(item.asText());
+        }
+        return texts;
+    }
+
+    // Primal Champion at Barbarian 20th level: Strength and Constitution up by 4, to the new maximum of 24, recorded
+    // at the amount applied so that levelling down takes off exactly that
+    private static List<AbilityBonus> applyPrimalChampion(PlayerCharacter character, CharacterClass levelClass,
+                                                          int classLevel) {
+        if (!BARBARIAN.equals(levelClass.getName()) || classLevel != PRIMAL_CHAMPION_LEVEL) {
+            return List.of();
+        }
+        return List.of(
+                new AbilityBonus(Ability.STR.fullName(),
+                        CharacterUpdates.increaseAbility(character, Ability.STR.fullName(), PRIMAL_CHAMPION_INCREASE)),
+                new AbilityBonus(Ability.CON.fullName(),
+                        CharacterUpdates.increaseAbility(character, Ability.CON.fullName(), PRIMAL_CHAMPION_INCREASE)));
+    }
+
+    // ── Levelling down ───────────────────────────────────────────
+
+    /**
+     * Removes the last level: its history entry goes, only what it recorded is reversed (its features, choices,
+     * proficiencies and ability increases), and the Derived Stats and pools are worked out again, capping current hit
+     * points and spent Hit Dice (D167).
+     */
     @Transactional
     public CharacterResponse levelDown(UUID characterId, UUID userId) {
         PlayerCharacter character = loadCharacter(characterId);
@@ -548,105 +568,221 @@ public class CharacterService {
         if (character.getLevel() <= 1)
             throw new ConflictException("Character is already at minimum level");
 
-        try {
-            List<LevelHistoryEntry> history = copy(character.getLevelHistory());
-            if (history.isEmpty())
-                throw new ConflictException("No level history to revert");
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        if (history.isEmpty())
+            throw new ConflictException("No level history to revert");
+        LevelHistoryEntry lastEntry = history.removeLast();
 
-            LevelHistoryEntry lastEntry = history.remove(history.size() - 1);
-            int hpGained = lastEntry.hpGained();
-            UUID classId = lastEntry.classId();
+        CharacterUpdates.removeFeatures(character, orEmpty(lastEntry.featuresGained()));
+        reverseChoices(character, lastEntry.choices());
+        CharacterUpdates.removeProficiencies(character, lastEntry.proficienciesGained());
+        for (AbilityBonus increase : orEmpty(lastEntry.abilityIncreases())) {
+            CharacterUpdates.decreaseAbility(character, increase.ability(), increase.bonus());
+        }
 
-            character.setLevel(character.getLevel() - 1);
-            character.setHpMax(Math.max(1, character.getHpMax() - hpGained));
-            character.setHpCurrent(Math.min(character.getHpCurrent(), character.getHpMax()));
-            character.setProficiencyBonus(proficiencyBonusForLevel(character.getLevel()));
-
-            List<Feature> featuresGained = lastEntry.featuresGained() != null
-                    ? lastEntry.featuresGained() : List.of();
-            CharacterUpdates.removeFeatures(character, featuresGained);
-
-            reverseAsiChoices(character, lastEntry.choices());
-
+        UUID classId = lastEntry.classId();
+        if (classId != null) {
             Map<UUID, Integer> classLevels = new LinkedHashMap<>(
                     MulticlassValidator.classLevels(character.getMulticlassEntries()));
-            int currentClassLevel = classLevels.getOrDefault(classId, 1);
-            int newClassLevel = currentClassLevel - 1;
-
+            int newClassLevel = classLevels.getOrDefault(classId, 1) - 1;
             if (newClassLevel <= 0) {
                 classLevels.remove(classId);
             } else {
                 classLevels.put(classId, newClassLevel);
             }
-
-            CharacterClass classRef = characterClassRepository.findById(classId).orElse(null);
-            if (classRef != null) {
-                CharacterUpdates.updateHitDice(character, classRef.getName(), classRef.getHitDice(), -1);
-            }
             CharacterUpdates.rebuildClassEntries(character, classLevels);
+        }
 
-            recalculateSpellSlots(character);
+        character.setLevelHistory(history);
+        character.setLevel(character.getLevel() - 1);
+        characterStats.apply(character);
+        character = characterRepository.save(character);
+        return characterMapper.toResponse(character);
+    }
 
-            character.setLevelHistory(history);
-            character = characterRepository.save(character);
-            return characterMapper.toResponse(character);
-        } catch (ConflictException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to process level down: " + e.getMessage(), e);
+    // Reverses the choices a level recorded: Expertise, and the Ability Score Improvement by the amount applied, or,
+    // for one recorded before R6, the amount requested
+    private void reverseChoices(PlayerCharacter character, LevelChoices choices) {
+        if (choices == null) return;
+        if (choices.expertise() != null && !choices.expertise().isEmpty()) {
+            character.setSkillExpertises(CharacterUpdates.without(character.getSkillExpertises(), choices.expertise()));
+        }
+        AbilityScoreImprovement asi = choices.asi();
+        if (asi == null) return;
+        if ("ability".equals(asi.type())) {
+            for (AbilityBonus increase : asi.applied() != null ? asi.applied() : orEmpty(asi.increases())) {
+                CharacterUpdates.decreaseAbility(character, increase.ability(), increase.bonus());
+            }
+        } else if ("feat".equals(asi.type())) {
+            if (asi.appliedEffects() != null) {
+                featEffectResolver.reverseFeatEffects(character, asi.appliedEffects());
+            } else {
+                if (asi.featName() != null) CharacterUpdates.removeFeatureByName(character, asi.featName());
+                if (asi.applied() != null) {
+                    for (AbilityBonus increase : asi.applied()) {
+                        CharacterUpdates.decreaseAbility(character, increase.ability(), increase.bonus());
+                    }
+                } else if (asi.featAbility() != null && !asi.featAbility().isBlank()) {
+                    CharacterUpdates.decreaseAbility(character, asi.featAbility(), 1);
+                }
+            }
         }
     }
+
+    // ── Choices ──────────────────────────────────────────────────
 
     @Transactional
     public CharacterResponse applyChoices(UUID characterId, ApplyChoicesRequest request, UUID userId) {
         PlayerCharacter character = loadCharacter(characterId);
         accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
-        try {
-            if (request.getAsi() != null) {
-                applyAsi(character, request.getAsi());
-            }
-
-            if (request.getExpertiseSkills() != null && !request.getExpertiseSkills().isEmpty()) {
-                character.setSkillExpertises(
-                        CharacterUpdates.merged(character.getSkillExpertises(), request.getExpertiseSkills()));
-            }
-
-            if (request.getSubclassId() != null) {
-                Subclass sc = subclassRepository.findById(request.getSubclassId())
-                        .orElseThrow(() -> new ValidationException("Subclass not found"));
-
-                UUID targetClassId = request.getClassId() != null ? request.getClassId()
-                        : (character.getClassRef() != null ? character.getClassRef().getId() : null);
-                boolean isPrimaryClass = character.getClassRef() != null
-                        && targetClassId != null && targetClassId.equals(character.getClassRef().getId());
-
-                if (isPrimaryClass) {
-                    character.setSubclassRef(sc);
-                    character.setSubclass(sc.getName());
-                }
-
-                CharacterUpdates.setClassEntrySubclass(character, targetClassId, sc);
-
-                CharacterClass targetClass = targetClassId != null
-                        ? characterClassRepository.findById(targetClassId).orElse(null) : null;
-                String targetClassName = targetClass != null ? targetClass.getName() : character.getCharacterClass();
-                int classLevel = getCurrentClassLevel(character, targetClassId);
-                List<LevelUpCalculator.FeatureEntry> scFeatures = LevelUpCalculator.collectFeaturesForLevel(
-                        null, sc.getFeatures(), classLevel, targetClassName, sc.getName());
-                CharacterUpdates.appendFeatures(character, scFeatures);
-            }
-
-            recalculateSpellSlots(character);
-
-            resourcePoolService.syncPoolsForCharacter(character);
-            character = characterRepository.save(character);
-            return characterMapper.toResponse(character);
-        } catch (ValidationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to apply choices: " + e.getMessage(), e);
+        if (request.getAsi() != null) {
+            applyAsi(character, request.getAsi());
         }
+
+        if (request.getExpertiseSkills() != null && !request.getExpertiseSkills().isEmpty()) {
+            applyExpertise(character, request.getExpertiseSkills());
+        }
+
+        if (request.getSubclassId() != null) {
+            Subclass sc = subclassRepository.findById(request.getSubclassId())
+                    .orElseThrow(() -> new ValidationException("Subclass not found"));
+
+            UUID targetClassId = request.getClassId() != null ? request.getClassId()
+                    : (character.getClassRef() != null ? character.getClassRef().getId() : null);
+            boolean isPrimaryClass = character.getClassRef() != null
+                    && targetClassId != null && targetClassId.equals(character.getClassRef().getId());
+
+            if (isPrimaryClass) {
+                character.setSubclassRef(sc);
+                character.setSubclass(sc.getName());
+            }
+
+            CharacterUpdates.setClassEntrySubclass(character, targetClassId, sc);
+
+            CharacterClass targetClass = targetClassId != null
+                    ? characterClassRepository.findById(targetClassId).orElse(null) : null;
+            String targetClassName = targetClass != null ? targetClass.getName() : character.getCharacterClass();
+            int classLevel = getCurrentClassLevel(character, targetClassId);
+            List<LevelUpCalculator.FeatureEntry> scFeatures = LevelUpCalculator.collectFeaturesForLevel(
+                    null, sc.getFeatures(), classLevel, targetClassName, sc.getName());
+            CharacterUpdates.appendFeatures(character, scFeatures);
+        }
+
+        characterStats.apply(character);
+        character = characterRepository.save(character);
+        return characterMapper.toResponse(character);
+    }
+
+    /**
+     * Applies an Ability Score Improvement, or a feat in its place, to the latest level that owes one, and records it
+     * there (D167): +2 to one score or +1 to two, within each score's maximum, recorded at the amount applied.
+     */
+    private void applyAsi(PlayerCharacter character, ApplyChoicesRequest.AsiChoice asi) {
+        int index = CharacterUpdates.owedAsiLevel(orEmpty(character.getLevelHistory()));
+        if (index < 0)
+            throw new ConflictException("No Ability Score Improvement is owed");
+
+        if ("ability".equals(asi.getType())) {
+            List<AbilityBonus> requested = validIncreases(character, asi.getIncreases());
+            List<AbilityBonus> applied = requested.stream()
+                    .map(increase -> new AbilityBonus(increase.ability(),
+                            CharacterUpdates.increaseAbility(character, increase.ability(), increase.bonus())))
+                    .toList();
+            CharacterUpdates.recordAsi(character, index,
+                    new AbilityScoreImprovement("ability", requested, null, null, null, null, applied));
+        } else if ("feat".equals(asi.getType())) {
+            if (asi.getFeatId() != null) {
+                Feat feat = featRepository.findById(asi.getFeatId())
+                        .orElseThrow(() -> new ValidationException("Feat not found"));
+                FeatEffectResolver.AppliedEffects applied = featEffectResolver.applyFeat(character, feat, asi);
+                CharacterUpdates.recordAsi(character, index, new AbilityScoreImprovement("feat", null, feat.getName(),
+                        asi.getFeatId(), null, CharacterUpdates.recordedEffects(applied, feat.getName()), null));
+            } else if (asi.getFeatName() != null && !asi.getFeatName().isBlank()) {
+                List<Feature> features = copy(character.getFeatures());
+                features.add(new Feature(asi.getFeatName(), "Feat", "Feat"));
+                character.setFeatures(features);
+                List<AbilityBonus> applied = null;
+                if (asi.getFeatAbility() != null && !asi.getFeatAbility().isBlank()) {
+                    applied = List.of(new AbilityBonus(asi.getFeatAbility(),
+                            CharacterUpdates.increaseAbility(character, asi.getFeatAbility(), 1)));
+                }
+                CharacterUpdates.recordAsi(character, index, new AbilityScoreImprovement("feat", null,
+                        asi.getFeatName(), null, asi.getFeatAbility(), null, applied));
+            } else {
+                throw new ValidationException("A feat taken in place of an Ability Score Improvement needs its ID or name");
+            }
+        } else {
+            throw new ValidationException("An Ability Score Improvement is of type 'ability' or 'feat'");
+        }
+    }
+
+    /**
+     * The increases of an Ability Score Improvement, each spelled out: +2 to one score or +1 to two different scores
+     * (PHB p.15), none above its maximum.
+     *
+     * @throws ValidationException for anything else
+     */
+    private List<AbilityBonus> validIncreases(PlayerCharacter character,
+                                              List<ApplyChoicesRequest.AbilityIncrease> increases) {
+        String rule = "An Ability Score Improvement is +2 to one ability score or +1 to two";
+        if (increases == null || increases.isEmpty() || increases.size() > 2) {
+            throw new ValidationException(rule);
+        }
+        AbilityScoreMaximums maximums = characterStats.abilityScoreMaximums(character);
+        Set<Ability> abilities = EnumSet.noneOf(Ability.class);
+        List<AbilityBonus> valid = new ArrayList<>();
+        for (ApplyChoicesRequest.AbilityIncrease increase : increases) {
+            Ability ability = CharacterUpdates.ability(increase.getAbility());
+            int expected = increases.size() == 1 ? 2 : 1;
+            if (increase.getBonus() != expected || !abilities.add(ability)) {
+                throw new ValidationException(rule);
+            }
+            int score = CharacterUpdates.score(character, ability);
+            int maximum = maximum(maximums, ability);
+            if (score + increase.getBonus() > maximum) {
+                throw new ValidationException(capitalised(ability.fullName()) + " is " + score
+                        + ", and an Ability Score Improvement can't take it above " + maximum);
+            }
+            valid.add(new AbilityBonus(ability.fullName(), increase.getBonus()));
+        }
+        return valid;
+    }
+
+    private static int maximum(AbilityScoreMaximums maximums, Ability ability) {
+        return switch (ability) {
+            case STR -> maximums.strength();
+            case DEX -> maximums.dexterity();
+            case CON -> maximums.constitution();
+            case INT -> maximums.intelligence();
+            case WIS -> maximums.wisdom();
+            case CHA -> maximums.charisma();
+        };
+    }
+
+    private static String capitalised(String text) {
+        return text.substring(0, 1).toUpperCase(Locale.ROOT) + text.substring(1);
+    }
+
+    /**
+     * Gives skills Expertise for the latest level that owes it, recording on that level those it didn't have so that
+     * levelling down removes them (D167).
+     */
+    private void applyExpertise(PlayerCharacter character, List<String> skills) {
+        List<LevelHistoryEntry> history = orEmpty(character.getLevelHistory());
+        int index = CharacterUpdates.owedExpertiseLevel(history);
+        if (index < 0)
+            throw new ConflictException("No Expertise is owed");
+        LevelHistoryEntry level = history.get(index);
+        int allowed = ClassProgression.expertiseChoices(level.className(), level.classLevel());
+        List<String> chosen = skills.stream().filter(s -> s != null && !s.isBlank()).distinct().toList();
+        if (chosen.size() > allowed)
+            throw new ValidationException("Level " + level.classLevel() + " " + level.className() + " gives Expertise in "
+                    + allowed + " skills, not " + chosen.size());
+
+        List<String> added = CharacterUpdates.added(character.getSkillExpertises(), chosen);
+        character.setSkillExpertises(CharacterUpdates.merged(character.getSkillExpertises(), chosen));
+        CharacterUpdates.recordExpertise(character, index, added);
     }
 
     @Transactional(readOnly = true)
@@ -658,175 +794,44 @@ public class CharacterService {
         return MulticlassValidator.getEligibleClasses(character, allClasses);
     }
 
-    private void applyAsi(PlayerCharacter character, ApplyChoicesRequest.AsiChoice asi) throws Exception {
-        if ("ability".equals(asi.getType()) && asi.getIncreases() != null) {
-            for (ApplyChoicesRequest.AbilityIncrease inc : asi.getIncreases()) {
-                applyAbilityIncrease(character, inc.getAbility(), inc.getBonus());
-            }
-            CharacterUpdates.recordAsiInHistory(character, asi);
-        } else if ("feat".equals(asi.getType())) {
-            if (asi.getFeatId() != null) {
-                Feat feat = featRepository.findById(asi.getFeatId())
-                        .orElseThrow(() -> new ValidationException("Feat not found"));
-                FeatEffectResolver.AppliedEffects applied = featEffectResolver.applyFeat(character, feat, asi);
-                CharacterUpdates.recordFeatInHistory(character, asi, feat.getName(), applied);
-            } else if (asi.getFeatName() != null) {
-                List<Feature> features = copy(character.getFeatures());
-                features.add(new Feature(asi.getFeatName(), "Feat", "Feat"));
-                character.setFeatures(features);
-                if (asi.getFeatAbility() != null && !asi.getFeatAbility().isBlank()) {
-                    applyAbilityIncrease(character, asi.getFeatAbility(), 1);
-                }
-                CharacterUpdates.recordAsiInHistory(character, asi);
-            }
-        }
+    // ── Derived Stats for other modules ──────────────────────────
 
-        String spellcastingAbility = character.getSpellcastingAbility();
-        if (spellcastingAbility != null) {
-            int profBonus = character.getProficiencyBonus();
-            int abilityMod = getAbilityMod(spellcastingAbility, character);
-            character.setSpellSaveDc(8 + profBonus + abilityMod);
-            character.setSpellAttackBonus(profBonus + abilityMod);
-        }
+    /**
+     * The calculator entries for each of the character's casting classes, read from its class entries. Shared by the
+     * recompute-spell-slots maintenance job (D153).
+     */
+    public Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries(PlayerCharacter character) {
+        return characterStats.spellSlotEntries(character);
     }
 
-    private void applyAbilityIncrease(PlayerCharacter character, String ability, int bonus) {
-        switch (ability.toLowerCase()) {
-            case "strength" -> character.setStrength(Math.min(20, character.getStrength() + bonus));
-            case "dexterity" -> character.setDexterity(Math.min(20, character.getDexterity() + bonus));
-            case "constitution" -> {
-                int oldConMod = abilityMod(character.getConstitution());
-                character.setConstitution(Math.min(20, character.getConstitution() + bonus));
-                int newConMod = abilityMod(character.getConstitution());
-                int hpAdjust = (newConMod - oldConMod) * character.getLevel();
-                character.setHpMax(character.getHpMax() + hpAdjust);
-                character.setHpCurrent(character.getHpCurrent() + hpAdjust);
-            }
-            case "intelligence" -> character.setIntelligence(Math.min(20, character.getIntelligence() + bonus));
-            case "wisdom" -> character.setWisdom(Math.min(20, character.getWisdom() + bonus));
-            case "charisma" -> character.setCharisma(Math.min(20, character.getCharisma() + bonus));
-        }
-    }
-
-    private void reverseAsiChoices(PlayerCharacter character, LevelChoices choices) {
-        if (choices == null || choices.asi() == null) return;
-        try {
-            AbilityScoreImprovement asi = choices.asi();
-            if ("ability".equals(asi.type())) {
-                if (asi.increases() != null) {
-                    for (AbilityBonus inc : asi.increases()) {
-                        applyAbilityIncrease(character, inc.ability(), -inc.bonus());
-                    }
-                }
-            } else if ("feat".equals(asi.type())) {
-                if (asi.appliedEffects() != null) {
-                    featEffectResolver.reverseFeatEffects(character, asi.appliedEffects());
-                } else {
-                    if (asi.featName() != null) CharacterUpdates.removeFeatureByName(character, asi.featName());
-                    String featAbility = asi.featAbility();
-                    if (featAbility != null && !featAbility.isBlank()) {
-                        applyAbilityIncrease(character, featAbility, -1);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("Failed to reverse ASI choices for character {}", character.getId(), e);
-        }
+    /** What the rules give the character now, beside what its sheet stores; changes nothing (D167). */
+    public DerivedStats derivedStats(PlayerCharacter character) {
+        return characterStats.derive(character);
     }
 
     /**
-     * Calculator entries for each of the character's casting classes, read from its class entries.
-     * Shared by level changes and the recompute-spell-slots maintenance job (D153).
+     * Works the character's Derived Stats out again, writes their stored copies and syncs its pools, for the
+     * recompute-characters job; the caller saves it.
      */
-    public Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries(PlayerCharacter character) {
-        return collectSlotEntries(character).entries();
+    public DerivedStats recalculate(PlayerCharacter character) {
+        return characterStats.apply(character);
     }
 
-    private record SlotEntries(Map<String, SpellSlotCalculator.ClassEntry> entries, String firstCastingAbility) {}
-
-    private SlotEntries collectSlotEntries(PlayerCharacter character) {
-        Map<String, SpellSlotCalculator.ClassEntry> slotEntries = new LinkedHashMap<>();
-        String firstCastingAbility = null;
-
-        for (ClassEntry entry : CharacterUpdates.orEmpty(character.getMulticlassEntries())) {
-            int classLevel = entry.level();
-            String subclassName = entry.subclassName();
-            CharacterClass cc = characterClassRepository.findById(entry.classId()).orElse(null);
-            if (cc == null) continue;
-            boolean isClassCaster = Boolean.TRUE.equals(cc.getIsSpellcaster());
-            boolean isThirdCaster = subclassName != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(subclassName) && classLevel >= 3;
-            if (isClassCaster || isThirdCaster) {
-                String casterType = SpellSlotCalculator.casterType(cc.getName(), isClassCaster,
-                        Boolean.TRUE.equals(cc.getIsPactMagic()), subclassName);
-                if (!"none".equals(casterType)) {
-                    slotEntries.put(cc.getName(), new SpellSlotCalculator.ClassEntry(classLevel, casterType));
-                }
-                if (firstCastingAbility == null) {
-                    firstCastingAbility = isClassCaster ? cc.getSpellcastingAbility() : "INT";
-                }
-            }
-        }
-        return new SlotEntries(slotEntries, firstCastingAbility);
-    }
-
-    private void recalculateSpellSlots(PlayerCharacter character) {
-        try {
-            SlotEntries collected = collectSlotEntries(character);
-            Map<String, SpellSlotCalculator.ClassEntry> slotEntries = collected.entries();
-            String primaryCastingAbility = character.getSpellcastingAbility() != null
-                    ? character.getSpellcastingAbility()
-                    : collected.firstCastingAbility();
-
-            if (!slotEntries.isEmpty()) {
-                character.setSpellSlots(buildSpellSlots(slotEntries));
-                character.setSpellcastingAbility(primaryCastingAbility);
-                if (primaryCastingAbility != null) {
-                    int profBonus = character.getProficiencyBonus();
-                    int abilityMod = getAbilityMod(primaryCastingAbility, character);
-                    character.setSpellSaveDc(8 + profBonus + abilityMod);
-                    character.setSpellAttackBonus(profBonus + abilityMod);
-                }
-            } else {
-                character.setSpellSlots(null);
-            }
-        } catch (Exception e) {
-            log.error("Failed to recalculate spell slots for character {} — spell slots may be stale", character.getId(), e);
-            throw new IllegalStateException("Failed to recalculate spell slots: " + e.getMessage(), e);
-        }
-    }
-
-    private void applyMulticlassProficiencies(PlayerCharacter character, CharacterClass newClass) {
-        if (newClass.getMulticlassProficiencies() == null) return;
-        try {
-            Map<String, Object> mcProf = objectMapper.readValue(
-                    newClass.getMulticlassProficiencies(), new com.fasterxml.jackson.core.type.TypeReference<>() {});
-
-            @SuppressWarnings("unchecked")
-            List<String> armorGrants = (List<String>) mcProf.get("armor");
-            if (armorGrants != null) {
-                character.setArmorProficiencies(CharacterUpdates.merged(character.getArmorProficiencies(), armorGrants));
-            }
-
-            @SuppressWarnings("unchecked")
-            List<String> weaponGrants = (List<String>) mcProf.get("weapons");
-            if (weaponGrants != null) {
-                character.setWeaponProficiencies(CharacterUpdates.merged(character.getWeaponProficiencies(), weaponGrants));
-            }
-
-            @SuppressWarnings("unchecked")
-            List<String> toolGrants = (List<String>) mcProf.get("tools");
-            if (toolGrants != null) {
-                character.setToolProficiencies(CharacterUpdates.merged(character.getToolProficiencies(), toolGrants));
-            }
-        } catch (Exception e) {
-            log.error("Failed to apply multiclass proficiencies from {} for character {}",
-                    newClass.getName(), character.getId(), e);
-        }
+    /**
+     * What the character casts with in one of its classes, worked out from its live sheet, which class spells in
+     * combat use (D164); empty for a class it has no spells in.
+     */
+    public Optional<ClassSpellcasting> classSpellcasting(PlayerCharacter character, String className) {
+        return characterStats.spellcasting(character).stream()
+                .filter(c -> c.className().equals(className))
+                .findFirst();
     }
 
     private int getCurrentClassLevel(PlayerCharacter character, UUID classId) {
         return MulticlassValidator.classLevels(character.getMulticlassEntries()).getOrDefault(classId, 1);
     }
+
+    // ── Rests ────────────────────────────────────────────────────
 
     @Transactional
     public CharacterResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
@@ -944,19 +949,17 @@ public class CharacterService {
     }
 
     /**
-     * Resets resource pools matching the given trigger (shortRest / longRest).
-     * Operates on the character's {@code resource_pools} JSONB column.
+     * Resets resource pools matching the given trigger (shortRest / longRest), innate uses included on a long rest.
+     * A pool whose reset can't be worked out stops the rest (D155).
      */
     private void resetResourcePools(PlayerCharacter character, String resetTrigger) {
-        try {
-            List<ResourcePoolEntry> pools = CharacterUpdates.orEmpty(character.getResourcePools());
-            if (pools.isEmpty()) return;
-            Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
-            character.setResourcePools(new ArrayList<>(resourcePoolService.resetPools(pools, resetTrigger, context).pools()));
-        } catch (Exception e) {
-            log.warn("Failed to reset resource pools for character {}", character.getId(), e);
-        }
+        List<ResourcePoolEntry> pools = orEmpty(character.getResourcePools());
+        if (pools.isEmpty()) return;
+        Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
+        character.setResourcePools(new ArrayList<>(resourcePoolService.resetPools(pools, resetTrigger, context).pools()));
     }
+
+    // ── Deleting and reading ─────────────────────────────────────
 
     @Transactional
     public void deleteCharacter(UUID characterId, UUID userId) {
@@ -1004,24 +1007,9 @@ public class CharacterService {
                 .orElseThrow(() -> new NotFoundException("Character not found"));
     }
 
-    // Every slot unused at its new maximum, or null for none
-    Map<String, SpellSlot> buildSpellSlots(Map<String, SpellSlotCalculator.ClassEntry> entries) {
-        Map<String, Integer> slots = SpellSlotCalculator.calculateSlots(entries);
-        if (slots.isEmpty()) return null;
-        Map<String, SpellSlot> spellSlots = new LinkedHashMap<>();
-        slots.forEach((key, max) -> spellSlots.put(key, new SpellSlot(max, 0)));
-        return spellSlots;
-    }
-
     static int abilityMod(Integer score) {
         if (score == null) return 0;
         return Ability.modifier(score);
-    }
-
-    static boolean isExpertiseLevel(String className, int classLevel) {
-        if ("Rogue".equals(className)) return classLevel == 1 || classLevel == 6;
-        if ("Bard".equals(className)) return classLevel == 3 || classLevel == 10;
-        return false;
     }
 
     static int proficiencyBonusForLevel(int level) {
@@ -1039,31 +1027,5 @@ public class CharacterService {
             case "CHA" -> abilityMod(character.getCharisma());
             default -> 0;
         };
-    }
-
-    private static int getSpellcastingAbilityMod(String ability, CharacterCreateRequest request) {
-        if (ability == null) return 0;
-        return switch (ability.toUpperCase()) {
-            case "STR" -> abilityMod(request.getStrength());
-            case "DEX" -> abilityMod(request.getDexterity());
-            case "CON" -> abilityMod(request.getConstitution());
-            case "INT" -> abilityMod(request.getIntelligence());
-            case "WIS" -> abilityMod(request.getWisdom());
-            case "CHA" -> abilityMod(request.getCharisma());
-            default -> 0;
-        };
-    }
-
-    private Integer extractWalkSpeed(String speedJson) {
-        if (speedJson == null) return null;
-        try {
-            if (speedJson.trim().startsWith("{")) {
-                var node = objectMapper.readTree(speedJson);
-                if (node.has("walk")) return node.get("walk").asInt();
-            }
-            return Integer.parseInt(speedJson.trim());
-        } catch (Exception e) {
-            return null;
-        }
     }
 }

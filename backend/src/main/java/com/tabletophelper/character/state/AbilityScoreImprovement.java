@@ -17,6 +17,9 @@ import java.util.UUID;
  * @param featId         the feat taken, for a feat whose effects were applied
  * @param featAbility    the ability a feat named only by its name increased by 1
  * @param appliedEffects what applying the feat changed, which levelling down reverses
+ * @param applied        each increase as actually applied under the ability score maximum (D167), for the increases or
+ *                       the feat ability; an improvement recorded before R6 has none, and levelling down then takes
+ *                       off the amount requested
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -26,10 +29,11 @@ public record AbilityScoreImprovement(
         String featName,
         UUID featId,
         String featAbility,
-        AppliedFeatEffects appliedEffects
+        AppliedFeatEffects appliedEffects,
+        List<AbilityBonus> applied
 ) {
 
     public AbilityScoreImprovement withFeatId(UUID newFeatId) {
-        return new AbilityScoreImprovement(type, increases, featName, newFeatId, featAbility, appliedEffects);
+        return new AbilityScoreImprovement(type, increases, featName, newFeatId, featAbility, appliedEffects, applied);
     }
 }

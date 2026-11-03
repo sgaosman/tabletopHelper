@@ -107,6 +107,17 @@ public abstract class IntegrationTest {
                 .build()).getId();
     }
 
+    /**
+     * A class with Spellcasting, or a warlock's Pact Magic, casting with the ability given, so the server works out
+     * its slots and spell numbers (D167).
+     */
+    protected UUID insertCaster(String name, int hitDice, String ability, boolean pactMagic) {
+        return characterClassRepository.save(CharacterClass.builder()
+                .name(name).source("PHB").hitDice(hitDice).subclassLevel(pactMagic ? 1 : 2)
+                .isSpellcaster(true).isPactMagic(pactMagic).spellcastingAbility(ability)
+                .build()).getId();
+    }
+
     // ── API calls ────────────────────────────────────────────────
 
     /** Sends a JSON request, with a bearer token when one is given. Never throws on error statuses. */

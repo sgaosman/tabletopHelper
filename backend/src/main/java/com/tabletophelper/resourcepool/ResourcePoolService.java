@@ -2,6 +2,7 @@ package com.tabletophelper.resourcepool;
 
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
@@ -10,7 +11,6 @@ import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ExpressionEvaluator;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -22,14 +22,13 @@ import java.util.stream.Collectors;
  *
  * <h3>Pool lifecycle</h3>
  * <ol>
- *   <li>syncPoolsForCharacter — creates/reconciles pools on the character sheet</li>
+ *   <li>reconciledPools — the pools a character sheet should have, which CharacterStats writes after every change</li>
  *   <li>copyToParticipant — copies currentUses to encounter participant on join</li>
  *   <li>Spend/recover during combat — tracked independently on participant</li>
  *   <li>syncBackToCharacter — writes currentUses back to character sheet on COMPLETED</li>
  *   <li>resetPools — applies rest recovery (short/long) or per-turn resets</li>
  * </ol>
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ResourcePoolService {
@@ -59,57 +58,79 @@ public class ResourcePoolService {
     // ── Character sheet ──────────────────────────────────────────
 
     /**
-     * Idempotent reconciliation: ensures the character's {@code resource_pools}
-     * matches what the definition tables say should exist. Safe to call after
-     * creation, level-up, feat application, or any feature change.
+     * The pools a character should have, from the class feature definitions for its classes and subclasses, and one
+     * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165). A pool it already has
+     * keeps its place and the uses it has spent; one whose source is gone is dropped. Changes nothing, and a failure
+     * stops the command that asked rather than leaving the pools half worked out (D155).
+     *
+     * @param context the variables the maximums' formulas read, as {@link #buildCharacterContext} gives them
      */
-    public void syncPoolsForCharacter(PlayerCharacter character) {
-        try {
-            List<ResourcePoolEntry> existing = orEmpty(character.getResourcePools());
-            Map<String, ResourcePoolEntry> byPoolId = existing.stream()
-                    .collect(Collectors.toMap(ResourcePoolEntry::poolId, e -> e, (a, b) -> a, LinkedHashMap::new));
+    public List<ResourcePoolEntry> reconciledPools(PlayerCharacter character, Map<String, Integer> context) {
+        Map<String, ResourcePoolEntry> byPoolId = orEmpty(character.getResourcePools()).stream()
+                .collect(Collectors.toMap(ResourcePoolEntry::poolId, e -> e, (a, b) -> a, LinkedHashMap::new));
+        Set<String> desiredPoolIds = new LinkedHashSet<>();
 
-            Map<String, Integer> context = buildCharacterContext(character);
+        for (ClassEntry entry : orEmpty(character.getMulticlassEntries())) {
+            UUID classId = entry.classId();
+            List<ClassFeaturePool> featurePools = entry.subclassId() != null
+                    ? classFeaturePoolRepository.findByClassIdAndLevelAndSubclass(classId, entry.level(),
+                    entry.subclassId())
+                    : classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(
+                    classId, entry.level());
 
-            // Collect desired pools from class feature definitions
-            List<ClassEntry> classEntries = orEmpty(character.getMulticlassEntries());
-            Set<String> desiredPoolIds = new LinkedHashSet<>();
+            for (var fp : featurePools) {
+                ResourcePoolDefinition def = fp.getPoolDefinition();
+                if (def == null) continue;
+                desiredPoolIds.add(def.getPoolId());
 
-            for (ClassEntry entry : classEntries) {
-                UUID classId = entry.classId();
-                List<ClassFeaturePool> featurePools;
-
-                if (entry.subclassId() != null) {
-                    UUID subclassId = entry.subclassId();
-                    featurePools = classFeaturePoolRepository
-                            .findByClassIdAndLevelAndSubclass(classId, entry.level(), subclassId);
-                } else {
-                    featurePools = classFeaturePoolRepository
-                            .findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(classId, entry.level());
-                }
-
-                for (var fp : featurePools) {
-                    ResourcePoolDefinition def = fp.getPoolDefinition();
-                    if (def == null) continue;
-                    desiredPoolIds.add(def.getPoolId());
-
-                    ResourcePoolEntry existingEntry = byPoolId.get(def.getPoolId());
-                    int maxUses = evaluateMaxUses(def.getMaxUsesFormula(), context, def.getPoolId());
-
-                    ResourcePoolEntry entry2 = buildEntry(def, maxUses,
-                            existingEntry != null ? existingEntry.currentUses() : maxUses);
-                    byPoolId.put(def.getPoolId(), entry2);
-                }
+                int maxUses = evaluateMaxUses(def.getMaxUsesFormula(), context, def.getPoolId());
+                byPoolId.put(def.getPoolId(), buildEntry(def, maxUses, keptUses(byPoolId.get(def.getPoolId()), maxUses)));
             }
-
-            // Remove orphaned pools (source no longer present)
-            byPoolId.keySet().retainAll(desiredPoolIds);
-
-            List<ResourcePoolEntry> result = new ArrayList<>(byPoolId.values());
-            character.setResourcePools(result);
-        } catch (Exception e) {
-            log.error("Failed to sync resource pools for character {}", character.getId(), e);
         }
+
+        int characterLevel = character.getLevel() != null ? character.getLevel() : 1;
+        for (KnownSpell spell : orEmpty(character.getSpellsKnown())) {
+            if (!hasInnateUses(spell, characterLevel)) continue;
+            String poolId = ResourcePoolEntry.innatePoolId(spell.name());
+            // A spell known from two places has one pool, with the first's uses
+            if (!desiredPoolIds.add(poolId)) continue;
+
+            int uses = spell.usesPerLongRest();
+            byPoolId.put(poolId, ResourcePoolEntry.innate(spell.name().trim(), uses, sourceType(spell.source()),
+                    sourceName(spell.source())).withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
+        }
+
+        // Remove orphaned pools (source no longer present)
+        byPoolId.keySet().retainAll(desiredPoolIds);
+        return new ArrayList<>(byPoolId.values());
+    }
+
+    // A pool the character already has keeps the uses it has spent, as slots and Hit Dice do, so a higher maximum
+    // adds uses and a lower one takes them away; a new pool starts full
+    private static int keptUses(ResourcePoolEntry existing, int maxUses) {
+        if (existing == null) return maxUses;
+        int spent = Math.max(0, existing.maxUses() - existing.currentUses());
+        return Math.max(0, maxUses - spent);
+    }
+
+    // A levelled spell the character can cast now with uses of its own, as SpellSources reads it in combat
+    private static boolean hasInnateUses(KnownSpell spell, int characterLevel) {
+        return spell.name() != null && !spell.name().isBlank()
+                && spell.level() > 0
+                && spell.usesPerLongRest() != null && spell.usesPerLongRest() > 0
+                && !Boolean.TRUE.equals(spell.atWill())
+                && (spell.unlocksAtLevel() == null || spell.unlocksAtLevel() <= characterLevel);
+    }
+
+    // RACE or FEAT for a race or feat spell, CLASS for any other a character knows
+    private static String sourceType(String source) {
+        if (source != null && source.startsWith("race:")) return "RACE";
+        if (source != null && source.startsWith("feat:")) return "FEAT";
+        return "CLASS";
+    }
+
+    private static String sourceName(String source) {
+        return source != null && source.contains(":") ? source.substring(source.indexOf(':') + 1) : null;
     }
 
     /**
@@ -125,24 +146,21 @@ public class ResourcePoolService {
      * for matching poolIds. Called when an encounter transitions to COMPLETED.
      */
     public void syncBackToCharacter(EncounterParticipant participant, PlayerCharacter character) {
-        try {
-            if (participant.getResourcePoolsCurrent() == null) return;
-            List<ResourcePoolEntry> partPools = participant.getResourcePoolsCurrent();
-            List<ResourcePoolEntry> charPools = orEmpty(character.getResourcePools());
+        if (participant.getResourcePoolsCurrent() == null) return;
+        List<ResourcePoolEntry> partPools = participant.getResourcePoolsCurrent();
+        List<ResourcePoolEntry> charPools = orEmpty(character.getResourcePools());
 
-            Map<String, Integer> currentByPoolId = partPools.stream()
-                    .collect(Collectors.toMap(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses));
+        // A participant holds one pool per ID; should it hold two, the first counts
+        Map<String, Integer> currentByPoolId = partPools.stream()
+                .collect(Collectors.toMap(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses, (a, b) -> a));
 
-            List<ResourcePoolEntry> updated = charPools.stream()
-                    .map(e -> currentByPoolId.containsKey(e.poolId())
-                            ? e.withCurrentUses(currentByPoolId.get(e.poolId()))
-                            : e)
-                    .collect(Collectors.toCollection(ArrayList::new));
+        List<ResourcePoolEntry> updated = charPools.stream()
+                .map(e -> currentByPoolId.containsKey(e.poolId())
+                        ? e.withCurrentUses(currentByPoolId.get(e.poolId()))
+                        : e)
+                .collect(Collectors.toCollection(ArrayList::new));
 
-            character.setResourcePools(updated);
-        } catch (Exception e) {
-            log.error("Failed to sync pools back to character {}", character.getId(), e);
-        }
+        character.setResourcePools(updated);
     }
 
     // ── Pool mutation (in-combat) ─────────────────────────────────

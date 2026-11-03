@@ -128,9 +128,18 @@ public class CharacterResponse {
     // Keyed "1" to "9" by spell level, and "pact_N" for pact slots
     private Map<String, SpellSlot> spellSlots;
 
+    // The main spell numbers, which race and feat spells use (D164), and the ability behind them: the one chosen at
+    // creation for race and feat spells, or else the first casting class's
     private Integer spellSaveDc;
     private Integer spellAttackBonus;
     private String spellcastingAbility;
+
+    // What each class casts with, worked out by the server, in the order the classes were taken (D158, D167)
+    @Schema(requiredMode = REQUIRED)
+    private List<ClassSpellcasting> spellcasting;
+
+    @Schema(requiredMode = REQUIRED)
+    private AbilityScoreMaximums abilityScoreMaximums;
 
     // The always-prepared spells of each of the character's subclasses, by subclass name and then by the class
     // level they come at
@@ -157,7 +166,7 @@ public class CharacterResponse {
     private List<AbilityBonus> racialAbilityBonuses;
     private List<ClassEntry> multiclassEntries;
 
-    // Keyed by class name
+    // Keyed by class name: one die per level in the class, the totals worked out by the server
     private Map<String, HitDicePool> hitDice;
 
     private List<LevelHistoryEntry> levelHistory;

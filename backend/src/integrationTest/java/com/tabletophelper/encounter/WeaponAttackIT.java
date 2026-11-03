@@ -47,11 +47,15 @@ class WeaponAttackIT extends IntegrationTest {
         campaignId = UUID.fromString(campaign.get("id").asText());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
-        UUID character = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
+        // A feat is a feature only from creation or levelling (D167); the proficiency bonus is the server's, +2
+        UUID character = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
+                Map.of("name", "Aria", "raceId", insertRace("Human"), "classId", insertClass("Fighter", 10),
+                        "strength", 16, "dexterity", 14, "constitution", 12, "intelligence", 10, "wisdom", 10,
+                        "charisma", 10, "features",
+                        List.of(Map.of("name", "Great Weapon Master", "description", "Feat", "source", "Feat"))),
+                player.accessToken())).get("id").asText());
         expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + character, Map.of(
-                "strength", 16, "proficiencyBonus", 2,
                 "weaponProficiencies", List.of("simple", "martial"),
-                "features", List.of(Map.of("name", "Great Weapon Master", "description", "Feat", "source", "Feat")),
                 "equipment", List.of(Map.of("name", "Greatsword", "quantity", 1),
                         Map.of("name", "Longsword", "quantity", 1, "description", "+1"),
                         Map.of("name", "Backpack", "quantity", 1))),

@@ -414,13 +414,16 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     damageResistances: null, damageImmunities: null, conditionImmunities: null,
     features: [{ name: 'Action Surge', description: 'Take one additional action.', source: 'Class' }],
     spellsKnown: null, spellSlots: null, spellSaveDc: null, spellAttackBonus: null, spellcastingAbility: null,
+    // Worked out by the server (D167)
+    spellcasting: [],
+    abilityScoreMaximums: { strength: 20, dexterity: 20, constitution: 20, intelligence: 20, wisdom: 20, charisma: 20 },
     subclassAlwaysPreparedSpells: null, equipment: null, currency: null,
     personalityTraits: null, ideals: null, bonds: null, flaws: null,
     deathSaveSuccesses: 0, deathSaveFailures: 0, portraitUrl: null,
     abilityScoreMethod: null, racialAbilityBonuses: null,
     multiclassEntries: null,
     hitDice: { [cls]: { total: level, remaining: level, dieSize: 10 } },
-    levelHistory: [{ characterLevel: 1, classId: 'cls-fighter', className: cls, classLevel: 1, hpGained: 12, featuresGained: [], choices: {} }],
+    levelHistory: [{ characterLevel: 1, classId: 'cls-fighter', className: cls, classLevel: 1, hpGained: 12, hitDieResult: 10, featuresGained: [], choices: {} }],
     featResources: null, isActive: true,
     createdAt: makeTimestamp(), updatedAt: makeTimestamp(),
   } satisfies PlayerCharacter;

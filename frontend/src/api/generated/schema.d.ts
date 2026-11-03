@@ -1379,6 +1379,7 @@ export interface components {
             bonus?: number | null;
         };
         AbilityScoreImprovement: {
+            applied?: components["schemas"]["AbilityBonus"][] | null;
             appliedEffects?: components["schemas"]["AppliedFeatEffects"] | null;
             featAbility?: string | null;
             /** Format: uuid */
@@ -1387,6 +1388,20 @@ export interface components {
             increases?: components["schemas"]["AbilityBonus"][] | null;
             /** @enum {string|null} */
             type?: "ability" | "feat" | null;
+        };
+        AbilityScoreMaximums: {
+            /** Format: int32 */
+            charisma: number;
+            /** Format: int32 */
+            constitution: number;
+            /** Format: int32 */
+            dexterity: number;
+            /** Format: int32 */
+            intelligence: number;
+            /** Format: int32 */
+            strength: number;
+            /** Format: int32 */
+            wisdom: number;
         };
         AddParticipantRequest: {
             /** Format: int32 */
@@ -1603,8 +1618,6 @@ export interface components {
             abilityScoreMethod?: string | null;
             alignment?: string | null;
             armorProficiencies?: string[] | null;
-            /** Format: int32 */
-            armourClass?: number | null;
             background?: string | null;
             /** Format: uuid */
             backgroundId?: string | null;
@@ -1623,13 +1636,6 @@ export interface components {
             dexterity?: number | null;
             equipment?: components["schemas"]["InventoryItem"][] | null;
             features?: components["schemas"]["Feature"][] | null;
-            hitDice?: {
-                [key: string]: components["schemas"]["HitDicePool"];
-            } | null;
-            /** Format: int32 */
-            hpMax?: number | null;
-            /** Format: int32 */
-            initiativeBonus?: number | null;
             /** Format: int32 */
             intelligence?: number | null;
             languageProficiencies?: string[] | null;
@@ -1637,8 +1643,6 @@ export interface components {
             level?: number | null;
             multiclassClassEntries?: components["schemas"]["ClassEntry"][] | null;
             name: string;
-            /** Format: int32 */
-            proficiencyBonus?: number | null;
             race?: string | null;
             /** Format: uuid */
             raceId: string;
@@ -1646,15 +1650,6 @@ export interface components {
             savingThrowProficiencies?: string[] | null;
             skillExpertises?: string[] | null;
             skillProficiencies?: string[] | null;
-            /** Format: int32 */
-            speed?: number | null;
-            /** Format: int32 */
-            spellAttackBonus?: number | null;
-            /** Format: int32 */
-            spellSaveDc?: number | null;
-            spellSlots?: {
-                [key: string]: components["schemas"]["SpellSlot"];
-            } | null;
             spellcastingAbility?: string | null;
             spellsKnown?: components["schemas"]["KnownSpell"][] | null;
             /** Format: int32 */
@@ -1668,6 +1663,7 @@ export interface components {
             wisdom?: number | null;
         };
         CharacterResponse: {
+            abilityScoreMaximums: components["schemas"]["AbilityScoreMaximums"];
             abilityScoreMethod?: string | null;
             alignment?: string | null;
             armorProficiencies?: string[] | null;
@@ -1753,6 +1749,7 @@ export interface components {
             spellSlots?: {
                 [key: string]: components["schemas"]["SpellSlot"];
             } | null;
+            spellcasting: components["schemas"]["ClassSpellcasting"][];
             spellcastingAbility?: string | null;
             spellsKnown?: components["schemas"]["KnownSpell"][] | null;
             /** Format: int32 */
@@ -1779,19 +1776,14 @@ export interface components {
             abilityScoreMethod?: string | null;
             alignment?: string | null;
             armorProficiencies?: string[] | null;
-            /** Format: int32 */
-            armourClass?: number | null;
             background?: string | null;
             /** Format: uuid */
             backgroundId?: string | null;
             bonds?: string | null;
             /** Format: uuid */
             campaignId?: string | null;
-            characterClass?: string | null;
             /** Format: int32 */
             charisma?: number | null;
-            /** Format: uuid */
-            classId?: string | null;
             clearCampaign?: boolean | null;
             conditionImmunities?: string[] | null;
             /** Format: int32 */
@@ -1805,7 +1797,6 @@ export interface components {
             /** Format: int32 */
             experiencePoints?: number | null;
             featResources?: components["schemas"]["FeatResourceEntry"][] | null;
-            features?: components["schemas"]["Feature"][] | null;
             flaws?: string | null;
             hitDice?: {
                 [key: string]: components["schemas"]["HitDicePool"];
@@ -1813,25 +1804,15 @@ export interface components {
             /** Format: int32 */
             hpCurrent?: number | null;
             /** Format: int32 */
-            hpMax?: number | null;
-            /** Format: int32 */
             hpTemp?: number | null;
             ideals?: string | null;
             /** Format: int32 */
-            initiativeBonus?: number | null;
-            /** Format: int32 */
             intelligence?: number | null;
             languageProficiencies?: string[] | null;
-            /** Format: int32 */
-            level?: number | null;
-            levelHistory?: components["schemas"]["LevelHistoryEntry"][] | null;
-            multiclassEntries?: components["schemas"]["ClassEntry"][] | null;
             name?: string | null;
             notes?: string | null;
             personalityTraits?: string | null;
             portraitUrl?: string | null;
-            /** Format: int32 */
-            proficiencyBonus?: number | null;
             race?: string | null;
             /** Format: uuid */
             raceId?: string | null;
@@ -1840,22 +1821,12 @@ export interface components {
             savingThrowProficiencies?: string[] | null;
             skillExpertises?: string[] | null;
             skillProficiencies?: string[] | null;
-            /** Format: int32 */
-            speed?: number | null;
-            /** Format: int32 */
-            spellAttackBonus?: number | null;
-            /** Format: int32 */
-            spellSaveDc?: number | null;
             spellSlots?: {
                 [key: string]: components["schemas"]["SpellSlot"];
             } | null;
-            spellcastingAbility?: string | null;
             spellsKnown?: components["schemas"]["KnownSpell"][] | null;
             /** Format: int32 */
             strength?: number | null;
-            subclass?: string | null;
-            /** Format: uuid */
-            subclassId?: string | null;
             toolProficiencies?: string[] | null;
             weaponProficiencies?: string[] | null;
             /** Format: int32 */
@@ -1869,6 +1840,26 @@ export interface components {
             level: number;
             /** Format: uuid */
             subclassId?: string | null;
+            subclassName?: string | null;
+        };
+        ClassSpellcasting: {
+            ability: string;
+            /** Format: int32 */
+            cantripsKnown: number;
+            /** Format: int32 */
+            classLevel: number;
+            className: string;
+            /** Format: int32 */
+            highestSpellLevel: number;
+            pactMagic: boolean;
+            /** Format: int32 */
+            preparedSpells?: number | null;
+            /** Format: int32 */
+            spellAttackBonus: number;
+            /** Format: int32 */
+            spellSaveDc: number;
+            /** Format: int32 */
+            spellsKnown?: number | null;
             subclassName?: string | null;
         };
         CombatLogResponse: {
@@ -2121,8 +2112,10 @@ export interface components {
         };
         LevelChoices: {
             asi?: components["schemas"]["AbilityScoreImprovement"] | null;
+            expertise?: string[] | null;
         };
         LevelHistoryEntry: {
+            abilityIncreases?: components["schemas"]["AbilityBonus"][] | null;
             /** Format: int32 */
             characterLevel: number;
             choices?: components["schemas"]["LevelChoices"] | null;
@@ -2133,7 +2126,10 @@ export interface components {
             className?: string | null;
             featuresGained?: components["schemas"]["Feature"][] | null;
             /** Format: int32 */
+            hitDieResult?: number | null;
+            /** Format: int32 */
             hpGained: number;
+            proficienciesGained?: components["schemas"]["ProficienciesGained"] | null;
         };
         LevelUpRequest: {
             /** Format: uuid */
@@ -2407,6 +2403,11 @@ export interface components {
             attackBonus: number;
             damage: string;
             feat: string;
+        };
+        ProficienciesGained: {
+            armor?: string[] | null;
+            tools?: string[] | null;
+            weapons?: string[] | null;
         };
         Race: {
             abilityScoreBonuses?: string | null;

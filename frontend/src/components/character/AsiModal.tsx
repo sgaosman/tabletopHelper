@@ -17,13 +17,18 @@ const ABILITIES = [
   { key: 'charisma', label: 'CHA', full: 'Charisma' },
 ] as const;
 
+type AbilityKey = typeof ABILITIES[number]['key'];
+
 interface Props {
   character: PlayerCharacter;
   onComplete: (updated: PlayerCharacter) => void;
   onClose: () => void;
 }
 
-/** An ability score improvement, or a feat in its place. The updated character replaces the cached one. */
+/**
+ * An ability score improvement, or a feat in its place: +2 to one score or +1 to two, none above the maximum the
+ * server gives it (20, or 24 for STR and CON after Primal Champion). The updated character replaces the cached one.
+ */
 export default function AsiModal({ character, onComplete, onClose }: Props) {
   const applyChoices = useApplyChoices();
   const [mode, setMode] = useState<'ability' | 'feat'>('ability');
@@ -34,13 +39,14 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
 
   const pointsSpent = Object.values(increases).reduce((a, b) => a + b, 0);
   const pointsRemaining = 2 - pointsSpent;
+  const maximum = (ability: AbilityKey) => character.abilityScoreMaximums[ability];
 
-  function adjustAbility(ability: string, delta: number) {
+  function adjustAbility(ability: AbilityKey, delta: number) {
     const current = increases[ability] || 0;
     const newVal = current + delta;
-    const currentScore = character[ability as keyof PlayerCharacter] as number;
+    const currentScore = character[ability];
     if (newVal < 0 || newVal > 2) return;
-    if (currentScore + newVal > 20) return;
+    if (currentScore + newVal > maximum(ability)) return;
     if (delta > 0 && pointsRemaining <= 0) return;
     const updated = { ...increases };
     if (newVal === 0) delete updated[ability];
@@ -105,19 +111,22 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
         {mode === 'ability' && (
           <>
             <p className="font-body text-[15px] font-semibold text-muted">
-              Distribute 2 points across your ability scores. No score can exceed 20.
+              Distribute 2 points across your ability scores. No score can go above its maximum.
             </p>
             <div className="space-y-2">
               {ABILITIES.map(({ key, label, full }) => {
-                const base = character[key as keyof PlayerCharacter] as number;
+                const base = character[key];
                 const bonus = increases[key] || 0;
-                const atMax = base + bonus >= 20;
+                const atMax = base + bonus >= maximum(key);
                 return (
                   <div key={key} className="flex items-center justify-between bg-page-alt px-4 py-2">
                     <div className="flex items-center gap-3">
                       <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-8">{label}</span>
                       <span className="font-heading text-[17px] font-bold text-ink">{base}</span>
                       {bonus > 0 && <span className="font-body text-[15px] font-semibold text-buff">+{bonus}</span>}
+                      {maximum(key) !== 20 && (
+                        <span className="font-body text-[13px] font-semibold text-faint">max {maximum(key)}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1">
                       <IconButton label={`Decrease ${full}`} onClick={() => adjustAbility(key, -1)} disabled={bonus <= 0}

@@ -9,6 +9,7 @@ import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+/**
+ * Applying and reversing feats. Since R6 workstream C the resolver only records speed, initiative and hit point
+ * bonuses, and the ability increases it applies are capped at the maximum and recorded at the amount applied (D167):
+ * 6.5, 6.6, 6.8, 6.15, 6.16, 6.19 and 6.20 now check that it leaves those stats to CharacterStats, whose tests check
+ * the stats it works out (Alert, Mobile, Tough, and Constitution modifiers rounding down).
+ */
 @ExtendWith(MockitoExtension.class)
 class FeatEffectResolverTest {
 
@@ -175,7 +182,7 @@ class FeatEffectResolverTest {
     // --- 6.5 Speed bonus: Mobile ---
 
     @Test
-    @DisplayName("6.5 Speed bonus: Mobile adds +10 speed")
+    @DisplayName("6.5 Speed bonus: Mobile records +10 speed and leaves the speed for CharacterStats to work out")
     void speedBonusMobile() throws Exception {
         PlayerCharacter c = baseCharacter();
         assertEquals(30, c.getSpeed());
@@ -184,14 +191,14 @@ class FeatEffectResolverTest {
 
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, null);
 
-        assertEquals(40, c.getSpeed());
+        assertEquals(30, c.getSpeed());
         assertEquals(10, effects.speedBonus());
     }
 
     // --- 6.6 HP per level: Tough ---
 
     @Test
-    @DisplayName("6.6 HP per level: Tough adds 2 * level HP")
+    @DisplayName("6.6 HP per level: Tough records 2 a level and adds its feature, and leaves the hit points to CharacterStats")
     void hpPerLevelTough() throws Exception {
         PlayerCharacter c = baseCharacter();
         assertEquals(38, c.getHpMax());
@@ -201,9 +208,10 @@ class FeatEffectResolverTest {
 
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, null);
 
-        assertEquals(48, c.getHpMax());
-        assertEquals(48, c.getHpCurrent());
+        assertEquals(38, c.getHpMax());
+        assertEquals(38, c.getHpCurrent());
         assertEquals(2, effects.hpPerLevel());
+        assertEquals(List.of("Tough"), c.getFeatures().stream().map(Feature::name).toList());
     }
 
     // --- 6.7 Passive stat bonus: Observant ---
@@ -230,7 +238,7 @@ class FeatEffectResolverTest {
     // --- 6.8 Initiative bonus: Alert ---
 
     @Test
-    @DisplayName("6.8 Initiative bonus: Alert adds +5 initiative")
+    @DisplayName("6.8 Initiative bonus: Alert records +5 initiative and leaves the initiative for CharacterStats to work out")
     void initiativeBonusAlert() throws Exception {
         PlayerCharacter c = baseCharacter();
         assertEquals(2, c.getInitiativeBonus());
@@ -239,7 +247,7 @@ class FeatEffectResolverTest {
 
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, null);
 
-        assertEquals(7, c.getInitiativeBonus());
+        assertEquals(2, c.getInitiativeBonus());
         assertEquals(5, effects.initiativeBonus());
     }
 
@@ -382,53 +390,38 @@ class FeatEffectResolverTest {
     // --- 6.15 Reversal: HP per level: Tough ---
 
     @Test
-    @DisplayName("6.15 Reversal: Tough HP per level is removed")
+    @DisplayName("6.15 Reversal: Tough's feature goes, and the hit points are left to CharacterStats")
     void reversalHpPerLevel() throws Exception {
         PlayerCharacter c = baseCharacter();
-        assertEquals(38, c.getHpMax());
-
         Feat feat = buildFeat("Tough", null, "{\"hpPerLevel\": 2}", null);
 
         resolver.applyFeat(c, feat, null);
-        assertEquals(48, c.getHpMax());
-        assertEquals(48, c.getHpCurrent());
-
         AppliedFeatEffects recorded = bonuses("Tough", 0, 0, 2);
         resolver.reverseFeatEffects(c, recorded);
 
         assertEquals(38, c.getHpMax());
         assertEquals(38, c.getHpCurrent());
+        assertTrue(c.getFeatures().isEmpty());
     }
 
     // --- 6.16 Reversal: speed/initiative/passive ---
 
     @Test
-    @DisplayName("6.16 Reversal: speed, initiative, passive stats are reversed")
+    @DisplayName("6.16 Reversal: Mobile's and Alert's features go one at a time, and speed and initiative are left alone")
     void reversalSpeedInitiativePassive() throws Exception {
         PlayerCharacter c = baseCharacter();
         int origSpeed = c.getSpeed();
         int origInit = c.getInitiativeBonus();
 
-        // Apply Mobile
-        Feat mobile = buildFeat("Mobile", null, "{\"speedBonus\": 10}", null);
-        resolver.applyFeat(c, mobile, null);
-        assertEquals(origSpeed + 10, c.getSpeed());
+        resolver.applyFeat(c, buildFeat("Mobile", null, "{\"speedBonus\": 10}", null), null);
+        resolver.applyFeat(c, buildFeat("Alert", null, "{\"initiativeBonus\": 5}", null), null);
 
-        // Apply Alert
-        Feat alert = buildFeat("Alert", null, "{\"initiativeBonus\": 5}", null);
-        resolver.applyFeat(c, alert, null);
-        assertEquals(origInit + 5, c.getInitiativeBonus());
+        resolver.reverseFeatEffects(c, bonuses("Mobile", 10, 0, 0));
+        assertEquals(List.of("Alert"), c.getFeatures().stream().map(Feature::name).toList());
 
-        // Reverse Mobile
-        AppliedFeatEffects mobileRecord = bonuses("Mobile", 10, 0, 0);
-        resolver.reverseFeatEffects(c, mobileRecord);
+        resolver.reverseFeatEffects(c, bonuses("Alert", 0, 5, 0));
+        assertTrue(c.getFeatures().isEmpty());
         assertEquals(origSpeed, c.getSpeed());
-        // Alert still active
-        assertEquals(origInit + 5, c.getInitiativeBonus());
-
-        // Reverse Alert
-        AppliedFeatEffects alertRecord = bonuses("Alert", 0, 5, 0);
-        resolver.reverseFeatEffects(c, alertRecord);
         assertEquals(origInit, c.getInitiativeBonus());
     }
 
@@ -501,11 +494,12 @@ class FeatEffectResolverTest {
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, alert, null);
 
         // Verify something changed
-        assertNotEquals(origInit, c.getInitiativeBonus());
+        assertNotEquals(origFeatures, c.getFeatures());
 
         AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Alert");
         resolver.reverseFeatEffects(c, recorded);
 
+        assertEquals(origFeatures, c.getFeatures());
         assertEquals(origInit, c.getInitiativeBonus());
         assertEquals(origSpeed, c.getSpeed());
         assertEquals(origStr, c.getStrength());
@@ -515,29 +509,48 @@ class FeatEffectResolverTest {
         assertEquals(origArmorProfs, c.getArmorProficiencies());
     }
 
-    // --- 6.20 Constitution increase: modifiers round down ---
+    // --- 6.20 Constitution increase ---
 
     @Test
-    @DisplayName("6.20 Constitution increase: CON 8 to 9 leaves HP alone, and 9 to 10 adds 1 a level, as modifiers round down")
-    void constitutionIncreaseRoundsModifiersDown() throws Exception {
+    @DisplayName("6.20 Constitution increase: Durable raises CON alone, and reversing takes it off again")
+    void constitutionIncreaseLeavesHitPoints() throws Exception {
         Feat durable = buildFeat("Durable", "[{\"con\": 1}]", null, null);
 
-        PlayerCharacter fromEight = baseCharacter();
-        fromEight.setConstitution(8);
-        resolver.applyFeat(fromEight, durable, null);
-        assertEquals(9, fromEight.getConstitution());
-        assertEquals(38, fromEight.getHpMax());
+        PlayerCharacter c = baseCharacter();
+        c.setConstitution(9);
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, durable, null);
+        assertEquals(10, c.getConstitution());
+        assertEquals(38, c.getHpMax());
+        assertEquals(38, c.getHpCurrent());
 
-        PlayerCharacter fromNine = baseCharacter();
-        fromNine.setConstitution(9);
-        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(fromNine, durable, null);
-        assertEquals(10, fromNine.getConstitution());
-        assertEquals(43, fromNine.getHpMax());
-        assertEquals(43, fromNine.getHpCurrent());
+        resolver.reverseFeatEffects(c, CharacterUpdates.recordedEffects(effects, "Durable"));
+        assertEquals(9, c.getConstitution());
+    }
 
-        resolver.reverseFeatEffects(fromNine, CharacterUpdates.recordedEffects(effects, "Durable"));
-        assertEquals(9, fromNine.getConstitution());
-        assertEquals(38, fromNine.getHpMax());
+    @Test
+    @DisplayName("6.21 An increase past the maximum adds what fits and records that, so reversing it takes off only that (D167)")
+    void increaseIsRecordedAsApplied() throws Exception {
+        Feat durable = buildFeat("Durable", "[{\"con\": 1}]", null, null);
+        PlayerCharacter c = baseCharacter();
+        c.setConstitution(20);
+
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, durable, null);
+
+        assertEquals(20, c.getConstitution());
+        assertEquals(0, effects.abilityIncreases().get("con"));
+        resolver.reverseFeatEffects(c, CharacterUpdates.recordedEffects(effects, "Durable"));
+        assertEquals(20, c.getConstitution());
+    }
+
+    @Test
+    @DisplayName("6.22 A feat whose effects can't be read is a 409, not a feat that does nothing (D155)")
+    void unreadableFeatIsConflict() {
+        Feat broken = buildFeat("Broken", null, "{not json", null);
+
+        ConflictException e = assertThrows(ConflictException.class,
+                () -> resolver.applyFeat(baseCharacter(), broken, null));
+
+        assertEquals("The effects of the feat Broken can't be read", e.getMessage());
     }
 
     // --- Helpers ---
