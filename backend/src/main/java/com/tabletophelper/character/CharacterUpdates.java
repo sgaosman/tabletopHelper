@@ -352,7 +352,8 @@ final class CharacterUpdates {
                 applied.resource(),
                 nonEmpty(applied.spellsAdded()),
                 featName,
-                applied.spellcastingAbility());
+                applied.spellcastingAbility(),
+                applied.spellcastingAbility() != null ? applied.spellcastingAbilitySet() : null);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

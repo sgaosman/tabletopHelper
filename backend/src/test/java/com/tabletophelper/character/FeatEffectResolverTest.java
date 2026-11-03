@@ -2,9 +2,13 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
@@ -18,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -604,7 +609,7 @@ class FeatEffectResolverTest {
     }
 
     @Test
-    @DisplayName("6.26 A character with a race and feat spellcasting ability keeps it, and reversing the feat leaves it")
+    @DisplayName("6.26 A character with a race and feat spellcasting ability keeps it, the feat records the ability it chose without setting it, and reversing the feat leaves it")
     void existingSpellcastingAbilityIsKept() {
         PlayerCharacter c = baseCharacter();
         c.setSpellcastingAbility("CHA");
@@ -613,7 +618,9 @@ class FeatEffectResolverTest {
         AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Fey Touched");
 
         assertEquals("CHA", c.getSpellcastingAbility());
-        assertNull(recorded.spellcastingAbility());
+        assertEquals("WIS", recorded.spellcastingAbility());
+        assertEquals(Boolean.FALSE, recorded.spellcastingAbilitySet());
+        assertFalse(recorded.setsSpellcastingAbility());
         resolver.reverseFeatEffects(c, recorded);
         assertEquals("CHA", c.getSpellcastingAbility());
     }
@@ -634,7 +641,108 @@ class FeatEffectResolverTest {
         assertNull(c.getSpellsKnown());
     }
 
+    // --- 6.28 to 6.31 Passing the race and feat spellcasting ability on (D159) ---
+
+    @Test
+    @DisplayName("6.28 Removing the DM's grant that set the spellcasting ability (WIS) passes it to a later feat that chose CHA, and levelling down past that feat clears it")
+    void reversingTheSetterPassesTheAbilityOn() {
+        PlayerCharacter c = baseCharacter();
+        AppliedFeatEffects granted = CharacterUpdates.recordedEffects(
+                resolver.applyFeat(c, feyTouchedFeat(), feyTouched("WIS")), "Fey Touched");
+        DmAdjustment grant = featGrant("Fey Touched", granted);
+        c.setDmAdjustments(List.of(grant));
+        AppliedFeatEffects taken = CharacterUpdates.recordedEffects(
+                resolver.applyFeat(c, feyTouchedFeat(), feyTouched("CHA")), "Fey Touched");
+        c.setLevelHistory(List.of(featLevel(4, taken)));
+        assertTrue(granted.setsSpellcastingAbility());
+        assertFalse(taken.setsSpellcastingAbility());
+        assertEquals("WIS", c.getSpellcastingAbility());
+
+        // The DM removes the grant: it stops counting before it is reversed, as DmAdjustmentService.remove does
+        c.setDmAdjustments(List.of(grant.removed(UUID.randomUUID(), Instant.now())));
+        resolver.reverseFeatEffects(c, granted);
+
+        assertEquals("CHA", c.getSpellcastingAbility());
+        AppliedFeatEffects takenNow = c.getLevelHistory().getFirst().choices().asi().appliedEffects();
+        assertTrue(takenNow.setsSpellcastingAbility());
+
+        // Levelling down past the level that took it: the level goes first, as CharacterService.levelDown does
+        c.setLevelHistory(List.of());
+        resolver.reverseFeatEffects(c, takenNow);
+
+        assertNull(c.getSpellcastingAbility());
+    }
+
+    @Test
+    @DisplayName("6.29 Reversing a feat that didn't set the spellcasting ability leaves it, and the feat that set it still clears it")
+    void reversingAnotherFeatLeavesTheAbility() {
+        PlayerCharacter c = baseCharacter();
+        AppliedFeatEffects first = CharacterUpdates.recordedEffects(
+                resolver.applyFeat(c, feyTouchedFeat(), feyTouched("WIS")), "Fey Touched");
+        AppliedFeatEffects second = CharacterUpdates.recordedEffects(
+                resolver.applyFeat(c, feyTouchedFeat(), feyTouched("CHA")), "Fey Touched");
+        c.setLevelHistory(List.of(featLevel(4, first)));
+
+        resolver.reverseFeatEffects(c, second);
+
+        assertEquals("WIS", c.getSpellcastingAbility());
+        c.setLevelHistory(List.of());
+        resolver.reverseFeatEffects(c, first);
+        assertNull(c.getSpellcastingAbility());
+    }
+
+    @Test
+    @DisplayName("6.30 A race's spellcasting ability, set at creation, survives a feat's grant and removal")
+    void raceAbilitySurvives() {
+        PlayerCharacter c = baseCharacter();
+        c.setSpellcastingAbility("INT");
+        AppliedFeatEffects granted = CharacterUpdates.recordedEffects(
+                resolver.applyFeat(c, feyTouchedFeat(), feyTouched("CHA")), "Fey Touched");
+        DmAdjustment grant = featGrant("Fey Touched", granted);
+        c.setDmAdjustments(List.of(grant));
+        assertEquals("INT", c.getSpellcastingAbility());
+
+        c.setDmAdjustments(List.of(grant.removed(UUID.randomUUID(), Instant.now())));
+        resolver.reverseFeatEffects(c, granted);
+
+        assertEquals("INT", c.getSpellcastingAbility());
+    }
+
+    @Test
+    @DisplayName("6.31 A stored record with an ability and no flag, as recorded before the flag, set the ability; a new record's false survives JSON")
+    void storedRecordsWithoutTheFlagSetTheAbility() throws Exception {
+        AppliedFeatEffects stored = objectMapper.readValue(
+                "{\"featName\": \"Fey Touched\", \"spellcastingAbility\": \"WIS\"}", AppliedFeatEffects.class);
+        assertNull(stored.spellcastingAbilitySet());
+        assertTrue(stored.setsSpellcastingAbility());
+
+        PlayerCharacter c = baseCharacter();
+        c.setSpellcastingAbility("WIS");
+        resolver.reverseFeatEffects(c, stored);
+        assertNull(c.getSpellcastingAbility());
+
+        AppliedFeatEffects notSetting = objectMapper.readValue(
+                "{\"featName\": \"Fey Touched\", \"spellcastingAbility\": \"WIS\", "
+                        + "\"spellcastingAbilitySet\": false}", AppliedFeatEffects.class);
+        AppliedFeatEffects roundTripped = objectMapper.readValue(objectMapper.writeValueAsString(notSetting),
+                AppliedFeatEffects.class);
+        assertFalse(roundTripped.setsSpellcastingAbility());
+    }
+
     // --- Helpers ---
+
+    // A DM's active FEAT grant with what applying it recorded
+    private static DmAdjustment featGrant(String featName, AppliedFeatEffects effects) {
+        return new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.FEAT, featName, null, null, UUID.randomUUID(),
+                effects, "A boon", UUID.randomUUID(), Instant.now(), null, null);
+    }
+
+    // A Fighter level whose Ability Score Improvement took a feat, with what applying it recorded
+    private static LevelHistoryEntry featLevel(int level, AppliedFeatEffects effects) {
+        return new LevelHistoryEntry(level, null, "Fighter", level, 7, 6, null, LevelChoices.NONE.withAsi(
+                new AbilityScoreImprovement("feat", null, effects.featName(), UUID.randomUUID(), null, effects, null)),
+                null, null);
+    }
 
     // Fey Touched: +1 to INT, WIS or CHA, and Misty Step
     private Feat feyTouchedFeat() {

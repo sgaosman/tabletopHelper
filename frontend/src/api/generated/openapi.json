@@ -4070,6 +4070,10 @@
             "type": "string",
             "nullable": true
           },
+          "spellcastingAbilitySet": {
+            "type": "boolean",
+            "nullable": true
+          },
           "spellsAdded": {
             "type": "array",
             "nullable": true,

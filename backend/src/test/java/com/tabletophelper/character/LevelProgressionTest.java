@@ -4,7 +4,9 @@ import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.LevelUpResponse;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelChoices;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -197,6 +200,34 @@ class LevelProgressionTest {
 
             assertThat(pc.getFeatures()).filteredOn(feature -> feature.name().equals("Ability Score Improvement"))
                     .hasSize(1);
+        }
+
+        @Test
+        @DisplayName("Levelling down past a feat that set the race and feat spellcasting ability passes it to the DM's grant of a feat that chose another (D159)")
+        void levelDownPassesTheSpellcastingAbilityOn() {
+            PlayerCharacter pc = fighter(4);
+            AppliedFeatEffects taken = chose("WIS", null);
+            AppliedFeatEffects granted = chose("CHA", false);
+            List<LevelHistoryEntry> history = new ArrayList<>(pc.getLevelHistory());
+            history.set(3, history.get(3).withChoices(LevelChoices.NONE.withAsi(new AbilityScoreImprovement(
+                    "feat", null, "Fey Touched", UUID.randomUUID(), null, taken, null))));
+            pc.setLevelHistory(history);
+            pc.setDmAdjustments(List.of(new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.FEAT, "Fey Touched",
+                    null, null, UUID.randomUUID(), granted, "A boon", UUID.randomUUID(), Instant.now(), null, null)));
+            pc.setSpellcastingAbility("WIS");
+
+            CharacterResponse response = f.levelDown(pc);
+
+            assertThat(response.getLevel()).isEqualTo(3);
+            assertThat(pc.getLevelHistory()).hasSize(3);
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("CHA");
+            assertThat(pc.getDmAdjustments().getFirst().appliedEffects().setsSpellcastingAbility()).isTrue();
+        }
+
+        // What applying Fey Touched recorded: the ability its spells chose, and whether it set the character's
+        private static AppliedFeatEffects chose(String ability, Boolean set) {
+            return new AppliedFeatEffects(null, null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, "Fey Touched", ability, set);
         }
     }
 

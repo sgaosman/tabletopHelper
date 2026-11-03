@@ -1701,6 +1701,7 @@ export interface components {
             /** Format: int32 */
             speedBonus?: number | null;
             spellcastingAbility?: string | null;
+            spellcastingAbilitySet?: boolean | null;
             spellsAdded?: components["schemas"]["KnownSpell"][] | null;
             toolProficienciesAdded?: string[] | null;
             weaponProficienciesAdded?: string[] | null;

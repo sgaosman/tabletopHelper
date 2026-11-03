@@ -99,11 +99,12 @@ public class DmAdjustmentService {
         if (!adjustment.active()) {
             throw new ConflictException("That DM Adjustment has already been removed");
         }
+        adjustments.set(index, adjustment.removed(userId, Instant.now()));
+        character.setDmAdjustments(adjustments);
+        // After the removal, so that a spellcasting ability the feat set passes to a feat still applied (D159)
         if (adjustment.kind() == Kind.FEAT) {
             featEffectResolver.reverseFeatEffects(character, adjustment.appliedEffects());
         }
-        adjustments.set(index, adjustment.removed(userId, Instant.now()));
-        character.setDmAdjustments(adjustments);
         log.info("DM {} removed DM Adjustment {} from character {}: {}", userId, adjustmentId, characterId,
                 logged(adjustment));
         return characterCommands.finish(character);

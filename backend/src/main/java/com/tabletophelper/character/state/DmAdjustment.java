@@ -93,4 +93,10 @@ public record DmAdjustment(
         return new DmAdjustment(id, kind, target, amount, defence, featId, appliedEffects, reason, addedBy, addedAt,
                 dmId, at);
     }
+
+    /** The adjustment with a FEAT's effects as they now stand. */
+    public DmAdjustment withAppliedEffects(AppliedFeatEffects newAppliedEffects) {
+        return new DmAdjustment(id, kind, target, amount, defence, featId, newAppliedEffects, reason, addedBy, addedAt,
+                removedBy, removedAt);
+    }
 }

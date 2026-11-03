@@ -4,10 +4,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.FeatTaken;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -53,7 +58,8 @@ public class FeatEffectResolver {
             FeatResourceEntry resource,
             List<Map<String, Object>> optionalFeaturesAdded,
             List<KnownSpell> spellsAdded,
-            String spellcastingAbility
+            String spellcastingAbility,
+            boolean spellcastingAbilitySet
     ) {}
 
     /**
@@ -150,7 +156,11 @@ public class FeatEffectResolver {
         if (choices != null && choices.getSpellIds() != null && !choices.getSpellIds().isEmpty()) {
             spellsAdded = applyFeatSpells(character, choices.getSpellIds(), feat);
         }
-        String spellcastingAbility = !spellsAdded.isEmpty() ? setSpellcastingAbility(character, choices) : null;
+        // The ability the feat's spells chose, which becomes the race and feat spellcasting ability when there is none
+        String spellcastingAbility = !spellsAdded.isEmpty()
+                ? Ability.parse(choices.getFeatAbility()).map(Ability::name).orElse(null) : null;
+        boolean spellcastingAbilitySet = spellcastingAbility != null
+                && setSpellcastingAbility(character, spellcastingAbility);
 
         // Add feat as a feature with full description
         addFeatFeature(character, feat);
@@ -160,13 +170,15 @@ public class FeatEffectResolver {
                 toolProfsAdded, skillProfsAdded, langProfsAdded, saveProfsAdded,
                 expertiseAdded, speedBonus, initiativeBonus, hpPerLevel,
                 passivePerceptionBonus, passiveInvestigationBonus, resource,
-                optionalFeaturesAdded, spellsAdded, spellcastingAbility);
+                optionalFeaturesAdded, spellsAdded, spellcastingAbility, spellcastingAbilitySet);
     }
 
     /**
      * Takes away what applying a feat recorded, as levelling down past the level that took it, or removing the DM's
      * grant of it, does. Speed, initiative, hit points and the pool of the feat's limited uses need nothing here:
-     * CharacterStats works them out again from the feats the character still has.
+     * CharacterStats works them out again from the feats the character still has. A feat that set the race and feat
+     * spellcasting ability passes it on to another feat still applied that chose one, or clears it (D159), so the
+     * caller takes the feat off the level history or the active DM Adjustments first.
      */
     public void reverseFeatEffects(PlayerCharacter character, AppliedFeatEffects appliedEffects) {
         if (appliedEffects == null) return;
@@ -218,8 +230,8 @@ public class FeatEffectResolver {
         if (spellsAdded != null && !spellsAdded.isEmpty()) {
             removeFeatSpells(character, spellsAdded);
         }
-        if (appliedEffects.spellcastingAbility() != null) {
-            character.setSpellcastingAbility(null);
+        if (appliedEffects.setsSpellcastingAbility()) {
+            passOnSpellcastingAbility(character, appliedEffects);
         }
 
         String featName = appliedEffects.featName();
@@ -545,18 +557,71 @@ public class FeatEffectResolver {
 
     /**
      * Makes the feat's chosen ability, such as Fey Touched's, the race and feat spellcasting ability its spells are
-     * cast with, when the character has none yet (D159), and returns it so the history can record it; null when the
-     * character already has one or the feat's choice names no ability. A character has one such ability for its race
-     * and feat spells together.
+     * cast with, when the character has none yet (D159), and says whether it did, so the history can record it. A
+     * character has one such ability for its race and feat spells together; one set at creation is never replaced.
      */
-    private static String setSpellcastingAbility(PlayerCharacter character, ApplyChoicesRequest.AsiChoice choices) {
+    private static boolean setSpellcastingAbility(PlayerCharacter character, String ability) {
         String current = character.getSpellcastingAbility();
         if (current != null && !current.isBlank()) {
-            return null;
+            return false;
         }
-        Optional<Ability> chosen = Ability.parse(choices.getFeatAbility());
-        chosen.ifPresent(ability -> character.setSpellcastingAbility(ability.name()));
-        return chosen.map(Ability::name).orElse(null);
+        character.setSpellcastingAbility(ability);
+        return true;
+    }
+
+    /**
+     * Gives the race and feat spellcasting ability, which the feat being reversed set, to the first other feat still
+     * applied that chose one, in the order DmAdjustments.featsTaken lists them (the level history's feats, oldest
+     * first, then the active DM grants), and records that feat as the one that set it; with none left, clears it
+     * (D159).
+     */
+    private static void passOnSpellcastingAbility(PlayerCharacter character, AppliedFeatEffects reversed) {
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        for (int i = 0; i < history.size(); i++) {
+            LevelHistoryEntry entry = history.get(i);
+            LevelChoices choices = entry.choices();
+            if (choices == null) continue;
+            List<FeatTaken> feats = copy(choices.feats());
+            for (int j = 0; j < feats.size(); j++) {
+                FeatTaken feat = feats.get(j);
+                if (takesOver(feat.appliedEffects(), reversed)) {
+                    feats.set(j, new FeatTaken(feat.featName(), feat.featId(),
+                            takeOver(character, feat.appliedEffects())));
+                    history.set(i, entry.withChoices(choices.withFeats(feats)));
+                    character.setLevelHistory(history);
+                    return;
+                }
+            }
+            AbilityScoreImprovement asi = choices.asi();
+            if (asi != null && takesOver(asi.appliedEffects(), reversed)) {
+                history.set(i, entry.withChoices(choices.withAsi(
+                        asi.withAppliedEffects(takeOver(character, asi.appliedEffects())))));
+                character.setLevelHistory(history);
+                return;
+            }
+        }
+        List<DmAdjustment> adjustments = copy(character.getDmAdjustments());
+        for (int i = 0; i < adjustments.size(); i++) {
+            DmAdjustment adjustment = adjustments.get(i);
+            if (adjustment.active() && adjustment.kind() == DmAdjustment.Kind.FEAT
+                    && takesOver(adjustment.appliedEffects(), reversed)) {
+                adjustments.set(i, adjustment.withAppliedEffects(takeOver(character, adjustment.appliedEffects())));
+                character.setDmAdjustments(adjustments);
+                return;
+            }
+        }
+        character.setSpellcastingAbility(null);
+    }
+
+    // Whether a feat still applied, other than the one being reversed, chose a race and feat spellcasting ability
+    private static boolean takesOver(AppliedFeatEffects effects, AppliedFeatEffects reversed) {
+        return effects != null && effects != reversed && Ability.parse(effects.spellcastingAbility()).isPresent();
+    }
+
+    // Makes the feat's chosen ability the race and feat spellcasting ability, and returns its effects as the setter's
+    private static AppliedFeatEffects takeOver(PlayerCharacter character, AppliedFeatEffects effects) {
+        character.setSpellcastingAbility(Ability.parse(effects.spellcastingAbility()).orElseThrow().name());
+        return effects.withSpellcastingAbilitySet();
     }
 
     private List<KnownSpell> applyFeatSpells(PlayerCharacter character, List<UUID> spellIds, Feat feat) {
@@ -569,10 +634,10 @@ public class FeatEffectResolver {
         for (UUID spellId : spellIds) {
             Spell spell = spellRepository.findById(spellId)
                     .orElseThrow(() -> new ValidationException("Spell not found: " + spellId));
-            Integer usesPerDay = spell != null ? fixedSpellUsage.get(spell.getName().toLowerCase()) : null;
-            int level = spell != null && spell.getLevel() != null ? spell.getLevel() : 0;
-            KnownSpell entry = new KnownSpell(null, spell != null ? spell.getName() : null, level, source, null, null,
-                    spell != null && level == 0 ? Boolean.TRUE : null,
+            Integer usesPerDay = fixedSpellUsage.get(spell.getName().toLowerCase());
+            int level = spell.getLevel() != null ? spell.getLevel() : 0;
+            KnownSpell entry = new KnownSpell(null, spell.getName(), level, source, null, null,
+                    level == 0 ? Boolean.TRUE : null,
                     usesPerDay != null && usesPerDay > 0 ? usesPerDay : null, null);
             spellsKnown.add(entry);
             added.add(entry);

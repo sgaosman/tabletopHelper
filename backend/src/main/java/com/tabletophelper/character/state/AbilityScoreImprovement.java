@@ -36,4 +36,8 @@ public record AbilityScoreImprovement(
     public AbilityScoreImprovement withFeatId(UUID newFeatId) {
         return new AbilityScoreImprovement(type, increases, featName, newFeatId, featAbility, appliedEffects, applied);
     }
+
+    public AbilityScoreImprovement withAppliedEffects(AppliedFeatEffects newAppliedEffects) {
+        return new AbilityScoreImprovement(type, increases, featName, featId, featAbility, newAppliedEffects, applied);
+    }
 }

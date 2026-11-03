@@ -296,7 +296,7 @@ class CharacterUpdatesTest {
 
         FeatEffectResolver.AppliedEffects applied = new FeatEffectResolver.AppliedEffects(
                 Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                0, 5, 0, 0, 0, null, List.of(), List.of(), null
+                0, 5, 0, 0, 0, null, List.of(), List.of(), null, false
         );
 
         CharacterUpdates.recordAsi(c, CharacterUpdates.historyIndex(c, 4),

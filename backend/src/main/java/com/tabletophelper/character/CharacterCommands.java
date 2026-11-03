@@ -51,8 +51,8 @@ class CharacterCommands {
 
     /**
      * A command only the DM of the character's campaign may give: a DM Adjustment or a revival (D158). Its owner may
-     * not, even as the DM of its campaign, and a character in no campaign has no DM. The campaign is checked again under the lock, in case the owner moved the
-     * character while the command waited for it.
+     * not, even as the DM of its campaign, and a character in no campaign has no DM. The campaign is checked again
+     * under the lock, in case the owner moved the character while the command waited for it.
      */
     PlayerCharacter beginAsDm(UUID characterId, UUID userId) {
         UUID campaignId = characterRepository.findCampaignOfCharacterById(characterId)

@@ -410,6 +410,8 @@ public class CharacterService {
         if (history.isEmpty())
             throw new ConflictException("No level history to revert");
         LevelHistoryEntry lastEntry = history.removeLast();
+        // Before reversing, so that a spellcasting ability the level's feat set passes to a feat still applied (D159)
+        character.setLevelHistory(history);
 
         CharacterUpdates.removeFeatures(character, orEmpty(lastEntry.featuresGained()));
         pendingChoices.levelRemoved(character, lastEntry);
@@ -431,7 +433,6 @@ public class CharacterService {
             CharacterUpdates.rebuildClassEntries(character, classLevels);
         }
 
-        character.setLevelHistory(history);
         character.setLevel(character.getLevel() - 1);
         return characterCommands.finish(character);
     }
