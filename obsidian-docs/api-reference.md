@@ -224,7 +224,7 @@ Create a new player character owned by the authenticated user. Uses FK reference
 
 The request no longer takes the stats the server works out (R6 workstream C, D158, D167): `hpMax`, `armourClass`, `initiativeBonus`, `speed`, `proficiencyBonus`, `spellSlots`, `spellSaveDc`, `spellAttackBonus` and `hitDice`. Armour class starts at 10 + the DEX modifier, because armour isn't modelled, and speed is the race's walking speed. `spellcastingAbility` is only the ability race and feat spells are cast with, such as a Fairy's choice of INT, WIS or CHA; a class's own spells use the class's ability.
 
-For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries` and `levelHistory` from this data with `LevelUpCalculator.buildMulticlassProgression()`, each level with its `hitDieResult`, and works out `hitDice` and HP from them. The class levels must add up to `level`, or the request answers `400`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. ASI choices are applied after creation through `POST /characters/{characterId}/apply-choices`, and since R6 workstream C the server records each one on the latest level that owes one, so levelling down reverses the right one.
+For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries` and `levelHistory` from this data with `LevelUpCalculator.buildMulticlassProgression()`, each level with its `hitDieResult`, and works out `hitDice` and HP from them. The class levels must add up to `level`, or the request answers `400`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. The choices the levels bring are made after creation through `POST /characters/{characterId}/apply-choices`, and since R6 workstream F each is a Pending Choice that the server records on the level that owes it, so levelling down reverses the right one (D159).
 
 The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceName"`, `"feat:FeatName"`. Entries support `prepared`, `alwaysPrepared`, `atWill`, `usesPerLongRest`, and `unlocksAtLevel` fields.
 
@@ -239,9 +239,21 @@ Since R6 workstream E every character response includes the active DM Adjustment
 - `baseAbilityScores`, the six scores without the adjustments, `{strength, dexterity, constitution, intelligence, wisdom, charisma}`, which an ASI raises up to the `abilityScoreMaximums`; an adjusted score may already be past its maximum
 - `dmAdjustments`, every adjustment, oldest first, with the removed ones kept as the record (see [DM Adjustments](#dm-adjustments-r6-workstream-e-d158) below)
 
+Since R6 workstream F every character response also has `pendingChoices`: the Pending Choices its levels owe that its player hasn't made yet, oldest level first, a subclass first within a level (D159). Each is `{id, type, source, characterLevel, classId, className, classLevel, count, options, maxSpellLevel, swap}`, with the fields its type doesn't use left out:
+- `type` is `SUBCLASS`, `FIGHTING_STYLE`, `ASI` (an ASI or a feat in its place), `FEAT` (a race's or background's feat at creation), `EXPERTISE`, `CANTRIPS` or `SPELLS`
+- `source` is `LEVEL_UP`, `CREATION`, `RACE` or `BACKGROUND`
+- `characterLevel` is the level that owes the choice: 1 for a race's or background's feat, which has no class
+- `count` is how many skills, cantrips or spells to choose, and 1 for the others
+- `options` is the fixed list it is chosen from, where it has one: the class's subclasses or Fighting Styles, or the feats a background lists. A race's feat and an ASI's feat may be any feat
+- `maxSpellLevel` is 0 for `CANTRIPS`, and for `SPELLS` the highest level of spell the class could learn at that class level (PHB p.164)
+- `swap` is `true` on a `SPELLS` choice when the class may also replace one spell it knows, as a bard, ranger, sorcerer, warlock, Eldritch Knight or Arcane Trickster may when its Spells Known rise. A Wizard's `SPELLS` choice is the spells it copies into its spellbook for free: six at Wizard 1 and two at each level after (PHB p.114)
+
+Since R6 workstream F creating a character at level N gives it the Pending Choices of levels 1 to N, less what the request chose itself, and a `FEAT` choice for each feat its race gives, such as a Variant Human's, and one for its background's, from the feats the background lists. A `subclassId`, or a subclass in `multiclassClassEntries`, is recorded on its class's subclass level, and one for a class below that level answers `400`. `skillExpertises` are recorded on the levels that give Expertise, oldest first, and any Expertise they don't cover stays pending. The class cantrips and spells in `spellsKnown` count against their class's `CANTRIPS` and `SPELLS` choices, oldest first, but aren't recorded on a level. A feat named in `features`, as the example's Magic Initiate is, is only a feature, with no effects. The creation wizard sends only the 1st level's choices, and the player makes the rest on the sheet (D159).
+
 **Errors:**
 - `400` — Unknown `raceId`, `classId`, `subclassId`, `backgroundId` or `campaignId` (IDs in the body are a 400, not a 404), or validation failed
 - `400` — The class levels in `multiclassClassEntries` don't add up to `level` (R6 workstream C)
+- `400` — A subclass for a class below its subclass level (R6 workstream F, D159)
 - `400` — An `equipment` entry without a name, with a quantity below 0 or with an `itemId` that names no item, or a coin below 0 (R6 workstream D, D164)
 - `403` — `campaignId` names a campaign the user isn't a member of (D155)
 - `409` — Reference data the character needs can't be read, such as a race's speed or a class's features (R6 workstream C, D155)
@@ -366,23 +378,17 @@ Copy spells into a Wizard's spellbook (`POST`), or take them out (`DELETE`, whic
 
 **Request:** `{"spells": ["Magic Missile", "Shield"]}`, with at least one spell
 
-A spell copied in must be a wizard spell of 1st level or higher, no higher than the Wizard's `highestSpellLevel`; one already in the book is left as it is. A spell taken out must be in the book. Cantrips aren't kept in a spellbook: `spells/known` sets them.
+A spell copied in must be a wizard spell of 1st level or higher, no higher than the Wizard's `highestSpellLevel`; one already in the book is left as it is. A spell taken out must be in the book. Cantrips aren't kept in a spellbook: since R6 workstream F a Wizard learns them through its levels' `CANTRIPS` Pending Choices, and the spells it adds for free as it gains levels come through its `SPELLS` choices (see `apply-choices` below, D159). This command stays for copying in any other wizard spell.
 
 **Errors:**
 - `400` — No Wizard levels; an unknown spell, a cantrip, or a spell off the wizard list or above the Wizard's highest level; or, for `DELETE`, a spell that isn't in the book
 - `409` — A spell's class lists can't be read
 
-### PUT /characters/{characterId}/spells/known
+### PUT /characters/{characterId}/spells/known (removed in R6 workstream F)
 
-Set the cantrips one class knows, or the spells a class that knows a set number of spells knows, or both. It is interim: workstream F's Pending Choices replace it (D159).
+Removed in R6 workstream F, with `KnownSpellsRequest` (D159). It was the interim way to set the cantrips one class knows, or the spells a class that knows a set number of spells knows. A class now learns them through its levels' `CANTRIPS` and `SPELLS` Pending Choices, made through `apply-choices` (below), which keeps its checks of the class's list, the spell's level and the class's limit.
 
-**Request:** `{"className": "Warlock", "cantrips": ["Eldritch Blast"], "spells": ["Hex"]}`
-
-Each list given replaces what the class knows of that kind, and a list left out keeps it. `cantrips` works for any class that casts, and `spells` only for a class whose `spellcasting` entry has `spellsKnown`. A spell is on a class's list if the spells table lists the class, or the class with its subclass, such as `"Warlock (The Hexblade)"`; Eldritch Knights and Arcane Tricksters use the wizard's list. No spell can be above the class's `highestSpellLevel`, and there can be no more than its `cantripsKnown` or `spellsKnown`. Race and feat spells are left as they are.
-
-**Errors:**
-- `400` — Neither list; a class the character doesn't cast with, or `spells` for a class that prepares its spells; an unknown spell, a levelled spell among the cantrips or a cantrip among the spells, or a spell off the class's list or above its highest level; or too many
-- `409` — A spell's class lists can't be read
+A spell is on a class's list if the spells table lists the class, or the class with its subclass, such as `"Warlock (The Hexblade)"`; Eldritch Knights and Arcane Tricksters use the wizard's list. Race and feat spells are left as they are.
 
 ### DM Adjustments (R6 workstream E, D158)
 
@@ -407,7 +413,7 @@ Add a DM Adjustment. What it needs depends on its `kind`, `STAT`, `DEFENCE` or `
 
 **Request (FEAT):** `{"kind": "FEAT", "feat": {"featId": "uuid", "featAbility": "CON", "savingThrowChoice": "CON"}, "reason": "Boon of the mountain"}`
 
-`feat` takes the feat fields an `apply-choices` ASI takes: `featId` and the choices the feat needs, such as `featAbility` or `spellIds`. There is no `target`: the feat names it. The feat's effects are applied as an ASI feat's are and recorded in the adjustment, so removing it reverses them exactly. Its speed, initiative, HP per level and limited uses, such as Lucky's `feat:lucky` pool, count as a level's feat's do. The server doesn't check the feat's prerequisites, and the DM's feat picker offers a feat the character doesn't qualify for, showing what it lacks. The character already has a feat when a feat added its feature, a level took it, or an active grant gave it; a feat chosen at creation isn't detected until workstream F.
+`feat` takes the feat fields an `apply-choices` ASI takes: `featId` and the choices the feat needs, such as `featAbility` or `spellIds`. There is no `target`: the feat names it. The feat's effects are applied as an ASI feat's are and recorded in the adjustment, so removing it reverses them exactly. Its speed, initiative, HP per level and limited uses, such as Lucky's `feat:lucky` pool, count as a level's feat's do. The server doesn't check the feat's prerequisites, and the DM's feat picker offers a feat the character doesn't qualify for, showing what it lacks. The character already has a feat when a feat added its feature, a level took it, or an active grant gave it; since R6 workstream F a feat its race or background gave at creation counts too, because the 1st level records it (D159).
 
 **Errors:**
 - `400` — No `kind`; a blank `reason`, or one over 200 characters; a field another kind uses; a STAT without a known `target`, or with an `amount` that is missing, 0 or beyond ±100; a DEFENCE without its `defence` or a damage type; a FEAT without `feat.featId`, or a feat that doesn't exist
@@ -478,18 +484,13 @@ Level up a character. Supports multiclassing: when `classId` names a class the c
 ```json
 {
   "character": { /* full character object */ },
-  "pendingChoices": {
-    "asiAvailable": true,
-    "subclassRequired": false,
-    "newFeatures": ["Extra Attack"],
-    "maxSpellLevel": 0
-  }
+  "newFeatures": ["Extra Attack"]
 }
 ```
 
-If `asiAvailable` is true, the client should prompt for ASI/feat choice via `/apply-choices`. If `subclassRequired` is true, the client should prompt for subclass selection.
+Since R6 workstream F (D159) the response is the levelled character and the names of the features the new level brought. Its `pendingChoices` flags (`asiAvailable`, `subclassRequired`, `expertiseAvailable`, `expertiseCount`, `spellSelectionNeeded`, `spellSelectionType` and `maxSpellLevel`) are gone: the level adds its choices to the character's `pendingChoices`, those with its `characterLevel`, and the client makes each through `/apply-choices`.
 
-Since R6 workstream C (D167) the new level records its `hitDieResult`: the fixed average of the class's Hit Die, or its maximum at character level 1 only, so a multiclass dip's first level gets the average (PHB p.163). The server then works out the Derived Stats again: a higher HP maximum raises `hpCurrent` by as much, and spent slots, Hit Dice and pool uses stay spent. `spellSelectionNeeded` and `maxSpellLevel` come from the class's own table, so Eldritch Knights and Arcane Tricksters are asked for spells and a Paladin's 1st level brings none. Barbarian 20 adds Primal Champion's +4 STR and CON, up to 24.
+Since R6 workstream C (D167) the new level records its `hitDieResult`: the fixed average of the class's Hit Die, or its maximum at character level 1 only, so a multiclass dip's first level gets the average (PHB p.163). The server then works out the Derived Stats again: a higher HP maximum raises `hpCurrent` by as much, and spent slots, Hit Dice and pool uses stay spent. Since R6 workstream F the level's cantrip and spell choices come from the class's own table, so Eldritch Knights and Arcane Tricksters are asked for spells from 3rd level, and a class that prepares its spells, such as a Paladin, is asked for none. Barbarian 20 adds Primal Champion's +4 STR and CON, up to 24.
 
 **Errors:**
 - `409` — Character at max level (20) / Multiclass prerequisites not met
@@ -498,7 +499,7 @@ Since R6 workstream C (D167) the new level records its `hitDieResult`: the fixed
 
 ### POST /characters/{characterId}/level-down
 
-Remove the most recent level. It removes the last `levelHistory` entry and, since R6 workstream C, reverses only what that entry recorded (D167): the latest copy of each feature it gained, so earlier levels keep theirs; its ASI or feat, at the amount applied; its Expertise; the proficiencies a multiclass level added; Primal Champion's increases; and its class's level. The server then works out the Derived Stats again, capping `hpCurrent` at the new maximum and the spent Hit Dice at the new total, and syncs the pools. A subclass chosen through apply-choices isn't recorded on its level, so levelling down doesn't reverse it (workstream F). If the removed level was the only level in a secondary class, that class is removed from `multiclassEntries` entirely.
+Remove the most recent level. It removes the last `levelHistory` entry and, since R6 workstream C, reverses only what that entry recorded (D167): the latest copy of each feature it gained, so earlier levels keep theirs; its ASI or feat, at the amount applied; its Expertise; the proficiencies a multiclass level added; Primal Champion's increases; and its class's level. The server then works out the Derived Stats again, capping `hpCurrent` at the new maximum and the spent Hit Dice at the new total, and syncs the pools. Since R6 workstream F it also reverses the Pending Choices made for the level, by what the level records: its subclass, which its class loses; its Fighting Style; and its cantrips and spells, giving back a spell a swap replaced. The level's choices still pending go (D159). A subclass chosen before workstream F isn't recorded on its level, so levelling down doesn't take it away. If the removed level was the only level in a secondary class, that class is removed from `multiclassEntries` entirely.
 
 **Response (200):** Full character object.
 
@@ -508,30 +509,42 @@ Remove the most recent level. It removes the last `levelHistory` entry and, sinc
 
 ### POST /characters/{characterId}/apply-choices
 
-Apply pending choices after a level-up (ASI/feat selection, subclass selection).
+Make one of the character's Pending Choices, named by its `choiceId`, with the answer its type takes (R6 workstream F, D159).
 
 **Request:**
 ```json
 {
+  "choiceId": "uuid",
   "asi": {
     "type": "ability",
     "increases": [{"ability": "strength", "bonus": 2}]
-  },
-  "subclassId": "uuid"
+  }
 }
 ```
 
-For `type: "feat"`, provide `featId` (UUID) for full feat automation. The server loads the feat's `effects` JSON and auto-applies all mechanical bonuses (ability scores, proficiencies, resistances, expertise, speed, initiative, HP per level, passive stats, resources, spells). Provide choice fields as needed: `featAbility` (half-feat ability), `resistanceChoice`, `skillProficiencyChoices`, `savingThrowChoice`, `expertiseSkillChoices`, `toolProficiencyChoices`, `languageChoices`, `weaponChoices`, `spellIds`, `optionalFeatureIds`. Legacy `featName` (string) path still works for text-only feat recording. Both `asi` and `subclassId` are optional — provide whichever choices are pending. All applied effects are recorded in `levelHistory[].choices.asi.appliedEffects` for deterministic reversal on level-down.
+For `type: "feat"`, provide `featId` (UUID) for full feat automation. The server loads the feat's `effects` JSON and auto-applies all mechanical bonuses (ability scores, proficiencies, resistances, expertise, speed, initiative, HP per level, passive stats, resources, spells). Provide choice fields as needed: `featAbility` (half-feat ability), `resistanceChoice`, `skillProficiencyChoices`, `savingThrowChoice`, `expertiseSkillChoices`, `toolProficiencyChoices`, `languageChoices`, `weaponChoices`, `spellIds`, `optionalFeatureIds`. Legacy `featName` (string) path still works for text-only feat recording. Since R6 workstream F a request gives only the field its choice's type takes (below). All applied effects are recorded in `levelHistory[].choices.asi.appliedEffects` for deterministic reversal on level-down.
 
-Since R6 workstream C (D167) an `ability` ASI must be +2 to one score or +1 to two different scores, none taken above its maximum (the character's `abilityScoreMaximums`), or it answers `400`. An ASI goes on the latest level that owes one, at the amount actually applied (`choices.asi.applied`), and Expertise on the latest level that gives it (`choices.expertise`), so levelling down reverses the right ones. A feat's speed, initiative and HP per level are recorded there and added when the Derived Stats are worked out.
+Since R6 workstream C (D167) an `ability` ASI must be +2 to one score or +1 to two different scores, none taken above its maximum (the character's `abilityScoreMaximums`), or it answers `400`. Since R6 workstream F an ASI is recorded on the level that owes its choice, at the amount actually applied (`choices.asi.applied`), and Expertise on its choice's level (`choices.expertise`), so levelling down reverses the right ones. A feat's speed, initiative and HP per level are recorded there and added when the Derived Stats are worked out.
 
-Since R6 workstream E the maximum is checked against `baseAbilityScores`, the scores without DM Adjustments, and the ASI raises those, so an adjustment that takes a score past its maximum doesn't block an increase (D158). Apply-choices doesn't refuse a feat the character already has yet; only the feat picker does, and workstream F adds the check. The picker keeps a feat open when its text says it can be taken more than once, which only Elemental Adept's does.
+Since R6 workstream E the maximum is checked against `baseAbilityScores`, the scores without DM Adjustments, and the ASI raises those, so an adjustment that takes a score past its maximum doesn't block an increase (D158). Since R6 workstream F apply-choices refuses a feat the character already has with `400`, unless its text says it can be taken more than once, as the feat picker does. The picker keeps a feat open when its text says it can be taken more than once, which only Elemental Adept's does.
+
+Since R6 workstream F (D159) the request is the `choiceId` and the one field its choice's `type` takes, and a field for another type answers `400`:
+- `ASI` — `asi`, as above
+- `FEAT` — `feat`, with the fields an ASI's feat takes, such as `{"type": "feat", "featId": "uuid"}`: one of the choice's `options` when it has them, else any feat. It is applied and recorded on the 1st level (`choices.feats`), and its effects count as an ASI's feat's do, its pool among them
+- `SUBCLASS` — `subclassId`, one of the class's subclasses. It is recorded on the class's subclass level (`choices.subclass`), and its features are added at each class level the character already has, from the subclass level on. It can bring choices of its own, such as an Eldritch Knight's cantrips and spells, which join `pendingChoices`
+- `EXPERTISE` — `expertiseSkills`: exactly `count` skills, or every one left when there are fewer, each one the character is proficient in and has no Expertise in yet
+- `FIGHTING_STYLE` — `fightingStyle`, one of the choice's `options` the character doesn't have yet. It becomes a feature, such as "Fighting Style: Defense", recorded on the level
+- `CANTRIPS` — `spells`: exactly `count` cantrips on the class's list that it doesn't know yet, within its `cantripsKnown`
+- `SPELLS` — `spells`: exactly `count` spells on the class's list, of 1st level up to the choice's `maxSpellLevel`, that it doesn't know yet, within its `spellsKnown`; a Wizard copies them into its spellbook. When the choice's `swap` is `true`, an optional `"swap": {"replace": "Shield", "with": "Chromatic Orb"}` also replaces a spell the class knows with another it could learn. The level records both (`choices.spells`), and levelling down gives the replaced spell back
+
+The answer is recorded on the history entry of the level that owes the choice, and the choice leaves `pendingChoices`. Only the owner makes choices: the campaign's DM sees them but can't make or waive one.
 
 **Response (200):** Full character object with updated ability scores / subclass.
 
 **Errors:**
-- `400` — An ASI that isn't +2 to one score or +1 to two, takes a score past its maximum or names something that isn't an ability, or more Expertise skills than the level gives
-- `409` — No level owes the ASI or the Expertise, or the feat's data can't be read
+- `400` — An ASI that isn't +2 to one score or +1 to two, takes a score past its maximum or names something that isn't an ability. Since R6 workstream F also: no `choiceId`; a field another type takes; a feat the character already has, unless it is repeatable, or one off the choice's `options`; a subclass of another class or off the list; a Fighting Style off the list or one the character has; Expertise in a skill the character isn't proficient in or has Expertise in already; a spell off the class's list, above the choice's `maxSpellLevel` or known already; a swap the choice doesn't offer; or another number of skills, cantrips or spells than the choice counts
+- `403` — Not the owner, the campaign's DM included (D158, D159)
+- `409` — Since R6 workstream F, no pending choice with that `choiceId`, as for one made already; a level that already records its ASI, or a class that already has a subclass; or a cantrip or spell choice for a class the character doesn't cast with. Also the feat's data, or a spell's class lists, can't be read
 - `409` — The character is in an Active or Paused encounter (R6 workstream D, D166)
 
 ### GET /characters/{characterId}/eligible-classes
@@ -1536,11 +1549,11 @@ HTTP status codes used (D155, R3). Services throw the domain exceptions in `shar
 - `200` — Success
 - `201` — Created
 - `204` — No Content (successful deletion, logout)
-- `400` — Bad input (`ValidationException` and Spring's binding errors): failed validation, with a message per field; an unknown ID in the request body, such as a `raceId` or a participant ID, which is also the answer when a player names a participant hidden from them (D157); a spell the caster can't cast or pay for (R5, D165); a tie order that isn't a whole tie group (R5, D163); a malformed UUID or a parameter of the wrong type (e.g. `?level=abc`); a missing or unreadable body; a missing required parameter; wrong login details; since R6 workstream E, a DM Adjustment with a field its kind doesn't use, or an amount of 0 or beyond ±100 (D158)
+- `400` — Bad input (`ValidationException` and Spring's binding errors): failed validation, with a message per field; an unknown ID in the request body, such as a `raceId` or a participant ID, which is also the answer when a player names a participant hidden from them (D157); a spell the caster can't cast or pay for (R5, D165); a tie order that isn't a whole tie group (R5, D163); a malformed UUID or a parameter of the wrong type (e.g. `?level=abc`); a missing or unreadable body; a missing required parameter; wrong login details; since R6 workstream E, a DM Adjustment with a field its kind doesn't use, or an amount of 0 or beyond ±100 (D158); since R6 workstream F, an apply-choices answer that doesn't fit its Pending Choice, such as a field another type takes, another number of spells, cantrips or Expertise skills than it counts, or a feat the character already has that can't be taken again, and a subclass at creation for a class below its subclass level (D159)
 - `401` — Unauthorized: no access token, or an expired or invalid one, on a protected endpoint; or a missing, expired, revoked or reused refresh cookie on `/auth/refresh`. The frontend answers a 401 with one refresh and a retry
 - `403` — Forbidden (`ForbiddenException`): signed in but not allowed. Not a member of the campaign, not its DM, not the character's owner, acting for a participant you don't control, a player attacking or casting outside their turn, or a player entering a Manual Modifier the campaign has turned off (R5, D164); since R6 workstream E, a DM Adjustment from anyone but the DM of the character's campaign, or from anyone at all for a character in no campaign (D158)
 - `404` — Not found (`NotFoundException`): the resource named in the URL doesn't exist (campaign, character, encounter, participant, session code, combat log entry), or the path is unknown; since R6 workstream E also a DM Adjustment the character doesn't have (D158)
-- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160). R6 workstream D added: a character command that waited more than five seconds in the same way, or that wrote from a copy of the character a command had changed since (D158); a rest, level-up, level-down or apply-choices while the character is in an Active or Paused encounter (D166); a long rest below 1 hit point; and spending a slot or pool use that isn't left, or getting back one that wasn't spent. R6 workstream E added: removing a DM Adjustment already removed, and granting a feat the character already has, unless it can be taken more than once (D158)
+- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160). R6 workstream D added: a character command that waited more than five seconds in the same way, or that wrote from a copy of the character a command had changed since (D158); a rest, level-up, level-down or apply-choices while the character is in an Active or Paused encounter (D166); a long rest below 1 hit point; and spending a slot or pool use that isn't left, or getting back one that wasn't spent. R6 workstream E added: removing a DM Adjustment already removed, and granting a feat the character already has, unless it can be taken more than once (D158). R6 workstream F added: an apply-choices request naming no Pending Choice the character has, such as one already made (D159)
 - `500` — Anything unexpected. Outside the dev profile the body is always `{"error": "Something went wrong. Please try again."}`; only dev returns the real message (`server.error.include-message: always`)
 
 Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentException`), an expired token returned 403, and optimistic-lock conflicts returned 500 (superseded in R3, D155).
