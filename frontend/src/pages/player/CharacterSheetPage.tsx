@@ -16,9 +16,10 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import type {
   PlayerCharacter, Currency, HitDicePool, HitDieSpent, HitPointChange, LevelUpResponse, PendingChoice,
+  ShortRestResponse,
 } from '../../types/character';
 import type { SpellSlot } from '../../types/encounter';
-import { formatMod } from '../../utils/dndRules';
+import { formatClasses, formatMod } from '../../utils/dndRules';
 import { getClassColour } from '../../utils/classColours';
 import StatsTab from './sheet/StatsTab';
 import ActionsTab from './sheet/ActionsTab';
@@ -50,6 +51,17 @@ function wholeNumber(text: string | undefined): number | undefined {
   const trimmed = text?.trim() ?? '';
   if (trimmed === '') return undefined;
   return /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
+}
+
+// A short rest's result: the hit points regained, then a line for each Hit Die spent, saying what it rolled and who
+// rolled it
+function shortRestMessage(hpBefore: number, { character, rolls }: ShortRestResponse): string {
+  const regained = character.hpCurrent - hpBefore;
+  return [
+    regained > 0 ? `Short rest taken: ${regained} hit points regained` : 'Short rest taken',
+    ...rolls.map(die => `${die.className} d${die.dieSize}: ${die.rolledByServer ? 'the server rolled' : 'you rolled'}`
+      + ` ${die.roll}, healing ${die.healing}`),
+  ].join('\n');
 }
 
 /** A run of Pending Choices whose dialogs open one after another: the one open, and those still to come. */
@@ -99,13 +111,15 @@ export default function CharacterSheetPage() {
   // The level gained, announced once its choices' dialogs have run
   const [levelGained, setLevelGained] = useState<number | null>(null);
 
-  // Sends a command and shows how it went: `done` for a moment on success, or the server's message
+  // Sends a command and shows how it went: `done` for a moment on success, a moment for each of its lines, or the
+  // server's message
   const runCommand = useCallback<RunCommand>(async (command, done) => {
     setError('');
     try {
       const result = await command;
-      setSuccess(typeof done === 'function' ? done(result) : done ?? 'Saved');
-      setTimeout(() => setSuccess(''), 2500);
+      const message = typeof done === 'function' ? done(result) : done ?? 'Saved';
+      setSuccess(message);
+      setTimeout(() => setSuccess(''), 2500 * message.split('\n').length);
       return true;
     } catch (err) {
       setError(apiErrorMessage(err));
@@ -217,9 +231,7 @@ export default function CharacterSheetPage() {
     if (!char || diceToSpend === null) return;
     const before = char.hpCurrent;
     const rested = await runCommand(shortRest.mutateAsync({ characterId: char.id, rest: { hitDice: diceToSpend } }),
-      after => after.hpCurrent > before
-        ? `Short rest taken: ${after.hpCurrent - before} hit points regained`
-        : 'Short rest taken');
+      result => shortRestMessage(before, result));
     if (rested) closeRestModal();
   }
 
@@ -313,14 +325,7 @@ export default function CharacterSheetPage() {
           <div className="text-center">
             <h1 className="font-heading text-[17px] font-bold" style={{ color: classAccent }}>{char.name}</h1>
             <p className="font-body text-[14px] font-semibold text-muted">
-              Level {char.level} {char.race}{' '}
-              {(() => {
-                const entries = char.multiclassEntries ?? [];
-                if (entries.length > 1) {
-                  return entries.map(e => `${e.className} ${e.level}`).join(' / ');
-                }
-                return char.characterClass + (char.subclass ? ` (${char.subclass})` : '');
-              })()}
+              Level {char.level} {char.race} {formatClasses(char)}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -459,7 +464,7 @@ export default function CharacterSheetPage() {
       {/* Error / Success */}
       <div className="max-w-5xl mx-auto px-4">
         {error && <div role="alert" className="bg-debuff-bg border border-debuff text-debuff p-3 mt-4 font-body text-[15px] font-semibold">{error}</div>}
-        {success && <div role="status" className="bg-buff-bg border border-buff text-buff p-3 mt-4 font-body text-[15px] font-semibold">{success}</div>}
+        {success && <div role="status" className="bg-buff-bg border border-buff text-buff p-3 mt-4 font-body text-[15px] font-semibold whitespace-pre-line">{success}</div>}
       </div>
 
       {/* Tab Content */}

@@ -977,7 +977,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CharacterResponse"
+                  "$ref": "#/components/schemas/ShortRestResponse"
                 }
               }
             },
@@ -6450,6 +6450,36 @@
           }
         }
       },
+      "HitDieRoll": {
+        "required": [
+          "className",
+          "dieSize",
+          "healing",
+          "roll",
+          "rolledByServer"
+        ],
+        "type": "object",
+        "properties": {
+          "className": {
+            "type": "string"
+          },
+          "dieSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "healing": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "roll": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rolledByServer": {
+            "type": "boolean"
+          }
+        }
+      },
       "HitDieSpent": {
         "required": [
           "className"
@@ -8176,6 +8206,24 @@
             "nullable": true,
             "items": {
               "$ref": "#/components/schemas/HitDieSpent"
+            }
+          }
+        }
+      },
+      "ShortRestResponse": {
+        "required": [
+          "character",
+          "rolls"
+        ],
+        "type": "object",
+        "properties": {
+          "character": {
+            "$ref": "#/components/schemas/CharacterResponse"
+          },
+          "rolls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HitDieRoll"
             }
           }
         }

@@ -138,8 +138,9 @@ public class CharacterController {
 
     // ── Rests ────────────────────────────────────────────────────
 
+    /** A short rest, answering with the rested character and what each Hit Die it spent rolled (D158). */
     @PostMapping("/{characterId}/short-rest")
-    public ResponseEntity<CharacterResponse> shortRest(
+    public ResponseEntity<ShortRestResponse> shortRest(
             @PathVariable UUID characterId,
             @Valid @RequestBody(required = false) ShortRestRequest request,
             Authentication authentication) {

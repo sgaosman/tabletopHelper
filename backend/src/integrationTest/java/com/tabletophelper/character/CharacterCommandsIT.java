@@ -123,7 +123,7 @@ class CharacterCommandsIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Slots and pools are spent and got back; a short rest spends the dice entered or rolled, and a long rest restores the largest first")
+    @DisplayName("Slots and pools are spent and got back; a short rest spends the dice entered or rolled and says what each rolled, and a long rest restores the largest first")
     void restsAndUses() {
         String bram = create(Map.of("name", "Bram", "classId", warlockId, "level", 3, "multiclassClassEntries",
                 List.of(Map.of("classId", warlockId, "level", 2), Map.of("classId", wizardId, "level", 1)),
@@ -146,8 +146,12 @@ class CharacterCommandsIT extends IntegrationTest {
         ok(HttpMethod.POST, bram, "/hp", Map.of("kind", "DAMAGE", "amount", 15));
 
         dice.script(3);
-        JsonNode rested = ok(HttpMethod.POST, bram, "/short-rest", Map.of("hitDice", List.of(
+        JsonNode shortRest = ok(HttpMethod.POST, bram, "/short-rest", Map.of("hitDice", List.of(
                 Map.of("className", "Warlock", "roll", 6), Map.of("className", "Wizard"))));
+        assertThat(shortRest.get("rolls").toString()).isEqualTo("[{\"className\":\"Warlock\",\"dieSize\":8,\"roll\":6,"
+                + "\"rolledByServer\":false,\"healing\":8},{\"className\":\"Wizard\",\"dieSize\":6,\"roll\":3,"
+                + "\"rolledByServer\":true,\"healing\":5}]");
+        JsonNode rested = shortRest.get("character");
         // (6 + 2) + (3 + 2) on top of 8
         assertThat(rested.get("hpCurrent").asInt()).isEqualTo(21);
         assertThat(rested.get("hitDice").toString())
@@ -262,7 +266,8 @@ class CharacterCommandsIT extends IntegrationTest {
 
         // Preparing: the character may rest, but not be deleted
         assertThat(get(aria).get("inLiveEncounter").asBoolean()).isFalse();
-        assertThat(ok(HttpMethod.POST, aria, "/short-rest", null).get("hpCurrent").asInt()).isEqualTo(18);
+        assertThat(ok(HttpMethod.POST, aria, "/short-rest", null).get("character").get("hpCurrent").asInt())
+                .isEqualTo(18);
         assertThat(error(exchange(HttpMethod.DELETE, "/api/characters/" + aria, null, player.accessToken()),
                 HttpStatus.CONFLICT)).isEqualTo("Cannot delete a character that is in an active encounter");
 

@@ -230,13 +230,16 @@ export default function ClassStep({
         );
       })}
 
-      {/* The choices of the levels above the 1st are Pending Choices, made on the sheet (D159) */}
-      {classEntries.length > 0 && level > 1 && (
+      {/* The 1st level's choices the wizard doesn't make, such as a Fighter's Fighting Style, and every choice of the
+          levels above the 1st are Pending Choices, made on the sheet (D159) */}
+      {classEntries.length > 0 && (
         <div className="mt-4 bg-cls-monk-bg border border-div-border p-4">
-          <h3 className="font-heading text-[14px] font-semibold text-cls-monk">Choices above level 1</h3>
+          <h3 className="font-heading text-[14px] font-semibold text-cls-monk">Choices made on your sheet</h3>
           <p className="font-body text-[13px] font-semibold text-muted mt-1">
-            Ability Score Improvements, subclasses, Fighting Styles, Expertise, and the cantrips and spells of each
-            level above the 1st are made on your character sheet after creation.
+            Any choice your 1st level brings that these steps don't ask for, such as a Fighter's Fighting Style, is
+            made on your character sheet after creation.
+            {level > 1 && ' So are the Ability Score Improvements, subclasses, Fighting Styles, Expertise, and the'
+              + ' cantrips and spells of each level above the 1st.'}
           </p>
         </div>
       )}

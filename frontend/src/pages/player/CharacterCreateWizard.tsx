@@ -22,11 +22,12 @@ import SpellsStep from './wizard/SpellsStep';
 import ReviewStep from './wizard/ReviewStep';
 
 /**
- * Creates a character in seven steps, with a draft kept in the browser. It makes the choices of the 1st level: the
- * first class's skills, its subclass where that comes at 1st level, as a cleric's does, a rogue's Expertise, and the
- * first class's cantrips and spells. Every choice of a later level, of another class, and the feat a race or
- * background gives are Pending Choices the server adds, made on the sheet, where the player lands after creation
- * (D159). The server works out hit points, speed, slots, spell DCs and Hit Dice (D167).
+ * Creates a character in seven steps, with a draft kept in the browser. It makes most of the choices of the 1st level:
+ * the first class's skills, its subclass where that comes at 1st level, as a cleric's does, a rogue's Expertise, and
+ * the first class's cantrips and spells. A 1st-level choice it doesn't ask for, such as a Fighter's Fighting Style,
+ * every choice of a later level, of another class, and the feat a race or background gives are Pending Choices the
+ * server adds, made on the sheet, where the player lands after creation (D159). The server works out hit points,
+ * speed, slots, spell DCs and Hit Dice (D167).
  */
 export default function CharacterCreateWizard() {
   const navigate = useNavigate();

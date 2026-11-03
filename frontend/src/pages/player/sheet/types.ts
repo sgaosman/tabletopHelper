@@ -5,6 +5,7 @@ export type SpellEntry = Schemas['KnownSpell'];
 
 /**
  * Sends one of the character's commands and shows how it went on the sheet: the message given, or one made from the
- * result, for a moment on success, or the server's message on failure (D158). Resolves to whether it succeeded.
+ * result, for a moment on success, a moment for each line of a message with several, such as a short rest's rolls,
+ * or the server's message on failure (D158). Resolves to whether it succeeded.
  */
 export type RunCommand = <T>(command: Promise<T>, done?: string | ((result: T) => string)) => Promise<boolean>;

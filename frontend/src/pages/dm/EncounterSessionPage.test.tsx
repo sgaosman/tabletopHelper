@@ -607,17 +607,28 @@ describe('DM EncounterSessionPage', () => {
       expect(screen.getByText('Complete')).toBeInTheDocument();
     });
 
-    it('ends without writing anything back once the DM unticks the box', async () => {
+    it('ends without writing anything back once the DM unticks the box, and the dimmed preview says none of it is', async () => {
       const bodies = recordEnd();
       const user = userEvent.setup();
       await renderLoaded();
 
       const dialog = await openEndDialog(user);
-      await within(dialog).findByText('HP 30 → 12 of 30');
+      const results = within(dialog).getByRole('region', { name: 'Results for each character' });
+      await within(results).findByText('HP 30 → 12 of 30');
+      expect(within(results).getByRole('heading', { name: 'What each sheet takes' })).toBeInTheDocument();
+      expect(within(results).getAllByRole('list')[0]).not.toHaveClass('opacity-50');
       await user.click(within(dialog).getByRole('checkbox', { name: /Apply results to character sheets/ }));
 
+      expect(within(results).getByRole('heading', { name: 'None of this is written back' })).toBeInTheDocument();
+      expect(within(results).queryByRole('heading', { name: 'What each sheet takes' })).not.toBeInTheDocument();
+      expect(within(results).getAllByRole('list')[0]).toHaveClass('opacity-50');
       expect(within(dialog).getByText('Nothing is written back: every sheet stays as it is, pool uses included.'))
         .toBeInTheDocument();
+
+      // Ticking the box again puts the heading back
+      await user.click(within(dialog).getByRole('checkbox', { name: /Apply results to character sheets/ }));
+      expect(within(results).getByRole('heading', { name: 'What each sheet takes' })).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('checkbox', { name: /Apply results to character sheets/ }));
       await user.click(within(dialog).getByRole('button', { name: 'End encounter' }));
 
       await waitFor(() => expect(bodies).toEqual([{ applyResults: false }]));

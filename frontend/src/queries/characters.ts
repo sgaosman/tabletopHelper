@@ -147,11 +147,18 @@ export function useRecoverPool() {
 
 /**
  * A short rest, spending the Hit Dice named with the rolls entered or the server's. Pools that reset on a short
- * rest and pact slots come back.
+ * rest and pact slots come back. The rested character replaces the cached copies, and the result says what each die
+ * rolled.
  */
 export function useShortRest() {
-  return useCharacterCommand(({ characterId, rest }: { characterId: string; rest: ShortRestRequest }) =>
-    characterApi.shortRest(characterId, rest));
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ characterId, rest }: { characterId: string; rest: ShortRestRequest }) =>
+      (await characterApi.shortRest(characterId, rest)).data,
+    onSuccess: response => writeCharacter(queryClient, response.character),
+    onError: (error, { characterId }) =>
+      invalidateOnConflict(queryClient, error, queryKeys.characters.detail(characterId)),
+  });
 }
 
 /** A long rest: hit points, half the Hit Dice, every slot and every pool come back. */

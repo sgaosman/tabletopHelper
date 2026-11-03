@@ -3,6 +3,8 @@ package com.tabletophelper.character;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
+import com.tabletophelper.character.dto.ShortRestResponse;
+import com.tabletophelper.character.dto.ShortRestResponse.HitDieRoll;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -42,7 +44,8 @@ import static org.mockito.Mockito.when;
  *   <li>15.17 to 15.19 add what the old long rest didn't do: temporary hit points go, and a multiclass character's
  *       largest Hit Dice come back first.</li>
  * </ul>
- * The characters are created through the service, so their hit points, Hit Dice, slots and pools are the server's.
+ * A short rest answers with each die's roll, who rolled it and what it healed beside the character. The characters are
+ * created through the service, so their hit points, Hit Dice, slots and pools are the server's.
  */
 class RestServiceTest {
 
@@ -107,23 +110,45 @@ class RestServiceTest {
             PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 20);
             remaining(pc, "Fighter", 3);
 
-            CharacterResponse response = f.rests.shortRest(pc.getId(), dice(die("Fighter", 7)), f.userId);
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), dice(die("Fighter", 7)), f.userId);
 
+            CharacterResponse response = rested.character();
             assertThat(response.getHpMax()).isEqualTo(44);
             assertThat(response.getHpCurrent()).isEqualTo(29);
             assertThat(response.getHitDice().get("Fighter")).isEqualTo(new HitDicePool(10, 5, 2));
+            assertThat(rested.rolls()).containsExactly(new HitDieRoll("Fighter", 10, 7, false, 9));
         }
 
         @Test
-        @DisplayName("A Hit Die without a roll is rolled by the server")
+        @DisplayName("A Hit Die without a roll is rolled by the server, and the answer says what it rolled")
         void serverRollsADieWithoutARoll() {
             PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 20);
             f.rolls.add(4);
 
-            CharacterResponse response = f.rests.shortRest(pc.getId(), dice(die("Fighter", null)), f.userId);
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), dice(die("Fighter", null)), f.userId);
 
-            assertThat(response.getHpCurrent()).isEqualTo(26);
+            assertThat(rested.character().getHpCurrent()).isEqualTo(26);
+            assertThat(rested.rolls()).containsExactly(new HitDieRoll("Fighter", 10, 4, true, 6));
             assertThat(f.rolls).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Each die comes back in the order named, with its roll, who rolled it and what it healed")
+        void rollsComeBackInTheOrderNamed() {
+            // Fighter 3 / Wizard 2 with CON 12: 35 hit points
+            PlayerCharacter pc = hurt(f.create(f.human, CharacterFixture.scores(), f.fighter, 3, f.wizard, 2), 15);
+            f.rolls.add(5);
+            f.rolls.add(2);
+
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(),
+                    dice(die("Wizard", null), die("Fighter", 4), die("Wizard", null)), f.userId);
+
+            assertThat(rested.rolls()).containsExactly(
+                    new HitDieRoll("Wizard", 6, 5, true, 6),
+                    new HitDieRoll("Fighter", 10, 4, false, 5),
+                    new HitDieRoll("Wizard", 6, 2, true, 3));
+            // 15 + 6 + 5 + 3
+            assertThat(rested.character().getHpCurrent()).isEqualTo(29);
         }
 
         @Test
@@ -134,7 +159,7 @@ class RestServiceTest {
             f.rolls.add(3);
 
             CharacterResponse response = f.rests.shortRest(pc.getId(),
-                    dice(die("Fighter", 6), die("Wizard", null)), f.userId);
+                    dice(die("Fighter", 6), die("Wizard", null)), f.userId).character();
 
             // (6 + 1) + (3 + 1)
             assertThat(response.getHpCurrent()).isEqualTo(26);
@@ -143,14 +168,15 @@ class RestServiceTest {
         }
 
         @Test
-        @DisplayName("Healing stops at the hit point maximum")
+        @DisplayName("Healing stops at the hit point maximum, though the die still says what it heals")
         void healingStopsAtTheMaximum() {
             PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 42);
 
-            CharacterResponse response = f.rests.shortRest(pc.getId(), dice(die("Fighter", 10)), f.userId);
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), dice(die("Fighter", 10)), f.userId);
 
-            assertThat(response.getHpCurrent()).isEqualTo(44);
-            assertThat(response.getHitDice().get("Fighter").remaining()).isEqualTo(4);
+            assertThat(rested.character().getHpCurrent()).isEqualTo(44);
+            assertThat(rested.character().getHitDice().get("Fighter").remaining()).isEqualTo(4);
+            assertThat(rested.rolls()).containsExactly(new HitDieRoll("Fighter", 10, 10, false, 12));
         }
 
         @Test
@@ -158,10 +184,11 @@ class RestServiceTest {
         void aDieNeverHealsLessThanZero() {
             PlayerCharacter pc = hurt(f.create(f.human, new int[]{16, 14, 6, 10, 10, 10}, f.fighter, 2), 3);
 
-            CharacterResponse response = f.rests.shortRest(pc.getId(), dice(die("Fighter", 1)), f.userId);
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), dice(die("Fighter", 1)), f.userId);
 
-            assertThat(response.getHpCurrent()).isEqualTo(3);
-            assertThat(response.getHitDice().get("Fighter").remaining()).isEqualTo(1);
+            assertThat(rested.character().getHpCurrent()).isEqualTo(3);
+            assertThat(rested.character().getHitDice().get("Fighter").remaining()).isEqualTo(1);
+            assertThat(rested.rolls()).containsExactly(new HitDieRoll("Fighter", 10, 1, false, 0));
         }
 
         @Test
@@ -210,10 +237,11 @@ class RestServiceTest {
             PlayerCharacter pc = f.create(f.human, CON_14, f.warlock, 3, f.wizard, 2);
             spendEverySlot(pc);
 
-            CharacterResponse response = f.rests.shortRest(pc.getId(), null, f.userId);
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), null, f.userId);
 
-            assertThat(response.getSpellSlots()).containsEntry("pact_2", new SpellSlot(2, 0))
+            assertThat(rested.character().getSpellSlots()).containsEntry("pact_2", new SpellSlot(2, 0))
                     .containsEntry("1", new SpellSlot(3, 3));
+            assertThat(rested.rolls()).isEmpty();
         }
 
         @Test
@@ -223,7 +251,7 @@ class RestServiceTest {
             uses(pc, "class:fighter-action-surge", 0);
             uses(pc, "feat:lucky", 1);
 
-            CharacterResponse response = f.rests.shortRest(pc.getId(), dice(), f.userId);
+            CharacterResponse response = f.rests.shortRest(pc.getId(), dice(), f.userId).character();
 
             assertThat(response.getResourcePools())
                     .extracting(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses, ResourcePoolEntry::maxUses)

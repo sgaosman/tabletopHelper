@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { abilityMod, formatMod, formatAbilityMod, safeJsonParse } from './dndRules';
+import { abilityMod, formatMod, formatAbilityMod, formatClasses, safeJsonParse } from './dndRules';
 
 describe('dndRules', () => {
   // 18.1 abilityMod: standard score calculations
@@ -44,6 +44,29 @@ describe('dndRules', () => {
 
     it('handles low scores (score 8 -> "-1")', () => {
       expect(formatAbilityMod(8)).toBe('-1');
+    });
+  });
+
+  describe('formatClasses', () => {
+    const entry = (className: string, level: number) => ({ classId: `cls-${className.toLowerCase()}`, className, level });
+
+    it('names each class with its level for a multiclass character', () => {
+      expect(formatClasses({
+        characterClass: 'Paladin', subclass: 'Oath of Devotion',
+        multiclassEntries: [entry('Paladin', 5), entry('Sorcerer', 1)],
+      })).toBe('Paladin 5 / Sorcerer 1');
+    });
+
+    it('names a single class with its subclass, whether or not it has a class entry', () => {
+      expect(formatClasses({ characterClass: 'Fighter', subclass: 'Champion', multiclassEntries: [entry('Fighter', 3)] }))
+        .toBe('Fighter (Champion)');
+      expect(formatClasses({ characterClass: 'Fighter', subclass: 'Champion', multiclassEntries: null }))
+        .toBe('Fighter (Champion)');
+    });
+
+    it('names a single class alone before it has a subclass', () => {
+      expect(formatClasses({ characterClass: 'Wizard', subclass: null, multiclassEntries: [entry('Wizard', 1)] }))
+        .toBe('Wizard');
     });
   });
 

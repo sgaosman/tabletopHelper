@@ -43,8 +43,8 @@ public class CharacterClassSeeder {
 
     public void seed() throws Exception {
         if (classRepository.count() > 0) {
-            log.info("Classes already seeded, checking for multiclass data update");
-            updateMulticlassData();
+            log.info("Classes already seeded, checking for class data updates");
+            updateSeededClasses();
             return;
         }
 
@@ -269,10 +269,10 @@ public class CharacterClassSeeder {
         }
     }
 
-    private void updateMulticlassData() throws Exception {
+    // Brings classes seeded by older code up to date with the class data: the multiclass data they lack, and a primary
+    // ability read wrongly, such as the Fighter's, once seeded as "OR"
+    private void updateSeededClasses() throws Exception {
         List<CharacterClass> existing = classRepository.findAll();
-        boolean anyUpdated = existing.stream().anyMatch(cc -> cc.getMulticlassRequirements() == null);
-        if (!anyUpdated) return;
 
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         Resource[] resources = resolver.getResources("classpath:data/5etools/class/class-*.json");
@@ -293,16 +293,24 @@ public class CharacterClassSeeder {
 
         int updated = 0;
         for (CharacterClass cc : existing) {
-            if (cc.getMulticlassRequirements() != null) continue;
             JsonNode node = classNodeMap.get(cc.getName());
             if (node == null) continue;
-            cc.setMulticlassRequirements(parseMulticlassRequirements(node));
-            cc.setMulticlassProficiencies(parseMulticlassProficiencies(node));
-            updated++;
+            boolean changed = false;
+            if (cc.getMulticlassRequirements() == null) {
+                cc.setMulticlassRequirements(parseMulticlassRequirements(node));
+                cc.setMulticlassProficiencies(parseMulticlassProficiencies(node));
+                changed = true;
+            }
+            String primaryAbility = inferPrimaryAbility(cc.getName(), node);
+            if (!Objects.equals(primaryAbility, cc.getPrimaryAbility())) {
+                cc.setPrimaryAbility(primaryAbility);
+                changed = true;
+            }
+            if (changed) updated++;
         }
         if (updated > 0) {
             classRepository.saveAll(existing);
-            log.info("Updated multiclass data for {} classes", updated);
+            log.info("Updated the class data of {} classes", updated);
         }
     }
 
@@ -396,6 +404,8 @@ public class CharacterClassSeeder {
         }
     }
 
+    // The abilities the class's multiclassing prerequisite names, as the PHB's class table gives its primary ability:
+    // "STR and CHA" for a Paladin, and "STR or DEX" for a Fighter, whose prerequisite is either
     private String inferPrimaryAbility(String className, JsonNode node) {
         JsonNode mc = node.path("multiclassing").path("requirements");
         if (mc.isMissingNode() || mc.isEmpty()) {
@@ -407,9 +417,17 @@ public class CharacterClassSeeder {
                 default -> null;
             };
         }
+        JsonNode either = mc.path("or").path(0);
+        if (either.isObject()) {
+            return String.join(" or ", abilityNames(either));
+        }
+        return String.join(" and ", abilityNames(mc));
+    }
+
+    private static List<String> abilityNames(JsonNode requirements) {
         List<String> abilities = new ArrayList<>();
-        mc.fieldNames().forEachRemaining(f -> abilities.add(f.toUpperCase()));
-        return String.join(" and ", abilities);
+        requirements.fieldNames().forEachRemaining(f -> abilities.add(f.toUpperCase()));
+        return abilities;
     }
 
     private String parseClassFeatures(JsonNode classNode, Map<String, JsonNode> featureMap) {

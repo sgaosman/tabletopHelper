@@ -2,7 +2,7 @@ import api from './axiosConfig';
 import type {
   PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse,
   CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest,
-  ShortRestRequest, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
+  ShortRestRequest, ShortRestResponse, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
 } from '../types/character';
 
 /**
@@ -64,8 +64,9 @@ export const characterApi = {
     return api.post<PlayerCharacter>(`/characters/${id}/pools/recover`, data);
   },
 
+  /** Answers with the rested character and what each Hit Die spent rolled. */
   shortRest(id: string, data: ShortRestRequest) {
-    return api.post<PlayerCharacter>(`/characters/${id}/short-rest`, data);
+    return api.post<ShortRestResponse>(`/characters/${id}/short-rest`, data);
   },
 
   longRest(id: string) {

@@ -120,6 +120,24 @@ describe('EncounterBuilderPage', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
   });
 
+  it('lists each campaign character with its hit points as they stand and its maximum', async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockCharacter, makeMockEncounter } = await import('../../test/mocks/handlers');
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () =>
+        HttpResponse.json([makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] })])),
+      http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([
+        { ...makeMockCharacter('char-001', 'Aria', 'Paladin', 6), hpCurrent: 35, hpMax: 60 },
+      ])),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+
+    expect(await screen.findByText('Lv6 Paladin — HP 35/60 AC 16')).toBeInTheDocument();
+  });
+
   it('shows a conflict in the builder and fetches the encounters again', async () => {
     const { server } = await import('../../test/mocks/server');
     const { http, HttpResponse } = await import('msw');

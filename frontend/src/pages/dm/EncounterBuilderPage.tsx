@@ -401,7 +401,7 @@ export default function EncounterBuilderPage() {
                                       <div>
                                         <span className="font-heading text-[14px] font-semibold" style={{ color: classClr }}>{c.name}</span>
                                         <span className="font-body text-[13px] font-semibold text-muted ml-2">
-                                          Lv{c.level} {c.characterClass} — HP {c.hpMax} AC {c.armourClass}
+                                          Lv{c.level} {c.characterClass} — HP {c.hpCurrent}/{c.hpMax} AC {c.armourClass}
                                         </span>
                                       </div>
                                       <button

@@ -41,6 +41,45 @@ class CharacterClassSeederIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("After seeding, each class's primary ability reads as the PHB's class table gives it: a Fighter's STR or DEX, a Paladin's STR and CHA")
+    void primaryAbilitiesReadAsThePhbGivesThem() throws Exception {
+        characterClassSeeder.seed();
+
+        assertThat(characterClassRepository.findAll())
+                .extracting(CharacterClass::getName, CharacterClass::getPrimaryAbility)
+                .containsExactlyInAnyOrder(
+                        tuple("Artificer", "INT"),
+                        tuple("Barbarian", "STR"),
+                        tuple("Bard", "CHA"),
+                        tuple("Cleric", "WIS"),
+                        tuple("Druid", "WIS"),
+                        tuple("Fighter", "STR or DEX"),
+                        tuple("Monk", "DEX and WIS"),
+                        tuple("Paladin", "STR and CHA"),
+                        tuple("Ranger", "DEX and WIS"),
+                        tuple("Rogue", "DEX"),
+                        tuple("Sorcerer", "CHA"),
+                        tuple("Warlock", "CHA"),
+                        tuple("Wizard", "INT"));
+    }
+
+    @Test
+    @DisplayName("Seeding classes already seeded corrects a primary ability older code read wrongly, such as the Fighter's OR")
+    void seedingAgainCorrectsThePrimaryAbility() throws Exception {
+        characterClassSeeder.seed();
+        CharacterClass fighter = characterClassRepository.findByNameAndSource("Fighter", "PHB").orElseThrow();
+        fighter.setPrimaryAbility("OR");
+        characterClassRepository.save(fighter);
+
+        characterClassSeeder.seed();
+
+        assertThat(characterClassRepository.findByNameAndSource("Fighter", "PHB").orElseThrow().getPrimaryAbility())
+                .isEqualTo("STR or DEX");
+        assertThat(characterClassRepository.findByNameAndSource("Paladin", "PHB").orElseThrow().getPrimaryAbility())
+                .isEqualTo("STR and CHA");
+    }
+
+    @Test
     @DisplayName("After seeding, the third-caster subclasses sit under the non-caster Fighter and Rogue")
     void thirdCasterSubclassesBelongToNonCasters() throws Exception {
         characterClassSeeder.seed();

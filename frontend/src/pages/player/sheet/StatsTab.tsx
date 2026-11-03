@@ -15,9 +15,9 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
   const weaponProfs = useMemo(() => char.weaponProficiencies ?? [], [char.weaponProficiencies]);
   const toolProfs = useMemo(() => char.toolProficiencies ?? [], [char.toolProficiencies]);
   const languageProfs = useMemo(() => char.languageProficiencies ?? [], [char.languageProficiencies]);
-  // "3d10 + 1d6", one term for each class's Hit Dice
-  const hitDice = useMemo(() => Object.values(char.hitDice ?? {}).map(hd => `${hd.total}d${hd.dieSize}`).join(' + '),
-    [char.hitDice]);
+  // "2/3 d10 · 1/1 d6": what is left of each class's Hit Dice, as the Short Rest dialog shows them
+  const hitDice = useMemo(() => Object.values(char.hitDice ?? {})
+    .map(hd => `${hd.remaining}/${hd.total} d${hd.dieSize}`).join(' · '), [char.hitDice]);
   // The DM's adjustments that count, already in the numbers below (D158)
   const adjustments = useMemo(() => activeAdjustments(char.dmAdjustments), [char.dmAdjustments]);
   const immunities = useMemo(() => char.damageImmunities ?? [], [char.damageImmunities]);
@@ -111,7 +111,7 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Proficiency" value={formatMod(char.proficiencyBonus)} />
         <StatCard label="Passive Perception" value={String(10 + abilityMod(char.wisdom) + (skillProfs.some(s => s.toLowerCase() === 'perception') ? char.proficiencyBonus : 0))} />
-        <StatCard label="Hit Dice" value={hitDice || `${char.level}d?`} />
+        <StatCard label="Hit Dice" value={hitDice || `${char.level}d?`} sub={hitDice ? 'remaining' : undefined} />
         <StatCard label="XP" value={String(char.experiencePoints)} />
       </div>
 

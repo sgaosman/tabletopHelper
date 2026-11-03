@@ -1,3 +1,5 @@
+import type { PlayerCharacter } from '../types/character';
+
 export const ABILITIES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'] as const;
 
 export type AbilityName = typeof ABILITIES[number];
@@ -42,6 +44,18 @@ export function formatMod(mod: number): string {
 
 export function formatAbilityMod(score: number): string {
   return formatMod(abilityMod(score));
+}
+
+/**
+ * A character's classes as its sheet's heading gives them: each class and its level for a multiclass character, such
+ * as "Paladin 5 / Sorcerer 1", or else the class and its subclass, "Fighter (Champion)".
+ */
+export function formatClasses(character: Pick<PlayerCharacter, 'characterClass' | 'subclass' | 'multiclassEntries'>): string {
+  const entries = character.multiclassEntries ?? [];
+  if (entries.length > 1) {
+    return entries.map(e => `${e.className} ${e.level}`).join(' / ');
+  }
+  return (character.characterClass ?? '') + (character.subclass ? ` (${character.subclass})` : '');
 }
 
 export function safeJsonParse<T>(json: unknown, fallback: T): T {

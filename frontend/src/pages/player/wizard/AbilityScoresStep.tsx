@@ -76,7 +76,7 @@ export default function AbilityScoresStep({
                   >+</button>
                 </div>
                 {racialBonuses[a] && (
-                  <p className="font-body text-[13px] font-semibold text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
+                  <p className="font-body text-[13px] font-semibold text-cls-druid mt-1">{formatMod(racialBonuses[a])} racial</p>
                 )}
                 <p className="font-body text-[13px] font-semibold text-faint mt-1">
                   Final: {scores[a] + (racialBonuses[a] || 0)} ({formatMod(abilityMod(scores[a] + (racialBonuses[a] || 0)))})
@@ -101,7 +101,7 @@ export default function AbilityScoresStep({
                 className="w-full text-center font-heading text-[17px] font-bold bg-page border border-rule py-2 text-ink focus:border-muted focus:outline-none"
               />
               {racialBonuses[a] && (
-                <p className="font-body text-[13px] font-semibold text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
+                <p className="font-body text-[13px] font-semibold text-cls-druid mt-1">{formatMod(racialBonuses[a])} racial</p>
               )}
               <p className="font-body text-[13px] font-semibold text-faint mt-1">
                 Final: {scores[a] + (racialBonuses[a] || 0)} ({formatMod(abilityMod(scores[a] + (racialBonuses[a] || 0)))})
@@ -153,7 +153,7 @@ function StandardArrayAssigner({
             })}
           </select>
           {racialBonuses[a] && (
-            <p className="font-body text-[13px] font-semibold text-cls-druid mt-1">+{racialBonuses[a]} racial</p>
+            <p className="font-body text-[13px] font-semibold text-cls-druid mt-1">{formatMod(racialBonuses[a])} racial</p>
           )}
           {assignments[a] !== null && (
             <p className="font-body text-[13px] font-semibold text-faint mt-1">

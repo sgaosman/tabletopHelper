@@ -3,6 +3,8 @@ package com.tabletophelper.character;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
+import com.tabletophelper.character.dto.ShortRestResponse;
+import com.tabletophelper.character.dto.ShortRestResponse.HitDieRoll;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -32,8 +34,9 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  * revives it (D166).
  * <ul>
  *   <li>A short rest spends the Hit Dice the player names: each heals its roll, entered by the player or rolled
- *       here, plus the Constitution modifier, never less than 0, up to the hit point maximum. The pools that reset on
- *       a short rest come back, and so do a warlock's pact slots (PHB p.107).</li>
+ *       here, plus the Constitution modifier, never less than 0, up to the hit point maximum, and the answer says
+ *       what each rolled. The pools that reset on a short rest come back, and so do a warlock's pact slots
+ *       (PHB p.107).</li>
  *   <li>A long rest needs at least 1 hit point. It restores every hit point and clears temporary hit points, brings
  *       back spent Hit Dice up to half the character's total, at least one, the largest first, and restores every
  *       spell slot and every pool.</li>
@@ -51,22 +54,23 @@ public class RestService {
     private final Rng rng;
 
     /**
-     * A short rest, spending the Hit Dice the request names.
+     * A short rest, spending the Hit Dice the request names. It answers with the rested character and each die's roll
+     * and healing.
      *
      * @throws ValidationException for a class without Hit Dice, more dice than a class has left, or a roll outside 1
      *                             to the die's size
      * @throws ConflictException   while the character is in an Active or Paused encounter, or dead
      */
     @Transactional
-    public CharacterResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
+    public ShortRestResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
         PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId,
                 "take a short rest");
         CharacterCommands.requireAlive(character, "take a short rest");
         List<HitDieSpent> dice = request != null && request.hitDice() != null ? request.hitDice() : List.of();
-        spendHitDice(character, dice);
+        List<HitDieRoll> rolls = spendHitDice(character, dice);
         resetPactSlots(character);
         resetShortRestPools(character);
-        return characterCommands.finish(character);
+        return new ShortRestResponse(characterCommands.finish(character), rolls);
     }
 
     /**
@@ -93,10 +97,11 @@ public class RestService {
 
     // ── Hit Dice ─────────────────────────────────────────────────
 
-    // Every die is checked before any is rolled, so a refused rest changes nothing
-    private void spendHitDice(PlayerCharacter character, List<HitDieSpent> dice) {
+    // Every die is checked before any is rolled, so a refused rest changes nothing. Gives each die's roll and healing,
+    // in the order named
+    private List<HitDieRoll> spendHitDice(PlayerCharacter character, List<HitDieSpent> dice) {
         if (dice.isEmpty()) {
-            return;
+            return List.of();
         }
         Map<String, HitDicePool> hitDice = new LinkedHashMap<>(orEmptyMap(character.getHitDice()));
         Map<String, Integer> spending = new LinkedHashMap<>();
@@ -121,11 +126,15 @@ public class RestService {
 
         // With the DM's adjustments to Constitution, as every number worked out from it has (D158)
         int constitutionModifier = Ability.modifier(DmAdjustments.abilityScore(character, Ability.CON));
+        List<HitDieRoll> rolls = new ArrayList<>();
         int healing = 0;
         for (HitDieSpent die : dice) {
             int dieSize = hitDice.get(die.className()).dieSize();
-            int roll = die.roll() != null ? die.roll() : rng.roll(dieSize);
-            healing += Rests.hitDieHealing(dieSize, roll, constitutionModifier);
+            boolean rolledByServer = die.roll() == null;
+            int roll = rolledByServer ? rng.roll(dieSize) : die.roll();
+            int healed = Rests.hitDieHealing(dieSize, roll, constitutionModifier);
+            rolls.add(new HitDieRoll(die.className(), dieSize, roll, rolledByServer, healed));
+            healing += healed;
         }
         spending.forEach((className, count) -> {
             HitDicePool pool = hitDice.get(className);
@@ -134,6 +143,7 @@ public class RestService {
 
         character.setHitDice(hitDice);
         character.setHpCurrent(CurrentHitPoints.heal(CharacterSheetService.totals(character), healing).current());
+        return rolls;
     }
 
     // Half the character's total Hit Dice come back, at least one, the largest first (D158)

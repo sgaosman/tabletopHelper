@@ -2351,6 +2351,16 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        HitDieRoll: {
+            className: string;
+            /** Format: int32 */
+            dieSize: number;
+            /** Format: int32 */
+            healing: number;
+            /** Format: int32 */
+            roll: number;
+            rolledByServer: boolean;
+        };
         HitDieSpent: {
             className: string;
             /** Format: int32 */
@@ -2837,6 +2847,10 @@ export interface components {
         };
         ShortRestRequest: {
             hitDice?: components["schemas"]["HitDieSpent"][] | null;
+        };
+        ShortRestResponse: {
+            character: components["schemas"]["CharacterResponse"];
+            rolls: components["schemas"]["HitDieRoll"][];
         };
         SlotChange: {
             /** Format: int32 */
@@ -3689,7 +3703,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CharacterResponse"];
+                    "application/json": components["schemas"]["ShortRestResponse"];
                 };
             };
         };

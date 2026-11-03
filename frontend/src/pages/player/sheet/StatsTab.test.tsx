@@ -45,16 +45,27 @@ describe('StatsTab', () => {
     expect(screen.getByText('Hit Dice')).toBeInTheDocument();
   });
 
-  it('shows the Hit Dice as dice, one term for each class', () => {
+  it("shows what is left of each class's Hit Dice, as the Short Rest dialog does", () => {
     const { unmount } = render(<StatsTab {...defaultProps} />);
-    expect(screen.getByText('5d10')).toBeInTheDocument();
+    expect(screen.getByText('5/5 d10')).toBeInTheDocument();
+    expect(screen.getByText('remaining')).toBeInTheDocument();
     unmount();
 
     const multiclass = {
       ...char, hitDice: { Fighter: { total: 2, remaining: 2, dieSize: 10 }, Wizard: { total: 3, remaining: 1, dieSize: 6 } },
     };
     render(<StatsTab {...defaultProps} char={multiclass} />);
-    expect(screen.getByText('2d10 + 3d6')).toBeInTheDocument();
+    expect(screen.getByText('2/2 d10 · 1/3 d6')).toBeInTheDocument();
+  });
+
+  it('shows Hit Dice that are all spent as none left, not as the total', () => {
+    const spent = {
+      ...char, hitDice: { Fighter: { total: 5, remaining: 0, dieSize: 10 }, Wizard: { total: 1, remaining: 0, dieSize: 6 } },
+    };
+    render(<StatsTab {...defaultProps} char={spent} />);
+
+    expect(screen.getByText('0/5 d10 · 0/1 d6')).toBeInTheDocument();
+    expect(screen.queryByText('5d10 + 1d6')).not.toBeInTheDocument();
   });
 
   it('shows the level with an unknown die when the sheet has no Hit Dice', () => {

@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react';
 import type { Race } from '../../../types/reference';
-import { ABILITIES, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
+import { ABILITIES, formatMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
 import type { RaceChoiceReq } from './types';
 
 export interface RaceStepProps {
@@ -42,8 +42,9 @@ export default function RaceStep({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto pr-1">
         {filteredRaces.map(race => {
           const bonuses = safeJsonParse<Array<{ ability: string; bonus: number; count?: number }>>(race.abilityScoreBonuses, []);
-          const fixedParts = bonuses.filter(b => b.ability !== 'CHOOSE').map(b => `${b.ability} +${b.bonus}`);
-          const chooseParts = bonuses.filter(b => b.ability === 'CHOOSE').map(b => `${b.count || 1}x +${b.bonus || 1}`);
+          // A bonus can be negative, as an orc's INT -2 is
+          const fixedParts = bonuses.filter(b => b.ability !== 'CHOOSE').map(b => `${b.ability} ${formatMod(b.bonus)}`);
+          const chooseParts = bonuses.filter(b => b.ability === 'CHOOSE').map(b => `${b.count || 1}x ${formatMod(b.bonus || 1)}`);
           const chooseSummary = chooseParts.length > 0 ? `Choose ${chooseParts.join(', ')}` : '';
           const bonusSummary = [...fixedParts, chooseSummary].filter(Boolean).join(', ');
           const speed = safeJsonParse<Record<string, number | boolean>>(race.speed, { walk: 30 });
@@ -129,7 +130,7 @@ export default function RaceStep({
             {bonusAssignments.map((assignment, i) => (
               <div key={i} className="flex items-center gap-3 flex-wrap">
                 <span className="font-body text-[15px] font-semibold text-cls-druid w-24 shrink-0">
-                  Apply +{assignment.bonus} to:
+                  Apply {formatMod(assignment.bonus)} to:
                 </span>
                 <div className="flex gap-1.5">
                   {ABILITIES.map(ability => (

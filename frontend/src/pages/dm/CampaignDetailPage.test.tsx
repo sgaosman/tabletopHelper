@@ -190,6 +190,25 @@ describe('CampaignDetailPage', () => {
     expect(screen.queryByRole('button', { name: /choice/i })).not.toBeInTheDocument();
   });
 
+  it("names each of a multiclass character's classes with its level, as the sheet does, and a single class with its subclass", async () => {
+    const aria = {
+      ...makeMockCharacter('char-001', 'Aria', 'Paladin', 6), subclass: 'Oath of Devotion',
+      multiclassEntries: [
+        { classId: 'cls-paladin', className: 'Paladin', level: 5, subclassName: 'Oath of Devotion' },
+        { classId: 'cls-sorcerer', className: 'Sorcerer', level: 1 },
+      ],
+    };
+    const bram = {
+      ...makeMockCharacter('char-002', 'Bram', 'Fighter', 3), subclass: 'Champion',
+      multiclassEntries: [{ classId: 'cls-fighter', className: 'Fighter', level: 3, subclassName: 'Champion' }],
+    };
+    server.use(http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([aria, bram])));
+    renderPage();
+
+    expect(await screen.findByText(/Level 6 Human Paladin 5 \/ Sorcerer 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Level 3 Human Fighter \(Champion\)/)).toBeInTheDocument();
+  });
+
   it('shows a character who died as dead, with a Revive button that brings them back at 1 hit point (D166)', async () => {
     const aria = { ...makeMockCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
     const bram = makeMockCharacter('char-002', 'Bram', 'Wizard', 3);

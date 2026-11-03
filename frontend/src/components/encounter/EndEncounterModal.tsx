@@ -62,7 +62,7 @@ function ResultRow({ result }: { result: CombatResultPreview }) {
  * The DM's End dialog (D166). Ending is final, and the DM decides once for the whole encounter whether its results are
  * written back to the character sheets, which it does by default. The dialog previews what writing them back would do
  * to each player character's sheet as it stands now; the preview can't be edited. Declining writes nothing back, pool
- * uses included.
+ * uses included, so the preview dims and its heading says so.
  */
 export default function EndEncounterModal({ encounterName, onEnd, onClose }: Props) {
   const results = useEncounterResults();
@@ -103,7 +103,7 @@ export default function EndEncounterModal({ encounterName, onEnd, onClose }: Pro
 
         <section aria-label="Results for each character">
           <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-2">
-            What each sheet takes
+            {applyResults ? 'What each sheet takes' : 'None of this is written back'}
           </h3>
           {results.isPending ? (
             <p className="font-body text-[15px] text-muted">Working out each character's results...</p>

@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type {
-  DmAdjustment, EligibleClassResponse, LevelUpResponse, PendingChoice, PlayerCharacter,
+  DmAdjustment, EligibleClassResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse,
 } from '../../types/character';
 import type {
   AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
@@ -105,10 +105,18 @@ export const characterHandlers = [
   ...[
     ['patch', 'details'], ['put', 'campaign'], ['put', 'inventory'], ['post', 'hp'],
     ['post', 'spell-slots/:slot/spend'], ['post', 'spell-slots/:slot/restore'], ['post', 'pools/spend'],
-    ['post', 'pools/recover'], ['post', 'short-rest'], ['post', 'long-rest'], ['put', 'spells/prepared'],
+    ['post', 'pools/recover'], ['post', 'long-rest'], ['put', 'spells/prepared'],
     ['post', 'spellbook'], ['delete', 'spellbook'],
   ].map(([method, path]) => http[method as 'patch' | 'put' | 'post' | 'delete'](`${BASE}/characters/:id/${path}`,
     async ({ params }) => HttpResponse.json(makeMockCharacter(params.id as string, 'Test Character', 'Wizard', 3)))),
+
+  // A short rest answers with the character and what each Hit Die spent rolled
+  http.post(`${BASE}/characters/:id/short-rest`, async ({ params }) => {
+    return HttpResponse.json({
+      character: makeMockCharacter(params.id as string, 'Test Character', 'Wizard', 3),
+      rolls: [],
+    } satisfies ShortRestResponse);
+  }),
 
   http.delete(`${BASE}/characters/:id`, async () => {
     return new HttpResponse(null, { status: 204 });
@@ -590,7 +598,7 @@ export function makeMockMonster(id: string, name: string, type: string, cr: stri
   } satisfies Monster;
 }
 
-function makeMockRace(id: string, name: string, abilityScoreBonuses: string) {
+export function makeMockRace(id: string, name: string, abilityScoreBonuses: string) {
   return {
     id, name, source: 'PHB', size: 'Medium', speed: JSON.stringify({ walk: 30 }), abilityScoreBonuses,
     creatureType: 'Humanoid', darkvision: null, traits: '[]', proficiencies: '{}', resistances: '[]',

@@ -27,6 +27,15 @@ export type ShortRestRequest = Schemas['ShortRestRequest'];
 
 export type HitDieSpent = Schemas['HitDieSpent'];
 
+/** A short rest taken: the rested character, and what each Hit Die spent rolled, in the order they were sent. */
+export type ShortRestResponse = Schemas['ShortRestResponse'];
+
+/**
+ * One Hit Die a short rest spent: its roll, entered by the player or rolled by the server, and the hit points it heals,
+ * the roll plus the CON modifier. Hit points stop at the maximum, so the dice can heal more than the character regains.
+ */
+export type HitDieRoll = Schemas['HitDieRoll'];
+
 /** The spells one class has prepared, which replace those it had prepared. */
 export type PreparedSpellsRequest = Schemas['PreparedSpellsRequest'];
 

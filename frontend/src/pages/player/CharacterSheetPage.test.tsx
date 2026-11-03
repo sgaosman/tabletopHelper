@@ -6,6 +6,7 @@ import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCharacter, makeMockPendingChoice, makeMockResourcePool } from '../../test/mocks/handlers';
+import type { ShortRestResponse } from '../../types/character';
 import CharacterSheetPage from './CharacterSheetPage';
 
 function renderSheet(characterId = 'char-001') {
@@ -100,16 +101,24 @@ describe('CharacterSheetPage', () => {
     expect(screen.getByRole('button', { name: 'Short Rest' })).toHaveFocus();
   });
 
-  it('a short rest sends each Hit Die spent, with the roll entered or none for the server to roll', async () => {
+  it('a short rest sends each Hit Die spent, with the roll entered or none for the server to roll, and shows what each rolled', async () => {
     const multiclass = {
       ...hurtFighter, characterClass: 'Fighter / Warlock',
       hitDice: { Fighter: { total: 3, remaining: 2, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
     };
     server.use(http.get('/api/characters/:id', () => HttpResponse.json(multiclass)));
-    const bodies = recordCommand('post', 'short-rest', { ...multiclass, hpCurrent: 27 });
+    const bodies = recordCommand('post', 'short-rest', {
+      character: { ...multiclass, hpCurrent: 27 },
+      rolls: [
+        { className: 'Fighter', dieSize: 10, roll: 7, rolledByServer: false, healing: 9 },
+        { className: 'Fighter', dieSize: 10, roll: 1, rolledByServer: true, healing: 3 },
+        { className: 'Warlock', dieSize: 8, roll: 1, rolledByServer: true, healing: 3 },
+      ],
+    } satisfies ShortRestResponse);
     renderSheet();
     const user = userEvent.setup();
     expect(await screen.findByText('12/30')).toBeInTheDocument();
+    const requests = recordRequests();
 
     await user.click(screen.getByRole('button', { name: 'Short Rest' }));
     const dialog = screen.getByRole('dialog', { name: 'Short Rest' });
@@ -129,8 +138,29 @@ describe('CharacterSheetPage', () => {
     await waitFor(() => expect(bodies).toEqual([{ hitDice: [
       { className: 'Fighter', roll: 7 }, { className: 'Fighter' }, { className: 'Warlock' },
     ] }]));
+    // The rested character replaces the cached one, so the sheet shows it without loading it again
     expect(await screen.findByText('27/30')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Short rest taken: 15 hit points regained');
+    expect(requests).toEqual(['POST /api/characters/char-001/short-rest']);
+    const result = screen.getByRole('status');
+    expect(result).toHaveTextContent('Short rest taken: 15 hit points regained');
+    expect(result).toHaveTextContent('Fighter d10: you rolled 7, healing 9');
+    expect(result).toHaveTextContent('Fighter d10: the server rolled 1, healing 3');
+    expect(result).toHaveTextContent('Warlock d8: the server rolled 1, healing 3');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('a short rest that spends no Hit Dice says only that it was taken', async () => {
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)));
+    const bodies = recordCommand('post', 'short-rest', { character: hurtFighter, rolls: [] } satisfies ShortRestResponse);
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('12/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Short Rest' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Short Rest' })).getByRole('button', { name: 'Short Rest' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/^Short rest taken$/);
+    expect(bodies).toEqual([{ hitDice: [] }]);
   });
 
   it('spending a spell slot sends the spend command for that slot', async () => {

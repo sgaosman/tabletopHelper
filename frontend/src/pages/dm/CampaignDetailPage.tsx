@@ -10,6 +10,7 @@ import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import { getClassColour } from '../../utils/classColours';
 import { activeAdjustments } from '../../utils/dmAdjustments';
+import { formatClasses } from '../../utils/dndRules';
 import { choicesPending } from '../../utils/pendingChoices';
 
 // Players who join, and their characters, appear without a reload. Like every refetch interval, this one
@@ -179,7 +180,7 @@ export default function CampaignDetailPage() {
                       <div>
                         <h3 className="font-heading text-[16px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
                         <p className="font-body text-[14px] font-semibold text-muted">
-                          Level {c.level} {c.race} {c.characterClass}{c.subclass ? ` (${c.subclass})` : ''}
+                          Level {c.level} {c.race} {formatClasses(c)}
                           <span className="text-faint"> — played by {c.ownerDisplayName}</span>
                         </p>
                         {/* The choices its levels owe, which only its player makes (D159) */}
