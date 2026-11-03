@@ -207,6 +207,22 @@ Risks are rated by **severity** (impact if realised) and **likelihood** (probabi
 
 **Update (2026-11-02, R3):** reading a character is now limited to its owner and the DM of its campaign; other campaign members get 403 (D155).
 
+### R016: Reusable Placeholder Secret in .env.example
+
+**Category:** Security
+**Severity:** High — a `JWT_SECRET` left as the placeholder is public: anyone who knows it can sign an access token for any user whose ID they know, and every campaign member can see the DM's ID
+**Likelihood:** Low — the deployment steps have the operator generate a secret, and the group is small and trusted
+**Status:** Open (raised 2026-11-03)
+
+**The gap:** `.env.example` is committed, and the first deployment copies it to `.env` (`cp .env.example .env`, see [[deployment-guide]]). Its `JWT_SECRET` placeholder, `CHANGE_ME_generate_with_openssl_rand_base64_64`, is 46 bytes, longer than the 32-byte minimum the backend enforces, so a deployment that leaves it unchanged starts normally with a secret that anyone who can read the repository knows. Access tokens are checked by signature alone, with no database lookup, so a token signed with that secret is accepted for whatever user ID it names.
+
+**Mitigations:**
+- `.env.example` states the rule beside the value: at least 32 bytes, 64 or more for HS512, generated with `openssl rand -base64 64` (R5 follow-ups, 2026-11-03)
+- The deployment guide has the operator generate the secret before the first deploy
+- The backend refuses to start when `JWT_SECRET` is missing or shorter than 32 bytes, and `docker-compose.prod.yml` refuses to start when it is unset (D156)
+
+**Not mitigated:** nothing detects the placeholder itself, which passes both the length check and compose's "is set" check. `POSTGRES_PASSWORD`'s placeholder can be reused the same way, though the compose file publishes no database port.
+
 ## Resolved Risks
 
 ### R-RESOLVED-001: Vite 8 Build Failures with Type Imports

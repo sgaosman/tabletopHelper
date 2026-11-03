@@ -195,29 +195,41 @@ Create a new player character owned by the authenticated user. Uses FK reference
   "hpMax": 120,
   "speed": 30,
   "campaignId": "uuid (optional)",
-  "savingThrowProficiencies": "[\"INT\",\"WIS\"]",
-  "skillProficiencies": "[\"Arcana\",\"History\"]",
-  "armorProficiencies": "[\"Light armor\"]",
-  "weaponProficiencies": "[\"Daggers\",\"Darts\",\"Slings\",\"Quarterstaffs\",\"Light crossbows\"]",
-  "toolProficiencies": "[\"Herbalism kit\"]",
-  "languageProficiencies": "[\"Common\",\"Elvish\",\"Draconic\"]",
-  "damageResistances": "[\"fire\"]",
-  "racialAbilityBonuses": "[{\"ability\":\"Intelligence\",\"bonus\":2}]",
+  "savingThrowProficiencies": ["INT", "WIS"],
+  "skillProficiencies": ["Arcana", "History"],
+  "armorProficiencies": ["Light armor"],
+  "weaponProficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+  "toolProficiencies": ["Herbalism kit"],
+  "languageProficiencies": ["Common", "Elvish", "Draconic"],
+  "damageResistances": ["fire"],
+  "racialAbilityBonuses": [{"ability": "INT", "bonus": 2}],
   "spellcastingAbility": "INT",
-  "spellsKnown": "[{\"name\":\"Fire Bolt\",\"level\":0,\"source\":\"class:Wizard\"},{\"name\":\"Shield\",\"level\":1,\"source\":\"class:Wizard\",\"prepared\":true}]",
-  "features": "[{\"name\":\"Magic Initiate\",\"description\":\"Granted by Astral Drifter background.\",\"source\":\"Astral Drifter\"}]",
-  "hitDiceMap": "{\"Wizard\":{\"total\":1,\"remaining\":1,\"faces\":6}}",
-  "multiclassClassEntries": "[{\"classId\":\"uuid\",\"level\":3,\"subclassId\":\"uuid\"},{\"classId\":\"uuid2\",\"level\":2}]"
+  "spellsKnown": [
+    {"name": "Fire Bolt", "level": 0, "source": "class:Wizard"},
+    {"name": "Shield", "level": 1, "source": "class:Wizard", "prepared": true}
+  ],
+  "features": [
+    {"name": "Magic Initiate", "description": "Granted by Astral Drifter background.", "source": "Astral Drifter"}
+  ],
+  "hitDice": {"Wizard": {"dieSize": 6, "total": 1, "remaining": 1}},
+  "multiclassClassEntries": [{"classId": "uuid", "level": 3, "subclassId": "uuid"}, {"classId": "uuid2", "level": 2}]
 }
 ```
 
+**JSON fields are structured JSON, not strings (R6 workstream B, D168).** The proficiency, resistance and immunity lists, `features`, `spellsKnown`, `spellSlots`, `equipment`, `currency`, `racialAbilityBonuses`, `multiclassClassEntries`, `multiclassEntries`, `hitDice`, `levelHistory`, `featResources`, `resourcePools` and the response's `subclassAlwaysPreparedSpells` are arrays and objects, in the shapes of the `character.state` records, in requests and responses alike; the spec lists each shape. A JSON field sent as a string is refused with `400`. Before R6 the API carried them as JSON text, such as `"skillProficiencies": "[\"Arcana\"]"`.
+
+- `hitDice` is an object keyed by class name, each entry `{dieSize, total, remaining}`. It replaces `hitDiceMap`, `hitDiceTotal` and `hitDiceRemaining`, which the response no longer has and the requests no longer take (`faces` in the old map is `dieSize`).
+- `spellSlots` is an object keyed `"1"` to `"9"`, with a Warlock's pact slots keyed `pact_N`, each `{max, used}`, the shape participants have had since V15. It was `{total, used}`.
+- `equipment` entries are `{name, quantity, description, itemId, equipped, attuned}`. `equipped` and `attuned` replace the response's `equippedItems` and `attunedItems`.
+- `racialAbilityBonuses` entries are `{ability, bonus}`, with the ability abbreviated, such as `"INT"`, or `null` until the player assigns it.
+
 For spellcaster classes, `spellSlots`, `spellSaveDc`, and `spellAttackBonus` are auto-calculated server-side if not provided. For non-casters with feat spells, the frontend calculates and sends these values.
 
-For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries`, `hitDiceMap`, `hitDiceTotal`, `levelHistory`, and HP from this data using `LevelUpCalculator.buildMulticlassProgression()`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. ASI choices are applied post-creation via `POST /characters/{characterId}/apply-choices` — the server records each ASI on the correct level history entry (first unrecorded ASI level, not the last entry).
+For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries`, `hitDice`, `levelHistory`, and HP from this data using `LevelUpCalculator.buildMulticlassProgression()`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. ASI choices are applied post-creation via `POST /characters/{characterId}/apply-choices` — the server records each ASI on the correct level history entry (first unrecorded ASI level, not the last entry).
 
 The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceName"`, `"feat:FeatName"`. Entries support `prepared`, `alwaysPrepared`, `atWill`, `usesPerLongRest`, and `unlocksAtLevel` fields.
 
-**Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus, subclassAlwaysPreparedSpells). The `subclassAlwaysPreparedSpells` field is a JSON object keyed by class level (e.g. `{"3":["Hold Person","Spike Growth"],"5":["Sleet Storm"]}`) — populated from the Subclass entity's seeded 5etools data.
+**Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus, subclassAlwaysPreparedSpells). The `subclassAlwaysPreparedSpells` field is an object keyed by subclass name and then by the class level the spells come at, with an entry for each of the character's subclasses (e.g. `{"Life Domain": {"1": ["Bless", "Cure Wounds"], "3": ["Lesser Restoration", "Spiritual Weapon"]}}`) — populated from the Subclass entity's seeded 5etools data. It is `null` when none of them has any.
 
 **Errors:**
 - `400` — Unknown `raceId`, `classId`, `subclassId`, `backgroundId` or `campaignId` (IDs in the body are a 400, not a 404), or validation failed
@@ -227,7 +239,7 @@ The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceNa
 
 Update an existing character. Only the owner can update. All fields are optional — only provided fields are updated.
 
-**Request:** Any subset of character fields. Includes `clearCampaign` (boolean) — set to `true` to unassign the character from its campaign (since `campaignId: null` is indistinguishable from "not provided" in a partial update). Assigning a `campaignId` requires the owner to be a member of that campaign.
+**Request:** Any subset of character fields. A field left out, or `null`, keeps its value, and a JSON field that is given (an array or object, as in the create request) replaces the whole value. Includes `clearCampaign` (boolean) — set to `true` to unassign the character from its campaign (since `campaignId: null` is indistinguishable from "not provided" in a partial update). Assigning a `campaignId` requires the owner to be a member of that campaign.
 
 **Response (200):** Full updated character object.
 
@@ -713,6 +725,7 @@ Look up an encounter by session code. Used by players to join a live encounter. 
       "participantType": "PLAYER",
       "characterId": "uuid",
       "monsterId": null,
+      "characterClass": "Ranger",
       "displayName": "Aragorn",
       "initiative": 18,
       "initiativeModifier": 3,
@@ -760,6 +773,7 @@ What R5 changed in the payload (D161–D163, D168):
 - An `activeConditions` entry is `{id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave}`. `endRule` is `{type, participantId}`, with `type` one of `AFTER_ROUNDS`, `START_OF_TURN`, `END_OF_TURN`, `CONCENTRATION`, `REPEAT_SAVE`, `HP_REGAINED` or `MANUAL`. `repeatSave` is `{ability, dc, awaitingRoll}`, or `null` when the condition has none.
 - `spellSlotsCurrent` is an object keyed `"1"` to `"9"`, with pact slots keyed `pact_N`, each `{max, used}`. `spellsKnown` and `resourcePoolsCurrent` are typed arrays too.
 - `allowPlayerManualModifiers` repeats the campaign's setting, so the session pages know whether to offer players Manual Modifier fields (D164).
+- `characterClass` (R5 follow-ups, D171) is a player character's class as its sheet names it, such as `"Fighter"`, or `"Fighter / Wizard"` for a multiclass character, and `null` on a monster. The server reads it from the sheet each time it builds the state, so no request sets it and a participant keeps no copy. Both views carry it, and the session pages and the encounter builder use it to colour a player character's row.
 
 ## Combat
 
@@ -1210,7 +1224,7 @@ Use Legendary Resistance on a failed save (DM only, D145, D163). The creature su
 }
 ```
 
-`combatLogId` is a combat log entry with `legendaryResistanceEligible` set. Since R5 every failed save by a creature that has a use left is logged that way, whether it came from a spell, a monster action or a Repeat Save. Using it refunds the damage beyond what a success would have left (`lrSuccessDamage`), which brings back a monster the save killed, and removes exactly the conditions the save applied (`lrConditionIds`). Concentration the failed save ended stays ended.
+`combatLogId` is a combat log entry with `legendaryResistanceEligible` set. Since R5 every failed save by a creature that has a use left is logged that way, whether it came from a spell, a monster action or a Repeat Save. Using it refunds the damage beyond what a success would have left (`lrSuccessDamage`), which brings back a monster the save killed, and removes exactly the conditions the save applied (`lrConditionIds`). Concentration the failed save ended stays ended. The save a monster's hit calls for against its conditions is eligible too (R5 follow-ups): using it removes only the conditions that save guarded, the hit's damage stays, and it isn't offered when the hit killed the target.
 
 **Response (200):** Full encounter object.
 
@@ -1238,6 +1252,16 @@ Use a monster's action, legendary action or lair action (DM only). `actionSource
 ```
 
 Without `componentTargetIds`, every attack goes at the one creature in `targetParticipantIds`, as before, and naming more than one creature that way answers 400. A multiattack the server can't read is the exception, and isn't an error: nothing rolls, and the response has `requiresManualResolution: true` with the reason, for the DM to resolve by hand. `componentTargetIds` adds these `400` refusals: the action isn't a multiattack, or is one the server can't read; `targetParticipantIds` isn't empty; the number of lists differs from the number of attacks; an attack is given more creatures than its `maxTargets`; or no attack has a target. A dead target is still a `409`.
+
+**Saving throws on hits (R5 follow-ups, D165):** a condition an attack gives waits for the saving throw the monster's data records for it, on the condition itself or, failing that, on the attack: `saveDC` and `saveAbility`, or `secondarySaveDC` and `secondarySaveAbility` where the Monster Manual data keeps a hit's save apart from the attack's own DC, as the Mind Flayer's tentacles do for stunning. Each target the attack hits rolls that save through the same save rules as any other, so a Strength or Dexterity save fails automatically while the target is unconscious, paralyzed, stunned or petrified. The target gets the conditions the save guards only on a failure, and the hit's damage is dealt either way. A condition with no save to wait for still comes with the hit: a grapple, because a stat block's grapple DC is for escaping it (unless the grapple itself records a save), and a condition whose data gives a DC without an ability, or an ability without a DC. An attack whose conditions record different saves can't be resolved, because a hit makes one save at most: nothing rolls, and the response has `requiresManualResolution: true` with the reason. A failed hit save is also offered Legendary Resistance (see `legendary-resistance`).
+
+In `targetResults`, `savedSuccessfully` is `true` when the target made a save, the one a hit calls for against its conditions included (before, only an action delivered as a saving throw set it). `false` means the target failed that save or the action called for none, and `conditionsApplied` lists what it gained. The roll is part of the target's log entry, after the damage:
+
+```
+Dire Wolf uses Bite on Aria: d20(15) + 5 = 20 vs AC 12 — hit, 10 piercing damage, STR save d20(12) + 0 = 12 vs DC 13 fails, gains prone.
+```
+
+A success reads `STR save d20(13) + 0 = 13 vs DC 13 succeeds against prone`, and an automatic failure `STR save vs DC 13 fails automatically`, each in place of the save text above.
 
 ### GET /encounters/{id}/combat/multiattack-options
 

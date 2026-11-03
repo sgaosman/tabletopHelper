@@ -2781,3 +2781,5 @@ The full list is settled during R2 planning.
 **Amends:** D124
 
 **Update (2026-11-03, R5 follow-ups):** the Crit and Pause buttons use the paladin gold with card-coloured text, which meets WCAG AA in every theme: Tourmaline 4.71:1 (was 2.81), Parchment 4.57 (2.73), Tavern 7.01 (8.89) and Handbook 4.68 (2.79). Still below AA: the player's Adv toggle (about 2.4:1) and the Paused banner and chip in the light themes (about 2.2–2.4:1).
+
+**Update (2026-11-03, contrast fix):** the player's Adv toggle now uses card-coloured text on the buff background (5.90:1 to 6.82:1), and the Paused banner and chip use the paladin gold with card-coloured text (4.57:1 to 7.00:1), so every control the R5 follow-ups listed below AA now meets it. The Repeat Save prompt still uses the faded monk tint (about 2.2:1 to 2.4:1 in the light themes), and the selected Norm toggle is 4.48:1 in Tavern.

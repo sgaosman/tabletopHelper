@@ -93,7 +93,7 @@ The Player View is what every player receives, on `/topic/encounter/{id}/state` 
 
   The frontend's `utils/healthStatus.ts` turns these into the labels, for the player's initiative list and both spell target pickers. `healthStatus` is `null` everywhere else: in the DM View, for player characters, and when exact HP is shown.
 - **The turn order is narrowed too (R5, D163).** `turnOrder` leaves out the turns of hidden participants, and the Lair's turn unless players can see a monster in its lair. `tieGroup` becomes `null` on every turn, and `monstersInLair` lists only the monsters players can see. The turns left are numbered again, so each participant's `sortOrder` and `currentTurnIndex` count only what players see. While a hidden participant takes its turn, no turn is current: `currentTurnIndex` is `null` and no participant has `isCurrentTurn` set.
-- **Player characters are unchanged.**
+- **Player characters are unchanged.** That includes `characterClass`, which both views carry.
 - **The combat log** (`GET /api/encounters/{id}/combat/log`) for players leaves out entries whose actor, target or Legendary Resistance target is hidden, and no entry keeps the Legendary Resistance fields (`legendaryResistanceEligible`, `lrTargetId`, `lrDamageDealt`, `lrConditionsApplied`, `lrResolved`, `lrSuccessDamage` and `lrConditionIds`). An entry logged during a hidden participant's turn keeps its place, with `turnParticipantName` cleared. Since R5 a spell or monster action is logged once per target, plus a summary entry that names no target, so a hidden target's entry is the one that drops out. The Lair's "Turn passes to Lair Actions" entry names a monster in its lair, so players see it only while they can see one. A player who names a hidden participant as a target gets the same 400 as for an unknown participant.
 - **Monster action templates** (`GET /api/encounters/{id}/participants/{participantId}/actions`) are DM only.
 
@@ -114,6 +114,7 @@ The broadcast payload is the `EncounterResponse` DTO, the same shape as the REST
       "id": "uuid",
       "displayName": "Aragorn",
       "participantType": "PLAYER",
+      "characterClass": "Ranger",
       "initiative": 18,
       "sortOrder": 1,
       "hpCurrent": 45,
@@ -158,6 +159,7 @@ What R5 changed in the payload (D161–D163, D168):
 - **`isCurrentTurn` and `currentTurnIndex` are computed for each view.** The encounter stores whose turn it is by participant (`current_turn_participant_id`, or `is_lair_turn` for the Lair), not by position, so both are worked out from the turn order every time the state is built (D163). `currentTurnIndex` is the current turn's place in `turnOrder`, and `null` before the encounter starts.
 - **`turnOrder`** lists every turn in order: one per participant, and the Lair's (`name` "Lair Actions", `initiative` 20, `lair` true, `participantId` null) while a monster in `monstersInLair` is alive. `skipped` marks a dead monster's turn, which the order passes over, and `current` marks the turn being taken. `tieGroup` numbers participants tied on initiative and DEX, whom the DM may reorder, and is set only in the DM View. A participant's `sortOrder` is the place of its turn in `turnOrder`.
 - **`deathSaveDue`** is `true` on a Dying PC from the start of its turn until it rolls a death save. `activeConditions` entries are objects with an `id`, an `endRule` and, when the condition has one, a `repeatSave`, and `spellSlotsCurrent` is an object of `{max, used}` entries (D168). [[api-reference#Encounter Response Shape]] has the rest.
+- **`characterClass`** (R5 follow-ups, 2026-11-03, D171) is a player character's class as its sheet names it, such as `"Fighter"`, or `"Fighter / Wizard"` for a multiclass character, and `null` on a monster. The server reads it from the sheet each time it builds the state, so a participant keeps no copy. Both views carry it, and the session pages and the encounter builder use it for the class colour of a player character's row.
 
 ### AttackActionMessage (broadcast after an attack resolves)
 
