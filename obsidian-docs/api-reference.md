@@ -234,6 +234,11 @@ Every character response also has `spellcasting` and `abilityScoreMaximums`, wor
 
 Since R6 workstream D every character response also has `inLiveEncounter`, which is `true` while the character is a participant in an Active or Paused encounter. Rests, level-up, level-down and apply-choices answer `409` then, and the sheet disables those buttons with a note (D151, D166).
 
+Since R6 workstream E every character response includes the active DM Adjustments (D158). The six ability scores, `armourClass`, `damageResistances` and `damageImmunities` have them, and so do `hpMax`, `initiativeBonus`, `speed` and the spell numbers, as the server works them out. Everything worked out from a score uses the adjusted one: the modifiers, hit points, initiative, spell numbers, multiclass prerequisites, short-rest healing and pool formulas. AC is the value the character was created with plus its AC adjustments. `damageResistances` and `damageImmunities` are always lists now, never `null`, with each damage type once. The response also gains:
+- `damageVulnerabilities`, which only DM Adjustments give (D161)
+- `baseAbilityScores`, the six scores without the adjustments, `{strength, dexterity, constitution, intelligence, wisdom, charisma}`, which an ASI raises up to the `abilityScoreMaximums`; an adjusted score may already be past its maximum
+- `dmAdjustments`, every adjustment, oldest first, with the removed ones kept as the record (see [DM Adjustments](#dm-adjustments-r6-workstream-e-d158) below)
+
 **Errors:**
 - `400` — Unknown `raceId`, `classId`, `subclassId`, `backgroundId` or `campaignId` (IDs in the body are a 400, not a 404), or validation failed
 - `400` — The class levels in `multiclassClassEntries` don't add up to `level` (R6 workstream C)
@@ -248,7 +253,7 @@ Since R6 workstream D every character response also has `inLiveEncounter`, which
 - **Only the owner.** Every command, levelling, apply-choices and `DELETE` included, is the owner's alone: another user gets `403` and an unknown character `404`. Access is checked before the character's row is locked, so neither waits for the lock.
 - **One at a time.** Each command locks the character's row, so commands on one character queue and each starts from the last one's committed state. One that waits more than five seconds answers `409` ("Another change is still in progress. Please try again in a moment."). A write from a copy of the character that a command has changed since answers `409` too ("Someone else changed this at the same time. Please try again."), because the character's `version` catches it.
 - **During an encounter.** Rests, level-up, level-down and apply-choices answer `409` while the character is in an Active or Paused encounter (D166). The other commands go on, because combat changes the participant, not the sheet.
-- **What no command sets.** Ability scores, proficiencies and expertise, resistances and immunities, race, background, `abilityScoreMethod` and `racialAbilityBonuses`, which the PUT took, can't be set any more, and neither can AC, which it had ignored since workstream C. HP, temporary HP, slot uses, remaining Hit Dice and pool uses change only through the commands below, and race and feat spells can't be edited.
+- **What no command sets.** Ability scores, proficiencies and expertise, resistances and immunities, race, background, `abilityScoreMethod` and `racialAbilityBonuses`, which the PUT took, can't be set any more, and neither can AC, which it had ignored since workstream C. HP, temporary HP, slot uses, remaining Hit Dice and pool uses change only through the commands below, and race and feat spells can't be edited. Since R6 workstream E the DM of the character's campaign can change some of these through DM Adjustments (below): the ability scores, AC, HP maximum, speed, initiative and spell numbers by an amount, the damage defences, and the feats.
 
 ### PATCH /characters/{characterId}/details
 
@@ -379,6 +384,46 @@ Each list given replaces what the class knows of that kind, and a list left out 
 - `400` — Neither list; a class the character doesn't cast with, or `spells` for a class that prepares its spells; an unknown spell, a levelled spell among the cantrips or a cantrip among the spells, or a spell off the class's list or above its highest level; or too many
 - `409` — A spell's class lists can't be read
 
+### DM Adjustments (R6 workstream E, D158)
+
+The DM of a character's campaign changes the character only through DM Adjustments: named changes on top of what the rules give it, each with a reason its player sees. Both commands answer `200` with the full character object, its Derived Stats worked out again.
+
+- **Only the campaign's DM.** Anyone else gets `403` ("Only the DM of this character's campaign can adjust it"), the character's owner and strangers alike. A character in no campaign has no DM, so everyone gets `403` ("This character isn't in a campaign, so it has no DM to adjust it"). A DM who also owns the character may adjust it. A character that doesn't exist answers `404`. Access is checked before the character's row is locked.
+- **One at a time.** Each takes the character's row lock, with the same five-second wait and `409`s as the player commands.
+- **During an encounter.** Both are allowed while the character is in an Active or Paused encounter (D166). An adjustment to a defence, an ability score, or a class's spell save DC or attack bonus reaches the character's participants at once, because combat reads those from the sheet. AC, the HP maximum, initiative and the main spell numbers are copied when a participant is added, so an adjustment to them reaches only participants added afterwards.
+- **Logged.** Every use is logged with the DM's, the adjustment's and the character's IDs, and the kind, target and amount, but not the reason.
+
+### POST /characters/{characterId}/adjustments
+
+Add a DM Adjustment. What it needs depends on its `kind`, `STAT`, `DEFENCE` or `FEAT`, and a field that belongs to another kind answers `400`. `reason` is required, at most 200 characters.
+
+**Request (STAT):** `{"kind": "STAT", "target": "ARMOUR_CLASS", "amount": 1, "reason": "Ring of Protection"}`
+
+`target` is `ARMOUR_CLASS`, `HP_MAX`, `SPEED`, `INITIATIVE`, `SPELL_SAVE_DC`, `SPELL_ATTACK_BONUS` or an ability score, `STR`, `DEX`, `CON`, `INT`, `WIS` or `CHA`, in any case. Saving throws and skills aren't adjustable: they follow from the scores. `amount` is a whole number from -100 to 100, negative to take away, and not 0. An ability adjustment comes first, so its modifier and everything worked out from it change; the score may pass its maximum but stays within 1 to 30. Speed stops at 0 and the HP maximum at 1. A higher HP maximum raises `hpCurrent` by as much, and a lower one caps it. A spell adjustment changes every class's numbers and the main ones.
+
+**Request (DEFENCE):** `{"kind": "DEFENCE", "defence": "RESISTANCE", "target": "fire", "reason": "Ring of Fire Resistance"}`
+
+`defence` is `RESISTANCE`, `IMMUNITY` or `VULNERABILITY`, and `target` is one of the 13 damage types, in any case: acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing or thunder (D161). A defence the character already has counts once. Condition immunities can't be added.
+
+**Request (FEAT):** `{"kind": "FEAT", "feat": {"featId": "uuid", "featAbility": "CON", "savingThrowChoice": "CON"}, "reason": "Boon of the mountain"}`
+
+`feat` takes the feat fields an `apply-choices` ASI takes: `featId` and the choices the feat needs, such as `featAbility` or `spellIds`. There is no `target`: the feat names it. The feat's effects are applied as an ASI feat's are and recorded in the adjustment, so removing it reverses them exactly. Its speed, initiative, HP per level and limited uses, such as Lucky's `feat:lucky` pool, count as a level's feat's do. The server doesn't check the feat's prerequisites, and the DM's feat picker offers a feat the character doesn't qualify for, showing what it lacks. The character already has a feat when a feat added its feature, a level took it, or an active grant gave it; a feat chosen at creation isn't detected until workstream F.
+
+**Errors:**
+- `400` — No `kind`; a blank `reason`, or one over 200 characters; a field another kind uses; a STAT without a known `target`, or with an `amount` that is missing, 0 or beyond ±100; a DEFENCE without its `defence` or a damage type; a FEAT without `feat.featId`, or a feat that doesn't exist
+- `403` — Not the DM of the character's campaign, or a character in no campaign
+- `404` — Character not found
+- `409` — A feat the character already has, unless its text says it can be taken more than once, which only Elemental Adept's does ("Aria already has Lucky, which can't be taken again")
+
+### DELETE /characters/{characterId}/adjustments/{adjustmentId}
+
+Remove a DM Adjustment. No body. It stays in `dmAdjustments` as the record, with `removedBy` and `removedAt`, and no longer counts. A FEAT's recorded effects are reversed, and only the feat's latest feature entry goes, so a feat granted twice keeps the other.
+
+**Errors:**
+- `403` — Not the DM of the character's campaign, or a character in no campaign
+- `404` — Character not found, or the character has no such adjustment ("DM Adjustment not found")
+- `409` — The adjustment has already been removed ("That DM Adjustment has already been removed")
+
 ### GET /characters
 
 List all active characters owned by the authenticated user.
@@ -480,6 +525,8 @@ For `type: "feat"`, provide `featId` (UUID) for full feat automation. The server
 
 Since R6 workstream C (D167) an `ability` ASI must be +2 to one score or +1 to two different scores, none taken above its maximum (the character's `abilityScoreMaximums`), or it answers `400`. An ASI goes on the latest level that owes one, at the amount actually applied (`choices.asi.applied`), and Expertise on the latest level that gives it (`choices.expertise`), so levelling down reverses the right ones. A feat's speed, initiative and HP per level are recorded there and added when the Derived Stats are worked out.
 
+Since R6 workstream E the maximum is checked against `baseAbilityScores`, the scores without DM Adjustments, and the ASI raises those, so an adjustment that takes a score past its maximum doesn't block an increase (D158). Apply-choices doesn't refuse a feat the character already has yet; only the feat picker does, and workstream F adds the check. The picker keeps a feat open when its text says it can be taken more than once, which only Elemental Adept's does.
+
 **Response (200):** Full character object with updated ability scores / subclass.
 
 **Errors:**
@@ -516,6 +563,8 @@ List all 13 classes with their multiclass prerequisite status relative to the ch
 Classes are sorted: current class(es) first, then eligible classes, then ineligible (sorted alphabetically within each group).
 
 Since R6 workstream C a class whose prerequisites can't be read answers `409`, instead of counting as having none (D155).
+
+Since R6 workstream E the prerequisites, here and at level-up, are checked against the ability scores with the DM Adjustments (D158).
 
 ## Monsters
 
@@ -727,6 +776,8 @@ Add a participant (monster or player character).
 ```
 
 For `PLAYER` type, provide `characterId` instead of `monsterId`. HP, AC, and initiative modifier are auto-populated from the monster or character entity.
+
+Since R6 workstream E a character's AC includes its active AC adjustments, and the HP maximum, initiative modifier and main spell numbers it is given include the adjustments its stored Derived Stats have when it is added. An adjustment made later doesn't reach it, except those combat reads from the sheet: defences, ability scores and class spell numbers (D158, D166).
 
 When `quantity` > 1, participants are named sequentially ("Goblin 1", "Goblin 2", "Goblin 3"), continuing from any existing participants with the same base name.
 
@@ -1019,7 +1070,7 @@ List the weapons a character can attack with, and the numbers the server works o
 ```
 
 - The list holds the character's weapons in inventory order, each once, and then Unarmed Strike, which is always there. An `equipment` entry is a weapon when its name matches one of the 55 mundane weapons in `items` (see [[database-schema#items]]), in any case and singular or plural; an entry with a quantity of 0 doesn't count. Since R6 workstream D an entry whose `itemId` links it to one of those weapons counts as that weapon, whatever it is called, and is listed under the weapon's name (D164). A magic weapon listed under its own name, such as "Flame Tongue Longsword", is not offered: attack with the plain weapon and add the bonus as a Manual Modifier, or enter the attack by hand.
-- `weapon` is the name `attack` takes. `ability` is STR, DEX, or the higher of the two for a finesse weapon. `attackBonus` includes the proficiency bonus when `proficient` is true. `damage` is the weapon's dice plus the ability modifier, such as "1d8 + 3". A `ranged` weapon attacks from beyond 5 feet unless the request says `within5Ft: true`.
+- `weapon` is the name `attack` takes. `ability` is STR, DEX, or the higher of the two for a finesse weapon. `attackBonus` includes the proficiency bonus when `proficient` is true. `damage` is the weapon's dice plus the ability modifier, such as "1d8 + 3". A `ranged` weapon attacks from beyond 5 feet unless the request says `within5Ft: true`. Since R6 workstream E the STR and DEX are the scores with the character's DM Adjustments, read from its sheet (D158).
 - `powerAttack` is `null` unless the character has Great Weapon Master or Sharpshooter, the weapon qualifies for it, and they are proficient with the weapon. When it is set it gives the `feat`, and the `attackBonus` and `damage` with the trade taken.
 - Proficiency comes from the sheet's `weaponProficiencies`, which may name a category ("simple", "Martial Weapons"), a weapon or its plural ("longswords"), or "Firearms" for a firearm. The feats come from the sheet's features and its level history.
 
@@ -1030,7 +1081,7 @@ List the weapons a character can attack with, and the numbers the server works o
 
 ### POST /encounters/{id}/combat/damage
 
-Apply damage to a participant. DM only (D161). The damage is untyped unless `damageType` is given, when the target's resistances, vulnerabilities and immunities apply. Temp HP absorbs damage first. Dropping to 0 HP kills a monster (`lifeState` DEAD); a player character falls unconscious and prone, starts dying (DYING, death saves reset) and loses concentration, unless the damage left over after reaching 0 is at least its max HP, which kills it outright (massive damage, PHB p.197). Each application to a concentrating creature that stays up makes one CON save, DC 10 or half the damage, and a failure ends its concentration.
+Apply damage to a participant. DM only (D161). The damage is untyped unless `damageType` is given, when the target's resistances, vulnerabilities and immunities apply. A player character's come from its sheet and its active DM Adjustments, read when the damage is dealt; only the DM's adjustments give it vulnerabilities (R6 workstream E, D161). Temp HP absorbs damage first. Dropping to 0 HP kills a monster (`lifeState` DEAD); a player character falls unconscious and prone, starts dying (DYING, death saves reset) and loses concentration, unless the damage left over after reaching 0 is at least its max HP, which kills it outright (massive damage, PHB p.197). Each application to a concentrating creature that stays up makes one CON save, DC 10 or half the damage, and a failure ends its concentration.
 
 **Damaging a downed target:** damage to a player character at 0 HP is one death save failure, and damage of at least its max HP kills it (PHB p.197). A dead target answers 409 ("X is already dead").
 
@@ -1485,11 +1536,11 @@ HTTP status codes used (D155, R3). Services throw the domain exceptions in `shar
 - `200` — Success
 - `201` — Created
 - `204` — No Content (successful deletion, logout)
-- `400` — Bad input (`ValidationException` and Spring's binding errors): failed validation, with a message per field; an unknown ID in the request body, such as a `raceId` or a participant ID, which is also the answer when a player names a participant hidden from them (D157); a spell the caster can't cast or pay for (R5, D165); a tie order that isn't a whole tie group (R5, D163); a malformed UUID or a parameter of the wrong type (e.g. `?level=abc`); a missing or unreadable body; a missing required parameter; wrong login details
+- `400` — Bad input (`ValidationException` and Spring's binding errors): failed validation, with a message per field; an unknown ID in the request body, such as a `raceId` or a participant ID, which is also the answer when a player names a participant hidden from them (D157); a spell the caster can't cast or pay for (R5, D165); a tie order that isn't a whole tie group (R5, D163); a malformed UUID or a parameter of the wrong type (e.g. `?level=abc`); a missing or unreadable body; a missing required parameter; wrong login details; since R6 workstream E, a DM Adjustment with a field its kind doesn't use, or an amount of 0 or beyond ±100 (D158)
 - `401` — Unauthorized: no access token, or an expired or invalid one, on a protected endpoint; or a missing, expired, revoked or reused refresh cookie on `/auth/refresh`. The frontend answers a 401 with one refresh and a retry
-- `403` — Forbidden (`ForbiddenException`): signed in but not allowed. Not a member of the campaign, not its DM, not the character's owner, acting for a participant you don't control, a player attacking or casting outside their turn, or a player entering a Manual Modifier the campaign has turned off (R5, D164)
-- `404` — Not found (`NotFoundException`): the resource named in the URL doesn't exist (campaign, character, encounter, participant, session code, combat log entry), or the path is unknown
-- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160). R6 workstream D added: a character command that waited more than five seconds in the same way, or that wrote from a copy of the character a command had changed since (D158); a rest, level-up, level-down or apply-choices while the character is in an Active or Paused encounter (D166); a long rest below 1 hit point; and spending a slot or pool use that isn't left, or getting back one that wasn't spent
+- `403` — Forbidden (`ForbiddenException`): signed in but not allowed. Not a member of the campaign, not its DM, not the character's owner, acting for a participant you don't control, a player attacking or casting outside their turn, or a player entering a Manual Modifier the campaign has turned off (R5, D164); since R6 workstream E, a DM Adjustment from anyone but the DM of the character's campaign, or from anyone at all for a character in no campaign (D158)
+- `404` — Not found (`NotFoundException`): the resource named in the URL doesn't exist (campaign, character, encounter, participant, session code, combat log entry), or the path is unknown; since R6 workstream E also a DM Adjustment the character doesn't have (D158)
+- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160). R6 workstream D added: a character command that waited more than five seconds in the same way, or that wrote from a copy of the character a command had changed since (D158); a rest, level-up, level-down or apply-choices while the character is in an Active or Paused encounter (D166); a long rest below 1 hit point; and spending a slot or pool use that isn't left, or getting back one that wasn't spent. R6 workstream E added: removing a DM Adjustment already removed, and granting a feat the character already has, unless it can be taken more than once (D158)
 - `500` — Anything unexpected. Outside the dev profile the body is always `{"error": "Something went wrong. Please try again."}`; only dev returns the real message (`server.error.include-message: always`)
 
 Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentException`), an expired token returned 403, and optimistic-lock conflicts returned 500 (superseded in R3, D155).
