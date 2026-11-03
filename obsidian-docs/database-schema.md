@@ -718,7 +718,18 @@ V17 stores the current turn by participant rather than by position, because the 
 
 ### R6 — Character authority
 
-The plan is drafted and awaits approval (D150). Migrations V19–V24 land with workstreams B–G.
+The plan was approved on 2026-11-03 (D150). Migrations V19–V24 land with workstreams B–G.
+
+| Migration | Lands in | Change |
+|---|---|---|
+| `V19__typed_character_json.sql` | B | Slots become `{max, used}`; `hit_dice` is filled from `hit_dice_map`; equipment names become entries; values of the wrong JSON type become NULL |
+| V20 hit die results | C | Each `level_history` entry gains `hitDieResult`: the die size at character level 1, and half the die plus 1 after that |
+| V21 character version | D | `player_characters.version`, for optimistic locking behind the row lock |
+| V22 DM adjustments | E | `player_characters.dm_adjustments` JSONB, default `[]` |
+| V23 pending choices | F | `player_characters.pending_choices` JSONB, default `[]` |
+| V24 Write-back | G | `encounter_participants.joined_with`, `encounters.results_applied` and `player_characters.is_dead` |
+
+Two maintenance jobs, both dry runs unless `--maintenance.apply=true` is passed: `recompute-characters` (C) derives every character's stats again, and `backfill-pending-choices` (F) adds the choices existing characters missed.
 
 **Done (2026-11-03):** V19 (workstream B) is applied to the local database after a backup and a `preview-migration` dry run: 276 rows examined, all 13 characters changed (hit dice on 13, slots on 5), and every row loads.
 

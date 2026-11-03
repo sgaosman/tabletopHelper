@@ -1857,6 +1857,8 @@ M13 (action economy) changes the same combat code. Building it first would multi
 
 **Update (2026-11-03, R6 workstreams A and B):** R6's plan is drafted, kept outside the repository, and awaits approval. Workstreams A and B, which change no character behaviour, were built on 2026-11-03. C and D change levelling, multiclass prerequisites and rests, so they wait for approval; E, F and G wait for answers to the plan's questions.
 
+**Update (2026-11-03, R6 planning, approved):** the R6 plan was approved on 2026-11-03 with every default answer. Workstreams C to G follow A and B in order, one local commit each. The answers to the plan's questions for E, F and G are recorded under D158, D159 and D166.
+
 ## D151: Modular Monolith — Microservices Rejected
 
 **Date:** 2026-11-01
@@ -1892,6 +1894,8 @@ Each module exposes a small public API (services and DTOs) and keeps everything 
 **Update (2026-11-02, R3 planning):** the boundary test uses ArchUnit. Only a module may use its own `internal` package, and `rules` may use only the JDK and `shared` (the domain exceptions). Spring Modulith's `verify()` would fail on today's `character` ↔ `encounter` dependency cycle. R3 moves `auth`, `user` and the security classes into `identity`. It also moves the static calculators `SpellSlotCalculator`, `SpellSlotTables`, `ProficiencyBonus`, `DiceRoller` and `ExpressionEvaluator` into `rules`. `User` stays public until other modules hold user IDs instead.
 
 **Update (2026-11-03, R6 workstreams A and B):** workstream B moved `SpellSlot` and `KnownSpell` from `encounter.state`, and `ResourcePoolEntry`, `FeatResourceEntry` and `LevelHistoryEntry` from `character.dto`, into `character.state`, which both modules use. `CharacterUpdates` replaced `CharacterJsonHelper`. `character` still imports encounter classes until workstream D.
+
+**Update (2026-11-03, R6 planning, approved):** planned for D and G: `character/` stops importing `encounter`. It asks whether a character is in a live encounter through a `LiveEncounters` interface that `encounter` implements **(choice)**. Write-back stays an event: its record, `CombatResults`, lives in `character`, `encounter` publishes it, and a listener in `character` applies it inside the completing transaction, so dependencies run only from encounter to character **(choice)**.
 
 ## D152: Remove Startup Character Cleanup
 
@@ -2039,6 +2043,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 
 **Update (2026-11-02, R5 implementation):** the combat code's catch-and-continue blocks went with `CombatService` and both resolver engines (workstream D). The catches left in `encounter/` convert to domain exceptions (an unknown participant type answers 400; stored JSON that can't be read is logged and answers 409) or log a broadcast that failed after commit (D160).
 
+**Update (2026-11-03, R6 planning, approved):** planned for C and D: the catch-and-continue blocks in `character/` and `resourcepool/` go. A pool sync that fails stops the command instead of writing `[]` over the pools, and `MulticlassValidator` answers 409 when class data can't be read instead of treating it as no requirements.
+
 ## D156: Session Security — In-Memory Access Token, Rotating Refresh Cookie
 
 **Date:** 2026-11-01
@@ -2112,7 +2118,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D158: Server-Authoritative Character Commands and DM Adjustments
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R6)
+**Status:** Accepted — planned (R6; plan approved 2026-11-03)
 
 **Decision:**
 - **Intent endpoints.** `PUT /characters/{id}` is retired. Characters change only through intent endpoints:
@@ -2160,10 +2166,12 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 
 **Related:** D054, D127, D159, D166, D167, [[Derived Stat]], [[DM Adjustment]]
 
+**Update (2026-11-03, R6 planning, approved):** planned for D and E. **Commands (D):** intent endpoints under `/api/characters/{id}` replace the PUT: details, campaign, inventory, HP (damage takes temp HP first and stops at 0, healing stops at the maximum, and temp HP keeps the higher amount), spending and restoring slots and pools, short and long rests, prepared spells, the Wizard's spellbook, and an interim known-spells update, checked against the class list, level and known limit, until F **(choice)**. Player commands stay owner-only. Each command locks the character row (pessimistic write lock, 5-second wait, 409 when it runs out), with `@Version` as a backstop **(choice)**. Derived Stats keep stored copies written by one derivation, initiative and speed are derived, and AC keeps its creation value plus DM Adjustments, because armour isn't modelled **(choice)**. Race and background can't change after creation, and classes change only by levelling **(choice)**. **Rests:** a short rest spends the chosen hit dice, each healing its roll (entered by the player from 1 to the die size, or rolled by the server) plus CON, never below 0. A long rest needs at least 1 HP (PHB p.186), restores HP, clears temp HP, recovers half the total hit dice (at least one, largest first) and resets every slot and pool **(choice)**. Rests, level-up, level-down and applying choices answer 409 while the character is in an Active or Paused encounter. **DM Adjustments (E), answered with the defaults:** the DM manages them from the campaign page's character list. Kinds are STAT (AC, HP maximum, speed, initiative, spell save DC, spell attack bonus and the six ability scores; saving throws and skills aren't adjustable), DEFENCE (a resistance, immunity or vulnerability, D161) and FEAT (a grant through `FeatEffectResolver`, reversed on removal). Players can't set their own AC, so every AC change goes through the DM. Players see each adjustment and its reason. A feat taken outside an ASI is a DM grant, and the sheet's Add Feat Spells dialog goes.
+
 ## D159: Pending Choices
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R6)
+**Status:** Accepted — planned (R6; plan approved 2026-11-03)
 
 **Decision:**
 - **Recording.** When a level grants a choice — ability score increase or feat, subclass, expertise, fighting style, cantrips or spells — the server stores a Pending Choice. It holds an ID, its type, the class and class level it came from, and any limits on the options.
@@ -2186,6 +2194,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 **Resolves:** D128
 
 **Related:** D052, D158, D167, [[Pending Choice]]
+
+**Update (2026-11-03, R6 planning, approved):** planned for F, answered with the defaults. Pending Choices are a JSONB list on the character **(choice)**. The types are ASI or feat, subclass, expertise, fighting style, cantrips, spells, and race or background feats at creation, which replace the wizard's feat step so their effects apply. Invocations, pact boons, Metamagic and maneuvers come later. Levelling up adds that level's choices, and creating a character at level N adds the choices for levels 1 to N. `apply-choices` resolves one choice (409 if it doesn't exist, 400 for an invalid answer) and records the result in that level's history; levelling down removes that level's unresolved choices. Players see a banner on the sheet with a button per choice. They may skip a choice and leave it pending, and may level up or join encounters with choices pending. The DM sees a count of pending choices on the campaign page but can't resolve or waive them **(choice)**. Characters created above level 1 make their choices on the sheet after creation. A known caster's spell choice offers the one-spell swap. The backfill job adds only missed ASIs, subclasses and expertise.
 
 ## D160: Combat Pipeline — A Single Resolve/Apply Path
 
@@ -2299,6 +2309,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Update (2026-11-02, R5 planning):** `rules.combat.DamageRules` implements the table, and D172's golden test pins it first. A participant's `life_state` (Alive, Dying, Stable, Dead) replaces `is_alive`, because a Stable PC's death saves are reset and can't otherwise be told from a Dying PC's **(choice)**. Dropping to 0 adds unconscious and prone; regaining HP removes the unconscious condition that dropping to 0 added. PCs have no stored vulnerabilities, so none apply until R6 **(choice)**. Manual damage and healing become DM-only again, as D028 says; today a player who names their own participant as the actor can apply both.
 
 **Update (2026-11-02, R5 implementation):** built as decided. `rules.combat.DamageRules` implements the table, and `encounter_participants.life_state` holds Alive, Dying, Stable or Dead (V16). Dropping to 0 makes a PC Dying, unconscious and prone; regaining HP removes that unconsciousness (end rule HP_REGAINED) but leaves prone. A PC added at 0 HP joins Stable and unconscious **(choice)**. Dead creatures can't be targeted (409). A "Within 5 ft" toggle, on by default, replaces Ranged for the downed-target rules. Manual damage and healing are DM-only, and "Set HP / revive", logged as HP_SET, replaces Resurrect. Forced criticals were DM-only in workstream D; workstream F lets players force one as a Manual Modifier when the campaign allows it (D164). PCs have no vulnerabilities until R6.
+
+**Update (2026-11-03, R6 planning, approved):** planned for E: player characters' vulnerabilities, and any extra resistances or immunities, come from DEFENCE DM Adjustments. No 2014 race or feat grants a vulnerability **(choice)**.
 
 ## D162: Concentration Instances and Condition End Rules
 
@@ -2429,6 +2441,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Update (2026-11-02, R5 workstream G):** weapon attacks are now calculated by the server. `rules.combat.WeaponRules` works out the ability (STR for melee, DEX for ranged, and for finesse the higher modifier, keeping the weapon's own on a tie), the attack bonus and the damage; the Resolver doubles a critical's dice. Great Weapon Master and Sharpshooter offer −5 to hit for +10 damage only with the feat (read from `features` and the level history's ability score choices) and a qualifying weapon the character is proficient with; a thrown melee weapon qualifies for neither, and anything else answers 400. `CharacterWeapons` matches inventory names, ignoring case and plurals, against the 55 mundane weapons, meaning `items` rows with a weapon category, damage dice and no rarity: the 54 base weapons less the Net, plus the Iron Ball and the Oversized Longbow **(choice)**. Proficiency matches the spellings in the data: simple, martial, Simple Weapons, weapon names and plurals, and Firearms by ammunition tag. Unarmed Strike is always offered, and `GET /api/encounters/{id}/combat/attack-options` lists the choices. A magic bonus, extra damage, a forced critical or a whole attack entered by hand is a Manual Modifier, a whole attack counting as one **(choice)**. Left for later: versatile damage, fighting styles, Monk Martial Arts, two-weapon fighting, ammunition, loading and reach, disadvantage for ranged attacks in melee, and an arcane focus Staff counting as a quarterstaff. No local character has inventory items yet, and there is no UI to add them, so players see Unarmed Strike and, while the setting allows it, Other.
 
+**Update (2026-11-03, R6 planning, approved):** planned: inventory entries' optional `itemId` links them to items, and weapon matching tries it before the name (D). Class spells in combat use that class's DC and attack bonus from the sheet; race and feat spells keep the main numbers (C) **(choice)**.
+
 ## D165: Monster Action and Spellcasting Fixes
 
 **Date:** 2026-11-01
@@ -2474,6 +2488,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Update (2026-11-03, R5 follow-ups):** a hit's conditions now wait for the saving throw the data records, on the condition itself or, failing that, on the attack (`saveDC`, or the Monster Manual data's `secondarySaveDC`). The target rolls through `SaveRules`, the condition applies only on a failure, and the roll is logged on the target's entry. Grapples stay automatic, because a stat block's escape DC is for escaping, unless the grapple itself records a save (the Mindwitness and Ulitharid tentacles, whose text says otherwise; R7 corrects the data). 205 conditions in 133 attacks on 129 monsters now wait for a failed save, such as the Dire Wolf's prone, the Lich's paralysis and the Mind Flayer's stun. A Repeat Save with no DC of its own uses the condition's save. Left for R7's data files: 53 conditions record a DC without an ability (grapple escape and check DCs) and still come with the hit; about 590 have a save only in the stat-block text; the Froghemoth, Froghemoth Elder and Slarkrethel records hold the monster's own save rather than the target's; and rules such as "fails by 5 or more" apply on any failed save.
 
+**Update (2026-11-03, R6 planning, approved):** planned for C: a player character's innate spell uses become sheet pools named `innate:<spell>`, built from known spells that have uses, reset on a long rest, copied into encounters and written back like any other pool **(choice)**.
+
 ## D166: Encounter Lifecycle and Write-Back
 
 **Date:** 2026-11-01
@@ -2516,10 +2532,12 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Update (2026-11-03, R5 follow-ups):** the DM session page has a Remove control on each creature, behind a confirmation, while the encounter is Preparing or Active.
 
+**Update (2026-11-03, R6 planning, approved):** planned for G, answered with the defaults. Each participant stores what it joined with (`joined_with`), and characters added while Preparing are copied again when the encounter starts **(choice)**. At completion the DM decides once for the whole encounter, in an End dialog that previews each character's changes; the preview can't be edited **(choice)**. Applying writes the HP, slot and pool changes within their limits, sets temp HP to what was left, and marks a character who died as dead. A character still Dying or Stable is written back alive at 0 HP. A dead character can't rest, be healed or join an encounter until the DM revives it, at 1 HP **(choice)**. A character removed during an Active encounter has its changes applied at removal. If the DM declines, nothing syncs back, pool uses included. Players see the result on their sheet, which reloads when the encounter completes; there is no separate summary **(choice)**. Snapshots for encounters already Active or Paused come from the sheets at the time of migration. Character rows are locked in ID order at completion, and the old pools-only sync-back goes.
+
 ## D167: Character Progression — Derived HP and Exact Reversal
 
 **Date:** 2026-11-01
-**Status:** Accepted — planned (R6)
+**Status:** Accepted — planned (R6; plan approved 2026-11-03)
 
 **Decision:**
 - **HP maximum is derived** from:
@@ -2564,6 +2582,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 **Related:** D054, D158, D159, [[Derived Stat]], [[Spellcasting Class]]
 
 **Update (2026-11-03, R6 workstreams A and B):** workstream A added `rules.character`, pure functions with golden tests typed from the PHB: `ClassProgression` (ASI, expertise and fighting style levels, cantrips and spells known, prepared limits, highest spell level), `HitPoints` (hit die results plus CON, Tough, Hill Dwarf and Draconic Bloodline bonuses, at least 1 per level), `HitDice` (long-rest recovery of half the total, largest first), `Rests`, `AbilityScores` (the maximum of 20, or 24 for STR and CON after Primal Champion) and `Multiclassing` (every class's prerequisites). Nothing calls them until workstream C. `rules.Ability.modifier` rounds down (PHB p.13) and replaced seven copies; two truncated, so a monster with an odd DEX below 10 now gets the correct initiative modifier when added, and a feat changing an odd CON below 10 adjusts HP correctly. The multiclass HP rule is on PHB p.163. Where existing code disagrees with the PHB (a multiclass dip gets the maximum die; Tough, Hill Dwarf and Draconic Bloodline HP; no minimum of 1 HP per level; the hard-coded maximum of 20; level-up checking only the primary class's prerequisites; Eldritch Knight and Arcane Trickster spells; long rests returning half of each class's dice), workstream C fixes it.
+
+**Update (2026-11-03, R6 planning, approved):** planned for C. Each level records a `hitDieResult` using the fixed average, with the maximum die only at character level 1, so a multiclass dip gets the average (PHB p.163); rolled HP is out of scope **(choice)**. A higher HP maximum raises current HP by the same amount, and a lower one caps it **(choice)**. ASIs record the amount applied (older entries fall back to the amount requested) and must be +2 to one score or +1 to two, within the maximum (400 otherwise). Primal Champion is recorded at Barbarian 20. History also records multiclass proficiencies and expertise, so levelling down removes them **(choice)**. Levelling down removes the last entry, reverses only what it recorded, derives the stats again and syncs pools. Tough, Hill Dwarf and Draconic Bloodline are matched by name until R7 **(choice)**. The spell tables live in `rules` (R6 A), and R7 moves them to data files. V20 backfills `hitDieResult` with the values the old code used, and the `recompute-characters` job recalculates existing characters, as a dry run first **(choice)**.
 
 ## D168: Typed JSON End-to-End
 
