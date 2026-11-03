@@ -11,6 +11,16 @@ const TITLES: Record<PendingChoiceType, string> = {
   SPELLS: 'Spells',
 };
 
+/**
+ * The 1st-level choices of a character's first class that the creation wizard doesn't ask for, made on the sheet
+ * after creation (D159): a Fighter's Fighting Style (PHB p.72). The wizard makes the rest of the 1st level's: skills,
+ * a subclass chosen at 1st level, a Rogue's Expertise, and cantrips and spells. A Paladin's and a Ranger's Fighting
+ * Style come at 2nd level.
+ */
+export function firstLevelSheetChoices(className: string | null | undefined): string[] {
+  return className === 'Fighter' ? ['Your Fighting Style'] : [];
+}
+
 /** Whether a SPELLS choice copies spells into a wizard's spellbook rather than teaching the class them. */
 export function isSpellbookChoice(choice: PendingChoice): boolean {
   return choice.type === 'SPELLS' && choice.className === 'Wizard';

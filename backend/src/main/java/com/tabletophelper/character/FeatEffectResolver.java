@@ -11,7 +11,9 @@ import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -50,7 +52,8 @@ public class FeatEffectResolver {
             int passiveInvestigationBonus,
             FeatResourceEntry resource,
             List<Map<String, Object>> optionalFeaturesAdded,
-            List<KnownSpell> spellsAdded
+            List<KnownSpell> spellsAdded,
+            String spellcastingAbility
     ) {}
 
     /**
@@ -147,6 +150,7 @@ public class FeatEffectResolver {
         if (choices != null && choices.getSpellIds() != null && !choices.getSpellIds().isEmpty()) {
             spellsAdded = applyFeatSpells(character, choices.getSpellIds(), feat);
         }
+        String spellcastingAbility = !spellsAdded.isEmpty() ? setSpellcastingAbility(character, choices) : null;
 
         // Add feat as a feature with full description
         addFeatFeature(character, feat);
@@ -156,7 +160,7 @@ public class FeatEffectResolver {
                 toolProfsAdded, skillProfsAdded, langProfsAdded, saveProfsAdded,
                 expertiseAdded, speedBonus, initiativeBonus, hpPerLevel,
                 passivePerceptionBonus, passiveInvestigationBonus, resource,
-                optionalFeaturesAdded, spellsAdded);
+                optionalFeaturesAdded, spellsAdded, spellcastingAbility);
     }
 
     /**
@@ -213,6 +217,9 @@ public class FeatEffectResolver {
         List<KnownSpell> spellsAdded = appliedEffects.spellsAdded();
         if (spellsAdded != null && !spellsAdded.isEmpty()) {
             removeFeatSpells(character, spellsAdded);
+        }
+        if (appliedEffects.spellcastingAbility() != null) {
+            character.setSpellcastingAbility(null);
         }
 
         String featName = appliedEffects.featName();
@@ -536,6 +543,22 @@ public class FeatEffectResolver {
 
     // --- Spells ---
 
+    /**
+     * Makes the feat's chosen ability, such as Fey Touched's, the race and feat spellcasting ability its spells are
+     * cast with, when the character has none yet (D159), and returns it so the history can record it; null when the
+     * character already has one or the feat's choice names no ability. A character has one such ability for its race
+     * and feat spells together.
+     */
+    private static String setSpellcastingAbility(PlayerCharacter character, ApplyChoicesRequest.AsiChoice choices) {
+        String current = character.getSpellcastingAbility();
+        if (current != null && !current.isBlank()) {
+            return null;
+        }
+        Optional<Ability> chosen = Ability.parse(choices.getFeatAbility());
+        chosen.ifPresent(ability -> character.setSpellcastingAbility(ability.name()));
+        return chosen.map(Ability::name).orElse(null);
+    }
+
     private List<KnownSpell> applyFeatSpells(PlayerCharacter character, List<UUID> spellIds, Feat feat) {
         List<KnownSpell> spellsKnown = copy(character.getSpellsKnown());
         List<KnownSpell> added = new ArrayList<>();
@@ -544,7 +567,8 @@ public class FeatEffectResolver {
         Map<String, Integer> fixedSpellUsage = parseFeatSpellUsage(feat.getName(), feat.getGrantsFeatures());
 
         for (UUID spellId : spellIds) {
-            Spell spell = spellRepository.findById(spellId).orElse(null);
+            Spell spell = spellRepository.findById(spellId)
+                    .orElseThrow(() -> new ValidationException("Spell not found: " + spellId));
             Integer usesPerDay = spell != null ? fixedSpellUsage.get(spell.getName().toLowerCase()) : null;
             int level = spell != null && spell.getLevel() != null ? spell.getLevel() : 0;
             KnownSpell entry = new KnownSpell(null, spell != null ? spell.getName() : null, level, source, null, null,

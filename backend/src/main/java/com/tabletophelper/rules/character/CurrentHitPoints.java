@@ -44,6 +44,19 @@ public final class CurrentHitPoints {
         return new Totals(totals.current(), totals.maximum(), Math.max(totals.temporary(), amount));
     }
 
+    /**
+     * The hit points a character has once its maximum changes (D167): a higher maximum raises them by as much, a lower
+     * one caps them, and a dead character stays at 0 whatever its maximum does, since only the DM's revival brings it
+     * back (D166). A character with no maximum yet, one being created, keeps what it has, within the new maximum.
+     */
+    public static int afterMaximum(int current, Integer oldMaximum, int newMaximum, boolean dead) {
+        if (dead) {
+            return 0;
+        }
+        int raised = oldMaximum != null && newMaximum > oldMaximum ? current + newMaximum - oldMaximum : current;
+        return Math.max(0, Math.min(raised, newMaximum));
+    }
+
     private static void requireNotNegative(int amount, String what) {
         if (amount < 0) {
             throw new IllegalArgumentException(what + " can't be negative: " + amount);

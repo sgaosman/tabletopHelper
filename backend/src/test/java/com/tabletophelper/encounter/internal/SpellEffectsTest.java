@@ -53,7 +53,7 @@ class SpellEffectsTest {
     }
 
     private SpellEffects.SpellPlan cast(String spell, int slotLevel, EncounterParticipant caster, int attackBonus) {
-        return f.spellEffects.forCast(spell, slotLevel, caster, attackBonus, 13, null);
+        return f.spellEffects.forCast(spell, slotLevel, caster, null, attackBonus, 13, null);
     }
 
     private static List<Dice> dice(Effect effect) {
@@ -191,7 +191,7 @@ class SpellEffectsTest {
     class SpellcastingModifier {
 
         @Test
-        @DisplayName("MOD becomes the spellcasting modifier as a number: the attack bonus less proficiency")
+        @DisplayName("MOD becomes the spellcasting modifier as a number: with no ability known, the attack bonus less proficiency")
         void modifierAsANumber() {
             f.spell("Cure Wounds", 1, """
                     {"spellLevel": 1, "deliveryMethod": "AUTO_HIT", "effects": [],
@@ -200,6 +200,21 @@ class SpellEffectsTest {
             // A level 1 caster with +5 to hit has +2 proficiency and +3 from its ability
             assertEquals(new Dice(1, 8, 3), cast("Cure Wounds", 1, wizard, 5).effect().healing());
             assertEquals(new Dice(3, 8, 3), cast("Cure Wounds", 3, wizard, 5).effect().healing());
+        }
+
+        @Test
+        @DisplayName("With the casting ability known, MOD is that ability score's modifier, whatever the attack bonus (D164)")
+        void modifierFromTheAbilityScore() {
+            f.spell("Cure Wounds", 1, """
+                    {"spellLevel": 1, "deliveryMethod": "AUTO_HIT", "effects": [],
+                     "healing": {"healingDice": "1d8+MOD", "upcastScaling": {"additionalDicePerLevel": "1d8"}}}""");
+            wizard.getCharacter().setWisdom(16);
+
+            // +9 less +2 proficiency would give +7; WIS 16 gives +3
+            assertEquals(new Dice(1, 8, 3),
+                    f.spellEffects.forCast("Cure Wounds", 1, wizard, "WIS", 9, 13, null).effect().healing());
+            assertEquals(new Dice(1, 8, 3),
+                    f.spellEffects.forCast("Cure Wounds", 1, wizard, "Wisdom", 9, 13, null).effect().healing());
         }
 
         @Test
@@ -225,8 +240,8 @@ class SpellEffectsTest {
                     {"spellLevel": 0, "deliveryMethod": "SPELL_ATTACK", "spellAttackType": "MELEE",
                      "effects": [{"effectType": "DAMAGE", "damageDice": "1d8", "damageType": "lightning"}]}""");
 
-            var ranged = (Effect.Attack) f.spellEffects.forCast("Fire Bolt", 0, wizard, 7, 15, true).effect().delivery();
-            var melee = (Effect.Attack) f.spellEffects.forCast("Shocking Grasp", 0, wizard, 7, 15, false).effect().delivery();
+            var ranged = (Effect.Attack) f.spellEffects.forCast("Fire Bolt", 0, wizard, null, 7, 15, true).effect().delivery();
+            var melee = (Effect.Attack) f.spellEffects.forCast("Shocking Grasp", 0, wizard, null, 7, 15, false).effect().delivery();
 
             assertEquals(new Effect.Attack(7, RollMode.ADVANTAGE, false, false), ranged);
             assertEquals(new Effect.Attack(7, RollMode.DISADVANTAGE, true, false), melee);
@@ -240,7 +255,7 @@ class SpellEffectsTest {
                      "effects": [{"effectType": "DAMAGE", "damageDice": "8d6", "damageType": "fire",
                        "upcastScaling": {"additionalDicePerLevel": "1d6"}}], "conditionsInflicted": null}""");
 
-            Effect effect = f.spellEffects.forCast("Fireball", 3, wizard, 7, 15, null).effect();
+            Effect effect = f.spellEffects.forCast("Fireball", 3, wizard, null, 7, 15, null).effect();
 
             assertEquals(new Effect.Save(Ability.DEX, 15, true), effect.delivery());
             assertEquals(List.of(new Effect.DamagePart(Dice.parse("8d6"), "fire")), effect.damage());
@@ -314,7 +329,7 @@ class SpellEffectsTest {
                      "effects": [{"effectType": "DAMAGE", "damageDice": "2d10", "damageType": "radiant",
                        "upcastScaling": {"additionalDicePerLevel": "1d10"}}]}""");
 
-            var plan = f.spellEffects.forRepeat("Moonbeam", 3, wizard, 5, 14, null);
+            var plan = f.spellEffects.forRepeat("Moonbeam", 3, wizard, null, 5, 14, null);
 
             assertEquals(new Effect.Save(Ability.CON, 14, true), plan.effect().delivery());
             assertEquals(List.of(Dice.parse("3d10")), dice(plan.effect()));
@@ -331,7 +346,7 @@ class SpellEffectsTest {
                      "effects": [{"effectType": "DAMAGE", "damageDice": "1d12", "damageType": "lightning",
                        "upcastScaling": {"additionalDicePerLevel": "1d12"}}]}""");
 
-            var plan = f.spellEffects.forRepeat("Witch Bolt", 3, wizard, 5, 14, null);
+            var plan = f.spellEffects.forRepeat("Witch Bolt", 3, wizard, null, 5, 14, null);
 
             assertInstanceOf(Effect.Automatic.class, plan.effect().delivery());
             assertEquals(List.of(new Effect.DamagePart(Dice.parse("1d12"), "lightning")), plan.effect().damage());
@@ -345,7 +360,7 @@ class SpellEffectsTest {
                      "repeatEffect": {"healingDice": "2d6", "deliveryMethod": "AUTO_HIT", "usesUpcastScaling": false},
                      "effects": []}""");
 
-            var plan = f.spellEffects.forRepeat("Aura of Vitality", 3, wizard, 5, 14, null);
+            var plan = f.spellEffects.forRepeat("Aura of Vitality", 3, wizard, null, 5, 14, null);
 
             assertInstanceOf(Effect.Automatic.class, plan.effect().delivery());
             assertEquals(Dice.parse("2d6"), plan.effect().healing());
@@ -357,7 +372,7 @@ class SpellEffectsTest {
             f.spell("Guiding Bolt", 1, GUIDING_BOLT);
 
             assertEquals("Spell has no repeatable effect",
-                    f.spellEffects.forRepeat("Guiding Bolt", 1, wizard, 5, 14, null).manualReason());
+                    f.spellEffects.forRepeat("Guiding Bolt", 1, wizard, null, 5, 14, null).manualReason());
         }
 
         @Test

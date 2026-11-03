@@ -11,6 +11,7 @@ import IconButton from '../../components/ui/IconButton';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import { getClassColour } from '../../utils/classColours';
+import { formatClasses } from '../../utils/dndRules';
 
 export default function PlayerDashboard() {
   const navigate = useNavigate();
@@ -168,7 +169,7 @@ export default function PlayerDashboard() {
                         <div className="min-w-0 flex-1">
                           <h3 className="font-heading text-[16px] font-bold" style={{ color: clsColour }}>{c.name}</h3>
                           <p className="font-body text-[13px] font-semibold text-muted">
-                            Level {c.level} {c.race} {c.characterClass}
+                            Level {c.level} {c.race} {formatClasses(c)}
                           </p>
                         </div>
                         <div className="text-right shrink-0">

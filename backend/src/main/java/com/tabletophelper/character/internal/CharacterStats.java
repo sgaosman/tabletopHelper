@@ -24,6 +24,7 @@ import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.rules.character.AbilityScores;
 import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.rules.character.HitPoints;
 import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
@@ -132,15 +133,13 @@ public class CharacterStats {
      */
     public DerivedStats apply(PlayerCharacter character) {
         DerivedStats stats = derive(character);
-        Integer oldMaximum = character.getHpMax();
         int current = character.getHpCurrent() != null ? character.getHpCurrent() : stats.hpMax();
-        if (oldMaximum != null && stats.hpMax() > oldMaximum) {
-            current += stats.hpMax() - oldMaximum;
-        }
+        int newCurrent = CurrentHitPoints.afterMaximum(current, character.getHpMax(), stats.hpMax(),
+                character.isDead());
 
         character.setProficiencyBonus(stats.proficiencyBonus());
         character.setHpMax(stats.hpMax());
-        character.setHpCurrent(character.isDead() ? 0 : Math.max(0, Math.min(current, stats.hpMax())));
+        character.setHpCurrent(newCurrent);
         character.setInitiativeBonus(stats.initiativeBonus());
         character.setSpeed(stats.speed());
         character.setSpellSlots(stats.spellSlots());

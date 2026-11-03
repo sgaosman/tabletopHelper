@@ -10,6 +10,7 @@ import com.tabletophelper.character.dto.PreparedSpellsRequest;
 import com.tabletophelper.character.dto.SpellbookRequest;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.SpellsLearned;
 import com.tabletophelper.reference.Spell;
@@ -26,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Predicate;
 
@@ -231,6 +233,7 @@ public class CharacterSpellService {
                 throw new ValidationException(character.getName() + " knows no " + casting.className()
                         + " spell called " + swap.getReplace().trim());
             }
+            requireKnownBefore(character, choice, replaced.name());
             replacement = classSpell(casting, swap.getWith());
             requireLevelled(replacement);
             requireLearnable(choice, replacement, highest);
@@ -284,6 +287,27 @@ public class CharacterSpellService {
             }
         }
         character.setSpellsKnown(known);
+    }
+
+    /**
+     * Refuses a swap of a spell a later level of the class learned (D159): with choices made out of order, it would
+     * leave a lower level knowing a spell it couldn't have once the later levels were undone.
+     */
+    private static void requireKnownBefore(PlayerCharacter character, PendingChoice choice, String spellName) {
+        String spellKey = key(spellName);
+        for (LevelHistoryEntry entry : orEmpty(character.getLevelHistory())) {
+            SpellsLearned learned = entry.choices() != null ? entry.choices().spells() : null;
+            if (entry.characterLevel() <= choice.characterLevel() || learned == null
+                    || !Objects.equals(entry.className(), choice.className())) {
+                continue;
+            }
+            boolean laterSpell = orEmpty(learned.learned()).stream().anyMatch(name -> key(name).equals(spellKey))
+                    || (learned.replacement() != null && key(learned.replacement()).equals(spellKey));
+            if (laterSpell) {
+                throw new ValidationException(spellName + " was learned at level " + entry.characterLevel()
+                        + ", after this choice's level, so this choice's swap can't replace it");
+            }
+        }
     }
 
     // The class a choice is for, as it casts now; a choice whose class doesn't cast is one the sheet can't make

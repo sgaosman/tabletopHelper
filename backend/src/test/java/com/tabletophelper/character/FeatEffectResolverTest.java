@@ -10,6 +10,7 @@ import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -581,7 +582,76 @@ class FeatEffectResolverTest {
         assertFalse(FeatEffectResolver.repeatable(blank));
     }
 
+    // --- 6.25 to 6.27 The race and feat spellcasting ability (D159) and unknown spells ---
+
+    @Test
+    @DisplayName("6.25 A feat's spells on a character with no race and feat spellcasting ability make the feat's chosen ability it, and reversing the feat clears it")
+    void featSetsTheSpellcastingAbility() {
+        PlayerCharacter c = baseCharacter();
+        ApplyChoicesRequest.AsiChoice choices = feyTouched("wis");
+
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feyTouchedFeat(), choices);
+        AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Fey Touched");
+
+        assertEquals("WIS", c.getSpellcastingAbility());
+        assertEquals("WIS", recorded.spellcastingAbility());
+        assertEquals(13, c.getWisdom());
+
+        resolver.reverseFeatEffects(c, recorded);
+
+        assertNull(c.getSpellcastingAbility());
+        assertTrue(spellNames(c).isEmpty());
+    }
+
+    @Test
+    @DisplayName("6.26 A character with a race and feat spellcasting ability keeps it, and reversing the feat leaves it")
+    void existingSpellcastingAbilityIsKept() {
+        PlayerCharacter c = baseCharacter();
+        c.setSpellcastingAbility("CHA");
+
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feyTouchedFeat(), feyTouched("WIS"));
+        AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Fey Touched");
+
+        assertEquals("CHA", c.getSpellcastingAbility());
+        assertNull(recorded.spellcastingAbility());
+        resolver.reverseFeatEffects(c, recorded);
+        assertEquals("CHA", c.getSpellcastingAbility());
+    }
+
+    @Test
+    @DisplayName("6.27 A spell choice naming a spell that doesn't exist is a 400, not a nameless known spell")
+    void unknownSpellIs400() {
+        PlayerCharacter c = baseCharacter();
+        UUID missing = UUID.randomUUID();
+        when(spellRepository.findById(missing)).thenReturn(Optional.empty());
+        ApplyChoicesRequest.AsiChoice choices = new ApplyChoicesRequest.AsiChoice();
+        choices.setSpellIds(List.of(missing));
+
+        ValidationException ex = assertThrows(ValidationException.class,
+                () -> resolver.applyFeat(c, buildFeat("Magic Initiate", null, null, null), choices));
+
+        assertEquals("Spell not found: " + missing, ex.getMessage());
+        assertNull(c.getSpellsKnown());
+    }
+
     // --- Helpers ---
+
+    // Fey Touched: +1 to INT, WIS or CHA, and Misty Step
+    private Feat feyTouchedFeat() {
+        return buildFeat("Fey Touched", "[{\"choose\": {\"from\": [\"int\", \"wis\", \"cha\"], \"amount\": 1}}]",
+                null, null);
+    }
+
+    // Fey Touched's answer: the ability chosen and Misty Step
+    private ApplyChoicesRequest.AsiChoice feyTouched(String ability) {
+        UUID mistyStep = UUID.randomUUID();
+        when(spellRepository.findById(mistyStep)).thenReturn(Optional.of(
+                Spell.builder().id(mistyStep).name("Misty Step").level(2).build()));
+        ApplyChoicesRequest.AsiChoice choices = new ApplyChoicesRequest.AsiChoice();
+        choices.setFeatAbility(ability);
+        choices.setSpellIds(List.of(mistyStep));
+        return choices;
+    }
 
     // The history's record of a feat that changed only speed, initiative or HP per level
     private static AppliedFeatEffects bonuses(String featName, int speedBonus, int initiativeBonus, int hpPerLevel) {

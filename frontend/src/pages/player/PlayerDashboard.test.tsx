@@ -42,6 +42,22 @@ describe('PlayerDashboard', () => {
     });
   });
 
+  it("names each of a multiclass character's classes with its level", async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockCharacter } = await import('../../test/mocks/handlers');
+    server.use(http.get('/api/characters', () => HttpResponse.json([{
+      ...makeMockCharacter('char-001', 'Aria', 'Paladin', 6),
+      multiclassEntries: [
+        { classId: 'cls-paladin', className: 'Paladin', level: 5 },
+        { classId: 'cls-sorcerer', className: 'Sorcerer', level: 1 },
+      ],
+    }])));
+    render(<PlayerDashboard />);
+
+    expect(await screen.findByText(/Level 6 Human Paladin 5 \/ Sorcerer 1/)).toBeInTheDocument();
+  });
+
   it('handles join campaign error', async () => {
     const { server } = await import('../../test/mocks/server');
     const { http, HttpResponse } = await import('msw');

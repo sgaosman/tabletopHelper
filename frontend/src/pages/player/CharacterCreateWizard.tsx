@@ -581,7 +581,9 @@ export default function CharacterCreateWizard() {
     const allWeapons = [...(raceProfs.weapons ?? []), ...resolvedRaceChoices.weapons, ...classWeapons];
     const allTools = [...(raceProfs.tools ?? []), ...resolvedRaceChoices.tools, ...resolvedBgProfs.tools, ...classTools];
     const allLanguages = [...(raceProfs.languages ?? []), ...resolvedRaceChoices.languages, ...resolvedBgProfs.languages];
-    const resolvedSpellAbility: string | undefined = selectedClass.spellcastingAbility ?? undefined;
+    // The ability the race's spells use, when the race lets the player choose it (D159). Class spells use each
+    // class's own ability, and race and feat spells otherwise fall back to the first casting class's, on the server
+    const resolvedSpellAbility: string | undefined = resolvedRaceChoices.spellAbility ?? undefined;
     // Only a subclass the first class chooses at 1st level goes with the request; every other is chosen on the sheet
     const firstSubclassId = firstLevelSubclass ? (classEntries[0]?.subclass?.id ?? selectedSubclass?.id) : undefined;
     const multiclassClassEntries = isMulticlass

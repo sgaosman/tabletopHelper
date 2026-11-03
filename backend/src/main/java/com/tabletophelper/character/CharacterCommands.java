@@ -4,6 +4,7 @@ import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -49,8 +50,8 @@ class CharacterCommands {
     }
 
     /**
-     * A command only the DM of the character's campaign may give: a DM Adjustment (D158). Its owner may not, and a
-     * character in no campaign has no DM. The campaign is checked again under the lock, in case the owner moved the
+     * A command only the DM of the character's campaign may give: a DM Adjustment or a revival (D158). Its owner may
+     * not, even as the DM of its campaign, and a character in no campaign has no DM. The campaign is checked again under the lock, in case the owner moved the
      * character while the command waited for it.
      */
     PlayerCharacter beginAsDm(UUID characterId, UUID userId) {
@@ -64,6 +65,11 @@ class CharacterCommands {
         UUID lockedCampaignId = character.getCampaign() != null ? character.getCampaign().getId() : null;
         if (!Objects.equals(lockedCampaignId, campaignId)) {
             accessPolicy.requireCharacterDm(lockedCampaignId, userId);
+        }
+        // Creating a campaign makes its creator the DM, so an owner could otherwise adjust or revive their own
+        // character by moving it into one of their own campaigns
+        if (character.getUser() != null && character.getUser().getId().equals(userId)) {
+            throw new ForbiddenException("You can't use DM actions on your own character");
         }
         return character;
     }

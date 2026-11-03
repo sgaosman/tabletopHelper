@@ -154,20 +154,11 @@ public class LevelUpCalculator {
     }
 
     /**
-     * The class features, followed by those of the given features a background, feat or race granted. Any other
-     * given feature is left out, since the class features replace it.
+     * The features a new character starts with: its levels' class and subclass features. A creation request can't
+     * add any, so a feat comes only through a Pending Choice or a DM Adjustment (D158, D159).
      */
-    public static List<Feature> mergeFeatures(List<Feature> existingFeatures, List<FeatureEntry> classFeatures) {
-        List<Feature> merged = new ArrayList<>(features(classFeatures));
-        if (existingFeatures != null) {
-            for (Feature e : existingFeatures) {
-                String source = e.source() != null ? e.source() : "";
-                if (!source.isEmpty() && (source.startsWith("Background") || source.startsWith("Feat") || source.startsWith("Race"))) {
-                    merged.add(e);
-                }
-            }
-        }
-        return merged;
+    public static List<Feature> classFeatures(List<LevelGain> progression) {
+        return features(allFeatures(progression));
     }
 
     private static List<Feature> features(List<FeatureEntry> entries) {

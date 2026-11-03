@@ -26,7 +26,8 @@ import static org.assertj.core.api.Assertions.tuple;
  * Everything): the subclass at the class's subclass level, Fighting Styles, Ability Score Improvements, Expertise,
  * the rise in Cantrips Known and, for a class that knows a set number of spells, in Spells Known, with the swap of a
  * known spell from the class's second spell level on, and a wizard's six spellbook spells at 1st level and two after.
- * Each choice is written as its type, then ×count for more than one, then "swap" when it offers one; a class that
+ * One part departs from the PHB, as D159 records: the PHB lets a known caster swap a spell at every level from its
+ * second on, but here the swap is offered only at a level where Spells Known rise. Each choice is written as its type, then ×count for more than one, then "swap" when it offers one; a class that
  * prepares its spells has no SPELLS. A level not listed owes nothing.
  */
 class PendingChoicesTest {
@@ -140,7 +141,7 @@ class PendingChoicesTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("everyClass")
-    @DisplayName("Each class level owes its PHB choices, in order: subclass, Fighting Style, ASI, Expertise, cantrips, spells")
+    @DisplayName("Each class level owes its PHB choices, in order: subclass, Fighting Style, ASI, Expertise, cantrips, spells; a known caster's swap comes only when Spells Known rise")
     void everyClassLevel(String className, int subclassLevel, Map<Integer, List<String>> expected) {
         for (int classLevel = 1; classLevel <= 20; classLevel++) {
             assertThat(owed(level(className, null, classLevel, subclassLevel)))

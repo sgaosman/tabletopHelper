@@ -82,7 +82,7 @@ public class SpellcastingService {
         manualModifiers.log(encounter, CombatActionType.SPELL_CAST, caster,
                 caster.getDisplayName() + "'s " + payment.spellName(), userId, modifiers);
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
-                targets, attackBonus(own, request.getOverrideSpellAttackBonus()),
+                targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage());
 
         if (!result.concentration() && spellEffects.persistsWithoutConcentration(payment.spellName())) {
@@ -136,7 +136,7 @@ public class SpellcastingService {
         manualModifiers.log(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster,
                 caster.getDisplayName() + "'s " + spellName, userId, modifiers);
         SpellCaster.CastResult result = spellCaster.repeat(encounter, caster, spellName, slotLevel, targets,
-                attackBonus(own, request.getOverrideSpellAttackBonus()),
+                own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage());
         return response(encounter, result, slotLevel, SpellSource.NONE);
     }
@@ -225,13 +225,17 @@ public class SpellcastingService {
         }
     }
 
-    /** A spell's own attack bonus and save DC, before any Manual Modifier; null where the caster has none. */
-    private record SpellNumbers(Integer attackBonus, Integer saveDc) {
+    /**
+     * A spell's own attack bonus and save DC, before any Manual Modifier, and the ability it is cast with, whose
+     * modifier its damage and healing add; null where the caster has none.
+     */
+    private record SpellNumbers(Integer attackBonus, Integer saveDc, String ability) {
     }
 
     /**
      * The numbers a spell is cast with (D164): a player character's class spell uses that class's, worked out from
-     * the live sheet as saves and resistances are; a race or feat spell, and a monster's, the caster's main ones.
+     * the live sheet as saves and resistances are; a race or feat spell, and a monster's, the caster's main ones,
+     * with its race and feat spellcasting ability or the monster's spellcasting ability.
      */
     private SpellNumbers numbers(EncounterParticipant caster, String origin) {
         PlayerCharacter character = caster.getCharacter();
@@ -239,10 +243,14 @@ public class SpellcastingService {
             Optional<ClassSpellcasting> casting =
                     characterService.classSpellcasting(character, origin.substring(CLASS_ORIGIN.length()));
             if (casting.isPresent()) {
-                return new SpellNumbers(casting.get().spellAttackBonus(), casting.get().spellSaveDc());
+                return new SpellNumbers(casting.get().spellAttackBonus(), casting.get().spellSaveDc(),
+                        casting.get().ability());
             }
         }
-        return new SpellNumbers(caster.getSpellAttackBonus(), caster.getSpellSaveDc());
+        // A player character's race and feat spells use its main ability, the chosen one or its first class's
+        String ability = character != null ? characterService.mainSpellcastingAbility(character)
+                : caster.getSpellcastingAbility();
+        return new SpellNumbers(caster.getSpellAttackBonus(), caster.getSpellSaveDc(), ability);
     }
 
     // The spell's own numbers unless a Manual Modifier replaces them; a caster without them has +0 and DC 10

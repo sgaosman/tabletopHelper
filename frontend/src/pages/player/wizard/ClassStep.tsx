@@ -234,7 +234,7 @@ export default function ClassStep({
           levels above the 1st are Pending Choices, made on the sheet (D159) */}
       {classEntries.length > 0 && (
         <div className="mt-4 bg-cls-monk-bg border border-div-border p-4">
-          <h3 className="font-heading text-[14px] font-semibold text-cls-monk">Choices made on your sheet</h3>
+          <h3 className="font-heading text-[14px] font-semibold text-ink">Choices made on your sheet</h3>
           <p className="font-body text-[13px] font-semibold text-muted mt-1">
             Any choice your 1st level brings that these steps don't ask for, such as a Fighter's Fighting Style, is
             made on your character sheet after creation.

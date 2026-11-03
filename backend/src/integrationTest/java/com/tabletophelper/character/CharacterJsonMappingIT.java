@@ -316,8 +316,9 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 "intelligence", 10, "wisdom", 10, "charisma", 10));
         create.put("skillProficiencies", List.of("Athletics", "Perception"));
         create.put("racialAbilityBonuses", List.of(Map.of("ability", "DEX", "bonus", 2)));
-        create.put("features", List.of(Map.of("name", "Fey Ancestry", "description", "Advantage against charm",
-                "source", "Race")));
+        // The request has no features since the R6 review fixes (D158): one sent is ignored, so it can't add a feat
+        // such as Tough that the character never took
+        create.put("features", List.of(Map.of("name", "Tough", "source", "Feat")));
         // Stats the server works out are no longer taken from the request
         create.put("hitDice", Map.of("Wizard", Map.of("dieSize", 12, "total", 9, "remaining", 9)));
         create.put("hpMax", 99);
@@ -330,9 +331,11 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(created.get("skillProficiencies").isArray()).isTrue();
         assertThat(created.get("skillProficiencies").get(1).asText()).isEqualTo("Perception");
         assertThat(created.get("racialAbilityBonuses").get(0).get("bonus").asInt()).isEqualTo(2);
-        assertThat(created.get("features").get(0).get("source").asText()).isEqualTo("Race");
+        assertThat(created.get("features").isArray()).isTrue();
+        assertThat(created.get("features")).isEmpty();
         assertThat(created.get("hitDice").get("Wizard").get("dieSize").asInt()).isEqualTo(6);
         assertThat(created.get("hitDice").get("Wizard").get("total").asInt()).isEqualTo(1);
+        // 6 + CON 12's +1, without Tough's 2 a level
         assertThat(created.get("hpMax").asInt()).isEqualTo(7);
         assertThat(created.get("spellSaveDc").asInt()).isEqualTo(10);
         assertThat(created.get("spellcasting").get(0).get("preparedSpells").asInt()).isEqualTo(1);

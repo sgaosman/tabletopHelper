@@ -4066,6 +4066,10 @@
             "format": "int32",
             "nullable": true
           },
+          "spellcastingAbility": {
+            "type": "string",
+            "nullable": true
+          },
           "spellsAdded": {
             "type": "array",
             "nullable": true,
@@ -4885,13 +4889,6 @@
             "nullable": true,
             "items": {
               "$ref": "#/components/schemas/InventoryItem"
-            }
-          },
-          "features": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/Feature"
             }
           },
           "intelligence": {

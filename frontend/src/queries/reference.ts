@@ -9,13 +9,17 @@ import type { ItemSearchParams, SpellSearchParams } from '../types/reference';
 import { queryKeys } from './keys';
 import { REFERENCE_STALE_TIME } from './queryClient';
 
-/** One page of the spell list, searched, filtered and sorted. The last page stays on screen while the next loads. */
-export function useSpellSearch(params: SpellSearchParams) {
+/**
+ * One page of the spell list, searched, filtered and sorted. The last page stays on screen while the next loads.
+ * With enabled false nothing is fetched.
+ */
+export function useSpellSearch(params: SpellSearchParams, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.reference.spells(params),
     queryFn: () => searchSpells(params),
     staleTime: REFERENCE_STALE_TIME,
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

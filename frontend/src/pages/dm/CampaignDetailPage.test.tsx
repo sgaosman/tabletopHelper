@@ -8,6 +8,11 @@ import { server } from '../../test/mocks/server';
 import { makeCampaign, makeMockAdjustment, makeMockCharacter, makeMockPendingChoice } from '../../test/mocks/handlers';
 import CampaignDetailPage from './CampaignDetailPage';
 
+/** A character played by someone other than the signed-in DM, whose user is user-001. */
+function playerCharacter(...args: Parameters<typeof makeMockCharacter>) {
+  return { ...makeMockCharacter(...args), userId: 'plr-001', ownerDisplayName: 'Player 1' };
+}
+
 function renderPage() {
   window.history.pushState({}, '', '/dm/campaigns/camp-001');
   return render(
@@ -140,7 +145,7 @@ describe('CampaignDetailPage', () => {
   });
 
   it("opens a character's DM Adjustments from its card, and the card shows the character the server returns (D158)", async () => {
-    const aria = makeMockCharacter('char-001', 'Aria', 'Fighter', 3);
+    const aria = playerCharacter('char-001', 'Aria', 'Fighter', 3);
     const ring = makeMockAdjustment({ id: 'adj-ring' });
     let added: unknown;
     server.use(
@@ -210,8 +215,8 @@ describe('CampaignDetailPage', () => {
   });
 
   it('shows a character who died as dead, with a Revive button that brings them back at 1 hit point (D166)', async () => {
-    const aria = { ...makeMockCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
-    const bram = makeMockCharacter('char-002', 'Bram', 'Wizard', 3);
+    const aria = { ...playerCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
+    const bram = playerCharacter('char-002', 'Bram', 'Wizard', 3);
     const revived: string[] = [];
     server.use(
       http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([aria, bram])),
@@ -236,7 +241,7 @@ describe('CampaignDetailPage', () => {
   });
 
   it("shows why a character couldn't be revived on its card", async () => {
-    const aria = { ...makeMockCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
+    const aria = { ...playerCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
     server.use(
       http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([aria])),
       http.post('/api/characters/:id/revive', () => HttpResponse.json({ error: "Aria isn't dead" }, { status: 409 })),
@@ -247,6 +252,20 @@ describe('CampaignDetailPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Revive Aria' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent("Aria isn't dead");
+  });
+
+  it("hides Adjustments and Revive on the DM's own character, which the server refuses (D158)", async () => {
+    const mine = { ...makeMockCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
+    const theirs = { ...playerCharacter('char-002', 'Bram', 'Wizard', 3), hpCurrent: 0, dead: true };
+    server.use(http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([mine, theirs])));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: 'Adjustments for Bram' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revive Bram' })).toBeInTheDocument();
+    expect(screen.getByText('Aria')).toBeInTheDocument();
+    expect(screen.getAllByText('Dead')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /Adjustments.* for Aria/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revive Aria' })).not.toBeInTheDocument();
   });
 
   describe('polling', () => {

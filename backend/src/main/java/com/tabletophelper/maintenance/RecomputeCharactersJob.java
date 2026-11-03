@@ -7,6 +7,7 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -54,8 +55,10 @@ public class RecomputeCharactersJob implements MaintenanceJob {
             DerivedStats derived;
             try {
                 derived = characterService.derivedStats(pc);
-            } catch (ConflictException e) {
-                warnings.add(who + ": skipped (" + e.getMessage() + ")");
+            } catch (RuntimeException e) {
+                // Damaged data is a ConflictException, but any failure skips only this character
+                warnings.add(who + ": skipped (" + (e instanceof ConflictException ? ""
+                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
                 continue;
             }
             derived.warnings().forEach(warning -> warnings.add(who + ": " + warning + "; left unchanged"));
@@ -79,12 +82,9 @@ public class RecomputeCharactersJob implements MaintenanceJob {
     // Each stored stat the derivation would change, before and after
     private static List<String> differences(PlayerCharacter pc, DerivedStats derived) {
         List<String> diffs = new ArrayList<>();
+        // The rule CharacterStats.apply writes, so the dry run shows what the real run does, a dead character's 0 too
         int current = pc.getHpCurrent() != null ? pc.getHpCurrent() : derived.hpMax();
-        int newCurrent = current;
-        if (pc.getHpMax() != null && derived.hpMax() > pc.getHpMax()) {
-            newCurrent += derived.hpMax() - pc.getHpMax();
-        }
-        newCurrent = Math.max(0, Math.min(newCurrent, derived.hpMax()));
+        int newCurrent = CurrentHitPoints.afterMaximum(current, pc.getHpMax(), derived.hpMax(), pc.isDead());
         if (!Objects.equals(pc.getHpMax(), derived.hpMax()) || current != newCurrent) {
             diffs.add("hit points: " + current + "/" + pc.getHpMax() + " → " + newCurrent + "/" + derived.hpMax());
         }

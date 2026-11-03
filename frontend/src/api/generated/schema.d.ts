@@ -1700,6 +1700,7 @@ export interface components {
             skillProficienciesAdded?: string[] | null;
             /** Format: int32 */
             speedBonus?: number | null;
+            spellcastingAbility?: string | null;
             spellsAdded?: components["schemas"]["KnownSpell"][] | null;
             toolProficienciesAdded?: string[] | null;
             weaponProficienciesAdded?: string[] | null;
@@ -1913,7 +1914,6 @@ export interface components {
             /** Format: int32 */
             dexterity?: number | null;
             equipment?: components["schemas"]["InventoryItem"][] | null;
-            features?: components["schemas"]["Feature"][] | null;
             /** Format: int32 */
             intelligence?: number | null;
             languageProficiencies?: string[] | null;

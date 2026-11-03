@@ -138,6 +138,28 @@ describe('EncounterBuilderPage', () => {
     expect(await screen.findByText('Lv6 Paladin — HP 35/60 AC 16')).toBeInTheDocument();
   });
 
+  it("names each of a multiclass character's classes with its level", async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockCharacter, makeMockEncounter } = await import('../../test/mocks/handlers');
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () =>
+        HttpResponse.json([makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] })])),
+      http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([{
+        ...makeMockCharacter('char-001', 'Aria', 'Paladin', 6),
+        multiclassEntries: [
+          { classId: 'cls-paladin', className: 'Paladin', level: 5 },
+          { classId: 'cls-sorcerer', className: 'Sorcerer', level: 1 },
+        ],
+      }])),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+
+    expect(await screen.findByText('Lv6 Paladin 5 / Sorcerer 1 — HP 30/30 AC 16')).toBeInTheDocument();
+  });
+
   it('shows a conflict in the builder and fetches the encounters again', async () => {
     const { server } = await import('../../test/mocks/server');
     const { http, HttpResponse } = await import('msw');

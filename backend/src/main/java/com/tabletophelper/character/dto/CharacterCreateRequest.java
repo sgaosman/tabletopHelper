@@ -3,7 +3,6 @@ package com.tabletophelper.character.dto;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
-import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
 import jakarta.validation.constraints.Max;
@@ -75,7 +74,8 @@ public class CharacterCreateRequest {
     // The ability race and feat spells are cast with, such as a Fairy's choice of INT, WIS or CHA; a class's own
     // spells use the class's ability
     private String spellcastingAbility;
-    private List<Feature> features;
+    // No features: the class's come from the class data, and feats only through Pending Choices and DM Adjustments
+    // (D158), so a request can't add a feat it never took
     private List<String> damageResistances;
     private List<InventoryItem> equipment;
     private Currency currency;

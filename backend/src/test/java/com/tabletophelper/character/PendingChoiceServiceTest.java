@@ -567,6 +567,52 @@ class PendingChoiceServiceTest {
         }
 
         @Test
+        @DisplayName("A swap can't replace a spell a later level learned, as choices made out of order could; one an earlier level learned it can, and levelling down gives it back")
+        void swapOnlyReplacesWhatWasKnownBefore() {
+            PlayerCharacter pc = sorcererOwingLevelsFourAndFive();
+            f.choose(pc, spellsOf(pc, 5), request -> request.setSpells(List.of("Fireball")));
+
+            assertThatThrownBy(() -> f.choose(pc, spellsOf(pc, 4), request -> {
+                request.setSpells(List.of("Shield"));
+                request.setSwap(swap("Fireball", "Misty Step"));
+            }))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Fireball was learned at level 5, after this choice's level, so this choice's swap "
+                            + "can't replace it");
+            assertThat(names(pc, "class:Sorcerer")).contains("Fireball").doesNotContain("Shield", "Misty Step");
+
+            PlayerCharacter inOrder = sorcererOwingLevelsFourAndFive();
+            f.choose(inOrder, spellsOf(inOrder, 4), request -> request.setSpells(List.of("Shield")));
+            f.choose(inOrder, spellsOf(inOrder, 5), request -> {
+                request.setSpells(List.of("Fireball"));
+                request.setSwap(swap("Shield", "Misty Step"));
+            });
+            assertThat(names(inOrder, "class:Sorcerer")).contains("Fireball", "Misty Step").doesNotContain("Shield");
+
+            f.levelDown(inOrder);
+
+            assertThat(names(inOrder, "class:Sorcerer")).contains("Shield").doesNotContain("Fireball", "Misty Step");
+        }
+
+        // A Sorcerer 5 that knows its 1st level's cantrips and spells and its 2nd and 3rd levels' spells, so its 4th
+        // and 5th levels' SPELLS choices, each one spell with a swap, are pending
+        private PlayerCharacter sorcererOwingLevelsFourAndFive() {
+            List<KnownSpell> known = List.of(classSpell("Fire Bolt", 0, "Sorcerer"),
+                    classSpell("Chill Touch", 0, "Sorcerer"), classSpell("Minor Illusion", 0, "Sorcerer"),
+                    classSpell("Light", 0, "Sorcerer"), classSpell("Magic Missile", 1, "Sorcerer"),
+                    classSpell("Witch Bolt", 1, "Sorcerer"), classSpell("Burning Hands", 1, "Sorcerer"),
+                    classSpell("Sleep", 1, "Sorcerer"));
+            return create(f.sorcerer, 5, request -> request.setSpellsKnown(known));
+        }
+
+        private PendingChoice spellsOf(PlayerCharacter pc, int characterLevel) {
+            return pc.getPendingChoices().stream()
+                    .filter(c -> c.type() == Type.SPELLS && c.characterLevel() == characterLevel)
+                    .findFirst()
+                    .orElseThrow();
+        }
+
+        @Test
         @DisplayName("A subclass's additions to its class's list count, as \"Warlock (The Hexblade)\" in the spells table")
         void subclassAdditionsCount() {
             PlayerCharacter pc = warlock();

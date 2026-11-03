@@ -19,7 +19,7 @@ export default function PendingChoicesBanner({ choices, disabled = false, onChoo
   if (choices.length === 0) return null;
   return (
     <section aria-label="Choices to make" className="bg-cls-monk-bg border border-div-border px-4 py-3">
-      <h2 className="font-heading text-[14px] font-semibold text-cls-monk flex items-center gap-2">
+      <h2 className="font-heading text-[14px] font-semibold text-ink flex items-center gap-2">
         <Sparkles className="w-4 h-4" /> {choicesToMake(choices.length)}
       </h2>
       <div className="flex flex-wrap gap-2 mt-2">

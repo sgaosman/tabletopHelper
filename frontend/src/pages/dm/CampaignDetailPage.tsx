@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Copy, Check, Users, ScrollText, Settings, SlidersHorizontal, HeartPulse } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
+import { useAuth } from '../../context/AuthContext';
 import { useCampaign, useUpdateCampaignSettings } from '../../queries/campaigns';
 import { useCampaignCharacters, useReviveCharacter } from '../../queries/characters';
 import NavBar from '../../components/common/NavBar';
@@ -23,6 +24,7 @@ export default function CampaignDetailPage() {
   const charactersQuery = useCampaignCharacters(campaignId, { refetchInterval: REFRESH_INTERVAL_MS });
   const updateSettings = useUpdateCampaignSettings();
   const revive = useReviveCharacter();
+  const { user } = useAuth();
   const [copiedCode, setCopiedCode] = useState(false);
   // The character whose DM Adjustments are open, read from the list so the dialog shows each change (D158)
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
@@ -173,6 +175,8 @@ export default function CampaignDetailPage() {
                 const clsColour = getClassColour(c.characterClass);
                 const adjustments = activeAdjustments(c.dmAdjustments).length;
                 const adjustmentsLabel = `Adjustments${adjustments > 0 ? ` (${adjustments})` : ''}`;
+                // The server refuses the DM's actions on a character they own, such as their own PC (D158)
+                const ownCharacter = c.userId === user?.userId;
                 return (
                   <div key={c.id} className="bg-card border border-rule p-4"
                     style={{ borderLeftWidth: '3px', borderLeftColor: clsColour }}>
@@ -185,7 +189,7 @@ export default function CampaignDetailPage() {
                         </p>
                         {/* The choices its levels owe, which only its player makes (D159) */}
                         {c.pendingChoices.length > 0 && (
-                          <span className="inline-block mt-1 font-heading text-[11px] font-semibold tracking-[0.04em] px-2 py-0.5 border text-cls-monk bg-cls-monk-bg border-div-border">
+                          <span className="inline-block mt-1 font-heading text-[11px] font-semibold tracking-[0.04em] px-2 py-0.5 border text-ink bg-cls-monk-bg border-div-border">
                             {choicesPending(c.pendingChoices.length)}
                           </span>
                         )}
@@ -217,7 +221,7 @@ export default function CampaignDetailPage() {
                       </div>
                       <div className="flex gap-2">
                         {/* Brings a character who died back at 1 hit point (D166) */}
-                        {c.dead && (
+                        {c.dead && !ownCharacter && (
                           <Button size="sm" variant="primary" onClick={() => handleRevive(c.id)}
                             loading={revive.isPending && revive.variables?.characterId === c.id}
                             aria-label={`Revive ${c.name}`}>
@@ -226,11 +230,13 @@ export default function CampaignDetailPage() {
                           </Button>
                         )}
                         {/* The DM's adjustments to the character (D158); the name says whose, as every card has one */}
-                        <Button size="sm" variant="secondary" onClick={() => setAdjustingId(c.id)}
-                          aria-label={`${adjustmentsLabel} for ${c.name}`}>
-                          <SlidersHorizontal className="w-3.5 h-3.5" />
-                          {adjustmentsLabel}
-                        </Button>
+                        {!ownCharacter && (
+                          <Button size="sm" variant="secondary" onClick={() => setAdjustingId(c.id)}
+                            aria-label={`${adjustmentsLabel} for ${c.name}`}>
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            {adjustmentsLabel}
+                          </Button>
+                        )}
                       </div>
                     </div>
                     {revive.isError && revive.variables?.characterId === c.id && (

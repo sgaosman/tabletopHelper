@@ -1,5 +1,6 @@
 import type { CharacterClassRef, Race, Spell } from '../../../types/reference';
 import { ABILITIES, abilityMod, formatMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
+import { firstLevelSheetChoices } from '../../../utils/pendingChoices';
 import { proficiencyBonusForLevel } from '../../../utils/spellConstants';
 import type { AbilityScores, ClassEntry } from './types';
 
@@ -39,6 +40,8 @@ export default function ReviewStep({
   selectedCantrips, selectedSpells,
   error,
 }: ReviewStepProps) {
+  // The first class's 1st-level choices these steps don't make, such as a Fighter's Fighting Style (D159)
+  const firstLevelChoices = firstLevelSheetChoices(classEntries[0]?.cls.name ?? selectedClass?.name);
   return (
     <div className="space-y-6">
       <h2 className="font-heading text-[17px] font-semibold text-ink">Review Your Character</h2>
@@ -122,11 +125,13 @@ export default function ReviewStep({
           </div>
         )}
 
-        {/* Feats and the choices of later levels are Pending Choices, made on the sheet so they apply (D159) */}
-        {(raceFeats > 0 || bgFeatNames.length > 0 || level > 1) && (
+        {/* Feats, the 1st level's choices the wizard doesn't make and the choices of later levels are Pending Choices,
+            made on the sheet so they apply (D159) */}
+        {(firstLevelChoices.length > 0 || raceFeats > 0 || bgFeatNames.length > 0 || level > 1) && (
           <div className="border-t border-rule pt-4">
             <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">To Choose on Your Sheet</h3>
             <ul className="font-body text-[15px] font-semibold text-ink list-disc list-inside space-y-1">
+              {firstLevelChoices.map(choice => <li key={choice}>{choice}</li>)}
               {raceFeats > 0 && <li>{raceFeats === 1 ? 'A feat' : `${raceFeats} feats`} from your race</li>}
               {bgFeatNames.length > 0 && (
                 <li>{bgFeatNames.length > 1 ? `One of ${bgFeatNames.join(', ')}` : bgFeatNames[0]}, from your background</li>

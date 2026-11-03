@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Lock, Search, X, Plus } from 'lucide-react';
+import { Lock, Search, Plus } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
-import { searchSpells } from '../../api/referenceApi';
-import { useTypeAhead } from '../../hooks/useTypeAhead';
 import {
   useAddToSpellbook, useApplyChoices, useRemoveFromSpellbook, useSetPreparedSpells,
 } from '../../queries/characters';
+import { useSpellSearch } from '../../queries/reference';
 import type { ClassSpellcasting, PendingChoice, PlayerCharacter } from '../../types/character';
 import type { KnownSpell as SpellEntry } from '../../types/encounter';
-import type { Spell } from '../../types/reference';
+import type { Spell, SpellSearchParams } from '../../types/reference';
+import { isSpellbookChoice as copiesToSpellbook } from '../../utils/pendingChoices';
+import Button from '../ui/Button';
+import Modal from '../ui/Modal';
 
 export type ManageType = 'prepared' | 'spellbook' | 'remove-spellbook' | 'choice';
 
@@ -45,7 +47,8 @@ export default function ManageSpellsModal({
   const removeFromSpellbook = useRemoveFromSpellbook();
   const applyChoices = useApplyChoices();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Spell[]>([]);
+  // The name the spell search sends: the search box's text, shortly after typing stops, or at once on Enter
+  const [searchName, setSearchName] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<number | ''>('');
   const [localSpells, setLocalSpells] = useState<SpellEntry[]>(currentSpells);
   const [saving, setSaving] = useState(false);
@@ -62,7 +65,7 @@ export default function ManageSpellsModal({
 
   const isChoice = type === 'choice' && !!choice;
   const isCantripChoice = isChoice && choice?.type === 'CANTRIPS';
-  const isSpellbookChoice = isChoice && choice?.type === 'SPELLS' && className === 'Wizard';
+  const isSpellbookChoice = isChoice && !!choice && copiesToSpellbook(choice);
   const choiceCount = choice?.count ?? 0;
   const isWizardPrepared = type === 'prepared' && className === 'Wizard';
   const isSpellbookMode = type === 'spellbook';
@@ -107,25 +110,24 @@ export default function ManageSpellsModal({
     return list;
   }, [spellbookSpells, searchQuery, selectedLevel]);
 
-  // Results follow the search box as you type; Enter searches straight away.
-  // The spellbook modes filter on the page instead (filteredSpellbook)
-  const { searchNow: doSearch, searching } = useTypeAhead(searchQuery, () => {
-    if (!needsApiSearch) return;
-    const params: Record<string, unknown> = { className: spellListClass || className, size: 50 };
-    if (searchQuery.trim()) params.name = searchQuery.trim();
-    if (selectedLevel !== '') {
-      params.level = selectedLevel;
-    } else {
-      params.level = validLevels.join(',');
-    }
-    return searchSpells(params as any)
-      .then(res => res.content.filter(s => s.level >= minSpellLevel && s.level <= maxSpellLevel));
-  }, setSearchResults);
-
-  // Loads the list when the modal opens, and again whenever the level filter changes
+  // Results follow the search box as you type; Enter searches straight away. The list loads when the modal opens,
+  // and again whenever the level filter changes. The spellbook modes filter on the page instead (filteredSpellbook)
   useEffect(() => {
-    doSearch();
-  }, [selectedLevel, doSearch]);
+    const timer = setTimeout(() => setSearchName(searchQuery.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+  const searchParams: SpellSearchParams = {
+    className: spellListClass || className,
+    size: 50,
+    level: selectedLevel !== '' ? selectedLevel : validLevels.join(','),
+    ...(searchName ? { name: searchName } : {}),
+  };
+  const spellsQuery = useSpellSearch(searchParams, { enabled: needsApiSearch });
+  const searching = spellsQuery.isFetching;
+  const searchResults = useMemo(
+    () => (spellsQuery.data?.content ?? []).filter(s => s.level >= minSpellLevel && s.level <= maxSpellLevel),
+    [spellsQuery.data, minSpellLevel, maxSpellLevel],
+  );
 
   function isAdded(spell: Spell): boolean {
     return classSpells.some(s => s.name === spell.name);
@@ -250,213 +252,204 @@ export default function ManageSpellsModal({
       : `${preparedCount}/${prepLimit} prepared`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="manage-spells-title" className="bg-card border border-rule w-full max-w-lg max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-rule flex items-center justify-between">
-          <div>
-            <h2 id="manage-spells-title" className="font-heading text-[17px] font-semibold text-ink">{modalTitle}</h2>
-            <p className="font-body text-[13px] font-semibold text-faint mt-0.5">{modalSubtitle}</p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="text-faint hover:text-ink"><X className="w-5 h-5" /></button>
-        </div>
-
-        {isChoice && applyChoices.error && (
-          <div role="alert" className="mx-4 mt-3 bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">
-            {apiErrorMessage(applyChoices.error)}
-          </div>
-        )}
-
-        {/* Search bar */}
-        <div className="px-4 py-3 border-b border-rule space-y-2">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
-              <input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && doSearch()}
-                placeholder={needsApiSearch ? "Search spells..." : "Filter spellbook..."}
-                aria-label={needsApiSearch ? 'Search spells' : 'Filter spellbook'}
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
-              />
-            </div>
-            {(isWizardPrepared || isRemoveSpellbook) && (
-              <select
-                value={selectedLevel}
-                onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
-                aria-label="Spell level"
-                className="bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
-              >
-                <option value="">All Levels</option>
-                {validLevels.filter(l => l > 0).map(l => (
-                  <option key={l} value={l}>Level {l}</option>
-                ))}
-              </select>
-            )}
-            {needsApiSearch && !isCantripChoice && (
-              <select
-                value={selectedLevel}
-                onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
-                aria-label="Spell level"
-                className="bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
-              >
-                <option value="">All Levels</option>
-                {validLevels.map(l => (
-                  <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-
-        {/* Results. The last ones stay up while a new search runs, so typing doesn't flicker */}
-        <div className="flex-1 overflow-y-auto px-4 py-2">
-          {searching && displayResults.length === 0 ? (
-            <p className="font-body text-[15px] text-muted py-4 text-center">Searching...</p>
-          ) : displayResults.length === 0 ? (
-            <p className="font-body text-[15px] text-faint py-4 text-center">
-              {needsApiSearch
-                ? `Search for ${className} spells to add them.`
-                : isRemoveSpellbook
-                  ? 'No spells in spellbook.'
-                  : 'No spells in spellbook to prepare.'}
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {displayResults.map(spell => {
-                const added = isAdded(spell);
-                const prepared = isPreparedSpell(spell);
-                const isAlwaysPrep = classSpells.some(s => s.name === spell.name && s.alwaysPrepared);
-                const chosen = isPicked(spell);
-
-                let disabled = false;
-                if (isChoice) {
-                  disabled = added || (!chosen && picked.length >= choiceCount);
-                } else if (isSpellbookMode) {
-                  disabled = false;
-                } else if (isRemoveSpellbook) {
-                  disabled = !added;
-                } else if (type === 'prepared') {
-                  disabled = isAlwaysPrep || (preparedCount >= prepLimit && !prepared);
-                }
-
-                return (
-                  <button
-                    key={spell.id}
-                    onClick={() => !disabled && toggleSpell(spell)}
-                    disabled={disabled}
-                    aria-pressed={isChoice ? chosen : undefined}
-                    className={`w-full flex items-center justify-between py-2 px-3 font-body text-[15px] font-semibold transition-colors ${
-                      isAlwaysPrep && (type === 'prepared' || isWizardPrepared)
-                        ? 'bg-cls-cleric-bg text-cls-cleric cursor-not-allowed'
-                        : isChoice
-                          ? chosen
-                            ? 'bg-cls-wizard-bg text-cls-wizard hover:opacity-80'
-                            : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page-alt'
-                          : disabled
-                            ? 'text-faint cursor-not-allowed'
-                            : isRemoveSpellbook
-                              ? 'text-muted hover:bg-debuff-bg'
-                              : isSpellbookMode
-                                ? added
-                                  ? 'bg-buff-bg text-buff hover:opacity-80'
-                                  : 'text-muted hover:bg-page-alt'
-                                : (type === 'prepared' || isWizardPrepared ? prepared : added)
-                                  ? 'bg-cls-wizard-bg text-cls-wizard hover:opacity-80'
-                                  : 'text-muted hover:bg-page-alt'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isAlwaysPrep && (type === 'prepared' || isWizardPrepared) && <Lock className="w-3 h-3 text-cls-cleric" />}
-                      <span>{spell.name}</span>
-                      <span className="text-[13px] text-faint">
-                        {spell.level === 0 ? 'Cantrip' : `Lv ${spell.level}`}
-                      </span>
-                    </div>
-                    {isChoice ? (
-                      added ? (
-                        <span className="text-[13px] text-faint">{isSpellbookChoice ? 'In Spellbook' : 'Known'}</span>
-                      ) : chosen ? (
-                        <span className="text-[13px] text-buff">Chosen</span>
-                      ) : (
-                        <Plus className="w-4 h-4 text-faint" />
-                      )
-                    ) : isSpellbookMode ? (
-                      added ? (
-                        <span className="text-[13px] text-buff">In Spellbook</span>
-                      ) : (
-                        <Plus className="w-4 h-4 text-faint" />
-                      )
-                    ) : isRemoveSpellbook ? (
-                      added ? (
-                        <span className="text-[13px] text-debuff">Remove</span>
-                      ) : (
-                        <span className="text-[13px] text-faint">Removed</span>
-                      )
-                    ) : isAlwaysPrep ? (
-                      <span className="text-[13px] text-cls-cleric">Always</span>
-                    ) : prepared ? (
-                      <span className="text-[13px] text-buff">Prepared</span>
-                    ) : added ? (
-                      <span className="text-[13px] text-faint">In list</span>
-                    ) : (
-                      <Plus className="w-4 h-4 text-faint" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* A known caster may also replace one spell it knows as it gains a level */}
-        {isChoice && choice?.swap && (
-          <div className="px-4 py-3 border-t border-rule space-y-2">
-            <h3 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">
-              Replace a known spell (optional)
-            </h3>
-            <div className="flex gap-2 flex-wrap">
-              <select
-                value={replace}
-                onChange={e => { setReplace(e.target.value); if (!e.target.value) setReplacement(null); }}
-                aria-label="Spell to replace"
-                className="flex-1 min-w-40 bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
-              >
-                <option value="">Keep every spell</option>
-                {replaceable.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-              </select>
-              <select
-                value={replacement?.name ?? ''}
-                onChange={e => setReplacement(replacementOptions.find(s => s.name === e.target.value) ?? null)}
-                disabled={!replace}
-                aria-label="Replacement spell"
-                className="flex-1 min-w-40 bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted disabled:opacity-50"
-              >
-                <option value="">Choose its replacement</option>
-                {replacementOptions.map(s => <option key={s.name} value={s.name}>{s.name} (Lv {s.level})</option>)}
-              </select>
-            </div>
-            <p className="font-body text-[13px] text-faint">Search above to list more replacements.</p>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="px-4 py-3 border-t border-rule flex justify-end gap-2">
-          <button onClick={isChoice ? onSkip ?? onClose : onClose} className="px-3 py-1.5 font-body text-[15px] font-semibold text-muted hover:text-ink transition-colors">
+    <Modal
+      title={modalTitle}
+      subtitle={modalSubtitle}
+      onClose={onClose}
+      size="lg"
+      footer={(
+        <>
+          <Button variant="secondary" onClick={isChoice ? onSkip ?? onClose : onClose}>
             {isChoice ? 'Skip' : 'Cancel'}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isChoice ? !choiceComplete || choiceSaving : saving}
-            className="px-4 py-1.5 bg-ink text-card font-body text-[15px] font-semibold hover:opacity-80 transition-colors disabled:opacity-50"
-          >
+          </Button>
+          <Button onClick={handleSave} disabled={isChoice ? !choiceComplete || choiceSaving : saving}>
             {isChoice
               ? choiceSaving ? 'Saving...' : isCantripChoice ? 'Learn Cantrips' : isSpellbookChoice ? 'Add to Spellbook' : 'Learn Spells'
               : saving ? 'Saving...' : 'Save Changes'}
-          </button>
+          </Button>
+        </>
+      )}
+    >
+      {isChoice && applyChoices.error && (
+        <div role="alert" className="mb-3 bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">
+          {apiErrorMessage(applyChoices.error)}
+        </div>
+      )}
+
+      {/* Search bar */}
+      <div className="pb-3 border-b border-rule space-y-2">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && setSearchName(searchQuery.trim())}
+              placeholder={needsApiSearch ? "Search spells..." : "Filter spellbook..."}
+              aria-label={needsApiSearch ? 'Search spells' : 'Filter spellbook'}
+              className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
+            />
+          </div>
+          {(isWizardPrepared || isRemoveSpellbook) && (
+            <select
+              value={selectedLevel}
+              onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
+              aria-label="Spell level"
+              className="bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
+            >
+              <option value="">All Levels</option>
+              {validLevels.filter(l => l > 0).map(l => (
+                <option key={l} value={l}>Level {l}</option>
+              ))}
+            </select>
+          )}
+          {needsApiSearch && !isCantripChoice && (
+            <select
+              value={selectedLevel}
+              onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
+              aria-label="Spell level"
+              className="bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
+            >
+              <option value="">All Levels</option>
+              {validLevels.map(l => (
+                <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* Results. The last ones stay up while a new search runs, so typing doesn't flicker */}
+      <div className="py-2">
+        {searching && displayResults.length === 0 ? (
+          <p className="font-body text-[15px] text-muted py-4 text-center">Searching...</p>
+        ) : displayResults.length === 0 ? (
+          <p className="font-body text-[15px] text-faint py-4 text-center">
+            {needsApiSearch
+              ? `Search for ${className} spells to add them.`
+              : isRemoveSpellbook
+                ? 'No spells in spellbook.'
+                : 'No spells in spellbook to prepare.'}
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {displayResults.map(spell => {
+              const added = isAdded(spell);
+              const prepared = isPreparedSpell(spell);
+              const isAlwaysPrep = classSpells.some(s => s.name === spell.name && s.alwaysPrepared);
+              const chosen = isPicked(spell);
+
+              let disabled = false;
+              if (isChoice) {
+                disabled = added || (!chosen && picked.length >= choiceCount);
+              } else if (isSpellbookMode) {
+                disabled = false;
+              } else if (isRemoveSpellbook) {
+                disabled = !added;
+              } else if (type === 'prepared') {
+                disabled = isAlwaysPrep || (preparedCount >= prepLimit && !prepared);
+              }
+
+              return (
+                <button
+                  key={spell.id}
+                  onClick={() => !disabled && toggleSpell(spell)}
+                  disabled={disabled}
+                  aria-pressed={isChoice ? chosen : undefined}
+                  className={`w-full flex items-center justify-between py-2 px-3 font-body text-[15px] font-semibold transition-colors ${
+                    isAlwaysPrep && (type === 'prepared' || isWizardPrepared)
+                      ? 'bg-cls-cleric-bg text-cls-cleric cursor-not-allowed'
+                      : isChoice
+                        ? chosen
+                          ? 'bg-cls-wizard-bg text-cls-wizard hover:opacity-80'
+                          : disabled ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page-alt'
+                        : disabled
+                          ? 'text-faint cursor-not-allowed'
+                          : isRemoveSpellbook
+                            ? 'text-muted hover:bg-debuff-bg'
+                            : isSpellbookMode
+                              ? added
+                                ? 'bg-buff-bg text-buff hover:opacity-80'
+                                : 'text-muted hover:bg-page-alt'
+                              : (type === 'prepared' || isWizardPrepared ? prepared : added)
+                                ? 'bg-cls-wizard-bg text-cls-wizard hover:opacity-80'
+                                : 'text-muted hover:bg-page-alt'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {isAlwaysPrep && (type === 'prepared' || isWizardPrepared) && <Lock className="w-3 h-3 text-cls-cleric" />}
+                    <span>{spell.name}</span>
+                    <span className="text-[13px] text-faint">
+                      {spell.level === 0 ? 'Cantrip' : `Lv ${spell.level}`}
+                    </span>
+                  </div>
+                  {isChoice ? (
+                    added ? (
+                      <span className="text-[13px] text-faint">{isSpellbookChoice ? 'In Spellbook' : 'Known'}</span>
+                    ) : chosen ? (
+                      <span className="text-[13px] text-buff">Chosen</span>
+                    ) : (
+                      <Plus className="w-4 h-4 text-faint" />
+                    )
+                  ) : isSpellbookMode ? (
+                    added ? (
+                      <span className="text-[13px] text-buff">In Spellbook</span>
+                    ) : (
+                      <Plus className="w-4 h-4 text-faint" />
+                    )
+                  ) : isRemoveSpellbook ? (
+                    added ? (
+                      <span className="text-[13px] text-debuff">Remove</span>
+                    ) : (
+                      <span className="text-[13px] text-faint">Removed</span>
+                    )
+                  ) : isAlwaysPrep ? (
+                    <span className="text-[13px] text-cls-cleric">Always</span>
+                  ) : prepared ? (
+                    <span className="text-[13px] text-buff">Prepared</span>
+                  ) : added ? (
+                    <span className="text-[13px] text-faint">In list</span>
+                  ) : (
+                    <Plus className="w-4 h-4 text-faint" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* A known caster may also replace one spell it knows as it gains a level */}
+      {isChoice && choice?.swap && (
+        <div className="pt-3 border-t border-rule space-y-2">
+          <h3 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">
+            Replace a known spell (optional)
+          </h3>
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={replace}
+              onChange={e => { setReplace(e.target.value); if (!e.target.value) setReplacement(null); }}
+              aria-label="Spell to replace"
+              className="flex-1 min-w-40 bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
+            >
+              <option value="">Keep every spell</option>
+              {replaceable.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+            </select>
+            <select
+              value={replacement?.name ?? ''}
+              onChange={e => setReplacement(replacementOptions.find(s => s.name === e.target.value) ?? null)}
+              disabled={!replace}
+              aria-label="Replacement spell"
+              className="flex-1 min-w-40 bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted disabled:opacity-50"
+            >
+              <option value="">Choose its replacement</option>
+              {replacementOptions.map(s => <option key={s.name} value={s.name}>{s.name} (Lv {s.level})</option>)}
+            </select>
+          </div>
+          <p className="font-body text-[13px] text-faint">Search above to list more replacements.</p>
+        </div>
+      )}
+
+    </Modal>
   );
 }

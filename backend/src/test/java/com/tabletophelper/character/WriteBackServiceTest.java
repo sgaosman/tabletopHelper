@@ -16,7 +16,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -114,12 +113,15 @@ class WriteBackServiceTest {
     @Test
     @DisplayName("The characters are locked in ID order, as PostgreSQL sorts UUIDs, after the lock wait is limited")
     void locksInIdOrder() {
-        PlayerCharacter first = f.create(f.human, CharacterFixture.scores(), f.fighter, 1);
-        PlayerCharacter second = f.create(f.human, CharacterFixture.scores(), f.fighter, 1);
-        List<PlayerCharacter> byId = List.of(first, second).stream()
-                .sorted(Comparator.comparing(pc -> pc.getId().toString()))
-                .toList();
-        CombatTotals unchanged = totals(first.getHpCurrent(), 0, Map.of(), Map.of());
+        // Two IDs Java's UUID.compareTo puts the other way round, since it compares the high bits as signed: ffff...
+        // first. PostgreSQL, like the IDs' text, puts 0000... first
+        PlayerCharacter low = withId(f.create(f.human, CharacterFixture.scores(), f.fighter, 1),
+                "00000000-0000-0000-0000-000000000001");
+        PlayerCharacter high = withId(f.create(f.human, CharacterFixture.scores(), f.fighter, 1),
+                "ffffffff-0000-0000-0000-000000000000");
+        assertThat(high.getId().compareTo(low.getId())).isNegative();
+        List<PlayerCharacter> byId = List.of(low, high);
+        CombatTotals unchanged = totals(low.getHpCurrent(), 0, Map.of(), Map.of());
         clearInvocations(f.characterRepository);
 
         // Listed last first, and the last twice, as a character the encounter holds twice is
@@ -236,6 +238,12 @@ class WriteBackServiceTest {
 
         assertThat(aria.getHpMax()).isEqualTo(22);
         assertThat(aria.getHpCurrent()).isZero();
+    }
+
+    /** The character stored again under this ID. */
+    private PlayerCharacter withId(PlayerCharacter pc, String id) {
+        pc.setId(UUID.fromString(id));
+        return f.characterRepository.save(pc);
     }
 
     private static CombatResults results(CharacterResult... characters) {

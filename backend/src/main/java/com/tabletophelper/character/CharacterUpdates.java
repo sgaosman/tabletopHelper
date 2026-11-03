@@ -351,7 +351,8 @@ final class CharacterUpdates {
                 nonZero(applied.passiveInvestigationBonus()),
                 applied.resource(),
                 nonEmpty(applied.spellsAdded()),
-                featName);
+                featName,
+                applied.spellcastingAbility());
     }
 
     // ── Helpers ──────────────────────────────────────────────────

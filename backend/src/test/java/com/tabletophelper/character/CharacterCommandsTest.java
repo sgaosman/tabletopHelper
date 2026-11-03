@@ -1,5 +1,7 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.campaign.Campaign;
+import com.tabletophelper.identity.User;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
@@ -7,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,7 +24,8 @@ import static org.mockito.Mockito.when;
 /**
  * How every character command starts and ends (D158): access by the owner's ID, then the lock wait's limit, then the
  * row lock; the refusal of rests and levelling during an encounter under way (D166); and the derivation and save at
- * the end. CharacterCommandsIT shows the lock and its five-second wait on PostgreSQL.
+ * the end; and a DM command's checks, before the lock and again under it (D158). CharacterCommandsIT shows the lock and
+ * its five-second wait on PostgreSQL.
  */
 class CharacterCommandsTest {
 
@@ -89,5 +93,60 @@ class CharacterCommandsTest {
         assertThat(response.getProficiencyBonus()).isEqualTo(2);
         assertThat(response.getNotes()).isEqualTo("Rested at the inn");
         verify(f.characterRepository).save(pc);
+    }
+
+    @Test
+    @DisplayName("The owner is refused a DM command on their own character, even as the DM of its campaign")
+    void ownerIsNotTheirOwnDm() {
+        PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 1);
+        Campaign campaign = campaign(f.user);
+        pc.setCampaign(campaign);
+        inCampaign(pc, campaign);
+
+        assertThatThrownBy(() -> f.commands.beginAsDm(pc.getId(), f.userId))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("You can't use DM actions on your own character");
+    }
+
+    @Test
+    @DisplayName("A DM command checks the campaign again under the lock, so a character moved meanwhile is refused to a DM who isn't its new campaign's")
+    void dmCheckedAgainUnderTheLock() {
+        UUID dmId = UUID.randomUUID();
+        PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 1);
+        Campaign before = campaign(User.builder().id(dmId).username("dm").build());
+        Campaign after = campaign(User.builder().id(UUID.randomUUID()).username("other").build());
+        // The IDs read before the lock still show the old campaign; the locked row has the new one
+        inCampaign(pc, before);
+        pc.setCampaign(after);
+
+        assertThatThrownBy(() -> f.commands.beginAsDm(pc.getId(), dmId))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("Only the DM of this character's campaign can adjust it");
+        verify(f.characterRepository).lockById(pc.getId());
+
+        pc.setCampaign(before);
+        assertThat(f.commands.beginAsDm(pc.getId(), dmId)).isSameAs(pc);
+    }
+
+    private Campaign campaign(User dm) {
+        Campaign campaign = Campaign.builder().id(UUID.randomUUID()).name("Lost Mine").dm(dm).inviteCode("ABCD2345")
+                .build();
+        when(f.campaignRepository.findById(campaign.getId())).thenReturn(Optional.of(campaign));
+        return campaign;
+    }
+
+    private void inCampaign(PlayerCharacter pc, Campaign campaign) {
+        when(f.characterRepository.findCampaignOfCharacterById(pc.getId())).thenReturn(Optional.of(
+                new CharacterRepository.CampaignOfCharacter() {
+                    @Override
+                    public UUID getCharacterId() {
+                        return pc.getId();
+                    }
+
+                    @Override
+                    public UUID getCampaignId() {
+                        return campaign.getId();
+                    }
+                }));
     }
 }

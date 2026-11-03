@@ -169,4 +169,23 @@ describe('ManageSpellsModal for a Pending Choice (D159)', () => {
 
     expect(onSkip).toHaveBeenCalled();
   });
+
+  it('closes on Escape', async () => {
+    const choice = makeMockPendingChoice({
+      id: 'choice-cantrips', type: 'CANTRIPS', className: 'Sorcerer', classLevel: 4, characterLevel: 4, count: 1,
+      maxSpellLevel: 0,
+    });
+    const onClose = vi.fn();
+    const onSkip = vi.fn();
+    render(<ManageSpellsModal char={sorcerer} type="choice" className="Sorcerer" casting={sorcerer.spellcasting[0]}
+      spellListClass="Sorcerer" currentSpells={sorcerer.spellsKnown} choice={choice} onComplete={vi.fn()}
+      onSkip={onSkip} onClose={onClose} />);
+    const user = userEvent.setup();
+    await within(screen.getByRole('dialog', { name: 'Learn Cantrips' })).findByRole('button', { name: /^Light/ });
+
+    await user.keyboard('{Escape}');
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onSkip).not.toHaveBeenCalled();
+  });
 });

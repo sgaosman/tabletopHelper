@@ -128,6 +128,33 @@ class DmAdjustmentIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("An owner who moves their character into a campaign of their own, so is its DM, still can't adjust or revive it: 403, changing nothing")
+    void theOwnerIsNeverTheirOwnDm() {
+        Map<String, Object> ring = Map.of("kind", "STAT", "target", "ARMOUR_CLASS", "amount", 1,
+                "reason", "Ring of Protection");
+        String ringId = adjust(aria, ring).get("dmAdjustments").get(0).get("id").asText();
+        // Creating a campaign makes the player its DM
+        UUID ownCampaign = UUID.fromString(createCampaign(player.accessToken()).get("id").asText());
+        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + aria + "/campaign",
+                Map.of("campaignId", ownCampaign), player.accessToken()));
+        int version = version(aria);
+
+        String refusal = "You can't use DM actions on your own character";
+        assertThat(error(exchange(HttpMethod.POST, "/api/characters/" + aria + "/adjustments", ring,
+                player.accessToken()), HttpStatus.FORBIDDEN)).isEqualTo(refusal);
+        assertThat(error(remove(aria, ringId, player), HttpStatus.FORBIDDEN)).isEqualTo(refusal);
+        // Refused before the revival asks whether the character is dead
+        assertThat(error(exchange(HttpMethod.POST, "/api/characters/" + aria + "/revive", null,
+                player.accessToken()), HttpStatus.FORBIDDEN)).isEqualTo(refusal);
+
+        assertThat(version(aria)).isEqualTo(version);
+        JsonNode sheet = get(aria);
+        assertThat(sheet.get("armourClass").asInt()).isEqualTo(13);
+        assertThat(sheet.get("dmAdjustments")).hasSize(1);
+        assertThat(sheet.get("dmAdjustments").get(0).has("removedAt")).isFalse();
+    }
+
+    @Test
     @DisplayName("STAT adjustments reach the Derived Stats: ability scores first, then hit points, which follow the maximum, initiative, speed and every spell number")
     void statAdjustments() {
         String bram = create(Map.of("name", "Bram", "classId", wizardId, "level", 3, "campaignId", campaignId,

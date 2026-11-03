@@ -58,12 +58,14 @@ public class SpellEffects {
     /**
      * The spell cast with a slot of slotLevel, or 0 for none.
      *
-     * @param attackBonus the caster's spell attack bonus, which also gives its spellcasting modifier
-     * @param saveDc      the caster's spell save DC
-     * @param advantage   true for advantage on a spell attack, false for disadvantage, null for neither
+     * @param castingAbility the ability the spell is cast with, which gives its spellcasting modifier; null when
+     *                       unknown, and then the modifier is worked back from the attack bonus
+     * @param attackBonus    the caster's spell attack bonus
+     * @param saveDc         the caster's spell save DC
+     * @param advantage      true for advantage on a spell attack, false for disadvantage, null for neither
      */
-    public SpellPlan forCast(String spellName, int slotLevel, EncounterParticipant caster, int attackBonus,
-                             int saveDc, Boolean advantage) {
+    public SpellPlan forCast(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
+                             int attackBonus, int saveDc, Boolean advantage) {
         JsonNode template = template(spellName);
         if (template.isMissingNode()) {
             return manual(spellName, 0, NO_TEMPLATE, false, null, false);
@@ -85,7 +87,7 @@ public class SpellEffects {
                     concentration, durationRounds, verbal);
         }
 
-        int modifier = stats.spellcastingModifier(caster, attackBonus);
+        int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
         // A spell on its caster heals or gives conditions; any damage in its template is for others to take
         Optional<List<Effect.DamagePart>> damage = delivery instanceof Effect.Self
                 ? Optional.of(List.of())
@@ -108,8 +110,8 @@ public class SpellEffects {
      * Spiritual Weapon's attack, as the template's repeatEffect describes it: true for the spell's own effect
      * again, or an object that replaces its delivery, dice and save. It starts no concentration.
      */
-    public SpellPlan forRepeat(String spellName, int slotLevel, EncounterParticipant caster, int attackBonus,
-                               int saveDc, Boolean advantage) {
+    public SpellPlan forRepeat(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
+                               int attackBonus, int saveDc, Boolean advantage) {
         JsonNode template = template(spellName);
         if (template.isMissingNode()) {
             return manual(spellName, 0, NO_TEMPLATE, false, null, false);
@@ -119,7 +121,7 @@ public class SpellEffects {
         if (!repeat.isObject() && !(repeat.isBoolean() && repeat.asBoolean())) {
             return manual(spellName, spellLevel, "Spell has no repeatable effect", false, null, false);
         }
-        int modifier = stats.spellcastingModifier(caster, attackBonus);
+        int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
 
         JsonNode source;
         Optional<List<Effect.DamagePart>> damage;

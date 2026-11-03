@@ -47,12 +47,14 @@ public class SpellCaster {
 
     /**
      * Casts the spell with a slot of slotLevel, or 0 for none, at the targets, which have passed the access
-     * checks. A spell on its caster reaches only the caster.
+     * checks. A spell on its caster reaches only the caster. castingAbility is the ability it is cast with, null
+     * when unknown (D164).
      */
     public CastResult cast(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
-                           List<EncounterParticipant> targets, int attackBonus, int saveDc, Boolean advantage) {
-        SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, attackBonus, saveDc,
-                advantage);
+                           List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
+                           Boolean advantage) {
+        SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, castingAbility, attackBonus,
+                saveDc, advantage);
         String lead = caster.getDisplayName() + " casts " + spellName
                 + (slotLevel > 0 && slotLevel > plan.spellLevel() ? " at level " + slotLevel : "");
 
@@ -89,9 +91,10 @@ public class SpellCaster {
      * the caster's Concentration Instance for that spell.
      */
     public CastResult repeat(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
-                             List<EncounterParticipant> targets, int attackBonus, int saveDc, Boolean advantage) {
-        SpellEffects.SpellPlan plan = spellEffects.forRepeat(spellName, slotLevel, caster, attackBonus, saveDc,
-                advantage);
+                             List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
+                             Boolean advantage) {
+        SpellEffects.SpellPlan plan = spellEffects.forRepeat(spellName, slotLevel, caster, castingAbility, attackBonus,
+                saveDc, advantage);
         ConcentrationInstance instance = caster.getConcentration() != null
                 && caster.getConcentration().spell().equalsIgnoreCase(spellName) ? caster.getConcentration() : null;
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(),

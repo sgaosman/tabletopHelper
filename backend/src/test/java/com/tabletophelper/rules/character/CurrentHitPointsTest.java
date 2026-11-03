@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * A character sheet's hit points between encounters (PHB p.198), typed out here independently of
  * {@link CurrentHitPoints}: temporary hit points take damage first, hit points stop at 0 and at the maximum, and
- * temporary hit points don't stack (D158, D161).
+ * temporary hit points don't stack (D158, D161); and what a new maximum does to the hit points a character has (D167).
  */
 class CurrentHitPointsTest {
 
@@ -56,6 +56,27 @@ class CurrentHitPointsTest {
     void temporaryHitPoints(int temporary, int gained, int temporaryAfter) {
         assertEquals(new Totals(12, 30, temporaryAfter),
                 CurrentHitPoints.gainTemporary(new Totals(12, 30, temporary), gained));
+    }
+
+    @ParameterizedTest(name = "{0}/{1}, the maximum becoming {2}, dead {3}: {4}")
+    @CsvSource(nullValues = "none", value = {
+            // A higher maximum raises them by as much
+            "40, 65, 71, false, 46",
+            "65, 65, 71, false, 71",
+            // A lower one caps them, and they stay where they are when it is still above them
+            "65, 65, 60, false, 60",
+            "40, 65, 60, false, 40",
+            "40, 65, 65, false, 40",
+            // A dead character stays at 0 whatever the maximum does
+            "0, 65, 71, true, 0",
+            "0, 65, 60, true, 0",
+            // A character with no maximum yet keeps what it has, within the new one
+            "12, none, 10, false, 10",
+            "8, none, 10, false, 8",
+    })
+    @DisplayName("A new maximum raises hit points by as much as it rises, caps them when it falls, and leaves the dead at 0")
+    void afterMaximum(int current, Integer oldMaximum, int newMaximum, boolean dead, int currentAfter) {
+        assertEquals(currentAfter, CurrentHitPoints.afterMaximum(current, oldMaximum, newMaximum, dead));
     }
 
     @Test

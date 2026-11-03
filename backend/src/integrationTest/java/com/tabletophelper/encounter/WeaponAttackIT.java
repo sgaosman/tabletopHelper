@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class WeaponAttackIT extends IntegrationTest {
 
+    @Autowired private FeatRepository featRepository;
     @Autowired private ItemRepository itemRepository;
     @Autowired private MonsterRepository monsterRepository;
 
@@ -48,15 +51,20 @@ class WeaponAttackIT extends IntegrationTest {
         campaignId = UUID.fromString(campaign.get("id").asText());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
-        // A feat and proficiencies come only from creation or levelling (D158, D167); the proficiency bonus is the
-        // server's, +2
+        // Proficiencies come only from creation or levelling (D158, D167), and a feat only from a Pending Choice or
+        // the DM's grant, as Great Weapon Master comes here; the proficiency bonus is the server's, +2
         Map<String, Object> aria = new HashMap<>(Map.of("name", "Aria", "raceId", insertRace("Human"),
                 "classId", insertClass("Fighter", 10), "strength", 16, "dexterity", 14, "constitution", 12,
                 "intelligence", 10, "wisdom", 10, "charisma", 10));
         aria.put("weaponProficiencies", List.of("simple", "martial"));
-        aria.put("features", List.of(Map.of("name", "Great Weapon Master", "description", "Feat", "source", "Feat")));
+        aria.put("campaignId", campaignId);
         UUID character = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
                 aria, player.accessToken())).get("id").asText());
+        UUID greatWeaponMaster = featRepository.save(Feat.builder().name("Great Weapon Master").source("PHB")
+                .description("You've learned to put the weight of a weapon to your advantage.").build()).getId();
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + character + "/adjustments",
+                Map.of("kind", "FEAT", "feat", Map.of("featId", greatWeaponMaster),
+                        "reason", "Trained by the ogre-slayers"), dm.accessToken()));
         List<Item> items = itemRepository.saveAll(List.of(
                 Item.builder().name("Greatsword").type("Melee Weapon").subtype("martial").damageDice("2d6")
                         .damageType("slashing").properties("{\"tags\": [\"H\", \"2H\"]}").source("PHB").build(),

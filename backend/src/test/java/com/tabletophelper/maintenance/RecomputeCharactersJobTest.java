@@ -92,6 +92,39 @@ class RecomputeCharactersJobTest {
     }
 
     @Test
+    @DisplayName("A dead character's dry run shows it staying at 0 hit points when its maximum rises, as the real run does")
+    void theDeadStayAtZero() {
+        PlayerCharacter fallen = barbarian("Grog");
+        fallen.setHpCurrent(0);
+        fallen.setDead(true);
+        when(characterRepository.findAll()).thenReturn(List.of(fallen));
+        when(characterService.derivedStats(fallen)).thenReturn(derived(71, 2, List.of(RAGE), List.of()));
+
+        MaintenanceReport report = job().run(false);
+
+        assertThat(report.changes()).singleElement().asString().contains("hit points: 0/65 → 0/71");
+    }
+
+    @Test
+    @DisplayName("A character whose derivation fails in any way is skipped with a warning naming the failure, and the others are still reported")
+    void anyFailureSkipsOnlyThatCharacter() {
+        PlayerCharacter broken = barbarian("Broken");
+        PlayerCharacter hurt = barbarian("Grog");
+        hurt.setHpCurrent(40);
+        when(characterRepository.findAll()).thenReturn(List.of(broken, hurt));
+        when(characterService.derivedStats(broken)).thenThrow(new IllegalStateException("No class data"));
+        when(characterService.derivedStats(hurt)).thenReturn(derived(71, 2, List.of(RAGE), List.of()));
+
+        MaintenanceReport report = job().run(true);
+
+        assertThat(report.warnings()).containsExactly("Broken (" + broken.getId()
+                + ", level 6 Barbarian, deleted): skipped (IllegalStateException: No class data)");
+        assertThat(report.changes()).singleElement().asString().contains("hit points: 40/65 → 46/71");
+        verify(characterService, never()).recalculate(broken);
+        verify(characterService).recalculate(hurt);
+    }
+
+    @Test
     @DisplayName("What the sheet has beyond the rules is a warning, and a sheet that can't be worked out is skipped")
     void warnings() {
         PlayerCharacter cleric = barbarian("TestPeace");

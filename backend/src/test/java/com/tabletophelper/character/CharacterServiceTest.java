@@ -308,6 +308,20 @@ class CharacterServiceTest {
                     .hasMessage("'Luck' is not an ability");
             verify(f.characterRepository, never()).save(any());
         }
+
+        @Test
+        @DisplayName("A multiclass character's subclass that doesn't exist is a 400, not dropped")
+        void unknownSubclassIs400() {
+            UUID missing = UUID.randomUUID();
+            CharacterCreateRequest req = request("Bram", f.fighter, f.human);
+            req.setLevel(5);
+            req.setMulticlassClassEntries(List.of(new ClassEntry(f.fighter.getId(), null, missing, null, 3),
+                    new ClassEntry(f.wizard.getId(), null, null, null, 2)));
+
+            assertThatThrownBy(() -> create(req)).isInstanceOf(ValidationException.class)
+                    .hasMessage("Subclass not found: " + missing);
+            verify(f.characterRepository, never()).save(any());
+        }
     }
 
     @Nested

@@ -66,6 +66,10 @@ class SpellcastingServiceTest {
              "targetCountUpcastScaling": {"additionalTargetsPerLevel": 1},
              "components": {"verbal": true}, "effects": [], "conditionsInflicted": ["paralyzed"]}""";
 
+    private static final String CURE_WOUNDS = """
+            {"spellName": "Cure Wounds", "spellLevel": 1, "deliveryMethod": "AUTO_HIT", "effects": [],
+             "healing": {"healingDice": "1d8+MOD", "upcastScaling": {"additionalDicePerLevel": "1d8"}}}""";
+
     private CombatFixture f;
     private EncounterParticipant wizard;
     private EncounterParticipant goblin;
@@ -620,6 +624,50 @@ class SpellcastingServiceTest {
             assertEquals(10, goblin.getHpCurrent());
             verify(f.characterService, never()).classSpellcasting(any(), any());
         }
+
+        @Test
+        @DisplayName("A class spell's healing adds the modifier of its class's ability score, not the attack bonus less proficiency")
+        void healingAddsTheAbilityModifier() {
+            EncounterParticipant cleric = clericWithAdjustedAttack();
+            EncounterParticipant fighter = f.player("Fighter", 40, 18);
+            fighter.setHpCurrent(20);
+
+            f.dice.script(5);
+            CastSpellResponse response = f.spellcasting.castSpell(f.encounterId(),
+                    request("Cure Wounds", 1, List.of(fighter)), cleric.getId(), f.dmUserId);
+
+            // WIS 16 gives +3; the attack bonus of +6 less +2 proficiency would have given +4
+            assertEquals(8, response.getTargets().getFirst().getHealing());
+            assertEquals(28, fighter.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("A Manual Modifier to the spell attack bonus doesn't change a spell's healing")
+        void manualModifierLeavesHealingAlone() {
+            EncounterParticipant cleric = clericWithAdjustedAttack();
+            EncounterParticipant fighter = f.player("Fighter", 40, 18);
+            fighter.setHpCurrent(20);
+            CastSpellRequest request = request("Cure Wounds", 1, List.of(fighter));
+            request.setOverrideSpellAttackBonus(9);
+
+            f.dice.script(5);
+            f.spellcasting.castSpell(f.encounterId(), request, cleric.getId(), f.dmUserId);
+
+            assertEquals(28, fighter.getHpCurrent());
+        }
+
+        // A Cleric 1 with WIS 16 whose spell attack bonus is +6, one more than +2 proficiency and +3, as a DM
+        // Adjustment of +1 makes it, and who knows Cure Wounds
+        private EncounterParticipant clericWithAdjustedAttack() {
+            f.spell("Cure Wounds", 1, CURE_WOUNDS);
+            EncounterParticipant cleric = f.player("Cleric", 30, 16);
+            cleric.getCharacter().setWisdom(16);
+            cleric.setSpellSlotsCurrent(Map.of("1", new SpellSlot(2, 0)));
+            f.knows(cleric, new KnownSpell(null, "Cure Wounds", 1, "class:Cleric", true, null, null, null, null));
+            when(f.characterService.classSpellcasting(cleric.getCharacter(), "Cleric")).thenReturn(Optional.of(
+                    new ClassSpellcasting("Cleric", null, 1, "WIS", 13, 6, 1, 3, null, 4, false)));
+            return cleric;
+        }
     }
 
     @Nested
@@ -765,6 +813,25 @@ class SpellcastingServiceTest {
             ValidationException spent = assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(
                     f.encounterId(), request("Thunderwave", 0, List.of(fighter)), djinni.getId(), f.dmUserId));
             assertEquals("Djinni has no uses of Thunderwave left", spent.getMessage());
+        }
+
+        @Test
+        @DisplayName("A monster's spell adds the modifier of its spellcasting ability, whatever its stat block's attack bonus")
+        void monsterUsesItsAbilityModifier() {
+            EncounterParticipant priest = f.monster("Priest", 27, 13);
+            priest.getMonster().setWisdom(16);
+            priest.getMonster().setActionTemplates("""
+                    {"spellcasting": {"ability": "WIS", "attackBonus": 9, "saveDC": 13, "slots": {"1": 4},
+                     "spellsByLevel": {"1": ["Cure Wounds"]}}}""");
+            f.spell("Cure Wounds", 1, CURE_WOUNDS);
+            goblin.setHpCurrent(5);
+
+            f.dice.script(4);
+            f.spellcasting.castSpell(f.encounterId(), request("Cure Wounds", 1, List.of(goblin)), priest.getId(),
+                    f.dmUserId);
+
+            // WIS 16 gives +3, where +9 less a CR 1 monster's +2 proficiency would have given +7
+            assertEquals(12, goblin.getHpCurrent());
         }
 
         @Test

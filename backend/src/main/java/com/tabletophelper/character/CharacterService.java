@@ -149,7 +149,8 @@ public class CharacterService {
                         .orElseThrow(() -> new ValidationException("Class not found: " + mcClassId));
                 Subclass mcSubclassRef = null;
                 if (mcSubclassId != null) {
-                    mcSubclassRef = subclassRepository.findById(mcSubclassId).orElse(null);
+                    mcSubclassRef = subclassRepository.findById(mcSubclassId)
+                            .orElseThrow(() -> new ValidationException("Subclass not found: " + mcSubclassId));
                 }
 
                 String mcClassName = mcClassRef.getName();
@@ -185,8 +186,7 @@ public class CharacterService {
                     : null;
         }
 
-        List<Feature> mergedFeatures = LevelUpCalculator.mergeFeatures(request.getFeatures(),
-                LevelUpCalculator.allFeatures(progression));
+        List<Feature> features = LevelUpCalculator.classFeatures(progression);
 
         PlayerCharacter character = PlayerCharacter.builder()
                 .user(user)
@@ -219,7 +219,7 @@ public class CharacterService {
                 .weaponProficiencies(request.getWeaponProficiencies())
                 .toolProficiencies(request.getToolProficiencies())
                 .languageProficiencies(request.getLanguageProficiencies())
-                .features(mergedFeatures)
+                .features(features)
                 .damageResistances(request.getDamageResistances())
                 .spellsKnown(request.getSpellsKnown())
                 .spellcastingAbility(chosenSpellcastingAbility(request.getSpellcastingAbility()))
@@ -476,6 +476,14 @@ public class CharacterService {
         return characterStats.spellcasting(character).stream()
                 .filter(c -> c.className().equals(className))
                 .findFirst();
+    }
+
+    /**
+     * The ability the character's race and feat spells are cast with: the one chosen for them, or else its first
+     * casting class's (D164); null for a character without one.
+     */
+    public String mainSpellcastingAbility(PlayerCharacter character) {
+        return characterStats.mainSpellcastingAbility(character);
     }
 
     // ── Deleting and reading ─────────────────────────────────────

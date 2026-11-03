@@ -154,11 +154,16 @@ public class CreatureStats {
     }
 
     /**
-     * The spellcasting ability modifier behind a spell attack bonus: the bonus less the proficiency bonus for
-     * the participant's level (PHB p.205). It replaces the MOD placeholder in spell templates.
+     * The spellcasting ability modifier a spell adds to its damage or healing, the MOD placeholder in spell
+     * templates: the modifier of the participant's score in the ability the spell is cast with, read as abilityScore
+     * reads it, so a DM Adjustment or Manual Modifier to the attack bonus leaves it alone (D164). Only when the
+     * ability is unknown is it worked back from the spell attack bonus, as the bonus less the proficiency bonus for
+     * the participant's level (PHB p.205).
      */
-    public int spellcastingModifier(EncounterParticipant participant, int spellAttackBonus) {
-        return spellAttackBonus - ProficiencyBonus.forLevel(level(participant));
+    public int spellcastingModifier(EncounterParticipant participant, String ability, int spellAttackBonus) {
+        return Ability.parse(ability)
+                .map(known -> Ability.modifier(abilityScore(participant, known)))
+                .orElseGet(() -> spellAttackBonus - ProficiencyBonus.forLevel(level(participant)));
     }
 
     private static boolean proficientInSave(PlayerCharacter character, Ability ability) {
