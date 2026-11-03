@@ -248,6 +248,8 @@ Since R6 workstream F every character response also has `pendingChoices`: the Pe
 - `maxSpellLevel` is 0 for `CANTRIPS`, and for `SPELLS` the highest level of spell the class could learn at that class level (PHB p.164)
 - `swap` is `true` on a `SPELLS` choice when the class may also replace one spell it knows, as a bard, ranger, sorcerer, warlock, Eldritch Knight or Arcane Trickster may when its Spells Known rise. A Wizard's `SPELLS` choice is the spells it copies into its spellbook for free: six at Wizard 1 and two at each level after (PHB p.114)
 
+Since R6 workstream G every character response also has `dead`, which is `true` once the character has died in an encounter whose results the DM applied (D166). Until the DM of its campaign revives it through `POST /characters/{characterId}/revive` (below), it stays at 0 hit points, and its rests, damage, healing and temporary hit points, level-up, level-down and joining an encounter answer `409`. Its other commands, its choices and its DM Adjustments go on, and it can still be deleted.
+
 Since R6 workstream F creating a character at level N gives it the Pending Choices of levels 1 to N, less what the request chose itself, and a `FEAT` choice for each feat its race gives, such as a Variant Human's, and one for its background's, from the feats the background lists. A `subclassId`, or a subclass in `multiclassClassEntries`, is recorded on its class's subclass level, and one for a class below that level answers `400`. `skillExpertises` are recorded on the levels that give Expertise, oldest first, and any Expertise they don't cover stays pending. The class cantrips and spells in `spellsKnown` count against their class's `CANTRIPS` and `SPELLS` choices, oldest first, but aren't recorded on a level. A feat named in `features`, as the example's Magic Initiate is, is only a feature, with no effects. The creation wizard sends only the 1st level's choices, and the player makes the rest on the sheet (D159).
 
 **Errors:**
@@ -265,6 +267,7 @@ Since R6 workstream F creating a character at level N gives it the Pending Choic
 - **Only the owner.** Every command, levelling, apply-choices and `DELETE` included, is the owner's alone: another user gets `403` and an unknown character `404`. Access is checked before the character's row is locked, so neither waits for the lock.
 - **One at a time.** Each command locks the character's row, so commands on one character queue and each starts from the last one's committed state. One that waits more than five seconds answers `409` ("Another change is still in progress. Please try again in a moment."). A write from a copy of the character that a command has changed since answers `409` too ("Someone else changed this at the same time. Please try again."), because the character's `version` catches it.
 - **During an encounter.** Rests, level-up, level-down and apply-choices answer `409` while the character is in an Active or Paused encounter (D166). The other commands go on, because combat changes the participant, not the sheet.
+- **A dead character.** Since R6 workstream G its rests, damage, healing, temporary hit points, level-up and level-down answer `409` until the DM revives it, such as "Aria is dead, so can't take a short rest until the DM revives them". Its other commands go on (D166).
 - **What no command sets.** Ability scores, proficiencies and expertise, resistances and immunities, race, background, `abilityScoreMethod` and `racialAbilityBonuses`, which the PUT took, can't be set any more, and neither can AC, which it had ignored since workstream C. HP, temporary HP, slot uses, remaining Hit Dice and pool uses change only through the commands below, and race and feat spells can't be edited. Since R6 workstream E the DM of the character's campaign can change some of these through DM Adjustments (below): the ability scores, AC, HP maximum, speed, initiative and spell numbers by an amount, the damage defences, and the feats.
 
 ### PATCH /characters/{characterId}/details
@@ -308,12 +311,13 @@ Each entry needs a name, which is trimmed, and its quantity can't be below 0. `i
 
 ### POST /characters/{characterId}/hp
 
-Damage, healing or temporary hit points on the sheet between encounters (PHB p.198). Damage comes off temporary hit points first and stops at 0, healing stops at the HP maximum and leaves temporary hit points alone, and temporary hit points don't stack, so the character keeps the larger amount. In an encounter, the combat endpoints change the participant instead.
+Damage, healing or temporary hit points on the sheet between encounters (PHB p.198). Damage comes off temporary hit points first and stops at 0, healing stops at the HP maximum and leaves temporary hit points alone, and temporary hit points don't stack, so the character keeps the larger amount. In an encounter, the combat endpoints change the participant instead. Since R6 workstream G Write-back applies what the encounter changed to the sheet when the DM ends it, or removes the character from it while it is ACTIVE (D166).
 
 **Request:** `{"kind": "DAMAGE", "amount": 8}`. `kind` is `DAMAGE`, `HEALING` or `TEMPORARY`, and `amount` is at least 1.
 
 **Errors:**
 - `400` — No `kind`, or an `amount` below 1
+- `409` — The character is dead, until the DM revives it ("Aria is dead, so can't be healed until the DM revives them"; R6 workstream G, D166)
 
 ### POST /characters/{characterId}/spell-slots/{slot}/spend, /spell-slots/{slot}/restore
 
@@ -352,6 +356,7 @@ A short rest (PHB p.186). The body can be left out.
 **Errors:**
 - `400` — A class without Hit Dice, more dice of a class than remain, or a roll outside 1 to the die's size
 - `409` — The character is in an Active or Paused encounter
+- `409` — The character is dead (R6 workstream G, D166)
 
 ### POST /characters/{characterId}/long-rest
 
@@ -359,6 +364,7 @@ A long rest (PHB p.186). No body. It restores every hit point and clears tempora
 
 **Errors:**
 - `409` — The character has fewer than 1 hit point, or is in an Active or Paused encounter
+- `409` — The character is dead (R6 workstream G, D166)
 
 ### PUT /characters/{characterId}/spells/prepared
 
@@ -396,7 +402,7 @@ The DM of a character's campaign changes the character only through DM Adjustmen
 
 - **Only the campaign's DM.** Anyone else gets `403` ("Only the DM of this character's campaign can adjust it"), the character's owner and strangers alike. A character in no campaign has no DM, so everyone gets `403` ("This character isn't in a campaign, so it has no DM to adjust it"). A DM who also owns the character may adjust it. A character that doesn't exist answers `404`. Access is checked before the character's row is locked.
 - **One at a time.** Each takes the character's row lock, with the same five-second wait and `409`s as the player commands.
-- **During an encounter.** Both are allowed while the character is in an Active or Paused encounter (D166). An adjustment to a defence, an ability score, or a class's spell save DC or attack bonus reaches the character's participants at once, because combat reads those from the sheet. AC, the HP maximum, initiative and the main spell numbers are copied when a participant is added, so an adjustment to them reaches only participants added afterwards.
+- **During an encounter.** Both are allowed while the character is in an Active or Paused encounter (D166). An adjustment to a defence, an ability score, or a class's spell save DC or attack bonus reaches the character's participants at once, because combat reads those from the sheet. AC, the HP maximum, initiative and the main spell numbers are copied when a participant is added and, since R6 workstream G, again when the encounter starts, so an adjustment to them made once the encounter has started doesn't reach its participants (D166).
 - **Logged.** Every use is logged with the DM's, the adjustment's and the character's IDs, and the kind, target and amount, but not the reason.
 
 ### POST /characters/{characterId}/adjustments
@@ -429,6 +435,17 @@ Remove a DM Adjustment. No body. It stays in `dmAdjustments` as the record, with
 - `403` — Not the DM of the character's campaign, or a character in no campaign
 - `404` — Character not found, or the character has no such adjustment ("DM Adjustment not found")
 - `409` — The adjustment has already been removed ("That DM Adjustment has already been removed")
+
+### POST /characters/{characterId}/revive
+
+Revive a character who died in an encounter, at 1 hit point (R6 workstream G, D166). No body. Only the DM of the character's campaign may revive it, through the same access check and row lock as a DM Adjustment, and the `403` uses the same words ("Only the DM of this character's campaign can adjust it"). A character in no campaign can't be revived. It sets `hpCurrent` to 1, `hpTemp` to 0 and `dead` to `false`, and the Derived Stats are worked out again. Which spell brought the character back is the DM's to judge (D161). It isn't refused during an encounter, and it is logged with the DM's and the character's IDs.
+
+**Response (200):** Full character object.
+
+**Errors:**
+- `403` — Not the DM of the character's campaign, or a character in no campaign
+- `404` — Character not found
+- `409` — The character isn't dead ("Aria isn't dead")
 
 ### GET /characters
 
@@ -495,6 +512,7 @@ Since R6 workstream C (D167) the new level records its `hitDieResult`: the fixed
 **Errors:**
 - `409` — Character at max level (20) / Multiclass prerequisites not met
 - `409` — The character is in an Active or Paused encounter (R6 workstream D, D166)
+- `409` — The character is dead (R6 workstream G, D166)
 - `400` — Class not found
 
 ### POST /characters/{characterId}/level-down
@@ -506,6 +524,7 @@ Remove the most recent level. It removes the last `levelHistory` entry and, sinc
 **Errors:**
 - `409` — Character at minimum level (1) / No level history to revert
 - `409` — The character is in an Active or Paused encounter (R6 workstream D, D166)
+- `409` — The character is dead (R6 workstream G, D166)
 
 ### POST /characters/{characterId}/apply-choices
 
@@ -790,7 +809,9 @@ Add a participant (monster or player character).
 
 For `PLAYER` type, provide `characterId` instead of `monsterId`. HP, AC, and initiative modifier are auto-populated from the monster or character entity.
 
-Since R6 workstream E a character's AC includes its active AC adjustments, and the HP maximum, initiative modifier and main spell numbers it is given include the adjustments its stored Derived Stats have when it is added. An adjustment made later doesn't reach it, except those combat reads from the sheet: defences, ability scores and class spell numbers (D158, D166).
+Since R6 workstream E a character's AC includes its active AC adjustments, and the HP maximum, initiative modifier and main spell numbers it is given include the adjustments its stored Derived Stats have when it is added. An adjustment made after the encounter starts doesn't reach it, except those combat reads from the sheet: defences, ability scores and class spell numbers (D158, D166).
+
+Since R6 workstream G a player character joins with its sheet as `character/CombatSnapshot` reads it: its hit points, kept between 0 and its maximum, its temporary hit points, which used to start at 0, and its AC, initiative modifier, slots, spell numbers, known spells and pools. The participant keeps those totals as what it joined with (`joined_with`), from which Write-back works out what the encounter changed, and the encounter copies the sheet again when it starts (D166). A character who has died can't be added until the DM revives it: `409` ("Aria is dead, so can't join an encounter until the DM revives them").
 
 When `quantity` > 1, participants are named sequentially ("Goblin 1", "Goblin 2", "Goblin 3"), continuing from any existing participants with the same base name.
 
@@ -838,11 +859,14 @@ A hidden monster is left out of the Player View, so players don't see it in the 
 
 Remove a participant from the encounter, while it is PREPARING or ACTIVE. Since R5 that includes a fight in progress (D166): the participant's concentration ends, and the conditions it created end with it; it leaves its lair; and if it was the current turn, the turn passes to the next creature in the order, whose turn starts. The participant's own turn doesn't end, so its end-of-turn effects don't run. A PAUSED or COMPLETED encounter answers 409. (Before R5 this worked only while PREPARING.)
 
+Since R6 workstream G removing a player character from an ACTIVE encounter writes what the encounter has changed for it so far back to its sheet at once, through Write-back, before it leaves the turn order, so the encounter's end leaves those changes alone (D166). Removing one while PREPARING writes nothing. The character's row is locked after the encounter's, as when the encounter ends.
+
 **Response (200):** Full encounter object.
 
 **Errors:**
 - `404` — Participant not found (before R5 an unknown ID was ignored)
 - `409` — The encounter is PAUSED or COMPLETED
+- `409` — Since R6 workstream G, the removed character's row was held by another change for more than five seconds, or the character changed after it was read
 
 ### POST /encounters/{id}/initiatives
 
@@ -891,6 +915,8 @@ The turn order puts the highest initiative first, then the higher DEX score, and
 
 Transition from PREPARING to ACTIVE; an encounter in any other status answers 409. Requires all participants to have initiative set (409 otherwise). Generates a session code and begins the first turn: the first creature in the turn order becomes the current turn, and its turn starts (D163).
 
+Since R6 workstream G each player character participant joins again with its sheet as it stands, copying everything but the initiative the DM set, so a rest or a DM Adjustment made while PREPARING reaches it, and Write-back measures the encounter's changes from the start (D166). A participant whose character has died since it was added stops the start with `409` until the DM revives the character or removes the participant.
+
 **Response (200):** Full encounter object with session code.
 
 ### POST /encounters/{id}/pause
@@ -903,7 +929,54 @@ Transition from PAUSED to ACTIVE.
 
 ### POST /encounters/{id}/end
 
-Transition from ACTIVE or PAUSED to COMPLETED, which is final: a COMPLETED encounter can't be resumed or ended again, so its resource pools sync back to the character sheets once. Start, pause, resume and end each answer 409 for any other transition (D166, R5).
+Transition from ACTIVE or PAUSED to COMPLETED, which is final: a COMPLETED encounter can't be resumed or ended again, so its results are written back to the character sheets at most once. Start, pause, resume and end each answer 409 for any other transition (D166, R5).
+
+**Request (optional, since R6 workstream G):** `{"applyResults": false}`. `applyResults` is the DM's choice, made once for the whole encounter. It is `true` when it is left out or `null`, or when there is no body, and the encounter records it as `results_applied`.
+
+With `applyResults` `true`, what the encounter changed for each player character is written back to its sheet as the sheet stands now, through Write-back (D166):
+- hit points, each slot's used count and each pool's uses change by as much as they changed since the participant joined, kept between 0 and the sheet's limits, so the changes of two encounters add up
+- temporary hit points are set to what the participant had left
+- a participant who died makes its character `dead`, at 0 hit points and none temporary, and one still `DYING` or `STABLE` comes back alive at 0 hit points, keeping any temporary hit points left
+- a sheet already `dead` stays at 0, though its slot and pool changes apply
+- conditions aren't written back, and combat spends no Hit Dice
+
+With `false`, nothing is written back, pool uses included, and no character changes. The encounter's row is locked first, then each character's, in ID order, with the five-second wait. If a character's row is held longer, or the character changed after it was read, the end answers `409` and nothing changes. `GET /encounters/{id}/results` (below) previews the results first.
+
+**Response (200):** Full encounter object.
+
+**Errors:**
+- `409` — The encounter isn't ACTIVE or PAUSED, as when it is already COMPLETED; or, since R6 workstream G, a character's row was held for more than five seconds, or the character changed after it was read
+
+### GET /encounters/{id}/results
+
+What ending the encounter with its results applied would write back to each player character's sheet as the sheet stands now, for the DM's End dialog (R6 workstream G, D166). It is for the DM only, only while the encounter is ACTIVE or PAUSED, and it changes nothing.
+
+**Response (200):**
+```json
+[
+  {
+    "characterId": "uuid",
+    "name": "Aria",
+    "lifeState": "ALIVE",
+    "hpMax": 28,
+    "hpBefore": 28,
+    "hpAfter": 19,
+    "hpTempBefore": 0,
+    "hpTempAfter": 4,
+    "deadBefore": false,
+    "deadAfter": false,
+    "slots": [{"slot": "1", "max": 4, "usedBefore": 1, "usedAfter": 2}],
+    "pools": [{"poolId": "innate:hellish-rebuke", "displayName": "Hellish Rebuke", "maxUses": 1, "currentBefore": 1, "currentAfter": 0}]
+  }
+]
+```
+
+One entry for each player character, in the turn order. `lifeState` is how its participant ended: `DYING` and `STABLE` are written back alive at 0 hit points, and `DEAD` makes `deadAfter` true. `slots` and `pools` list only those whose numbers would change.
+
+**Errors:**
+- `403` — Not the campaign's DM
+- `404` — Encounter not found
+- `409` — The encounter isn't ACTIVE or PAUSED ("Cannot complete an encounter that is still being prepared", "The encounter is already completed")
 
 ### GET /encounters/join/{sessionCode}
 
@@ -1551,9 +1624,9 @@ HTTP status codes used (D155, R3). Services throw the domain exceptions in `shar
 - `204` — No Content (successful deletion, logout)
 - `400` — Bad input (`ValidationException` and Spring's binding errors): failed validation, with a message per field; an unknown ID in the request body, such as a `raceId` or a participant ID, which is also the answer when a player names a participant hidden from them (D157); a spell the caster can't cast or pay for (R5, D165); a tie order that isn't a whole tie group (R5, D163); a malformed UUID or a parameter of the wrong type (e.g. `?level=abc`); a missing or unreadable body; a missing required parameter; wrong login details; since R6 workstream E, a DM Adjustment with a field its kind doesn't use, or an amount of 0 or beyond ±100 (D158); since R6 workstream F, an apply-choices answer that doesn't fit its Pending Choice, such as a field another type takes, another number of spells, cantrips or Expertise skills than it counts, or a feat the character already has that can't be taken again, and a subclass at creation for a class below its subclass level (D159)
 - `401` — Unauthorized: no access token, or an expired or invalid one, on a protected endpoint; or a missing, expired, revoked or reused refresh cookie on `/auth/refresh`. The frontend answers a 401 with one refresh and a retry
-- `403` — Forbidden (`ForbiddenException`): signed in but not allowed. Not a member of the campaign, not its DM, not the character's owner, acting for a participant you don't control, a player attacking or casting outside their turn, or a player entering a Manual Modifier the campaign has turned off (R5, D164); since R6 workstream E, a DM Adjustment from anyone but the DM of the character's campaign, or from anyone at all for a character in no campaign (D158)
+- `403` — Forbidden (`ForbiddenException`): signed in but not allowed. Not a member of the campaign, not its DM, not the character's owner, acting for a participant you don't control, a player attacking or casting outside their turn, or a player entering a Manual Modifier the campaign has turned off (R5, D164); since R6 workstream E, a DM Adjustment from anyone but the DM of the character's campaign, or from anyone at all for a character in no campaign (D158); since R6 workstream G, reviving a character, on the same terms (D166)
 - `404` — Not found (`NotFoundException`): the resource named in the URL doesn't exist (campaign, character, encounter, participant, session code, combat log entry), or the path is unknown; since R6 workstream E also a DM Adjustment the character doesn't have (D158)
-- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160). R6 workstream D added: a character command that waited more than five seconds in the same way, or that wrote from a copy of the character a command had changed since (D158); a rest, level-up, level-down or apply-choices while the character is in an Active or Paused encounter (D166); a long rest below 1 hit point; and spending a slot or pool use that isn't left, or getting back one that wasn't spent. R6 workstream E added: removing a DM Adjustment already removed, and granting a feat the character already has, unless it can be taken more than once (D158). R6 workstream F added: an apply-choices request naming no Pending Choice the character has, such as one already made (D159)
+- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160). R6 workstream D added: a character command that waited more than five seconds in the same way, or that wrote from a copy of the character a command had changed since (D158); a rest, level-up, level-down or apply-choices while the character is in an Active or Paused encounter (D166); a long rest below 1 hit point; and spending a slot or pool use that isn't left, or getting back one that wasn't spent. R6 workstream E added: removing a DM Adjustment already removed, and granting a feat the character already has, unless it can be taken more than once (D158). R6 workstream F added: an apply-choices request naming no Pending Choice the character has, such as one already made (D159). R6 workstream G added: a rest, damage, healing, temporary hit points, level-up, level-down or joining an encounter for a character who is dead; starting an encounter with a participant whose character has died since it was added; reviving a character who isn't dead; previewing the results of an encounter that isn't Active or Paused; and ending an encounter, or removing a player character from one under way, when a character's row is held for more than five seconds or the character changed after it was read (D166)
 - `500` — Anything unexpected. Outside the dev profile the body is always `{"error": "Something went wrong. Please try again."}`; only dev returns the real message (`server.error.include-message: always`)
 
 Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentException`), an expired token returned 403, and optimistic-lock conflicts returned 500 (superseded in R3, D155).
