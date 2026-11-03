@@ -353,6 +353,8 @@ A short rest (PHB p.186). The body can be left out.
 
 `hitDice` has one entry for each Hit Die spent, naming the class it comes from as the character's `hitDice` names it. The server rolls a die sent without a `roll`. Each die heals its roll plus the CON modifier, never less than 0, up to the HP maximum. Every die is checked before any is rolled, so a refused rest changes nothing. Pools that reset on a short rest come back by their `resetAmount`, or in full when they have none, and so do Pact Magic slots; a rest with no dice does only that (D127). Song of Rest and Arcane Recovery aren't applied.
 
+**Response:** since R6's click-through fixes, `{character, rolls}` rather than the character alone. `rolls` has an entry for each die spent, in the order the request named them: `{className, dieSize, roll, rolledByServer, healing}`. `healing` is the roll plus the CON modifier, never less than 0, so where hit points stop at the maximum the dice can add up to more than the character regained. The sheet lists each roll after the rest.
+
 **Errors:**
 - `400` — A class without Hit Dice, more dice of a class than remain, or a roll outside 1 to the die's size
 - `409` — The character is in an Active or Paused encounter

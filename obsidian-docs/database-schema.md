@@ -360,7 +360,7 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 | name | VARCHAR(100) | NOT NULL |
 | source | VARCHAR(100) | |
 | hit_dice | INTEGER | e.g. 8, 10, 12 |
-| primary_ability | VARCHAR(50) | |
+| primary_ability | VARCHAR(50) | The abilities of the class's multiclassing prerequisite, such as "STR and CHA" for a Paladin and "STR or DEX" for a Fighter. Classes seeded before R6's click-through fixes held "OR" for the Fighter; the class seeder corrects it at startup (D169) |
 | saving_throw_proficiencies | JSONB | `@JsonRawValue` |
 | armor_proficiencies | JSONB | `@JsonRawValue` |
 | weapon_proficiencies | JSONB | `@JsonRawValue` |
