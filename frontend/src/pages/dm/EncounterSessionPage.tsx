@@ -1180,10 +1180,11 @@ function DmSessionView() {
           </div>
         </div>
 
+        {/* The darker gold with light text, as on Pause, so it reads in every theme (WCAG AA) */}
         {isPaused && (
-          <div role="status" className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-cls-monk/10 border border-cls-monk/30">
-            <Pause className="w-4 h-4 text-cls-monk" />
-            <p className="text-cls-monk font-heading text-[15px] font-semibold tracking-[0.01em]">Paused — resume to continue</p>
+          <div role="status" className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-cls-paladin text-card">
+            <Pause className="w-4 h-4" />
+            <p className="font-heading text-[15px] font-semibold tracking-[0.01em]">Paused — resume to continue</p>
           </div>
         )}
 

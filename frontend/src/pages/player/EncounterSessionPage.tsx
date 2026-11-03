@@ -433,8 +433,9 @@ function PlayerSessionView() {
             {encounter.status === 'COMPLETED' && (
               <span className="px-2.5 py-1 bg-page-alt text-muted font-heading text-[11px] font-semibold tracking-[0.02em]">Complete</span>
             )}
+            {/* The darker gold with light text, as on the DM's Pause, so it reads in every theme (WCAG AA) */}
             {encounter.status === 'PAUSED' && (
-              <span className="px-2.5 py-1 bg-cls-monk/20 text-cls-monk font-heading text-[11px] font-semibold tracking-[0.02em]">Paused</span>
+              <span className="px-2.5 py-1 bg-cls-paladin text-card font-heading text-[11px] font-semibold tracking-[0.02em]">Paused</span>
             )}
             <div className="flex items-center gap-1.5">
               {isConnected ? <Wifi className="w-4 h-4 text-buff" /> : <WifiOff className="w-4 h-4 text-debuff" />}

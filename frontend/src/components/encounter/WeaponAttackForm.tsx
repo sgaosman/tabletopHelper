@@ -207,8 +207,9 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
                   className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.advantage === false ? 'bg-debuff text-card' : TOGGLE_OFF}`}>Dis</button>
                 <button type="button" onClick={() => update(i, { advantage: null })}
                   className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.advantage === null ? 'bg-rule text-ink' : TOGGLE_OFF}`}>Norm</button>
+                {/* Light text on the green, so it reads in every theme (WCAG AA) */}
                 <button type="button" onClick={() => update(i, { advantage: row.advantage === true ? null : true })}
-                  className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.advantage === true ? 'bg-buff text-ink' : TOGGLE_OFF}`}>Adv</button>
+                  className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.advantage === true ? 'bg-buff text-card' : TOGGLE_OFF}`}>Adv</button>
               </div>
             </div>
 
