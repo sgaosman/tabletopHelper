@@ -226,6 +226,8 @@ The request no longer takes the stats the server works out (R6 workstream C, D15
 
 For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries` and `levelHistory` from this data with `LevelUpCalculator.buildMulticlassProgression()`, each level with its `hitDieResult`, and works out `hitDice` and HP from them. The class levels must add up to `level`, or the request answers `400`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. The choices the levels bring are made after creation through `POST /characters/{characterId}/apply-choices`, and since R6 workstream F each is a Pending Choice that the server records on the level that owes it, so levelling down reverses the right one (D159).
 
+Since the R6 review fixes the request has no `features`. Class features come from the class data, and feats from Pending Choices (D158, D159).
+
 The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceName"`, `"feat:FeatName"`. Entries support `prepared`, `alwaysPrepared`, `atWill`, `usesPerLongRest`, and `unlocksAtLevel` fields.
 
 **Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus, subclassAlwaysPreparedSpells). The `subclassAlwaysPreparedSpells` field is an object keyed by subclass name and then by the class level the spells come at, with an entry for each of the character's subclasses (e.g. `{"Life Domain": {"1": ["Bless", "Cure Wounds"], "3": ["Lesser Restoration", "Spiritual Weapon"]}}`) — populated from the Subclass entity's seeded 5etools data. It is `null` when none of them has any.
@@ -409,6 +411,8 @@ The DM of a character's campaign changes the character only through DM Adjustmen
 
 ### POST /characters/{characterId}/adjustments
 
+The character's owner is refused with `403`, even as the DM of its campaign (D158).
+
 Add a DM Adjustment. What it needs depends on its `kind`, `STAT`, `DEFENCE` or `FEAT`, and a field that belongs to another kind answers `400`. `reason` is required, at most 200 characters.
 
 **Request (STAT):** `{"kind": "STAT", "target": "ARMOUR_CLASS", "amount": 1, "reason": "Ring of Protection"}`
@@ -431,6 +435,8 @@ Add a DM Adjustment. What it needs depends on its `kind`, `STAT`, `DEFENCE` or `
 
 ### DELETE /characters/{characterId}/adjustments/{adjustmentId}
 
+The character's owner is refused with `403`, even as the DM of its campaign (D158).
+
 Remove a DM Adjustment. No body. It stays in `dmAdjustments` as the record, with `removedBy` and `removedAt`, and no longer counts. A FEAT's recorded effects are reversed, and only the feat's latest feature entry goes, so a feat granted twice keeps the other.
 
 **Errors:**
@@ -439,6 +445,8 @@ Remove a DM Adjustment. No body. It stays in `dmAdjustments` as the record, with
 - `409` — The adjustment has already been removed ("That DM Adjustment has already been removed")
 
 ### POST /characters/{characterId}/revive
+
+The character's owner is refused with `403`, even as the DM of its campaign (D158).
 
 Revive a character who died in an encounter, at 1 hit point (R6 workstream G, D166). No body. Only the DM of the character's campaign may revive it, through the same access check and row lock as a DM Adjustment, and the `403` uses the same words ("Only the DM of this character's campaign can adjust it"). A character in no campaign can't be revived. It sets `hpCurrent` to 1, `hpTemp` to 0 and `dead` to `false`, and the Derived Stats are worked out again. Which spell brought the character back is the DM's to judge (D161). It isn't refused during an encounter, and it is logged with the DM's and the character's IDs.
 
@@ -548,6 +556,8 @@ For `type: "feat"`, provide `featId` (UUID) for full feat automation. The server
 Since R6 workstream C (D167) an `ability` ASI must be +2 to one score or +1 to two different scores, none taken above its maximum (the character's `abilityScoreMaximums`), or it answers `400`. Since R6 workstream F an ASI is recorded on the level that owes its choice, at the amount actually applied (`choices.asi.applied`), and Expertise on its choice's level (`choices.expertise`), so levelling down reverses the right ones. A feat's speed, initiative and HP per level are recorded there and added when the Derived Stats are worked out.
 
 Since R6 workstream E the maximum is checked against `baseAbilityScores`, the scores without DM Adjustments, and the ASI raises those, so an adjustment that takes a score past its maximum doesn't block an increase (D158). Since R6 workstream F apply-choices refuses a feat the character already has with `400`, unless its text says it can be taken more than once, as the feat picker does. The picker keeps a feat open when its text says it can be taken more than once, which only Elemental Adept's does.
+
+A swap's `replace` must be a spell known before the choice's level; one that a later level learned answers `400` (D159).
 
 Since R6 workstream F (D159) the request is the `choiceId` and the one field its choice's `type` takes, and a field for another type answers `400`:
 - `ASI` — `asi`, as above
