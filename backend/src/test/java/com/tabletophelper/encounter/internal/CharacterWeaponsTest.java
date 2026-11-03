@@ -2,16 +2,22 @@ package com.tabletophelper.encounter.internal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.InventoryItem;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.rules.Dice;
-import com.tabletophelper.rules.combat.WeaponRules;
 import com.tabletophelper.rules.combat.WeaponRules.PowerAttack;
+import com.tabletophelper.rules.combat.WeaponRules;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.tabletophelper.encounter.internal.CombatFixture.weapon;
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,6 +48,10 @@ class CharacterWeaponsTest {
                 .build();
     }
 
+    private static InventoryItem item(String name) {
+        return new InventoryItem(name, null, null, null, null, null);
+    }
+
     private List<String> names(List<CharacterWeapons.Held> held) {
         return held.stream().map(h -> h.weapon().name()).toList();
     }
@@ -49,10 +59,12 @@ class CharacterWeaponsTest {
     @Test
     @DisplayName("Inventory entries match a weapon by name in any case or plural, once each in order, then the unarmed strike")
     void inventoryEntries() {
-        character.setEquipment("""
-                [{"name": "longsword", "quantity": 1, "description": "Family heirloom"},
-                 {"name": "Daggers", "quantity": 4}, {"name": "Dagger"}, {"name": "Flame Tongue Longsword"},
-                 {"name": "Hand Crossbow", "quantity": 0}, {"name": "Rope, hempen (50 feet)"}, "Greatsword"]""");
+        // The last entry is a name alone, as V19 turns an equipment string into
+        character.setEquipment(List.of(
+                new InventoryItem("longsword", 1, "Family heirloom", null, null, null),
+                new InventoryItem("Daggers", 4, null, null, null, null), item("Dagger"),
+                item("Flame Tongue Longsword"), new InventoryItem("Hand Crossbow", 0, null, null, null, null),
+                item("Rope, hempen (50 feet)"), item("Greatsword")));
 
         List<CharacterWeapons.Held> held = weapons.of(character);
 
@@ -97,8 +109,8 @@ class CharacterWeaponsTest {
     @Test
     @DisplayName("The sheet's proficiencies decide each weapon's; the Musket counts as a firearm")
     void proficiencyFromTheSheet() {
-        character.setEquipment("[{\"name\": \"Dagger\"}, {\"name\": \"Longsword\"}, {\"name\": \"Musket\"}]");
-        character.setWeaponProficiencies("[\"dagger\", \"dart\", \"sling\", \"quarterstaff\", \"light crossbow\", \"Firearms\"]");
+        character.setEquipment(List.of(item("Dagger"), item("Longsword"), item("Musket")));
+        character.setWeaponProficiencies(List.of("dagger", "dart", "sling", "quarterstaff", "light crossbow", "Firearms"));
 
         List<CharacterWeapons.Held> held = weapons.of(character);
 
@@ -108,27 +120,26 @@ class CharacterWeaponsTest {
     @Test
     @DisplayName("A feat counts from the features whatever granted it, or from the level history; a note in brackets doesn't matter")
     void feats() {
-        character.setFeatures("""
-                [{"name": "Second Wind", "source": "Fighter", "description": "..."},
-                 {"name": "Sharpshooter (feat)", "source": "Variant Human", "description": "Racial feat"}]""");
+        character.setFeatures(List.of(new Feature("Second Wind", "...", "Fighter"),
+                new Feature("Sharpshooter (feat)", "Racial feat", "Variant Human")));
         assertEquals(Set.of(PowerAttack.SHARPSHOOTER), weapons.feats(character));
 
-        character.setFeatures("[{\"name\": \"Great Weapon Master\", \"description\": \"Feat\", \"source\": \"Feat\"}]");
+        character.setFeatures(List.of(new Feature("Great Weapon Master", "Feat", "Feat")));
         assertEquals(Set.of(PowerAttack.GREAT_WEAPON_MASTER), weapons.feats(character));
 
         character.setFeatures(null);
-        character.setLevelHistory("""
-                [{"characterLevel": 4, "className": "Fighter", "classLevel": 4,
-                  "choices": {"asi": {"type": "feat", "featName": "Great Weapon Master", "featId": "f-1"}}}]""");
+        character.setLevelHistory(List.of(new LevelHistoryEntry(4, null, "Fighter", 4, 0, null,
+                new LevelChoices(new AbilityScoreImprovement("feat", null, "Great Weapon Master", UUID.randomUUID(),
+                        null, null)))));
         assertEquals(Set.of(PowerAttack.GREAT_WEAPON_MASTER), weapons.feats(character));
     }
 
     @Test
     @DisplayName("The trade is offered with a qualifying weapon only when the character has the feat and is proficient")
     void powerAttackPerWeapon() {
-        character.setEquipment("[\"Greatsword\", \"Longsword\", \"Hand Crossbow\"]");
-        character.setWeaponProficiencies("[\"simple\", \"martial\"]");
-        character.setFeatures("[{\"name\": \"Great Weapon Master\", \"source\": \"Feat\"}]");
+        character.setEquipment(List.of(item("Greatsword"), item("Longsword"), item("Hand Crossbow")));
+        character.setWeaponProficiencies(List.of("simple", "martial"));
+        character.setFeatures(List.of(new Feature("Great Weapon Master", null, "Feat")));
 
         List<CharacterWeapons.Held> held = weapons.of(character);
 
@@ -137,15 +148,15 @@ class CharacterWeaponsTest {
         // A ranged weapon allows Sharpshooter, which the character lacks
         assertNull(held.get(2).powerAttack());
 
-        character.setWeaponProficiencies("[\"simple\"]");
+        character.setWeaponProficiencies(List.of("simple"));
         assertNull(weapons.of(character).getFirst().powerAttack());
     }
 
     @Test
     @DisplayName("The numbers use the sheet's STR, DEX and proficiency bonus, or the level's bonus when the sheet has none")
     void numbers() {
-        character.setEquipment("[\"Dagger\"]");
-        character.setWeaponProficiencies("[\"simple\"]");
+        character.setEquipment(List.of(item("Dagger")));
+        character.setWeaponProficiencies(List.of("simple"));
         CharacterWeapons.Held dagger = weapons.of(character).getFirst();
 
         assertEquals(new WeaponRules.Numbers(com.tabletophelper.rules.Ability.STR, 6, Dice.parse("1d4+3")),
@@ -157,7 +168,7 @@ class CharacterWeaponsTest {
 
     // The weapon of that name as the sheet holds it, with no proficiencies
     private CharacterWeapons.Held held(String name) {
-        character.setEquipment("[\"" + name + "\"]");
+        character.setEquipment(List.of(item(name)));
         return weapons.of(character).getFirst();
     }
 }

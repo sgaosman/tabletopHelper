@@ -37,12 +37,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@code preview} called directly because Flyway has already applied it to this database. V16 is applied to a
  * schema of its own that Flyway takes only to V15, so its backfill is checked row by row (D161, D162); its
  * preview, which loads the rows with entities now at V17, gave way to V17's. V17 is previewed through
- * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163).
+ * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163). V19 is
+ * previewed and applied the same way, against player characters in a schema at V18 (D168).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
     private static final String V16_SCHEMA = "v16_preview";
     private static final String V17_SCHEMA = "v17_preview";
+    private static final String V19_SCHEMA = "v19_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -62,6 +64,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     void dropSchemas() {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V16_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V17_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V19_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -423,5 +426,116 @@ class PreviewMigrationJobIT extends IntegrationTest {
         // Deleting the participant whose turn it is leaves no turn rather than failing
         jdbcTemplate.update("DELETE FROM " + V17_SCHEMA + ".encounter_participants WHERE id = ?", rows.get("Goblin"));
         assertThat(v17Encounter(rows.get("Ambush")).get("current_turn_participant_id")).isNull();
+    }
+
+    // ── V19: typed character JSON (D168) ─────────────────────────
+
+    /**
+     * Takes a schema of its own to V18 and fills it with characters in the shapes V19 converts: spell slots as
+     * {total, used}, hit dice maps, equipment stored as names, values of the wrong JSON type, and a character V19
+     * leaves alone.
+     */
+    private Map<String, UUID> v19Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V19_SCHEMA).locations("classpath:db/migration")
+                .target("18").load().migrate();
+        UUID owner = UUID.randomUUID();
+        UUID race = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V19_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'aria', 'aria@example.com', 'hash')", owner);
+        jdbcTemplate.update("INSERT INTO " + V19_SCHEMA + ".races (id, name) VALUES (?, 'Human')", race);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        // A used count above the total is capped, and a key that isn't a slot level goes
+        rows.put("Wizard", v18Character(owner, race, "Wizard", Map.of(
+                "spell_slots", "{\"1\": {\"total\": 4, \"used\": 1}, \"pact_2\": {\"total\": 2, \"used\": 3}, "
+                        + "\"innate\": true}",
+                "hit_dice_map", "{\"Wizard\": {\"total\": 5, \"remaining\": 3, \"faces\": 6}}")));
+        rows.put("Fighter", v18Character(owner, race, "Fighter", Map.of(
+                "hit_dice_map", "{\"Fighter\": {\"total\": 3, \"remaining\": 3, \"faces\": 10}, "
+                        + "\"Rogue\": {\"total\": 1, \"remaining\": 0, \"faces\": 8}}",
+                "equipment", "[\"Longsword\", {\"name\": \"Rope\", \"quantity\": 1}, 7]")));
+        rows.put("Broken", v18Character(owner, race, "Broken", Map.of(
+                "skill_proficiencies", "\"Athletics\"",
+                "currency", "[1, 2]",
+                "features", "{\"name\": \"Darkvision\"}")));
+        rows.put("Settled", v18Character(owner, race, "Settled", Map.of(
+                "skill_proficiencies", "[\"Stealth\"]",
+                "currency", "{\"cp\": 0, \"sp\": 0, \"ep\": 0, \"gp\": 15, \"pp\": 0}")));
+        return rows;
+    }
+
+    private UUID v18Character(UUID owner, UUID race, String name, Map<String, String> jsonColumns) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V19_SCHEMA + ".player_characters (id, user_id, race_id, name, strength, "
+                + "dexterity, constitution, intelligence, wisdom, charisma, hp_max, hp_current, armour_class) "
+                + "VALUES (?, ?, ?, ?, 10, 10, 10, 10, 10, 10, 8, 8, 10)", id, owner, race, name);
+        jsonColumns.forEach((column, json) -> jdbcTemplate.update("UPDATE " + V19_SCHEMA + ".player_characters SET "
+                + column + " = ?::jsonb WHERE id = ?", json, id));
+        return id;
+    }
+
+    private String v19Column(String column, UUID id) {
+        return jdbcTemplate.queryForObject("SELECT " + column + "::text FROM " + V19_SCHEMA
+                + ".player_characters WHERE id = ?", String.class, id);
+    }
+
+    private String characterChange(MaintenanceReport report, UUID id) {
+        return report.changes().stream().filter(change -> change.contains(id.toString())).findFirst()
+                .orElseThrow(() -> new AssertionError(id + " is not among the changes: " + report.changes()));
+    }
+
+    @Test
+    @DisplayName("Previews V19 on a database at V18: each converted character is reported, every row loads, nothing is written")
+    void previewsV19() {
+        Map<String, UUID> rows = v19Rows();
+        DataSource v19 = schemaDataSource(V19_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v19, new JdbcTemplate(v19), entityManagerFactory,
+                objectMapper, "19").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(report.examined()).isEqualTo(4);
+        // The settled character only gains an empty hit_dice column, which isn't a change
+        assertThat(report.changes()).hasSize(3);
+        assertThat(characterChange(report, rows.get("Wizard")))
+                .contains("(Wizard)")
+                .contains("→ {\"1\":{\"max\":4,\"used\":1},\"pact_2\":{\"max\":2,\"used\":2}}")
+                .containsPattern("hit_dice: +→ \\{\"Wizard\":\\{\"total\":5,\"dieSize\":6,\"remaining\":3}}");
+        assertThat(characterChange(report, rows.get("Fighter")))
+                .contains("→ [{\"name\":\"Longsword\"},{\"name\":\"Rope\",\"quantity\":1}]")
+                .contains("\"Rogue\":{\"total\":1,\"dieSize\":8,\"remaining\":0}");
+        assertThat(characterChange(report, rows.get("Broken")))
+                .contains("skill_proficiencies: \"Athletics\" → null")
+                .contains("currency: [1,2] → null")
+                .contains("features: {\"name\":\"Darkvision\"} → null");
+        assertThat(v19Column("spell_slots", rows.get("Wizard"))).contains("\"total\": 4");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND table_name = 'player_characters' AND column_name = 'hit_dice'", Integer.class, V19_SCHEMA))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("V19 types the slots, moves the hit dice to their own column and keeps the deprecated map")
+    void appliesV19() {
+        Map<String, UUID> rows = v19Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V19_SCHEMA).locations("classpath:db/migration")
+                .target("19").load().migrate();
+
+        UUID wizard = rows.get("Wizard");
+        assertThat(v19Column("spell_slots", wizard))
+                .isEqualTo("{\"1\": {\"max\": 4, \"used\": 1}, \"pact_2\": {\"max\": 2, \"used\": 2}}");
+        assertThat(v19Column("hit_dice", wizard)).isEqualTo("{\"Wizard\": {\"total\": 5, \"dieSize\": 6, \"remaining\": 3}}");
+        assertThat(v19Column("hit_dice_map", wizard)).isEqualTo("{\"Wizard\": {\"faces\": 6, \"total\": 5, \"remaining\": 3}}");
+        assertThat(v19Column("hit_dice", rows.get("Fighter")))
+                .isEqualTo("{\"Rogue\": {\"total\": 1, \"dieSize\": 8, \"remaining\": 0}, "
+                        + "\"Fighter\": {\"total\": 3, \"dieSize\": 10, \"remaining\": 3}}");
+        assertThat(v19Column("equipment", rows.get("Fighter")))
+                .isEqualTo("[{\"name\": \"Longsword\"}, {\"name\": \"Rope\", \"quantity\": 1}]");
+        assertThat(v19Column("skill_proficiencies", rows.get("Broken"))).isNull();
+        assertThat(v19Column("currency", rows.get("Broken"))).isNull();
+        assertThat(v19Column("features", rows.get("Broken"))).isNull();
+        assertThat(v19Column("skill_proficiencies", rows.get("Settled"))).isEqualTo("[\"Stealth\"]");
+        assertThat(v19Column("hit_dice", rows.get("Settled"))).isNull();
     }
 }

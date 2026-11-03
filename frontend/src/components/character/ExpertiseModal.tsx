@@ -14,8 +14,8 @@ interface Props {
 export default function ExpertiseModal({ character, count, onComplete, onClose }: Props) {
   const [selected, setSelected] = useState<string[]>([]);
 
-  const proficientSkills: string[] = character.skillProficiencies ? JSON.parse(character.skillProficiencies) : [];
-  const existingExpertise: string[] = character.skillExpertises ? JSON.parse(character.skillExpertises) : [];
+  const proficientSkills = character.skillProficiencies ?? [];
+  const existingExpertise = character.skillExpertises ?? [];
   const available = proficientSkills.filter(s => !existingExpertise.includes(s));
 
   function toggle(skill: string) {

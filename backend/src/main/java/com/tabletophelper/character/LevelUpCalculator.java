@@ -2,6 +2,9 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +20,7 @@ public class LevelUpCalculator {
 
     public record LevelGain(
             int characterLevel,
-            String classId,
+            UUID classId,
             String className,
             int classLevel,
             int hpGained,
@@ -95,7 +98,6 @@ public class LevelUpCalculator {
             String classFeatureJson, String subclassFeatureJson,
             String subclassName, int subclassLevel) {
 
-        String classIdStr = classId != null ? classId.toString() : null;
         List<LevelGain> progression = new ArrayList<>();
 
         for (int lvl = 1; lvl <= targetLevel; lvl++) {
@@ -113,7 +115,7 @@ public class LevelUpCalculator {
             boolean subclassAvail = (lvl == subclassLevel);
 
             progression.add(new LevelGain(
-                    lvl, classIdStr, className, lvl,
+                    lvl, classId, className, lvl,
                     hpGained, features, asiAvailable, subclassAvail));
         }
 
@@ -129,8 +131,6 @@ public class LevelUpCalculator {
         int characterLevel = 0;
 
         for (ClassInput ci : classInputs) {
-            String classIdStr = ci.classId() != null ? ci.classId().toString() : null;
-
             for (int clsLvl = 1; clsLvl <= ci.classLevel(); clsLvl++) {
                 characterLevel++;
                 boolean isFirstClassLevel = (clsLvl == 1 && ci == classInputs.get(0));
@@ -150,7 +150,7 @@ public class LevelUpCalculator {
                 boolean subclassAvail = (clsLvl == ci.subclassLevel());
 
                 progression.add(new LevelGain(
-                        characterLevel, classIdStr, ci.className(), clsLvl,
+                        characterLevel, ci.classId(), ci.className(), clsLvl,
                         hpGained, features, asiAvailable, subclassAvail));
             }
         }
@@ -168,65 +168,34 @@ public class LevelUpCalculator {
                 .collect(Collectors.toList());
     }
 
-    public static String serializeLevelHistory(List<LevelGain> progression) {
-        try {
-            List<Map<String, Object>> history = new ArrayList<>();
-            for (LevelGain gain : progression) {
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("characterLevel", gain.characterLevel());
-                entry.put("classId", gain.classId());
-                entry.put("className", gain.className());
-                entry.put("classLevel", gain.classLevel());
-                entry.put("hpGained", gain.hpGained());
-                List<Map<String, String>> feats = gain.featuresGained().stream()
-                        .map(f -> Map.of("name", f.name(), "description", f.description(), "source", f.source()))
-                        .toList();
-                entry.put("featuresGained", feats);
-                entry.put("choices", Map.of());
-                history.add(entry);
-            }
-            return mapper.writeValueAsString(history);
-        } catch (Exception e) {
-            log.warn("Failed to serialize level history: {}", e.getMessage());
-            return "[]";
+    /** The level history a new character starts with: one entry for each level, with no choices yet. */
+    public static List<LevelHistoryEntry> levelHistory(List<LevelGain> progression) {
+        List<LevelHistoryEntry> history = new ArrayList<>();
+        for (LevelGain gain : progression) {
+            history.add(new LevelHistoryEntry(gain.characterLevel(), gain.classId(), gain.className(),
+                    gain.classLevel(), gain.hpGained(), features(gain.featuresGained()), LevelChoices.NONE));
         }
+        return history;
     }
 
-    public static String serializeFeatures(List<FeatureEntry> features) {
-        try {
-            List<Map<String, String>> list = features.stream()
-                    .map(f -> Map.of("name", f.name(), "description", f.description(), "source", f.source()))
-                    .toList();
-            return mapper.writeValueAsString(list);
-        } catch (Exception e) {
-            log.warn("Failed to serialize features: {}", e.getMessage());
-            return "[]";
-        }
-    }
-
-    public static String mergeFeatures(String existingFeaturesJson, List<FeatureEntry> classFeatures) {
-        try {
-            List<Map<String, Object>> merged = new ArrayList<>();
-
-            for (FeatureEntry f : classFeatures) {
-                merged.add(Map.of("name", f.name(), "description", f.description(), "source", f.source()));
-            }
-
-            if (existingFeaturesJson != null && !existingFeaturesJson.isBlank()) {
-                List<Map<String, Object>> existing = mapper.readValue(
-                        existingFeaturesJson, new TypeReference<>() {});
-                for (Map<String, Object> e : existing) {
-                    String source = (String) e.getOrDefault("source", "");
-                    if (!source.isEmpty() && (source.startsWith("Background") || source.startsWith("Feat") || source.startsWith("Race"))) {
-                        merged.add(e);
-                    }
+    /**
+     * The class features, followed by those of the given features a background, feat or race granted. Any other
+     * given feature is left out, since the class features replace it.
+     */
+    public static List<Feature> mergeFeatures(List<Feature> existingFeatures, List<FeatureEntry> classFeatures) {
+        List<Feature> merged = new ArrayList<>(features(classFeatures));
+        if (existingFeatures != null) {
+            for (Feature e : existingFeatures) {
+                String source = e.source() != null ? e.source() : "";
+                if (!source.isEmpty() && (source.startsWith("Background") || source.startsWith("Feat") || source.startsWith("Race"))) {
+                    merged.add(e);
                 }
             }
-
-            return mapper.writeValueAsString(merged);
-        } catch (Exception e) {
-            log.warn("Failed to merge features with existing JSON: {}", e.getMessage());
-            return serializeFeatures(classFeatures);
         }
+        return merged;
+    }
+
+    private static List<Feature> features(List<FeatureEntry> entries) {
+        return entries.stream().map(f -> new Feature(f.name(), f.description(), f.source())).toList();
     }
 }

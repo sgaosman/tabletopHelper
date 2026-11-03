@@ -1,9 +1,9 @@
 package com.tabletophelper.encounter.internal;
 
-import com.tabletophelper.character.dto.ResourcePoolEntry;
-import com.tabletophelper.encounter.dto.SpellOption;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.dto.SpellOption.SourceOption;
-import com.tabletophelper.encounter.state.SpellSlot;
+import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.shared.ValidationException;
 

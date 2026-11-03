@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import type { PlayerCharacter, CharacterUpdateRequest } from '../../../types/character';
+import type { PlayerCharacter, CharacterUpdateRequest, Currency, InventoryItem } from '../../../types/character';
 
 export default function InventoryTab({ equipment, currency, saveField }: {
-  equipment: Array<{ name: string; quantity?: number; description?: string }>;
-  currency: { cp: number; sp: number; ep: number; gp: number; pp: number };
+  equipment: InventoryItem[];
+  currency: Currency;
   char?: PlayerCharacter;
   saveField: (u: CharacterUpdateRequest) => Promise<void>;
 }) {
@@ -13,7 +13,7 @@ export default function InventoryTab({ equipment, currency, saveField }: {
   useEffect(() => { setCurrencyForm(currency); }, [currency]);
 
   async function saveCurrency() {
-    await saveField({ currency: JSON.stringify(currencyForm) });
+    await saveField({ currency: currencyForm });
     setEditCurrency(false);
   }
 

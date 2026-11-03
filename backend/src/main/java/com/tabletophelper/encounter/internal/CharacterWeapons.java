@@ -3,12 +3,16 @@ package com.tabletophelper.encounter.internal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.InventoryItem;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.ProficiencyBonus;
-import com.tabletophelper.rules.combat.WeaponRules;
 import com.tabletophelper.rules.combat.WeaponRules.PowerAttack;
+import com.tabletophelper.rules.combat.WeaponRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -65,15 +69,14 @@ class CharacterWeapons {
     List<Held> of(PlayerCharacter character) {
         Map<String, Item> weapons = new LinkedHashMap<>();
         itemRepository.findMundaneWeapons().forEach(item -> weapons.putIfAbsent(key(item.getName()), item));
-        List<String> proficiencies = strings(character.getWeaponProficiencies(),
-                character.getName() + "'s weapon proficiencies");
+        List<String> proficiencies = strings(character.getWeaponProficiencies());
         Set<PowerAttack> feats = feats(character);
 
         Map<String, Held> held = new LinkedHashMap<>();
-        for (JsonNode entry : StoredJson.read(objectMapper, character.getEquipment(), character.getName() + "'s equipment")) {
-            String name = entry.isTextual() ? entry.asText() : entry.path("name").asText("");
+        for (InventoryItem entry : orEmpty(character.getEquipment())) {
+            String name = entry.name() != null ? entry.name() : "";
             // An entry recorded with none left isn't carried
-            if (entry.path("quantity").isNumber() && entry.path("quantity").asInt() <= 0) {
+            if (entry.quantity() != null && entry.quantity() <= 0) {
                 continue;
             }
             Item item = match(weapons, name);
@@ -105,13 +108,13 @@ class CharacterWeapons {
     /** The feats among the character's whose attacks can take the trade. */
     Set<PowerAttack> feats(PlayerCharacter character) {
         Set<String> names = new HashSet<>();
-        for (JsonNode feature : StoredJson.read(objectMapper, character.getFeatures(), character.getName() + "'s features")) {
-            names.add(featKey(feature.isTextual() ? feature.asText() : feature.path("name").asText("")));
+        for (Feature feature : orEmpty(character.getFeatures())) {
+            names.add(featKey(feature.name() != null ? feature.name() : ""));
         }
-        for (JsonNode level : StoredJson.read(objectMapper, character.getLevelHistory(),
-                character.getName() + "'s level history")) {
-            String featName = level.path("choices").path("asi").path("featName").asText("");
-            if (!featName.isBlank()) {
+        for (LevelHistoryEntry level : orEmpty(character.getLevelHistory())) {
+            AbilityScoreImprovement asi = level.choices() != null ? level.choices().asi() : null;
+            String featName = asi != null ? asi.featName() : null;
+            if (featName != null && !featName.isBlank()) {
                 names.add(featKey(featName));
             }
         }
@@ -201,14 +204,18 @@ class CharacterWeapons {
         return tags;
     }
 
-    private List<String> strings(String json, String what) {
+    private static List<String> strings(List<String> values) {
         List<String> strings = new ArrayList<>();
-        for (JsonNode entry : StoredJson.read(objectMapper, json, what)) {
-            if (entry.isTextual() && !entry.asText().isBlank()) {
-                strings.add(entry.asText());
+        for (String value : orEmpty(values)) {
+            if (value != null && !value.isBlank()) {
+                strings.add(value);
             }
         }
         return strings;
+    }
+
+    private static <T> List<T> orEmpty(List<T> list) {
+        return list != null ? list : List.of();
     }
 
     // A weapon's name or its plural, as in "longswords" or "hand crossbows"

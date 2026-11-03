@@ -1,21 +1,28 @@
 package com.tabletophelper.character;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class CharacterMapper {
+
+    private static final TypeReference<Map<String, List<String>>> SPELLS_BY_CLASS_LEVEL = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
     private final SubclassRepository subclassRepository;
@@ -51,8 +58,6 @@ public class CharacterMapper {
                 .hpMax(c.getHpMax())
                 .hpCurrent(c.getHpCurrent())
                 .hpTemp(c.getHpTemp())
-                .hitDiceTotal(c.getHitDiceTotal())
-                .hitDiceRemaining(c.getHitDiceRemaining())
                 .armourClass(c.getArmourClass())
                 .initiativeBonus(c.getInitiativeBonus())
                 .speed(c.getSpeed())
@@ -87,9 +92,7 @@ public class CharacterMapper {
                 .abilityScoreMethod(c.getAbilityScoreMethod())
                 .racialAbilityBonuses(c.getRacialAbilityBonuses())
                 .multiclassEntries(c.getMulticlassEntries())
-                .attunedItems(c.getAttunedItems())
-                .equippedItems(c.getEquippedItems())
-                .hitDiceMap(c.getHitDiceMap())
+                .hitDice(c.getHitDice())
                 .levelHistory(c.getLevelHistory())
                 .featResources(c.getFeatResources())
                 .resourcePools(c.getResourcePools())
@@ -99,41 +102,35 @@ public class CharacterMapper {
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
-    private String buildAllSubclassAlwaysPreparedSpells(PlayerCharacter c) {
+    // The always-prepared spells of the primary subclass, then of each other class's subclass; null for none
+    private Map<String, Map<String, List<String>>> buildAllSubclassAlwaysPreparedSpells(PlayerCharacter c) {
+        Map<String, Map<String, List<String>>> combined = new LinkedHashMap<>();
+
+        if (c.getSubclassRef() != null) {
+            alwaysPreparedSpells(c.getSubclassRef()).ifPresent(spells -> combined.put(c.getSubclassRef().getName(), spells));
+        }
+
+        if (c.getMulticlassEntries() != null) {
+            for (ClassEntry entry : c.getMulticlassEntries()) {
+                UUID scId = entry.subclassId();
+                if (scId == null) continue;
+                if (c.getSubclassRef() != null && scId.equals(c.getSubclassRef().getId())) continue;
+                subclassRepository.findById(scId).ifPresent(sc ->
+                        alwaysPreparedSpells(sc).ifPresent(spells -> combined.put(sc.getName(), spells)));
+            }
+        }
+
+        return combined.isEmpty() ? null : combined;
+    }
+
+    // A subclass's always-prepared spells by the class level they come at, as the reference data stores them
+    private Optional<Map<String, List<String>>> alwaysPreparedSpells(Subclass subclass) {
+        if (subclass.getAlwaysPreparedSpells() == null) return Optional.empty();
         try {
-            ObjectNode combined = objectMapper.createObjectNode();
-
-            if (c.getSubclassRef() != null && c.getSubclassRef().getAlwaysPreparedSpells() != null) {
-                combined.set(c.getSubclassRef().getName(),
-                        objectMapper.readTree(c.getSubclassRef().getAlwaysPreparedSpells()));
-            }
-
-            if (c.getMulticlassEntries() != null) {
-                List<Map<String, Object>> entries = objectMapper.readValue(c.getMulticlassEntries(),
-                        objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
-                for (Map<String, Object> entry : entries) {
-                    String subclassId = (String) entry.get("subclassId");
-                    if (subclassId == null) continue;
-                    UUID scId = UUID.fromString(subclassId);
-                    if (c.getSubclassRef() != null && scId.equals(c.getSubclassRef().getId())) continue;
-                    subclassRepository.findById(scId).ifPresent(sc -> {
-                        if (sc.getAlwaysPreparedSpells() != null) {
-                            try {
-                                combined.set(sc.getName(),
-                                        objectMapper.readTree(sc.getAlwaysPreparedSpells()));
-                            } catch (Exception e) {
-                                log.warn("Failed to parse always-prepared spells for subclass {}", sc.getName(), e);
-                            }
-                        }
-                    });
-                }
-            }
-
-            return combined.isEmpty() ? null : objectMapper.writeValueAsString(combined);
-        } catch (Exception e) {
-            if (c.getSubclassRef() != null) return c.getSubclassRef().getAlwaysPreparedSpells();
-            return null;
+            return Optional.ofNullable(objectMapper.readValue(subclass.getAlwaysPreparedSpells(), SPELLS_BY_CLASS_LEVEL));
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse always-prepared spells for subclass {}", subclass.getName(), e);
+            return Optional.empty();
         }
     }
 }

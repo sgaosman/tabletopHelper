@@ -1,12 +1,16 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.*;
+import com.tabletophelper.character.state.AbilityBonus;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.FeatResourceEntry;
+import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.identity.User;
@@ -50,7 +54,6 @@ class CharacterServiceBusinessTest {
 
     ObjectMapper objectMapper = new ObjectMapper();
     CharacterMapper characterMapper;
-    CharacterJsonHelper jsonHelper;
     FeatEffectResolver featEffectResolver;
     CharacterService service;
 
@@ -90,13 +93,12 @@ class CharacterServiceBusinessTest {
     @BeforeEach
     void setUp() {
         characterMapper = new CharacterMapper(objectMapper, subclassRepository);
-        jsonHelper = new CharacterJsonHelper(objectMapper);
         featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
         service = new CharacterService(
                 characterRepository, userService, campaignRepository,
                 raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
-                featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,
+                featRepository, featEffectResolver, characterMapper, objectMapper,
                 resourcePoolService, new AccessPolicy(campaignRepository, campaignMemberRepository));
 
         user = User.builder().id(userId).username("testuser").email("test@test.com")
@@ -200,7 +202,7 @@ class CharacterServiceBusinessTest {
             assertThat(response.getHpMax()).isEqualTo(12);
             assertThat(response.getHpCurrent()).isEqualTo(12);
             assertThat(response.getProficiencyBonus()).isEqualTo(2);
-            assertThat(response.getHitDiceTotal()).isEqualTo("1d10");
+            assertThat(response.getHitDice()).isEqualTo(Map.of("Fighter", new HitDicePool(10, 1, 1)));
             assertThat(response.getSpellSlots()).isNull();
             assertThat(response.getSpellcastingAbility()).isNull();
         }
@@ -229,9 +231,9 @@ class CharacterServiceBusinessTest {
             assertThat(response.getSpellAttackBonus()).isEqualTo(5); // 2 + 3
 
             // Parse spell slots to verify 2 first-level slots
-            Map<String, Map<String, Integer>> slots = parseSpellSlots(response.getSpellSlots());
+            Map<String, SpellSlot> slots = response.getSpellSlots();
             assertThat(slots).containsKey("1");
-            assertThat(slots.get("1").get("total")).isEqualTo(2);
+            assertThat(slots.get("1").max()).isEqualTo(2);
         }
 
         @Test
@@ -253,9 +255,9 @@ class CharacterServiceBusinessTest {
             // Then: Level 2 Paladin -> caster level floor(2/2) = 1 -> 2 first-level slots
             assertThat(response.getSpellcastingAbility()).isEqualTo("CHA");
 
-            Map<String, Map<String, Integer>> slots = parseSpellSlots(response.getSpellSlots());
+            Map<String, SpellSlot> slots = response.getSpellSlots();
             assertThat(slots).containsKey("1");
-            assertThat(slots.get("1").get("total")).isEqualTo(2);
+            assertThat(slots.get("1").max()).isEqualTo(2);
         }
 
         @Test
@@ -277,9 +279,9 @@ class CharacterServiceBusinessTest {
             // Then: pact_1 slot with 1 total, no regular slots
             assertThat(response.getSpellcastingAbility()).isEqualTo("CHA");
 
-            Map<String, Map<String, Integer>> slots = parseSpellSlots(response.getSpellSlots());
+            Map<String, SpellSlot> slots = response.getSpellSlots();
             assertThat(slots).containsKey("pact_1");
-            assertThat(slots.get("pact_1").get("total")).isEqualTo(1);
+            assertThat(slots.get("pact_1").max()).isEqualTo(1);
             // No regular slot keys (only pact_ prefixed)
             boolean hasRegularSlots = slots.keySet().stream().anyMatch(k -> !k.startsWith("pact_"));
             assertThat(hasRegularSlots).isFalse();
@@ -292,11 +294,10 @@ class CharacterServiceBusinessTest {
             CharacterCreateRequest req = baseCreateRequest("TestMulti", fighterId, humanId);
             req.setLevel(5);
 
-            String mcEntries = objectMapper.writeValueAsString(List.of(
-                    Map.of("classId", fighterId.toString(), "className", "Fighter", "level", 3),
-                    Map.of("classId", wizardId.toString(), "className", "Wizard", "level", 2)
+            req.setMulticlassClassEntries(List.of(
+                    new ClassEntry(fighterId, "Fighter", null, null, 3),
+                    new ClassEntry(wizardId, "Wizard", null, null, 2)
             ));
-            req.setMulticlassClassEntries(mcEntries);
 
             when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
@@ -314,23 +315,20 @@ class CharacterServiceBusinessTest {
             assertThat(response.getHpMax()).isEqualTo(40);
 
             // Spell slots from Wizard caster level 2 -> 3 first-level slots
-            Map<String, Map<String, Integer>> slots = parseSpellSlots(response.getSpellSlots());
+            Map<String, SpellSlot> slots = response.getSpellSlots();
             assertThat(slots).containsKey("1");
-            assertThat(slots.get("1").get("total")).isEqualTo(3);
+            assertThat(slots.get("1").max()).isEqualTo(3);
 
-            // Hit dice map should have both classes
-            Map<String, HitDiceEntry> hdMap = objectMapper.readValue(
-                    response.getHitDiceMap(), new TypeReference<Map<String, HitDiceEntry>>() {});
-            assertThat(hdMap).containsKeys("Fighter", "Wizard");
-            assertThat(hdMap.get("Fighter").total()).isEqualTo(3);
-            assertThat(hdMap.get("Fighter").faces()).isEqualTo(10);
-            assertThat(hdMap.get("Wizard").total()).isEqualTo(2);
-            assertThat(hdMap.get("Wizard").faces()).isEqualTo(6);
+            // Hit dice should have both classes
+            Map<String, HitDicePool> hitDice = response.getHitDice();
+            assertThat(hitDice).containsKeys("Fighter", "Wizard");
+            assertThat(hitDice.get("Fighter").total()).isEqualTo(3);
+            assertThat(hitDice.get("Fighter").dieSize()).isEqualTo(10);
+            assertThat(hitDice.get("Wizard").total()).isEqualTo(2);
+            assertThat(hitDice.get("Wizard").dieSize()).isEqualTo(6);
 
-            // Multiclass entries JSON has both classes
-            List<MulticlassEntry> mcParsed = objectMapper.readValue(
-                    response.getMulticlassEntries(), new TypeReference<>() {});
-            assertThat(mcParsed).hasSize(2);
+            // Multiclass entries have both classes
+            assertThat(response.getMulticlassEntries()).hasSize(2);
         }
 
         @Test
@@ -372,10 +370,10 @@ class CharacterServiceBusinessTest {
             // The frontend merges these; the service stores whatever the request provides
             CharacterCreateRequest req = baseCreateRequest("TestMerge", fighterId, elfId);
             req.setLevel(1);
-            req.setSkillProficiencies("[\"Perception\",\"Athletics\"]");
-            req.setSavingThrowProficiencies("[\"STR\",\"CON\"]");
-            req.setArmorProficiencies("[\"Light\",\"Medium\",\"Heavy\",\"Shields\"]");
-            req.setWeaponProficiencies("[\"Simple\",\"Martial\",\"Longsword\",\"Shortsword\",\"Shortbow\",\"Longbow\"]");
+            req.setSkillProficiencies(List.of("Perception", "Athletics"));
+            req.setSavingThrowProficiencies(List.of("STR", "CON"));
+            req.setArmorProficiencies(List.of("Light", "Medium", "Heavy", "Shields"));
+            req.setWeaponProficiencies(List.of("Simple", "Martial", "Longsword", "Shortsword", "Shortbow", "Longbow"));
 
             when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(elfId)).thenReturn(Optional.of(elf));
@@ -392,8 +390,7 @@ class CharacterServiceBusinessTest {
             assertThat(response.getWeaponProficiencies()).contains("Simple", "Martial");
 
             // Verify no duplicate Perception
-            List<String> skills = objectMapper.convertValue(
-                    parseJsonArray(response.getSkillProficiencies()), new TypeReference<>() {});
+            List<String> skills = response.getSkillProficiencies();
             long perceptionCount = skills.stream().filter("Perception"::equals).count();
             assertThat(perceptionCount).isEqualTo(1);
         }
@@ -406,9 +403,9 @@ class CharacterServiceBusinessTest {
             CharacterCreateRequest req = baseCreateRequest("TestBgMerge", fighterId, humanId);
             req.setLevel(1);
             req.setBackgroundId(soldierBgId);
-            req.setSkillProficiencies("[\"Athletics\",\"Intimidation\"]");
-            req.setToolProficiencies("[\"Playing card set\",\"Vehicles (land)\"]");
-            req.setLanguageProficiencies("[\"Common\"]");
+            req.setSkillProficiencies(List.of("Athletics", "Intimidation"));
+            req.setToolProficiencies(List.of("Playing card set", "Vehicles (land)"));
+            req.setLanguageProficiencies(List.of("Common"));
 
             when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(humanId)).thenReturn(Optional.of(human));
@@ -420,8 +417,7 @@ class CharacterServiceBusinessTest {
             CharacterResponse response = service.createCharacter(req, userId);
 
             // Then: Athletics appears once, Intimidation present, tool & language proficiencies stored
-            List<String> skills = objectMapper.convertValue(
-                    parseJsonArray(response.getSkillProficiencies()), new TypeReference<>() {});
+            List<String> skills = response.getSkillProficiencies();
             long athleticsCount = skills.stream().filter("Athletics"::equals).count();
             assertThat(athleticsCount).isEqualTo(1);
             assertThat(skills).contains("Intimidation");
@@ -439,7 +435,7 @@ class CharacterServiceBusinessTest {
             req.setStrength(16); // includes the +2 from Tasha's
             req.setConstitution(14); // no longer gets the +2
             req.setWisdom(11); // still gets +1
-            req.setRacialAbilityBonuses("{\"STR\":2,\"WIS\":1}");
+            req.setRacialAbilityBonuses(List.of(new AbilityBonus("STR", 2), new AbilityBonus("WIS", 1)));
 
             when(userService.getUser(userId)).thenReturn(user);
             when(raceRepository.findById(dwarfId)).thenReturn(Optional.of(dwarf));
@@ -450,7 +446,8 @@ class CharacterServiceBusinessTest {
             CharacterResponse response = service.createCharacter(req, userId);
 
             // Then: the reassignment is recorded, scores match
-            assertThat(response.getRacialAbilityBonuses()).isEqualTo("{\"STR\":2,\"WIS\":1}");
+            assertThat(response.getRacialAbilityBonuses())
+                    .containsExactly(new AbilityBonus("STR", 2), new AbilityBonus("WIS", 1));
             assertThat(response.getStrength()).isEqualTo(16);
             assertThat(response.getConstitution()).isEqualTo(14); // no racial bonus applied
             assertThat(response.getWisdom()).isEqualTo(11);
@@ -561,9 +558,9 @@ class CharacterServiceBusinessTest {
         @DisplayName("15.12 Spending 1 hit die heals avg die + CON mod, decreases remaining")
         void shortRestSpend1HitDie() throws Exception {
             // Given: Fighter with 20/45 HP, CON 14 (+2), 3/5 hit dice remaining (d10)
-            PlayerCharacter pc = buildCharacterForRest("Fighter", 5, 10,
+            PlayerCharacter pc = buildCharacterForRest("Fighter", 5,
                     45, 20, 14,
-                    Map.of("Fighter", new HitDiceEntry(5, 3, 10)),
+                    Map.of("Fighter", new HitDicePool(10, 5, 3)),
                     null, null);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -579,8 +576,7 @@ class CharacterServiceBusinessTest {
             assertThat(response.getHpCurrent()).isEqualTo(28);
 
             // Remaining hit dice decreased to 2
-            Map<String, HitDiceEntry> hdMap = objectMapper.readValue(
-                    response.getHitDiceMap(), new TypeReference<>() {});
+            Map<String, HitDicePool> hdMap = response.getHitDice();
             assertThat(hdMap.get("Fighter").remaining()).isEqualTo(2);
         }
 
@@ -589,11 +585,11 @@ class CharacterServiceBusinessTest {
         void shortRestMultipleHitDiceMulticlass() throws Exception {
             // Given: Fighter 3 / Wizard 2 with 15/35 HP, CON 12 (+1)
             // Fighter d10 remaining: 2, Wizard d6 remaining: 1
-            Map<String, HitDiceEntry> hdMapData = new LinkedHashMap<>();
-            hdMapData.put("Fighter", new HitDiceEntry(3, 2, 10));
-            hdMapData.put("Wizard", new HitDiceEntry(2, 1, 6));
+            Map<String, HitDicePool> hdMapData = new LinkedHashMap<>();
+            hdMapData.put("Fighter", new HitDicePool(10, 3, 2));
+            hdMapData.put("Wizard", new HitDicePool(6, 2, 1));
 
-            PlayerCharacter pc = buildCharacterForRest("Fighter / Wizard", 5, 10,
+            PlayerCharacter pc = buildCharacterForRest("Fighter / Wizard", 5,
                     35, 15, 12, hdMapData, null, null);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -611,8 +607,7 @@ class CharacterServiceBusinessTest {
             // Then: heal = (6+1) + (4+1) = 12, HP = 15 + 12 = 27
             assertThat(response.getHpCurrent()).isEqualTo(27);
 
-            Map<String, HitDiceEntry> hdMap = objectMapper.readValue(
-                    response.getHitDiceMap(), new TypeReference<>() {});
+            Map<String, HitDicePool> hdMap = response.getHitDice();
             assertThat(hdMap.get("Fighter").remaining()).isEqualTo(1);
             assertThat(hdMap.get("Wizard").remaining()).isEqualTo(0);
         }
@@ -621,9 +616,9 @@ class CharacterServiceBusinessTest {
         @DisplayName("15.14 Cannot spend more hit dice than remaining")
         void shortRestCannotSpendMoreThanRemaining() throws Exception {
             // Given: Fighter with 0/3 hit dice remaining
-            PlayerCharacter pc = buildCharacterForRest("Fighter", 3, 10,
+            PlayerCharacter pc = buildCharacterForRest("Fighter", 3,
                     30, 20, 14,
-                    Map.of("Fighter", new HitDiceEntry(3, 0, 10)),
+                    Map.of("Fighter", new HitDicePool(10, 3, 0)),
                     null, null);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -641,14 +636,14 @@ class CharacterServiceBusinessTest {
         @DisplayName("15.15 Warlock pact slots reset on short rest, regular slots unchanged")
         void shortRestWarlockPactSlotsReset() throws Exception {
             // Given: Warlock/Wizard multiclass with 0/2 pact slots and 3/3 regular slots
-            String spellSlots = objectMapper.writeValueAsString(Map.of(
-                    "1", Map.of("total", 3, "used", 0),
-                    "pact_3", Map.of("total", 2, "used", 2)
-            ));
+            Map<String, SpellSlot> spellSlots = Map.of(
+                    "1", new SpellSlot(3, 0),
+                    "pact_3", new SpellSlot(2, 2)
+            );
 
-            PlayerCharacter pc = buildCharacterForRest("Warlock / Wizard", 5, 8,
+            PlayerCharacter pc = buildCharacterForRest("Warlock / Wizard", 5,
                     30, 30, 10,
-                    Map.of("Warlock", new HitDiceEntry(3, 3, 8), "Wizard", new HitDiceEntry(2, 2, 6)),
+                    Map.of("Warlock", new HitDicePool(8, 3, 3), "Wizard", new HitDicePool(6, 2, 2)),
                     spellSlots, null);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -660,11 +655,11 @@ class CharacterServiceBusinessTest {
             CharacterResponse response = service.shortRest(pc.getId(), req, userId);
 
             // Then: pact slots reset to 2/2, regular slots still 3/3
-            Map<String, Map<String, Integer>> slots = parseSpellSlots(response.getSpellSlots());
-            assertThat(slots.get("pact_3").get("used")).isEqualTo(0);
-            assertThat(slots.get("pact_3").get("total")).isEqualTo(2);
-            assertThat(slots.get("1").get("used")).isEqualTo(0); // was already 0
-            assertThat(slots.get("1").get("total")).isEqualTo(3);
+            Map<String, SpellSlot> slots = response.getSpellSlots();
+            assertThat(slots.get("pact_3").used()).isEqualTo(0);
+            assertThat(slots.get("pact_3").max()).isEqualTo(2);
+            assertThat(slots.get("1").used()).isEqualTo(0); // was already 0
+            assertThat(slots.get("1").max()).isEqualTo(3);
         }
 
         @Test
@@ -672,14 +667,14 @@ class CharacterServiceBusinessTest {
         void shortRestFeatResourcesRestored() throws Exception {
             // Given: character with "Superiority Dice" (4 max, 1 remaining, shortRest)
             // and "Luck Points" (3 max, 0 remaining, longRest) -- should NOT reset
-            String featResources = objectMapper.writeValueAsString(List.of(
+            List<FeatResourceEntry> featResources = List.of(
                     new FeatResourceEntry("Battle Master", "Superiority Dice", 4, 1, "shortRest"),
                     new FeatResourceEntry("Lucky", "Luck Points", 3, 0, "longRest")
-            ));
+            );
 
-            PlayerCharacter pc = buildCharacterForRest("Fighter", 3, 10,
+            PlayerCharacter pc = buildCharacterForRest("Fighter", 3,
                     30, 25, 14,
-                    Map.of("Fighter", new HitDiceEntry(3, 3, 10)),
+                    Map.of("Fighter", new HitDicePool(10, 3, 3)),
                     null, featResources);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -689,8 +684,7 @@ class CharacterServiceBusinessTest {
             CharacterResponse response = service.shortRest(pc.getId(), req, userId);
 
             // Then: Superiority Dice reset to 4/4, Luck Points still 0/3
-            List<FeatResourceEntry> resources = objectMapper.readValue(
-                    response.getFeatResources(), new TypeReference<>() {});
+            List<FeatResourceEntry> resources = response.getFeatResources();
             FeatResourceEntry superiorityDice = resources.stream()
                     .filter(r -> "Superiority Dice".equals(r.name())).findFirst().orElseThrow();
             FeatResourceEntry luckPoints = resources.stream()
@@ -713,9 +707,9 @@ class CharacterServiceBusinessTest {
         @DisplayName("15.17 Long rest restores full HP")
         void longRestFullHpRestored() throws Exception {
             // Given: Fighter with 20/45 HP
-            PlayerCharacter pc = buildCharacterForRest("Fighter", 5, 10,
+            PlayerCharacter pc = buildCharacterForRest("Fighter", 5,
                     45, 20, 14,
-                    Map.of("Fighter", new HitDiceEntry(5, 5, 10)),
+                    Map.of("Fighter", new HitDicePool(10, 5, 5)),
                     null, null);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -733,15 +727,15 @@ class CharacterServiceBusinessTest {
         @DisplayName("15.18 Long rest restores all spell slots (regular and pact)")
         void longRestAllSpellSlotsRestored() throws Exception {
             // Given: Wizard/Warlock with used regular and pact slots
-            String spellSlots = objectMapper.writeValueAsString(Map.of(
-                    "1", Map.of("total", 4, "used", 4),
-                    "2", Map.of("total", 3, "used", 3),
-                    "pact_3", Map.of("total", 2, "used", 2)
-            ));
+            Map<String, SpellSlot> spellSlots = Map.of(
+                    "1", new SpellSlot(4, 4),
+                    "2", new SpellSlot(3, 3),
+                    "pact_3", new SpellSlot(2, 2)
+            );
 
-            PlayerCharacter pc = buildCharacterForRest("Wizard / Warlock", 7, 6,
+            PlayerCharacter pc = buildCharacterForRest("Wizard / Warlock", 7,
                     40, 25, 10,
-                    Map.of("Wizard", new HitDiceEntry(5, 3, 6), "Warlock", new HitDiceEntry(2, 2, 8)),
+                    Map.of("Wizard", new HitDicePool(6, 5, 3), "Warlock", new HitDicePool(8, 2, 2)),
                     spellSlots, null);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -751,22 +745,22 @@ class CharacterServiceBusinessTest {
             CharacterResponse response = service.longRest(pc.getId(), userId);
 
             // Then: all slots reset to used=0
-            Map<String, Map<String, Integer>> slots = parseSpellSlots(response.getSpellSlots());
-            assertThat(slots.get("1").get("used")).isEqualTo(0);
-            assertThat(slots.get("1").get("total")).isEqualTo(4);
-            assertThat(slots.get("2").get("used")).isEqualTo(0);
-            assertThat(slots.get("2").get("total")).isEqualTo(3);
-            assertThat(slots.get("pact_3").get("used")).isEqualTo(0);
-            assertThat(slots.get("pact_3").get("total")).isEqualTo(2);
+            Map<String, SpellSlot> slots = response.getSpellSlots();
+            assertThat(slots.get("1").used()).isEqualTo(0);
+            assertThat(slots.get("1").max()).isEqualTo(4);
+            assertThat(slots.get("2").used()).isEqualTo(0);
+            assertThat(slots.get("2").max()).isEqualTo(3);
+            assertThat(slots.get("pact_3").used()).isEqualTo(0);
+            assertThat(slots.get("pact_3").max()).isEqualTo(2);
         }
 
         @Test
         @DisplayName("15.19 Long rest recovers half hit dice rounded down, minimum 1")
         void longRestHitDiceRecovery() throws Exception {
             // Given: level 7 character with 0/7 hit dice remaining
-            PlayerCharacter pc = buildCharacterForRest("Fighter", 7, 10,
+            PlayerCharacter pc = buildCharacterForRest("Fighter", 7,
                     60, 50, 14,
-                    Map.of("Fighter", new HitDiceEntry(7, 0, 10)),
+                    Map.of("Fighter", new HitDicePool(10, 7, 0)),
                     null, null);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -776,8 +770,7 @@ class CharacterServiceBusinessTest {
             CharacterResponse response = service.longRest(pc.getId(), userId);
 
             // Then: regain floor(7/2) = 3 hit dice, so remaining = 0 + 3 = 3
-            Map<String, HitDiceEntry> hdMap = objectMapper.readValue(
-                    response.getHitDiceMap(), new TypeReference<>() {});
+            Map<String, HitDicePool> hdMap = response.getHitDice();
             assertThat(hdMap.get("Fighter").remaining()).isEqualTo(3);
             assertThat(hdMap.get("Fighter").total()).isEqualTo(7);
         }
@@ -786,14 +779,14 @@ class CharacterServiceBusinessTest {
         @DisplayName("15.20 Long rest restores all feat resources (both short and long rest)")
         void longRestAllFeatResourcesRestored() throws Exception {
             // Given: "Luck Points" (0/3, longRest) and "Superiority Dice" (2/4, shortRest)
-            String featResources = objectMapper.writeValueAsString(List.of(
+            List<FeatResourceEntry> featResources = List.of(
                     new FeatResourceEntry("Lucky", "Luck Points", 3, 0, "longRest"),
                     new FeatResourceEntry("Battle Master", "Superiority Dice", 4, 2, "shortRest")
-            ));
+            );
 
-            PlayerCharacter pc = buildCharacterForRest("Fighter", 5, 10,
+            PlayerCharacter pc = buildCharacterForRest("Fighter", 5,
                     40, 30, 14,
-                    Map.of("Fighter", new HitDiceEntry(5, 2, 10)),
+                    Map.of("Fighter", new HitDicePool(10, 5, 2)),
                     null, featResources);
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
@@ -803,8 +796,7 @@ class CharacterServiceBusinessTest {
             CharacterResponse response = service.longRest(pc.getId(), userId);
 
             // Then: both resources restored to max
-            List<FeatResourceEntry> resources = objectMapper.readValue(
-                    response.getFeatResources(), new TypeReference<>() {});
+            List<FeatResourceEntry> resources = response.getFeatResources();
             FeatResourceEntry luckPoints = resources.stream()
                     .filter(r -> "Luck Points".equals(r.name())).findFirst().orElseThrow();
             FeatResourceEntry superiorityDice = resources.stream()
@@ -972,10 +964,10 @@ class CharacterServiceBusinessTest {
     // ========================================================================
 
     private PlayerCharacter buildCharacterForRest(
-            String className, int level, int hitDice,
+            String className, int level,
             int hpMax, int hpCurrent, int constitution,
-            Map<String, HitDiceEntry> hitDiceMap,
-            String spellSlots, String featResources) throws Exception {
+            Map<String, HitDicePool> hitDicePools,
+            Map<String, SpellSlot> spellSlots, List<FeatResourceEntry> featResources) {
 
         return PlayerCharacter.builder()
                 .id(UUID.randomUUID()).user(user).name("RestTestChar")
@@ -987,29 +979,10 @@ class CharacterServiceBusinessTest {
                 .armourClass(10)
                 .proficiencyBonus(CharacterService.proficiencyBonusForLevel(level))
                 .speed(30)
-                .hitDiceMap(objectMapper.writeValueAsString(hitDiceMap))
-                .hitDiceTotal(level + "d" + hitDice)
-                .hitDiceRemaining(level + "d" + hitDice)
+                .hitDice(hitDicePools)
                 .spellSlots(spellSlots)
                 .featResources(featResources)
                 .isActive(true)
                 .build();
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Map<String, Integer>> parseSpellSlots(String spellSlotsJson) {
-        try {
-            return objectMapper.readValue(spellSlotsJson, new TypeReference<>() {});
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse spell slots: " + spellSlotsJson, e);
-        }
-    }
-
-    private List<?> parseJsonArray(String json) {
-        try {
-            return objectMapper.readValue(json, new TypeReference<List<?>>() {});
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse JSON array: " + json, e);
-        }
     }
 }

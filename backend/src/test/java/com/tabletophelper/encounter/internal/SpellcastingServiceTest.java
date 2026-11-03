@@ -1,6 +1,8 @@
 package com.tabletophelper.encounter.internal;
 
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -13,8 +15,6 @@ import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
-import com.tabletophelper.encounter.state.KnownSpell;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.shared.ConflictException;

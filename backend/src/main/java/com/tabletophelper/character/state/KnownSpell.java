@@ -1,4 +1,4 @@
-package com.tabletophelper.encounter.state;
+package com.tabletophelper.character.state;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -9,10 +9,9 @@ import java.util.UUID;
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 /**
- * A spell a participant can cast, stored in {@code encounter_participants.spells_known} (D168). A player
- * character's entries are copied from the character sheet when they join, where spells stay untyped
- * until R6, so other properties are ignored; a monster's come from its stat block. A field an entry
- * doesn't have is left out.
+ * A spell a character or participant can cast (D168), stored in {@code player_characters.spells_known} and
+ * {@code encounter_participants.spells_known}. A player character's entries are copied from the sheet when they
+ * join an encounter; a monster's come from its stat block. A field an entry doesn't have is left out.
  *
  * @param id              the spell's ID; only monster entries have one, and not when the reference data
  *                        lacks the spell

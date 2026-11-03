@@ -2,6 +2,14 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
@@ -12,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -69,7 +79,7 @@ class CharacterMapperTest {
                 .spellsKnown(null)
                 .multiclassEntries(null)
                 .levelHistory(null)
-                .hitDiceMap(null)
+                .hitDice(null)
                 .build();
     }
 
@@ -109,26 +119,31 @@ class CharacterMapperTest {
         assertEquals("Soldier", response.getBackground());
     }
 
-    // --- 8.2 toResponse: parses JSONB strings into response fields ---
+    // --- 8.2 toResponse: passes the typed JSON fields through ---
 
     @Test
-    @DisplayName("8.2 toResponse passes through JSONB string fields")
-    void toResponseJsonbStringFields() {
+    @DisplayName("8.2 toResponse passes through the typed JSON fields")
+    void toResponseJsonFields() {
         User user = testUser();
         PlayerCharacter c = baseCharacter(user);
-        c.setMulticlassEntries("[{\"classId\":\"abc\",\"className\":\"Fighter\",\"level\":3}]");
-        c.setLevelHistory("[{\"characterLevel\":1,\"className\":\"Fighter\"}]");
-        c.setHitDiceMap("{\"Fighter\":{\"total\":5,\"remaining\":5,\"faces\":10}}");
-        c.setFeatures("[{\"name\":\"Second Wind\",\"source\":\"Fighter\"}]");
-        c.setSpellsKnown("[{\"name\":\"Shield\",\"level\":1}]");
+        UUID fighterId = UUID.randomUUID();
+        c.setMulticlassEntries(List.of(new ClassEntry(fighterId, "Fighter", null, null, 3)));
+        c.setLevelHistory(List.of(new LevelHistoryEntry(1, fighterId, "Fighter", 1, 12, List.of(), LevelChoices.NONE)));
+        c.setHitDice(Map.of("Fighter", new HitDicePool(10, 5, 5)));
+        c.setFeatures(List.of(new Feature("Second Wind", null, "Fighter")));
+        c.setSpellsKnown(List.of(new KnownSpell(null, "Shield", 1, null, null, null, null, null, null)));
+        c.setSpellSlots(Map.of("1", new SpellSlot(2, 1)));
+        c.setCurrency(new Currency(1, 2, 3, 4, 5));
 
         CharacterResponse response = mapper.toResponse(c);
 
         assertEquals(c.getMulticlassEntries(), response.getMulticlassEntries());
         assertEquals(c.getLevelHistory(), response.getLevelHistory());
-        assertEquals(c.getHitDiceMap(), response.getHitDiceMap());
+        assertEquals(c.getHitDice(), response.getHitDice());
         assertEquals(c.getFeatures(), response.getFeatures());
         assertEquals(c.getSpellsKnown(), response.getSpellsKnown());
+        assertEquals(c.getSpellSlots(), response.getSpellSlots());
+        assertEquals(c.getCurrency(), response.getCurrency());
     }
 
     // --- 8.3 toResponse: handles null JSONB fields gracefully ---
@@ -142,7 +157,7 @@ class CharacterMapperTest {
         c.setSpellsKnown(null);
         c.setMulticlassEntries(null);
         c.setLevelHistory(null);
-        c.setHitDiceMap(null);
+        c.setHitDice(null);
         c.setFeatResources(null);
 
         CharacterResponse response = assertDoesNotThrow(() -> mapper.toResponse(c));
@@ -151,8 +166,9 @@ class CharacterMapperTest {
         assertNull(response.getSpellsKnown());
         assertNull(response.getMulticlassEntries());
         assertNull(response.getLevelHistory());
-        assertNull(response.getHitDiceMap());
+        assertNull(response.getHitDice());
         assertNull(response.getFeatResources());
+        assertNull(response.getSubclassAlwaysPreparedSpells());
         // Non-null fields still mapped
         assertEquals("Thorin", response.getName());
         assertEquals(5, response.getLevel());
@@ -176,9 +192,30 @@ class CharacterMapperTest {
 
         CharacterResponse response = mapper.toResponse(c);
 
-        assertNotNull(response.getSubclassAlwaysPreparedSpells());
-        assertTrue(response.getSubclassAlwaysPreparedSpells().contains("Life Domain"));
-        assertTrue(response.getSubclassAlwaysPreparedSpells().contains("Beacon of Hope"));
-        assertTrue(response.getSubclassAlwaysPreparedSpells().contains("Revivify"));
+        assertEquals(Map.of("Life Domain", Map.of(
+                        "3", List.of("Beacon of Hope", "Revivify"),
+                        "5", List.of("Death Ward", "Guardian of Faith"))),
+                response.getSubclassAlwaysPreparedSpells());
+    }
+
+    @Test
+    @DisplayName("8.5 toResponse adds each other class's subclass spells after the primary subclass's, once each")
+    void toResponseMulticlassSubclassAlwaysPreparedSpells() {
+        User user = testUser();
+        PlayerCharacter c = baseCharacter(user);
+        Subclass lifeDomain = Subclass.builder().id(UUID.randomUUID()).name("Life Domain")
+                .alwaysPreparedSpells("{\"1\":[\"Bless\"]}").build();
+        Subclass devotion = Subclass.builder().id(UUID.randomUUID()).name("Oath of Devotion")
+                .alwaysPreparedSpells("{\"3\":[\"Sanctuary\"]}").build();
+        c.setSubclassRef(lifeDomain);
+        c.setMulticlassEntries(List.of(
+                new ClassEntry(UUID.randomUUID(), "Cleric", lifeDomain.getId(), "Life Domain", 1),
+                new ClassEntry(UUID.randomUUID(), "Paladin", devotion.getId(), "Oath of Devotion", 3)));
+        when(subclassRepository.findById(devotion.getId())).thenReturn(Optional.of(devotion));
+
+        var spells = mapper.toResponse(c).getSubclassAlwaysPreparedSpells();
+
+        assertEquals(List.of("Life Domain", "Oath of Devotion"), List.copyOf(spells.keySet()));
+        assertEquals(Map.of("3", List.of("Sanctuary")), spells.get("Oath of Devotion"));
     }
 }

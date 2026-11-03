@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft } from 'lucide-react';
 import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
-import type { PlayerCharacter } from '../../types/character';
+import type { HitDicePool, PlayerCharacter } from '../../types/character';
+import type { SpellEntry } from './sheet/types';
 import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
 import AsiModal from '../../components/character/AsiModal';
 import { THIRD_CASTER_SUBCLASSES, THIRD_CASTER_ABILITY, proficiencyBonusForLevel } from '../../utils/spellConstants';
@@ -614,8 +615,8 @@ export default function CharacterCreateWizard() {
 
   // ── Character creation ──
 
-  function buildSpellsKnown(): string | undefined {
-    const entries: Array<Record<string, unknown>> = [];
+  function buildSpellsKnown(): SpellEntry[] | undefined {
+    const entries: SpellEntry[] = [];
     if (selectedClass?.isSpellcaster) {
       const source = `class:${selectedClass.name}`;
       for (const s of selectedCantrips) entries.push({ name: s.name, level: 0, source });
@@ -657,7 +658,7 @@ export default function CharacterCreateWizard() {
       for (const { name, usesPerDay } of selectedFeatOption.fixedSpells) entries.push({ name, level: 1, source: featSource, usesPerLongRest: usesPerDay });
       for (const s of featSpells) entries.push({ name: s.name, level: s.level, source: featSource, usesPerLongRest: selectedFeatOption.spellChoice?.usesPerDay ?? 1 });
     }
-    return entries.length > 0 ? JSON.stringify(entries) : undefined;
+    return entries.length > 0 ? entries : undefined;
   }
 
   async function handleCreate() {
@@ -708,33 +709,33 @@ export default function CharacterCreateWizard() {
       spellSaveDc = 8 + profBonus + mod;
       spellAttackBonus = profBonus + mod;
     }
-    const hitDiceMap: Record<string, { total: number; remaining: number; faces: number }> = {};
-    for (const entry of classEntries) hitDiceMap[entry.cls.name] = { total: entry.level, remaining: entry.level, faces: entry.cls.hitDice };
-    if (classEntries.length === 0) hitDiceMap[selectedClass.name] = { total: level, remaining: level, faces: selectedClass.hitDice };
-    const multiclassClassEntries = isMulticlass ? JSON.stringify(classEntries.map(e => ({ classId: e.cls.id, subclassId: e.subclass?.id ?? null, level: e.level }))) : undefined;
+    const hitDice: Record<string, HitDicePool> = {};
+    for (const entry of classEntries) hitDice[entry.cls.name] = { total: entry.level, remaining: entry.level, dieSize: entry.cls.hitDice };
+    if (classEntries.length === 0) hitDice[selectedClass.name] = { total: level, remaining: level, dieSize: selectedClass.hitDice };
+    const multiclassClassEntries = isMulticlass ? classEntries.map(e => ({ classId: e.cls.id, subclassId: e.subclass?.id ?? null, level: e.level })) : undefined;
     try {
       const res = await characterApi.create({
         name: name.trim(), level, raceId: selectedRace.id, classId: selectedClass.id,
         subclassId: classEntries[0]?.subclass?.id ?? selectedSubclass?.id,
         backgroundId: selectedBackground.id, alignment: alignment || undefined,
         abilityScoreMethod: abilityMethod,
-        racialAbilityBonuses: JSON.stringify(bonusAssignments.map(a => ({ ability: a.ability ? ABILITY_LABELS[a.ability] : null, bonus: a.bonus }))),
+        racialAbilityBonuses: bonusAssignments.map(a => ({ ability: a.ability ? ABILITY_LABELS[a.ability] : null, bonus: a.bonus })),
         strength: finalScores.strength, dexterity: finalScores.dexterity, constitution: finalScores.constitution,
         intelligence: finalScores.intelligence, wisdom: finalScores.wisdom, charisma: finalScores.charisma,
         ...(level === 1 && !isMulticlass ? { hpMax: hpMax as number } : {}),
         speed: speed.walk ?? 30,
-        savingThrowProficiencies: JSON.stringify(savingThrows),
-        skillProficiencies: allSkills.length > 0 ? JSON.stringify([...new Set(allSkills)]) : undefined,
-        skillExpertises: selectedExpertise.length > 0 ? JSON.stringify(selectedExpertise) : undefined,
-        armorProficiencies: classArmor.length > 0 ? JSON.stringify([...new Set(classArmor)]) : undefined,
-        weaponProficiencies: allWeapons.length > 0 ? JSON.stringify([...new Set(allWeapons)]) : undefined,
-        toolProficiencies: allTools.length > 0 ? JSON.stringify([...new Set(allTools)]) : undefined,
-        languageProficiencies: allLanguages.length > 0 ? JSON.stringify([...new Set(allLanguages)]) : undefined,
-        damageResistances: resistances.length > 0 ? JSON.stringify(resistances) : undefined,
+        savingThrowProficiencies: savingThrows,
+        skillProficiencies: allSkills.length > 0 ? [...new Set(allSkills)] : undefined,
+        skillExpertises: selectedExpertise.length > 0 ? selectedExpertise : undefined,
+        armorProficiencies: classArmor.length > 0 ? [...new Set(classArmor)] : undefined,
+        weaponProficiencies: allWeapons.length > 0 ? [...new Set(allWeapons)] : undefined,
+        toolProficiencies: allTools.length > 0 ? [...new Set(allTools)] : undefined,
+        languageProficiencies: allLanguages.length > 0 ? [...new Set(allLanguages)] : undefined,
+        damageResistances: resistances.length > 0 ? resistances : undefined,
         spellcastingAbility: resolvedSpellAbility, spellSaveDc, spellAttackBonus,
         spellsKnown: buildSpellsKnown(),
-        features: featFeatures.length > 0 ? JSON.stringify(featFeatures) : undefined,
-        hitDiceMap: JSON.stringify(hitDiceMap), multiclassClassEntries,
+        features: featFeatures.length > 0 ? featFeatures : undefined,
+        hitDice, multiclassClassEntries,
       });
       localStorage.removeItem(DRAFT_KEY);
       const asiCount = countAsiLevels(classEntries);

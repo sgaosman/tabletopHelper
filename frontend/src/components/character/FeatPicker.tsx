@@ -310,15 +310,9 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
       savingThrowChoice, expertiseChoices, toolChoices, languageChoices, weaponChoices,
       selectedOptFeatures, fixedSpellIds, selectedSpellIds]);
 
-  const proficientSkills = useMemo(() => {
-    if (!character.skillProficiencies) return [];
-    try { return JSON.parse(character.skillProficiencies) as string[]; } catch { return []; }
-  }, [character.skillProficiencies]);
+  const proficientSkills = useMemo(() => character.skillProficiencies ?? [], [character.skillProficiencies]);
 
-  const existingExpertise = useMemo(() => {
-    if (!character.skillExpertises) return [];
-    try { return JSON.parse(character.skillExpertises) as string[]; } catch { return []; }
-  }, [character.skillExpertises]);
+  const existingExpertise = useMemo(() => character.skillExpertises ?? [], [character.skillExpertises]);
 
   if (!selectedFeat) {
     return (
@@ -695,11 +689,7 @@ function toggleChoice(value: string, current: string[], setter: (v: string[]) =>
 }
 
 function getCharacterFeatNames(character: PlayerCharacter): string[] {
-  if (!character.features) return [];
-  try {
-    const features: Array<{ name: string; source: string }> = JSON.parse(character.features);
-    return features.filter(f => f.source === 'Feat').map(f => f.name);
-  } catch { return []; }
+  return (character.features ?? []).filter(f => f.source === 'Feat').map(f => f.name);
 }
 
 function formatAsiPreview(feat: Feat): string {

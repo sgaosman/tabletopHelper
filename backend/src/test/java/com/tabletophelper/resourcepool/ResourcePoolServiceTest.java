@@ -1,8 +1,7 @@
 package com.tabletophelper.resourcepool;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,12 +23,10 @@ class ResourcePoolServiceTest {
     private ClassFeaturePoolRepository classFeaturePoolRepository;
 
     private ResourcePoolService service;
-    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        service = new ResourcePoolService(classFeaturePoolRepository, objectMapper);
+        service = new ResourcePoolService(classFeaturePoolRepository);
     }
 
     // ── Pool reset: full reset ────────────────────────────────────
@@ -162,32 +159,32 @@ class ResourcePoolServiceTest {
         assertEquals(1, findPool(reset, "breathWeapon").currentUses());
     }
 
-    // ── Pool parsing ──────────────────────────────────────────────
+    // ── Sheet pools (typed since R6, D168) ───────────────────────
 
     @Test
-    @DisplayName("parsePools returns empty list for null")
-    void parseNullReturnsEmpty() {
-        assertTrue(service.parsePools(null).isEmpty());
+    @DisplayName("copyToParticipant gives a participant an empty list when the sheet has no pools")
+    void copyToParticipantWithoutSheetPools() {
+        EncounterParticipant participant = EncounterParticipant.builder().build();
+
+        service.copyToParticipant(participant, PlayerCharacter.builder().resourcePools(null).build());
+
+        assertEquals(List.of(), participant.getResourcePoolsCurrent());
     }
 
     @Test
-    @DisplayName("parsePools returns empty list for blank")
-    void parseBlankReturnsEmpty() {
-        assertTrue(service.parsePools("   ").isEmpty());
-    }
+    @DisplayName("syncBackToCharacter copies each participant pool's uses to the sheet pool with its ID")
+    void syncBackCopiesUsesByPoolId() {
+        PlayerCharacter barbarian = PlayerCharacter.builder()
+                .resourcePools(List.of(entry("rage", 3, 3, "longRest", null), entry("ki", 2, 2, "shortRest", null)))
+                .build();
+        EncounterParticipant participant = EncounterParticipant.builder()
+                .resourcePoolsCurrent(List.of(entry("rage", 3, 1, "longRest", null)))
+                .build();
 
-    @Test
-    @DisplayName("parsePools deserializes valid JSON")
-    void parseValidJson() throws Exception {
-        String json = objectMapper.writeValueAsString(List.of(
-                entry("ki", 5, 3, "shortRest", null)));
+        service.syncBackToCharacter(participant, barbarian);
 
-        List<ResourcePoolEntry> result = service.parsePools(json);
-
-        assertEquals(1, result.size());
-        assertEquals("ki", result.get(0).poolId());
-        assertEquals(5, result.get(0).maxUses());
-        assertEquals(3, result.get(0).currentUses());
+        assertEquals(List.of(entry("rage", 3, 1, "longRest", null), entry("ki", 2, 2, "shortRest", null)),
+                barbarian.getResourcePools());
     }
 
     // ── Participant pools (typed since R5, D168) ─────────────────
@@ -223,9 +220,9 @@ class ResourcePoolServiceTest {
 
     @Test
     @DisplayName("copyToParticipant reads the sheet's pools into the participant's typed list")
-    void copyToParticipantReadsTheSheet() throws Exception {
+    void copyToParticipantReadsTheSheet() {
         PlayerCharacter barbarian = PlayerCharacter.builder()
-                .resourcePools(objectMapper.writeValueAsString(List.of(entry("rage", 3, 1, "longRest", null))))
+                .resourcePools(List.of(entry("rage", 3, 1, "longRest", null)))
                 .build();
         EncounterParticipant participant = EncounterParticipant.builder().build();
 

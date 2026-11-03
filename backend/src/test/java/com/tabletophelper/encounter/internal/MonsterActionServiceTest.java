@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -89,7 +89,7 @@ class MonsterActionServiceTest {
     @Test
     @DisplayName("An attack deals every damage part, and the response reports the hit, rolls and damage after defences")
     void attackWithEveryDamagePart() {
-        fighter.getCharacter().setDamageResistances("[\"fire\"]");
+        fighter.getCharacter().setDamageResistances(List.of("fire"));
 
         // 12 + 10 hits AC 18; 2d10 + 6 is 5 + 5 + 6 = 16 piercing; 1d6 is 5 fire, resisted to 2
         MonsterActionResponse response = act("Bite", "ACTION", List.of(fighter), 12, 5, 5, 5);

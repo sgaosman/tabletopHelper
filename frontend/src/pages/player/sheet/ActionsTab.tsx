@@ -1,11 +1,11 @@
-import type { PlayerCharacter } from '../../../types/character';
+import type { Feature, PlayerCharacter } from '../../../types/character';
 import FormattedDescription from '../../../components/FormattedDescription';
 import { abilityMod, formatMod } from '../../../utils/dndRules';
 import StatCard from './StatCard';
 
 export default function ActionsTab({ char, features }: {
   char: PlayerCharacter;
-  features: Array<{ name: string; description: string; source?: string }>;
+  features: Feature[];
 }) {
   const actionFeatures = features.filter(f =>
     f.description?.toLowerCase().includes('attack') ||
@@ -31,7 +31,7 @@ export default function ActionsTab({ char, features }: {
           {actionFeatures.map((f, i) => (
             <div key={i} className="bg-card border border-rule p-4">
               <h4 className="font-heading text-[15px] font-semibold text-ink">{f.name}</h4>
-              <FormattedDescription text={f.description} className="mt-2 font-body text-[15px] [&_p]:text-muted [&_strong]:text-ink" />
+              <FormattedDescription text={f.description ?? ''} className="mt-2 font-body text-[15px] [&_p]:text-muted [&_strong]:text-ink" />
             </div>
           ))}
         </div>

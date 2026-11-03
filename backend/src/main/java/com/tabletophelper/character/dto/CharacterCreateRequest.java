@@ -1,5 +1,13 @@
 package com.tabletophelper.character.dto;
 
+import com.tabletophelper.character.state.AbilityBonus;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.InventoryItem;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.SpellSlot;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -7,6 +15,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -32,7 +42,7 @@ public class CharacterCreateRequest {
     private String background;
     private String alignment;
     private String abilityScoreMethod;
-    private String racialAbilityBonuses;
+    private List<AbilityBonus> racialAbilityBonuses;
 
     @Min(1) @Max(30)
     private Integer strength;
@@ -61,24 +71,29 @@ public class CharacterCreateRequest {
     private Integer speed;
     private Integer proficiencyBonus;
 
-    private String savingThrowProficiencies;
-    private String skillProficiencies;
-    private String skillExpertises;
-    private String armorProficiencies;
-    private String weaponProficiencies;
-    private String toolProficiencies;
-    private String languageProficiencies;
-    private String spellsKnown;
-    private String spellSlots;
+    private List<String> savingThrowProficiencies;
+    private List<String> skillProficiencies;
+    private List<String> skillExpertises;
+    private List<String> armorProficiencies;
+    private List<String> weaponProficiencies;
+    private List<String> toolProficiencies;
+    private List<String> languageProficiencies;
+    private List<KnownSpell> spellsKnown;
+    private Map<String, SpellSlot> spellSlots;
     private Integer spellSaveDc;
     private Integer spellAttackBonus;
     private String spellcastingAbility;
-    private String features;
-    private String damageResistances;
-    private String equipment;
-    private String currency;
-    private String hitDiceMap;
-    private String multiclassClassEntries;
+    private List<Feature> features;
+    private List<String> damageResistances;
+    private List<InventoryItem> equipment;
+    private Currency currency;
+
+    // Keyed by class name
+    private Map<String, HitDicePool> hitDice;
+
+    // Each class and its level, for a character created in more than one class; only classId, subclassId and level
+    // are read
+    private List<ClassEntry> multiclassClassEntries;
 
     private UUID campaignId;
 }

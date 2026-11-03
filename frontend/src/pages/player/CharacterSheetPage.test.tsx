@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCharacter } from '../../test/mocks/handlers';
+import { makeMockCharacter, makeMockResourcePool } from '../../test/mocks/handlers';
 import CharacterSheetPage from './CharacterSheetPage';
 
 function renderSheet(characterId = 'char-001') {
@@ -95,6 +95,85 @@ describe('CharacterSheetPage', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Short Rest' })).toHaveFocus();
+  });
+
+  it('rests send the hit dice, slots and pools as JSON, worked out as before', async () => {
+    const saved: unknown[] = [];
+    const warlock = {
+      ...makeMockCharacter('char-001', 'Gimli', 'Warlock', 5), hpCurrent: 12, constitution: 14,
+      hitDice: { Fighter: { total: 3, remaining: 1, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
+      spellSlots: { '1': { max: 4, used: 3 }, pact_1: { max: 1, used: 1 } },
+      resourcePools: [
+        makeMockResourcePool('class:fighter-second-wind', 'Second Wind', { maxUses: 1, currentUses: 0, resetOn: 'shortRest' }),
+        makeMockResourcePool('class:warlock-hexblade', 'Hexblade Curse', { maxUses: 1, currentUses: 0, resetOn: 'longRest' }),
+      ],
+    };
+    server.use(
+      http.get('/api/characters/:id', () => HttpResponse.json(warlock)),
+      http.put('/api/characters/:id', async ({ request }) => {
+        saved.push(await request.json());
+        return HttpResponse.json(warlock);
+      }),
+    );
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('12/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Short Rest' }));
+    const shortRest = screen.getByRole('dialog', { name: 'Short Rest' });
+    await user.click(within(shortRest).getByRole('button', { name: 'Spend one more Fighter hit die' }));
+    await user.click(within(shortRest).getByRole('button', { name: 'Short Rest' }));
+    await waitFor(() => expect(saved).toHaveLength(1));
+
+    // A d10 heals 6 plus the CON modifier; only pact slots and short-rest pools come back
+    expect(saved[0]).toEqual({
+      hpCurrent: 20,
+      hitDice: { Fighter: { total: 3, remaining: 0, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
+      spellSlots: { '1': { max: 4, used: 3 }, pact_1: { max: 1, used: 0 } },
+      resourcePools: [
+        expect.objectContaining({ poolId: 'class:fighter-second-wind', currentUses: 1 }),
+        expect.objectContaining({ poolId: 'class:warlock-hexblade', currentUses: 0 }),
+      ],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Long Rest' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Long Rest' })).getByRole('button', { name: 'Long Rest' }));
+    await waitFor(() => expect(saved).toHaveLength(2));
+
+    // Each class regains half its own Hit Dice, at least one
+    expect(saved[1]).toEqual({
+      hpCurrent: 30,
+      hpTemp: 0,
+      hitDice: { Fighter: { total: 3, remaining: 2, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
+      spellSlots: { '1': { max: 4, used: 0 }, pact_1: { max: 1, used: 0 } },
+      resourcePools: [
+        expect.objectContaining({ poolId: 'class:fighter-second-wind', currentUses: 1 }),
+        expect.objectContaining({ poolId: 'class:warlock-hexblade', currentUses: 1 }),
+      ],
+    });
+  });
+
+  it('spending a spell slot sends the slots as JSON', async () => {
+    let saved: unknown;
+    const wizard = {
+      ...makeMockCharacter('char-001', 'Elminster', 'Wizard', 3), spellcastingAbility: 'INT',
+      spellSlots: { '1': { max: 4, used: 1 }, '2': { max: 2, used: 0 } },
+    };
+    server.use(
+      http.get('/api/characters/:id', () => HttpResponse.json(wizard)),
+      http.put('/api/characters/:id', async ({ request }) => {
+        saved = await request.json();
+        return HttpResponse.json(wizard);
+      }),
+    );
+    renderSheet();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: /Spells/ }));
+
+    expect(screen.getByText('3/4')).toBeInTheDocument();
+    await user.click(screen.getByText('3/4'));
+
+    await waitFor(() => expect(saved).toEqual({ spellSlots: { '1': { max: 4, used: 2 }, '2': { max: 2, used: 0 } } }));
   });
 
   it('shows the server\'s message when the character cannot be loaded', async () => {

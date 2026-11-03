@@ -1,8 +1,8 @@
-import type { PlayerCharacter } from '../../../types/character';
+import type { Feature, PlayerCharacter } from '../../../types/character';
 import FormattedDescription from '../../../components/FormattedDescription';
 
 export default function FeaturesTab({ features }: {
-  features: Array<{ name: string; description: string; source?: string }>;
+  features: Feature[];
   char?: PlayerCharacter;
 }) {
   return (
@@ -20,7 +20,7 @@ export default function FeaturesTab({ features }: {
               </svg>
             </summary>
             <div className="px-4 pb-3 border-t border-rule-light">
-              <FormattedDescription text={f.description} className="mt-2 font-body text-[15px] [&_p]:text-muted [&_strong]:text-ink" />
+              <FormattedDescription text={f.description ?? ''} className="mt-2 font-body text-[15px] [&_p]:text-muted [&_strong]:text-ink" />
             </div>
           </details>
         ))

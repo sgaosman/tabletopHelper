@@ -1,13 +1,13 @@
 package com.tabletophelper.encounter.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.HealthStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConditionEntry;
-import com.tabletophelper.encounter.state.KnownSpell;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.rules.combat.LifeState;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;

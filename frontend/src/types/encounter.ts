@@ -10,15 +10,15 @@ export type ConditionEntry = Schemas['ConditionEntry'];
 export type RepeatSave = Schemas['RepeatSave'];
 
 /**
- * The slots of one spell level in a participant's spellSlotsCurrent, which keys them "1" to "9", and pact
- * slots "pact_N" (D168).
+ * The slots of one spell level in a participant's spellSlotsCurrent or a sheet's spellSlots, which key them "1" to "9",
+ * and pact slots "pact_N" (D168).
  */
 export type SpellSlot = Schemas['SpellSlot'];
 
 /** One of a participant's spellsKnown: a player character's spells as they joined, or a monster's. */
 export type KnownSpell = Schemas['KnownSpell'];
 
-/** One resource pool of a participant, or of a character sheet, where it still arrives as a JSON string. */
+/** One resource pool of a participant or of a character sheet (D168). */
 export type ResourcePoolEntry = Schemas['ResourcePoolEntry'];
 
 /** Which view of a live encounter a page receives: the DM View or the Player View (D157). */

@@ -50,10 +50,11 @@ class WeaponAttackIT extends IntegrationTest {
         UUID character = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
         expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + character, Map.of(
                 "strength", 16, "proficiencyBonus", 2,
-                "weaponProficiencies", "[\"simple\", \"martial\"]",
-                "features", "[{\"name\": \"Great Weapon Master\", \"description\": \"Feat\", \"source\": \"Feat\"}]",
-                "equipment", "[{\"name\": \"Greatsword\", \"quantity\": 1}, {\"name\": \"Longsword\", \"quantity\": 1,"
-                        + " \"description\": \"+1\"}, {\"name\": \"Backpack\", \"quantity\": 1}]"),
+                "weaponProficiencies", List.of("simple", "martial"),
+                "features", List.of(Map.of("name", "Great Weapon Master", "description", "Feat", "source", "Feat")),
+                "equipment", List.of(Map.of("name", "Greatsword", "quantity", 1),
+                        Map.of("name", "Longsword", "quantity", 1, "description", "+1"),
+                        Map.of("name", "Backpack", "quantity", 1))),
                 player.accessToken()));
         itemRepository.saveAll(List.of(
                 Item.builder().name("Greatsword").type("Melee Weapon").subtype("martial").damageDice("2d6")

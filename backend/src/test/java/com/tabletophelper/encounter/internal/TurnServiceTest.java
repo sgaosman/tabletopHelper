@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;

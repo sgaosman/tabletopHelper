@@ -2,9 +2,9 @@ package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
-import com.tabletophelper.encounter.state.KnownSpell;
-import com.tabletophelper.encounter.state.SpellSlot;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;

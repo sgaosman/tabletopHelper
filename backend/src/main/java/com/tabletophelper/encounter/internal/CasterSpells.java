@@ -3,14 +3,15 @@ package com.tabletophelper.encounter.internal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.dto.SpellOption;
-import com.tabletophelper.encounter.state.KnownSpell;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.Subclass;
@@ -145,13 +146,12 @@ class CasterSpells {
     // The always-prepared spells of each subclass the character has, from the class level each is gained at
     private List<SpellSources.Known> subclassSpells(PlayerCharacter character) {
         Map<UUID, SubclassLevel> subclasses = new LinkedHashMap<>();
-        for (JsonNode entry : StoredJson.read(objectMapper, character.getMulticlassEntries(),
-                character.getName() + "'s classes")) {
-            String subclassId = entry.path("subclassId").asText("");
-            if (!subclassId.isBlank()) {
-                UUID id = UUID.fromString(subclassId);
+        for (ClassEntry entry : character.getMulticlassEntries() != null
+                ? character.getMulticlassEntries() : List.<ClassEntry>of()) {
+            UUID id = entry.subclassId();
+            if (id != null) {
                 subclassRepository.findById(id).ifPresent(subclass -> subclasses.putIfAbsent(id,
-                        new SubclassLevel(subclass, entry.path("className").asText(null), entry.path("level").asInt(0))));
+                        new SubclassLevel(subclass, entry.className(), entry.level())));
             }
         }
         Subclass primary = character.getSubclassRef();

@@ -8,7 +8,9 @@ import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.EncounterTurns;
@@ -17,8 +19,6 @@ import com.tabletophelper.encounter.internal.MonsterTemplates;
 import com.tabletophelper.encounter.internal.StoredJson;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
-import com.tabletophelper.encounter.state.KnownSpell;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
@@ -131,11 +131,11 @@ public class EncounterService {
                 .activeConditions(hp > 0 ? null : new ArrayList<>(List.of(ConditionEntry.unconsciousAtZeroHp(1))))
                 .armourClass(character.getArmourClass())
                 .controlledByUserId(character.getUser().getId())
-                .spellSlotsCurrent(convertSpellSlotsFormat(character))
+                .spellSlotsCurrent(copySpellSlots(character))
                 .spellAttackBonus(character.getSpellAttackBonus())
                 .spellSaveDc(character.getSpellSaveDc())
                 .spellcastingAbility(character.getSpellcastingAbility())
-                .spellsKnown(readSpellsKnown(character))
+                .spellsKnown(copySpellsKnown(character))
                 .build();
 
         resourcePoolService.copyToParticipant(participant, character);
@@ -580,31 +580,20 @@ public class EncounterService {
         return EncounterViews.playerLog(entries, hiddenParticipants);
     }
 
-    // The character sheet keeps {total, used} until R6 types it; participants hold {max, used} (D168). A
-    // level whose value isn't an object is left out.
-    private Map<String, SpellSlot> convertSpellSlotsFormat(PlayerCharacter character) {
+    // Sheets and participants hold slots in the same {max, used} shape (D168); each used count is copied
+    // between 0 and the maximum, and a level without a value is left out
+    private Map<String, SpellSlot> copySpellSlots(PlayerCharacter character) {
         if (character.getSpellSlots() == null) return null;
-        JsonNode charSlots = StoredJson.read(objectMapper, character.getSpellSlots(),
-                character.getName() + "'s spell slots");
-        if (!charSlots.isObject()) return null;
         Map<String, SpellSlot> encounterSlots = new LinkedHashMap<>();
-        charSlots.fields().forEachRemaining(entry -> {
-            JsonNode slot = entry.getValue();
-            if (!slot.isObject()) return;
-            int max = slot.path("max").asInt(slot.path("total").asInt(0));
-            int used = slot.has("used") ? slot.path("used").asInt(0)
-                    : slot.has("remaining") ? max - slot.path("remaining").asInt(0) : 0;
-            encounterSlots.put(entry.getKey(), new SpellSlot(max, Math.max(0, Math.min(max, used))));
+        character.getSpellSlots().forEach((level, slot) -> {
+            if (slot != null) {
+                encounterSlots.put(level, new SpellSlot(slot.max(), Math.max(0, Math.min(slot.max(), slot.used()))));
+            }
         });
         return encounterSlots;
     }
 
-    // The character sheet keeps its spells as a JSON string until R6 types it (D168)
-    private List<KnownSpell> readSpellsKnown(PlayerCharacter character) {
-        if (character.getSpellsKnown() == null) return null;
-        JsonNode spells = StoredJson.read(objectMapper, character.getSpellsKnown(),
-                character.getName() + "'s known spells");
-        if (!spells.isArray()) return null;
-        return objectMapper.convertValue(spells, new TypeReference<List<KnownSpell>>() {});
+    private List<KnownSpell> copySpellsKnown(PlayerCharacter character) {
+        return character.getSpellsKnown() != null ? new ArrayList<>(character.getSpellsKnown()) : null;
     }
 }

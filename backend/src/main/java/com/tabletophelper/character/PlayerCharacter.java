@@ -1,6 +1,17 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.campaign.Campaign;
+import com.tabletophelper.character.state.AbilityBonus;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.FeatResourceEntry;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.InventoryItem;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.CharacterClass;
@@ -14,6 +25,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -106,12 +119,6 @@ public class PlayerCharacter {
     @Builder.Default
     private Integer hpTemp = 0;
 
-    @Column(name = "hit_dice_total", length = 20)
-    private String hitDiceTotal;
-
-    @Column(name = "hit_dice_remaining", length = 20)
-    private String hitDiceRemaining;
-
     @Column(name = "armour_class", nullable = false)
     private Integer armourClass;
 
@@ -126,57 +133,62 @@ public class PlayerCharacter {
     @Builder.Default
     private Integer proficiencyBonus = 2;
 
+    // The JSONB columns map to records (D168). The deprecated hit_dice_total, hit_dice_remaining and hit_dice_map,
+    // which hit_dice replaces, and prepared_spells, attuned_items and equipped_items, which nothing read, are no
+    // longer mapped; R7 drops them.
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "saving_throw_proficiencies", columnDefinition = "jsonb")
-    private String savingThrowProficiencies;
+    private List<String> savingThrowProficiencies;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "skill_proficiencies", columnDefinition = "jsonb")
-    private String skillProficiencies;
+    private List<String> skillProficiencies;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "skill_expertises", columnDefinition = "jsonb")
-    private String skillExpertises;
+    private List<String> skillExpertises;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "armor_proficiencies", columnDefinition = "jsonb")
-    private String armorProficiencies;
+    private List<String> armorProficiencies;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "weapon_proficiencies", columnDefinition = "jsonb")
-    private String weaponProficiencies;
+    private List<String> weaponProficiencies;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "tool_proficiencies", columnDefinition = "jsonb")
-    private String toolProficiencies;
+    private List<String> toolProficiencies;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "language_proficiencies", columnDefinition = "jsonb")
-    private String languageProficiencies;
+    private List<String> languageProficiencies;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "damage_resistances", columnDefinition = "jsonb")
-    private String damageResistances;
+    private List<String> damageResistances;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "damage_immunities", columnDefinition = "jsonb")
-    private String damageImmunities;
+    private List<String> damageImmunities;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "condition_immunities", columnDefinition = "jsonb")
-    private String conditionImmunities;
+    private List<String> conditionImmunities;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String features;
+    private List<Feature> features;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "spells_known", columnDefinition = "jsonb")
-    private String spellsKnown;
+    private List<KnownSpell> spellsKnown;
 
+    // Keyed "1" to "9" by spell level, and "pact_N" for pact slots (D168)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "spell_slots", columnDefinition = "jsonb")
-    private String spellSlots;
+    private Map<String, SpellSlot> spellSlots;
 
     @Column(name = "spell_save_dc")
     private Integer spellSaveDc;
@@ -189,11 +201,11 @@ public class PlayerCharacter {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String equipment;
+    private List<InventoryItem> equipment;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String currency;
+    private Currency currency;
 
     @Column(name = "personality_traits", columnDefinition = "TEXT")
     private String personalityTraits;
@@ -226,39 +238,29 @@ public class PlayerCharacter {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "racial_ability_bonuses", columnDefinition = "jsonb")
-    private String racialAbilityBonuses;
+    private List<AbilityBonus> racialAbilityBonuses;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "multiclass_entries", columnDefinition = "jsonb")
-    private String multiclassEntries;
+    private List<ClassEntry> multiclassEntries;
 
+    // Keyed by class name (D158, V19)
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "prepared_spells", columnDefinition = "jsonb")
-    private String preparedSpells;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "attuned_items", columnDefinition = "jsonb")
-    private String attunedItems;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "equipped_items", columnDefinition = "jsonb")
-    private String equippedItems;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "hit_dice_map", columnDefinition = "jsonb")
-    private String hitDiceMap;
+    @Column(name = "hit_dice", columnDefinition = "jsonb")
+    private Map<String, HitDicePool> hitDice;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "level_history", columnDefinition = "jsonb")
-    private String levelHistory;
+    private List<LevelHistoryEntry> levelHistory;
 
+    // DEPRECATED: meant to be superseded by resource_pools, but feats with uses, rests and the sheet still use it
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "feat_resources", columnDefinition = "jsonb")
-    private String featResources; // DEPRECATED — superseded by resource_pools
+    private List<FeatResourceEntry> featResources;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "resource_pools", columnDefinition = "jsonb")
-    private String resourcePools;
+    private List<ResourcePoolEntry> resourcePools;
 
     @Column(name = "is_active")
     @Builder.Default

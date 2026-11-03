@@ -1,6 +1,7 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.character.dto.EligibleClassResponse;
+import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.reference.CharacterClass;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -67,20 +68,23 @@ class MulticlassValidatorTest {
     }
 
     @Test
-    @DisplayName("parseMulticlassEntries handles null")
-    void parseEntriesNull() {
-        Map<String, Integer> result = MulticlassValidator.parseMulticlassEntries(null);
+    @DisplayName("classLevels handles null")
+    void classLevelsNull() {
+        Map<UUID, Integer> result = MulticlassValidator.classLevels(null);
         assertTrue(result.isEmpty());
     }
 
     @Test
-    @DisplayName("parseMulticlassEntries parses valid JSON")
-    void parseEntriesValid() {
-        String json = "[{\"classId\":\"abc-123\",\"className\":\"Fighter\",\"level\":5},{\"classId\":\"def-456\",\"className\":\"Wizard\",\"level\":3}]";
-        Map<String, Integer> result = MulticlassValidator.parseMulticlassEntries(json);
+    @DisplayName("classLevels reads each class's level, by class ID")
+    void classLevelsValid() {
+        UUID fighterId = UUID.randomUUID();
+        UUID wizardId = UUID.randomUUID();
+        List<ClassEntry> entries = List.of(new ClassEntry(fighterId, "Fighter", null, null, 5),
+                new ClassEntry(wizardId, "Wizard", null, null, 3));
+        Map<UUID, Integer> result = MulticlassValidator.classLevels(entries);
         assertEquals(2, result.size());
-        assertEquals(5, result.get("abc-123"));
-        assertEquals(3, result.get("def-456"));
+        assertEquals(5, result.get(fighterId));
+        assertEquals(3, result.get(wizardId));
     }
 
     @Test
@@ -145,7 +149,7 @@ class MulticlassValidatorTest {
         var pc = PlayerCharacter.builder()
                 .strength(16).dexterity(14).constitution(14)
                 .intelligence(10).wisdom(12).charisma(8)
-                .multiclassEntries("[{\"classId\":\"" + fId + "\",\"className\":\"Fighter\",\"level\":3}]")
+                .multiclassEntries(List.of(new ClassEntry(fId, "Fighter", null, null, 3)))
                 .build();
 
         CharacterClass fighterClass = CharacterClass.builder()

@@ -46,7 +46,7 @@ class CreatureStatsTest {
         EncounterParticipant sorcerer = f.player("Sorcerer", 30, 12);
         sorcerer.getCharacter().setConstitution(16);
         sorcerer.getCharacter().setProficiencyBonus(3);
-        sorcerer.getCharacter().setSavingThrowProficiencies("[\"CON\",\"CHA\"]");
+        sorcerer.getCharacter().setSavingThrowProficiencies(List.of("CON", "CHA"));
 
         assertEquals(6, f.stats.saveModifier(sorcerer, Ability.CON));
         assertEquals(0, f.stats.saveModifier(sorcerer, Ability.WIS));
@@ -57,7 +57,7 @@ class CreatureStatsTest {
     void fullNamesAndRounding() {
         EncounterParticipant cleric = f.player("Cleric", 30, 12);
         cleric.getCharacter().setWisdom(9);
-        cleric.getCharacter().setSavingThrowProficiencies("[\"Wisdom\"]");
+        cleric.getCharacter().setSavingThrowProficiencies(List.of("Wisdom"));
 
         assertEquals(1, f.stats.saveModifier(cleric, Ability.WIS));
     }
@@ -129,8 +129,8 @@ class CreatureStatsTest {
     @DisplayName("A player character's defences come from its sheet, which holds no vulnerabilities yet (D161)")
     void playerDefences() {
         EncounterParticipant tiefling = f.player("Tiefling", 30, 12);
-        tiefling.getCharacter().setDamageResistances("[\"fire\"]");
-        tiefling.getCharacter().setDamageImmunities("[\"poison\"]");
+        tiefling.getCharacter().setDamageResistances(List.of("fire"));
+        tiefling.getCharacter().setDamageImmunities(List.of("poison"));
 
         assertEquals(Set.of(Defence.RESISTANCE), f.stats.defences(tiefling, "fire"));
         assertEquals(Set.of(Defence.IMMUNITY), f.stats.defences(tiefling, "poison"));

@@ -1,14 +1,28 @@
 package com.tabletophelper.character.dto;
 
+import com.tabletophelper.character.state.AbilityBonus;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.FeatResourceEntry;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.InventoryItem;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
+/** A character. Its JSON columns arrive as structured JSON, in the shapes of the character.state records (D168). */
 @Data
 @Builder
 public class CharacterResponse {
@@ -85,9 +99,6 @@ public class CharacterResponse {
     @Schema(requiredMode = REQUIRED)
     private Integer hpTemp;
 
-    private String hitDiceTotal;
-    private String hitDiceRemaining;
-
     @Schema(requiredMode = REQUIRED)
     private Integer armourClass;
 
@@ -100,27 +111,33 @@ public class CharacterResponse {
     @Schema(requiredMode = REQUIRED)
     private Integer proficiencyBonus;
 
-    private String savingThrowProficiencies;
-    private String skillProficiencies;
-    private String skillExpertises;
-    private String armorProficiencies;
-    private String weaponProficiencies;
-    private String toolProficiencies;
-    private String languageProficiencies;
-    private String damageResistances;
-    private String damageImmunities;
-    private String conditionImmunities;
+    private List<String> savingThrowProficiencies;
+    private List<String> skillProficiencies;
+    private List<String> skillExpertises;
+    private List<String> armorProficiencies;
+    private List<String> weaponProficiencies;
+    private List<String> toolProficiencies;
+    private List<String> languageProficiencies;
+    private List<String> damageResistances;
+    private List<String> damageImmunities;
+    private List<String> conditionImmunities;
 
-    private String features;
-    private String spellsKnown;
-    private String spellSlots;
+    private List<Feature> features;
+    private List<KnownSpell> spellsKnown;
+
+    // Keyed "1" to "9" by spell level, and "pact_N" for pact slots
+    private Map<String, SpellSlot> spellSlots;
+
     private Integer spellSaveDc;
     private Integer spellAttackBonus;
     private String spellcastingAbility;
-    private String subclassAlwaysPreparedSpells;
 
-    private String equipment;
-    private String currency;
+    // The always-prepared spells of each of the character's subclasses, by subclass name and then by the class
+    // level they come at
+    private Map<String, Map<String, List<String>>> subclassAlwaysPreparedSpells;
+
+    private List<InventoryItem> equipment;
+    private Currency currency;
 
     private String personalityTraits;
     private String ideals;
@@ -137,14 +154,15 @@ public class CharacterResponse {
     private String portraitUrl;
 
     private String abilityScoreMethod;
-    private String racialAbilityBonuses;
-    private String multiclassEntries;
-    private String attunedItems;
-    private String equippedItems;
-    private String hitDiceMap;
-    private String levelHistory;
-    private String featResources;
-    private String resourcePools;
+    private List<AbilityBonus> racialAbilityBonuses;
+    private List<ClassEntry> multiclassEntries;
+
+    // Keyed by class name
+    private Map<String, HitDicePool> hitDice;
+
+    private List<LevelHistoryEntry> levelHistory;
+    private List<FeatResourceEntry> featResources;
+    private List<ResourcePoolEntry> resourcePools;
 
     @Schema(requiredMode = REQUIRED)
     private Boolean isActive;

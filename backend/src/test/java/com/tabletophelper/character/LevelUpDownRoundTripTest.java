@@ -1,15 +1,17 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.CharacterResponse;
-import com.tabletophelper.character.dto.LevelHistoryEntry;
 import com.tabletophelper.character.dto.LevelUpRequest;
 import com.tabletophelper.character.dto.LevelUpResponse;
-import com.tabletophelper.character.dto.MulticlassEntry;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.UserService;
@@ -48,7 +50,6 @@ class LevelUpDownRoundTripTest {
 
     ObjectMapper objectMapper = new ObjectMapper();
     CharacterMapper characterMapper;
-    CharacterJsonHelper jsonHelper;
     FeatEffectResolver featEffectResolver;
     CharacterService service;
 
@@ -62,13 +63,12 @@ class LevelUpDownRoundTripTest {
     @BeforeEach
     void setUp() {
         characterMapper = new CharacterMapper(objectMapper, subclassRepository);
-        jsonHelper = new CharacterJsonHelper(objectMapper);
         featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
         service = new CharacterService(
                 characterRepository, userService, campaignRepository,
                 raceRepository, characterClassRepository,
                 subclassRepository, backgroundRepository, encounterParticipantRepository,
-                featRepository, featEffectResolver, characterMapper, jsonHelper, objectMapper,
+                featRepository, featEffectResolver, characterMapper, objectMapper,
                 resourcePoolService, new AccessPolicy(campaignRepository, campaignMemberRepository));
 
         user = User.builder().id(userId).displayName("Test").build();
@@ -86,25 +86,24 @@ class LevelUpDownRoundTripTest {
                 .build();
     }
 
-    private PlayerCharacter buildFighter(int level) throws Exception {
-        String mcEntries = objectMapper.writeValueAsString(List.of(
-                new MulticlassEntry(fighterId.toString(), "Fighter", null, null, level)));
-        String hdMap = objectMapper.writeValueAsString(Map.of(
-                "Fighter", Map.of("total", level, "remaining", level, "faces", 10)));
+    private PlayerCharacter buildFighter(int level) {
+        List<ClassEntry> mcEntries = List.of(
+                new ClassEntry(fighterId, "Fighter", null, null, level));
+        Map<String, HitDicePool> hdMap = Map.of("Fighter", new HitDicePool(10, level, level));
 
         List<LevelHistoryEntry> history = new ArrayList<>();
         int totalHp = 12;
-        List<LevelHistoryEntry.FeatureRecord> lvl1Features = List.of(
-                new LevelHistoryEntry.FeatureRecord("Fighting Style", "Choose a style", "Fighter"));
-        history.add(new LevelHistoryEntry(1, fighterId.toString(), "Fighter", 1, 12, lvl1Features, Map.of()));
+        List<Feature> lvl1Features = List.of(
+                new Feature("Fighting Style", "Choose a style", "Fighter"));
+        history.add(new LevelHistoryEntry(1, fighterId, "Fighter", 1, 12, lvl1Features, LevelChoices.NONE));
 
         for (int i = 2; i <= level; i++) {
             int hpGain = 7; // average d10 (5.5 → 6) + 1 CON mod
             totalHp += hpGain;
-            List<LevelHistoryEntry.FeatureRecord> features = i == 2
-                    ? List.of(new LevelHistoryEntry.FeatureRecord("Action Surge", "Take an extra action", "Fighter"))
+            List<Feature> features = i == 2
+                    ? List.of(new Feature("Action Surge", "Take an extra action", "Fighter"))
                     : List.of();
-            history.add(new LevelHistoryEntry(i, fighterId.toString(), "Fighter", i, hpGain, features, Map.of()));
+            history.add(new LevelHistoryEntry(i, fighterId, "Fighter", i, hpGain, features, LevelChoices.NONE));
         }
 
         return PlayerCharacter.builder()
@@ -115,10 +114,8 @@ class LevelUpDownRoundTripTest {
                 .hpMax(totalHp).hpCurrent(totalHp)
                 .proficiencyBonus(CharacterService.proficiencyBonusForLevel(level))
                 .multiclassEntries(mcEntries)
-                .hitDiceMap(hdMap)
-                .hitDiceTotal(level + "d10")
-                .hitDiceRemaining(level + "d10")
-                .levelHistory(objectMapper.writeValueAsString(history))
+                .hitDice(hdMap)
+                .levelHistory(history)
                 .isActive(true)
                 .build();
     }
@@ -220,8 +217,7 @@ class LevelUpDownRoundTripTest {
             assertThat(response.getLevel()).isEqualTo(1);
             assertThat(response.getHpMax()).isLessThan(hpBefore);
 
-            List<LevelHistoryEntry> history = objectMapper.readValue(
-                    response.getLevelHistory(), new TypeReference<>() {});
+            List<LevelHistoryEntry> history = response.getLevelHistory();
             assertThat(history).hasSize(1);
         }
 
@@ -238,7 +234,7 @@ class LevelUpDownRoundTripTest {
         }
 
         @Test
-        @DisplayName("Level down updates hit dice map and total")
+        @DisplayName("Level down updates the hit dice")
         void levelDownUpdatesHitDice() throws Exception {
             PlayerCharacter pc = buildFighter(3);
 
@@ -248,7 +244,7 @@ class LevelUpDownRoundTripTest {
 
             CharacterResponse response = service.levelDown(pc.getId(), userId);
 
-            assertThat(response.getHitDiceTotal()).isEqualTo("2d10");
+            assertThat(response.getHitDice()).isEqualTo(Map.of("Fighter", new HitDicePool(10, 2, 2)));
         }
     }
 
@@ -302,10 +298,10 @@ class LevelUpDownRoundTripTest {
         }
 
         @Test
-        @DisplayName("Level up then down restores hit dice total")
+        @DisplayName("Level up then down restores the hit dice")
         void levelUpThenDownRestoresHitDice() throws Exception {
             PlayerCharacter pc = buildFighter(2);
-            String originalHdTotal = pc.getHitDiceTotal();
+            Map<String, HitDicePool> originalHitDice = pc.getHitDice();
 
             when(characterRepository.findById(pc.getId())).thenReturn(Optional.of(pc));
             when(characterClassRepository.findById(fighterId)).thenReturn(Optional.of(fighter));
@@ -315,11 +311,11 @@ class LevelUpDownRoundTripTest {
             request.setClassId(fighterId);
             service.levelUp(pc.getId(), request, userId);
 
-            assertThat(pc.getHitDiceTotal()).isEqualTo("3d10");
+            assertThat(pc.getHitDice()).isEqualTo(Map.of("Fighter", new HitDicePool(10, 3, 3)));
 
             service.levelDown(pc.getId(), userId);
 
-            assertThat(pc.getHitDiceTotal()).isEqualTo(originalHdTotal);
+            assertThat(pc.getHitDice()).isEqualTo(originalHitDice);
         }
 
         @Test
@@ -402,13 +398,12 @@ class LevelUpDownRoundTripTest {
             request.setClassId(fighterId);
             service.levelUp(pc.getId(), request, userId);
 
-            List<LevelHistoryEntry> history = objectMapper.readValue(
-                    pc.getLevelHistory(), new TypeReference<>() {});
+            List<LevelHistoryEntry> history = pc.getLevelHistory();
             assertThat(history).hasSize(2);
 
             LevelHistoryEntry latest = history.get(1);
             assertThat(latest.characterLevel()).isEqualTo(2);
-            assertThat(latest.classId()).isEqualTo(fighterId.toString());
+            assertThat(latest.classId()).isEqualTo(fighterId);
             assertThat(latest.className()).isEqualTo("Fighter");
             assertThat(latest.classLevel()).isEqualTo(2);
             assertThat(latest.hpGained()).isGreaterThan(0);
@@ -425,8 +420,7 @@ class LevelUpDownRoundTripTest {
 
             service.levelDown(pc.getId(), userId);
 
-            List<LevelHistoryEntry> history = objectMapper.readValue(
-                    pc.getLevelHistory(), new TypeReference<>() {});
+            List<LevelHistoryEntry> history = pc.getLevelHistory();
             assertThat(history).hasSize(2);
             assertThat(history.get(history.size() - 1).characterLevel()).isEqualTo(2);
         }
@@ -439,15 +433,15 @@ class LevelUpDownRoundTripTest {
         @Test
         @DisplayName("Wizard level up recalculates spell slots")
         void wizardLevelUpRecalculatesSlots() throws Exception {
-            String mcEntries = objectMapper.writeValueAsString(List.of(
-                    new MulticlassEntry(wizardId.toString(), "Wizard", null, null, 1)));
-            String hdMap = objectMapper.writeValueAsString(Map.of(
-                    "Wizard", Map.of("total", 1, "remaining", 1, "faces", 6)));
+            List<ClassEntry> mcEntries = List.of(
+                    new ClassEntry(wizardId, "Wizard", null, null, 1));
+            Map<String, HitDicePool> hdMap = Map.of(
+                    "Wizard", new HitDicePool(6, 1, 1));
 
             List<LevelHistoryEntry> history = List.of(
-                    new LevelHistoryEntry(1, wizardId.toString(), "Wizard", 1, 8,
-                            List.of(new LevelHistoryEntry.FeatureRecord("Arcane Recovery", "Recover spell slots", "Wizard")),
-                            Map.of()));
+                    new LevelHistoryEntry(1, wizardId, "Wizard", 1, 8,
+                            List.of(new Feature("Arcane Recovery", "Recover spell slots", "Wizard")),
+                            LevelChoices.NONE));
 
             PlayerCharacter pc = PlayerCharacter.builder()
                     .id(UUID.randomUUID()).user(user).name("TestWizard")
@@ -455,10 +449,9 @@ class LevelUpDownRoundTripTest {
                     .classRef(wizard).strength(8).dexterity(14).constitution(12)
                     .intelligence(16).wisdom(10).charisma(10)
                     .hpMax(8).hpCurrent(8).proficiencyBonus(2)
-                    .multiclassEntries(mcEntries).hitDiceMap(hdMap)
-                    .hitDiceTotal("1d6").hitDiceRemaining("1d6")
+                    .multiclassEntries(mcEntries).hitDice(hdMap)
                     .spellcastingAbility("INT")
-                    .levelHistory(objectMapper.writeValueAsString(history))
+                    .levelHistory(history)
                     .isActive(true)
                     .build();
 
@@ -506,9 +499,9 @@ class LevelUpDownRoundTripTest {
             // Spell slots should appear (Wizard caster level 1 = 2 first-level slots)
             assertThat(pc.getSpellSlots()).isNotNull();
 
-            // Hit dice should include both d10 and d6
-            assertThat(pc.getHitDiceTotal()).contains("d10");
-            assertThat(pc.getHitDiceTotal()).contains("d6");
+            // Hit dice should include both the Fighter's d10s and the Wizard's d6
+            assertThat(pc.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 3, 3));
+            assertThat(pc.getHitDice()).containsEntry("Wizard", new HitDicePool(6, 1, 1));
         }
     }
 
@@ -524,24 +517,23 @@ class LevelUpDownRoundTripTest {
             int wizardHpGain = 6 + conMod; // Wizard class level 1 = max d6 + CON
             int totalHp = fighterHp + wizardHpGain;
 
-            String mcEntries = objectMapper.writeValueAsString(List.of(
-                    new MulticlassEntry(fighterId.toString(), "Fighter", null, null, 3),
-                    new MulticlassEntry(wizardId.toString(), "Wizard", null, null, 1)));
+            List<ClassEntry> mcEntries = List.of(
+                    new ClassEntry(fighterId, "Fighter", null, null, 3),
+                    new ClassEntry(wizardId, "Wizard", null, null, 1));
 
-            Map<String, Map<String, Object>> hdMapObj = new LinkedHashMap<>();
-            hdMapObj.put("Fighter", Map.of("total", 3, "remaining", 3, "faces", 10));
-            hdMapObj.put("Wizard", Map.of("total", 1, "remaining", 1, "faces", 6));
-            String hdMap = objectMapper.writeValueAsString(hdMapObj);
+            Map<String, HitDicePool> hdMap = new LinkedHashMap<>();
+            hdMap.put("Fighter", new HitDicePool(10, 3, 3));
+            hdMap.put("Wizard", new HitDicePool(6, 1, 1));
 
             List<LevelHistoryEntry> history = new ArrayList<>();
-            history.add(new LevelHistoryEntry(1, fighterId.toString(), "Fighter", 1,
-                    10 + conMod, List.of(), Map.of()));
-            history.add(new LevelHistoryEntry(2, fighterId.toString(), "Fighter", 2,
-                    (10 / 2 + 1) + conMod, List.of(), Map.of()));
-            history.add(new LevelHistoryEntry(3, fighterId.toString(), "Fighter", 3,
-                    (10 / 2 + 1) + conMod, List.of(), Map.of()));
-            history.add(new LevelHistoryEntry(4, wizardId.toString(), "Wizard", 1,
-                    wizardHpGain, List.of(), Map.of()));
+            history.add(new LevelHistoryEntry(1, fighterId, "Fighter", 1,
+                    10 + conMod, List.of(), LevelChoices.NONE));
+            history.add(new LevelHistoryEntry(2, fighterId, "Fighter", 2,
+                    (10 / 2 + 1) + conMod, List.of(), LevelChoices.NONE));
+            history.add(new LevelHistoryEntry(3, fighterId, "Fighter", 3,
+                    (10 / 2 + 1) + conMod, List.of(), LevelChoices.NONE));
+            history.add(new LevelHistoryEntry(4, wizardId, "Wizard", 1,
+                    wizardHpGain, List.of(), LevelChoices.NONE));
 
             PlayerCharacter pc = PlayerCharacter.builder()
                     .id(UUID.randomUUID()).user(user).name("TestMulticlass")
@@ -550,10 +542,9 @@ class LevelUpDownRoundTripTest {
                     .intelligence(10).wisdom(10).charisma(10)
                     .hpMax(totalHp).hpCurrent(totalHp)
                     .proficiencyBonus(CharacterService.proficiencyBonusForLevel(4))
-                    .multiclassEntries(mcEntries).hitDiceMap(hdMap)
-                    .hitDiceTotal("3d10 + 1d6").hitDiceRemaining("3d10 + 1d6")
+                    .multiclassEntries(mcEntries).hitDice(hdMap)
                     .spellcastingAbility("INT")
-                    .levelHistory(objectMapper.writeValueAsString(history))
+                    .levelHistory(history)
                     .isActive(true)
                     .build();
 
@@ -572,7 +563,7 @@ class LevelUpDownRoundTripTest {
             assertThat(pc.getSpellSlots()).isNull();
 
             // Hit dice should be only Fighter's d10
-            assertThat(pc.getHitDiceTotal()).isEqualTo("3d10");
+            assertThat(pc.getHitDice()).isEqualTo(Map.of("Fighter", new HitDicePool(10, 3, 3)));
         }
     }
 
@@ -610,21 +601,21 @@ class LevelUpDownRoundTripTest {
             int avgHpGain = (6 / 2 + 1) + conMod;
             int totalHp = level1Hp + 4 * avgHpGain;
 
-            String mcEntries = objectMapper.writeValueAsString(List.of(
-                    new MulticlassEntry(wizardId.toString(), "Wizard", null, null, 5)));
-            String hdMap = objectMapper.writeValueAsString(Map.of(
-                    "Wizard", Map.of("total", 5, "remaining", 5, "faces", 6)));
+            List<ClassEntry> mcEntries = List.of(
+                    new ClassEntry(wizardId, "Wizard", null, null, 5));
+            Map<String, HitDicePool> hdMap = Map.of(
+                    "Wizard", new HitDicePool(6, 5, 5));
 
             List<LevelHistoryEntry> history = new ArrayList<>();
-            history.add(new LevelHistoryEntry(1, wizardId.toString(), "Wizard", 1, level1Hp,
-                    List.of(new LevelHistoryEntry.FeatureRecord("Arcane Recovery", "Recover spell slots", "Wizard")),
-                    Map.of()));
+            history.add(new LevelHistoryEntry(1, wizardId, "Wizard", 1, level1Hp,
+                    List.of(new Feature("Arcane Recovery", "Recover spell slots", "Wizard")),
+                    LevelChoices.NONE));
             for (int i = 2; i <= 5; i++) {
-                List<LevelHistoryEntry.FeatureRecord> features = i == 2
-                        ? List.of(new LevelHistoryEntry.FeatureRecord("Arcane Tradition", "Choose a tradition", "Wizard"))
+                List<Feature> features = i == 2
+                        ? List.of(new Feature("Arcane Tradition", "Choose a tradition", "Wizard"))
                         : List.of();
-                history.add(new LevelHistoryEntry(i, wizardId.toString(), "Wizard", i, avgHpGain,
-                        features, Map.of()));
+                history.add(new LevelHistoryEntry(i, wizardId, "Wizard", i, avgHpGain,
+                        features, LevelChoices.NONE));
             }
 
             PlayerCharacter pc = PlayerCharacter.builder()
@@ -634,10 +625,9 @@ class LevelUpDownRoundTripTest {
                     .intelligence(16).wisdom(10).charisma(10)
                     .hpMax(totalHp).hpCurrent(totalHp)
                     .proficiencyBonus(CharacterService.proficiencyBonusForLevel(5))
-                    .multiclassEntries(mcEntries).hitDiceMap(hdMap)
-                    .hitDiceTotal("5d6").hitDiceRemaining("5d6")
+                    .multiclassEntries(mcEntries).hitDice(hdMap)
                     .spellcastingAbility("INT")
-                    .levelHistory(objectMapper.writeValueAsString(history))
+                    .levelHistory(history)
                     .isActive(true)
                     .build();
 
@@ -653,12 +643,12 @@ class LevelUpDownRoundTripTest {
             // Spell slots should be recalculated for caster level 4
             // Level 4 full caster: 4/3 at levels 1/2, no 3rd-level slots
             assertThat(pc.getSpellSlots()).isNotNull();
-            assertThat(pc.getSpellSlots()).contains("\"1\"");
-            assertThat(pc.getSpellSlots()).contains("\"2\"");
-            assertThat(pc.getSpellSlots()).doesNotContain("\"3\"");
+            assertThat(pc.getSpellSlots()).containsKey("1");
+            assertThat(pc.getSpellSlots()).containsKey("2");
+            assertThat(pc.getSpellSlots()).doesNotContainKey("3");
 
-            // Hit dice total should reflect 4d6
-            assertThat(pc.getHitDiceTotal()).isEqualTo("4d6");
+            // Hit dice should be 4d6
+            assertThat(pc.getHitDice()).isEqualTo(Map.of("Wizard", new HitDicePool(6, 4, 4)));
         }
     }
 }

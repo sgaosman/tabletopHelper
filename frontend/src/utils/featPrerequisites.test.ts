@@ -85,7 +85,7 @@ describe('featPrerequisites', () => {
         prerequisite: JSON.stringify([{ proficiency: ['heavy armor'] }]),
       });
       const character = mockCharacter({
-        armorProficiencies: JSON.stringify(['Light Armor', 'Medium Armor', 'Heavy Armor', 'Shields']),
+        armorProficiencies: ['Light Armor', 'Medium Armor', 'Heavy Armor', 'Shields'],
       });
 
       const result = checkFeatPrerequisites(feat, character);
@@ -98,7 +98,7 @@ describe('featPrerequisites', () => {
         prerequisite: JSON.stringify([{ proficiency: ['heavy armor'] }]),
       });
       const character = mockCharacter({
-        armorProficiencies: JSON.stringify(['Light Armor']),
+        armorProficiencies: ['Light Armor'],
       });
 
       const result = checkFeatPrerequisites(feat, character);

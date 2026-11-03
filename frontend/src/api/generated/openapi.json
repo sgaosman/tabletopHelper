@@ -3172,6 +3172,22 @@
   },
   "components": {
     "schemas": {
+      "AbilityBonus": {
+        "required": [
+          "bonus"
+        ],
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string",
+            "nullable": true
+          },
+          "bonus": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "AbilityIncrease": {
         "type": "object",
         "properties": {
@@ -3183,6 +3199,47 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        }
+      },
+      "AbilityScoreImprovement": {
+        "type": "object",
+        "properties": {
+          "appliedEffects": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AppliedFeatEffects"
+              }
+            ]
+          },
+          "featAbility": {
+            "type": "string",
+            "nullable": true
+          },
+          "featId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "featName": {
+            "type": "string",
+            "nullable": true
+          },
+          "increases": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AbilityBonus"
+            }
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ability",
+              "feat"
+            ]
           }
         }
       },
@@ -3240,6 +3297,119 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        }
+      },
+      "AppliedFeatEffects": {
+        "type": "object",
+        "properties": {
+          "abilityIncreases": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "armorProficienciesAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "expertiseAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "featName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hpPerLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "initiativeBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "languageProficienciesAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "passiveInvestigationBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "passivePerceptionBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "resistancesAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "resource": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeatResourceEntry"
+              }
+            ]
+          },
+          "savingThrowProficienciesAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "skillProficienciesAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "speedBonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spellsAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/KnownSpell"
+            }
+          },
+          "toolProficienciesAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "weaponProficienciesAdded": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -3893,8 +4063,11 @@
             "nullable": true
           },
           "armorProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "armourClass": {
             "type": "integer",
@@ -3939,12 +4112,19 @@
             "nullable": true
           },
           "currency": {
-            "type": "string",
-            "nullable": true
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Currency"
+              }
+            ]
           },
           "damageResistances": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "dexterity": {
             "maximum": 30,
@@ -3954,15 +4134,24 @@
             "nullable": true
           },
           "equipment": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/InventoryItem"
+            }
           },
           "features": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Feature"
+            }
           },
-          "hitDiceMap": {
-            "type": "string",
+          "hitDice": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HitDicePool"
+            },
             "nullable": true
           },
           "hpMax": {
@@ -3984,8 +4173,11 @@
             "nullable": true
           },
           "languageProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "level": {
             "maximum": 20,
@@ -3995,8 +4187,11 @@
             "nullable": true
           },
           "multiclassClassEntries": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ClassEntry"
+            }
           },
           "name": {
             "maxLength": 200,
@@ -4017,20 +4212,32 @@
             "format": "uuid"
           },
           "racialAbilityBonuses": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AbilityBonus"
+            }
           },
           "savingThrowProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "skillExpertises": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "skillProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "speed": {
             "type": "integer",
@@ -4048,7 +4255,10 @@
             "nullable": true
           },
           "spellSlots": {
-            "type": "string",
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SpellSlot"
+            },
             "nullable": true
           },
           "spellcastingAbility": {
@@ -4056,8 +4266,11 @@
             "nullable": true
           },
           "spellsKnown": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/KnownSpell"
+            }
           },
           "strength": {
             "maximum": 30,
@@ -4076,12 +4289,18 @@
             "nullable": true
           },
           "toolProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "weaponProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "wisdom": {
             "maximum": 30,
@@ -4130,16 +4349,15 @@
             "nullable": true
           },
           "armorProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "armourClass": {
             "type": "integer",
             "format": "int32"
-          },
-          "attunedItems": {
-            "type": "string",
-            "nullable": true
           },
           "background": {
             "type": "string",
@@ -4181,8 +4399,11 @@
             "nullable": true
           },
           "conditionImmunities": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "constitution": {
             "type": "integer",
@@ -4194,16 +4415,26 @@
             "nullable": true
           },
           "currency": {
-            "type": "string",
-            "nullable": true
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Currency"
+              }
+            ]
           },
           "damageImmunities": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "damageResistances": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "deathSaveFailures": {
             "type": "integer",
@@ -4218,39 +4449,39 @@
             "format": "int32"
           },
           "equipment": {
-            "type": "string",
-            "nullable": true
-          },
-          "equippedItems": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/InventoryItem"
+            }
           },
           "experiencePoints": {
             "type": "integer",
             "format": "int32"
           },
           "featResources": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/FeatResourceEntry"
+            }
           },
           "features": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Feature"
+            }
           },
           "flaws": {
             "type": "string",
             "nullable": true
           },
-          "hitDiceMap": {
-            "type": "string",
-            "nullable": true
-          },
-          "hitDiceRemaining": {
-            "type": "string",
-            "nullable": true
-          },
-          "hitDiceTotal": {
-            "type": "string",
+          "hitDice": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HitDicePool"
+            },
             "nullable": true
           },
           "hpCurrent": {
@@ -4285,20 +4516,29 @@
             "type": "boolean"
           },
           "languageProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "level": {
             "type": "integer",
             "format": "int32"
           },
           "levelHistory": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/LevelHistoryEntry"
+            }
           },
           "multiclassEntries": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ClassEntry"
+            }
           },
           "name": {
             "type": "string"
@@ -4334,24 +4574,39 @@
             "type": "string"
           },
           "racialAbilityBonuses": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AbilityBonus"
+            }
           },
           "resourcePools": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ResourcePoolEntry"
+            }
           },
           "savingThrowProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "skillExpertises": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "skillProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "speed": {
             "type": "integer",
@@ -4368,7 +4623,10 @@
             "nullable": true
           },
           "spellSlots": {
-            "type": "string",
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SpellSlot"
+            },
             "nullable": true
           },
           "spellcastingAbility": {
@@ -4376,8 +4634,11 @@
             "nullable": true
           },
           "spellsKnown": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/KnownSpell"
+            }
           },
           "strength": {
             "type": "integer",
@@ -4388,7 +4649,16 @@
             "nullable": true
           },
           "subclassAlwaysPreparedSpells": {
-            "type": "string",
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
             "nullable": true
           },
           "subclassId": {
@@ -4401,8 +4671,11 @@
             "nullable": true
           },
           "toolProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "updatedAt": {
             "type": "string",
@@ -4414,8 +4687,11 @@
             "format": "uuid"
           },
           "weaponProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "wisdom": {
             "type": "integer",
@@ -4435,17 +4711,16 @@
             "nullable": true
           },
           "armorProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "armourClass": {
             "minimum": 0,
             "type": "integer",
             "format": "int32",
-            "nullable": true
-          },
-          "attunedItems": {
-            "type": "string",
             "nullable": true
           },
           "background": {
@@ -4487,8 +4762,11 @@
             "nullable": true
           },
           "conditionImmunities": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "constitution": {
             "maximum": 30,
@@ -4498,16 +4776,26 @@
             "nullable": true
           },
           "currency": {
-            "type": "string",
-            "nullable": true
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Currency"
+              }
+            ]
           },
           "damageImmunities": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "damageResistances": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "dexterity": {
             "maximum": 30,
@@ -4517,12 +4805,11 @@
             "nullable": true
           },
           "equipment": {
-            "type": "string",
-            "nullable": true
-          },
-          "equippedItems": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/InventoryItem"
+            }
           },
           "experiencePoints": {
             "minimum": 0,
@@ -4531,27 +4818,28 @@
             "nullable": true
           },
           "featResources": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/FeatResourceEntry"
+            }
           },
           "features": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Feature"
+            }
           },
           "flaws": {
             "type": "string",
             "nullable": true
           },
-          "hitDiceMap": {
-            "type": "string",
-            "nullable": true
-          },
-          "hitDiceRemaining": {
-            "type": "string",
-            "nullable": true
-          },
-          "hitDiceTotal": {
-            "type": "string",
+          "hitDice": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HitDicePool"
+            },
             "nullable": true
           },
           "hpCurrent": {
@@ -4589,8 +4877,11 @@
             "nullable": true
           },
           "languageProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "level": {
             "maximum": 20,
@@ -4600,12 +4891,18 @@
             "nullable": true
           },
           "levelHistory": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/LevelHistoryEntry"
+            }
           },
           "multiclassEntries": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ClassEntry"
+            }
           },
           "name": {
             "maxLength": 100,
@@ -4642,24 +4939,39 @@
             "nullable": true
           },
           "racialAbilityBonuses": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AbilityBonus"
+            }
           },
           "resourcePools": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ResourcePoolEntry"
+            }
           },
           "savingThrowProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "skillExpertises": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "skillProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "speed": {
             "minimum": 0,
@@ -4678,7 +4990,10 @@
             "nullable": true
           },
           "spellSlots": {
-            "type": "string",
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SpellSlot"
+            },
             "nullable": true
           },
           "spellcastingAbility": {
@@ -4686,8 +5001,11 @@
             "nullable": true
           },
           "spellsKnown": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/KnownSpell"
+            }
           },
           "strength": {
             "maximum": 30,
@@ -4706,18 +5024,54 @@
             "nullable": true
           },
           "toolProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "weaponProficiencies": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           },
           "wisdom": {
             "maximum": 30,
             "minimum": 1,
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "ClassEntry": {
+        "required": [
+          "classId",
+          "level"
+        ],
+        "type": "object",
+        "properties": {
+          "classId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "className": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "subclassId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "subclassName": {
+            "type": "string",
             "nullable": true
           }
         }
@@ -5006,6 +5360,38 @@
           }
         }
       },
+      "Currency": {
+        "required": [
+          "cp",
+          "ep",
+          "gp",
+          "pp",
+          "sp"
+        ],
+        "type": "object",
+        "properties": {
+          "cp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ep": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "gp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sp": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "DamageRequest": {
         "required": [
           "amount",
@@ -5249,6 +5635,54 @@
           }
         }
       },
+      "FeatResourceEntry": {
+        "required": [
+          "currentUses",
+          "maxUses"
+        ],
+        "type": "object",
+        "properties": {
+          "currentUses": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "featName": {
+            "type": "string",
+            "nullable": true
+          },
+          "maxUses": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "resetOn": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Feature": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "HealRequest": {
         "required": [
           "amount",
@@ -5264,6 +5698,61 @@
           "targetId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "HitDicePool": {
+        "required": [
+          "dieSize",
+          "remaining",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "dieSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remaining": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "InventoryItem": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "attuned": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "equipped": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },
@@ -5423,6 +5912,65 @@
           "combatLogId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "LevelChoices": {
+        "type": "object",
+        "properties": {
+          "asi": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AbilityScoreImprovement"
+              }
+            ]
+          }
+        }
+      },
+      "LevelHistoryEntry": {
+        "required": [
+          "characterLevel",
+          "classLevel",
+          "hpGained"
+        ],
+        "type": "object",
+        "properties": {
+          "characterLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "choices": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LevelChoices"
+              }
+            ]
+          },
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "classLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "className": {
+            "type": "string",
+            "nullable": true
+          },
+          "featuresGained": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Feature"
+            }
+          },
+          "hpGained": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

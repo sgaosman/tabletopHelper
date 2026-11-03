@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.campaign.AccessPolicy;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -14,7 +15,6 @@ import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;

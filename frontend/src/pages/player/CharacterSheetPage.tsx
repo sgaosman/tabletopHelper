@@ -11,11 +11,11 @@ import ExpertiseModal from '../../components/character/ExpertiseModal';
 import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import Modal from '../../components/ui/Modal';
-import type { PlayerCharacter, CharacterUpdateRequest, LevelUpResponse } from '../../types/character';
+import type { PlayerCharacter, CharacterUpdateRequest, Currency, HitDicePool, LevelUpResponse } from '../../types/character';
+import type { SpellSlot } from '../../types/encounter';
 import { THIRD_CASTER_SUBCLASSES } from '../../utils/spellConstants';
-import { abilityMod, formatMod, safeJsonParse } from '../../utils/dndRules';
+import { abilityMod, formatMod } from '../../utils/dndRules';
 import { getClassColour } from '../../utils/classColours';
-import type { SpellEntry } from './sheet/types';
 import StatsTab from './sheet/StatsTab';
 import ActionsTab from './sheet/ActionsTab';
 import SpellsTab from './sheet/SpellsTab';
@@ -87,18 +87,18 @@ export default function CharacterSheetPage() {
     }
   }
 
-  const savingThrows = useMemo(() => safeJsonParse<string[]>(char?.savingThrowProficiencies, []), [char?.savingThrowProficiencies]);
-  const skillProfs = useMemo(() => safeJsonParse<string[]>(char?.skillProficiencies, []), [char?.skillProficiencies]);
-  const skillExpertises = useMemo(() => safeJsonParse<string[]>(char?.skillExpertises, []), [char?.skillExpertises]);
-  const features = useMemo(() => safeJsonParse<Array<{ name: string; description: string; source?: string }>>(char?.features, []), [char?.features]);
-  const equipment = useMemo(() => safeJsonParse<Array<{ name: string; quantity?: number; description?: string }>>(char?.equipment, []), [char?.equipment]);
-  const currency = useMemo(() => safeJsonParse<{ cp: number; sp: number; ep: number; gp: number; pp: number }>(char?.currency, { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }), [char?.currency]);
-  const spellsKnown = useMemo(() => safeJsonParse<SpellEntry[]>(char?.spellsKnown, []), [char?.spellsKnown]);
-  const spellSlots = useMemo(() => safeJsonParse<Record<string, { total: number; used: number }>>(char?.spellSlots, {}), [char?.spellSlots]);
-  const resistances = useMemo(() => safeJsonParse<string[]>(char?.damageResistances, []), [char?.damageResistances]);
-  const hitDiceMap = useMemo(() => safeJsonParse<Record<string, { total: number; remaining: number; faces: number }>>(char?.hitDiceMap, {}), [char?.hitDiceMap]);
-  const featResources = useMemo(() => safeJsonParse<Array<{ featName: string; name: string; maxUses: number; currentUses: number; resetOn: string }>>(char?.featResources, []), [char?.featResources]);
-  const resourcePools = useMemo(() => safeJsonParse<import('../../types/encounter').ResourcePoolEntry[]>(char?.resourcePools, []), [char?.resourcePools]);
+  const savingThrows = useMemo(() => char?.savingThrowProficiencies ?? [], [char?.savingThrowProficiencies]);
+  const skillProfs = useMemo(() => char?.skillProficiencies ?? [], [char?.skillProficiencies]);
+  const skillExpertises = useMemo(() => char?.skillExpertises ?? [], [char?.skillExpertises]);
+  const features = useMemo(() => char?.features ?? [], [char?.features]);
+  const equipment = useMemo(() => char?.equipment ?? [], [char?.equipment]);
+  const currency = useMemo<Currency>(() => char?.currency ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }, [char?.currency]);
+  const spellsKnown = useMemo(() => char?.spellsKnown ?? [], [char?.spellsKnown]);
+  const spellSlots = useMemo<Record<string, SpellSlot>>(() => char?.spellSlots ?? {}, [char?.spellSlots]);
+  const resistances = useMemo(() => char?.damageResistances ?? [], [char?.damageResistances]);
+  const hitDice = useMemo<Record<string, HitDicePool>>(() => char?.hitDice ?? {}, [char?.hitDice]);
+  const featResources = useMemo(() => char?.featResources ?? [], [char?.featResources]);
+  const resourcePools = useMemo(() => char?.resourcePools ?? [], [char?.resourcePools]);
 
   // Pre-compute rest modal contents (avoids IIFE parse errors in JSX)
   const shortRestPools = useMemo(() => resourcePools.filter(p => p.resetOn === 'shortRest' && p.currentUses < p.maxUses),
@@ -126,12 +126,12 @@ export default function CharacterSheetPage() {
 
   async function handleShortRest() {
     if (!char) return;
-    const updated = { ...hitDiceMap };
+    const updated = { ...hitDice };
     let hpGain = 0;
     for (const [cls, count] of Object.entries(shortRestDice)) {
       if (count > 0 && updated[cls]) {
         for (let i = 0; i < count; i++) {
-          const roll = Math.ceil(updated[cls].faces / 2) + 1;
+          const roll = Math.ceil(updated[cls].dieSize / 2) + 1;
           hpGain += Math.max(0, roll + abilityMod(char.constitution));
         }
         updated[cls] = { ...updated[cls], remaining: updated[cls].remaining - count };
@@ -139,7 +139,7 @@ export default function CharacterSheetPage() {
     }
 
     const newHp = Math.min(char.hpMax, char.hpCurrent + hpGain);
-    const resetSlots: Record<string, { total: number; used: number }> = {};
+    const resetSlots: Record<string, SpellSlot> = {};
     for (const [key, slot] of Object.entries(spellSlots)) {
       if (key.startsWith('pact_')) {
         resetSlots[key] = { ...slot, used: 0 };
@@ -156,11 +156,11 @@ export default function CharacterSheetPage() {
 
     const updates: CharacterUpdateRequest = {
       hpCurrent: newHp,
-      hitDiceMap: JSON.stringify(updated),
+      hitDice: updated,
     };
-    if (Object.keys(resetSlots).length > 0) updates.spellSlots = JSON.stringify(resetSlots);
-    if (resetResources.length > 0) updates.featResources = JSON.stringify(resetResources);
-    if (resetPools.length > 0) updates.resourcePools = JSON.stringify(resetPools);
+    if (Object.keys(resetSlots).length > 0) updates.spellSlots = resetSlots;
+    if (resetResources.length > 0) updates.featResources = resetResources;
+    if (resetPools.length > 0) updates.resourcePools = resetPools;
     await saveField(updates);
     setShortRestDice({});
     setRestModal(null);
@@ -173,12 +173,12 @@ export default function CharacterSheetPage() {
 
   async function handleLongRest() {
     if (!char) return;
-    const updated = { ...hitDiceMap };
+    const updated = { ...hitDice };
     for (const [cls, hd] of Object.entries(updated)) {
       const regain = Math.max(1, Math.floor(hd.total / 2));
       updated[cls] = { ...hd, remaining: Math.min(hd.total, hd.remaining + regain) };
     }
-    const resetSlots: Record<string, { total: number; used: number }> = {};
+    const resetSlots: Record<string, SpellSlot> = {};
     for (const [lvl, slot] of Object.entries(spellSlots)) {
       resetSlots[lvl] = { ...slot, used: 0 };
     }
@@ -190,10 +190,10 @@ export default function CharacterSheetPage() {
     await saveField({
       hpCurrent: char.hpMax,
       hpTemp: 0,
-      hitDiceMap: JSON.stringify(updated),
-      spellSlots: Object.keys(resetSlots).length > 0 ? JSON.stringify(resetSlots) : undefined,
-      featResources: resetResources.length > 0 ? JSON.stringify(resetResources) : undefined,
-      resourcePools: resetPools.length > 0 ? JSON.stringify(resetPools) : undefined,
+      hitDice: updated,
+      spellSlots: Object.keys(resetSlots).length > 0 ? resetSlots : undefined,
+      featResources: resetResources.length > 0 ? resetResources : undefined,
+      resourcePools: resetPools.length > 0 ? resetPools : undefined,
     });
     setRestModal(null);
   }
@@ -241,7 +241,7 @@ export default function CharacterSheetPage() {
 
     let updatedPending = pendingLevelClass;
     if (updatedPending && !updatedPending.spellSelectionNeeded) {
-      const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(updated.multiclassEntries, []);
+      const mcEntries = updated.multiclassEntries ?? [];
       const entry = mcEntries.find(e => e.className === updatedPending!.className);
       if (entry?.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName)) {
         updatedPending = { ...updatedPending, spellSelectionNeeded: true, spellSelectionType: 'known' };
@@ -301,7 +301,7 @@ export default function CharacterSheetPage() {
             <p className="font-body text-[14px] font-semibold text-muted">
               Level {char.level} {char.race}{' '}
               {(() => {
-                const entries = safeJsonParse<Array<{ className: string; level: number }>>(char.multiclassEntries, []);
+                const entries = char.multiclassEntries ?? [];
                 if (entries.length > 1) {
                   return entries.map(e => `${e.className} ${e.level}`).join(' / ');
                 }
@@ -374,7 +374,7 @@ export default function CharacterSheetPage() {
                         onClick={() => {
                           const updated = [...featResources];
                           updated[i] = { ...r, currentUses: newUses };
-                          saveField({ featResources: JSON.stringify(updated) });
+                          saveField({ featResources: updated });
                         }}
                         className="w-4 h-4 rounded-full border transition-colors"
                         style={{
@@ -409,13 +409,13 @@ export default function CharacterSheetPage() {
             const updated = resourcePools.map(p =>
               p.poolId === poolId ? { ...p, currentUses: Math.max(0, p.currentUses - 1) } : p
             );
-            saveField({ resourcePools: JSON.stringify(updated) });
+            saveField({ resourcePools: updated });
           }}
           onRecover={(poolId) => {
             const updated = resourcePools.map(p =>
               p.poolId === poolId ? { ...p, currentUses: Math.min(p.maxUses, p.currentUses + 1) } : p
             );
-            saveField({ resourcePools: JSON.stringify(updated) });
+            saveField({ resourcePools: updated });
           }}
         />
 
@@ -575,12 +575,12 @@ export default function CharacterSheetPage() {
           {restModal === 'short' ? (
             <div className="space-y-3">
               <p className="font-body text-[15px] font-semibold text-muted">
-                Spend hit dice to regain hit points. For each die spent, regain 1d{Object.values(hitDiceMap)[0]?.faces ?? 8} + CON modifier HP.
+                Spend hit dice to regain hit points. For each die spent, regain 1d{Object.values(hitDice)[0]?.dieSize ?? 8} + CON modifier HP.
               </p>
               <div className="space-y-2">
-                {Object.entries(hitDiceMap).map(([cls, hd]) => (
+                {Object.entries(hitDice).map(([cls, hd]) => (
                   <div key={cls} className="flex items-center justify-between bg-page-alt border border-rule px-3 py-2">
-                    <span className="font-body text-[15px] font-semibold text-ink">{cls} (d{hd.faces})</span>
+                    <span className="font-body text-[15px] font-semibold text-ink">{cls} (d{hd.dieSize})</span>
                     <div className="flex items-center gap-2">
                       <span className="font-body text-[13px] text-faint">{hd.remaining}/{hd.total} remaining</span>
                       <IconButton
@@ -610,7 +610,7 @@ export default function CharacterSheetPage() {
                     </p>
                   ))}
                   {shortRestFeats.map(r => (
-                    <p key={r.featName + r.name} className="font-body text-[13px] text-faint ml-2">
+                    <p key={(r.featName ?? '') + (r.name ?? '')} className="font-body text-[13px] text-faint ml-2">
                       • {r.name} ({r.currentUses}/{r.maxUses} → {r.maxUses}/{r.maxUses})
                     </p>
                   ))}
@@ -631,7 +631,7 @@ export default function CharacterSheetPage() {
                     </p>
                   ))}
                   {longRestFeats.map(r => (
-                    <p key={r.featName + r.name} className="font-body text-[13px] text-faint ml-2">
+                    <p key={(r.featName ?? '') + (r.name ?? '')} className="font-body text-[13px] text-faint ml-2">
                       • {r.name} ({r.currentUses}/{r.maxUses} → {r.maxUses}/{r.maxUses})
                     </p>
                   ))}

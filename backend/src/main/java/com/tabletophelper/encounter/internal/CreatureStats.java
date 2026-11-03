@@ -123,11 +123,10 @@ public class CreatureStats {
             }
         } else if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
-            String name = character.getName();
-            if (lists(character.getDamageResistances(), name + "'s damage resistances", type)) {
+            if (lists(character.getDamageResistances(), type)) {
                 defences.add(Defence.RESISTANCE);
             }
-            if (lists(character.getDamageImmunities(), name + "'s damage immunities", type)) {
+            if (lists(character.getDamageImmunities(), type)) {
                 defences.add(Defence.IMMUNITY);
             }
         }
@@ -163,11 +162,13 @@ public class CreatureStats {
         return spellAttackBonus - ProficiencyBonus.forLevel(level(participant));
     }
 
-    private boolean proficientInSave(PlayerCharacter character, Ability ability) {
-        JsonNode saves = StoredJson.read(objectMapper, character.getSavingThrowProficiencies(),
-                character.getName() + "'s saving throw proficiencies");
-        for (JsonNode save : saves) {
-            if (save.isTextual() && Ability.parse(save.asText()).filter(ability::equals).isPresent()) {
+    private static boolean proficientInSave(PlayerCharacter character, Ability ability) {
+        List<String> saves = character.getSavingThrowProficiencies();
+        if (saves == null) {
+            return false;
+        }
+        for (String save : saves) {
+            if (save != null && Ability.parse(save).filter(ability::equals).isPresent()) {
                 return true;
             }
         }
@@ -178,6 +179,19 @@ public class CreatureStats {
     private boolean lists(String json, String what, String damageType) {
         for (JsonNode entry : StoredJson.read(objectMapper, json, what)) {
             if (entry.isTextual() && entry.asText().trim().equalsIgnoreCase(damageType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Whether a character sheet's list of damage types names this one, in any case
+    private static boolean lists(List<String> damageTypes, String damageType) {
+        if (damageTypes == null) {
+            return false;
+        }
+        for (String entry : damageTypes) {
+            if (entry != null && entry.trim().equalsIgnoreCase(damageType)) {
                 return true;
             }
         }

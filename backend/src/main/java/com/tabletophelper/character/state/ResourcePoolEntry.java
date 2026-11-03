@@ -1,5 +1,6 @@
-package com.tabletophelper.character.dto;
+package com.tabletophelper.character.state;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
@@ -8,8 +9,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * A single resource pool entry stored on player_characters.resource_pools
  * and encounter_participants.resource_pools_current, where it is typed (D168).
  *
- * <p>Subsumes the old {@code feat_resources} and {@code hit_dice_map} patterns.
- * Spell slots, HP, death saves, conditions, and action economy remain separate.</p>
+ * <p>Meant to subsume the old {@code feat_resources} pattern. Hit dice are not a pool: they have their own
+ * {@code hit_dice} column ({@link HitDicePool}). Spell slots, HP, death saves, conditions, and action economy
+ * remain separate.</p>
  *
  * @param poolId           canonical identifier, e.g. "class:monk-ki"
  * @param displayName      human-readable label
@@ -25,6 +27,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param icon             lucide-react icon name
  * @param metadata         extra JSONB data (hitDie faces, breath shape, etc.)
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ResourcePoolEntry(
         @Schema(requiredMode = REQUIRED) String poolId,
         @Schema(requiredMode = REQUIRED) String displayName,

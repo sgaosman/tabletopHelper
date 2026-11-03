@@ -4,11 +4,12 @@ import { searchSpells, getFeats } from '../../../api/referenceApi';
 import { useTypeAhead } from '../../../hooks/useTypeAhead';
 import SpellCard from '../../../components/reference/SpellCard';
 import type { PlayerCharacter, CharacterUpdateRequest } from '../../../types/character';
+import type { SpellSlot } from '../../../types/encounter';
 import type { Spell, Feat } from '../../../types/reference';
 import { CANTRIPS_KNOWN, SPELLS_KNOWN, THIRD_CASTER_CANTRIPS, THIRD_CASTER_SPELLS, THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST, getPreparedCount } from '../../../utils/spellConstants';
 import { parseFeatOptions } from '../../../utils/featSpellParser';
 import type { ParsedFeatOption } from '../../../utils/featSpellParser';
-import { ABILITY_FROM_ABBR, abilityMod, formatMod, safeJsonParse } from '../../../utils/dndRules';
+import { ABILITY_FROM_ABBR, abilityMod, formatMod } from '../../../utils/dndRules';
 import type { SpellEntry } from './types';
 import StatCard from './StatCard';
 
@@ -23,7 +24,7 @@ const THIRD_CASTER_ABILITY_MAP: Record<string, string> = {
 export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pendingSpellManage, onSpellManageHandled }: {
   char: PlayerCharacter;
   spellsKnown: SpellEntry[];
-  spellSlots: Record<string, { total: number; used: number }>;
+  spellSlots: Record<string, SpellSlot>;
   saveField: (u: CharacterUpdateRequest) => Promise<void>;
   pendingSpellManage?: { className: string; type: 'known' | 'prepared' } | null;
   onSpellManageHandled?: () => void;
@@ -36,7 +37,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
 
   useEffect(() => {
     if (pendingSpellManage && !manageModal) {
-      const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+      const mcEntries = char.multiclassEntries ?? [];
       const entry = mcEntries.find(e => e.className === pendingSpellManage.className);
       const classLevel = entry ? entry.level : char.level;
       const isThirdCaster = entry?.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName);
@@ -48,8 +49,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
 
   const subclassAlwaysPreparedGroups = useMemo(() => {
     if (!char.subclassAlwaysPreparedSpells) return [];
-    const parsed = safeJsonParse<Record<string, Record<string, string[]>>>(char.subclassAlwaysPreparedSpells, {});
-    const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+    const parsed = char.subclassAlwaysPreparedSpells;
+    const mcEntries = char.multiclassEntries ?? [];
     const groups: Array<{ subclassName: string; spells: Array<{ name: string; classLevel: number }> }> = [];
     for (const [scName, levels] of Object.entries(parsed)) {
       const mcEntry = mcEntries.find(e => e.subclassName === scName);
@@ -66,12 +67,12 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
   }, [char.subclassAlwaysPreparedSpells, char.multiclassEntries, char.level]);
 
   const multiclassSpellStats = useMemo(() => {
-    const entries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+    const entries = char.multiclassEntries ?? [];
     if (entries.length <= 1) return [];
     const stats: Array<{ className: string; ability: string; saveDc: number; attackBonus: number }> = [];
     const seen = new Set<string>();
     for (const e of entries) {
-      let ability = CASTER_ABILITY[e.className];
+      let ability = CASTER_ABILITY[e.className ?? ''];
       if (!ability && e.subclassName) ability = THIRD_CASTER_ABILITY_MAP[e.subclassName];
       if (!ability || seen.has(ability)) continue;
       seen.add(ability);
@@ -79,7 +80,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
       const score = (char[abilityKey] as number) || 10;
       const mod = abilityMod(score);
       stats.push({
-        className: e.className,
+        className: e.className ?? '',
         ability,
         saveDc: 8 + char.proficiencyBonus + mod,
         attackBonus: char.proficiencyBonus + mod,
@@ -125,14 +126,14 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
 
   const SPELLCASTER_CLASSES = ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Warlock', 'Wizard', 'Artificer'];
 
-  const mcEntries = safeJsonParse<Array<{ className: string; subclassName?: string; level: number }>>(char.multiclassEntries, []);
+  const mcEntries = char.multiclassEntries ?? [];
   for (const entry of mcEntries) {
     const source = `class:${entry.className}`;
     if (classGroups.some(g => g.source === source)) continue;
-    const isCasterClass = SPELLCASTER_CLASSES.includes(entry.className);
+    const isCasterClass = SPELLCASTER_CLASSES.includes(entry.className ?? '');
     const isThirdCaster = entry.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName) && entry.level >= 3;
     if (isCasterClass || isThirdCaster) {
-      classGroups.push({ source, className: entry.className, spells: [] });
+      classGroups.push({ source, className: entry.className ?? '', spells: [] });
     }
   }
 
@@ -145,9 +146,9 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
 
   async function spendSlot(level: string) {
     const slot = spellSlots[level];
-    if (!slot || slot.used >= slot.total) return;
+    if (!slot || slot.used >= slot.max) return;
     const updated = { ...spellSlots, [level]: { ...slot, used: slot.used + 1 } };
-    await saveField({ spellSlots: JSON.stringify(updated) });
+    await saveField({ spellSlots: updated });
   }
 
   async function viewSpellDetail(spellName: string) {
@@ -167,12 +168,12 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
         ? { ...s, prepared: !s.prepared }
         : s
     );
-    await saveField({ spellsKnown: JSON.stringify(updated) });
+    await saveField({ spellsKnown: updated });
   }
 
   async function removeFeatSpells(source: string) {
     const updated = taggedSpells.filter(s => s.source !== source);
-    await saveField({ spellsKnown: JSON.stringify(updated) });
+    await saveField({ spellsKnown: updated });
   }
 
   function getClassCasterInfo(className: string) {
@@ -214,7 +215,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     );
   }
 
-  function renderSlotButtons(slots: Array<[string, { total: number; used: number }]>, label: string) {
+  function renderSlotButtons(slots: Array<[string, SpellSlot]>, label: string) {
     if (slots.length === 0) return null;
     return (
       <div className="bg-card border border-rule p-4">
@@ -229,7 +230,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
                 className="bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors"
               >
                 <p className="font-heading text-[11px] font-semibold text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
-                <p className="font-heading text-[17px] font-bold text-ink">{slot.total - slot.used}/{slot.total}</p>
+                <p className="font-heading text-[17px] font-bold text-ink">{slot.max - slot.used}/{slot.max}</p>
               </button>
             );
           })}
@@ -540,7 +541,7 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
   const isRemoveSpellbook = type === 'remove-spellbook';
   const needsApiSearch = !isWizardPrepared && !isRemoveSpellbook;
 
-  const slots = safeJsonParse<Record<string, { total: number; used: number }>>(char.spellSlots, {});
+  const slots = char.spellSlots ?? {};
   const maxSlotLevel = Math.max(0, ...Object.keys(slots).map(k => {
     if (k.startsWith('pact_')) return parseInt(k.replace('pact_', ''));
     const n = parseInt(k);
@@ -644,7 +645,7 @@ function ManageSpellsModal({ char, type, className, spellListClass, classLevel, 
 
   async function handleSave() {
     setSaving(true);
-    await saveField({ spellsKnown: JSON.stringify(localSpells) });
+    await saveField({ spellsKnown: localSpells });
     setSaving(false);
     onClose();
   }
@@ -957,7 +958,7 @@ function AddFeatModal({ currentSpells, saveField, onClose }: {
         usesPerLongRest: selectedOption.spellChoice?.usesPerDay ?? 1,
       });
     }
-    await saveField({ spellsKnown: JSON.stringify([...currentSpells, ...newEntries]) });
+    await saveField({ spellsKnown: [...currentSpells, ...newEntries] });
     setSaving(false);
     onClose();
   }

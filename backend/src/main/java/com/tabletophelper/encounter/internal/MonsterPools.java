@@ -2,10 +2,10 @@ package com.tabletophelper.encounter.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipant;
-import com.tabletophelper.encounter.state.KnownSpell;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.MonsterPoolTrigger;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;

@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.Encounter;
@@ -12,8 +12,8 @@ import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
-import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
+import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Outcome;

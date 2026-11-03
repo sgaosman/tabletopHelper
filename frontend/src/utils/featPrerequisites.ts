@@ -100,24 +100,14 @@ export function checkFeatPrerequisites(feat: Feat, character: PlayerCharacter): 
 
 function hasProficiency(character: PlayerCharacter, prof: string): boolean {
   const lower = prof.toLowerCase();
-  const checkList = (json: string | null | undefined) => {
-    if (!json) return false;
-    try {
-      const list: string[] = JSON.parse(json);
-      return list.some(p => p.toLowerCase().includes(lower));
-    } catch { return false; }
-  };
+  const checkList = (list: string[] | null | undefined) => (list ?? []).some(p => p.toLowerCase().includes(lower));
   return checkList(character.armorProficiencies)
       || checkList(character.weaponProficiencies)
       || checkList(character.toolProficiencies);
 }
 
 function getCharacterFeats(character: PlayerCharacter): string[] {
-  if (!character.features) return [];
-  try {
-    const features: Array<{ name: string; source: string }> = JSON.parse(character.features);
-    return features.filter(f => f.source === 'Feat').map(f => f.name);
-  } catch { return []; }
+  return (character.features ?? []).filter(f => f.source === 'Feat').map(f => f.name);
 }
 
 export interface FeatEffects {

@@ -7,13 +7,13 @@ import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.CombatLogWriter;
 import com.tabletophelper.encounter.internal.CreatureStats;
 import com.tabletophelper.encounter.internal.EffectApplier;
 import com.tabletophelper.encounter.internal.TurnProcessor;
-import com.tabletophelper.encounter.state.KnownSpell;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -382,7 +382,7 @@ class EncounterServiceTest {
     }
 
     @Test
-    @DisplayName("A PC joins with the sheet's {total, used} slots as {max, used}, pact slots kept as pact_N, and its spells typed")
+    @DisplayName("A PC joins with copies of the sheet's {max, used} slots, pact slots kept as pact_N, and its spells")
     void addPcParticipant_copiesSlotsAndSpellsTyped() {
         UUID encounterId = UUID.randomUUID();
         User playerUser = User.builder().id(UUID.randomUUID()).username("player1").email("player1@test.com")
@@ -390,11 +390,11 @@ class EncounterServiceTest {
         PlayerCharacter elara = PlayerCharacter.builder()
                 .id(UUID.randomUUID()).name("Elara").user(playerUser)
                 .hpMax(30).hpCurrent(30).armourClass(12).initiativeBonus(1)
-                // A used count above the total, which the sheet allows, is capped
-                .spellSlots("{\"1\":{\"total\":4,\"used\":1},\"2\":{\"total\":2,\"used\":5},\"pact_2\":{\"total\":2,\"used\":0}}")
-                // Spells stay untyped on the sheet until R6, so an unknown property is ignored
-                .spellsKnown("[{\"name\":\"Shield\",\"level\":1,\"source\":\"class:Wizard\",\"prepared\":true},"
-                        + "{\"name\":\"Eldritch Blast\",\"level\":0,\"source\":\"class:Warlock\",\"colour\":\"green\"}]")
+                // A used count above the maximum, which the sheet allows, is capped
+                .spellSlots(Map.of("1", new SpellSlot(4, 1), "2", new SpellSlot(2, 5), "pact_2", new SpellSlot(2, 0)))
+                .spellsKnown(List.of(
+                        new KnownSpell(null, "Shield", 1, "class:Wizard", true, null, null, null, null),
+                        new KnownSpell(null, "Eldritch Blast", 0, "class:Warlock", null, null, null, null, null)))
                 .build();
         Encounter encounter = Encounter.builder()
                 .id(encounterId).campaign(campaign).name("Test Encounter")

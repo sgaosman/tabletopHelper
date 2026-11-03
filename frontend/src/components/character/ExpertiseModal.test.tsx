@@ -24,7 +24,7 @@ describe('ExpertiseModal', () => {
   it('filters out skills already marked as expertise', () => {
     const expertChar = {
       ...character,
-      skillExpertises: JSON.stringify(['athletics']),
+      skillExpertises: ['athletics'],
     };
     render(<ExpertiseModal character={expertChar} count={1} onComplete={() => {}} onClose={() => {}} />);
     expect(screen.queryByText('athletics')).not.toBeInTheDocument();
@@ -34,7 +34,7 @@ describe('ExpertiseModal', () => {
   it('shows empty state when no eligible skills exist', () => {
     const fullExpertChar = {
       ...character,
-      skillExpertises: JSON.stringify(['athletics', 'perception']),
+      skillExpertises: ['athletics', 'perception'],
     };
     render(<ExpertiseModal character={fullExpertChar} count={1} onComplete={() => {}} onClose={() => {}} />);
     expect(screen.getByText('No eligible skills for expertise.')).toBeInTheDocument();

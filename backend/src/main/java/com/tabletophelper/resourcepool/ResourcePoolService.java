@@ -1,10 +1,8 @@
 package com.tabletophelper.resourcepool;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.dto.MulticlassEntry;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
@@ -57,12 +55,6 @@ public class ResourcePoolService {
     ) {}
 
     private final ClassFeaturePoolRepository classFeaturePoolRepository;
-    private final ObjectMapper objectMapper;
-
-    private static final TypeReference<List<ResourcePoolEntry>> POOL_LIST_TYPE =
-            new TypeReference<>() {};
-    private static final TypeReference<List<MulticlassEntry>> MC_ENTRY_LIST_TYPE =
-            new TypeReference<>() {};
 
     // ── Character sheet ──────────────────────────────────────────
 
@@ -73,22 +65,22 @@ public class ResourcePoolService {
      */
     public void syncPoolsForCharacter(PlayerCharacter character) {
         try {
-            List<ResourcePoolEntry> existing = parsePools(character.getResourcePools());
+            List<ResourcePoolEntry> existing = orEmpty(character.getResourcePools());
             Map<String, ResourcePoolEntry> byPoolId = existing.stream()
                     .collect(Collectors.toMap(ResourcePoolEntry::poolId, e -> e, (a, b) -> a, LinkedHashMap::new));
 
             Map<String, Integer> context = buildCharacterContext(character);
 
             // Collect desired pools from class feature definitions
-            List<MulticlassEntry> classEntries = parseMulticlassEntries(character.getMulticlassEntries());
+            List<ClassEntry> classEntries = orEmpty(character.getMulticlassEntries());
             Set<String> desiredPoolIds = new LinkedHashSet<>();
 
-            for (MulticlassEntry entry : classEntries) {
-                UUID classId = UUID.fromString(entry.classId());
+            for (ClassEntry entry : classEntries) {
+                UUID classId = entry.classId();
                 List<ClassFeaturePool> featurePools;
 
-                if (entry.subclassId() != null && !entry.subclassId().isBlank()) {
-                    UUID subclassId = UUID.fromString(entry.subclassId());
+                if (entry.subclassId() != null) {
+                    UUID subclassId = entry.subclassId();
                     featurePools = classFeaturePoolRepository
                             .findByClassIdAndLevelAndSubclass(classId, entry.level(), subclassId);
                 } else {
@@ -114,7 +106,7 @@ public class ResourcePoolService {
             byPoolId.keySet().retainAll(desiredPoolIds);
 
             List<ResourcePoolEntry> result = new ArrayList<>(byPoolId.values());
-            character.setResourcePools(serializePools(result));
+            character.setResourcePools(result);
         } catch (Exception e) {
             log.error("Failed to sync resource pools for character {}", character.getId(), e);
         }
@@ -125,7 +117,7 @@ public class ResourcePoolService {
      * Called when a player character joins an encounter.
      */
     public void copyToParticipant(EncounterParticipant participant, PlayerCharacter character) {
-        participant.setResourcePoolsCurrent(parsePools(character.getResourcePools()));
+        participant.setResourcePoolsCurrent(new ArrayList<>(orEmpty(character.getResourcePools())));
     }
 
     /**
@@ -136,7 +128,7 @@ public class ResourcePoolService {
         try {
             if (participant.getResourcePoolsCurrent() == null) return;
             List<ResourcePoolEntry> partPools = participant.getResourcePoolsCurrent();
-            List<ResourcePoolEntry> charPools = parsePools(character.getResourcePools());
+            List<ResourcePoolEntry> charPools = orEmpty(character.getResourcePools());
 
             Map<String, Integer> currentByPoolId = partPools.stream()
                     .collect(Collectors.toMap(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses));
@@ -145,9 +137,9 @@ public class ResourcePoolService {
                     .map(e -> currentByPoolId.containsKey(e.poolId())
                             ? e.withCurrentUses(currentByPoolId.get(e.poolId()))
                             : e)
-                    .toList();
+                    .collect(Collectors.toCollection(ArrayList::new));
 
-            character.setResourcePools(serializePools(updated));
+            character.setResourcePools(updated);
         } catch (Exception e) {
             log.error("Failed to sync pools back to character {}", character.getId(), e);
         }
@@ -306,8 +298,8 @@ public class ResourcePoolService {
         ctx.put("totalLevel", character.getLevel() != null ? character.getLevel() : 1);
 
         // Class levels from multiclass entries
-        List<MulticlassEntry> entries = parseMulticlassEntries(character.getMulticlassEntries());
-        for (MulticlassEntry e : entries) {
+        List<ClassEntry> entries = orEmpty(character.getMulticlassEntries());
+        for (ClassEntry e : entries) {
             String key = e.className().toLowerCase() + "Level";
             ctx.put(key, e.level());
         }
@@ -328,39 +320,13 @@ public class ResourcePoolService {
         return Ability.modifier(score);
     }
 
-    // ── JSON helpers ─────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────
 
     private static List<ResourcePoolEntry> participantPools(EncounterParticipant participant) {
         return participant.getResourcePoolsCurrent() != null ? participant.getResourcePoolsCurrent() : List.of();
     }
 
-    /** Reads a character sheet's pools, which stay a JSON string until R6 types them (D168). */
-    public List<ResourcePoolEntry> parsePools(String json) {
-        if (json == null || json.isBlank()) return new ArrayList<>();
-        try {
-            return objectMapper.readValue(json, POOL_LIST_TYPE);
-        } catch (Exception e) {
-            log.warn("Failed to parse resource pools JSON, returning empty", e);
-            return new ArrayList<>();
-        }
-    }
-
-    private String serializePools(List<ResourcePoolEntry> pools) {
-        try {
-            return objectMapper.writeValueAsString(pools);
-        } catch (Exception e) {
-            log.error("Failed to serialize resource pools", e);
-            return "[]";
-        }
-    }
-
-    List<MulticlassEntry> parseMulticlassEntries(String json) {
-        if (json == null || json.isBlank()) return new ArrayList<>();
-        try {
-            return objectMapper.readValue(json, MC_ENTRY_LIST_TYPE);
-        } catch (Exception e) {
-            log.warn("Failed to parse multiclass entries, returning empty", e);
-            return new ArrayList<>();
-        }
+    private static <T> List<T> orEmpty(List<T> list) {
+        return list != null ? list : List.of();
     }
 }

@@ -1,10 +1,4 @@
-export interface SpellEntry {
-  name: string;
-  level: number;
-  source?: string;
-  prepared?: boolean;
-  alwaysPrepared?: boolean;
-  atWill?: boolean;
-  usesPerLongRest?: number;
-  unlocksAtLevel?: number;
-}
+import type { Schemas } from '../../../api/schema';
+
+/** A spell on the sheet, as the server stores it in spellsKnown. */
+export type SpellEntry = Schemas['KnownSpell'];

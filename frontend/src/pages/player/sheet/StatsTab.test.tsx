@@ -44,4 +44,21 @@ describe('StatsTab', () => {
     expect(screen.getByText('XP')).toBeInTheDocument();
     expect(screen.getByText('Hit Dice')).toBeInTheDocument();
   });
+
+  it('shows the Hit Dice as dice, one term for each class', () => {
+    const { unmount } = render(<StatsTab {...defaultProps} />);
+    expect(screen.getByText('5d10')).toBeInTheDocument();
+    unmount();
+
+    const multiclass = {
+      ...char, hitDice: { Fighter: { total: 2, remaining: 2, dieSize: 10 }, Wizard: { total: 3, remaining: 1, dieSize: 6 } },
+    };
+    render(<StatsTab {...defaultProps} char={multiclass} />);
+    expect(screen.getByText('2d10 + 3d6')).toBeInTheDocument();
+  });
+
+  it('shows the level with an unknown die when the sheet has no Hit Dice', () => {
+    render(<StatsTab {...defaultProps} char={{ ...char, hitDice: null }} />);
+    expect(screen.getByText('5d?')).toBeInTheDocument();
+  });
 });

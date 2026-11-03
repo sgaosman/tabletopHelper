@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.AttackOption;
@@ -348,8 +349,8 @@ class AttackServiceTest {
         @Test
         @DisplayName("Great Weapon Master takes 5 off the attack roll for 10 more damage with a heavy weapon")
         void greatWeaponMaster() {
-            rogue.getCharacter().setWeaponProficiencies("[\"simple\", \"martial\"]");
-            rogue.getCharacter().setFeatures("[{\"name\": \"Great Weapon Master\", \"source\": \"Feat\"}]");
+            rogue.getCharacter().setWeaponProficiencies(List.of("simple", "martial"));
+            rogue.getCharacter().setFeatures(List.of(new Feature("Great Weapon Master", null, "Feat")));
             EncounterParticipant ogre = f.monster("Ogre", 59, 11);
             AttackRollRequest request = weaponRequest(ogre, "Greatsword");
             request.setPowerAttack(true);
@@ -365,8 +366,8 @@ class AttackServiceTest {
         @Test
         @DisplayName("Sharpshooter takes 5 off the attack roll for 10 more damage with a ranged weapon")
         void sharpshooter() {
-            rogue.getCharacter().setWeaponProficiencies("[\"simple\", \"martial\"]");
-            rogue.getCharacter().setLevelHistory("[{\"choices\": {\"asi\": {\"type\": \"feat\", \"featName\": \"Sharpshooter\"}}}]");
+            rogue.getCharacter().setWeaponProficiencies(List.of("simple", "martial"));
+            rogue.getCharacter().setLevelHistory(List.of(CombatFixture.featTaken("Sharpshooter")));
             EncounterParticipant ogre = f.monster("Ogre", 59, 11);
             AttackRollRequest request = weaponRequest(ogre, "Longbow");
             request.setPowerAttack(true);
@@ -392,7 +393,7 @@ class AttackServiceTest {
             thrownDagger.setWithin5Ft(false);
 
             ValidationException noFeat = assertThrows(ValidationException.class, () -> attack(greatsword));
-            rogue.getCharacter().setFeatures("[{\"name\": \"Great Weapon Master\", \"source\": \"Variant Human\"}]");
+            rogue.getCharacter().setFeatures(List.of(new Feature("Great Weapon Master", null, "Variant Human")));
             ValidationException notProficient = assertThrows(ValidationException.class, () -> attack(greatsword));
             ValidationException notHeavy = assertThrows(ValidationException.class, () -> attack(longsword));
             ValidationException thrown = assertThrows(ValidationException.class, () -> attack(thrownDagger));
@@ -487,8 +488,8 @@ class AttackServiceTest {
         @Test
         @DisplayName("The attack options list each weapon with its numbers, and the trade where the character may take it")
         void attackOptions() {
-            rogue.getCharacter().setFeatures("[{\"name\": \"Sharpshooter\", \"source\": \"Feat\"}]");
-            rogue.getCharacter().setWeaponProficiencies("[\"simple\", \"martial\"]");
+            rogue.getCharacter().setFeatures(List.of(new Feature("Sharpshooter", null, "Feat")));
+            rogue.getCharacter().setWeaponProficiencies(List.of("simple", "martial"));
             UUID playerUserId = f.playerControlling(rogue);
             EncounterParticipant fighter = f.player("Fighter", 30, 16);
             UUID otherPlayer = f.playerControlling(fighter);

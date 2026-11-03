@@ -6,7 +6,12 @@ import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.dto.ResourcePoolEntry;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.InventoryItem;
+import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.CombatLogRepository;
@@ -19,7 +24,6 @@ import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
-import com.tabletophelper.encounter.state.KnownSpell;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
@@ -69,8 +73,7 @@ class CombatFixture {
     final Resolver resolver = new Resolver(dice);
     final CreatureStats stats = new CreatureStats(objectMapper);
     final CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
-    final ResourcePoolService resourcePoolService =
-            new ResourcePoolService(mock(ClassFeaturePoolRepository.class), objectMapper);
+    final ResourcePoolService resourcePoolService = new ResourcePoolService(mock(ClassFeaturePoolRepository.class));
     final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog, resourcePoolService);
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final CombatAccess access = new CombatAccess(
@@ -279,12 +282,17 @@ class CombatFixture {
                 .damageType(damageType).properties(properties).source("PHB").build();
     }
 
+    /** A level history entry recording a feat taken instead of an Ability Score Improvement. */
+    static LevelHistoryEntry featTaken(String featName) {
+        return new LevelHistoryEntry(4, null, null, 4, 0, null,
+                new LevelChoices(new AbilityScoreImprovement("feat", null, featName, null, null, null)));
+    }
+
     /** Gives a player character's sheet these inventory entries, by name, and these weapon proficiencies. */
     static void carries(EncounterParticipant pc, List<String> proficiencies, String... weaponNames) {
-        pc.getCharacter().setEquipment("[" + String.join(", ", Arrays.stream(weaponNames)
-                .map(name -> "{\"name\": \"" + name + "\", \"quantity\": 1}").toList()) + "]");
-        pc.getCharacter().setWeaponProficiencies("[" + String.join(", ", proficiencies.stream()
-                .map(proficiency -> "\"" + proficiency + "\"").toList()) + "]");
+        pc.getCharacter().setEquipment(Arrays.stream(weaponNames)
+                .map(name -> new InventoryItem(name, 1, null, null, null, null)).toList());
+        pc.getCharacter().setWeaponProficiencies(proficiencies);
     }
 
     // ── The log ──────────────────────────────────────────────────

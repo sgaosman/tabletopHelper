@@ -400,7 +400,7 @@ class HitPointServiceTest {
         EncounterParticipant sorcerer = f.player("Sorcerer", 50, 12);
         sorcerer.getCharacter().setConstitution(14);
         sorcerer.getCharacter().setProficiencyBonus(3);
-        sorcerer.getCharacter().setSavingThrowProficiencies("[\"CON\",\"CHA\"]");
+        sorcerer.getCharacter().setSavingThrowProficiencies(List.of("CON", "CHA"));
         ConcentrationInstance holdPerson = ConcentrationInstance.start("Hold Person", 2, 1, 10);
         sorcerer.setConcentration(holdPerson);
 

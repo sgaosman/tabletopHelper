@@ -1,16 +1,15 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.rules.SpellSlotCalculator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -25,7 +24,6 @@ public class RecomputeSpellSlotsJob implements MaintenanceJob {
 
     private final CharacterRepository characterRepository;
     private final CharacterService characterService;
-    private final ObjectMapper objectMapper;
 
     @Override
     public String name() {
@@ -48,34 +46,30 @@ public class RecomputeSpellSlotsJob implements MaintenanceJob {
                     continue;
                 }
 
-                Map<String, Integer> totals = SpellSlotCalculator.calculateSlots(entries);
-                JsonNode current = pc.getSpellSlots() != null
-                        ? objectMapper.readTree(pc.getSpellSlots())
-                        : objectMapper.createObjectNode();
+                Map<String, Integer> maximums = SpellSlotCalculator.calculateSlots(entries);
+                Map<String, SpellSlot> current = pc.getSpellSlots() != null ? pc.getSpellSlots() : Map.of();
 
-                ObjectNode updated = objectMapper.createObjectNode();
+                Map<String, SpellSlot> updated = new LinkedHashMap<>();
                 List<String> diffs = new ArrayList<>();
-                for (var slot : totals.entrySet()) {
-                    JsonNode old = current.get(slot.getKey());
-                    int oldTotal = old != null ? old.path("total").asInt(0) : 0;
-                    int used = old != null ? Math.min(old.path("used").asInt(0), slot.getValue()) : 0;
-                    ObjectNode node = updated.putObject(slot.getKey());
-                    node.put("total", slot.getValue());
-                    node.put("used", used);
-                    if (oldTotal != slot.getValue()) {
-                        diffs.add(label(slot.getKey()) + " " + oldTotal + "→" + slot.getValue());
+                for (var slot : maximums.entrySet()) {
+                    SpellSlot old = current.get(slot.getKey());
+                    int oldMax = old != null ? old.max() : 0;
+                    int used = old != null ? Math.min(old.used(), slot.getValue()) : 0;
+                    updated.put(slot.getKey(), new SpellSlot(slot.getValue(), used));
+                    if (oldMax != slot.getValue()) {
+                        diffs.add(label(slot.getKey()) + " " + oldMax + "→" + slot.getValue());
                     }
                 }
-                current.fieldNames().forEachRemaining(key -> {
-                    if (!totals.containsKey(key)) {
-                        diffs.add(label(key) + " " + current.get(key).path("total").asInt(0) + "→0");
+                current.forEach((key, old) -> {
+                    if (!maximums.containsKey(key)) {
+                        diffs.add(label(key) + " " + (old != null ? old.max() : 0) + "→0");
                     }
                 });
 
                 if (diffs.isEmpty()) continue;
                 changes.add(pc.getName() + " (" + describe(entries) + "): " + String.join(", ", diffs));
                 if (apply) {
-                    pc.setSpellSlots(objectMapper.writeValueAsString(updated));
+                    pc.setSpellSlots(updated);
                     characterRepository.save(pc);
                 }
             } catch (Exception e) {

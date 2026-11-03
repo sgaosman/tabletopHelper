@@ -1,11 +1,12 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
+import com.tabletophelper.character.state.AppliedFeatEffects;
+import com.tabletophelper.character.state.FeatResourceEntry;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -39,9 +40,9 @@ public class FeatEffectResolver {
             int hpPerLevel,
             int passivePerceptionBonus,
             int passiveInvestigationBonus,
-            Map<String, Object> resource,
+            FeatResourceEntry resource,
             List<Map<String, Object>> optionalFeaturesAdded,
-            List<Map<String, Object>> spellsAdded
+            List<KnownSpell> spellsAdded
     ) {}
 
     public AppliedEffects applyFeat(PlayerCharacter character, Feat feat,
@@ -60,9 +61,9 @@ public class FeatEffectResolver {
         int hpPerLevel = 0;
         int passivePerceptionBonus = 0;
         int passiveInvestigationBonus = 0;
-        Map<String, Object> resource = null;
+        FeatResourceEntry resource = null;
         List<Map<String, Object>> optionalFeaturesAdded = new ArrayList<>();
-        List<Map<String, Object>> spellsAdded = new ArrayList<>();
+        List<KnownSpell> spellsAdded = new ArrayList<>();
 
         // Apply ability score increase from feat
         if (feat.getAbilityScoreIncrease() != null) {
@@ -149,68 +150,80 @@ public class FeatEffectResolver {
                 optionalFeaturesAdded, spellsAdded);
     }
 
-    public void reverseFeatEffects(PlayerCharacter character, Map<String, Object> appliedEffects) throws Exception {
+    public void reverseFeatEffects(PlayerCharacter character, AppliedFeatEffects appliedEffects) {
         if (appliedEffects == null) return;
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> abilityIncreases = (Map<String, Object>) appliedEffects.get("abilityIncreases");
+        Map<String, Integer> abilityIncreases = appliedEffects.abilityIncreases();
         if (abilityIncreases != null) {
-            for (Map.Entry<String, Object> entry : abilityIncreases.entrySet()) {
-                int bonus = entry.getValue() instanceof Number n ? n.intValue() : 0;
+            for (Map.Entry<String, Integer> entry : abilityIncreases.entrySet()) {
+                int bonus = entry.getValue() != null ? entry.getValue() : 0;
                 reverseAbilityIncrease(character, entry.getKey(), bonus);
             }
         }
 
-        @SuppressWarnings("unchecked")
-        List<String> resistances = (List<String>) appliedEffects.get("resistancesAdded");
+        List<String> resistances = appliedEffects.resistancesAdded();
         if (resistances != null && !resistances.isEmpty()) {
-            removeFromJsonList(character, "damageResistances", resistances);
+            character.setDamageResistances(without(character.getDamageResistances(), resistances));
         }
 
-        reverseListProficiency(character, appliedEffects, "armorProficienciesAdded", "armorProficiencies");
-        reverseListProficiency(character, appliedEffects, "weaponProficienciesAdded", "weaponProficiencies");
-        reverseListProficiency(character, appliedEffects, "toolProficienciesAdded", "toolProficiencies");
-        reverseListProficiency(character, appliedEffects, "skillProficienciesAdded", "skillProficiencies");
-        reverseListProficiency(character, appliedEffects, "languageProficienciesAdded", "languageProficiencies");
-        reverseListProficiency(character, appliedEffects, "savingThrowProficienciesAdded", "savingThrowProficiencies");
+        List<String> armor = appliedEffects.armorProficienciesAdded();
+        if (armor != null && !armor.isEmpty()) {
+            character.setArmorProficiencies(without(character.getArmorProficiencies(), armor));
+        }
+        List<String> weapons = appliedEffects.weaponProficienciesAdded();
+        if (weapons != null && !weapons.isEmpty()) {
+            character.setWeaponProficiencies(without(character.getWeaponProficiencies(), weapons));
+        }
+        List<String> tools = appliedEffects.toolProficienciesAdded();
+        if (tools != null && !tools.isEmpty()) {
+            character.setToolProficiencies(without(character.getToolProficiencies(), tools));
+        }
+        List<String> skills = appliedEffects.skillProficienciesAdded();
+        if (skills != null && !skills.isEmpty()) {
+            character.setSkillProficiencies(without(character.getSkillProficiencies(), skills));
+        }
+        List<String> languages = appliedEffects.languageProficienciesAdded();
+        if (languages != null && !languages.isEmpty()) {
+            character.setLanguageProficiencies(without(character.getLanguageProficiencies(), languages));
+        }
+        List<String> saves = appliedEffects.savingThrowProficienciesAdded();
+        if (saves != null && !saves.isEmpty()) {
+            character.setSavingThrowProficiencies(without(character.getSavingThrowProficiencies(), saves));
+        }
 
-        @SuppressWarnings("unchecked")
-        List<String> expertise = (List<String>) appliedEffects.get("expertiseAdded");
+        List<String> expertise = appliedEffects.expertiseAdded();
         if (expertise != null && !expertise.isEmpty()) {
-            removeFromJsonList(character, "skillExpertises", expertise);
+            character.setSkillExpertises(without(character.getSkillExpertises(), expertise));
         }
 
-        int speedBonus = appliedEffects.get("speedBonus") instanceof Number n ? n.intValue() : 0;
+        int speedBonus = appliedEffects.speedBonus() != null ? appliedEffects.speedBonus() : 0;
         if (speedBonus != 0) {
             character.setSpeed(character.getSpeed() - speedBonus);
         }
 
-        int initBonus = appliedEffects.get("initiativeBonus") instanceof Number n ? n.intValue() : 0;
+        int initBonus = appliedEffects.initiativeBonus() != null ? appliedEffects.initiativeBonus() : 0;
         if (initBonus != 0) {
             character.setInitiativeBonus(character.getInitiativeBonus() - initBonus);
         }
 
-        int hpPerLevel = appliedEffects.get("hpPerLevel") instanceof Number n ? n.intValue() : 0;
+        int hpPerLevel = appliedEffects.hpPerLevel() != null ? appliedEffects.hpPerLevel() : 0;
         if (hpPerLevel != 0) {
             int hpLoss = hpPerLevel * character.getLevel();
             character.setHpMax(Math.max(1, character.getHpMax() - hpLoss));
             character.setHpCurrent(Math.min(character.getHpCurrent(), character.getHpMax()));
         }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> resource = (Map<String, Object>) appliedEffects.get("resource");
+        FeatResourceEntry resource = appliedEffects.resource();
         if (resource != null) {
-            String featName = (String) resource.get("featName");
-            removeFeatResource(character, featName);
+            removeFeatResource(character, resource.featName());
         }
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> spellsAdded = (List<Map<String, Object>>) appliedEffects.get("spellsAdded");
+        List<KnownSpell> spellsAdded = appliedEffects.spellsAdded();
         if (spellsAdded != null && !spellsAdded.isEmpty()) {
             removeFeatSpells(character, spellsAdded);
         }
 
-        String featName = (String) appliedEffects.get("featName");
+        String featName = appliedEffects.featName();
         if (featName != null) {
             removeFeatFeature(character, featName);
         }
@@ -271,9 +284,9 @@ public class FeatEffectResolver {
     // --- Resistances ---
 
     private List<String> applyResistances(PlayerCharacter character, JsonNode resistNode,
-                                          ApplyChoicesRequest.AsiChoice choices) throws Exception {
+                                          ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(character.getDamageResistances());
+        List<String> current = copy(character.getDamageResistances());
 
         for (JsonNode item : resistNode) {
             if (item.isTextual()) {
@@ -292,7 +305,7 @@ public class FeatEffectResolver {
             }
         }
 
-        character.setDamageResistances(objectMapper.writeValueAsString(current));
+        character.setDamageResistances(current);
         return added;
     }
 
@@ -300,10 +313,10 @@ public class FeatEffectResolver {
 
     private List<String> applyListProficiency(PlayerCharacter character, JsonNode node,
                                                String fieldName,
-                                               java.util.function.Function<PlayerCharacter, String> getter,
-                                               java.util.function.BiConsumer<PlayerCharacter, String> setter) throws Exception {
+                                               java.util.function.Function<PlayerCharacter, List<String>> getter,
+                                               java.util.function.BiConsumer<PlayerCharacter, List<String>> setter) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(getter.apply(character));
+        List<String> current = copy(getter.apply(character));
 
         for (JsonNode item : node) {
             if (item.isObject()) {
@@ -321,17 +334,17 @@ public class FeatEffectResolver {
             }
         }
 
-        setter.accept(character, objectMapper.writeValueAsString(current));
+        setter.accept(character, current);
         return added;
     }
 
-    private String getArmorProficiencies(PlayerCharacter c) { return c.getArmorProficiencies(); }
-    private void setArmorProficiencies(PlayerCharacter c, String v) { c.setArmorProficiencies(v); }
+    private List<String> getArmorProficiencies(PlayerCharacter c) { return c.getArmorProficiencies(); }
+    private void setArmorProficiencies(PlayerCharacter c, List<String> v) { c.setArmorProficiencies(v); }
 
     private List<String> applyWeaponProficiencies(PlayerCharacter character, JsonNode node,
-                                                   ApplyChoicesRequest.AsiChoice choices) throws Exception {
+                                                   ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(character.getWeaponProficiencies());
+        List<String> current = copy(character.getWeaponProficiencies());
 
         for (JsonNode item : node) {
             if (item.isObject()) {
@@ -358,14 +371,14 @@ public class FeatEffectResolver {
             }
         }
 
-        character.setWeaponProficiencies(objectMapper.writeValueAsString(current));
+        character.setWeaponProficiencies(current);
         return added;
     }
 
     private List<String> applyToolProficiencies(PlayerCharacter character, JsonNode node,
-                                                 ApplyChoicesRequest.AsiChoice choices) throws Exception {
+                                                 ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(character.getToolProficiencies());
+        List<String> current = copy(character.getToolProficiencies());
 
         for (JsonNode item : node) {
             if (item.isObject()) {
@@ -393,14 +406,14 @@ public class FeatEffectResolver {
             }
         }
 
-        character.setToolProficiencies(objectMapper.writeValueAsString(current));
+        character.setToolProficiencies(current);
         return added;
     }
 
     private List<String> applySkillProficiencies(PlayerCharacter character, JsonNode node,
-                                                   ApplyChoicesRequest.AsiChoice choices) throws Exception {
+                                                   ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(character.getSkillProficiencies());
+        List<String> current = copy(character.getSkillProficiencies());
 
         for (JsonNode item : node) {
             if (item.isObject() && item.has("choose")) {
@@ -416,14 +429,14 @@ public class FeatEffectResolver {
             }
         }
 
-        character.setSkillProficiencies(objectMapper.writeValueAsString(current));
+        character.setSkillProficiencies(current);
         return added;
     }
 
     private List<String> applyLanguageProficiencies(PlayerCharacter character, JsonNode node,
-                                                      ApplyChoicesRequest.AsiChoice choices) throws Exception {
+                                                      ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(character.getLanguageProficiencies());
+        List<String> current = copy(character.getLanguageProficiencies());
 
         for (JsonNode item : node) {
             if (item.isObject()) {
@@ -450,14 +463,14 @@ public class FeatEffectResolver {
             }
         }
 
-        character.setLanguageProficiencies(objectMapper.writeValueAsString(current));
+        character.setLanguageProficiencies(current);
         return added;
     }
 
     private List<String> applySavingThrowProficiencies(PlayerCharacter character, JsonNode node,
-                                                        ApplyChoicesRequest.AsiChoice choices) throws Exception {
+                                                        ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(character.getSavingThrowProficiencies());
+        List<String> current = copy(character.getSavingThrowProficiencies());
 
         for (JsonNode item : node) {
             if (item.isObject() && item.has("choose")) {
@@ -471,12 +484,12 @@ public class FeatEffectResolver {
             }
         }
 
-        character.setSavingThrowProficiencies(objectMapper.writeValueAsString(current));
+        character.setSavingThrowProficiencies(current);
         return added;
     }
 
     private Map<String, List<String>> applySkillToolLanguageProficiencies(
-            PlayerCharacter character, JsonNode node, ApplyChoicesRequest.AsiChoice choices) throws Exception {
+            PlayerCharacter character, JsonNode node, ApplyChoicesRequest.AsiChoice choices) {
         Map<String, List<String>> result = new HashMap<>();
         result.put("skills", new ArrayList<>());
         result.put("tools", new ArrayList<>());
@@ -484,7 +497,7 @@ public class FeatEffectResolver {
         if (choices == null) return result;
 
         if (choices.getSkillProficiencyChoices() != null) {
-            List<String> current = parseStringList(character.getSkillProficiencies());
+            List<String> current = copy(character.getSkillProficiencies());
             for (String skill : choices.getSkillProficiencyChoices()) {
                 String normalized = titleCase(skill);
                 if (!current.contains(normalized)) {
@@ -492,18 +505,18 @@ public class FeatEffectResolver {
                     result.get("skills").add(normalized);
                 }
             }
-            character.setSkillProficiencies(objectMapper.writeValueAsString(current));
+            character.setSkillProficiencies(current);
         }
 
         if (choices.getToolProficiencyChoices() != null) {
-            List<String> current = parseStringList(character.getToolProficiencies());
+            List<String> current = copy(character.getToolProficiencies());
             for (String tool : choices.getToolProficiencyChoices()) {
                 if (!current.contains(tool)) {
                     current.add(tool);
                     result.get("tools").add(tool);
                 }
             }
-            character.setToolProficiencies(objectMapper.writeValueAsString(current));
+            character.setToolProficiencies(current);
         }
 
         return result;
@@ -512,9 +525,9 @@ public class FeatEffectResolver {
     // --- Expertise ---
 
     private List<String> applyExpertise(PlayerCharacter character, JsonNode node,
-                                         ApplyChoicesRequest.AsiChoice choices) throws Exception {
+                                         ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
-        List<String> current = parseStringList(character.getSkillExpertises());
+        List<String> current = copy(character.getSkillExpertises());
 
         for (JsonNode item : node) {
             if (item.isObject() && item.has("anyProficientSkill")) {
@@ -530,66 +543,53 @@ public class FeatEffectResolver {
             }
         }
 
-        character.setSkillExpertises(objectMapper.writeValueAsString(current));
+        character.setSkillExpertises(current);
         return added;
     }
 
     // --- Resource (Lucky) ---
 
-    private Map<String, Object> applyResource(PlayerCharacter character, JsonNode resourceNode,
-                                               String featName) throws Exception {
-        List<Map<String, Object>> resources = parseFeatResources(character.getFeatResources());
+    private FeatResourceEntry applyResource(PlayerCharacter character, JsonNode resourceNode, String featName) {
+        List<FeatResourceEntry> resources = copy(character.getFeatResources());
 
-        Map<String, Object> newResource = new LinkedHashMap<>();
-        newResource.put("featName", featName);
-        newResource.put("name", resourceNode.path("name").asText(featName));
-        newResource.put("maxUses", resourceNode.path("maxUses").asInt());
-        newResource.put("currentUses", resourceNode.path("maxUses").asInt());
-        newResource.put("resetOn", resourceNode.path("resetOn").asText("longRest"));
+        FeatResourceEntry newResource = new FeatResourceEntry(featName,
+                resourceNode.path("name").asText(featName),
+                resourceNode.path("maxUses").asInt(),
+                resourceNode.path("maxUses").asInt(),
+                resourceNode.path("resetOn").asText("longRest"));
         resources.add(newResource);
 
-        character.setFeatResources(objectMapper.writeValueAsString(resources));
+        character.setFeatResources(resources);
         return newResource;
     }
 
-    private void removeFeatResource(PlayerCharacter character, String featName) throws Exception {
-        List<Map<String, Object>> resources = parseFeatResources(character.getFeatResources());
-        resources.removeIf(r -> featName.equals(r.get("featName")));
-        character.setFeatResources(resources.isEmpty() ? null : objectMapper.writeValueAsString(resources));
+    private void removeFeatResource(PlayerCharacter character, String featName) {
+        List<FeatResourceEntry> resources = copy(character.getFeatResources());
+        resources.removeIf(r -> featName.equals(r.featName()));
+        character.setFeatResources(resources.isEmpty() ? null : resources);
     }
 
     // --- Spells ---
 
-    private List<Map<String, Object>> applyFeatSpells(PlayerCharacter character, List<UUID> spellIds,
-                                                       Feat feat) throws Exception {
-        List<Map<String, Object>> spellsKnown = character.getSpellsKnown() != null
-                ? objectMapper.readValue(character.getSpellsKnown(), new TypeReference<>() {})
-                : new ArrayList<>();
-        List<Map<String, Object>> added = new ArrayList<>();
+    private List<KnownSpell> applyFeatSpells(PlayerCharacter character, List<UUID> spellIds, Feat feat) {
+        List<KnownSpell> spellsKnown = copy(character.getSpellsKnown());
+        List<KnownSpell> added = new ArrayList<>();
 
         String source = "feat:" + feat.getName();
         Map<String, Integer> fixedSpellUsage = parseFeatSpellUsage(feat.getGrantsFeatures());
 
         for (UUID spellId : spellIds) {
             Spell spell = spellRepository.findById(spellId).orElse(null);
-            Map<String, Object> entry = new LinkedHashMap<>();
-            if (spell != null) {
-                entry.put("name", spell.getName());
-                entry.put("level", spell.getLevel());
-            }
-            entry.put("source", source);
             Integer usesPerDay = spell != null ? fixedSpellUsage.get(spell.getName().toLowerCase()) : null;
-            if (usesPerDay != null && usesPerDay > 0) {
-                entry.put("usesPerLongRest", usesPerDay);
-            }
-            if (spell != null && spell.getLevel() == 0) {
-                entry.put("atWill", true);
-            }
+            int level = spell != null && spell.getLevel() != null ? spell.getLevel() : 0;
+            KnownSpell entry = new KnownSpell(null, spell != null ? spell.getName() : null, level, source, null, null,
+                    spell != null && level == 0 ? Boolean.TRUE : null,
+                    usesPerDay != null && usesPerDay > 0 ? usesPerDay : null, null);
             spellsKnown.add(entry);
-            added.add(new LinkedHashMap<>(entry));
+            added.add(entry);
         }
 
-        character.setSpellsKnown(objectMapper.writeValueAsString(spellsKnown));
+        character.setSpellsKnown(spellsKnown);
         return added;
     }
 
@@ -628,22 +628,21 @@ public class FeatEffectResolver {
         return usage;
     }
 
-    private void removeFeatSpells(PlayerCharacter character, List<Map<String, Object>> spellsToRemove) throws Exception {
+    private void removeFeatSpells(PlayerCharacter character, List<KnownSpell> spellsToRemove) {
         if (character.getSpellsKnown() == null) return;
-        List<Map<String, Object>> spellsKnown = objectMapper.readValue(
-                character.getSpellsKnown(), new TypeReference<>() {});
+        List<KnownSpell> spellsKnown = copy(character.getSpellsKnown());
 
-        for (Map<String, Object> toRemove : spellsToRemove) {
-            String id = (String) toRemove.get("id");
-            String name = (String) toRemove.get("name");
-            String source = (String) toRemove.get("source");
+        for (KnownSpell toRemove : spellsToRemove) {
+            UUID id = toRemove.id();
+            String name = toRemove.name();
+            String source = toRemove.source();
             spellsKnown.removeIf(s -> {
-                if (id != null && id.equals(s.get("id"))) return true;
-                return name != null && name.equals(s.get("name"))
-                        && source != null && source.equals(s.get("source"));
+                if (id != null && id.equals(s.id())) return true;
+                return name != null && name.equals(s.name())
+                        && source != null && source.equals(s.source());
             });
         }
-        character.setSpellsKnown(objectMapper.writeValueAsString(spellsKnown));
+        character.setSpellsKnown(spellsKnown);
     }
 
     // --- Optional Features ---
@@ -658,86 +657,30 @@ public class FeatEffectResolver {
 
     // --- Feature entry ---
 
-    private void addFeatFeature(PlayerCharacter character, Feat feat) throws Exception {
-        List<Map<String, Object>> features = parseFeaturesList(character.getFeatures());
-        Map<String, Object> featEntry = new LinkedHashMap<>();
-        featEntry.put("name", feat.getName());
-        featEntry.put("description", feat.getDescription() != null ? feat.getDescription() : "Feat");
-        featEntry.put("source", "Feat");
-        features.add(featEntry);
-        character.setFeatures(objectMapper.writeValueAsString(features));
+    private void addFeatFeature(PlayerCharacter character, Feat feat) {
+        List<Feature> features = copy(character.getFeatures());
+        features.add(new Feature(feat.getName(),
+                feat.getDescription() != null ? feat.getDescription() : "Feat", "Feat"));
+        character.setFeatures(features);
     }
 
-    private void removeFeatFeature(PlayerCharacter character, String featName) throws Exception {
-        List<Map<String, Object>> features = parseFeaturesList(character.getFeatures());
-        features.removeIf(f -> featName.equals(f.get("name")) && "Feat".equals(f.get("source")));
-        character.setFeatures(objectMapper.writeValueAsString(features));
+    private void removeFeatFeature(PlayerCharacter character, String featName) {
+        List<Feature> features = copy(character.getFeatures());
+        features.removeIf(f -> featName.equals(f.name()) && "Feat".equals(f.source()));
+        character.setFeatures(features);
     }
 
     // --- Helpers ---
 
-    private List<String> parseStringList(String json) throws Exception {
-        if (json == null || json.isBlank()) return new ArrayList<>();
-        return new ArrayList<>(objectMapper.readValue(json, new TypeReference<List<String>>() {}));
+    private static <T> List<T> copy(List<T> list) {
+        return list != null ? new ArrayList<>(list) : new ArrayList<>();
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> parseFeaturesList(String json) throws Exception {
-        if (json == null || json.isBlank()) return new ArrayList<>();
-        return new ArrayList<>(objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {}));
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> parseFeatResources(String json) throws Exception {
-        if (json == null || json.isBlank()) return new ArrayList<>();
-        return new ArrayList<>(objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {}));
-    }
-
-    private void removeFromJsonList(PlayerCharacter character, String fieldName, List<String> toRemove) throws Exception {
-        String json = switch (fieldName) {
-            case "damageResistances" -> character.getDamageResistances();
-            case "skillExpertises" -> character.getSkillExpertises();
-            default -> null;
-        };
-
-        List<String> current = parseStringList(json);
-        current.removeAll(toRemove);
-        String updated = objectMapper.writeValueAsString(current);
-
-        switch (fieldName) {
-            case "damageResistances" -> character.setDamageResistances(updated);
-            case "skillExpertises" -> character.setSkillExpertises(updated);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void reverseListProficiency(PlayerCharacter character, Map<String, Object> appliedEffects,
-                                        String effectsKey, String characterField) throws Exception {
-        List<String> added = (List<String>) appliedEffects.get(effectsKey);
-        if (added == null || added.isEmpty()) return;
-
-        String json = switch (characterField) {
-            case "armorProficiencies" -> character.getArmorProficiencies();
-            case "weaponProficiencies" -> character.getWeaponProficiencies();
-            case "toolProficiencies" -> character.getToolProficiencies();
-            case "skillProficiencies" -> character.getSkillProficiencies();
-            case "languageProficiencies" -> character.getLanguageProficiencies();
-            case "savingThrowProficiencies" -> character.getSavingThrowProficiencies();
-            default -> null;
-        };
-
-        List<String> current = parseStringList(json);
-        current.removeAll(added);
-        String updated = objectMapper.writeValueAsString(current);
-
-        switch (characterField) {
-            case "armorProficiencies" -> character.setArmorProficiencies(updated);
-            case "weaponProficiencies" -> character.setWeaponProficiencies(updated);
-            case "toolProficiencies" -> character.setToolProficiencies(updated);
-            case "skillProficiencies" -> character.setSkillProficiencies(updated);
-            case "languageProficiencies" -> character.setLanguageProficiencies(updated);
-            case "savingThrowProficiencies" -> character.setSavingThrowProficiencies(updated);
-        }
+    // The list without the items levelling down takes away
+    private static List<String> without(List<String> current, List<String> toRemove) {
+        List<String> list = copy(current);
+        list.removeAll(toRemove);
+        return list;
     }
 
     private String titleCase(String s) {

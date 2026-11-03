@@ -3,6 +3,7 @@ package com.tabletophelper.maintenance;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -43,8 +44,8 @@ import java.util.stream.Collectors;
 
 /**
  * Dry-runs a pending Flyway migration (D150, D168). It runs {@code db/migration/V<N>__*.sql} in a
- * transaction it always rolls back, reports each encounter, participant, combat log and monster pool
- * trigger row the migration would change, before and after, and checks that every row then loads with
+ * transaction it always rolls back, reports each encounter, participant, combat log, monster pool trigger and
+ * player character row the migration would change, before and after, and checks that every row then loads with
  * the current entity mappings. It never writes: Flyway applies the migration at the next normal start.
  * <p>
  * Start the app with Flyway's target below the migration, so it stays pending, and with
@@ -62,6 +63,7 @@ public class PreviewMigrationJob implements MaintenanceJob {
         TABLES.put("encounter_participants", EncounterParticipant.class);
         TABLES.put("combat_logs", CombatLog.class);
         TABLES.put("monster_pool_triggers", MonsterPoolTrigger.class);
+        TABLES.put("player_characters", PlayerCharacter.class);
     }
 
     // The columns that name a row in the report
@@ -213,8 +215,11 @@ public class PreviewMigrationJob implements MaintenanceJob {
                 JsonNode newRow = newRows.get(id);
                 if (newRow == null) {
                     changes.add(row(table, id, oldRow) + ": deleted");
-                } else if (!oldRow.equals(newRow)) {
-                    changes.add(row(table, id, oldRow) + changedColumns(oldRow, newRow));
+                } else {
+                    String changed = changedColumns(oldRow, newRow);
+                    if (!changed.isEmpty()) {
+                        changes.add(row(table, id, oldRow) + changed);
+                    }
                 }
             });
             newRows.forEach((id, newRow) -> {
@@ -225,6 +230,7 @@ public class PreviewMigrationJob implements MaintenanceJob {
         }
     }
 
+    // Each column whose value differs. A column added as NULL, or dropped while NULL, changes nothing in the row.
     private static String changedColumns(JsonNode oldRow, JsonNode newRow) {
         Set<String> columns = new TreeSet<>();
         oldRow.fieldNames().forEachRemaining(columns::add);
@@ -233,7 +239,9 @@ public class PreviewMigrationJob implements MaintenanceJob {
         for (String column : columns) {
             JsonNode oldValue = oldRow.path(column);
             JsonNode newValue = newRow.path(column);
-            if (!oldValue.equals(newValue)) {
+            boolean bothAbsent = (oldValue.isMissingNode() || oldValue.isNull())
+                    && (newValue.isMissingNode() || newValue.isNull());
+            if (!oldValue.equals(newValue) && !bothAbsent) {
                 sb.append("\n      ").append(column).append(": ").append(oldValue).append(" → ").append(newValue);
             }
         }

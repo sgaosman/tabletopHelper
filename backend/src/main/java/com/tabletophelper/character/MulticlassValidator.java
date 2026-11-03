@@ -3,6 +3,7 @@ package com.tabletophelper.character;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.EligibleClassResponse;
+import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.reference.CharacterClass;
 
 import java.util.*;
@@ -59,21 +60,20 @@ public class MulticlassValidator {
     public static List<EligibleClassResponse> getEligibleClasses(
             PlayerCharacter character, List<CharacterClass> allClasses) {
 
-        Map<String, Integer> currentClassLevels = parseMulticlassEntries(character.getMulticlassEntries());
-        Set<String> currentClassIds = currentClassLevels.keySet();
+        Map<UUID, Integer> currentClassLevels = classLevels(character.getMulticlassEntries());
+        Set<UUID> currentClassIds = currentClassLevels.keySet();
 
         List<EligibleClassResponse> results = new ArrayList<>();
 
         for (CharacterClass cc : allClasses) {
-            String classIdStr = cc.getId().toString();
-            boolean isCurrent = currentClassIds.contains(classIdStr);
-            int classLevel = currentClassLevels.getOrDefault(classIdStr, 0);
+            boolean isCurrent = currentClassIds.contains(cc.getId());
+            int classLevel = currentClassLevels.getOrDefault(cc.getId(), 0);
 
             boolean meetsCurrent = true;
             if (!isCurrent) {
-                for (String currentId : currentClassIds) {
+                for (UUID currentId : currentClassIds) {
                     CharacterClass currentClass = allClasses.stream()
-                            .filter(c -> c.getId().toString().equals(currentId))
+                            .filter(c -> c.getId().equals(currentId))
                             .findFirst().orElse(null);
                     if (currentClass != null) {
                         meetsCurrent = meetsCurrent &&
@@ -106,21 +106,14 @@ public class MulticlassValidator {
         return results;
     }
 
-    static Map<String, Integer> parseMulticlassEntries(String multiclassEntriesJson) {
-        if (multiclassEntriesJson == null || multiclassEntriesJson.isBlank()) return Map.of();
-        try {
-            List<Map<String, Object>> entries = mapper.readValue(
-                    multiclassEntriesJson, new TypeReference<>() {});
-            Map<String, Integer> result = new LinkedHashMap<>();
-            for (Map<String, Object> entry : entries) {
-                String classId = (String) entry.get("classId");
-                int level = entry.get("level") instanceof Number n ? n.intValue() : 1;
-                result.put(classId, level);
-            }
-            return result;
-        } catch (Exception e) {
-            return Map.of();
+    /** Each class the character has, by ID, and its level there; empty for none. */
+    static Map<UUID, Integer> classLevels(List<ClassEntry> entries) {
+        if (entries == null) return Map.of();
+        Map<UUID, Integer> result = new LinkedHashMap<>();
+        for (ClassEntry entry : entries) {
+            result.put(entry.classId(), entry.level());
         }
+        return result;
     }
 
     private static int getAbilityScore(String ability, PlayerCharacter character) {

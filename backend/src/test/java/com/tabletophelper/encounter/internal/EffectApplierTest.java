@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -14,7 +15,6 @@ import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.rules.Ability;
-import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
@@ -316,7 +316,7 @@ class EffectApplierTest {
         @DisplayName("A PC's resistances count, and a conditional stat block entry is the DM's call")
         void playerResistanceAndConditionalEntries(Path path) {
             EncounterParticipant tiefling = f.player("Tiefling", 40, 12);
-            tiefling.getCharacter().setDamageResistances("[\"fire\"]");
+            tiefling.getCharacter().setDamageResistances(List.of("fire"));
             EncounterParticipant golem = f.monster("Golem", 50, 10);
             golem.getMonster().setDamageResistances(
                     "[\"{\\\"resist\\\":[\\\"bludgeoning\\\"],\\\"note\\\":\\\"from nonmagical attacks\\\",\\\"cond\\\":true}\"]");

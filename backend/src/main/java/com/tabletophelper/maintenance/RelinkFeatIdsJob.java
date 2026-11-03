@@ -1,10 +1,9 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -25,7 +25,6 @@ public class RelinkFeatIdsJob implements MaintenanceJob {
 
     private final CharacterRepository characterRepository;
     private final FeatRepository featRepository;
-    private final ObjectMapper objectMapper;
 
     @Override
     public String name() {
@@ -43,16 +42,16 @@ public class RelinkFeatIdsJob implements MaintenanceJob {
         for (PlayerCharacter pc : characters) {
             if (pc.getLevelHistory() == null) continue;
             try {
-                JsonNode history = objectMapper.readTree(pc.getLevelHistory());
-                if (!history.isArray()) continue;
+                List<LevelHistoryEntry> history = new ArrayList<>(pc.getLevelHistory());
 
                 boolean changed = false;
-                for (JsonNode entry : history) {
-                    JsonNode asi = entry.path("choices").path("asi");
-                    if (!asi.isObject() || !"feat".equals(asi.path("type").asText())) continue;
+                for (int i = 0; i < history.size(); i++) {
+                    LevelHistoryEntry entry = history.get(i);
+                    AbilityScoreImprovement asi = entry.choices() != null ? entry.choices().asi() : null;
+                    if (asi == null || !"feat".equals(asi.type())) continue;
 
-                    String where = pc.getName() + ", level " + entry.path("characterLevel").asInt();
-                    String featName = asi.path("featName").asText(null);
+                    String where = pc.getName() + ", level " + entry.characterLevel();
+                    String featName = asi.featName();
                     List<Feat> matches = featName != null ? featsByName.getOrDefault(featName, List.of()) : List.of();
                     if (matches.size() != 1) {
                         warnings.add(where + ": " + (matches.isEmpty() ? "no feat named '" + featName + "'"
@@ -60,16 +59,16 @@ public class RelinkFeatIdsJob implements MaintenanceJob {
                         continue;
                     }
 
-                    String currentId = matches.get(0).getId().toString();
-                    if (!currentId.equals(asi.path("featId").asText(null))) {
-                        ((ObjectNode) asi).put("featId", currentId);
+                    UUID currentId = matches.get(0).getId();
+                    if (!currentId.equals(asi.featId())) {
+                        history.set(i, entry.withChoices(entry.choices().withAsi(asi.withFeatId(currentId))));
                         changes.add(where + ": " + featName + " re-linked");
                         changed = true;
                     }
                 }
 
                 if (changed && apply) {
-                    pc.setLevelHistory(objectMapper.writeValueAsString(history));
+                    pc.setLevelHistory(history);
                     characterRepository.save(pc);
                 }
             } catch (Exception e) {

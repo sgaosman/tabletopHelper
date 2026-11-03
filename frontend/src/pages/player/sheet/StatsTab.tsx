@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { PlayerCharacter } from '../../../types/character';
-import { ABILITIES, ABILITY_ABBR, SKILLS, abilityMod, formatMod, safeJsonParse } from '../../../utils/dndRules';
+import { ABILITIES, ABILITY_ABBR, SKILLS, abilityMod, formatMod } from '../../../utils/dndRules';
 import StatCard from './StatCard';
 
 export default function StatsTab({ char, savingThrows, skillProfs, skillExpertises, resistances }: {
@@ -10,10 +10,13 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
   skillExpertises: string[];
   resistances: string[];
 }) {
-  const armorProfs = useMemo(() => safeJsonParse<string[]>(char.armorProficiencies, []), [char.armorProficiencies]);
-  const weaponProfs = useMemo(() => safeJsonParse<string[]>(char.weaponProficiencies, []), [char.weaponProficiencies]);
-  const toolProfs = useMemo(() => safeJsonParse<string[]>(char.toolProficiencies, []), [char.toolProficiencies]);
-  const languageProfs = useMemo(() => safeJsonParse<string[]>(char.languageProficiencies, []), [char.languageProficiencies]);
+  const armorProfs = useMemo(() => char.armorProficiencies ?? [], [char.armorProficiencies]);
+  const weaponProfs = useMemo(() => char.weaponProficiencies ?? [], [char.weaponProficiencies]);
+  const toolProfs = useMemo(() => char.toolProficiencies ?? [], [char.toolProficiencies]);
+  const languageProfs = useMemo(() => char.languageProficiencies ?? [], [char.languageProficiencies]);
+  // "3d10 + 1d6", one term for each class's Hit Dice
+  const hitDice = useMemo(() => Object.values(char.hitDice ?? {}).map(hd => `${hd.total}d${hd.dieSize}`).join(' + '),
+    [char.hitDice]);
 
   const hasProficiencies = armorProfs.length > 0 || weaponProfs.length > 0 || toolProfs.length > 0 || languageProfs.length > 0;
 
@@ -87,7 +90,7 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Proficiency" value={formatMod(char.proficiencyBonus)} />
         <StatCard label="Passive Perception" value={String(10 + abilityMod(char.wisdom) + (skillProfs.some(s => s.toLowerCase() === 'perception') ? char.proficiencyBonus : 0))} />
-        <StatCard label="Hit Dice" value={char.hitDiceTotal || `${char.level}d?`} />
+        <StatCard label="Hit Dice" value={hitDice || `${char.level}d?`} />
         <StatCard label="XP" value={String(char.experiencePoints)} />
       </div>
 

@@ -38,4 +38,16 @@ describe('InventoryTab', () => {
     await user.click(screen.getByText('Save'));
     expect(saved).toBe(true);
   });
+
+  it('saves the coins as JSON rather than a string', async () => {
+    let saved: unknown;
+    render(<InventoryTab equipment={[]} currency={currency} saveField={async updates => { saved = updates; }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Edit'));
+    const gold = screen.getAllByRole('spinbutton')[3];
+    await user.clear(gold);
+    await user.type(gold, '42');
+    await user.click(screen.getByText('Save'));
+    expect(saved).toEqual({ currency: { ...currency, gp: 42 } });
+  });
 });

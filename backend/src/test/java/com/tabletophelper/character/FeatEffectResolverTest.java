@@ -2,6 +2,9 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
+import com.tabletophelper.character.state.AppliedFeatEffects;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
@@ -57,15 +60,15 @@ class FeatEffectResolverTest {
                 .initiativeBonus(2)
                 .speed(30)
                 .proficiencyBonus(3)
-                .armorProficiencies("[]")
-                .weaponProficiencies("[]")
-                .toolProficiencies("[]")
-                .skillProficiencies("[\"Athletics\",\"Perception\"]")
-                .skillExpertises("[]")
-                .languageProficiencies("[]")
-                .savingThrowProficiencies("[\"STR\",\"CON\"]")
-                .damageResistances("[]")
-                .features("[]")
+                .armorProficiencies(List.of())
+                .weaponProficiencies(List.of())
+                .toolProficiencies(List.of())
+                .skillProficiencies(List.of("Athletics", "Perception"))
+                .skillExpertises(List.of())
+                .languageProficiencies(List.of())
+                .savingThrowProficiencies(List.of("STR", "CON"))
+                .damageResistances(List.of())
+                .features(List.of())
                 .spellsKnown(null)
                 .featResources(null)
                 .build();
@@ -269,12 +272,12 @@ class FeatEffectResolverTest {
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, null);
 
         assertNotNull(effects.resource());
-        assertEquals("Luck Points", effects.resource().get("name"));
-        assertEquals(3, effects.resource().get("maxUses"));
-        assertEquals(3, effects.resource().get("currentUses"));
-        assertEquals("longRest", effects.resource().get("resetOn"));
+        assertEquals("Luck Points", effects.resource().name());
+        assertEquals(3, effects.resource().maxUses());
+        assertEquals(3, effects.resource().currentUses());
+        assertEquals("longRest", effects.resource().resetOn());
         assertNotNull(c.getFeatResources());
-        assertTrue(c.getFeatResources().contains("Luck Points"));
+        assertTrue(c.getFeatResources().stream().anyMatch(r -> "Luck Points".equals(r.name())));
     }
 
     // --- 6.11 Spell grant: Magic Initiate ---
@@ -305,9 +308,9 @@ class FeatEffectResolverTest {
 
         assertEquals(3, effects.spellsAdded().size());
         assertNotNull(c.getSpellsKnown());
-        assertTrue(c.getSpellsKnown().contains("Fire Bolt"));
-        assertTrue(c.getSpellsKnown().contains("Mage Hand"));
-        assertTrue(c.getSpellsKnown().contains("Shield"));
+        assertTrue(spellNames(c).contains("Fire Bolt"));
+        assertTrue(spellNames(c).contains("Mage Hand"));
+        assertTrue(spellNames(c).contains("Shield"));
     }
 
     // --- 6.12 Optional feature: Eldritch Adept ---
@@ -348,8 +351,8 @@ class FeatEffectResolverTest {
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, null);
         assertEquals(16, c.getStrength());
 
-        Map<String, Object> appliedMap = buildAppliedMap(effects, "Heavily Armored");
-        resolver.reverseFeatEffects(c, appliedMap);
+        AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Heavily Armored");
+        resolver.reverseFeatEffects(c, recorded);
 
         assertEquals(15, c.getStrength());
     }
@@ -369,8 +372,8 @@ class FeatEffectResolverTest {
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, null);
         assertTrue(c.getArmorProficiencies().contains("Medium"));
 
-        Map<String, Object> appliedMap = buildAppliedMap(effects, "Moderately Armored");
-        resolver.reverseFeatEffects(c, appliedMap);
+        AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Moderately Armored");
+        resolver.reverseFeatEffects(c, recorded);
 
         assertFalse(c.getArmorProficiencies().contains("Medium"));
         assertFalse(c.getArmorProficiencies().contains("Shield"));
@@ -390,10 +393,8 @@ class FeatEffectResolverTest {
         assertEquals(48, c.getHpMax());
         assertEquals(48, c.getHpCurrent());
 
-        Map<String, Object> appliedMap = new LinkedHashMap<>();
-        appliedMap.put("hpPerLevel", 2);
-        appliedMap.put("featName", "Tough");
-        resolver.reverseFeatEffects(c, appliedMap);
+        AppliedFeatEffects recorded = bonuses("Tough", 0, 0, 2);
+        resolver.reverseFeatEffects(c, recorded);
 
         assertEquals(38, c.getHpMax());
         assertEquals(38, c.getHpCurrent());
@@ -419,19 +420,15 @@ class FeatEffectResolverTest {
         assertEquals(origInit + 5, c.getInitiativeBonus());
 
         // Reverse Mobile
-        Map<String, Object> mobileMap = new LinkedHashMap<>();
-        mobileMap.put("speedBonus", 10);
-        mobileMap.put("featName", "Mobile");
-        resolver.reverseFeatEffects(c, mobileMap);
+        AppliedFeatEffects mobileRecord = bonuses("Mobile", 10, 0, 0);
+        resolver.reverseFeatEffects(c, mobileRecord);
         assertEquals(origSpeed, c.getSpeed());
         // Alert still active
         assertEquals(origInit + 5, c.getInitiativeBonus());
 
         // Reverse Alert
-        Map<String, Object> alertMap = new LinkedHashMap<>();
-        alertMap.put("initiativeBonus", 5);
-        alertMap.put("featName", "Alert");
-        resolver.reverseFeatEffects(c, alertMap);
+        AppliedFeatEffects alertRecord = bonuses("Alert", 0, 5, 0);
+        resolver.reverseFeatEffects(c, alertRecord);
         assertEquals(origInit, c.getInitiativeBonus());
     }
 
@@ -447,8 +444,8 @@ class FeatEffectResolverTest {
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, null);
         assertTrue(c.getDamageResistances().contains("fire"));
 
-        Map<String, Object> appliedMap = buildAppliedMap(effects, "Dragon Hide");
-        resolver.reverseFeatEffects(c, appliedMap);
+        AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Dragon Hide");
+        resolver.reverseFeatEffects(c, recorded);
 
         assertFalse(c.getDamageResistances().contains("fire"));
     }
@@ -475,14 +472,14 @@ class FeatEffectResolverTest {
         choices.setSpellIds(List.of(cantripId, spellId));
 
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, feat, choices);
-        assertTrue(c.getSpellsKnown().contains("Fire Bolt"));
-        assertTrue(c.getSpellsKnown().contains("Shield"));
+        assertTrue(spellNames(c).contains("Fire Bolt"));
+        assertTrue(spellNames(c).contains("Shield"));
 
-        Map<String, Object> appliedMap = buildAppliedMap(effects, "Magic Initiate");
-        resolver.reverseFeatEffects(c, appliedMap);
+        AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Magic Initiate");
+        resolver.reverseFeatEffects(c, recorded);
 
-        assertFalse(c.getSpellsKnown().contains("Fire Bolt"));
-        assertFalse(c.getSpellsKnown().contains("Shield"));
+        assertFalse(spellNames(c).contains("Fire Bolt"));
+        assertFalse(spellNames(c).contains("Shield"));
     }
 
     // --- 6.19 Reversal symmetry: apply then reverse restores identical state ---
@@ -496,9 +493,9 @@ class FeatEffectResolverTest {
         int origStr = c.getStrength();
         int origHpMax = c.getHpMax();
         int origHpCurrent = c.getHpCurrent();
-        String origFeatures = c.getFeatures();
-        String origDmgRes = c.getDamageResistances();
-        String origArmorProfs = c.getArmorProficiencies();
+        List<Feature> origFeatures = c.getFeatures();
+        List<String> origDmgRes = c.getDamageResistances();
+        List<String> origArmorProfs = c.getArmorProficiencies();
 
         Feat alert = buildFeat("Alert", null, "{\"initiativeBonus\": 5}", null);
         FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(c, alert, null);
@@ -506,8 +503,8 @@ class FeatEffectResolverTest {
         // Verify something changed
         assertNotEquals(origInit, c.getInitiativeBonus());
 
-        Map<String, Object> appliedMap = buildAppliedMap(effects, "Alert");
-        resolver.reverseFeatEffects(c, appliedMap);
+        AppliedFeatEffects recorded = CharacterUpdates.recordedEffects(effects, "Alert");
+        resolver.reverseFeatEffects(c, recorded);
 
         assertEquals(origInit, c.getInitiativeBonus());
         assertEquals(origSpeed, c.getSpeed());
@@ -538,30 +535,21 @@ class FeatEffectResolverTest {
         assertEquals(43, fromNine.getHpMax());
         assertEquals(43, fromNine.getHpCurrent());
 
-        resolver.reverseFeatEffects(fromNine, buildAppliedMap(effects, "Durable"));
+        resolver.reverseFeatEffects(fromNine, CharacterUpdates.recordedEffects(effects, "Durable"));
         assertEquals(9, fromNine.getConstitution());
         assertEquals(38, fromNine.getHpMax());
     }
 
-    // --- Helper: convert AppliedEffects to the Map format used by reverseFeatEffects ---
+    // --- Helpers ---
 
-    private Map<String, Object> buildAppliedMap(FeatEffectResolver.AppliedEffects effects, String featName) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        if (!effects.abilityIncreases().isEmpty()) map.put("abilityIncreases", effects.abilityIncreases());
-        if (!effects.resistancesAdded().isEmpty()) map.put("resistancesAdded", effects.resistancesAdded());
-        if (!effects.armorProficienciesAdded().isEmpty()) map.put("armorProficienciesAdded", effects.armorProficienciesAdded());
-        if (!effects.weaponProficienciesAdded().isEmpty()) map.put("weaponProficienciesAdded", effects.weaponProficienciesAdded());
-        if (!effects.toolProficienciesAdded().isEmpty()) map.put("toolProficienciesAdded", effects.toolProficienciesAdded());
-        if (!effects.skillProficienciesAdded().isEmpty()) map.put("skillProficienciesAdded", effects.skillProficienciesAdded());
-        if (!effects.languageProficienciesAdded().isEmpty()) map.put("languageProficienciesAdded", effects.languageProficienciesAdded());
-        if (!effects.savingThrowProficienciesAdded().isEmpty()) map.put("savingThrowProficienciesAdded", effects.savingThrowProficienciesAdded());
-        if (!effects.expertiseAdded().isEmpty()) map.put("expertiseAdded", effects.expertiseAdded());
-        if (effects.speedBonus() != 0) map.put("speedBonus", effects.speedBonus());
-        if (effects.initiativeBonus() != 0) map.put("initiativeBonus", effects.initiativeBonus());
-        if (effects.hpPerLevel() != 0) map.put("hpPerLevel", effects.hpPerLevel());
-        if (effects.resource() != null) map.put("resource", effects.resource());
-        if (!effects.spellsAdded().isEmpty()) map.put("spellsAdded", effects.spellsAdded());
-        map.put("featName", featName);
-        return map;
+    // The history's record of a feat that changed only speed, initiative or HP per level
+    private static AppliedFeatEffects bonuses(String featName, int speedBonus, int initiativeBonus, int hpPerLevel) {
+        return new AppliedFeatEffects(null, null, null, null, null, null, null, null, null,
+                speedBonus != 0 ? speedBonus : null, initiativeBonus != 0 ? initiativeBonus : null,
+                hpPerLevel != 0 ? hpPerLevel : null, null, null, null, null, featName);
+    }
+
+    private static List<String> spellNames(PlayerCharacter c) {
+        return c.getSpellsKnown().stream().map(KnownSpell::name).toList();
     }
 }
