@@ -17,11 +17,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class FeatEffectResolver {
+
+    /** The source of a feat's entry among the character's features, whatever granted the feat. */
+    static final String FEAT_SOURCE = "Feat";
+
+    // "You can select this feat multiple times", as Elemental Adept puts it
+    private static final Pattern REPEATABLE = Pattern.compile("(?i)\\b(?:select|take) this feat multiple times\\b");
 
     private final ObjectMapper objectMapper;
     private final SpellRepository spellRepository;
@@ -153,8 +160,9 @@ public class FeatEffectResolver {
     }
 
     /**
-     * Takes away what applying a feat recorded. Speed, initiative, hit points and the pool of the feat's limited uses
-     * need nothing here: CharacterStats works them out again from the history without the feat.
+     * Takes away what applying a feat recorded, as levelling down past the level that took it, or removing the DM's
+     * grant of it, does. Speed, initiative, hit points and the pool of the feat's limited uses need nothing here:
+     * CharacterStats works them out again from the feats the character still has.
      */
     public void reverseFeatEffects(PlayerCharacter character, AppliedFeatEffects appliedEffects) {
         if (appliedEffects == null) return;
@@ -623,14 +631,29 @@ public class FeatEffectResolver {
     private void addFeatFeature(PlayerCharacter character, Feat feat) {
         List<Feature> features = copy(character.getFeatures());
         features.add(new Feature(feat.getName(),
-                feat.getDescription() != null ? feat.getDescription() : "Feat", "Feat"));
+                feat.getDescription() != null ? feat.getDescription() : "Feat", FEAT_SOURCE));
         character.setFeatures(features);
     }
 
+    // The latest of the feat's entries goes, so a feat taken more than once keeps the others' (D158)
     private void removeFeatFeature(PlayerCharacter character, String featName) {
         List<Feature> features = copy(character.getFeatures());
-        features.removeIf(f -> featName.equals(f.name()) && "Feat".equals(f.source()));
+        for (int i = features.size() - 1; i >= 0; i--) {
+            Feature feature = features.get(i);
+            if (featName.equals(feature.name()) && FEAT_SOURCE.equals(feature.source())) {
+                features.remove(i);
+                break;
+            }
+        }
         character.setFeatures(features);
+    }
+
+    /**
+     * Whether a character may take the feat more than once: its text says it can be selected or taken multiple times,
+     * as Elemental Adept's does (PHB p.166). The feat data records nothing else that says so.
+     */
+    public static boolean repeatable(Feat feat) {
+        return feat.getDescription() != null && REPEATABLE.matcher(feat.getDescription()).find();
     }
 
     // --- Helpers ---

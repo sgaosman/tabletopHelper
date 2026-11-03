@@ -39,8 +39,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * preview, which loads the rows with entities now at V17, gave way to V17's. V17 is previewed through
  * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163). V19 is applied
  * the same way, against player characters in a schema at V18 (D168), and so is V20, against level histories in a
- * schema at V19 (D167); their previews, which load the characters with entities now at V21, gave way to V21's,
- * previewed and applied against characters in a schema at V20 (D158).
+ * schema at V19 (D167); their previews, which load the characters with entities now at V22, gave way to V21's,
+ * applied against characters in a schema at V20 (D158), whose preview in turn gave way to V22's, previewed and applied
+ * against characters in a schema at V21 (D158).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
@@ -49,6 +50,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private static final String V19_SCHEMA = "v19_preview";
     private static final String V20_SCHEMA = "v20_preview";
     private static final String V21_SCHEMA = "v21_preview";
+    private static final String V22_SCHEMA = "v22_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -71,6 +73,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V19_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V20_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V21_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V22_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -632,28 +635,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
         return rows;
     }
 
-    private Integer v21Versions() {
-        return jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND table_name = 'player_characters' AND column_name = 'version'", Integer.class, V21_SCHEMA);
-    }
-
-    @Test
-    @DisplayName("Previews V21 on a database at V20: every character gains version 0, every row loads, nothing is written")
-    void previewsV21() {
-        Map<String, UUID> rows = v21Rows();
-        DataSource v21 = schemaDataSource(V21_SCHEMA);
-
-        MaintenanceReport report = new PreviewMigrationJob(v21, new JdbcTemplate(v21), entityManagerFactory,
-                objectMapper, "21").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(report.examined()).isEqualTo(2);
-        assertThat(report.changes()).hasSize(2);
-        assertThat(characterChange(report, rows.get("Fighter"))).contains("(Fighter)").containsPattern("version: +→ 0");
-        assertThat(characterChange(report, rows.get("Empty"))).containsPattern("version: +→ 0");
-        assertThat(v21Versions()).isZero();
-    }
-
     @Test
     @DisplayName("V21 starts every character at version 0 and leaves the rest of the row as it was")
     void appliesV21() {
@@ -669,5 +650,82 @@ class PreviewMigrationJobIT extends IntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V21_SCHEMA + ".player_characters SET version = NULL "
                 + "WHERE id = ?", rows.get("Empty")))
                 .hasMessageContaining("version");
+    }
+
+    // ── V22: DM Adjustments (D158) ───────────────────────────────
+
+    /**
+     * Takes a schema of its own to V21 and fills it with characters as R6 workstream D left them: a Fighter with its
+     * level history, Hit Dice and a version moved on by its commands, and a character with neither.
+     */
+    private Map<String, UUID> v22Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V22_SCHEMA).locations("classpath:db/migration")
+                .target("21").load().migrate();
+        UUID owner = UUID.randomUUID();
+        UUID race = UUID.randomUUID();
+        UUID fighter = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V22_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'aria', 'aria@example.com', 'hash')", owner);
+        jdbcTemplate.update("INSERT INTO " + V22_SCHEMA + ".races (id, name) VALUES (?, 'Human')", race);
+        jdbcTemplate.update("INSERT INTO " + V22_SCHEMA + ".character_classes (id, name, hit_dice) VALUES (?, 'Fighter', 10)",
+                fighter);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        for (String name : List.of("Fighter", "Empty")) {
+            UUID id = UUID.randomUUID();
+            jdbcTemplate.update("INSERT INTO " + V22_SCHEMA + ".player_characters (id, user_id, race_id, name, strength, "
+                    + "dexterity, constitution, intelligence, wisdom, charisma, hp_max, hp_current, armour_class) "
+                    + "VALUES (?, ?, ?, ?, 10, 10, 14, 10, 10, 10, 12, 12, 10)", id, owner, race, name);
+            rows.put(name, id);
+        }
+        jdbcTemplate.update("UPDATE " + V22_SCHEMA + ".player_characters SET level_history = ?::jsonb, "
+                + "hit_dice = '{\"Fighter\": {\"dieSize\": 10, \"total\": 1, \"remaining\": 1}}', version = 4 "
+                + "WHERE id = ?",
+                "[{\"characterLevel\": 1, \"classId\": \"" + fighter + "\", \"className\": \"Fighter\", "
+                        + "\"classLevel\": 1, \"hpGained\": 12, \"hitDieResult\": 10, \"featuresGained\": [], "
+                        + "\"choices\": {}}]", rows.get("Fighter"));
+        return rows;
+    }
+
+    private Integer v22AdjustmentColumns() {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND table_name = 'player_characters' AND column_name = 'dm_adjustments'", Integer.class, V22_SCHEMA);
+    }
+
+    @Test
+    @DisplayName("Previews V22 on a database at V21: every character gains an empty list of DM Adjustments, every row loads, nothing is written")
+    void previewsV22() {
+        Map<String, UUID> rows = v22Rows();
+        DataSource v22 = schemaDataSource(V22_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v22, new JdbcTemplate(v22), entityManagerFactory,
+                objectMapper, "22").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(report.examined()).isEqualTo(2);
+        assertThat(report.changes()).hasSize(2);
+        assertThat(characterChange(report, rows.get("Fighter"))).contains("(Fighter)")
+                .containsPattern("dm_adjustments: +→ \\[]");
+        assertThat(characterChange(report, rows.get("Empty"))).containsPattern("dm_adjustments: +→ \\[]");
+        assertThat(v22AdjustmentColumns()).isZero();
+    }
+
+    @Test
+    @DisplayName("V22 gives every character an empty list of DM Adjustments, never null, and leaves the rest of the row as it was")
+    void appliesV22() {
+        Map<String, UUID> rows = v22Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V22_SCHEMA).locations("classpath:db/migration")
+                .target("22").load().migrate();
+
+        assertThat(jdbcTemplate.queryForList("SELECT dm_adjustments::text FROM " + V22_SCHEMA
+                + ".player_characters ORDER BY name", String.class)).containsExactly("[]", "[]");
+        assertThat(jdbcTemplate.queryForObject("SELECT version FROM " + V22_SCHEMA
+                + ".player_characters WHERE id = ?", Long.class, rows.get("Fighter"))).isEqualTo(4L);
+        assertThat(jdbcTemplate.queryForObject("SELECT level_history -> 0 ->> 'hitDieResult' FROM " + V22_SCHEMA
+                + ".player_characters WHERE id = ?", String.class, rows.get("Fighter"))).isEqualTo("10");
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V22_SCHEMA + ".player_characters "
+                + "SET dm_adjustments = NULL WHERE id = ?", rows.get("Empty")))
+                .hasMessageContaining("dm_adjustments");
     }
 }

@@ -4,6 +4,7 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelChoices;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -254,6 +256,40 @@ class ResourcePoolServiceTest {
         assertEquals("feat:lucky", pools.getFirst().poolId());
         assertEquals("FEAT", pools.getFirst().sourceType());
         assertEquals("Lucky", pools.getFirst().sourceName());
+    }
+
+    @Test
+    @DisplayName("A feat the DM granted has a pool as one a level took does, until the grant is removed (D158)")
+    void grantedFeatsHavePools() {
+        FeatResourceEntry luck = new FeatResourceEntry("Lucky", "Luck Points", 3, 3, "longRest");
+        AppliedFeatEffects lucky = new AppliedFeatEffects(null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, luck, null, "Lucky");
+        DmAdjustment grant = new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.FEAT, "Lucky", null, null,
+                UUID.randomUUID(), lucky, "Blessing of Tymora", UUID.randomUUID(), Instant.now(), null, null);
+        PlayerCharacter blessed = PlayerCharacter.builder().level(3)
+                .levelHistory(List.of(new LevelHistoryEntry(1, null, "Fighter", 1, 12, 10, null, LevelChoices.NONE,
+                        null, null)))
+                .resourcePools(List.of(ResourcePoolEntry.feat("Lucky", "Luck Points", 3, "longRest").withCurrentUses(2)))
+                .dmAdjustments(List.of(grant))
+                .build();
+
+        assertEquals(List.of(ResourcePoolEntry.feat("Lucky", "Luck Points", 3, "longRest").withCurrentUses(2)),
+                reconcile(blessed));
+
+        blessed.setDmAdjustments(List.of(grant.removed(UUID.randomUUID(), Instant.now())));
+        assertEquals(List.of(), reconcile(blessed));
+    }
+
+    @Test
+    @DisplayName("The ability modifiers pool formulas read include the DM's adjustments to the scores (D158)")
+    void contextModifiersIncludeDmAdjustments() {
+        PlayerCharacter bard = PlayerCharacter.builder().charisma(15)
+                .dmAdjustments(List.of(new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, "CHA", 2, null,
+                        null, null, "Cloak of the Bard", UUID.randomUUID(), Instant.now(), null, null)))
+                .build();
+
+        assertEquals(3, service.buildCharacterContext(bard).get("charismaModifier"));
+        assertEquals(0, service.buildCharacterContext(bard).get("strengthModifier"));
     }
 
     @Test

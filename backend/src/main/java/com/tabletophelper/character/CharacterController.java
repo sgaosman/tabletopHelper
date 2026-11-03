@@ -13,8 +13,8 @@ import java.util.UUID;
 
 /**
  * Characters. The server is the only authority over a character (D158): besides creating it, levelling it and
- * choosing what its levels bring, its owner changes it only through the intent endpoints below, each answering with
- * the character as the server then works it out.
+ * choosing what its levels bring, its owner changes it only through the intent endpoints below, and the DM of its
+ * campaign only through DM Adjustments, each answering with the character as the server then works it out.
  */
 @RestController
 @RequestMapping("/api/characters")
@@ -25,6 +25,7 @@ public class CharacterController {
     private final CharacterSheetService sheetService;
     private final RestService restService;
     private final CharacterSpellService spellService;
+    private final DmAdjustmentService adjustmentService;
 
     @PostMapping
     public ResponseEntity<CharacterResponse> createCharacter(
@@ -187,6 +188,28 @@ public class CharacterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         return ResponseEntity.ok(spellService.removeFromSpellbook(characterId, request, userId));
+    }
+
+    // ── DM Adjustments ───────────────────────────────────────────
+
+    /** Adds a DM Adjustment, which only the DM of the character's campaign may (D158). */
+    @PostMapping("/{characterId}/adjustments")
+    public ResponseEntity<CharacterResponse> addAdjustment(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody DmAdjustmentRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(adjustmentService.add(characterId, request, userId));
+    }
+
+    /** Removes a DM Adjustment, which stays on the sheet as the record. */
+    @DeleteMapping("/{characterId}/adjustments/{adjustmentId}")
+    public ResponseEntity<CharacterResponse> removeAdjustment(
+            @PathVariable UUID characterId,
+            @PathVariable UUID adjustmentId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(adjustmentService.remove(characterId, adjustmentId, userId));
     }
 
     // ── Levels ───────────────────────────────────────────────────

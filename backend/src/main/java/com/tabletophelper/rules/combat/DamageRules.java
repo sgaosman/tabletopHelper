@@ -1,5 +1,6 @@
 package com.tabletophelper.rules.combat;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -10,6 +11,10 @@ public final class DamageRules {
 
     /** A creature's defence against one damage type (PHB p.197). */
     public enum Defence { RESISTANCE, VULNERABILITY, IMMUNITY }
+
+    /** The thirteen damage types (PHB p.196), as combat names them, in alphabetical order. */
+    public static final List<String> DAMAGE_TYPES = List.of("acid", "bludgeoning", "cold", "fire", "force",
+            "lightning", "necrotic", "piercing", "poison", "psychic", "radiant", "slashing", "thunder");
 
     private DamageRules() {}
 

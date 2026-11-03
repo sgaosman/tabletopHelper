@@ -8,18 +8,19 @@ import com.tabletophelper.shared.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
  * The start and end of every command that changes a character (D158), as EncounterCommands is for an encounter.
- * Only the character's owner may give one, and access is checked by the owner's ID first, so a caller who may not
- * change the character never locks its row. The character is then loaded under a pessimistic write lock held until
- * the transaction ends: commands on one character queue instead of failing, and each starts from the last one's
- * committed state. A wait longer than five seconds is a 409, and so is a write from a copy that someone else has
- * changed since, which the row's version catches. Resting and levelling are refused while the character is in an
- * Active or Paused encounter (D166). Once the command has made its change, {@link #finish} works the Derived Stats
- * out again and saves.
+ * Only the character's owner may give one, except a DM Adjustment, which only the DM of the character's campaign may
+ * give, and access is checked by ID first, so a caller who may not change the character never locks its row. The
+ * character is then loaded under a pessimistic write lock held until the transaction ends: commands on one character
+ * queue instead of failing, and each starts from the last one's committed state. A wait longer than five seconds is a
+ * 409, and so is a write from a copy that someone else has changed since, which the row's version catches. Resting and
+ * levelling are refused while the character is in an Active or Paused encounter (D166). Once the command has made its
+ * change, {@link #finish} works the Derived Stats out again and saves.
  *
  * <p>Call it from inside the command's transaction.
  */
@@ -41,6 +42,26 @@ class CharacterCommands {
         characterRepository.limitLockWaits();
         return characterRepository.lockById(characterId)
                 .orElseThrow(() -> new NotFoundException("Character not found"));
+    }
+
+    /**
+     * A command only the DM of the character's campaign may give: a DM Adjustment (D158). Its owner may not, and a
+     * character in no campaign has no DM. The campaign is checked again under the lock, in case the owner moved the
+     * character while the command waited for it.
+     */
+    PlayerCharacter beginAsDm(UUID characterId, UUID userId) {
+        UUID campaignId = characterRepository.findCampaignOfCharacterById(characterId)
+                .orElseThrow(() -> new NotFoundException("Character not found"))
+                .getCampaignId();
+        accessPolicy.requireCharacterDm(campaignId, userId);
+        characterRepository.limitLockWaits();
+        PlayerCharacter character = characterRepository.lockById(characterId)
+                .orElseThrow(() -> new NotFoundException("Character not found"));
+        UUID lockedCampaignId = character.getCampaign() != null ? character.getCampaign().getId() : null;
+        if (!Objects.equals(lockedCampaignId, campaignId)) {
+            accessPolicy.requireCharacterDm(lockedCampaignId, userId);
+        }
+        return character;
     }
 
     /**

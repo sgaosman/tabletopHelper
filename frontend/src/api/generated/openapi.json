@@ -414,6 +414,87 @@
         ]
       }
     },
+    "/api/characters/{characterId}/adjustments": {
+      "post": {
+        "operationId": "addAdjustment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DmAdjustmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/adjustments/{adjustmentId}": {
+      "delete": {
+        "operationId": "removeAdjustment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "adjustmentId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
     "/api/characters/{characterId}/apply-choices": {
       "post": {
         "operationId": "applyChoices",
@@ -4288,6 +4369,43 @@
           }
         }
       },
+      "BaseAbilityScores": {
+        "required": [
+          "charisma",
+          "constitution",
+          "dexterity",
+          "intelligence",
+          "strength",
+          "wisdom"
+        ],
+        "type": "object",
+        "properties": {
+          "charisma": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "constitution": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dexterity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "intelligence": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "strength": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "wisdom": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "BulkInitiativeRequest": {
         "required": [
           "initiatives"
@@ -4886,11 +5004,16 @@
         "required": [
           "abilityScoreMaximums",
           "armourClass",
+          "baseAbilityScores",
           "charisma",
           "constitution",
+          "damageImmunities",
+          "damageResistances",
+          "damageVulnerabilities",
           "deathSaveFailures",
           "deathSaveSuccesses",
           "dexterity",
+          "dmAdjustments",
           "experiencePoints",
           "hpCurrent",
           "hpMax",
@@ -4949,6 +5072,9 @@
             "type": "string",
             "nullable": true
           },
+          "baseAbilityScores": {
+            "$ref": "#/components/schemas/BaseAbilityScores"
+          },
           "bonds": {
             "type": "string",
             "nullable": true
@@ -5001,14 +5127,18 @@
           },
           "damageImmunities": {
             "type": "array",
-            "nullable": true,
             "items": {
               "type": "string"
             }
           },
           "damageResistances": {
             "type": "array",
-            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "damageVulnerabilities": {
+            "type": "array",
             "items": {
               "type": "string"
             }
@@ -5024,6 +5154,12 @@
           "dexterity": {
             "type": "integer",
             "format": "int32"
+          },
+          "dmAdjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmAdjustment"
+            }
           },
           "equipment": {
             "type": "array",
@@ -5713,6 +5849,132 @@
           "participantId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "DmAdjustment": {
+        "required": [
+          "addedAt",
+          "addedBy",
+          "id",
+          "kind",
+          "reason",
+          "target"
+        ],
+        "type": "object",
+        "properties": {
+          "addedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "addedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "appliedEffects": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AppliedFeatEffects"
+              }
+            ]
+          },
+          "defence": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "RESISTANCE",
+              "VULNERABILITY",
+              "IMMUNITY"
+            ]
+          },
+          "featId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "STAT",
+              "DEFENCE",
+              "FEAT"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "removedBy": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "target": {
+            "type": "string"
+          }
+        }
+      },
+      "DmAdjustmentRequest": {
+        "required": [
+          "kind",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "maximum": 100,
+            "minimum": -100,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "defence": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "RESISTANCE",
+              "VULNERABILITY",
+              "IMMUNITY"
+            ]
+          },
+          "feat": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AsiChoice"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "STAT",
+              "DEFENCE",
+              "FEAT"
+            ]
+          },
+          "reason": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "target": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

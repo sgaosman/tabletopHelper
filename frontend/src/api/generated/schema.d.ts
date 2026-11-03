@@ -180,6 +180,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{characterId}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/adjustments/{adjustmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["removeAdjustment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{characterId}/apply-choices": {
         parameters: {
             query?: never;
@@ -1734,6 +1766,20 @@ export interface components {
             startingEquipment?: string | null;
             toolProficiencies?: string | null;
         };
+        BaseAbilityScores: {
+            /** Format: int32 */
+            charisma: number;
+            /** Format: int32 */
+            constitution: number;
+            /** Format: int32 */
+            dexterity: number;
+            /** Format: int32 */
+            intelligence: number;
+            /** Format: int32 */
+            strength: number;
+            /** Format: int32 */
+            wisdom: number;
+        };
         BulkInitiativeRequest: {
             initiatives: components["schemas"]["SetInitiativeRequest"][];
         };
@@ -1897,6 +1943,7 @@ export interface components {
             /** Format: uuid */
             backgroundId?: string | null;
             backgroundName?: string | null;
+            baseAbilityScores: components["schemas"]["BaseAbilityScores"];
             bonds?: string | null;
             /** Format: uuid */
             campaignId?: string | null;
@@ -1912,14 +1959,16 @@ export interface components {
             /** Format: date-time */
             createdAt?: string | null;
             currency?: components["schemas"]["Currency"] | null;
-            damageImmunities?: string[] | null;
-            damageResistances?: string[] | null;
+            damageImmunities: string[];
+            damageResistances: string[];
+            damageVulnerabilities: string[];
             /** Format: int32 */
             deathSaveFailures: number;
             /** Format: int32 */
             deathSaveSuccesses: number;
             /** Format: int32 */
             dexterity: number;
+            dmAdjustments: components["schemas"]["DmAdjustment"][];
             equipment?: components["schemas"]["InventoryItem"][] | null;
             /** Format: int32 */
             experiencePoints: number;
@@ -2130,6 +2179,40 @@ export interface components {
         DeathSaveRequest: {
             /** Format: uuid */
             participantId: string;
+        };
+        DmAdjustment: {
+            /** Format: date-time */
+            addedAt: string;
+            /** Format: uuid */
+            addedBy: string;
+            /** Format: int32 */
+            amount?: number | null;
+            appliedEffects?: components["schemas"]["AppliedFeatEffects"] | null;
+            /** @enum {string|null} */
+            defence?: "RESISTANCE" | "VULNERABILITY" | "IMMUNITY" | null;
+            /** Format: uuid */
+            featId?: string | null;
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "STAT" | "DEFENCE" | "FEAT";
+            reason: string;
+            /** Format: date-time */
+            removedAt?: string | null;
+            /** Format: uuid */
+            removedBy?: string | null;
+            target: string;
+        };
+        DmAdjustmentRequest: {
+            /** Format: int32 */
+            amount?: number | null;
+            /** @enum {string|null} */
+            defence?: "RESISTANCE" | "VULNERABILITY" | "IMMUNITY" | null;
+            feat?: components["schemas"]["AsiChoice"] | null;
+            /** @enum {string} */
+            kind: "STAT" | "DEFENCE" | "FEAT";
+            reason: string;
+            target?: string | null;
         };
         EligibleClassResponse: {
             /** Format: uuid */
@@ -3141,6 +3224,55 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    addAdjustment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DmAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    removeAdjustment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+                adjustmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
             };
         };
     };

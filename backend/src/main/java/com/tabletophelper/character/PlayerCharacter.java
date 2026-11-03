@@ -4,6 +4,7 @@ import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
@@ -255,6 +256,12 @@ public class PlayerCharacter {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "resource_pools", columnDefinition = "jsonb")
     private List<ResourcePoolEntry> resourcePools;
+
+    // The DM's adjustments, oldest first (D158, V22): only the active ones count, and a removed one stays as the record
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "dm_adjustments", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<DmAdjustment> dmAdjustments = List.of();
 
     @Column(name = "is_active")
     @Builder.Default

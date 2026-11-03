@@ -25,6 +25,19 @@ public interface CharacterRepository extends JpaRepository<PlayerCharacter, UUID
     @Query("SELECT c.user.id FROM PlayerCharacter c WHERE c.id = :characterId")
     Optional<UUID> findOwnerIdById(@Param("characterId") UUID characterId);
 
+    /** A character and the campaign it belongs to, which is null for a character in none. */
+    interface CampaignOfCharacter {
+        UUID getCharacterId();
+
+        UUID getCampaignId();
+    }
+
+    // Reads only the IDs, so a caller who may not adjust the character never locks its row; empty when no character
+    // has the ID. The character's own ID keeps a row whose campaign ID is null from reading as no row.
+    @Query("SELECT c.id AS characterId, camp.id AS campaignId FROM PlayerCharacter c LEFT JOIN c.campaign camp "
+            + "WHERE c.id = :characterId")
+    Optional<CampaignOfCharacter> findCampaignOfCharacterById(@Param("characterId") UUID characterId);
+
     /**
      * Loads the character under a pessimistic write lock held until the transaction ends, so commands on one
      * character run one after another and each starts from the last one's committed state (D158). Check access

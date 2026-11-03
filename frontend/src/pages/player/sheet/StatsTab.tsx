@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { PlayerCharacter } from '../../../types/character';
 import { ABILITIES, ABILITY_ABBR, SKILLS, abilityMod, formatMod } from '../../../utils/dndRules';
+import { activeAdjustments, describeAdjustment } from '../../../utils/dmAdjustments';
 import StatCard from './StatCard';
 
 export default function StatsTab({ char, savingThrows, skillProfs, skillExpertises, resistances }: {
@@ -17,11 +18,31 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
   // "3d10 + 1d6", one term for each class's Hit Dice
   const hitDice = useMemo(() => Object.values(char.hitDice ?? {}).map(hd => `${hd.total}d${hd.dieSize}`).join(' + '),
     [char.hitDice]);
+  // The DM's adjustments that count, already in the numbers below (D158)
+  const adjustments = useMemo(() => activeAdjustments(char.dmAdjustments), [char.dmAdjustments]);
+  const immunities = useMemo(() => char.damageImmunities ?? [], [char.damageImmunities]);
+  const vulnerabilities = useMemo(() => char.damageVulnerabilities ?? [], [char.damageVulnerabilities]);
+  const hasDefences = resistances.length > 0 || immunities.length > 0 || vulnerabilities.length > 0;
 
   const hasProficiencies = armorProfs.length > 0 || weaponProfs.length > 0 || toolProfs.length > 0 || languageProfs.length > 0;
 
   return (
     <div className="space-y-6">
+      {adjustments.length > 0 && (
+        <section aria-label="DM Adjustments" className="bg-card border border-rule p-4">
+          <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-2">DM Adjustments</h3>
+          <ul className="space-y-1">
+            {adjustments.map(adjustment => (
+              <li key={adjustment.id} className="font-body text-[15px] font-semibold text-muted">
+                <span className="font-heading text-[15px] font-bold text-ink">{describeAdjustment(adjustment)}</span>
+                {' '}— {adjustment.reason}
+              </li>
+            ))}
+          </ul>
+          <p className="font-body text-[13px] text-faint mt-2">Your DM added these; the numbers on your sheet include them.</p>
+        </section>
+      )}
+
       {/* Ability Scores */}
       <div className="grid grid-cols-6 gap-3">
         {ABILITIES.map(ability => {
@@ -127,13 +148,20 @@ export default function StatsTab({ char, savingThrows, skillProfs, skillExpertis
         </div>
       )}
 
-      {resistances.length > 0 && (
+      {hasDefences && (
         <div className="bg-card border border-rule p-4">
-          <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-2">Resistances & Immunities</h3>
-          <div className="flex flex-wrap gap-2">
-            {resistances.map((r, i) => (
-              <span key={i} className="px-2 py-1 bg-page-alt border border-rule font-body text-[13px] font-semibold text-muted">{r}</span>
-            ))}
+          <h3 className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-faint mb-2">Damage Defences</h3>
+          <div className="space-y-2">
+            {([['Resistant', resistances], ['Immune', immunities], ['Vulnerable', vulnerabilities]] as const)
+              .filter(([, types]) => types.length > 0)
+              .map(([label, types]) => (
+                <div key={label} className="flex flex-wrap items-center gap-2">
+                  <span className="font-heading text-[11px] font-semibold tracking-[0.04em] uppercase text-faint">{label}:</span>
+                  {types.map(type => (
+                    <span key={type} className="px-2 py-1 bg-page-alt border border-rule font-body text-[13px] font-semibold text-muted">{type}</span>
+                  ))}
+                </div>
+              ))}
           </div>
         </div>
       )}

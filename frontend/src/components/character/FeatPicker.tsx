@@ -3,7 +3,9 @@ import { Search, Check, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { getFeats, getOptionalFeatures, searchSpells } from '../../api/referenceApi';
 import type { PlayerCharacter, AsiChoice } from '../../types/character';
 import type { Feat, OptionalFeature, Spell } from '../../types/reference';
-import { checkFeatPrerequisites, parseFeatEffects, parseAbilityScoreIncrease } from '../../utils/featPrerequisites';
+import {
+  checkFeatPrerequisites, isRepeatableFeat, parseFeatEffects, parseAbilityScoreIncrease,
+} from '../../utils/featPrerequisites';
 import FormattedDescription from '../FormattedDescription';
 import { ALL_SKILLS } from '../../utils/dndRules';
 
@@ -31,9 +33,11 @@ interface SpellFilter {
 interface FeatPickerProps {
   character: PlayerCharacter;
   onSelectionChange: (selection: AsiChoice | null) => void;
+  /** For a DM's grant (D158): a feat whose prerequisites the character doesn't meet can be picked, with them shown */
+  ignorePrerequisites?: boolean;
 }
 
-export default function FeatPicker({ character, onSelectionChange }: FeatPickerProps) {
+export default function FeatPicker({ character, onSelectionChange, ignorePrerequisites = false }: FeatPickerProps) {
   const [feats, setFeats] = useState<Feat[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -71,13 +75,18 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
     return feats.map(feat => {
       const prereq = checkFeatPrerequisites(feat, character);
       const existingFeats = getCharacterFeatNames(character);
-      const alreadyTaken = existingFeats.includes(feat.name);
-      return { feat, eligible: prereq.eligible && !alreadyTaken, reason: alreadyTaken ? 'Already taken' : prereq.reason };
+      // A feat that can be taken more than once, such as Elemental Adept, stays open (D158)
+      const alreadyTaken = existingFeats.includes(feat.name) && !isRepeatableFeat(feat);
+      return {
+        feat,
+        eligible: (prereq.eligible || ignorePrerequisites) && !alreadyTaken,
+        reason: alreadyTaken ? 'Already taken' : prereq.reason,
+      };
     }).sort((a, b) => {
       if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
       return a.feat.name.localeCompare(b.feat.name);
     });
-  }, [feats, character]);
+  }, [feats, character, ignorePrerequisites]);
 
   const filteredFeats = useMemo(() => {
     if (!search.trim()) return featList;
@@ -350,6 +359,9 @@ export default function FeatPicker({ character, onSelectionChange }: FeatPickerP
                 </div>
                 {!eligible && reason && (
                   <p className="font-body text-[13px] text-debuff/70 mt-0.5">{reason}</p>
+                )}
+                {eligible && reason && (
+                  <p className="font-body text-[13px] text-faint mt-0.5">Prerequisite not met: {reason}</p>
                 )}
                 {eligible && feat.abilityScoreIncrease && (
                   <p className="font-body text-[13px] text-buff/70 mt-0.5">

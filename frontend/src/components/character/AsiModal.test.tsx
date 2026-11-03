@@ -68,7 +68,8 @@ describe('AsiModal', () => {
   });
 
   it('stops each score at the maximum the server gives it', async () => {
-    render(<AsiModal character={{ ...character, strength: 19 }} onComplete={() => {}} onClose={() => {}} />);
+    const nineteen = { ...character, strength: 19, baseAbilityScores: { ...character.baseAbilityScores, strength: 19 } };
+    render(<AsiModal character={nineteen} onComplete={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     expect(screen.getByRole('button', { name: 'Increase Strength' })).toBeDisabled();
@@ -78,7 +79,7 @@ describe('AsiModal', () => {
 
   it("lets STR and CON go to 24 once the server gives Primal Champion's maximums", async () => {
     const champion = {
-      ...character, strength: 20,
+      ...character, strength: 20, baseAbilityScores: { ...character.baseAbilityScores, strength: 20 },
       abilityScoreMaximums: { ...character.abilityScoreMaximums, strength: 24, constitution: 24 },
     };
     render(<AsiModal character={champion} onComplete={() => {}} onClose={() => {}} />);
@@ -88,6 +89,19 @@ describe('AsiModal', () => {
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     expect(screen.getByText('0 points remaining')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
+  });
+
+  it("raises the score without the DM's adjustments, which may already pass the maximum (D158)", async () => {
+    // A belt makes STR 21, but the score an improvement raises is 18
+    const belted = { ...character, strength: 21, baseAbilityScores: { ...character.baseAbilityScores, strength: 18 } };
+    render(<AsiModal character={belted} onComplete={() => {}} onClose={() => {}} />);
+    const user = userEvent.setup();
+
+    expect(screen.getByText("21 with the DM's adjustments")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
+    expect(screen.getByText('0 points remaining')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Increase Strength' })).toBeDisabled();
   });
 
   it('disables Apply until exactly 2 points spent', () => {

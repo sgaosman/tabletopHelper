@@ -129,6 +129,14 @@ export interface FeatEffects {
   resource?: { name: string; maxUses: number; resetOn: string };
 }
 
+/**
+ * Whether a character may take the feat more than once: its text says it can be selected or taken multiple times,
+ * as Elemental Adept's does (PHB p.166), which is how the server decides too.
+ */
+export function isRepeatableFeat(feat: Feat): boolean {
+  return /\b(?:select|take) this feat multiple times\b/i.test(feat.description ?? '');
+}
+
 export function parseFeatEffects(feat: Feat): FeatEffects | null {
   if (!feat.effects) return null;
   try {

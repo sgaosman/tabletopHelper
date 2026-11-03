@@ -4,12 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DerivedStats;
+import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
 import com.tabletophelper.character.dto.ClassSpellcasting;
-import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.DmAdjustment.Stat;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelHistoryEntry;
@@ -37,14 +38,19 @@ import java.util.OptionalInt;
 import java.util.function.Function;
 
 /**
- * The one derivation of a character's Derived Stats (D158, D167), from its sheet, its recorded level history and the
- * rules in rules.character: the proficiency bonus, hit point maximum, initiative and speed, the ability scores and
- * their maximums, the spell slot and Hit Dice maximums, what each class casts with, and the main spell save DC and
- * attack bonus that race and feat spells use (D164). Applying it writes the stored copies and syncs the resource
- * pools, the innate uses of known spells (D165) and the limited uses of feats, such as Lucky's, among them (D158).
+ * The one derivation of a character's Derived Stats (D158, D167), from its sheet, its recorded level history, its DM
+ * Adjustments and the rules in rules.character: the proficiency bonus, hit point maximum, initiative and speed, the
+ * ability scores and their maximums, the spell slot and Hit Dice maximums, what each class casts with, and the main
+ * spell save DC and attack bonus that race and feat spells use (D164). Applying it writes the stored copies and syncs
+ * the resource pools, the innate uses of known spells (D165) and the limited uses of feats, such as Lucky's, among them
+ * (D158).
  * <p>
- * Tough, the Hill Dwarf and the Draconic Bloodline are matched by name until R7's data files hold their effects, and
- * initiative, speed and feats' pools come only from the feats the level history records.
+ * The DM's ability score adjustments apply first, so the modifiers and everything worked out from them use the
+ * adjusted scores; the other STAT adjustments are added to the hit point maximum, initiative, speed and every spell
+ * save DC and attack bonus, each class's and the main ones. Feats count whether a level took one in place of an
+ * Ability Score Improvement or the DM granted it: Alert's initiative, Mobile's speed and feats' pools come from both,
+ * and so does Tough, whose feature either adds. Tough, the Hill Dwarf and the Draconic Bloodline are matched by name
+ * until R7's data files hold their effects.
  */
 @Component
 @RequiredArgsConstructor
@@ -87,7 +93,7 @@ public class CharacterStats {
         List<ClassLevel> classes = classes(character);
         Map<Ability, Integer> scores = abilityScores(character);
         int proficiencyBonus = ProficiencyBonus.forLevel(level(character));
-        List<ClassSpellcasting> spellcasting = spellcasting(classes, scores, proficiencyBonus);
+        List<ClassSpellcasting> spellcasting = spellcasting(character, classes, scores, proficiencyBonus);
         String mainAbility = mainAbility(character, spellcasting);
         Integer mainModifier = mainAbility != null
                 ? Ability.modifier(scores.get(Ability.parse(mainAbility).orElseThrow())) : null;
@@ -97,17 +103,23 @@ public class CharacterStats {
 
         return new DerivedStats(
                 proficiencyBonus,
-                hitPointMaximum(character, orEmpty(character.getLevelHistory()), classes),
-                Ability.modifier(scores.get(Ability.DEX)) + recordedFeatBonus(character, AppliedFeatEffects::initiativeBonus),
-                raceSpeed(character.getRaceRef()) + recordedFeatBonus(character, AppliedFeatEffects::speedBonus),
+                hitPointMaximum(character, orEmpty(character.getLevelHistory()), classes,
+                        DmAdjustments.total(character, Stat.HP_MAX)),
+                Ability.modifier(scores.get(Ability.DEX)) + featBonus(character, AppliedFeatEffects::initiativeBonus)
+                        + DmAdjustments.total(character, Stat.INITIATIVE),
+                // A speed taken below 0 stops there
+                Math.max(0, raceSpeed(character.getRaceRef()) + featBonus(character, AppliedFeatEffects::speedBonus)
+                        + DmAdjustments.total(character, Stat.SPEED)),
                 scores,
                 abilityScoreMaximums(classes),
                 spellSlots(character, classes),
                 hitDice(character, classes),
                 spellcasting,
                 mainAbility,
-                mainModifier != null ? 8 + proficiencyBonus + mainModifier : null,
-                mainModifier != null ? proficiencyBonus + mainModifier : null,
+                mainModifier != null
+                        ? 8 + proficiencyBonus + mainModifier + DmAdjustments.total(character, Stat.SPELL_SAVE_DC) : null,
+                mainModifier != null
+                        ? proficiencyBonus + mainModifier + DmAdjustments.total(character, Stat.SPELL_ATTACK_BONUS) : null,
                 resourcePoolService.reconciledPools(character, poolContext),
                 warnings(character, spellcasting));
     }
@@ -140,7 +152,7 @@ public class CharacterStats {
 
     /** What each of the character's classes casts with, in the order the classes were taken. */
     public List<ClassSpellcasting> spellcasting(PlayerCharacter character) {
-        return spellcasting(classes(character), abilityScores(character),
+        return spellcasting(character, classes(character), abilityScores(character),
                 ProficiencyBonus.forLevel(level(character)));
     }
 
@@ -174,12 +186,12 @@ public class CharacterStats {
     /**
      * The hit point maximum some of the character's levels give, such as the first few of a character being created:
      * each one's hit die result plus the current Constitution modifier, and the per-level bonuses of Tough, the Hill
-     * Dwarf and the Draconic Bloodline (D167).
+     * Dwarf and the Draconic Bloodline (D167). The DM's hit point adjustments aren't the levels', so aren't included.
      *
      * @throws ConflictException for no levels
      */
     public int hitPointMaximum(PlayerCharacter character, List<LevelHistoryEntry> levels) {
-        return hitPointMaximum(character, levels, classes(character));
+        return hitPointMaximum(character, levels, classes(character), 0);
     }
 
     // ── Classes and scores ───────────────────────────────────────
@@ -195,14 +207,13 @@ public class CharacterStats {
         return classes;
     }
 
+    // Each ability score with the DM's adjustments to it, which everything worked out from the scores uses: the
+    // modifiers, hit points from Constitution, initiative from Dexterity, and the spell numbers
     private static Map<Ability, Integer> abilityScores(PlayerCharacter character) {
         Map<Ability, Integer> scores = new EnumMap<>(Ability.class);
-        scores.put(Ability.STR, orTen(character.getStrength()));
-        scores.put(Ability.DEX, orTen(character.getDexterity()));
-        scores.put(Ability.CON, orTen(character.getConstitution()));
-        scores.put(Ability.INT, orTen(character.getIntelligence()));
-        scores.put(Ability.WIS, orTen(character.getWisdom()));
-        scores.put(Ability.CHA, orTen(character.getCharisma()));
+        for (Ability ability : Ability.values()) {
+            scores.put(ability, DmAdjustments.abilityScore(character, ability));
+        }
         return scores;
     }
 
@@ -220,7 +231,9 @@ public class CharacterStats {
 
     // ── Hit points ───────────────────────────────────────────────
 
-    private int hitPointMaximum(PlayerCharacter character, List<LevelHistoryEntry> history, List<ClassLevel> classes) {
+    // The levels' hit points, with the adjustment, the DM's hit point adjustments, added on top
+    private int hitPointMaximum(PlayerCharacter character, List<LevelHistoryEntry> history, List<ClassLevel> classes,
+                                int adjustment) {
         if (history.isEmpty()) {
             throw new ConflictException(character.getName() + " has no level history to work its hit points out from");
         }
@@ -242,7 +255,8 @@ public class CharacterStats {
         if (classes.stream().anyMatch(c -> DRACONIC_BLOODLINE.equals(c.entry().subclassName()))) {
             bonuses.add(HitPoints.DRACONIC_RESILIENCE);
         }
-        return HitPoints.maximum(levels, Ability.modifier(orTen(character.getConstitution())), bonuses, 0);
+        return HitPoints.maximum(levels, Ability.modifier(DmAdjustments.abilityScore(character, Ability.CON)), bonuses,
+                adjustment);
     }
 
     // The Hit Die of the class a level was taken in
@@ -262,15 +276,13 @@ public class CharacterStats {
 
     // ── Initiative and speed ─────────────────────────────────────
 
-    // The bonus the feats in the level history recorded, such as Alert's +5 initiative or Mobile's +10 speed
-    private static int recordedFeatBonus(PlayerCharacter character, Function<AppliedFeatEffects, Integer> bonus) {
+    // The bonus the character's feats recorded, such as Alert's +5 initiative or Mobile's +10 speed: those the level
+    // history records and those the DM granted
+    private static int featBonus(PlayerCharacter character, Function<AppliedFeatEffects, Integer> bonus) {
         int total = 0;
-        for (LevelHistoryEntry entry : orEmpty(character.getLevelHistory())) {
-            AbilityScoreImprovement asi = entry.choices() != null ? entry.choices().asi() : null;
-            if (asi != null && asi.appliedEffects() != null) {
-                Integer value = bonus.apply(asi.appliedEffects());
-                total += value != null ? value : 0;
-            }
+        for (AppliedFeatEffects feat : DmAdjustments.featsTaken(character)) {
+            Integer value = bonus.apply(feat);
+            total += value != null ? value : 0;
         }
         return total;
     }
@@ -352,8 +364,11 @@ public class CharacterStats {
 
     // ── Spellcasting ─────────────────────────────────────────────
 
-    private static List<ClassSpellcasting> spellcasting(List<ClassLevel> classes, Map<Ability, Integer> scores,
-                                                        int proficiencyBonus) {
+    // Each casting class's numbers, with the DM's spell save DC and attack bonus adjustments, which apply to every class
+    private static List<ClassSpellcasting> spellcasting(PlayerCharacter character, List<ClassLevel> classes,
+                                                        Map<Ability, Integer> scores, int proficiencyBonus) {
+        int saveDcAdjustment = DmAdjustments.total(character, Stat.SPELL_SAVE_DC);
+        int attackBonusAdjustment = DmAdjustments.total(character, Stat.SPELL_ATTACK_BONUS);
         List<ClassSpellcasting> spellcasting = new ArrayList<>();
         for (ClassLevel c : classes) {
             String abilityName = castingAbility(c);
@@ -368,8 +383,8 @@ public class CharacterStats {
                     subclass,
                     classLevel,
                     ability.name(),
-                    8 + proficiencyBonus + modifier,
-                    proficiencyBonus + modifier,
+                    8 + proficiencyBonus + modifier + saveDcAdjustment,
+                    proficiencyBonus + modifier + attackBonusAdjustment,
                     ClassProgression.highestSpellLevel(c.name(), subclass, classLevel),
                     ClassProgression.cantripsKnown(c.name(), subclass, classLevel),
                     boxed(ClassProgression.spellsKnown(c.name(), subclass, classLevel)),
@@ -439,10 +454,6 @@ public class CharacterStats {
 
     private static int level(PlayerCharacter character) {
         return character.getLevel() != null ? character.getLevel() : 1;
-    }
-
-    private static int orTen(Integer score) {
-        return score != null ? score : 10;
     }
 
     private static Integer boxed(OptionalInt value) {

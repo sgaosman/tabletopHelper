@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.ConditionEntry;
@@ -59,10 +60,13 @@ public class CreatureStats {
         return score(participant, ability);
     }
 
-    /** As {@link #abilityScore}, for callers without the component, such as the turn order. */
+    /**
+     * As {@link #abilityScore}, for callers without the component, such as the turn order. A player character's is
+     * read live from its sheet, with the DM's adjustments to it (D158).
+     */
     public static int score(EncounterParticipant participant, Ability ability) {
         if (participant.getCharacter() != null) {
-            return orTen(characterScore(participant.getCharacter(), ability));
+            return DmAdjustments.abilityScore(participant.getCharacter(), ability);
         }
         if (participant.getMonster() != null) {
             return orTen(monsterScore(participant.getMonster(), ability));
@@ -100,8 +104,9 @@ public class CreatureStats {
     /**
      * The participant's defences against a damage type; none for untyped damage. A monster's come from its
      * stat block, where only plain damage type names count: a conditional entry, such as resistance to
-     * nonmagical attacks, is the DM's call. A player character's come from its sheet, which holds no
-     * vulnerabilities until R6 (D161).
+     * nonmagical attacks, is the DM's call. A player character's come from its sheet, read live: the
+     * resistances and immunities its race, features and feats give, and the DM's DEFENCE adjustments, the
+     * only source of its vulnerabilities, so one added during the encounter applies at once (D161).
      */
     public Set<Defence> defences(EncounterParticipant participant, String damageType) {
         if (damageType == null || damageType.isBlank()) {
@@ -122,13 +127,7 @@ public class CreatureStats {
                 defences.add(Defence.VULNERABILITY);
             }
         } else if (participant.getCharacter() != null) {
-            PlayerCharacter character = participant.getCharacter();
-            if (lists(character.getDamageResistances(), type)) {
-                defences.add(Defence.RESISTANCE);
-            }
-            if (lists(character.getDamageImmunities(), type)) {
-                defences.add(Defence.IMMUNITY);
-            }
+            defences.addAll(DmAdjustments.defences(participant.getCharacter(), type));
         }
         return defences;
     }
@@ -185,19 +184,6 @@ public class CreatureStats {
         return false;
     }
 
-    // Whether a character sheet's list of damage types names this one, in any case
-    private static boolean lists(List<String> damageTypes, String damageType) {
-        if (damageTypes == null) {
-            return false;
-        }
-        for (String entry : damageTypes) {
-            if (entry != null && entry.trim().equalsIgnoreCase(damageType)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     // A save bonus as a stat block lists it: a number, or text such as "+6"; null when absent or unreadable
     private static Integer bonus(JsonNode node) {
         if (node.isInt()) {
@@ -214,17 +200,6 @@ public class CreatureStats {
 
     private static int orTen(Integer score) {
         return score != null ? score : 10;
-    }
-
-    private static Integer characterScore(PlayerCharacter character, Ability ability) {
-        return switch (ability) {
-            case STR -> character.getStrength();
-            case DEX -> character.getDexterity();
-            case CON -> character.getConstitution();
-            case INT -> character.getIntelligence();
-            case WIS -> character.getWisdom();
-            case CHA -> character.getCharisma();
-        };
     }
 
     private static Integer monsterScore(Monster monster, Ability ability) {

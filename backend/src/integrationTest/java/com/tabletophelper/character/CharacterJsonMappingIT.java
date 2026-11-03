@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
@@ -20,6 +21,7 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.internal.UserRepository;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.rules.combat.DamageRules.Defence;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +43,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * records as JSON rather than JSON inside strings. Since R6 workstream C the level history records hit die results,
  * the amounts improvements applied, Expertise, and the proficiencies and ability increases levels added, and the
  * Derived Stats a request sends are ignored (D167). Since workstream D the sheet changes through intent commands rather
- * than a PUT, feat_resources is no longer mapped, and each row carries a version (D158).
+ * than a PUT, feat_resources is no longer mapped, and each row carries a version (D158); since workstream E it carries
+ * its DM Adjustments too.
  */
 class CharacterJsonMappingIT extends IntegrationTest {
 
@@ -94,6 +98,16 @@ class CharacterJsonMappingIT extends IntegrationTest {
                         new AbilityScoreImprovement("feat", null, "Tough", UUID.randomUUID(), null, tough, null)),
                         new ProficienciesGained(null, List.of("Dagger"), null),
                         List.of(new AbilityBonus("strength", 4))));
+        // An adjustment of each kind, the first removed (D158)
+        UUID dmId = UUID.randomUUID();
+        Instant added = Instant.parse("2026-11-03T10:00:00Z");
+        List<DmAdjustment> adjustments = List.of(
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, "ARMOUR_CLASS", 1, null, null, null,
+                        "Ring of Protection", dmId, added, dmId, Instant.parse("2026-11-03T11:00:00Z")),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.DEFENCE, "fire", null, Defence.VULNERABILITY,
+                        null, null, "Curse of the frost giant", dmId, added, null, null),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.FEAT, "Tough", null, null, UUID.randomUUID(),
+                        tough, "Boon of fortitude", dmId, added, null, null));
 
         PlayerCharacter saved = characterRepository.save(character()
                 .savingThrowProficiencies(List.of("STR", "CON"))
@@ -118,6 +132,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 .levelHistory(history)
                 .resourcePools(List.of(new ResourcePoolEntry("class:fighter-second-wind", "Second Wind", "CLASS",
                         "Fighter", 1, "1", 0, "shortRest", null, null, "BONUS_ACTION", "heart", Map.of())))
+                .dmAdjustments(adjustments)
                 .build());
 
         PlayerCharacter reloaded = reload(saved.getId());
@@ -142,6 +157,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(reloaded.getHitDice()).isEqualTo(Map.of("Fighter", new HitDicePool(10, 4, 2)));
         assertThat(reloaded.getLevelHistory()).isEqualTo(history);
         assertThat(reloaded.getResourcePools()).isEqualTo(saved.getResourcePools());
+        assertThat(reloaded.getDmAdjustments()).isEqualTo(adjustments);
 
         // The shapes V19 normalises rows to: slots {max, used}, Hit Dice by class name, and fields an entry
         // doesn't have left out
@@ -170,6 +186,24 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 id)).isEqualTo("{\"weapons\": [\"Dagger\"]}");
         assertThat(column("SELECT (level_history -> 0 -> 'proficienciesGained' IS NULL)::text FROM player_characters "
                 + "WHERE id = ?", id)).isEqualTo("true");
+        // R6 workstream E's DM Adjustments: the fields a kind doesn't use left out, and times as ISO text (V22)
+        assertThat(column("SELECT dm_adjustments -> 1 ->> 'defence' FROM player_characters WHERE id = ?", id))
+                .isEqualTo("VULNERABILITY");
+        assertThat(column("SELECT (dm_adjustments -> 1 -> 'amount' IS NULL)::text || ' ' || (dm_adjustments -> 1 "
+                + "-> 'removedAt' IS NULL)::text FROM player_characters WHERE id = ?", id)).isEqualTo("true true");
+        assertThat(column("SELECT dm_adjustments -> 0 ->> 'removedAt' FROM player_characters WHERE id = ?", id))
+                .isEqualTo("2026-11-03T11:00:00Z");
+        assertThat(column("SELECT dm_adjustments -> 2 -> 'appliedEffects' ->> 'featName' FROM player_characters "
+                + "WHERE id = ?", id)).isEqualTo("Tough");
+    }
+
+    @Test
+    @DisplayName("A character saved without DM Adjustments has an empty list, never null")
+    void noAdjustmentsIsAnEmptyList() {
+        UUID id = characterRepository.save(character().build()).getId();
+
+        assertThat(column("SELECT dm_adjustments::text FROM player_characters WHERE id = ?", id)).isEqualTo("[]");
+        assertThat(reload(id).getDmAdjustments()).isEmpty();
     }
 
     @Test

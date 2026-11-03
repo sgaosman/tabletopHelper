@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Copy, Check, Users, ScrollText, Settings } from 'lucide-react';
+import { Copy, Check, Users, ScrollText, Settings, SlidersHorizontal } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaign, useUpdateCampaignSettings } from '../../queries/campaigns';
 import { useCampaignCharacters } from '../../queries/characters';
 import NavBar from '../../components/common/NavBar';
+import DmAdjustmentsModal from '../../components/character/DmAdjustmentsModal';
+import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import { getClassColour } from '../../utils/classColours';
+import { activeAdjustments } from '../../utils/dmAdjustments';
 
 // Players who join, and their characters, appear without a reload. Like every refetch interval, this one
 // pauses while the tab is hidden.
@@ -18,8 +21,11 @@ export default function CampaignDetailPage() {
   const charactersQuery = useCampaignCharacters(campaignId, { refetchInterval: REFRESH_INTERVAL_MS });
   const updateSettings = useUpdateCampaignSettings();
   const [copiedCode, setCopiedCode] = useState(false);
+  // The character whose DM Adjustments are open, read from the list so the dialog shows each change (D158)
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const campaign = campaignQuery.data;
   const characters = charactersQuery.data;
+  const adjusting = characters?.find(c => c.id === adjustingId);
 
   function copyInviteCode() {
     if (!campaign) return;
@@ -157,6 +163,8 @@ export default function CampaignDetailPage() {
             <div className="space-y-2">
               {characters.map((c) => {
                 const clsColour = getClassColour(c.characterClass);
+                const adjustments = activeAdjustments(c.dmAdjustments).length;
+                const adjustmentsLabel = `Adjustments${adjustments > 0 ? ` (${adjustments})` : ''}`;
                 return (
                   <div key={c.id} className="bg-card border border-rule p-4"
                     style={{ borderLeftWidth: '3px', borderLeftColor: clsColour }}>
@@ -173,18 +181,26 @@ export default function CampaignDetailPage() {
                         <p className="font-body text-[13px] text-faint">AC {c.armourClass}</p>
                       </div>
                     </div>
-                    <div className="flex gap-4 mt-2">
-                      {(['strength','dexterity','constitution','intelligence','wisdom','charisma'] as const).map(stat => {
-                        const val = c[stat];
-                        const label = stat.slice(0, 3).toUpperCase();
-                        return (
-                          <span key={stat} className="font-body text-[13px] text-muted">
-                            <span className="font-heading text-[11px] font-semibold tracking-[0.04em] text-faint">{label}</span>{' '}
-                            <span className="font-heading text-[13px] font-bold text-ink">{val}</span>{' '}
-                            <span className="text-faint">({modifierString(val)})</span>
-                          </span>
-                        );
-                      })}
+                    <div className="flex items-end justify-between gap-4 mt-2 flex-wrap">
+                      <div className="flex gap-4 flex-wrap">
+                        {(['strength','dexterity','constitution','intelligence','wisdom','charisma'] as const).map(stat => {
+                          const val = c[stat];
+                          const label = stat.slice(0, 3).toUpperCase();
+                          return (
+                            <span key={stat} className="font-body text-[13px] text-muted">
+                              <span className="font-heading text-[11px] font-semibold tracking-[0.04em] text-faint">{label}</span>{' '}
+                              <span className="font-heading text-[13px] font-bold text-ink">{val}</span>{' '}
+                              <span className="text-faint">({modifierString(val)})</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {/* The DM's adjustments to the character (D158); the name says whose, as every card has one */}
+                      <Button size="sm" variant="secondary" onClick={() => setAdjustingId(c.id)}
+                        aria-label={`${adjustmentsLabel} for ${c.name}`}>
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        {adjustmentsLabel}
+                      </Button>
                     </div>
                   </div>
                 );
@@ -193,6 +209,8 @@ export default function CampaignDetailPage() {
           )}
         </section>
       </main>
+
+      {adjusting && <DmAdjustmentsModal character={adjusting} onClose={() => setAdjustingId(null)} />}
     </div>
   );
 }

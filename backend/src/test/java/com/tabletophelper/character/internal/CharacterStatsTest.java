@@ -8,6 +8,8 @@ import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.DmAdjustment;
+import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.KnownSpell;
@@ -22,12 +24,14 @@ import com.tabletophelper.reference.Race;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.character.HitPoints;
+import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -411,6 +415,149 @@ class CharacterStatsTest {
                     .containsExactly("innate:faerie-fire", "innate:absorb-elements");
             assertThat(pools.getFirst().currentUses()).isZero();
             assertThat(pools.get(1)).isEqualTo(ResourcePoolEntry.innate("Absorb Elements", 1, "FEAT", "Magic Initiate"));
+        }
+    }
+
+    @Nested
+    @DisplayName("DM Adjustments (D158)")
+    class Adjustments {
+
+        private static final UUID DM = UUID.randomUUID();
+        private static final Instant ADDED = Instant.parse("2026-11-03T10:00:00Z");
+
+        private static DmAdjustment stat(String stat, int amount) {
+            return new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, stat, amount, null, null, null,
+                    "A magic item", DM, ADDED, null, null);
+        }
+
+        private static DmAdjustment granted(AppliedFeatEffects effects) {
+            return new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.FEAT, effects.featName(), null, null,
+                    UUID.randomUUID(), effects, "A boon", DM, ADDED, null, null);
+        }
+
+        private static AppliedFeatEffects feat(String name, Integer speed, Integer initiative,
+                                               FeatResourceEntry resource) {
+            return new AppliedFeatEffects(null, null, null, null, null, null, null, null, null, speed, initiative,
+                    null, null, null, resource, null, name);
+        }
+
+        @Test
+        @DisplayName("Ability adjustments apply first: a Wizard 5's CON +2 counts for every level, DEX +2 reaches initiative and INT +2 the DC, attack bonus and prepared spells")
+        void abilityAdjustmentsApplyFirst() {
+            PlayerCharacter pc = character(wizard, 5);
+            pc.setDmAdjustments(List.of(stat("CON", 2), stat("DEX", 2), stat("INT", 2)));
+
+            DerivedStats derived = stats.derive(pc);
+
+            // 6+3, then 4+3 for each of the other four levels
+            assertThat(derived.hpMax()).isEqualTo(37);
+            assertThat(derived.initiativeBonus()).isEqualTo(3);
+            assertThat(derived.abilityScores()).containsEntry(Ability.CON, 16).containsEntry(Ability.DEX, 16)
+                    .containsEntry(Ability.INT, 18);
+            ClassSpellcasting casting = derived.spellcasting().getFirst();
+            assertThat(casting.spellSaveDc()).isEqualTo(15);
+            assertThat(casting.spellAttackBonus()).isEqualTo(7);
+            assertThat(casting.preparedSpells()).isEqualTo(4 + 5);
+            assertThat(derived.spellSaveDc()).isEqualTo(15);
+            // The sheet's own scores are untouched
+            assertThat(pc.getConstitution()).isEqualTo(14);
+        }
+
+        @Test
+        @DisplayName("An ability adjustment may take a score past its maximum of 20, but never above 30 or below 1")
+        void abilityAdjustmentsStayWithinOneToThirty() {
+            PlayerCharacter pc = character(fighter, 1);
+            pc.setDmAdjustments(List.of(stat("STR", 12), stat("STR", 13), stat("CHA", -10), stat("WIS", 9)));
+
+            DerivedStats derived = stats.derive(pc);
+
+            assertThat(derived.abilityScores()).containsEntry(Ability.STR, 30).containsEntry(Ability.CHA, 1)
+                    .containsEntry(Ability.WIS, 21);
+            assertThat(derived.abilityScoreMaximums().strength()).isEqualTo(20);
+        }
+
+        @Test
+        @DisplayName("Hit point, initiative and speed adjustments add on top; speed stops at 0 and the maximum at 1")
+        void flatAdjustments() {
+            PlayerCharacter pc = character(fighter, 3);
+            pc.setDmAdjustments(List.of(stat("HP_MAX", 5), stat("INITIATIVE", 2), stat("SPEED", 10),
+                    stat("HP_MAX", 2)));
+            PlayerCharacter cursed = character(fighter, 3);
+            cursed.setDmAdjustments(List.of(stat("HP_MAX", -100), stat("SPEED", -50)));
+
+            assertThat(stats.derive(pc).hpMax()).isEqualTo(28 + 7);
+            assertThat(stats.derive(pc).initiativeBonus()).isEqualTo(2 + 2);
+            assertThat(stats.derive(pc).speed()).isEqualTo(40);
+            assertThat(stats.derive(cursed).hpMax()).isEqualTo(1);
+            assertThat(stats.derive(cursed).speed()).isZero();
+        }
+
+        @Test
+        @DisplayName("Spell save DC and attack bonus adjustments apply to every class's numbers and to the main ones")
+        void spellAdjustmentsApplyToEveryClass() {
+            PlayerCharacter pc = character(wizard, 3, cleric, 2);
+            pc.setDmAdjustments(List.of(stat("SPELL_SAVE_DC", 1), stat("SPELL_ATTACK_BONUS", 2)));
+
+            DerivedStats derived = stats.derive(pc);
+
+            assertThat(derived.spellcasting()).extracting(ClassSpellcasting::spellSaveDc).containsExactly(15, 13);
+            assertThat(derived.spellcasting()).extracting(ClassSpellcasting::spellAttackBonus).containsExactly(8, 6);
+            assertThat(derived.spellSaveDc()).isEqualTo(15);
+            assertThat(derived.spellAttackBonus()).isEqualTo(8);
+            assertThat(stats.spellcasting(pc)).isEqualTo(derived.spellcasting());
+        }
+
+        @Test
+        @DisplayName("A removed adjustment counts for nothing, and an AC or DEFENCE adjustment changes no Derived Stat")
+        void removedAndOtherKindsDontCount() {
+            PlayerCharacter pc = character(fighter, 3);
+            DerivedStats before = stats.derive(pc);
+            pc.setDmAdjustments(List.of(stat("CON", 4).removed(DM, ADDED), stat("ARMOUR_CLASS", 2),
+                    new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.DEFENCE, "fire", null,
+                            DamageRules.Defence.RESISTANCE, null, null, "A ring", DM, ADDED, null, null)));
+
+            assertThat(stats.derive(pc)).isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("A feat the DM granted counts as one a level took: Alert's initiative, Mobile's speed and Lucky's pool, until the grant is removed")
+        void grantedFeatsCount() {
+            PlayerCharacter pc = character(fighter, 3);
+            DmAdjustment lucky = granted(feat("Lucky", null, null,
+                    new FeatResourceEntry("Lucky", "Luck Points", 3, 3, "longRest")));
+            pc.setDmAdjustments(List.of(granted(feat("Alert", null, 5, null)), granted(feat("Mobile", 10, null, null)),
+                    lucky));
+
+            DerivedStats granted = stats.derive(pc);
+            pc.setDmAdjustments(List.of(lucky.removed(DM, ADDED)));
+            DerivedStats removed = stats.derive(pc);
+
+            assertThat(granted.initiativeBonus()).isEqualTo(2 + 5);
+            assertThat(granted.speed()).isEqualTo(40);
+            assertThat(granted.resourcePools())
+                    .containsExactly(ResourcePoolEntry.feat("Lucky", "Luck Points", 3, "longRest"));
+            assertThat(removed.initiativeBonus()).isEqualTo(2);
+            assertThat(removed.speed()).isEqualTo(30);
+            assertThat(removed.resourcePools()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Applying a hit point maximum adjustment raises current hit points by as much, and removing it caps them (D167)")
+        void currentHitPointsFollowAnAdjustedMaximum() {
+            PlayerCharacter pc = character(fighter, 3);
+            stats.apply(pc);
+            pc.setHpCurrent(28);
+            DmAdjustment amulet = stat("HP_MAX", 5);
+            pc.setDmAdjustments(List.of(amulet));
+
+            stats.apply(pc);
+            assertThat(pc.getHpMax()).isEqualTo(33);
+            assertThat(pc.getHpCurrent()).isEqualTo(33);
+
+            pc.setDmAdjustments(List.of(amulet.removed(DM, ADDED)));
+            stats.apply(pc);
+            assertThat(pc.getHpMax()).isEqualTo(28);
+            assertThat(pc.getHpCurrent()).isEqualTo(28);
         }
     }
 

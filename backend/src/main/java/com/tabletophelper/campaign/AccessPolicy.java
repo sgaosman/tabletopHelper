@@ -35,10 +35,23 @@ public class AccessPolicy {
         }
     }
 
-    /** Changing a character: its owner only, not even the DM, until D158 adds DM adjustments. */
+    /** Changing a character: its owner only, not even the DM, who changes it only through DM Adjustments (D158). */
     public void requireCharacterOwner(UUID ownerId, UUID userId) {
         if (!userId.equals(ownerId)) {
             throw new ForbiddenException("You do not own this character");
+        }
+    }
+
+    /**
+     * Adjusting a character with a DM Adjustment (D158): the DM of the campaign it belongs to, and nobody else, its
+     * owner included. {@code campaignId} is null when the character belongs to no campaign, and then it has no DM.
+     */
+    public void requireCharacterDm(UUID campaignId, UUID userId) {
+        if (campaignId == null) {
+            throw new ForbiddenException("This character isn't in a campaign, so it has no DM to adjust it");
+        }
+        if (!isDm(campaignId, userId)) {
+            throw new ForbiddenException("Only the DM of this character's campaign can adjust it");
         }
     }
 

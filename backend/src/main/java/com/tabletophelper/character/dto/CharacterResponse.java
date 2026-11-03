@@ -3,6 +3,7 @@ package com.tabletophelper.character.dto;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
@@ -71,6 +72,8 @@ public class CharacterResponse {
     private String background;
     private String alignment;
 
+    // The ability scores, the armour class, the hit point maximum, initiative, speed, the spell numbers and the damage
+    // defences below all include the active DM Adjustments (D158)
     @Schema(requiredMode = REQUIRED)
     private Integer strength;
 
@@ -88,6 +91,10 @@ public class CharacterResponse {
 
     @Schema(requiredMode = REQUIRED)
     private Integer charisma;
+
+    // The scores before the DM Adjustments, which Ability Score Improvements raise up to the maximums
+    @Schema(requiredMode = REQUIRED)
+    private BaseAbilityScores baseAbilityScores;
 
     @Schema(requiredMode = REQUIRED)
     private Integer hpMax;
@@ -117,8 +124,17 @@ public class CharacterResponse {
     private List<String> weaponProficiencies;
     private List<String> toolProficiencies;
     private List<String> languageProficiencies;
+    // From the race, features and feats, and from the DM's DEFENCE adjustments, each damage type once; only the DM's
+    // adjustments give vulnerabilities (D161)
+    @Schema(requiredMode = REQUIRED)
     private List<String> damageResistances;
+
+    @Schema(requiredMode = REQUIRED)
     private List<String> damageImmunities;
+
+    @Schema(requiredMode = REQUIRED)
+    private List<String> damageVulnerabilities;
+
     private List<String> conditionImmunities;
 
     private List<Feature> features;
@@ -170,6 +186,10 @@ public class CharacterResponse {
 
     private List<LevelHistoryEntry> levelHistory;
     private List<ResourcePoolEntry> resourcePools;
+
+    // The DM's adjustments, oldest first, the removed ones kept as the record; only the active ones count (D158)
+    @Schema(requiredMode = REQUIRED)
+    private List<DmAdjustment> dmAdjustments;
 
     @Schema(requiredMode = REQUIRED)
     private Boolean isActive;

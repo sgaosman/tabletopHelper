@@ -2,12 +2,12 @@ import api from './axiosConfig';
 import type {
   PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse,
   CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest,
-  ShortRestRequest, PreparedSpellsRequest, KnownSpellsRequest, SpellbookRequest,
+  ShortRestRequest, PreparedSpellsRequest, KnownSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
 } from '../types/character';
 
 /**
- * The character endpoints. A character changes only through its intent commands (D158), each answering with the
- * character as the server then works it out.
+ * The character endpoints. A character changes only through its intent commands (D158), and the DM's adjustments,
+ * each answering with the character as the server then works it out.
  */
 export const characterApi = {
   create(data: CharacterCreateRequest) {
@@ -101,5 +101,15 @@ export const characterApi = {
 
   getEligibleClasses(id: string) {
     return api.get<EligibleClassResponse[]>(`/characters/${id}/eligible-classes`);
+  },
+
+  /** A DM Adjustment, which only the DM of the character's campaign may add (D158). */
+  addAdjustment(id: string, data: DmAdjustmentRequest) {
+    return api.post<PlayerCharacter>(`/characters/${id}/adjustments`, data);
+  },
+
+  /** Removes a DM Adjustment, which stays on the sheet as the record. */
+  removeAdjustment(id: string, adjustmentId: string) {
+    return api.delete<PlayerCharacter>(`/characters/${id}/adjustments/${adjustmentId}`);
   },
 };

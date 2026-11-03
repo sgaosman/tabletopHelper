@@ -2,11 +2,13 @@ package com.tabletophelper.character;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
+import com.tabletophelper.character.dto.BaseAbilityScores;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.KnownSpell;
@@ -16,6 +18,7 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
+import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -267,5 +271,37 @@ class CharacterMapperTest {
 
         assertTrue(mapper.toResponse(inCombat).isInLiveEncounter());
         assertFalse(mapper.toResponse(resting).isInLiveEncounter());
+    }
+
+    @Test
+    @DisplayName("8.9 toResponse shows the scores, armour class and defences with the active DM Adjustments, the scores without them, and every adjustment, the removed ones as the record (D158)")
+    void toResponseIncludesDmAdjustments() {
+        PlayerCharacter c = baseCharacter(testUser());
+        c.setDamageResistances(List.of("poison"));
+        UUID dm = UUID.randomUUID();
+        Instant added = Instant.parse("2026-11-03T10:00:00Z");
+        List<DmAdjustment> adjustments = List.of(
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, "ARMOUR_CLASS", 1, null, null, null,
+                        "Ring of Protection", dm, added, null, null),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, "STR", 5, null, null, null,
+                        "Belt of Hill Giant Strength", dm, added, null, null),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT, "WIS", 2, null, null, null,
+                        "Periapt, lost", dm, added, dm, added),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.DEFENCE, "fire", null, Defence.RESISTANCE, null,
+                        null, "Ring of Fire Resistance", dm, added, null, null),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.DEFENCE, "cold", null, Defence.VULNERABILITY,
+                        null, null, "Curse of the frost giant", dm, added, null, null));
+        c.setDmAdjustments(adjustments);
+
+        CharacterResponse response = mapper.toResponse(c);
+
+        assertEquals(19, response.getArmourClass());
+        assertEquals(21, response.getStrength());
+        assertEquals(13, response.getWisdom());
+        assertEquals(new BaseAbilityScores(16, 12, 14, 10, 13, 8), response.getBaseAbilityScores());
+        assertEquals(List.of("poison", "fire"), response.getDamageResistances());
+        assertEquals(List.of(), response.getDamageImmunities());
+        assertEquals(List.of("cold"), response.getDamageVulnerabilities());
+        assertEquals(adjustments, response.getDmAdjustments());
     }
 }

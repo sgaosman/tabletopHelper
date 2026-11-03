@@ -83,9 +83,10 @@ public class MulticlassValidator {
         boolean hasOr = reqs.stream().anyMatch(r -> "OR".equals(r.operator()));
         String joiner = hasOr ? " or " : " and ";
 
+        Map<Ability, Integer> scores = scores(character);
         return reqs.stream()
                 .map(r -> {
-                    int score = getAbilityScore(r.ability(), character);
+                    int score = Ability.parse(r.ability()).map(scores::get).orElse(0);
                     String check = score >= r.minimum() ? "✓" : "✗";
                     return r.ability() + " " + r.minimum() + " (you have " + score + " " + check + ")";
                 })
@@ -139,25 +140,24 @@ public class MulticlassValidator {
         return result;
     }
 
-    // The six scores as the rules read them; a missing score counts as 0
+    // The six scores as the rules read them, with the DM's adjustments, as the sheet shows them (D158); a missing score
+    // counts as 0
     private static Map<Ability, Integer> scores(PlayerCharacter character) {
         Map<Ability, Integer> scores = new EnumMap<>(Ability.class);
         for (Ability ability : Ability.values()) {
-            scores.put(ability, getAbilityScore(ability.name(), character));
+            scores.put(ability, hasScore(character, ability) ? DmAdjustments.abilityScore(character, ability) : 0);
         }
         return scores;
     }
 
-    private static int getAbilityScore(String ability, PlayerCharacter character) {
-        if (ability == null) return 0;
-        return switch (ability.toUpperCase()) {
-            case "STR" -> character.getStrength() != null ? character.getStrength() : 0;
-            case "DEX" -> character.getDexterity() != null ? character.getDexterity() : 0;
-            case "CON" -> character.getConstitution() != null ? character.getConstitution() : 0;
-            case "INT" -> character.getIntelligence() != null ? character.getIntelligence() : 0;
-            case "WIS" -> character.getWisdom() != null ? character.getWisdom() : 0;
-            case "CHA" -> character.getCharisma() != null ? character.getCharisma() : 0;
-            default -> 0;
+    private static boolean hasScore(PlayerCharacter character, Ability ability) {
+        return switch (ability) {
+            case STR -> character.getStrength() != null;
+            case DEX -> character.getDexterity() != null;
+            case CON -> character.getConstitution() != null;
+            case INT -> character.getIntelligence() != null;
+            case WIS -> character.getWisdom() != null;
+            case CHA -> character.getCharisma() != null;
         };
     }
 }

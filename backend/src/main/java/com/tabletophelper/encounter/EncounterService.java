@@ -7,6 +7,7 @@ import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
+import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -129,7 +130,8 @@ public class EncounterService {
                 .hpCurrent(hp)
                 .lifeState(hp > 0 ? LifeState.ALIVE : LifeState.STABLE)
                 .activeConditions(hp > 0 ? null : new ArrayList<>(List.of(ConditionEntry.unconsciousAtZeroHp(1))))
-                .armourClass(character.getArmourClass())
+                // With the DM's AC adjustments, as the stored Derived Stats copied here have theirs (D158)
+                .armourClass(DmAdjustments.armourClass(character))
                 .controlledByUserId(character.getUser().getId())
                 .spellSlotsCurrent(copySpellSlots(character))
                 .spellAttackBonus(character.getSpellAttackBonus())

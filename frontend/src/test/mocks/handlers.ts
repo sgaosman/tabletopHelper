@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
-import type { EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
+import type { DmAdjustment, EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
 import type {
   AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
   SpellOption,
@@ -139,7 +139,24 @@ export const characterHandlers = [
       makeMockCharacter('char-001', 'Player 1 Char', 'Cleric', 4),
     ]);
   }),
+
+  // The DM's adjustments (D158), each answering with the character
+  http.post(`${BASE}/characters/:id/adjustments`, async ({ params }) => {
+    return HttpResponse.json(makeMockCharacter(params.id as string, 'Player 1 Char', 'Cleric', 4));
+  }),
+  http.delete(`${BASE}/characters/:id/adjustments/:adjustmentId`, async ({ params }) => {
+    return HttpResponse.json(makeMockCharacter(params.id as string, 'Player 1 Char', 'Cleric', 4));
+  }),
 ];
+
+/** A DM Adjustment as the server records one: added by the DM, still active unless the overrides remove it. */
+export function makeMockAdjustment(overrides: Partial<DmAdjustment> = {}): DmAdjustment {
+  const adjustment = {
+    id: 'adj-001', kind: 'STAT', target: 'ARMOUR_CLASS', amount: 1, reason: 'Ring of Protection',
+    addedBy: 'user-001', addedAt: '2026-11-03T10:00:00Z',
+  } satisfies DmAdjustment;
+  return { ...adjustment, ...overrides };
+}
 
 // --- Encounters (core) ---
 export const encounterHandlers = [
@@ -408,6 +425,8 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     name, race: 'Human', characterClass: cls, subclass: null, level,
     experiencePoints: 0, background: null, alignment: 'Neutral',
     strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 12, charisma: 10,
+    // The scores without the DM's adjustments, of which there are none (D158)
+    baseAbilityScores: { strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 12, charisma: 10 },
     hpMax: 30, hpCurrent: 30, hpTemp: 0,
     armourClass: 16, initiativeBonus: 1, speed: 30, proficiencyBonus: 3,
     savingThrowProficiencies: ['str', 'con'],
@@ -416,7 +435,7 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     armorProficiencies: ['All Armor'],
     weaponProficiencies: ['Simple Weapons', 'Martial Weapons'],
     toolProficiencies: null, languageProficiencies: ['Common'],
-    damageResistances: null, damageImmunities: null, conditionImmunities: null,
+    damageResistances: [], damageImmunities: [], damageVulnerabilities: [], conditionImmunities: null,
     features: [{ name: 'Action Surge', description: 'Take one additional action.', source: 'Class' }],
     spellsKnown: null, spellSlots: null, spellSaveDc: null, spellAttackBonus: null, spellcastingAbility: null,
     // Worked out by the server (D167)
@@ -429,6 +448,7 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     multiclassEntries: null,
     hitDice: { [cls]: { total: level, remaining: level, dieSize: 10 } },
     levelHistory: [{ characterLevel: 1, classId: 'cls-fighter', className: cls, classLevel: 1, hpGained: 12, hitDieResult: 10, featuresGained: [], choices: {} }],
+    dmAdjustments: [],
     isActive: true, inLiveEncounter: false,
     createdAt: makeTimestamp(), updatedAt: makeTimestamp(),
   } satisfies PlayerCharacter;

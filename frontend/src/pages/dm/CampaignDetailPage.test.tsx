@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeCampaign, makeMockCharacter } from '../../test/mocks/handlers';
+import { makeCampaign, makeMockAdjustment, makeMockCharacter } from '../../test/mocks/handlers';
 import CampaignDetailPage from './CampaignDetailPage';
 
 function renderPage() {
@@ -137,6 +137,37 @@ describe('CampaignDetailPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Campaign not found');
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it("opens a character's DM Adjustments from its card, and the card shows the character the server returns (D158)", async () => {
+    const aria = makeMockCharacter('char-001', 'Aria', 'Fighter', 3);
+    const ring = makeMockAdjustment({ id: 'adj-ring' });
+    let added: unknown;
+    server.use(
+      http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([aria])),
+      http.post('/api/characters/:id/adjustments', async ({ request }) => {
+        added = await request.json();
+        return HttpResponse.json({ ...aria, armourClass: 17, dmAdjustments: [ring] });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Adjustments for Aria' }));
+    const dialog = screen.getByRole('dialog', { name: 'DM Adjustments' });
+    expect(within(dialog).getByText('No adjustments yet.')).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText('Amount'), '1');
+    await user.type(within(dialog).getByLabelText('Reason'), 'Ring of Protection');
+    await user.click(within(dialog).getByRole('button', { name: 'Add Adjustment' }));
+
+    expect(await within(dialog).findByText('+1 AC')).toBeInTheDocument();
+    expect(added).toEqual({ kind: 'STAT', target: 'ARMOUR_CLASS', amount: 1, reason: 'Ring of Protection' });
+    expect(screen.getByText('AC 17')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Adjustments (1) for Aria' })).toHaveTextContent('Adjustments (1)');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   describe('polling', () => {

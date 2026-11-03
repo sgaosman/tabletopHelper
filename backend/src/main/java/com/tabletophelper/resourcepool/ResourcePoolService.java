@@ -1,11 +1,11 @@
 package com.tabletophelper.resourcepool;
 
+import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.KnownSpell;
-import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
@@ -63,8 +63,9 @@ public class ResourcePoolService {
     /**
      * The pools a character should have, from the class feature definitions for its classes and subclasses, one
      * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165), and one
-     * {@code feat:<feat>} pool for each feat with limited uses that its level history records, such as Lucky's
-     * (D158). A pool it already has keeps its place and the uses it has spent; one whose source is gone is dropped.
+     * {@code feat:<feat>} pool for each feat with limited uses that its level history records or the DM granted, such
+     * as Lucky's (D158). A pool it already has keeps its place and the uses it has spent; one whose source is gone is
+     * dropped.
      * Changes nothing, and a failure stops the command that asked rather than leaving the pools half worked out
      * (D155).
      *
@@ -140,14 +141,12 @@ public class ResourcePoolService {
                 && (spell.unlocksAtLevel() == null || spell.unlocksAtLevel() <= characterLevel);
     }
 
-    // The limited uses of the feats the level history records as taken, oldest first: those whose effects were
-    // applied, as an Ability Score Improvement's feat
+    // The limited uses of the feats the character has taken with their effects applied, oldest first: an Ability Score
+    // Improvement's feat, as the level history records it, then the DM's grants (D158)
     private static List<FeatResourceEntry> recordedFeatResources(PlayerCharacter character) {
         List<FeatResourceEntry> resources = new ArrayList<>();
-        for (LevelHistoryEntry entry : orEmpty(character.getLevelHistory())) {
-            AbilityScoreImprovement asi = entry.choices() != null ? entry.choices().asi() : null;
-            FeatResourceEntry resource = asi != null && asi.appliedEffects() != null
-                    ? asi.appliedEffects().resource() : null;
+        for (AppliedFeatEffects feat : DmAdjustments.featsTaken(character)) {
+            FeatResourceEntry resource = feat.resource();
             if (resource != null && resource.featName() != null && !resource.featName().isBlank()) {
                 resources.add(resource);
             }
@@ -355,20 +354,12 @@ public class ResourcePoolService {
             ctx.put(key, e.level());
         }
 
-        // Ability modifiers
-        ctx.put("strengthModifier", abilityMod(character.getStrength()));
-        ctx.put("dexterityModifier", abilityMod(character.getDexterity()));
-        ctx.put("constitutionModifier", abilityMod(character.getConstitution()));
-        ctx.put("intelligenceModifier", abilityMod(character.getIntelligence()));
-        ctx.put("wisdomModifier", abilityMod(character.getWisdom()));
-        ctx.put("charismaModifier", abilityMod(character.getCharisma()));
+        // Ability modifiers, from the scores with the DM's adjustments (D158)
+        for (Ability ability : Ability.values()) {
+            ctx.put(ability.fullName() + "Modifier", Ability.modifier(DmAdjustments.abilityScore(character, ability)));
+        }
 
         return ctx;
-    }
-
-    private int abilityMod(Integer score) {
-        if (score == null) return 0;
-        return Ability.modifier(score);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.Feature;
@@ -9,6 +10,7 @@ import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.combat.WeaponRules.PowerAttack;
@@ -107,10 +109,14 @@ class CharacterWeapons {
         return of(character).stream().filter(held -> key(held.weapon().name()).equals(wanted)).findFirst();
     }
 
-    /** The attack's numbers with the character's STR, DEX and proficiency bonus (D164). */
+    /**
+     * The attack's numbers with the character's STR, DEX and proficiency bonus (D164), the scores with the DM's
+     * adjustments to them (D158).
+     */
     WeaponRules.Numbers numbers(PlayerCharacter character, Held held, boolean powerAttack) {
-        return WeaponRules.attack(held.weapon(), orTen(character.getStrength()), orTen(character.getDexterity()),
-                proficiencyBonus(character), held.proficient(), powerAttack);
+        return WeaponRules.attack(held.weapon(), DmAdjustments.abilityScore(character, Ability.STR),
+                DmAdjustments.abilityScore(character, Ability.DEX), proficiencyBonus(character), held.proficient(),
+                powerAttack);
     }
 
     /** The feats among the character's whose attacks can take the trade. */
@@ -244,9 +250,5 @@ class CharacterWeapons {
             return character.getProficiencyBonus();
         }
         return ProficiencyBonus.forLevel(character.getLevel() != null ? character.getLevel() : 1);
-    }
-
-    private static int orTen(Integer score) {
-        return score != null ? score : 10;
     }
 }

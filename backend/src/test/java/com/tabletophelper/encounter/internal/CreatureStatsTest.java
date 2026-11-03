@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
@@ -10,8 +11,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -126,7 +129,7 @@ class CreatureStatsTest {
     }
 
     @Test
-    @DisplayName("A player character's defences come from its sheet, which holds no vulnerabilities yet (D161)")
+    @DisplayName("A player character's defences come from its sheet, its race's, features' and feats' alike (D161)")
     void playerDefences() {
         EncounterParticipant tiefling = f.player("Tiefling", 30, 12);
         tiefling.getCharacter().setDamageResistances(List.of("fire"));
@@ -134,6 +137,41 @@ class CreatureStatsTest {
 
         assertEquals(Set.of(Defence.RESISTANCE), f.stats.defences(tiefling, "fire"));
         assertEquals(Set.of(Defence.IMMUNITY), f.stats.defences(tiefling, "poison"));
+    }
+
+    @Test
+    @DisplayName("The DM's DEFENCE adjustments count as soon as they are on the sheet, a vulnerability included, and a removed one doesn't (D161)")
+    void playerDefencesFromDmAdjustments() {
+        EncounterParticipant tiefling = f.player("Tiefling", 30, 12);
+        tiefling.getCharacter().setDamageResistances(List.of("fire"));
+        UUID dm = UUID.randomUUID();
+        Instant added = Instant.parse("2026-11-03T10:00:00Z");
+        tiefling.getCharacter().setDmAdjustments(List.of(
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.DEFENCE, "fire", null, Defence.RESISTANCE,
+                        null, null, "Ring of Fire Resistance", dm, added, null, null),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.DEFENCE, "cold", null, Defence.VULNERABILITY,
+                        null, null, "Curse of the frost giant", dm, added, null, null),
+                new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.DEFENCE, "acid", null, Defence.IMMUNITY,
+                        null, null, "Lifted", dm, added, dm, added)));
+
+        assertEquals(Set.of(Defence.RESISTANCE), f.stats.defences(tiefling, "fire"));
+        assertEquals(Set.of(Defence.VULNERABILITY), f.stats.defences(tiefling, "Cold"));
+        assertEquals(Set.of(), f.stats.defences(tiefling, "acid"));
+    }
+
+    @Test
+    @DisplayName("A player character's ability scores, its saves' among them, include the DM's adjustments (D158)")
+    void playerScoresWithDmAdjustments() {
+        EncounterParticipant fighter = f.player("Fighter", 30, 18);
+        fighter.getCharacter().setStrength(18);
+        fighter.getCharacter().setProficiencyBonus(3);
+        fighter.getCharacter().setSavingThrowProficiencies(List.of("STR"));
+        fighter.getCharacter().setDmAdjustments(List.of(new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.STAT,
+                "STR", 3, null, null, null, "Belt of Hill Giant Strength", UUID.randomUUID(), Instant.now(), null,
+                null)));
+
+        assertEquals(21, CreatureStats.score(fighter, Ability.STR));
+        assertEquals(5 + 3, f.stats.saveModifier(fighter, Ability.STR));
     }
 
     @Test

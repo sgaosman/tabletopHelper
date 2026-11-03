@@ -11,11 +11,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A character's Derived Stats as the rules give them now (D158, D167), worked out from its sheet and its recorded
- * level history. The sheet keeps stored copies of the hit point maximum, proficiency bonus, initiative, speed, slot
- * and Hit Dice maximums and the main spell numbers, which only this derivation writes.
+ * A character's Derived Stats as the rules give them now (D158, D167), worked out from its sheet, its recorded
+ * level history and its DM Adjustments. The sheet keeps stored copies of the hit point maximum, proficiency bonus,
+ * initiative, speed, slot and Hit Dice maximums and the main spell numbers, which only this derivation writes.
  *
- * @param abilityScores        each ability score
+ * @param abilityScores        each ability score, with the DM's adjustments to it
  * @param spellSlots           each slot's maximum, with the used count kept up to it; null for a character without
  *                             slots
  * @param hitDice              each class's Hit Dice: its level in the class, with the dice already spent still spent

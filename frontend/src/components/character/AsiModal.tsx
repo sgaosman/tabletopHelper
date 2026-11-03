@@ -27,7 +27,8 @@ interface Props {
 
 /**
  * An ability score improvement, or a feat in its place: +2 to one score or +1 to two, none above the maximum the
- * server gives it (20, or 24 for STR and CON after Primal Champion). The updated character replaces the cached one.
+ * server gives it (20, or 24 for STR and CON after Primal Champion). It raises the scores without the DM's
+ * adjustments, which may take a score past the maximum (D158). The updated character replaces the cached one.
  */
 export default function AsiModal({ character, onComplete, onClose }: Props) {
   const applyChoices = useApplyChoices();
@@ -44,7 +45,7 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
   function adjustAbility(ability: AbilityKey, delta: number) {
     const current = increases[ability] || 0;
     const newVal = current + delta;
-    const currentScore = character[ability];
+    const currentScore = character.baseAbilityScores[ability];
     if (newVal < 0 || newVal > 2) return;
     if (currentScore + newVal > maximum(ability)) return;
     if (delta > 0 && pointsRemaining <= 0) return;
@@ -115,9 +116,11 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
             </p>
             <div className="space-y-2">
               {ABILITIES.map(({ key, label, full }) => {
-                const base = character[key];
+                const base = character.baseAbilityScores[key];
                 const bonus = increases[key] || 0;
                 const atMax = base + bonus >= maximum(key);
+                // What the DM's adjustments make the score, shown beside the score the improvement raises
+                const adjusted = character[key] !== base ? character[key] : null;
                 return (
                   <div key={key} className="flex items-center justify-between bg-page-alt px-4 py-2">
                     <div className="flex items-center gap-3">
@@ -126,6 +129,9 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
                       {bonus > 0 && <span className="font-body text-[15px] font-semibold text-buff">+{bonus}</span>}
                       {maximum(key) !== 20 && (
                         <span className="font-body text-[13px] font-semibold text-faint">max {maximum(key)}</span>
+                      )}
+                      {adjusted !== null && (
+                        <span className="font-body text-[13px] font-semibold text-faint">{adjusted} with the DM's adjustments</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1">

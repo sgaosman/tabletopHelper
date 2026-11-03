@@ -3,11 +3,14 @@ package com.tabletophelper.character;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.dto.BaseAbilityScores;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
+import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +25,8 @@ import java.util.UUID;
 /**
  * A character as the API returns it: its sheet, with what each class casts with and the ability score maximums
  * worked out by CharacterStats, since the sheet stores neither (D158, D167), and whether it is in an encounter that
- * is under way (D166).
+ * is under way (D166). The ability scores, armour class and damage defences include the active DM Adjustments, as
+ * the stored Derived Stats do, and the adjustments themselves come with them, the removed ones as the record.
  */
 @Slf4j
 @Component
@@ -58,16 +62,20 @@ public class CharacterMapper {
                 .experiencePoints(c.getExperiencePoints())
                 .background(c.getBackground())
                 .alignment(c.getAlignment())
-                .strength(c.getStrength())
-                .dexterity(c.getDexterity())
-                .constitution(c.getConstitution())
-                .intelligence(c.getIntelligence())
-                .wisdom(c.getWisdom())
-                .charisma(c.getCharisma())
+                .strength(DmAdjustments.abilityScore(c, Ability.STR))
+                .dexterity(DmAdjustments.abilityScore(c, Ability.DEX))
+                .constitution(DmAdjustments.abilityScore(c, Ability.CON))
+                .intelligence(DmAdjustments.abilityScore(c, Ability.INT))
+                .wisdom(DmAdjustments.abilityScore(c, Ability.WIS))
+                .charisma(DmAdjustments.abilityScore(c, Ability.CHA))
+                .baseAbilityScores(new BaseAbilityScores(
+                        CharacterUpdates.score(c, Ability.STR), CharacterUpdates.score(c, Ability.DEX),
+                        CharacterUpdates.score(c, Ability.CON), CharacterUpdates.score(c, Ability.INT),
+                        CharacterUpdates.score(c, Ability.WIS), CharacterUpdates.score(c, Ability.CHA)))
                 .hpMax(c.getHpMax())
                 .hpCurrent(c.getHpCurrent())
                 .hpTemp(c.getHpTemp())
-                .armourClass(c.getArmourClass())
+                .armourClass(DmAdjustments.armourClass(c))
                 .initiativeBonus(c.getInitiativeBonus())
                 .speed(c.getSpeed())
                 .proficiencyBonus(c.getProficiencyBonus())
@@ -78,8 +86,9 @@ public class CharacterMapper {
                 .weaponProficiencies(c.getWeaponProficiencies())
                 .toolProficiencies(c.getToolProficiencies())
                 .languageProficiencies(c.getLanguageProficiencies())
-                .damageResistances(c.getDamageResistances())
-                .damageImmunities(c.getDamageImmunities())
+                .damageResistances(DmAdjustments.damageTypes(c, Defence.RESISTANCE))
+                .damageImmunities(DmAdjustments.damageTypes(c, Defence.IMMUNITY))
+                .damageVulnerabilities(DmAdjustments.damageTypes(c, Defence.VULNERABILITY))
                 .conditionImmunities(c.getConditionImmunities())
                 .features(c.getFeatures())
                 .spellsKnown(c.getSpellsKnown())
@@ -106,6 +115,7 @@ public class CharacterMapper {
                 .hitDice(c.getHitDice())
                 .levelHistory(c.getLevelHistory())
                 .resourcePools(c.getResourcePools())
+                .dmAdjustments(c.getDmAdjustments() != null ? c.getDmAdjustments() : List.of())
                 .isActive(c.getIsActive())
                 .inLiveEncounter(c.getId() != null && liveEncounters.includes(c.getId()))
                 .createdAt(c.getCreatedAt())

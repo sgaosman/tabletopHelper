@@ -38,10 +38,10 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 
 /**
  * Characters: creating them, levelling them up and down and the choices levels bring, deleting them and reading them.
- * The sheet's other commands are CharacterSheetService's, RestService's and CharacterSpellService's (D158). Every
- * change starts in CharacterCommands, which checks access and locks the row, and after it CharacterStats works out the
- * Derived Stats again, writes their stored copies and syncs the pools (D158, D167), so nothing here does that
- * arithmetic itself.
+ * The sheet's other commands are CharacterSheetService's, RestService's and CharacterSpellService's, and the DM's
+ * adjustments DmAdjustmentService's (D158). Every change starts in CharacterCommands, which checks access and locks the
+ * row, and after it CharacterStats works out the Derived Stats again, writes their stored copies and syncs the pools
+ * (D158, D167), so nothing here does that arithmetic itself.
  */
 @Service
 @RequiredArgsConstructor

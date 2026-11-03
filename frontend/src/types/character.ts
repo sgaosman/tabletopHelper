@@ -83,3 +83,24 @@ export type ClassSpellcasting = Schemas['ClassSpellcasting'];
 
 /** The highest each ability score can be increased to: 20, or 24 for STR and CON after Primal Champion. */
 export type AbilityScoreMaximums = Schemas['AbilityScoreMaximums'];
+
+/**
+ * The ability scores without the DM's adjustments, which an ability score improvement raises up to the maximums. The
+ * character's own scores include the adjustments.
+ */
+export type BaseAbilityScores = Schemas['BaseAbilityScores'];
+
+/**
+ * A DM Adjustment (D158): a change the DM of the character's campaign makes on top of what the rules give it, with
+ * the reason its player sees. A removed one, with removedAt set, stays as the record and counts for nothing.
+ */
+export type DmAdjustment = Schemas['DmAdjustment'];
+
+/** What an adjustment changes: a stat by an amount, a damage defence, or a feat granted. */
+export type DmAdjustmentKind = DmAdjustment['kind'];
+
+/** A resistance, immunity or vulnerability to a damage type (D161). */
+export type DamageDefence = NonNullable<DmAdjustment['defence']>;
+
+/** A DM Adjustment to add; each kind needs its own fields, and the reason is required. */
+export type DmAdjustmentRequest = Schemas['DmAdjustmentRequest'];

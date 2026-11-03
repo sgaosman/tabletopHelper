@@ -115,7 +115,8 @@ public class RestService {
             }
         });
 
-        int constitutionModifier = Ability.modifier(CharacterUpdates.score(character, Ability.CON));
+        // With the DM's adjustments to Constitution, as every number worked out from it has (D158)
+        int constitutionModifier = Ability.modifier(DmAdjustments.abilityScore(character, Ability.CON));
         int healing = 0;
         for (HitDieSpent die : dice) {
             int dieSize = hitDice.get(die.className()).dieSize();

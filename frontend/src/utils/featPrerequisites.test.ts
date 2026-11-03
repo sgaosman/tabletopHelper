@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkFeatPrerequisites, parseFeatEffects, parseAbilityScoreIncrease } from './featPrerequisites';
+import { checkFeatPrerequisites, isRepeatableFeat, parseFeatEffects, parseAbilityScoreIncrease } from './featPrerequisites';
 import type { PlayerCharacter } from '../types/character';
 import type { Feat } from '../types/reference';
 
@@ -30,6 +30,11 @@ function mockCharacter(overrides: Partial<PlayerCharacter> = {}): PlayerCharacte
     deathSaveFailures: 0,
     spellcasting: [],
     abilityScoreMaximums: { strength: 20, dexterity: 20, constitution: 20, intelligence: 20, wisdom: 20, charisma: 20 },
+    baseAbilityScores: { strength: 14, dexterity: 12, constitution: 14, intelligence: 10, wisdom: 12, charisma: 10 },
+    damageResistances: [],
+    damageImmunities: [],
+    damageVulnerabilities: [],
+    dmAdjustments: [],
     isActive: true,
     inLiveEncounter: false,
     createdAt: '2024-01-01',
@@ -225,6 +230,20 @@ describe('featPrerequisites', () => {
       const feat = mockFeat({ abilityScoreIncrease: '' });
       const result = parseAbilityScoreIncrease(feat);
       expect(result).toBeNull();
+    });
+  });
+
+  describe('isRepeatableFeat', () => {
+    it('is true for a feat whose text says it can be selected multiple times, as Elemental Adept says', () => {
+      expect(isRepeatableFeat(mockFeat({
+        name: 'Elemental Adept',
+        description: 'You can select this feat multiple times. Each time you do so, you must choose a different damage type.',
+      }))).toBe(true);
+    });
+
+    it('is false for any other feat, or one without text', () => {
+      expect(isRepeatableFeat(mockFeat({ name: 'Lucky', description: 'You have inexplicable luck.' }))).toBe(false);
+      expect(isRepeatableFeat(mockFeat({ description: null }))).toBe(false);
     });
   });
 });

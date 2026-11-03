@@ -1,8 +1,8 @@
 import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { characterApi } from '../api/characterApi';
 import type {
-  ApplyChoicesRequest, CharacterDetailsRequest, HitPointChangeRequest, InventoryRequest, KnownSpellsRequest,
-  PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
+  ApplyChoicesRequest, CharacterDetailsRequest, DmAdjustmentRequest, HitPointChangeRequest, InventoryRequest,
+  KnownSpellsRequest, PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
 } from '../types/character';
 import { queryKeys } from './keys';
 import { invalidateOnConflict } from './queryClient';
@@ -209,6 +209,41 @@ export function useApplyChoices() {
     onError: (error, { characterId }) =>
       invalidateOnConflict(queryClient, error, queryKeys.characters.detail(characterId)),
   });
+}
+
+/**
+ * A DM's command on a character in their campaign (D158): the character the server answers with replaces the cached
+ * copies, the campaign's character list that the DM's page shows among them. A 409 means the cached character is out
+ * of date, such as an adjustment already removed in another tab, so the character and the list are fetched again.
+ */
+function useAdjustmentCommand<Variables extends { characterId: string; campaignId: string }>(
+  send: (variables: Variables) => Promise<{ data: PlayerCharacter }>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (variables: Variables) => (await send(variables)).data,
+    onSuccess: async (character, { campaignId }) => {
+      await writeCharacter(queryClient, character);
+      queryClient.setQueryData<PlayerCharacter[]>(queryKeys.campaigns.characters(campaignId), characters =>
+        characters?.map(c => (c.id === character.id ? character : c)));
+    },
+    onError: (error, { characterId, campaignId }) => invalidateOnConflict(queryClient, error,
+      queryKeys.characters.detail(characterId), queryKeys.campaigns.characters(campaignId)),
+  });
+}
+
+/** Adds a DM Adjustment to a character in the DM's campaign: a stat changed, a damage defence, or a feat granted. */
+export function useAddAdjustment() {
+  return useAdjustmentCommand((
+    { characterId, adjustment }: { characterId: string; campaignId: string; adjustment: DmAdjustmentRequest },
+  ) => characterApi.addAdjustment(characterId, adjustment));
+}
+
+/** Removes a DM Adjustment, which stays on the sheet as the record; a granted feat's effects are reversed. */
+export function useRemoveAdjustment() {
+  return useAdjustmentCommand((
+    { characterId, adjustmentId }: { characterId: string; campaignId: string; adjustmentId: string },
+  ) => characterApi.removeAdjustment(characterId, adjustmentId));
 }
 
 /** Deletes one of the user's characters. It leaves the list at once; the lists it was in are fetched again. */

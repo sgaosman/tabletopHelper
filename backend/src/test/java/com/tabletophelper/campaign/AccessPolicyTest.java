@@ -113,10 +113,38 @@ class AccessPolicyTest {
         }
 
         @Test
-        @DisplayName("Anyone else is refused, the DM included, until D158")
+        @DisplayName("Anyone else is refused, the DM included, who adjusts a character only through DM Adjustments (D158)")
         void othersAreForbidden() {
             assertForbidden("You do not own this character", () -> accessPolicy.requireCharacterOwner(playerId, otherPlayerId));
             assertForbidden("You do not own this character", () -> accessPolicy.requireCharacterOwner(playerId, dmId));
+            verifyNoInteractions(campaignRepository, campaignMemberRepository);
+        }
+    }
+
+    @Nested
+    @DisplayName("requireCharacterDm (D158)")
+    class RequireCharacterDm {
+
+        @Test
+        @DisplayName("The DM of the character's campaign passes")
+        void dmPasses() {
+            assertDoesNotThrow(() -> accessPolicy.requireCharacterDm(campaignId, dmId));
+        }
+
+        @Test
+        @DisplayName("Anyone else is refused, the character's owner included")
+        void othersAreForbidden() {
+            assertForbidden("Only the DM of this character's campaign can adjust it",
+                    () -> accessPolicy.requireCharacterDm(campaignId, playerId));
+            assertForbidden("Only the DM of this character's campaign can adjust it",
+                    () -> accessPolicy.requireCharacterDm(campaignId, otherPlayerId));
+        }
+
+        @Test
+        @DisplayName("A character in no campaign has no DM, so nobody may adjust it")
+        void noCampaignHasNoDm() {
+            assertForbidden("This character isn't in a campaign, so it has no DM to adjust it",
+                    () -> accessPolicy.requireCharacterDm(null, dmId));
             verifyNoInteractions(campaignRepository, campaignMemberRepository);
         }
     }

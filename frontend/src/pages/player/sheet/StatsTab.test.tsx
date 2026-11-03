@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { render } from '../../../test/test-utils';
-import { makeMockCharacter } from '../../../test/mocks/handlers';
+import { makeMockAdjustment, makeMockCharacter } from '../../../test/mocks/handlers';
 import StatsTab from './StatsTab';
 
 describe('StatsTab', () => {
@@ -60,5 +60,42 @@ describe('StatsTab', () => {
   it('shows the level with an unknown die when the sheet has no Hit Dice', () => {
     render(<StatsTab {...defaultProps} char={{ ...char, hitDice: null }} />);
     expect(screen.getByText('5d?')).toBeInTheDocument();
+  });
+
+  it("lists the DM's adjustments that count, each with its reason, and leaves out the removed ones (D158)", () => {
+    const adjusted = {
+      ...char,
+      dmAdjustments: [
+        makeMockAdjustment({ id: 'adj-ring' }),
+        makeMockAdjustment({ id: 'adj-feat', kind: 'FEAT', target: 'Lucky', amount: null, reason: 'Blessing of Tymora' }),
+        makeMockAdjustment({ id: 'adj-old', target: 'STR', amount: 2, reason: 'Gauntlets, lost',
+          removedAt: '2026-11-03T11:00:00Z', removedBy: 'user-001' }),
+      ],
+    };
+    render(<StatsTab {...defaultProps} char={adjusted} />);
+
+    const list = screen.getByRole('region', { name: 'DM Adjustments' });
+    expect(within(list).getByText('+1 AC')).toBeInTheDocument();
+    expect(within(list).getByText(/Ring of Protection/)).toBeInTheDocument();
+    expect(within(list).getByText('Feat: Lucky')).toBeInTheDocument();
+    expect(within(list).getByText(/Blessing of Tymora/)).toBeInTheDocument();
+    expect(screen.queryByText(/Gauntlets, lost/)).not.toBeInTheDocument();
+  });
+
+  it('has no adjustments section when the DM has made none', () => {
+    render(<StatsTab {...defaultProps} />);
+    expect(screen.queryByRole('region', { name: 'DM Adjustments' })).not.toBeInTheDocument();
+  });
+
+  it('shows resistances, immunities and vulnerabilities, the DM\'s among them (D161)', () => {
+    render(<StatsTab {...defaultProps} resistances={['fire']}
+      char={{ ...char, damageResistances: ['fire'], damageImmunities: ['poison'], damageVulnerabilities: ['cold'] }} />);
+
+    expect(screen.getByText('Damage Defences')).toBeInTheDocument();
+    expect(screen.getByText('Resistant:')).toBeInTheDocument();
+    expect(screen.getByText('fire')).toBeInTheDocument();
+    expect(screen.getByText('poison')).toBeInTheDocument();
+    expect(screen.getByText('Vulnerable:')).toBeInTheDocument();
+    expect(screen.getByText('cold')).toBeInTheDocument();
   });
 });

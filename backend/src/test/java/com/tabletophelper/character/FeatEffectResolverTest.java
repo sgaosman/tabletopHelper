@@ -553,6 +553,34 @@ class FeatEffectResolverTest {
         assertEquals("The effects of the feat Broken can't be read", e.getMessage());
     }
 
+    @Test
+    @DisplayName("6.23 A feat taken twice keeps one entry when one of them is reversed, as removing one of a DM's two grants does (D158)")
+    void reversingOneOfTwoKeepsTheOther() {
+        PlayerCharacter c = baseCharacter();
+        Feat adept = buildFeat("Elemental Adept", null, "{}", null);
+
+        FeatEffectResolver.AppliedEffects first = resolver.applyFeat(c, adept, null);
+        resolver.applyFeat(c, adept, null);
+        resolver.reverseFeatEffects(c, CharacterUpdates.recordedEffects(first, "Elemental Adept"));
+
+        assertEquals(1, c.getFeatures().stream().filter(f -> "Elemental Adept".equals(f.name())).count());
+    }
+
+    @Test
+    @DisplayName("6.24 A feat can be taken again when its text says it can be selected multiple times, as Elemental Adept's does")
+    void repeatableFeats() {
+        Feat adept = buildFeat("Elemental Adept", null, "{}", null);
+        adept.setDescription("Spells you cast ignore resistance to the chosen type. You can select this feat multiple "
+                + "times. Each time you do so, you must choose a different damage type.");
+        Feat lucky = buildFeat("Lucky", null, "{}", null);
+        Feat blank = buildFeat("Blank", null, "{}", null);
+        blank.setDescription(null);
+
+        assertTrue(FeatEffectResolver.repeatable(adept));
+        assertFalse(FeatEffectResolver.repeatable(lucky));
+        assertFalse(FeatEffectResolver.repeatable(blank));
+    }
+
     // --- Helpers ---
 
     // The history's record of a feat that changed only speed, initiative or HP per level
