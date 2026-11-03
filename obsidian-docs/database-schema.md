@@ -139,8 +139,8 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | hp_max | INTEGER | NOT NULL | |
 | hp_current | INTEGER | NOT NULL | |
 | hp_temp | INTEGER | DEFAULT 0 | |
-| hit_dice_total | VARCHAR(20) | | e.g. "8d10" — **DEPRECATED**, superseded by `resource_pools` |
-| hit_dice_remaining | VARCHAR(20) | | **DEPRECATED**, superseded by `resource_pools` |
+| hit_dice_total | VARCHAR(20) | | e.g. "8d10" — **DEPRECATED**, unmapped since V19 (R6, D168): the sheet builds the text from `hit_dice`. R7 drops it. |
+| hit_dice_remaining | VARCHAR(20) | | **DEPRECATED**, unmapped since V19 (R6, D168). R7 drops it. |
 | armour_class | INTEGER | NOT NULL | |
 | initiative_bonus | INTEGER | DEFAULT 0 | |
 | speed | INTEGER | DEFAULT 30 | |
@@ -157,11 +157,11 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | condition_immunities | JSONB | | |
 | features | JSONB | | Array of {name, description, uses} |
 | spells_known | JSONB | | |
-| spell_slots | JSONB | | `{"1": {total, used}, …, "pact_1": {total, used}}` — pact slots are keyed `pact_N`. Converted to `{max, remaining}` when a character joins an encounter (D107). Since R1, a single Spellcasting class uses its own progression (D153); the recompute-spell-slots job corrects maximums stored before that. **Planned (R6, D168):** `{max, used}` everywhere. |
+| spell_slots | JSONB | | `{"1": {total, used}, …, "pact_1": {total, used}}` — pact slots are keyed `pact_N`. Copied as `{max, used}` when a character joins an encounter (V15, D168). Since R1, a single Spellcasting class uses its own progression (D153); the recompute-spell-slots job corrects maximums stored before that. Since V19 (R6, D168) the sheet stores `{max, used}` as well. |
 | spell_save_dc | INTEGER | | |
 | spell_attack_bonus | INTEGER | | |
 | spellcasting_ability | VARCHAR(20) | | |
-| equipment | JSONB | | |
+| equipment | JSONB | | Inventory entries `{name, quantity, description, itemId, equipped, attuned}`; V19 turned stored names into entries (R6, D168). `itemId` is optional until workstream D links entries to items. |
 | currency | JSONB | | {cp, sp, ep, gp, pp} |
 | personality_traits | TEXT | | |
 | ideals | TEXT | | |
@@ -178,12 +178,13 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | ability_score_method | VARCHAR(20) | | standard, pointbuy, manual |
 | racial_ability_bonuses | JSONB | | Snapshot of race ability bonuses |
 | multiclass_entries | JSONB | | Array of {classId, className, level} |
-| prepared_spells | JSONB | DEPRECATED — not used by DTOs | Legacy column, superseded by `spells_known[].prepared` |
-| attuned_items | JSONB | | Array of attuned item names |
-| equipped_items | JSONB | | Array of equipped item names |
-| hit_dice_map | JSONB | **DEPRECATED** — superseded by `resource_pools` | Per-class hit dice: {className: {total, remaining, faces}} |
+| prepared_spells | JSONB | DEPRECATED — unmapped since V19 | Legacy column, superseded by `spells_known[].prepared`. R7 drops it. |
+| attuned_items | JSONB | DEPRECATED — unmapped since V19 | Replaced by `equipment[].attuned` (R6, D168). R7 drops it. |
+| equipped_items | JSONB | DEPRECATED — unmapped since V19 | Replaced by `equipment[].equipped` (R6, D168). R7 drops it. |
+| hit_dice_map | JSONB | **DEPRECATED** — unmapped since V19 | Per-class hit dice: {className: {total, remaining, faces}}, copied into `hit_dice` by V19. No resource pool holds hit dice. R7 drops it. |
+| hit_dice | JSONB | | Per-class hit dice `{className: {dieSize, total, remaining}}`, filled from `hit_dice_map` by V19 (R6, D158, D168) |
 | level_history | JSONB | | Array of per-level entries for deterministic rollback |
-| feat_resources | JSONB | **DEPRECATED** — superseded by `resource_pools` | Array of feat resource entries |
+| feat_resources | JSONB | **DEPRECATED** — superseded by `resource_pools` | Array of feat resource entries. Still written by feats with uses, such as Lucky, until R6 workstream D. |
 | **resource_pools** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. See the [Resource Pool reference tables](#resource-pool-tables-m245) section for schema. Subsumes `feat_resources` and `hit_dice_map`. |
 | is_active | BOOLEAN | DEFAULT TRUE | Soft delete |
 | created_at | TIMESTAMPTZ | | |
@@ -649,6 +650,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V16 | `V16__combat_pipeline_state.sql` | `concentration` replaces the two concentration columns; `life_state` replaces `is_alive`; condition entries gain `id` and an end rule, and Dying and Stable PCs gain unconscious and prone; `combat_logs.lr_success_damage` and `lr_condition_ids`; `HP_SET` and `REPEAT_SAVE` action types (D160–D163) |
 | V17 | `V17__turn_order.sql` | `encounters.current_turn_participant_id` and `is_lair_turn` replace `current_turn_index` and `encounter_participants.is_current_turn`; `encounter_participants.death_save_due`; `campaigns.prompt_player_repeat_saves` (D157, D162, D163) |
 | V18 | `V18__manual_modifiers_and_monster_triggers.sql` | `campaigns.allow_player_manual_modifiers` BOOLEAN NOT NULL DEFAULT TRUE; the Legendary Resistance trigger becomes `{"hasFeature": "Legendary Resistance"}`; deletes the breath-weapon trigger (D164, D165) |
+| V19 | `V19__typed_character_json.sql` | Character JSON normalised for typed records: slots become `{max, used}`, a new `hit_dice` column is filled from `hit_dice_map`, equipment names become entries, and values of the wrong JSON type become NULL (D168) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -713,6 +715,12 @@ V16 backfills existing rows: concentration is built from the old columns and the
 V17 stores the current turn by participant rather than by position, because the order is computed from initiative, DEX, the DM's tie order and the Lair's turn, so a stored position drifts as participants come and go (D163).
 
 **Done (2026-11-02):** V15, V16, V17 and V18 are applied to the local database, each after a backup in `tabletopHelper-backups/` and a `preview-migration` dry run. V15 converted 12 slot rows. V16 changed 246 of 261 rows, leaving 57 participants Alive, 1 Dead and 2 Dying. V17 changed 75 rows, and every encounter kept the same creature on its turn. V18 changed the two monster pool triggers. No row failed to load.
+
+### R6 — Character authority
+
+The plan is drafted and awaits approval (D150). Migrations V19–V24 land with workstreams B–G.
+
+**Done (2026-11-03):** V19 (workstream B) is applied to the local database after a backup and a `preview-migration` dry run: 276 rows examined, all 13 characters changed (hit dice on 13, slots on 5), and every row loads.
 
 ### R3–R7 — Outline
 

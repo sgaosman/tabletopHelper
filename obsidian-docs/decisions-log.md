@@ -1813,7 +1813,7 @@ Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and
 ## D150: Refactor Phase Before M13 — Phases R1–R8
 
 **Date:** 2026-11-01
-**Status:** Accepted — in progress (R1–R5 done; R6–R8 to come)
+**Status:** Accepted — in progress (R1–R5 done; R6 under way; R7–R8 to come)
 
 **Decision:** Feature milestones (M13 onward) are paused until the refactor phase is complete. The phase runs in eight steps. Each step leaves the app deployable, with CI green and the project docs updated.
 
@@ -1855,6 +1855,8 @@ M13 (action economy) changes the same combat code. Building it first would multi
 
 **Update (2026-11-02, R5 complete):** R4 and R5 were completed on 2026-11-02. R5 ran workstreams E and F at the same time, F in a separate worktree that was merged afterwards. Since R5 removed the main reason for pausing M13, starting M13 before R6–R8 was considered; the order was kept: R6, R7, R8, then M13. Hosting stays deferred until the app is to be played online (D154).
 
+**Update (2026-11-03, R6 workstreams A and B):** R6's plan is drafted, kept outside the repository, and awaits approval. Workstreams A and B, which change no character behaviour, were built on 2026-11-03. C and D change levelling, multiclass prerequisites and rests, so they wait for approval; E, F and G wait for answers to the plan's questions.
+
 ## D151: Modular Monolith — Microservices Rejected
 
 **Date:** 2026-11-01
@@ -1888,6 +1890,8 @@ Each module exposes a small public API (services and DTOs) and keeps everything 
 **Related:** D001, D004, D021, D166
 
 **Update (2026-11-02, R3 planning):** the boundary test uses ArchUnit. Only a module may use its own `internal` package, and `rules` may use only the JDK and `shared` (the domain exceptions). Spring Modulith's `verify()` would fail on today's `character` ↔ `encounter` dependency cycle. R3 moves `auth`, `user` and the security classes into `identity`. It also moves the static calculators `SpellSlotCalculator`, `SpellSlotTables`, `ProficiencyBonus`, `DiceRoller` and `ExpressionEvaluator` into `rules`. `User` stays public until other modules hold user IDs instead.
+
+**Update (2026-11-03, R6 workstreams A and B):** workstream B moved `SpellSlot` and `KnownSpell` from `encounter.state`, and `ResourcePoolEntry`, `FeatResourceEntry` and `LevelHistoryEntry` from `character.dto`, into `character.state`, which both modules use. `CharacterUpdates` replaced `CharacterJsonHelper`. `character` still imports encounter classes until workstream D.
 
 ## D152: Remove Startup Character Cleanup
 
@@ -2559,6 +2563,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 
 **Related:** D054, D158, D159, [[Derived Stat]], [[Spellcasting Class]]
 
+**Update (2026-11-03, R6 workstreams A and B):** workstream A added `rules.character`, pure functions with golden tests typed from the PHB: `ClassProgression` (ASI, expertise and fighting style levels, cantrips and spells known, prepared limits, highest spell level), `HitPoints` (hit die results plus CON, Tough, Hill Dwarf and Draconic Bloodline bonuses, at least 1 per level), `HitDice` (long-rest recovery of half the total, largest first), `Rests`, `AbilityScores` (the maximum of 20, or 24 for STR and CON after Primal Champion) and `Multiclassing` (every class's prerequisites). Nothing calls them until workstream C. `rules.Ability.modifier` rounds down (PHB p.13) and replaced seven copies; two truncated, so a monster with an odd DEX below 10 now gets the correct initiative modifier when added, and a feat changing an odd CON below 10 adjusts HP correctly. The multiclass HP rule is on PHB p.163. Where existing code disagrees with the PHB (a multiclass dip gets the maximum die; Tough, Hill Dwarf and Draconic Bloodline HP; no minimum of 1 HP per level; the hard-coded maximum of 20; level-up checking only the primary class's prerequisites; Eldritch Knight and Arcane Trickster spells; long rests returning half of each class's dice), workstream C fixes it.
+
 ## D168: Typed JSON End-to-End
 
 **Date:** 2026-11-01
@@ -2589,6 +2595,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 **Update (2026-11-02, R5 implementation):** V15 typed the participant columns (conditions, spell slots `{max, used}` with pact slots keyed `pact_N`, known spells and resource pools) and the encounter's `monsters_in_lair`; V16 added the Concentration Instance and condition IDs and end rules. `JsonColumnConfig` makes Hibernate use Spring's ObjectMapper, so unknown keys don't fail a load. The `preview-migration` job dry-ran V15, V16 and V17 against the local database before each was applied, and no row failed to load.
 
 **Update (2026-11-02, R5 workstream G):** `monsters.action_templates` is read into the `MonsterTemplates` records where it is used, replacing the JSON walking in the monster services. No column changes; the column's own record type still comes with R7. A comparison over all 2,357 local templates parsed every one and found the 7,823 non-multiattack actions, spellbooks, pool counts and lair flags unchanged.
+
+**Update (2026-11-03, R6 workstreams A and B):** workstream B typed every `player_characters` JSON column into records in `character.state`, and the character API carries structured JSON. V19 normalises the stored values: slots become `{max, used}`, hit dice move from `hit_dice_map` to a new `hit_dice` column keyed by class (`{dieSize, total, remaining}`), equipment names become entries `{name, quantity, description, itemId, equipped, attuned}`, and values of the wrong JSON type become NULL. Locally all 13 characters changed (hit dice on 13, slots on 5) and every row loads. `hit_dice_total`, `hit_dice_remaining`, `hit_dice_map`, `prepared_spells`, `attuned_items` and `equipped_items` are unmapped and go in R7; `feat_resources` stays mapped, because feats with uses still write it, until workstream D. `preview-migration` covers `player_characters`, and no longer counts a column added as NULL as a change.
 
 ## D169: Game Content as Data Files with Idempotent Seeding
 
