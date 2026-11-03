@@ -214,12 +214,13 @@ Create a new player character owned by the authenticated user. Uses FK reference
 }
 ```
 
-**JSON fields are structured JSON, not strings (R6 workstream B, D168).** The proficiency, resistance and immunity lists, `features`, `spellsKnown`, `spellSlots`, `equipment`, `currency`, `racialAbilityBonuses`, `multiclassClassEntries`, `multiclassEntries`, `hitDice`, `levelHistory`, `featResources`, `resourcePools` and the response's `subclassAlwaysPreparedSpells` are arrays and objects, in the shapes of the `character.state` records, in requests and responses alike; the spec lists each shape. A JSON field sent as a string is refused with `400`. Before R6 the API carried them as JSON text, such as `"skillProficiencies": "[\"Arcana\"]"`.
+**JSON fields are structured JSON, not strings (R6 workstream B, D168).** The proficiency, resistance and immunity lists, `features`, `spellsKnown`, `spellSlots`, `equipment`, `currency`, `racialAbilityBonuses`, `multiclassClassEntries`, `multiclassEntries`, `hitDice`, `levelHistory`, `resourcePools` and the response's `subclassAlwaysPreparedSpells` are arrays and objects, in the shapes of the `character.state` records, in requests and responses alike; the spec lists each shape. A JSON field sent as a string is refused with `400`. Before R6 the API carried them as JSON text, such as `"skillProficiencies": "[\"Arcana\"]"`.
 
 - `hitDice` is an object keyed by class name, each entry `{dieSize, total, remaining}`. It replaces `hitDiceMap`, `hitDiceTotal` and `hitDiceRemaining`, which the response no longer has and the requests no longer take (`faces` in the old map is `dieSize`).
 - `spellSlots` is an object keyed `"1"` to `"9"`, with a Warlock's pact slots keyed `pact_N`, each `{max, used}`, the shape participants have had since V15. It was `{total, used}`.
 - `equipment` entries are `{name, quantity, description, itemId, equipped, attuned}`. `equipped` and `attuned` replace the response's `equippedItems` and `attunedItems`.
 - `racialAbilityBonuses` entries are `{ability, bonus}`, with the ability abbreviated, such as `"INT"`, or `null` until the player assigns it.
+- `featResources` is gone since R6 workstream D (D158): a feat's limited uses, such as Lucky's luck points, are a `feat:<feat>` pool in `resourcePools`, such as `feat:lucky`.
 
 The request no longer takes the stats the server works out (R6 workstream C, D158, D167): `hpMax`, `armourClass`, `initiativeBonus`, `speed`, `proficiencyBonus`, `spellSlots`, `spellSaveDc`, `spellAttackBonus` and `hitDice`. Armour class starts at 10 + the DEX modifier, because armour isn't modelled, and speed is the race's walking speed. `spellcastingAbility` is only the ability race and feat spells are cast with, such as a Fairy's choice of INT, WIS or CHA; a class's own spells use the class's ability.
 
@@ -231,25 +232,152 @@ The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceNa
 
 Every character response also has `spellcasting` and `abilityScoreMaximums`, worked out when it is read rather than stored (R6 workstream C, D164, D167). `spellcasting` has an entry for each class that casts, in the order the classes were taken: `{className, subclassName, classLevel, ability, spellSaveDc, spellAttackBonus, highestSpellLevel, cantripsKnown, spellsKnown, preparedSpells, pactMagic}`. `spellsKnown` is `null` for a class that prepares its spells and `preparedSpells` for one that knows them; a class without slots yet prepares 0, an Eldritch Knight or Arcane Trickster appears from 3rd level with INT, and `pactMagic` is `true` for a Warlock. The top-level `spellSaveDc`, `spellAttackBonus` and `spellcastingAbility` are the main numbers, which race and feat spells use: the ability is the one chosen at creation, or else the first casting class's. `abilityScoreMaximums` gives each score's maximum: 20, or 24 for STR and CON after Primal Champion.
 
+Since R6 workstream D every character response also has `inLiveEncounter`, which is `true` while the character is a participant in an Active or Paused encounter. Rests, level-up, level-down and apply-choices answer `409` then, and the sheet disables those buttons with a note (D151, D166).
+
 **Errors:**
 - `400` — Unknown `raceId`, `classId`, `subclassId`, `backgroundId` or `campaignId` (IDs in the body are a 400, not a 404), or validation failed
 - `400` — The class levels in `multiclassClassEntries` don't add up to `level` (R6 workstream C)
+- `400` — An `equipment` entry without a name, with a quantity below 0 or with an `itemId` that names no item, or a coin below 0 (R6 workstream D, D164)
 - `403` — `campaignId` names a campaign the user isn't a member of (D155)
 - `409` — Reference data the character needs can't be read, such as a race's speed or a class's features (R6 workstream C, D155)
 
-### PUT /characters/{characterId}
+### Character commands (R6 workstream D, D158)
 
-Update an existing character. Only the owner can update. All fields are optional — only provided fields are updated.
+`PUT /characters/{characterId}` is gone, and with it `CharacterUpdateRequest`. Besides creating a character, levelling it and applying the choices its levels bring, its owner changes it only through the commands below. Each answers `200` with the full character object, its Derived Stats worked out again.
 
-**Request:** Any subset of character fields. A field left out, or `null`, keeps its value, and a JSON field that is given (an array or object, as in the create request) replaces the whole value. Includes `clearCampaign` (boolean) — set to `true` to unassign the character from its campaign (since `campaignId: null` is indistinguishable from "not provided" in a partial update). Assigning a `campaignId` requires the owner to be a member of that campaign.
+- **Only the owner.** Every command, levelling, apply-choices and `DELETE` included, is the owner's alone: another user gets `403` and an unknown character `404`. Access is checked before the character's row is locked, so neither waits for the lock.
+- **One at a time.** Each command locks the character's row, so commands on one character queue and each starts from the last one's committed state. One that waits more than five seconds answers `409` ("Another change is still in progress. Please try again in a moment."). A write from a copy of the character that a command has changed since answers `409` too ("Someone else changed this at the same time. Please try again."), because the character's `version` catches it.
+- **During an encounter.** Rests, level-up, level-down and apply-choices answer `409` while the character is in an Active or Paused encounter (D166). The other commands go on, because combat changes the participant, not the sheet.
+- **What no command sets.** Ability scores, proficiencies and expertise, resistances and immunities, race, background, `abilityScoreMethod` and `racialAbilityBonuses`, which the PUT took, can't be set any more, and neither can AC, which it had ignored since workstream C. HP, temporary HP, slot uses, remaining Hit Dice and pool uses change only through the commands below, and race and feat spells can't be edited.
 
-Since R6 workstream C the PUT takes no Derived Stat and nothing that only levelling changes (D158, D167): `hpMax`, `armourClass`, `initiativeBonus`, `speed`, `proficiencyBonus`, `spellSaveDc`, `spellAttackBonus`, `spellcastingAbility`, `level`, `characterClass`, `subclass`, `classId`, `subclassId`, `multiclassEntries`, `features` and `levelHistory` are ignored. Of `spellSlots` it reads only each slot's `used`, of `hitDice` each class's `remaining`, and of `resourcePools` each pool's `currentUses`, for those the character has, each held between 0 and its maximum; `hpCurrent` is capped at the HP maximum. The server then works out the Derived Stats again. Workstream D replaces the PUT with intent endpoints (D158).
+### PATCH /characters/{characterId}/details
 
-**Response (200):** Full updated character object.
+Set the details no rule reads. A field left out, or `null`, keeps its value, and an empty text clears it; the name can't be cleared.
+
+**Request:** any of `name`, `experiencePoints`, `alignment`, `personalityTraits`, `ideals`, `bonds`, `flaws`, `notes` and `portraitUrl`, such as `{"name": "Aria Swift", "notes": "Owes 10 gp"}`.
 
 **Errors:**
-- `404` — Character not found
-- `403` — Not the owner, or not a member of the assigned campaign
+- `400` — A blank `name`; a `name` over 200 characters, `alignment` over 50 or `portraitUrl` over 500; or `experiencePoints` below 0
+
+### PUT /characters/{characterId}/campaign
+
+Put the character in a campaign its owner has joined, or take it out of its campaign. It replaces the PUT's `campaignId` and `clearCampaign`.
+
+**Request:** `{"campaignId": "uuid"}`, or `{"campaignId": null}` to take the character out of its campaign
+
+**Errors:**
+- `400` — Unknown `campaignId`
+- `403` — The owner isn't a member of that campaign
+
+### PUT /characters/{characterId}/inventory
+
+Replace the character's whole inventory and coins. Both fields are required.
+
+**Request:**
+```json
+{
+  "equipment": [
+    {"name": "Heirloom blade", "quantity": 1, "itemId": "uuid", "equipped": true},
+    {"name": "Torch", "quantity": 3}
+  ],
+  "currency": {"cp": 0, "sp": 5, "ep": 0, "gp": 12, "pp": 0}
+}
+```
+
+Each entry needs a name, which is trimmed, and its quantity can't be below 0. `itemId` is optional and links the entry to an item: weapon attacks try it before the entry's name, so an entry linked to a mundane weapon is that weapon, whatever it is called (D164). Creation checks `equipment` and `currency` the same way.
+
+**Errors:**
+- `400` — An entry without a name, a quantity or coin below 0, or an `itemId` that names no item
+
+### POST /characters/{characterId}/hp
+
+Damage, healing or temporary hit points on the sheet between encounters (PHB p.198). Damage comes off temporary hit points first and stops at 0, healing stops at the HP maximum and leaves temporary hit points alone, and temporary hit points don't stack, so the character keeps the larger amount. In an encounter, the combat endpoints change the participant instead.
+
+**Request:** `{"kind": "DAMAGE", "amount": 8}`. `kind` is `DAMAGE`, `HEALING` or `TEMPORARY`, and `amount` is at least 1.
+
+**Errors:**
+- `400` — No `kind`, or an `amount` below 1
+
+### POST /characters/{characterId}/spell-slots/{slot}/spend, /spell-slots/{slot}/restore
+
+Spend one slot, or get one spent slot back. `slot` is a spell level, `"1"` to `"9"`, or a pact slot, `"pact_N"`. No body.
+
+**Errors:**
+- `404` — The character has no such slot
+- `409` — None of those slots is left (`spend`), or none has been spent (`restore`)
+
+### POST /characters/{characterId}/pools/spend, /pools/recover
+
+Spend uses of one of the character's resource pools, or get spent uses back.
+
+**Request:** `{"poolId": "feat:lucky", "amount": 1}`. `amount` is at least 1, and 1 when left out.
+
+**Errors:**
+- `400` — The character has no pool with that `poolId`
+- `409` — The pool hasn't that many uses left (`spend`), or getting them back would take it past its maximum (`recover`)
+
+### POST /characters/{characterId}/short-rest
+
+A short rest (PHB p.186). The body can be left out.
+
+**Request:**
+```json
+{
+  "hitDice": [
+    {"className": "Warlock", "roll": 6},
+    {"className": "Wizard"}
+  ]
+}
+```
+
+`hitDice` has one entry for each Hit Die spent, naming the class it comes from as the character's `hitDice` names it. The server rolls a die sent without a `roll`. Each die heals its roll plus the CON modifier, never less than 0, up to the HP maximum. Every die is checked before any is rolled, so a refused rest changes nothing. Pools that reset on a short rest come back by their `resetAmount`, or in full when they have none, and so do Pact Magic slots; a rest with no dice does only that (D127). Song of Rest and Arcane Recovery aren't applied.
+
+**Errors:**
+- `400` — A class without Hit Dice, more dice of a class than remain, or a roll outside 1 to the die's size
+- `409` — The character is in an Active or Paused encounter
+
+### POST /characters/{characterId}/long-rest
+
+A long rest (PHB p.186). No body. It restores every hit point and clears temporary hit points. It brings back spent Hit Dice up to half the character's total, at least one, the largest dice first, so a Fighter/Wizard regains d10s before d6s. Every spell slot comes back, and every pool refills completely, whatever its `resetAmount` (D127).
+
+**Errors:**
+- `409` — The character has fewer than 1 hit point, or is in an Active or Paused encounter
+
+### PUT /characters/{characterId}/spells/prepared
+
+Set the spells one class that prepares its spells has prepared, replacing those it had prepared.
+
+**Request:** `{"className": "Wizard", "spells": ["Shield"]}`
+
+Each spell must be on the class's spell list (for a Wizard, in its spellbook) and no higher than the class's `highestSpellLevel`, and there can be no more than its `preparedSpells`. Always-prepared spells don't count and stay prepared. A spell the class had prepared but isn't named stays on the sheet, unprepared.
+
+**Errors:**
+- `400` — A class the character doesn't cast with, or one that knows its spells; an unknown spell, a cantrip, a spell off the class's list or not in the spellbook, or one above the class's highest level; or too many spells
+- `409` — A spell's class lists can't be read
+
+### POST, DELETE /characters/{characterId}/spellbook
+
+Copy spells into a Wizard's spellbook (`POST`), or take them out (`DELETE`, which takes a JSON body too).
+
+**Request:** `{"spells": ["Magic Missile", "Shield"]}`, with at least one spell
+
+A spell copied in must be a wizard spell of 1st level or higher, no higher than the Wizard's `highestSpellLevel`; one already in the book is left as it is. A spell taken out must be in the book. Cantrips aren't kept in a spellbook: `spells/known` sets them.
+
+**Errors:**
+- `400` — No Wizard levels; an unknown spell, a cantrip, or a spell off the wizard list or above the Wizard's highest level; or, for `DELETE`, a spell that isn't in the book
+- `409` — A spell's class lists can't be read
+
+### PUT /characters/{characterId}/spells/known
+
+Set the cantrips one class knows, or the spells a class that knows a set number of spells knows, or both. It is interim: workstream F's Pending Choices replace it (D159).
+
+**Request:** `{"className": "Warlock", "cantrips": ["Eldritch Blast"], "spells": ["Hex"]}`
+
+Each list given replaces what the class knows of that kind, and a list left out keeps it. `cantrips` works for any class that casts, and `spells` only for a class whose `spellcasting` entry has `spellsKnown`. A spell is on a class's list if the spells table lists the class, or the class with its subclass, such as `"Warlock (The Hexblade)"`; Eldritch Knights and Arcane Tricksters use the wizard's list. No spell can be above the class's `highestSpellLevel`, and there can be no more than its `cantripsKnown` or `spellsKnown`. Race and feat spells are left as they are.
+
+**Errors:**
+- `400` — Neither list; a class the character doesn't cast with, or `spells` for a class that prepares its spells; an unknown spell, a levelled spell among the cantrips or a cantrip among the spells, or a spell off the class's list or above its highest level; or too many
+- `409` — A spell's class lists can't be read
 
 ### GET /characters
 
@@ -320,6 +448,7 @@ Since R6 workstream C (D167) the new level records its `hitDieResult`: the fixed
 
 **Errors:**
 - `409` — Character at max level (20) / Multiclass prerequisites not met
+- `409` — The character is in an Active or Paused encounter (R6 workstream D, D166)
 - `400` — Class not found
 
 ### POST /characters/{characterId}/level-down
@@ -330,6 +459,7 @@ Remove the most recent level. It removes the last `levelHistory` entry and, sinc
 
 **Errors:**
 - `409` — Character at minimum level (1) / No level history to revert
+- `409` — The character is in an Active or Paused encounter (R6 workstream D, D166)
 
 ### POST /characters/{characterId}/apply-choices
 
@@ -355,6 +485,7 @@ Since R6 workstream C (D167) an `ability` ASI must be +2 to one score or +1 to t
 **Errors:**
 - `400` — An ASI that isn't +2 to one score or +1 to two, takes a score past its maximum or names something that isn't an ability, or more Expertise skills than the level gives
 - `409` — No level owes the ASI or the Expertise, or the feat's data can't be read
+- `409` — The character is in an Active or Paused encounter (R6 workstream D, D166)
 
 ### GET /characters/{characterId}/eligible-classes
 
@@ -887,7 +1018,7 @@ List the weapons a character can attack with, and the numbers the server works o
 ]
 ```
 
-- The list holds the character's weapons in inventory order, each once, and then Unarmed Strike, which is always there. An `equipment` entry is a weapon when its name matches one of the 55 mundane weapons in `items` (see [[database-schema#items]]), in any case and singular or plural; an entry with a quantity of 0 doesn't count. A magic weapon listed under its own name, such as "Flame Tongue Longsword", is not offered: attack with the plain weapon and add the bonus as a Manual Modifier, or enter the attack by hand.
+- The list holds the character's weapons in inventory order, each once, and then Unarmed Strike, which is always there. An `equipment` entry is a weapon when its name matches one of the 55 mundane weapons in `items` (see [[database-schema#items]]), in any case and singular or plural; an entry with a quantity of 0 doesn't count. Since R6 workstream D an entry whose `itemId` links it to one of those weapons counts as that weapon, whatever it is called, and is listed under the weapon's name (D164). A magic weapon listed under its own name, such as "Flame Tongue Longsword", is not offered: attack with the plain weapon and add the bonus as a Manual Modifier, or enter the attack by hand.
 - `weapon` is the name `attack` takes. `ability` is STR, DEX, or the higher of the two for a finesse weapon. `attackBonus` includes the proficiency bonus when `proficient` is true. `damage` is the weapon's dice plus the ability modifier, such as "1d8 + 3". A `ranged` weapon attacks from beyond 5 feet unless the request says `within5Ft: true`.
 - `powerAttack` is `null` unless the character has Great Weapon Master or Sharpshooter, the weapon qualifies for it, and they are proficient with the weapon. When it is set it gives the `feat`, and the `attackBonus` and `damage` with the trade taken.
 - Proficiency comes from the sheet's `weaponProficiencies`, which may name a category ("simple", "Martial Weapons"), a weapon or its plural ("longswords"), or "Firearms" for a firearm. The feats come from the sheet's features and its level history.
@@ -1358,7 +1489,7 @@ HTTP status codes used (D155, R3). Services throw the domain exceptions in `shar
 - `401` — Unauthorized: no access token, or an expired or invalid one, on a protected endpoint; or a missing, expired, revoked or reused refresh cookie on `/auth/refresh`. The frontend answers a 401 with one refresh and a retry
 - `403` — Forbidden (`ForbiddenException`): signed in but not allowed. Not a member of the campaign, not its DM, not the character's owner, acting for a participant you don't control, a player attacking or casting outside their turn, or a player entering a Manual Modifier the campaign has turned off (R5, D164)
 - `404` — Not found (`NotFoundException`): the resource named in the URL doesn't exist (campaign, character, encounter, participant, session code, combat log entry), or the path is unknown
-- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160)
+- `409` — Conflict (`ConflictException`): the wrong state for the action (e.g. the encounter isn't active, the character is in an active encounter, already a member, username taken, no spell slot left on `spell-slot/use`), or two people changed the same data at once (optimistic locking, D034: "Someone else changed this at the same time. Please try again."). R5 added: a combat command on an encounter that isn't ACTIVE; a lifecycle move the encounter's status doesn't allow; an attack, spell, action, damage or healing aimed at a dead creature; a legendary action on the monster's own turn and a lair action off the Lair's turn; a Next Turn with nobody able to act; and an encounter command that waited more than five seconds for the one before it ("Another change is still in progress. Please try again in a moment.", D160). R6 workstream D added: a character command that waited more than five seconds in the same way, or that wrote from a copy of the character a command had changed since (D158); a rest, level-up, level-down or apply-choices while the character is in an Active or Paused encounter (D166); a long rest below 1 hit point; and spending a slot or pool use that isn't left, or getting back one that wasn't spent
 - `500` — Anything unexpected. Outside the dev profile the body is always `{"error": "Something went wrong. Please try again."}`; only dev returns the real message (`server.error.include-message: always`)
 
 Before R3, "not found" and "not allowed" both returned 400 (`IllegalArgumentException`), an expired token returned 403, and optimistic-lock conflicts returned 500 (superseded in R3, D155).
