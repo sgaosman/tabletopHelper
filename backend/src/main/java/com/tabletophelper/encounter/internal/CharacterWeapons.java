@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,14 +27,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A player character's weapons, read from their sheet (D164): each inventory entry named after one of the mundane
- * weapons in the items table, matched by name until R6 links inventory entries to items, then an unarmed strike,
- * which everyone has. An entry with any other name, such as a magic weapon's, isn't offered: its attack is entered
- * by hand, as a Manual Modifier.
+ * A player character's weapons, read from their sheet (D164): each inventory entry linked to one of the mundane
+ * weapons in the items table, or else named after one, then an unarmed strike, which everyone has. An entry linked
+ * to any other item and named after no weapon, such as a magic weapon, isn't offered: its attack is entered by hand,
+ * as a Manual Modifier.
  * <ul>
  *   <li>Proficiency comes from the sheet's weapon proficiencies, which name a category ("simple", "Martial",
  *       "Simple Weapons"), a weapon ("dagger", "Hand crossbow", "longswords") or firearms.</li>
@@ -68,7 +70,11 @@ class CharacterWeapons {
     /** The character's weapons in inventory order, each once, then the unarmed strike. */
     List<Held> of(PlayerCharacter character) {
         Map<String, Item> weapons = new LinkedHashMap<>();
-        itemRepository.findMundaneWeapons().forEach(item -> weapons.putIfAbsent(key(item.getName()), item));
+        Map<UUID, Item> weaponsById = new HashMap<>();
+        for (Item item : itemRepository.findMundaneWeapons()) {
+            weapons.putIfAbsent(key(item.getName()), item);
+            weaponsById.putIfAbsent(item.getId(), item);
+        }
         List<String> proficiencies = strings(character.getWeaponProficiencies());
         Set<PowerAttack> feats = feats(character);
 
@@ -79,7 +85,9 @@ class CharacterWeapons {
             if (entry.quantity() != null && entry.quantity() <= 0) {
                 continue;
             }
-            Item item = match(weapons, name);
+            // The item the entry is linked to, when it is a mundane weapon, and otherwise the weapon it is named after
+            Item linked = entry.itemId() != null ? weaponsById.get(entry.itemId()) : null;
+            Item item = linked != null ? linked : match(weapons, name);
             if (item != null && !held.containsKey(item.getName())) {
                 weapon(item).ifPresent(weapon -> {
                     boolean proficient = proficient(proficiencies, weapon, firearm(item));

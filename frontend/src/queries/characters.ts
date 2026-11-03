@@ -1,6 +1,9 @@
 import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { characterApi } from '../api/characterApi';
-import type { ApplyChoicesRequest, CharacterUpdateRequest, PlayerCharacter } from '../types/character';
+import type {
+  ApplyChoicesRequest, CharacterDetailsRequest, HitPointChangeRequest, InventoryRequest, KnownSpellsRequest,
+  PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
+} from '../types/character';
 import { queryKeys } from './keys';
 import { invalidateOnConflict } from './queryClient';
 
@@ -47,14 +50,37 @@ export function useCampaignCharacters(
 }
 
 /**
- * Saves changes to one of the user's characters; the character the server returns replaces the cached
- * copies. Joining or leaving a campaign also changes the campaigns' lists, which are fetched again.
+ * A command on one of the user's characters (D158): the character the server answers with replaces the cached
+ * copies. A 409 means the cached character is out of date, or the command has to wait, such as a rest during an
+ * encounter, so the character is fetched again.
  */
-export function useUpdateCharacter() {
+function useCharacterCommand<Variables extends { characterId: string }>(
+  send: (variables: Variables) => Promise<{ data: PlayerCharacter }>,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ characterId, updates }: { characterId: string; updates: CharacterUpdateRequest }) =>
-      (await characterApi.update(characterId, updates)).data,
+    mutationFn: async (variables: Variables) => (await send(variables)).data,
+    onSuccess: character => writeCharacter(queryClient, character),
+    onError: (error, { characterId }) =>
+      invalidateOnConflict(queryClient, error, queryKeys.characters.detail(characterId)),
+  });
+}
+
+/** Sets the details a character's owner chooses, such as its name or notes; those left out keep their values. */
+export function useUpdateDetails() {
+  return useCharacterCommand(({ characterId, details }: { characterId: string; details: CharacterDetailsRequest }) =>
+    characterApi.updateDetails(characterId, details));
+}
+
+/**
+ * Puts a character in a campaign its owner has joined, or takes it out of its campaign with null. The campaigns'
+ * character lists change too, so they are fetched again.
+ */
+export function useSetCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ characterId, campaignId }: { characterId: string; campaignId: string | null }) =>
+      (await characterApi.setCampaign(characterId, { campaignId })).data,
     onSuccess: async character => {
       const campaignBefore = queryClient.getQueryData<PlayerCharacter>(queryKeys.characters.detail(character.id))?.campaignId;
       await writeCharacter(queryClient, character);
@@ -66,6 +92,83 @@ export function useUpdateCharacter() {
     onError: (error, { characterId }) =>
       invalidateOnConflict(queryClient, error, queryKeys.characters.detail(characterId)),
   });
+}
+
+/** Replaces a character's inventory and coins. */
+export function useUpdateInventory() {
+  return useCharacterCommand(({ characterId, inventory }: { characterId: string; inventory: InventoryRequest }) =>
+    characterApi.updateInventory(characterId, inventory));
+}
+
+/**
+ * Damage, healing or temporary hit points on the sheet. The server applies the rules: damage comes off temporary
+ * hit points first, healing stops at the maximum, and temporary hit points keep the larger amount.
+ */
+export function useChangeHitPoints() {
+  return useCharacterCommand(({ characterId, change }: { characterId: string; change: HitPointChangeRequest }) =>
+    characterApi.changeHitPoints(characterId, change));
+}
+
+/** Spends one slot of a spell level, "1" to "9", or a pact slot, "pact_N". */
+export function useSpendSlot() {
+  return useCharacterCommand(({ characterId, slot }: { characterId: string; slot: string }) =>
+    characterApi.spendSlot(characterId, slot));
+}
+
+/** Gets back one spent slot of a spell level, or a pact slot. */
+export function useRestoreSlot() {
+  return useCharacterCommand(({ characterId, slot }: { characterId: string; slot: string }) =>
+    characterApi.restoreSlot(characterId, slot));
+}
+
+/** Spends uses of one of a character's resource pools. */
+export function useSpendPool() {
+  return useCharacterCommand(({ characterId, use }: { characterId: string; use: PoolUseRequest }) =>
+    characterApi.spendPool(characterId, use));
+}
+
+/** Gets back spent uses of one of a character's resource pools. */
+export function useRecoverPool() {
+  return useCharacterCommand(({ characterId, use }: { characterId: string; use: PoolUseRequest }) =>
+    characterApi.recoverPool(characterId, use));
+}
+
+/**
+ * A short rest, spending the Hit Dice named with the rolls entered or the server's. Pools that reset on a short
+ * rest and pact slots come back.
+ */
+export function useShortRest() {
+  return useCharacterCommand(({ characterId, rest }: { characterId: string; rest: ShortRestRequest }) =>
+    characterApi.shortRest(characterId, rest));
+}
+
+/** A long rest: hit points, half the Hit Dice, every slot and every pool come back. */
+export function useLongRest() {
+  return useCharacterCommand(({ characterId }: { characterId: string }) => characterApi.longRest(characterId));
+}
+
+/** Sets which of a prepared caster's spells are prepared. */
+export function useSetPreparedSpells() {
+  return useCharacterCommand(({ characterId, prepared }: { characterId: string; prepared: PreparedSpellsRequest }) =>
+    characterApi.setPreparedSpells(characterId, prepared));
+}
+
+/** Sets the cantrips, or the spells, one class knows (interim, until Pending Choices). */
+export function useSetKnownSpells() {
+  return useCharacterCommand(({ characterId, known }: { characterId: string; known: KnownSpellsRequest }) =>
+    characterApi.setKnownSpells(characterId, known));
+}
+
+/** Copies spells into a wizard's spellbook. */
+export function useAddToSpellbook() {
+  return useCharacterCommand(({ characterId, spells }: { characterId: string; spells: string[] }) =>
+    characterApi.addToSpellbook(characterId, { spells }));
+}
+
+/** Takes spells out of a wizard's spellbook. */
+export function useRemoveFromSpellbook() {
+  return useCharacterCommand(({ characterId, spells }: { characterId: string; spells: string[] }) =>
+    characterApi.removeFromSpellbook(characterId, { spells }));
 }
 
 /**

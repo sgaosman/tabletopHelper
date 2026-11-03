@@ -37,9 +37,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * {@code preview} called directly because Flyway has already applied it to this database. V16 is applied to a
  * schema of its own that Flyway takes only to V15, so its backfill is checked row by row (D161, D162); its
  * preview, which loads the rows with entities now at V17, gave way to V17's. V17 is previewed through
- * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163). V19 is
- * previewed and applied the same way, against player characters in a schema at V18 (D168), and so is V20, against
- * level histories in a schema at V19 (D167).
+ * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163). V19 is applied
+ * the same way, against player characters in a schema at V18 (D168), and so is V20, against level histories in a
+ * schema at V19 (D167); their previews, which load the characters with entities now at V21, gave way to V21's,
+ * previewed and applied against characters in a schema at V20 (D158).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
@@ -47,6 +48,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private static final String V17_SCHEMA = "v17_preview";
     private static final String V19_SCHEMA = "v19_preview";
     private static final String V20_SCHEMA = "v20_preview";
+    private static final String V21_SCHEMA = "v21_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -68,6 +70,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V17_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V19_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V20_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V21_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -488,36 +491,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Previews V19 on a database at V18: each converted character is reported, every row loads, nothing is written")
-    void previewsV19() {
-        Map<String, UUID> rows = v19Rows();
-        DataSource v19 = schemaDataSource(V19_SCHEMA);
-
-        MaintenanceReport report = new PreviewMigrationJob(v19, new JdbcTemplate(v19), entityManagerFactory,
-                objectMapper, "19").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(report.examined()).isEqualTo(4);
-        // The settled character only gains an empty hit_dice column, which isn't a change
-        assertThat(report.changes()).hasSize(3);
-        assertThat(characterChange(report, rows.get("Wizard")))
-                .contains("(Wizard)")
-                .contains("→ {\"1\":{\"max\":4,\"used\":1},\"pact_2\":{\"max\":2,\"used\":2}}")
-                .containsPattern("hit_dice: +→ \\{\"Wizard\":\\{\"total\":5,\"dieSize\":6,\"remaining\":3}}");
-        assertThat(characterChange(report, rows.get("Fighter")))
-                .contains("→ [{\"name\":\"Longsword\"},{\"name\":\"Rope\",\"quantity\":1}]")
-                .contains("\"Rogue\":{\"total\":1,\"dieSize\":8,\"remaining\":0}");
-        assertThat(characterChange(report, rows.get("Broken")))
-                .contains("skill_proficiencies: \"Athletics\" → null")
-                .contains("currency: [1,2] → null")
-                .contains("features: {\"name\":\"Darkvision\"} → null");
-        assertThat(v19Column("spell_slots", rows.get("Wizard"))).contains("\"total\": 4");
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND table_name = 'player_characters' AND column_name = 'hit_dice'", Integer.class, V19_SCHEMA))
-                .isZero();
-    }
-
-    @Test
     @DisplayName("V19 types the slots, moves the hit dice to their own column and keeps the deprecated map")
     void appliesV19() {
         Map<String, UUID> rows = v19Rows();
@@ -604,26 +577,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Previews V20 on a database at V19: each history without hit die results is reported, every row loads, nothing is written")
-    void previewsV20() {
-        Map<String, UUID> rows = v20Rows();
-        DataSource v20 = schemaDataSource(V20_SCHEMA);
-
-        MaintenanceReport report = new PreviewMigrationJob(v20, new JdbcTemplate(v20), entityManagerFactory,
-                objectMapper, "20").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(report.examined()).isEqualTo(6);
-        // The recorded and empty histories don't change
-        assertThat(report.changes()).hasSize(4);
-        assertThat(characterChange(report, rows.get("Dip")))
-                .contains("(Dip)")
-                .contains("\"hitDieResult\":10")
-                .contains("\"hitDieResult\":4");
-        assertThat(hitDieResults(rows.get("Fighter"))).containsOnlyNulls();
-    }
-
-    @Test
     @DisplayName("V20 gives each level the die's maximum at character level 1 and half the die plus 1 after, as calculateHpGain did")
     void appliesV20() {
         Map<String, UUID> rows = v20Rows();
@@ -643,5 +596,78 @@ class PreviewMigrationJobIT extends IntegrationTest {
         // Everything else in an entry is kept
         assertThat(jdbcTemplate.queryForObject("SELECT level_history -> 1 ->> 'hpGained' FROM " + V20_SCHEMA
                 + ".player_characters WHERE id = ?", String.class, rows.get("Fighter"))).isEqualTo("8");
+    }
+
+    // ── V21: character version (D158) ────────────────────────────
+
+    /**
+     * Takes a schema of its own to V20 and fills it with characters as R6 workstream C left them: a Fighter with its
+     * level history and Hit Dice, and a character with neither.
+     */
+    private Map<String, UUID> v21Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V21_SCHEMA).locations("classpath:db/migration")
+                .target("20").load().migrate();
+        UUID owner = UUID.randomUUID();
+        UUID race = UUID.randomUUID();
+        UUID fighter = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V21_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'aria', 'aria@example.com', 'hash')", owner);
+        jdbcTemplate.update("INSERT INTO " + V21_SCHEMA + ".races (id, name) VALUES (?, 'Human')", race);
+        jdbcTemplate.update("INSERT INTO " + V21_SCHEMA + ".character_classes (id, name, hit_dice) VALUES (?, 'Fighter', 10)",
+                fighter);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        for (String name : List.of("Fighter", "Empty")) {
+            UUID id = UUID.randomUUID();
+            jdbcTemplate.update("INSERT INTO " + V21_SCHEMA + ".player_characters (id, user_id, race_id, name, strength, "
+                    + "dexterity, constitution, intelligence, wisdom, charisma, hp_max, hp_current, armour_class) "
+                    + "VALUES (?, ?, ?, ?, 10, 10, 14, 10, 10, 10, 12, 12, 10)", id, owner, race, name);
+            rows.put(name, id);
+        }
+        jdbcTemplate.update("UPDATE " + V21_SCHEMA + ".player_characters SET level_history = ?::jsonb, "
+                + "hit_dice = '{\"Fighter\": {\"dieSize\": 10, \"total\": 1, \"remaining\": 1}}' WHERE id = ?",
+                "[{\"characterLevel\": 1, \"classId\": \"" + fighter + "\", \"className\": \"Fighter\", "
+                        + "\"classLevel\": 1, \"hpGained\": 12, \"hitDieResult\": 10, \"featuresGained\": [], "
+                        + "\"choices\": {}}]", rows.get("Fighter"));
+        return rows;
+    }
+
+    private Integer v21Versions() {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND table_name = 'player_characters' AND column_name = 'version'", Integer.class, V21_SCHEMA);
+    }
+
+    @Test
+    @DisplayName("Previews V21 on a database at V20: every character gains version 0, every row loads, nothing is written")
+    void previewsV21() {
+        Map<String, UUID> rows = v21Rows();
+        DataSource v21 = schemaDataSource(V21_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v21, new JdbcTemplate(v21), entityManagerFactory,
+                objectMapper, "21").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(report.examined()).isEqualTo(2);
+        assertThat(report.changes()).hasSize(2);
+        assertThat(characterChange(report, rows.get("Fighter"))).contains("(Fighter)").containsPattern("version: +→ 0");
+        assertThat(characterChange(report, rows.get("Empty"))).containsPattern("version: +→ 0");
+        assertThat(v21Versions()).isZero();
+    }
+
+    @Test
+    @DisplayName("V21 starts every character at version 0 and leaves the rest of the row as it was")
+    void appliesV21() {
+        Map<String, UUID> rows = v21Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V21_SCHEMA).locations("classpath:db/migration")
+                .target("21").load().migrate();
+
+        assertThat(jdbcTemplate.queryForList("SELECT version FROM " + V21_SCHEMA + ".player_characters ORDER BY name",
+                Long.class)).containsExactly(0L, 0L);
+        assertThat(jdbcTemplate.queryForObject("SELECT level_history -> 0 ->> 'hitDieResult' FROM " + V21_SCHEMA
+                + ".player_characters WHERE id = ?", String.class, rows.get("Fighter"))).isEqualTo("10");
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V21_SCHEMA + ".player_characters SET version = NULL "
+                + "WHERE id = ?", rows.get("Empty")))
+                .hasMessageContaining("version");
     }
 }

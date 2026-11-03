@@ -39,7 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * rows to and reads back equal, the deprecated columns are no longer written, and the API takes and returns the
  * records as JSON rather than JSON inside strings. Since R6 workstream C the level history records hit die results,
  * the amounts improvements applied, Expertise, and the proficiencies and ability increases levels added, and the
- * Derived Stats a request sends are ignored (D167).
+ * Derived Stats a request sends are ignored (D167). Since workstream D the sheet changes through intent commands rather
+ * than a PUT, feat_resources is no longer mapped, and each row carries a version (D158).
  */
 class CharacterJsonMappingIT extends IntegrationTest {
 
@@ -115,7 +116,6 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 .multiclassEntries(List.of(new ClassEntry(fighterId, "Fighter", championId, "Champion", 4)))
                 .hitDice(Map.of("Fighter", new HitDicePool(10, 4, 2)))
                 .levelHistory(history)
-                .featResources(List.of(new FeatResourceEntry("Lucky", "Luck Points", 3, 2, "longRest")))
                 .resourcePools(List.of(new ResourcePoolEntry("class:fighter-second-wind", "Second Wind", "CLASS",
                         "Fighter", 1, "1", 0, "shortRest", null, null, "BONUS_ACTION", "heart", Map.of())))
                 .build());
@@ -141,7 +141,6 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(reloaded.getMulticlassEntries()).isEqualTo(saved.getMulticlassEntries());
         assertThat(reloaded.getHitDice()).isEqualTo(Map.of("Fighter", new HitDicePool(10, 4, 2)));
         assertThat(reloaded.getLevelHistory()).isEqualTo(history);
-        assertThat(reloaded.getFeatResources()).isEqualTo(saved.getFeatResources());
         assertThat(reloaded.getResourcePools()).isEqualTo(saved.getResourcePools());
 
         // The shapes V19 normalises rows to: slots {max, used}, Hit Dice by class name, and fields an entry
@@ -205,7 +204,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("The deprecated hit dice, prepared, attuned and equipped columns are no longer written")
+    @DisplayName("The deprecated hit dice, prepared, attuned, equipped and feat resources columns are no longer written")
     void deprecatedColumnsAreLeftAlone() {
         UUID id = characterRepository.save(character().hitDice(Map.of("Fighter", new HitDicePool(10, 1, 1))).build())
                 .getId();
@@ -213,7 +212,8 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 UPDATE player_characters
                 SET hit_dice_map = '{"Fighter": {"total": 1, "remaining": 1, "faces": 10}}',
                     hit_dice_total = '1d10', hit_dice_remaining = '1d10', prepared_spells = '["Shield"]',
-                    attuned_items = '["Cloak of Protection"]', equipped_items = '["Shield"]'
+                    attuned_items = '["Cloak of Protection"]', equipped_items = '["Shield"]',
+                    feat_resources = '[{"featName": "Lucky", "name": "Luck Points", "maxUses": 3, "currentUses": 1}]'
                 WHERE id = ?""", id);
 
         PlayerCharacter character = reload(id);
@@ -229,6 +229,8 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(column("SELECT prepared_spells::text || attuned_items::text || equipped_items::text "
                 + "FROM player_characters WHERE id = ?", id))
                 .isEqualTo("[\"Shield\"][\"Cloak of Protection\"][\"Shield\"]");
+        assertThat(column("SELECT feat_resources -> 0 ->> 'currentUses' FROM player_characters WHERE id = ?", id))
+                .isEqualTo("1");
     }
 
     @Test
@@ -270,8 +272,9 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(created.has("hitDiceMap")).isFalse();
         assertThat(created.has("hitDiceTotal")).isFalse();
 
-        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + id, Map.of(
-                "spellSlots", Map.of("1", Map.of("max", 9, "used", 1)),
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + id + "/spell-slots/1/spend", null,
+                player.accessToken()));
+        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + id + "/inventory", Map.of(
                 "currency", Map.of("cp", 0, "sp", 5, "ep", 0, "gp", 12, "pp", 0),
                 "equipment", List.of(Map.of("name", "Longsword", "quantity", 1, "equipped", true))),
                 player.accessToken()));
@@ -284,9 +287,14 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(column("SELECT spell_slots::text FROM player_characters WHERE id = ?", UUID.fromString(id)))
                 .isEqualTo("{\"1\": {\"max\": 2, \"used\": 1}}");
 
-        var asString = exchange(HttpMethod.PUT, "/api/characters/" + id,
-                Map.of("skillProficiencies", "[\"Stealth\"]"), player.accessToken());
+        var asString = exchange(HttpMethod.PUT, "/api/characters/" + id + "/inventory", Map.of(
+                "equipment", "[{\"name\": \"Rope\"}]", "currency", Map.of("cp", 0, "sp", 0, "ep", 0, "gp", 0, "pp", 0)),
+                player.accessToken());
         assertThat(asString.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        var createdWithString = exchange(HttpMethod.POST, "/api/characters", Map.of(
+                "name", "Cade", "raceId", created.get("raceId").asText(), "skillProficiencies", "[\"Stealth\"]"),
+                player.accessToken());
+        assertThat(createdWithString.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
@@ -297,12 +305,14 @@ class CharacterJsonMappingIT extends IntegrationTest {
         JsonNode campaign = createCampaign(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
-        UUID characterId = createCharacter(player.accessToken(), insertRace("Tiefling"),
-                insertCaster("Warlock", 8, "CHA", true));
-        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + characterId, Map.of(
-                "spellSlots", Map.of("pact_1", Map.of("max", 1, "used", 1)),
-                "spellsKnown", List.of(Map.of("name", "Hellish Rebuke", "level", 1, "source", "race:Tiefling",
-                        "usesPerLongRest", 1))), player.accessToken()));
+        UUID characterId = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
+                Map.of("name", "Bram", "raceId", insertRace("Tiefling"), "classId", insertCaster("Warlock", 8, "CHA", true),
+                        "strength", 10, "dexterity", 14, "constitution", 12, "intelligence", 10, "wisdom", 10,
+                        "charisma", 16, "spellsKnown", List.of(Map.of("name", "Hellish Rebuke", "level", 1,
+                                "source", "race:Tiefling", "usesPerLongRest", 1))),
+                player.accessToken())).get("id").asText());
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + characterId + "/spell-slots/pact_1/spend",
+                null, player.accessToken()));
         UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
 
         JsonNode participant = addParticipant(dm.accessToken(), encounterId,

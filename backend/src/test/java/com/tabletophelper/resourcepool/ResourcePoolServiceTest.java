@@ -1,8 +1,13 @@
 package com.tabletophelper.resourcepool;
 
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
+import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelChoices;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
@@ -224,6 +229,51 @@ class ResourcePoolServiceTest {
 
         assertEquals(List.of(spent, ResourcePoolEntry.innate("Misty Step", 1, "FEAT", "Fey Touched")),
                 reconcile(tiefling));
+    }
+
+    @Test
+    @DisplayName("reconciledPools adds a feat pool for each feat with limited uses the level history records, keeping its uses (D158)")
+    void syncAddsFeatPools() {
+        FeatResourceEntry luck = new FeatResourceEntry("Lucky", "Luck Points", 3, 3, "longRest");
+        FeatResourceEntry grit = new FeatResourceEntry("Second Chance", "Second Chances", 1, 1, "shortRest");
+        ResourcePoolEntry spentLuck = ResourcePoolEntry.feat("Lucky", "Luck Points", 3, "longRest").withCurrentUses(1);
+        PlayerCharacter lucky = PlayerCharacter.builder().level(8)
+                .levelHistory(List.of(
+                        new LevelHistoryEntry(1, null, "Fighter", 1, 12, 10, null, LevelChoices.NONE, null, null),
+                        featLevel(4, luck),
+                        featLevel(6, grit),
+                        // A feat taken twice has one pool
+                        featLevel(8, luck)))
+                .resourcePools(List.of(spentLuck, entry("feat:alert", 1, 1, "longRest", null)))
+                .build();
+
+        List<ResourcePoolEntry> pools = reconcile(lucky);
+
+        assertEquals(List.of(spentLuck, ResourcePoolEntry.feat("Second Chance", "Second Chances", 1, "shortRest")),
+                pools);
+        assertEquals("feat:lucky", pools.getFirst().poolId());
+        assertEquals("FEAT", pools.getFirst().sourceType());
+        assertEquals("Lucky", pools.getFirst().sourceName());
+    }
+
+    @Test
+    @DisplayName("A feat's pool goes when the level that took the feat goes")
+    void featPoolGoesWithItsLevel() {
+        PlayerCharacter unlucky = PlayerCharacter.builder().level(3)
+                .levelHistory(List.of(new LevelHistoryEntry(1, null, "Fighter", 1, 12, 10, null, LevelChoices.NONE,
+                        null, null)))
+                .resourcePools(List.of(ResourcePoolEntry.feat("Lucky", "Luck Points", 3, "longRest")))
+                .build();
+
+        assertEquals(List.of(), reconcile(unlucky));
+    }
+
+    private static LevelHistoryEntry featLevel(int level, FeatResourceEntry resource) {
+        AppliedFeatEffects effects = new AppliedFeatEffects(null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, resource, null, resource.featName());
+        return new LevelHistoryEntry(level, null, "Fighter", level, 7, 6, null, LevelChoices.NONE.withAsi(
+                new AbilityScoreImprovement("feat", null, resource.featName(), UUID.randomUUID(), null, effects, null)),
+                null, null);
     }
 
     @Test

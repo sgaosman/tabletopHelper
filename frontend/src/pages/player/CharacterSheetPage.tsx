@@ -3,18 +3,22 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, ChevronUp, ChevronDown } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns } from '../../queries/campaigns';
-import { useApplyChoices, useCharacter, useLevelDown, useUpdateCharacter } from '../../queries/characters';
+import {
+  useApplyChoices, useChangeHitPoints, useCharacter, useLevelDown, useLongRest, useRecoverPool, useSetCampaign,
+  useShortRest, useSpendPool,
+} from '../../queries/characters';
 import LevelUpModal from '../../components/character/LevelUpModal';
 import AsiModal from '../../components/character/AsiModal';
 import SubclassModal from '../../components/character/SubclassModal';
 import ExpertiseModal from '../../components/character/ExpertiseModal';
 import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
+import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import type { PlayerCharacter, CharacterUpdateRequest, Currency, HitDicePool, LevelUpResponse } from '../../types/character';
+import type { PlayerCharacter, Currency, HitDicePool, HitDieSpent, HitPointChange, LevelUpResponse } from '../../types/character';
 import type { SpellSlot } from '../../types/encounter';
 import { THIRD_CASTER_SUBCLASSES } from '../../utils/spellConstants';
-import { abilityMod, formatMod } from '../../utils/dndRules';
+import { formatMod } from '../../utils/dndRules';
 import { getClassColour } from '../../utils/classColours';
 import StatsTab from './sheet/StatsTab';
 import ActionsTab from './sheet/ActionsTab';
@@ -23,6 +27,7 @@ import InventoryTab from './sheet/InventoryTab';
 import FeaturesTab from './sheet/FeaturesTab';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import JournalTab from './sheet/JournalTab';
+import type { RunCommand } from './sheet/types';
 
 type Tab = 'Stats' | 'Actions' | 'Spells' | 'Inventory' | 'Features' | 'Journal';
 const TABS: { key: Tab; label: string; icon: typeof Shield }[] = [
@@ -34,9 +39,24 @@ const TABS: { key: Tab; label: string; icon: typeof Shield }[] = [
   { key: 'Journal', label: 'Journal', icon: ScrollText },
 ];
 
+const HIT_POINT_DIALOGS: Record<HitPointChange, { title: string; action: string }> = {
+  DAMAGE: { title: 'Take Damage', action: 'Take Damage' },
+  HEALING: { title: 'Heal', action: 'Heal' },
+  TEMPORARY: { title: 'Temporary Hit Points', action: 'Gain' },
+};
+
+// A whole number the player entered, such as a Hit Die's roll; undefined for none, and NaN for anything else
+function wholeNumber(text: string | undefined): number | undefined {
+  const trimmed = text?.trim() ?? '';
+  if (trimmed === '') return undefined;
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
+}
+
 /**
- * A character's sheet. Every change goes to the server, and the character it returns replaces the cached one,
- * so the sheet shows it without loading the character again.
+ * A character's sheet. Every change is a command to the server (D158), and the character it returns replaces the
+ * cached one, so the sheet shows it without loading the character again. The sheet works nothing out itself: rests,
+ * hit points, slots and pools are the server's. While the character is in an encounter that is under way, resting
+ * and levelling wait for it to end (D166).
  */
 export default function CharacterSheetPage() {
   const { characterId } = useParams<{ characterId: string }>();
@@ -44,7 +64,12 @@ export default function CharacterSheetPage() {
   const characterQuery = useCharacter(characterId);
   const char = characterQuery.data;
   const { data: campaigns = [] } = useCampaigns();
-  const { mutateAsync: updateCharacter } = useUpdateCharacter();
+  const setCampaign = useSetCampaign();
+  const changeHitPoints = useChangeHitPoints();
+  const spendPool = useSpendPool();
+  const recoverPool = useRecoverPool();
+  const shortRest = useShortRest();
+  const longRest = useLongRest();
   const levelDown = useLevelDown();
   const applyChoices = useApplyChoices();
   const [activeTab, setActiveTab] = useState<Tab>('Stats');
@@ -52,6 +77,9 @@ export default function CharacterSheetPage() {
   const [success, setSuccess] = useState('');
   const [restModal, setRestModal] = useState<'short' | 'long' | null>(null);
   const [shortRestDice, setShortRestDice] = useState<Record<string, number>>({});
+  const [shortRestRolls, setShortRestRolls] = useState<Record<string, string[]>>({});
+  const [hitPointDialog, setHitPointDialog] = useState<HitPointChange | null>(null);
+  const [hitPointAmount, setHitPointAmount] = useState('');
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [showAsi, setShowAsi] = useState(false);
   const [subclassPrompt, setSubclassPrompt] = useState<{ classId: string; className: string } | null>(null);
@@ -61,31 +89,19 @@ export default function CharacterSheetPage() {
   const [showExpertise, setShowExpertise] = useState(false);
   const [pendingSpellManage, setPendingSpellManage] = useState<{ className: string; type: 'known' | 'prepared' } | null>(null);
 
-  const saveField = useCallback(async (updates: CharacterUpdateRequest) => {
-    if (!characterId) return;
+  // Sends a command and shows how it went: `done` for a moment on success, or the server's message
+  const runCommand = useCallback<RunCommand>(async (command, done) => {
     setError('');
     try {
-      await updateCharacter({ characterId, updates });
-      setSuccess('Saved');
-      setTimeout(() => setSuccess(''), 2000);
+      const result = await command;
+      setSuccess(typeof done === 'function' ? done(result) : done ?? 'Saved');
+      setTimeout(() => setSuccess(''), 2500);
+      return true;
     } catch (err) {
       setError(apiErrorMessage(err));
+      return false;
     }
-  }, [characterId, updateCharacter]);
-
-  async function handleCampaignChange(value: string) {
-    if (!characterId) return;
-    try {
-      const update: CharacterUpdateRequest = value
-        ? { campaignId: value }
-        : { clearCampaign: true };
-      await updateCharacter({ characterId, updates: update });
-      setSuccess('Campaign updated');
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
-      setError(apiErrorMessage(err));
-    }
-  }
+  }, []);
 
   const savingThrows = useMemo(() => char?.savingThrowProficiencies ?? [], [char?.savingThrowProficiencies]);
   const skillProfs = useMemo(() => char?.skillProficiencies ?? [], [char?.skillProficiencies]);
@@ -97,20 +113,15 @@ export default function CharacterSheetPage() {
   const spellSlots = useMemo<Record<string, SpellSlot>>(() => char?.spellSlots ?? {}, [char?.spellSlots]);
   const resistances = useMemo(() => char?.damageResistances ?? [], [char?.damageResistances]);
   const hitDice = useMemo<Record<string, HitDicePool>>(() => char?.hitDice ?? {}, [char?.hitDice]);
-  const featResources = useMemo(() => char?.featResources ?? [], [char?.featResources]);
   const resourcePools = useMemo(() => char?.resourcePools ?? [], [char?.resourcePools]);
 
-  // Pre-compute rest modal contents (avoids IIFE parse errors in JSX)
+  // What each rest brings back, for its dialog
   const shortRestPools = useMemo(() => resourcePools.filter(p => p.resetOn === 'shortRest' && p.currentUses < p.maxUses),
     [resourcePools]);
-  const shortRestFeats = useMemo(() => featResources.filter(r => r.resetOn === 'shortRest' && r.currentUses < r.maxUses),
-    [featResources]);
   const hasPactSlots = useMemo(() => Object.keys(spellSlots).some(k => k.startsWith('pact_')), [spellSlots]);
-  const showShortRestAbilities = shortRestPools.length > 0 || shortRestFeats.length > 0 || hasPactSlots;
-
+  const showShortRestAbilities = shortRestPools.length > 0 || hasPactSlots;
   const longRestPools = useMemo(() => resourcePools.filter(p => p.currentUses < p.maxUses), [resourcePools]);
-  const longRestFeats = useMemo(() => featResources.filter(r => r.currentUses < r.maxUses), [featResources]);
-  const showLongRestAbilities = longRestPools.length > 0 || longRestFeats.length > 0;
+  const showLongRestAbilities = longRestPools.length > 0;
 
   const classAccent = getClassColour(char?.characterClass);
 
@@ -124,78 +135,82 @@ export default function CharacterSheetPage() {
     );
   }
 
-  async function handleShortRest() {
-    if (!char) return;
-    const updated = { ...hitDice };
-    let hpGain = 0;
-    for (const [cls, count] of Object.entries(shortRestDice)) {
-      if (count > 0 && updated[cls]) {
-        for (let i = 0; i < count; i++) {
-          const roll = Math.ceil(updated[cls].dieSize / 2) + 1;
-          hpGain += Math.max(0, roll + abilityMod(char.constitution));
+  const waitingForEncounter = char.inLiveEncounter;
+
+  // Each die spent, with the roll entered or none for the server to roll; null while a roll entered can't be right
+  const diceToSpend: HitDieSpent[] | null = (() => {
+    const dice: HitDieSpent[] = [];
+    for (const [className, count] of Object.entries(shortRestDice)) {
+      for (let i = 0; i < count; i++) {
+        const roll = wholeNumber(shortRestRolls[className]?.[i]);
+        if (roll === undefined) {
+          dice.push({ className });
+        } else if (Number.isNaN(roll) || roll < 1 || roll > (hitDice[className]?.dieSize ?? 0)) {
+          return null;
+        } else {
+          dice.push({ className, roll });
         }
-        updated[cls] = { ...updated[cls], remaining: updated[cls].remaining - count };
       }
     }
+    return dice;
+  })();
 
-    const newHp = Math.min(char.hpMax, char.hpCurrent + hpGain);
-    const resetSlots: Record<string, SpellSlot> = {};
-    for (const [key, slot] of Object.entries(spellSlots)) {
-      if (key.startsWith('pact_')) {
-        resetSlots[key] = { ...slot, used: 0 };
-      } else {
-        resetSlots[key] = slot;
-      }
-    }
-    const resetResources = featResources.map(r =>
-      r.resetOn === 'shortRest' ? { ...r, currentUses: r.maxUses } : r
-    );
-    const resetPools = resourcePools.map(p =>
-      p.resetOn === 'shortRest' ? { ...p, currentUses: p.maxUses } : p
-    );
+  function setDiceCount(className: string, count: number) {
+    setShortRestDice(prev => ({ ...prev, [className]: count }));
+    setShortRestRolls(prev => ({ ...prev, [className]: (prev[className] ?? []).slice(0, count) }));
+  }
 
-    const updates: CharacterUpdateRequest = {
-      hpCurrent: newHp,
-      hitDice: updated,
-    };
-    if (Object.keys(resetSlots).length > 0) updates.spellSlots = resetSlots;
-    if (resetResources.length > 0) updates.featResources = resetResources;
-    if (resetPools.length > 0) updates.resourcePools = resetPools;
-    await saveField(updates);
-    setShortRestDice({});
-    setRestModal(null);
+  function setRoll(className: string, index: number, text: string) {
+    setShortRestRolls(prev => {
+      const rolls = [...(prev[className] ?? [])];
+      rolls[index] = text;
+      return { ...prev, [className]: rolls };
+    });
   }
 
   function closeRestModal() {
     setRestModal(null);
     setShortRestDice({});
+    setShortRestRolls({});
+  }
+
+  async function handleShortRest() {
+    if (!char || diceToSpend === null) return;
+    const before = char.hpCurrent;
+    const rested = await runCommand(shortRest.mutateAsync({ characterId: char.id, rest: { hitDice: diceToSpend } }),
+      after => after.hpCurrent > before
+        ? `Short rest taken: ${after.hpCurrent - before} hit points regained`
+        : 'Short rest taken');
+    if (rested) closeRestModal();
   }
 
   async function handleLongRest() {
     if (!char) return;
-    const updated = { ...hitDice };
-    for (const [cls, hd] of Object.entries(updated)) {
-      const regain = Math.max(1, Math.floor(hd.total / 2));
-      updated[cls] = { ...hd, remaining: Math.min(hd.total, hd.remaining + regain) };
+    if (await runCommand(longRest.mutateAsync({ characterId: char.id }), 'Long rest taken')) {
+      setRestModal(null);
     }
-    const resetSlots: Record<string, SpellSlot> = {};
-    for (const [lvl, slot] of Object.entries(spellSlots)) {
-      resetSlots[lvl] = { ...slot, used: 0 };
-    }
-    const resetResources = featResources.map(r =>
-      r.resetOn === 'shortRest' || r.resetOn === 'longRest' ? { ...r, currentUses: r.maxUses } : r
-    );
-    const resetPools = resourcePools.map(p => ({ ...p, currentUses: p.maxUses }));
+  }
 
-    await saveField({
-      hpCurrent: char.hpMax,
-      hpTemp: 0,
-      hitDice: updated,
-      spellSlots: Object.keys(resetSlots).length > 0 ? resetSlots : undefined,
-      featResources: resetResources.length > 0 ? resetResources : undefined,
-      resourcePools: resetPools.length > 0 ? resetPools : undefined,
-    });
-    setRestModal(null);
+  function openHitPointDialog(change: HitPointChange) {
+    setHitPointAmount('');
+    setHitPointDialog(change);
+  }
+
+  const hitPointValue = wholeNumber(hitPointAmount);
+  const hitPointAmountValid = hitPointValue !== undefined && !Number.isNaN(hitPointValue) && hitPointValue >= 1;
+
+  async function handleHitPoints() {
+    if (!char || !hitPointDialog || !hitPointAmountValid || hitPointValue === undefined) return;
+    if (await runCommand(changeHitPoints.mutateAsync({
+      characterId: char.id, change: { kind: hitPointDialog, amount: hitPointValue },
+    }))) {
+      setHitPointDialog(null);
+    }
+  }
+
+  async function handleCampaignChange(value: string) {
+    if (!char) return;
+    await runCommand(setCampaign.mutateAsync({ characterId: char.id, campaignId: value || null }), 'Campaign updated');
   }
 
   function finishLevelUp(level: number) {
@@ -313,7 +328,7 @@ export default function CharacterSheetPage() {
             <IconButton
               label="Level Down"
               onClick={() => setLevelDownConfirm(true)}
-              disabled={char.level <= 1}
+              disabled={char.level <= 1 || waitingForEncounter}
               className="p-2 text-debuff hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronDown className="w-4 h-4" />
@@ -321,31 +336,38 @@ export default function CharacterSheetPage() {
             <IconButton
               label="Level Up"
               onClick={() => setShowLevelUp(true)}
-              disabled={char.level >= 20}
+              disabled={char.level >= 20 || waitingForEncounter}
               className="p-2 text-buff hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronUp className="w-4 h-4" />
             </IconButton>
             <div className="w-px h-5 bg-rule mx-1" />
-            <IconButton label="Short Rest" onClick={() => setRestModal('short')} className="p-2 text-cls-monk hover:bg-page-alt transition-colors">
+            <IconButton label="Short Rest" onClick={() => setRestModal('short')} disabled={waitingForEncounter}
+              className="p-2 text-cls-monk hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <Moon className="w-4 h-4" />
             </IconButton>
-            <IconButton label="Long Rest" onClick={() => setRestModal('long')} className="p-2 text-cls-wizard hover:bg-page-alt transition-colors">
+            <IconButton label="Long Rest" onClick={() => setRestModal('long')} disabled={waitingForEncounter}
+              className="p-2 text-cls-wizard hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <Sun className="w-4 h-4" />
             </IconButton>
           </div>
         </div>
+        {waitingForEncounter && (
+          <p className="max-w-5xl mx-auto mt-2 font-body text-[13px] font-semibold text-muted text-right">
+            In an encounter that is under way: resting and levelling wait until it ends.
+          </p>
+        )}
       </header>
 
       {/* HP Bar */}
       <div className="max-w-5xl mx-auto px-4 py-3">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-debuff" />
             <span className="font-heading text-[14px] font-bold text-ink">{char.hpCurrent}/{char.hpMax}</span>
             {char.hpTemp > 0 && <span className="font-heading text-[13px] font-semibold text-cls-wizard">+{char.hpTemp} temp</span>}
           </div>
-          <div className="flex-1 h-2 bg-rule overflow-hidden">
+          <div className="flex-1 min-w-24 h-2 bg-rule overflow-hidden">
             <div
               className={`h-full transition-all ${
                 char.hpCurrent / char.hpMax > 0.5 ? 'bg-buff' :
@@ -354,71 +376,27 @@ export default function CharacterSheetPage() {
               style={{ width: `${Math.min(100, (char.hpCurrent / char.hpMax) * 100)}%` }}
             />
           </div>
+          <div className="flex gap-1">
+            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('DAMAGE')}>Damage</Button>
+            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('HEALING')}>Heal</Button>
+            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('TEMPORARY')}>+ Temp HP</Button>
+          </div>
           <div className="flex gap-3">
             <span className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">AC <span className="font-heading text-[15px] font-bold text-ink">{char.armourClass}</span></span>
             <span className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Init <span className="font-heading text-[15px] font-bold text-ink">{formatMod(char.initiativeBonus)}</span></span>
             <span className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Speed <span className="font-heading text-[15px] font-bold text-ink">{char.speed}ft</span></span>
           </div>
         </div>
-        {(featResources.length > 0) && (
-          <div className="flex items-center gap-4 mt-2 flex-wrap">
-            {featResources.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 bg-page-alt border border-rule px-3 py-1">
-                <span className="font-heading text-[11px] font-semibold tracking-[0.02em]" style={{ color: classAccent }}>{r.name}</span>
-                <div className="flex gap-1">
-                  {Array.from({ length: r.maxUses }).map((_, j) => {
-                    const newUses = j < r.currentUses ? j : j + 1;
-                    return (
-                      <IconButton key={j}
-                        label={`Set ${r.name} to ${newUses} of ${r.maxUses} uses`}
-                        onClick={() => {
-                          const updated = [...featResources];
-                          updated[i] = { ...r, currentUses: newUses };
-                          saveField({ featResources: updated });
-                        }}
-                        className="w-4 h-4 rounded-full border transition-colors"
-                        style={{
-                          backgroundColor: j < r.currentUses ? classAccent : 'transparent',
-                          borderColor: j < r.currentUses ? classAccent : 'var(--color-rule-light)',
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-                <span className="font-body text-[13px] text-faint">{r.currentUses}/{r.maxUses}</span>
-              </div>
-            ))}
-            <button
-              onClick={() => {
-                const amount = prompt('Add temp HP:');
-                if (amount && !isNaN(Number(amount)) && Number(amount) > 0) {
-                  const newTemp = Math.max(char.hpTemp, Number(amount));
-                  saveField({ hpTemp: newTemp });
-                }
-              }}
-              className="font-body text-[14px] font-semibold text-cls-wizard hover:text-ink bg-page-alt border border-rule px-2 py-1 transition-colors"
-            >+ Temp HP</button>
-          </div>
-        )}
 
-        {/* Resource Pools (M24.5) */}
-        <ResourcePoolDisplay
-          pools={resourcePools}
-          editable
-          onSpend={(poolId) => {
-            const updated = resourcePools.map(p =>
-              p.poolId === poolId ? { ...p, currentUses: Math.max(0, p.currentUses - 1) } : p
-            );
-            saveField({ resourcePools: updated });
-          }}
-          onRecover={(poolId) => {
-            const updated = resourcePools.map(p =>
-              p.poolId === poolId ? { ...p, currentUses: Math.min(p.maxUses, p.currentUses + 1) } : p
-            );
-            saveField({ resourcePools: updated });
-          }}
-        />
-
+        {/* Resource pools, feats' limited uses among them (D158) */}
+        <div className="mt-2">
+          <ResourcePoolDisplay
+            pools={resourcePools}
+            editable
+            onSpend={poolId => void runCommand(spendPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
+            onRecover={poolId => void runCommand(recoverPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
+          />
+        </div>
       </div>
 
       {/* Tabs */}
@@ -442,6 +420,7 @@ export default function CharacterSheetPage() {
             ))}
           </div>
           <select
+            aria-label="Campaign"
             value={char.campaignId ?? ''}
             onChange={e => handleCampaignChange(e.target.value)}
             className="ml-2 px-2 py-1.5 bg-page-alt border border-rule font-body text-[14px] font-semibold text-muted focus:outline-none focus:border-muted shrink-0"
@@ -469,16 +448,16 @@ export default function CharacterSheetPage() {
           <ActionsTab char={char} features={features} />
         )}
         {activeTab === 'Spells' && (
-          <SpellsTab char={char} spellsKnown={spellsKnown} spellSlots={spellSlots} saveField={saveField} pendingSpellManage={pendingSpellManage} onSpellManageHandled={() => setPendingSpellManage(null)} />
+          <SpellsTab char={char} spellsKnown={spellsKnown} spellSlots={spellSlots} runCommand={runCommand} pendingSpellManage={pendingSpellManage} onSpellManageHandled={() => setPendingSpellManage(null)} />
         )}
         {activeTab === 'Inventory' && (
-          <InventoryTab equipment={equipment} currency={currency} char={char} saveField={saveField} />
+          <InventoryTab characterId={char.id} equipment={equipment} currency={currency} runCommand={runCommand} />
         )}
         {activeTab === 'Features' && (
           <FeaturesTab features={features} char={char} />
         )}
         {activeTab === 'Journal' && (
-          <JournalTab char={char} saveField={saveField} />
+          <JournalTab char={char} runCommand={runCommand} />
         )}
       </main>
 
@@ -557,6 +536,34 @@ export default function CharacterSheetPage() {
         </Modal>
       )}
 
+      {/* Damage, healing and temporary hit points */}
+      {hitPointDialog && (
+        <Modal
+          title={HIT_POINT_DIALOGS[hitPointDialog].title}
+          size="sm"
+          onClose={() => setHitPointDialog(null)}
+          dismissible={!changeHitPoints.isPending}
+          footer={(
+            <>
+              <Button variant="secondary" className="flex-1" onClick={() => setHitPointDialog(null)}
+                disabled={changeHitPoints.isPending}>Cancel</Button>
+              <Button className="flex-1" onClick={handleHitPoints} disabled={!hitPointAmountValid}
+                loading={changeHitPoints.isPending}>{HIT_POINT_DIALOGS[hitPointDialog].action}</Button>
+            </>
+          )}
+        >
+          <form onSubmit={e => { e.preventDefault(); void handleHitPoints(); }} className="space-y-2">
+            <Input label="Amount" type="number" inputMode="numeric" min={1} autoFocus value={hitPointAmount}
+              onChange={e => setHitPointAmount(e.target.value)} />
+            <p className="font-body text-[13px] text-faint">
+              {hitPointDialog === 'DAMAGE' && 'Temporary hit points take the damage first, and hit points stop at 0.'}
+              {hitPointDialog === 'HEALING' && 'Hit points stop at the maximum; temporary hit points stay as they are.'}
+              {hitPointDialog === 'TEMPORARY' && 'Temporary hit points don\'t stack: you keep the larger amount.'}
+            </p>
+          </form>
+        </Modal>
+      )}
+
       {/* Rest Modal */}
       {restModal && (
         <Modal
@@ -566,7 +573,12 @@ export default function CharacterSheetPage() {
           footer={(
             <>
               <Button variant="secondary" className="flex-1" onClick={closeRestModal}>Cancel</Button>
-              <Button className="flex-1" onClick={restModal === 'short' ? handleShortRest : handleLongRest}>
+              <Button
+                className="flex-1"
+                onClick={restModal === 'short' ? handleShortRest : handleLongRest}
+                disabled={restModal === 'short' && diceToSpend === null}
+                loading={shortRest.isPending || longRest.isPending}
+              >
                 {restModal === 'short' ? 'Short Rest' : 'Long Rest'}
               </Button>
             </>
@@ -575,30 +587,58 @@ export default function CharacterSheetPage() {
           {restModal === 'short' ? (
             <div className="space-y-3">
               <p className="font-body text-[15px] font-semibold text-muted">
-                Spend hit dice to regain hit points. For each die spent, regain 1d{Object.values(hitDice)[0]?.dieSize ?? 8} + CON modifier HP.
+                Spend hit dice to regain hit points. Each die heals its roll plus your CON modifier. Enter the rolls you make, or leave a die blank for the server to roll it.
               </p>
               <div className="space-y-2">
-                {Object.entries(hitDice).map(([cls, hd]) => (
-                  <div key={cls} className="flex items-center justify-between bg-page-alt border border-rule px-3 py-2">
-                    <span className="font-body text-[15px] font-semibold text-ink">{cls} (d{hd.dieSize})</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-body text-[13px] text-faint">{hd.remaining}/{hd.total} remaining</span>
-                      <IconButton
-                        label={`Spend one fewer ${cls} hit die`}
-                        onClick={() => setShortRestDice(prev => ({ ...prev, [cls]: Math.max(0, (prev[cls] || 0) - 1) }))}
-                        disabled={!shortRestDice[cls]}
-                        className="w-7 h-7 bg-page border border-rule text-muted font-body text-[15px] disabled:opacity-30 hover:bg-rule-light"
-                      >−</IconButton>
-                      <span className="font-heading text-[15px] font-bold text-ink w-4 text-center">{shortRestDice[cls] || 0}</span>
-                      <IconButton
-                        label={`Spend one more ${cls} hit die`}
-                        onClick={() => setShortRestDice(prev => ({ ...prev, [cls]: Math.min(hd.remaining, (prev[cls] || 0) + 1) }))}
-                        disabled={(shortRestDice[cls] || 0) >= hd.remaining}
-                        className="w-7 h-7 bg-page border border-rule text-muted font-body text-[15px] disabled:opacity-30 hover:bg-rule-light"
-                      >+</IconButton>
+                {Object.entries(hitDice).map(([cls, hd]) => {
+                  const count = shortRestDice[cls] || 0;
+                  return (
+                    <div key={cls} className="bg-page-alt border border-rule px-3 py-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-body text-[15px] font-semibold text-ink">{cls} (d{hd.dieSize})</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-body text-[13px] text-faint">{hd.remaining}/{hd.total} remaining</span>
+                          <IconButton
+                            label={`Spend one fewer ${cls} hit die`}
+                            onClick={() => setDiceCount(cls, Math.max(0, count - 1))}
+                            disabled={!count}
+                            className="w-7 h-7 bg-page border border-rule text-muted font-body text-[15px] disabled:opacity-30 hover:bg-rule-light"
+                          >−</IconButton>
+                          <span className="font-heading text-[15px] font-bold text-ink w-4 text-center">{count}</span>
+                          <IconButton
+                            label={`Spend one more ${cls} hit die`}
+                            onClick={() => setDiceCount(cls, Math.min(hd.remaining, count + 1))}
+                            disabled={count >= hd.remaining}
+                            className="w-7 h-7 bg-page border border-rule text-muted font-body text-[15px] disabled:opacity-30 hover:bg-rule-light"
+                          >+</IconButton>
+                        </div>
+                      </div>
+                      {count > 0 && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {Array.from({ length: count }).map((_, i) => {
+                            const roll = wholeNumber(shortRestRolls[cls]?.[i]);
+                            const invalid = roll !== undefined && (Number.isNaN(roll) || roll < 1 || roll > hd.dieSize);
+                            return (
+                              <Input
+                                key={i}
+                                label={`${cls} die ${i + 1} roll`}
+                                hideLabel
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                max={hd.dieSize}
+                                placeholder="Roll for me"
+                                value={shortRestRolls[cls]?.[i] ?? ''}
+                                onChange={e => setRoll(cls, i, e.target.value)}
+                                error={invalid ? `1 to ${hd.dieSize}` : undefined}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {showShortRestAbilities && (
                 <div className="space-y-1">
@@ -609,18 +649,13 @@ export default function CharacterSheetPage() {
                       • {p.displayName} ({p.currentUses}/{p.maxUses} → {p.maxUses}/{p.maxUses})
                     </p>
                   ))}
-                  {shortRestFeats.map(r => (
-                    <p key={(r.featName ?? '') + (r.name ?? '')} className="font-body text-[13px] text-faint ml-2">
-                      • {r.name} ({r.currentUses}/{r.maxUses} → {r.maxUses}/{r.maxUses})
-                    </p>
-                  ))}
                 </div>
               )}
             </div>
           ) : (
             <div className="space-y-3">
               <p className="font-body text-[15px] font-semibold text-muted">
-                Regain all hit points, reset spell slots, and regain half your total hit dice (minimum 1).
+                Regain all hit points, lose temporary hit points, reset spell slots, and regain half your total hit dice (minimum 1), the largest first. You need at least 1 hit point to benefit.
               </p>
               {showLongRestAbilities && (
                 <div className="space-y-1">
@@ -628,11 +663,6 @@ export default function CharacterSheetPage() {
                   {longRestPools.map(p => (
                     <p key={p.poolId} className="font-body text-[13px] text-faint ml-2">
                       • {p.displayName} ({p.currentUses}/{p.maxUses} → {p.maxUses}/{p.maxUses})
-                    </p>
-                  ))}
-                  {longRestFeats.map(r => (
-                    <p key={(r.featName ?? '') + (r.name ?? '')} className="font-body text-[13px] text-faint ml-2">
-                      • {r.name} ({r.currentUses}/{r.maxUses} → {r.maxUses}/{r.maxUses})
                     </p>
                   ))}
                 </div>

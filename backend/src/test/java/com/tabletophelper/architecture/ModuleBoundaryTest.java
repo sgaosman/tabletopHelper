@@ -16,11 +16,14 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
  * Module boundaries (D151). Each package directly below com.tabletophelper is a module, and only the
  * module itself may use its internal package. rules is plain Java, so it may use only the JDK, itself
- * and shared. Test classes are not checked.
+ * and shared. encounter depends on character, so character asks what it needs of encounters through
+ * interfaces of its own that encounter implements, such as LiveEncounters, and uses nothing from encounter.
+ * Test classes are not checked.
  */
 class ModuleBoundaryTest {
 
@@ -48,6 +51,14 @@ class ModuleBoundaryTest {
         classes().that().resideInAPackage("com.tabletophelper.rules..")
                 .should().onlyDependOnClassesThat()
                 .resideInAnyPackage("java..", "com.tabletophelper.rules..", "com.tabletophelper.shared..")
+                .check(productionClasses);
+    }
+
+    @Test
+    @DisplayName("character uses nothing from encounter: the dependency runs from encounter to character only")
+    void characterDoesNotDependOnEncounter() {
+        noClasses().that().resideInAPackage("com.tabletophelper.character..")
+                .should().dependOnClassesThat().resideInAPackage("com.tabletophelper.encounter..")
                 .check(productionClasses);
     }
 

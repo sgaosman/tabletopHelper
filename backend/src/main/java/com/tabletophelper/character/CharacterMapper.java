@@ -21,7 +21,8 @@ import java.util.UUID;
 
 /**
  * A character as the API returns it: its sheet, with what each class casts with and the ability score maximums
- * worked out by CharacterStats, since the sheet stores neither (D158, D167).
+ * worked out by CharacterStats, since the sheet stores neither (D158, D167), and whether it is in an encounter that
+ * is under way (D166).
  */
 @Slf4j
 @Component
@@ -33,6 +34,7 @@ public class CharacterMapper {
     private final ObjectMapper objectMapper;
     private final SubclassRepository subclassRepository;
     private final CharacterStats characterStats;
+    private final LiveEncounters liveEncounters;
 
     public CharacterResponse toResponse(PlayerCharacter c) {
         return CharacterResponse.builder()
@@ -103,9 +105,9 @@ public class CharacterMapper {
                 .multiclassEntries(c.getMulticlassEntries())
                 .hitDice(c.getHitDice())
                 .levelHistory(c.getLevelHistory())
-                .featResources(c.getFeatResources())
                 .resourcePools(c.getResourcePools())
                 .isActive(c.getIsActive())
+                .inLiveEncounter(c.getId() != null && liveEncounters.includes(c.getId()))
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();

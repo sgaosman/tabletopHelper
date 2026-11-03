@@ -28,21 +28,27 @@ function recordRequests() {
   return requests;
 }
 
+/** Answers one command with the character given, recording each body it is sent. */
+function recordCommand(method: 'post' | 'put' | 'patch', path: string, answer: object) {
+  const bodies: unknown[] = [];
+  server.use(http[method](`/api/characters/:id/${path}`, async ({ request }) => {
+    // A command without a body, such as a long rest, is recorded as null
+    bodies.push(await request.clone().text() ? await request.json() : null);
+    return HttpResponse.json(answer);
+  }));
+  return bodies;
+}
+
+const hurtFighter = { ...makeMockCharacter('char-001', 'Gimli', 'Fighter', 5), hpCurrent: 12 };
+
 describe('CharacterSheetPage', () => {
   beforeEach(() => {
     setupAuthToken();
   });
 
-  it('shows the character a save returns without loading it again', async () => {
-    let savedChanges: unknown;
-    server.use(
-      http.get('/api/characters/:id', ({ params }) =>
-        HttpResponse.json({ ...makeMockCharacter(params.id as string, 'Gimli', 'Fighter', 5), hpCurrent: 12 })),
-      http.put('/api/characters/:id', async ({ params, request }) => {
-        savedChanges = await request.json();
-        return HttpResponse.json(makeMockCharacter(params.id as string, 'Gimli', 'Fighter', 5));
-      }),
-    );
+  it('shows the character a long rest returns without loading it again; the server works the rest out (D158)', async () => {
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)));
+    const bodies = recordCommand('post', 'long-rest', makeMockCharacter('char-001', 'Gimli', 'Fighter', 5));
     renderSheet();
     const user = userEvent.setup();
     expect(await screen.findByText('12/30')).toBeInTheDocument();
@@ -52,9 +58,9 @@ describe('CharacterSheetPage', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Long Rest' }));
 
     expect(await screen.findByText('30/30')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Saved');
-    expect(savedChanges).toMatchObject({ hpCurrent: 30, hpTemp: 0 });
-    expect(requests).toEqual(['PUT /api/characters/char-001']);
+    expect(screen.getByRole('status')).toHaveTextContent('Long rest taken');
+    expect(bodies).toEqual([null]);
+    expect(requests).toEqual(['POST /api/characters/char-001/long-rest']);
   });
 
   it('shows the levelled character a level-up returns without loading it again', async () => {
@@ -79,10 +85,7 @@ describe('CharacterSheetPage', () => {
   });
 
   it('names the hit dice steppers in the short rest dialog, which Escape closes', async () => {
-    server.use(
-      http.get('/api/characters/:id', ({ params }) =>
-        HttpResponse.json({ ...makeMockCharacter(params.id as string, 'Gimli', 'Fighter', 5), hpCurrent: 12 })),
-    );
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)));
     renderSheet();
     const user = userEvent.setup();
     expect(await screen.findByText('12/30')).toBeInTheDocument();
@@ -97,83 +100,130 @@ describe('CharacterSheetPage', () => {
     expect(screen.getByRole('button', { name: 'Short Rest' })).toHaveFocus();
   });
 
-  it('rests send the hit dice, slots and pools as JSON, worked out as before', async () => {
-    const saved: unknown[] = [];
-    const warlock = {
-      ...makeMockCharacter('char-001', 'Gimli', 'Warlock', 5), hpCurrent: 12, constitution: 14,
-      hitDice: { Fighter: { total: 3, remaining: 1, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
-      spellSlots: { '1': { max: 4, used: 3 }, pact_1: { max: 1, used: 1 } },
-      resourcePools: [
-        makeMockResourcePool('class:fighter-second-wind', 'Second Wind', { maxUses: 1, currentUses: 0, resetOn: 'shortRest' }),
-        makeMockResourcePool('class:warlock-hexblade', 'Hexblade Curse', { maxUses: 1, currentUses: 0, resetOn: 'longRest' }),
-      ],
+  it('a short rest sends each Hit Die spent, with the roll entered or none for the server to roll', async () => {
+    const multiclass = {
+      ...hurtFighter, characterClass: 'Fighter / Warlock',
+      hitDice: { Fighter: { total: 3, remaining: 2, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
     };
-    server.use(
-      http.get('/api/characters/:id', () => HttpResponse.json(warlock)),
-      http.put('/api/characters/:id', async ({ request }) => {
-        saved.push(await request.json());
-        return HttpResponse.json(warlock);
-      }),
-    );
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(multiclass)));
+    const bodies = recordCommand('post', 'short-rest', { ...multiclass, hpCurrent: 27 });
     renderSheet();
     const user = userEvent.setup();
     expect(await screen.findByText('12/30')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Short Rest' }));
-    const shortRest = screen.getByRole('dialog', { name: 'Short Rest' });
-    await user.click(within(shortRest).getByRole('button', { name: 'Spend one more Fighter hit die' }));
-    await user.click(within(shortRest).getByRole('button', { name: 'Short Rest' }));
-    await waitFor(() => expect(saved).toHaveLength(1));
+    const dialog = screen.getByRole('dialog', { name: 'Short Rest' });
+    await user.click(within(dialog).getByRole('button', { name: 'Spend one more Fighter hit die' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Spend one more Fighter hit die' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Spend one more Warlock hit die' }));
+    const rest = within(dialog).getByRole('button', { name: 'Short Rest' });
 
-    // A d10 heals 6 plus the CON modifier; only pact slots and short-rest pools come back
-    expect(saved[0]).toEqual({
-      hpCurrent: 20,
-      hitDice: { Fighter: { total: 3, remaining: 0, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
-      spellSlots: { '1': { max: 4, used: 3 }, pact_1: { max: 1, used: 0 } },
-      resourcePools: [
-        expect.objectContaining({ poolId: 'class:fighter-second-wind', currentUses: 1 }),
-        expect.objectContaining({ poolId: 'class:warlock-hexblade', currentUses: 0 }),
-      ],
-    });
+    // A d10 can't roll 11
+    await user.type(within(dialog).getByLabelText('Fighter die 1 roll'), '11');
+    expect(within(dialog).getByText('1 to 10')).toBeInTheDocument();
+    expect(rest).toBeDisabled();
+    await user.clear(within(dialog).getByLabelText('Fighter die 1 roll'));
+    await user.type(within(dialog).getByLabelText('Fighter die 1 roll'), '7');
+    await user.click(rest);
 
-    await user.click(screen.getByRole('button', { name: 'Long Rest' }));
-    await user.click(within(screen.getByRole('dialog', { name: 'Long Rest' })).getByRole('button', { name: 'Long Rest' }));
-    await waitFor(() => expect(saved).toHaveLength(2));
-
-    // Each class regains half its own Hit Dice, at least one
-    expect(saved[1]).toEqual({
-      hpCurrent: 30,
-      hpTemp: 0,
-      hitDice: { Fighter: { total: 3, remaining: 2, dieSize: 10 }, Warlock: { total: 2, remaining: 2, dieSize: 8 } },
-      spellSlots: { '1': { max: 4, used: 0 }, pact_1: { max: 1, used: 0 } },
-      resourcePools: [
-        expect.objectContaining({ poolId: 'class:fighter-second-wind', currentUses: 1 }),
-        expect.objectContaining({ poolId: 'class:warlock-hexblade', currentUses: 1 }),
-      ],
-    });
+    await waitFor(() => expect(bodies).toEqual([{ hitDice: [
+      { className: 'Fighter', roll: 7 }, { className: 'Fighter' }, { className: 'Warlock' },
+    ] }]));
+    expect(await screen.findByText('27/30')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Short rest taken: 15 hit points regained');
   });
 
-  it('spending a spell slot sends the slots as JSON', async () => {
-    let saved: unknown;
+  it('spending a spell slot sends the spend command for that slot', async () => {
     const wizard = {
       ...makeMockCharacter('char-001', 'Elminster', 'Wizard', 3), spellcastingAbility: 'INT',
       spellSlots: { '1': { max: 4, used: 1 }, '2': { max: 2, used: 0 } },
     };
-    server.use(
-      http.get('/api/characters/:id', () => HttpResponse.json(wizard)),
-      http.put('/api/characters/:id', async ({ request }) => {
-        saved = await request.json();
-        return HttpResponse.json(wizard);
-      }),
-    );
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(wizard)));
+    recordCommand('post', 'spell-slots/:slot/spend', { ...wizard, spellSlots: { ...wizard.spellSlots, '1': { max: 4, used: 2 } } });
     renderSheet();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: /Spells/ }));
+    const requests = recordRequests();
 
     expect(screen.getByText('3/4')).toBeInTheDocument();
     await user.click(screen.getByText('3/4'));
 
-    await waitFor(() => expect(saved).toEqual({ spellSlots: { '1': { max: 4, used: 2 }, '2': { max: 2, used: 0 } } }));
+    expect(await screen.findByText('2/4')).toBeInTheDocument();
+    expect(requests).toEqual(['POST /api/characters/char-001/spell-slots/1/spend']);
+  });
+
+  it('damage, healing and temporary hit points go to the server, which applies the rules', async () => {
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)));
+    const bodies = recordCommand('post', 'hp', { ...hurtFighter, hpCurrent: 7 });
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('12/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Damage' }));
+    const dialog = screen.getByRole('dialog', { name: 'Take Damage' });
+    await user.type(within(dialog).getByLabelText('Amount'), '5');
+    await user.click(within(dialog).getByRole('button', { name: 'Take Damage' }));
+    expect(await screen.findByText('7/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Heal' }));
+    await user.type(within(screen.getByRole('dialog', { name: 'Heal' })).getByLabelText('Amount'), '3');
+    await user.click(within(screen.getByRole('dialog', { name: 'Heal' })).getByRole('button', { name: 'Heal' }));
+    await user.click(await screen.findByRole('button', { name: '+ Temp HP' }));
+    const temporary = screen.getByRole('dialog', { name: 'Temporary Hit Points' });
+    await user.type(within(temporary).getByLabelText('Amount'), '4');
+    await user.click(within(temporary).getByRole('button', { name: 'Gain' }));
+
+    await waitFor(() => expect(bodies).toEqual([
+      { kind: 'DAMAGE', amount: 5 }, { kind: 'HEALING', amount: 3 }, { kind: 'TEMPORARY', amount: 4 },
+    ]));
+  });
+
+  it('a pool\'s buttons spend and recover its uses through the server', async () => {
+    const barbarian = {
+      ...makeMockCharacter('char-001', 'Grog', 'Barbarian', 5),
+      resourcePools: [makeMockResourcePool('class:barbarian-rage', 'Rage', { maxUses: 3, currentUses: 2, resetOn: 'longRest' })],
+    };
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(barbarian)));
+    const spent = recordCommand('post', 'pools/spend', barbarian);
+    const recovered = recordCommand('post', 'pools/recover', barbarian);
+    renderSheet();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Spend one Rage use' }));
+    await user.click(screen.getByRole('button', { name: 'Recover one Rage use' }));
+
+    await waitFor(() => expect(recovered).toHaveLength(1));
+    expect(spent).toEqual([{ poolId: 'class:barbarian-rage' }]);
+    expect(recovered).toEqual([{ poolId: 'class:barbarian-rage' }]);
+  });
+
+  it('resting and levelling wait while the character is in an encounter under way, and the sheet says why (D166)', async () => {
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json({ ...hurtFighter, inLiveEncounter: true })));
+    renderSheet();
+
+    expect(await screen.findByText('In an encounter that is under way: resting and levelling wait until it ends.'))
+      .toBeInTheDocument();
+    for (const name of ['Short Rest', 'Long Rest', 'Level Up', 'Level Down']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled();
+    }
+    // Hit points can still change on the sheet
+    expect(screen.getByRole('button', { name: 'Damage' })).toBeEnabled();
+  });
+
+  it('shows the server\'s message when it refuses a command', async () => {
+    server.use(
+      http.get('/api/characters/:id', () => HttpResponse.json({ ...hurtFighter, hpCurrent: 0 })),
+      http.post('/api/characters/:id/long-rest', () => HttpResponse.json(
+        { error: 'Gimli needs at least 1 hit point to benefit from a long rest' }, { status: 409 })),
+    );
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('0/30')).toBeInTheDocument();
+
+    await user.click(screen.getByTitle('Long Rest'));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Long Rest' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Gimli needs at least 1 hit point to benefit from a long rest');
   });
 
   it('shows the server\'s message when the character cannot be loaded', async () => {

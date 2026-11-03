@@ -128,7 +128,7 @@ public class FeatEffectResolver {
                 passiveInvestigationBonus = effects.get("passiveInvestigationBonus").asInt();
             }
             if (effects.has("resource")) {
-                resource = applyResource(character, effects.get("resource"), feat.getName());
+                resource = resource(effects.get("resource"), feat.getName());
             }
             if (effects.has("optionalFeatureProgression") && choices != null
                     && choices.getOptionalFeatureIds() != null) {
@@ -153,8 +153,8 @@ public class FeatEffectResolver {
     }
 
     /**
-     * Takes away what applying a feat recorded. Speed, initiative and hit points need nothing here: CharacterStats
-     * works them out again from the history without the feat.
+     * Takes away what applying a feat recorded. Speed, initiative, hit points and the pool of the feat's limited uses
+     * need nothing here: CharacterStats works them out again from the history without the feat.
      */
     public void reverseFeatEffects(PlayerCharacter character, AppliedFeatEffects appliedEffects) {
         if (appliedEffects == null) return;
@@ -200,11 +200,6 @@ public class FeatEffectResolver {
         List<String> expertise = appliedEffects.expertiseAdded();
         if (expertise != null && !expertise.isEmpty()) {
             character.setSkillExpertises(without(character.getSkillExpertises(), expertise));
-        }
-
-        FeatResourceEntry resource = appliedEffects.resource();
-        if (resource != null) {
-            removeFeatResource(character, resource.featName());
         }
 
         List<KnownSpell> spellsAdded = appliedEffects.spellsAdded();
@@ -523,24 +518,12 @@ public class FeatEffectResolver {
 
     // --- Resource (Lucky) ---
 
-    private FeatResourceEntry applyResource(PlayerCharacter character, JsonNode resourceNode, String featName) {
-        List<FeatResourceEntry> resources = copy(character.getFeatResources());
-
-        FeatResourceEntry newResource = new FeatResourceEntry(featName,
-                resourceNode.path("name").asText(featName),
-                resourceNode.path("maxUses").asInt(),
-                resourceNode.path("maxUses").asInt(),
+    // The feat's limited uses, recorded with its effects; CharacterStats gives the sheet a feat:<feat> pool of them,
+    // which levelling down removes with the level (D158)
+    private static FeatResourceEntry resource(JsonNode resourceNode, String featName) {
+        int uses = resourceNode.path("maxUses").asInt();
+        return new FeatResourceEntry(featName, resourceNode.path("name").asText(featName), uses, uses,
                 resourceNode.path("resetOn").asText("longRest"));
-        resources.add(newResource);
-
-        character.setFeatResources(resources);
-        return newResource;
-    }
-
-    private void removeFeatResource(PlayerCharacter character, String featName) {
-        List<FeatResourceEntry> resources = copy(character.getFeatResources());
-        resources.removeIf(r -> featName.equals(r.featName()));
-        character.setFeatResources(resources.isEmpty() ? null : resources);
     }
 
     // --- Spells ---

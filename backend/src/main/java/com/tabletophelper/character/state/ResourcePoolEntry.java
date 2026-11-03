@@ -12,9 +12,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * A single resource pool entry stored on player_characters.resource_pools
  * and encounter_participants.resource_pools_current, where it is typed (D168).
  *
- * <p>Meant to subsume the old {@code feat_resources} pattern. Hit dice are not a pool: they have their own
- * {@code hit_dice} column ({@link HitDicePool}). Spell slots, HP, death saves, conditions, and action economy
- * remain separate.</p>
+ * <p>It replaced the old {@code feat_resources} column: a feat's limited uses are a {@code feat:<feat>} pool
+ * (D158). Hit dice are not a pool: they have their own {@code hit_dice} column ({@link HitDicePool}). Spell slots,
+ * HP, death saves, conditions, and action economy remain separate.</p>
  *
  * @param poolId           canonical identifier, e.g. "class:monk-ki"
  * @param displayName      human-readable label
@@ -60,14 +60,37 @@ public record ResourcePoolEntry(
      * in kebab case (D165).
      */
     public static String innatePoolId(String spellName) {
-        return "innate:" + spellName.trim().toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-|-$", "");
+        return "innate:" + kebabCase(spellName);
     }
 
     /** A full pool of a spell's innate uses, which come back on a long rest (D165). */
     public static ResourcePoolEntry innate(String spellName, int uses, String sourceType, String sourceName) {
         return new ResourcePoolEntry(innatePoolId(spellName), spellName, sourceType, sourceName, uses, null, uses,
                 "longRest", null, null, "ACTION", "sparkles", Map.of());
+    }
+
+    /**
+     * The pool that holds a feat's limited uses, such as Lucky's luck points: "feat:" and the feat's name in kebab
+     * case (D158).
+     */
+    public static String featPoolId(String featName) {
+        return "feat:" + kebabCase(featName);
+    }
+
+    /**
+     * A full pool of a feat's limited uses, which come back on the rest the feat names. Spending one takes no action:
+     * the feat says when it applies.
+     *
+     * @param displayName what the uses are called, such as "Luck Points"
+     */
+    public static ResourcePoolEntry feat(String featName, String displayName, int uses, String resetOn) {
+        return new ResourcePoolEntry(featPoolId(featName), displayName, "FEAT", featName, uses, null, uses,
+                resetOn, null, null, "FREE", "sparkles", Map.of());
+    }
+
+    private static String kebabCase(String name) {
+        return name.trim().toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
     }
 }

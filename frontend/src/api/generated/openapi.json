@@ -412,9 +412,11 @@
         "tags": [
           "character-controller"
         ]
-      },
-      "put": {
-        "operationId": "updateCharacter",
+      }
+    },
+    "/api/characters/{characterId}/apply-choices": {
+      "post": {
+        "operationId": "applyChoices",
         "parameters": [
           {
             "in": "path",
@@ -430,7 +432,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CharacterUpdateRequest"
+                "$ref": "#/components/schemas/ApplyChoicesRequest"
               }
             }
           },
@@ -453,9 +455,9 @@
         ]
       }
     },
-    "/api/characters/{characterId}/apply-choices": {
-      "post": {
-        "operationId": "applyChoices",
+    "/api/characters/{characterId}/campaign": {
+      "put": {
+        "operationId": "setCampaign",
         "parameters": [
           {
             "in": "path",
@@ -471,7 +473,48 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApplyChoicesRequest"
+                "$ref": "#/components/schemas/CharacterCampaignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/details": {
+      "patch": {
+        "operationId": "updateDetails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterDetailsRequest"
               }
             }
           },
@@ -517,6 +560,88 @@
                   "items": {
                     "$ref": "#/components/schemas/EligibleClassResponse"
                   }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/hp": {
+      "post": {
+        "operationId": "changeHitPoints",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HitPointChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/inventory": {
+      "put": {
+        "operationId": "updateInventory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
                 }
               }
             },
@@ -588,6 +713,399 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LevelUpResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/long-rest": {
+      "post": {
+        "operationId": "longRest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/pools/recover": {
+      "post": {
+        "operationId": "recoverPool",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoolUseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/pools/spend": {
+      "post": {
+        "operationId": "spendPool",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoolUseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/short-rest": {
+      "post": {
+        "operationId": "shortRest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShortRestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/spell-slots/{slot}/restore": {
+      "post": {
+        "operationId": "restoreSlot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slot",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/spell-slots/{slot}/spend": {
+      "post": {
+        "operationId": "spendSlot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "slot",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/spellbook": {
+      "delete": {
+        "operationId": "removeFromSpellbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpellbookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      },
+      "post": {
+        "operationId": "addToSpellbook",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpellbookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/spells/known": {
+      "put": {
+        "operationId": "setKnownSpells",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnownSpellsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
+    "/api/characters/{characterId}/spells/prepared": {
+      "put": {
+        "operationId": "setPreparedSpells",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreparedSpellsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
                 }
               }
             },
@@ -3992,6 +4510,16 @@
           }
         }
       },
+      "CharacterCampaignRequest": {
+        "type": "object",
+        "properties": {
+          "campaignId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
       "CharacterClass": {
         "required": [
           "hitDice",
@@ -4305,6 +4833,55 @@
           }
         }
       },
+      "CharacterDetailsRequest": {
+        "type": "object",
+        "properties": {
+          "alignment": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "bonds": {
+            "type": "string",
+            "nullable": true
+          },
+          "experiencePoints": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "flaws": {
+            "type": "string",
+            "nullable": true
+          },
+          "ideals": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "personalityTraits": {
+            "type": "string",
+            "nullable": true
+          },
+          "portraitUrl": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "CharacterResponse": {
         "required": [
           "abilityScoreMaximums",
@@ -4319,6 +4896,7 @@
           "hpMax",
           "hpTemp",
           "id",
+          "inLiveEncounter",
           "initiativeBonus",
           "intelligence",
           "isActive",
@@ -4458,13 +5036,6 @@
             "type": "integer",
             "format": "int32"
           },
-          "featResources": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/FeatResourceEntry"
-            }
-          },
           "features": {
             "type": "array",
             "nullable": true,
@@ -4502,6 +5073,9 @@
           "ideals": {
             "type": "string",
             "nullable": true
+          },
+          "inLiveEncounter": {
+            "type": "boolean"
           },
           "initiativeBonus": {
             "type": "integer",
@@ -4701,263 +5275,6 @@
           "wisdom": {
             "type": "integer",
             "format": "int32"
-          }
-        }
-      },
-      "CharacterUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "abilityScoreMethod": {
-            "type": "string",
-            "nullable": true
-          },
-          "alignment": {
-            "type": "string",
-            "nullable": true
-          },
-          "armorProficiencies": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "background": {
-            "type": "string",
-            "nullable": true
-          },
-          "backgroundId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "bonds": {
-            "type": "string",
-            "nullable": true
-          },
-          "campaignId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "charisma": {
-            "maximum": 30,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "clearCampaign": {
-            "type": "boolean",
-            "nullable": true
-          },
-          "conditionImmunities": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "constitution": {
-            "maximum": 30,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "currency": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Currency"
-              }
-            ]
-          },
-          "damageImmunities": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "damageResistances": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "dexterity": {
-            "maximum": 30,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "equipment": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/InventoryItem"
-            }
-          },
-          "experiencePoints": {
-            "minimum": 0,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "featResources": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/FeatResourceEntry"
-            }
-          },
-          "flaws": {
-            "type": "string",
-            "nullable": true
-          },
-          "hitDice": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/HitDicePool"
-            },
-            "nullable": true
-          },
-          "hpCurrent": {
-            "minimum": 0,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "hpTemp": {
-            "minimum": 0,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "ideals": {
-            "type": "string",
-            "nullable": true
-          },
-          "intelligence": {
-            "maximum": 30,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "languageProficiencies": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "name": {
-            "maxLength": 100,
-            "minLength": 0,
-            "type": "string",
-            "nullable": true
-          },
-          "notes": {
-            "type": "string",
-            "nullable": true
-          },
-          "personalityTraits": {
-            "type": "string",
-            "nullable": true
-          },
-          "portraitUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "race": {
-            "type": "string",
-            "nullable": true
-          },
-          "raceId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "racialAbilityBonuses": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/AbilityBonus"
-            }
-          },
-          "resourcePools": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/ResourcePoolEntry"
-            }
-          },
-          "savingThrowProficiencies": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "skillExpertises": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "skillProficiencies": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "spellSlots": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/SpellSlot"
-            },
-            "nullable": true
-          },
-          "spellsKnown": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/KnownSpell"
-            }
-          },
-          "strength": {
-            "maximum": 30,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "toolProficiencies": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "weaponProficiencies": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "wisdom": {
-            "maximum": 30,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
           }
         }
       },
@@ -5696,6 +6013,44 @@
           }
         }
       },
+      "HitDieSpent": {
+        "required": [
+          "className"
+        ],
+        "type": "object",
+        "properties": {
+          "className": {
+            "type": "string"
+          },
+          "roll": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "HitPointChangeRequest": {
+        "required": [
+          "amount",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "DAMAGE",
+              "HEALING",
+              "TEMPORARY"
+            ]
+          }
+        }
+      },
       "InventoryItem": {
         "required": [
           "name"
@@ -5726,6 +6081,24 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        }
+      },
+      "InventoryRequest": {
+        "required": [
+          "currency",
+          "equipment"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "equipment": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryItem"
+            }
           }
         }
       },
@@ -5860,6 +6233,31 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        }
+      },
+      "KnownSpellsRequest": {
+        "required": [
+          "className"
+        ],
+        "type": "object",
+        "properties": {
+          "cantrips": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "className": {
+            "type": "string"
+          },
+          "spells": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -6900,6 +7298,23 @@
           }
         }
       },
+      "PoolUseRequest": {
+        "required": [
+          "poolId"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "poolId": {
+            "type": "string"
+          }
+        }
+      },
       "PowerAttackOption": {
         "required": [
           "attackBonus",
@@ -6917,6 +7332,24 @@
           },
           "feat": {
             "type": "string"
+          }
+        }
+      },
+      "PreparedSpellsRequest": {
+        "required": [
+          "className",
+          "spells"
+        ],
+        "type": "object",
+        "properties": {
+          "className": {
+            "type": "string"
+          },
+          "spells": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -7225,6 +7658,18 @@
           }
         }
       },
+      "ShortRestRequest": {
+        "type": "object",
+        "properties": {
+          "hitDice": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/HitDieSpent"
+            }
+          }
+        }
+      },
       "SortObject": {
         "type": "object",
         "properties": {
@@ -7460,6 +7905,20 @@
           },
           "targetType": {
             "type": "string"
+          }
+        }
+      },
+      "SpellbookRequest": {
+        "required": [
+          "spells"
+        ],
+        "type": "object",
+        "properties": {
+          "spells": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

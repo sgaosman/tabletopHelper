@@ -24,8 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Weapon attacks the server works out, end to end (D164). Aria, a player's fighter with STR 16, DEX 14 and +2
- * proficiency, carries a greatsword and a +1 longsword she lists as a plain longsword, and has Great Weapon Master;
- * she goes first, against a 59 HP ogre with AC 11. The weapon rows are the PHB's, as ItemSeeder writes them.
+ * proficiency, carries a greatsword she calls her grandfather's blade, linked to its item, and a +1 longsword she
+ * lists as a plain longsword, and has Great Weapon Master; she goes first, against a 59 HP ogre with AC 11. The weapon
+ * rows are the PHB's, as ItemSeeder writes them.
  */
 class WeaponAttackIT extends IntegrationTest {
 
@@ -47,26 +48,29 @@ class WeaponAttackIT extends IntegrationTest {
         campaignId = UUID.fromString(campaign.get("id").asText());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
-        // A feat is a feature only from creation or levelling (D167); the proficiency bonus is the server's, +2
+        // A feat and proficiencies come only from creation or levelling (D158, D167); the proficiency bonus is the
+        // server's, +2
+        Map<String, Object> aria = new HashMap<>(Map.of("name", "Aria", "raceId", insertRace("Human"),
+                "classId", insertClass("Fighter", 10), "strength", 16, "dexterity", 14, "constitution", 12,
+                "intelligence", 10, "wisdom", 10, "charisma", 10));
+        aria.put("weaponProficiencies", List.of("simple", "martial"));
+        aria.put("features", List.of(Map.of("name", "Great Weapon Master", "description", "Feat", "source", "Feat")));
         UUID character = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
-                Map.of("name", "Aria", "raceId", insertRace("Human"), "classId", insertClass("Fighter", 10),
-                        "strength", 16, "dexterity", 14, "constitution", 12, "intelligence", 10, "wisdom", 10,
-                        "charisma", 10, "features",
-                        List.of(Map.of("name", "Great Weapon Master", "description", "Feat", "source", "Feat"))),
-                player.accessToken())).get("id").asText());
-        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + character, Map.of(
-                "weaponProficiencies", List.of("simple", "martial"),
-                "equipment", List.of(Map.of("name", "Greatsword", "quantity", 1),
-                        Map.of("name", "Longsword", "quantity", 1, "description", "+1"),
-                        Map.of("name", "Backpack", "quantity", 1))),
-                player.accessToken()));
-        itemRepository.saveAll(List.of(
+                aria, player.accessToken())).get("id").asText());
+        List<Item> items = itemRepository.saveAll(List.of(
                 Item.builder().name("Greatsword").type("Melee Weapon").subtype("martial").damageDice("2d6")
                         .damageType("slashing").properties("{\"tags\": [\"H\", \"2H\"]}").source("PHB").build(),
                 Item.builder().name("Longsword").type("Melee Weapon").subtype("martial").damageDice("1d8")
                         .damageType("slashing").properties("{\"tags\": [\"V\"], \"versatile_damage\": \"1d10\"}")
                         .source("PHB").build(),
                 Item.builder().name("Backpack").type("Adventuring Gear").source("PHB").build()));
+        // The greatsword's entry is linked to its item, so it matches whatever it is called (D164)
+        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + character + "/inventory", Map.of(
+                "equipment", List.of(Map.of("name", "Grandfather's blade", "quantity", 1, "itemId", items.get(0).getId()),
+                        Map.of("name", "Longsword", "quantity", 1, "description", "+1"),
+                        Map.of("name", "Backpack", "quantity", 1)),
+                "currency", Map.of("cp", 0, "sp", 0, "ep", 0, "gp", 0, "pp", 0)),
+                player.accessToken()));
 
         encounterId = createEncounter(dm.accessToken(), campaignId);
         ariaId = idOf(addParticipant(dm.accessToken(), encounterId,

@@ -3,14 +3,10 @@ package com.tabletophelper.character;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.character.dto.CharacterCreateRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
-import com.tabletophelper.character.dto.CharacterUpdateRequest;
-import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
-import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelHistoryEntry;
-import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Background;
@@ -32,20 +28,22 @@ import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Creating, updating, resting, deleting and reading characters. These were CharacterServiceBusinessTest's cases
- * 15.1 to 15.22, kept with their numbers, and its creation validation and access cases, run on the R6 derivation:
+ * Creating, deleting and reading characters. These were CharacterServiceBusinessTest's cases 15.1 to 15.22, kept with
+ * their numbers, and its creation validation and access cases, run on the R6 derivation:
  * <ul>
  *   <li>15.1 to 15.9, creation, now also check the stats the server works out instead of taking them from the
  *       request: armour class 10 + DEX, initiative, speed from the race, and the Hill Dwarf's extra hit point a
  *       level in 15.9.</li>
- *   <li>15.10 works the spell save DC out through CharacterStats; 15.11 checks the constraints the PUT still has,
- *       now that the level isn't one of its fields.</li>
- *   <li>15.12 to 15.20, rests, and 15.21 and 15.22, deletion, are unchanged: workstream D moves rests to the
- *       server's own rules.</li>
+ *   <li>15.10 changed ability scores through the PUT, which workstream D removed (D158): here an Intelligence
+ *       increase from an Ability Score Improvement works the spell save DC and attack bonus out again.</li>
+ *   <li>15.11, the PUT's constraints, and its other cases moved to CharacterSheetServiceTest with the commands that
+ *       replaced it.</li>
+ *   <li>15.12 to 15.20, rests, moved to RestServiceTest, with the server's own rest rules.</li>
+ *   <li>15.21 and 15.22, deletion, are unchanged, and deletion, levelling and the choices a level brings now wait
+ *       while the character is in an encounter (D166).</li>
  * </ul>
  */
 class CharacterServiceTest {
@@ -313,250 +311,45 @@ class CharacterServiceTest {
     }
 
     @Nested
-    @DisplayName("Character Update")
-    class CharacterUpdate {
+    @DisplayName("Ability scores and spellcasting")
+    class AbilityScoresAndSpellcasting {
 
         @Test
-        @DisplayName("15.10 Update ability scores recalculates spell save DC and spell attack bonus")
-        void updateAbilityScoresRecalculates() {
-            PlayerCharacter pc = f.create(f.human, new int[]{10, 10, 10, 16, 10, 10}, f.wizard, 1);
+        @DisplayName("15.10 An Intelligence increase works the spell save DC and spell attack bonus out again")
+        void intelligenceIncreaseRecalculatesSpellNumbers() {
+            PlayerCharacter pc = f.create(f.human, new int[]{10, 10, 10, 16, 10, 10}, f.wizard, 4);
             assertThat(pc.getSpellSaveDc()).isEqualTo(13);
 
-            CharacterUpdateRequest req = new CharacterUpdateRequest();
-            req.setIntelligence(18);
-            CharacterResponse response = f.service.updateCharacter(pc.getId(), req, f.userId);
+            CharacterResponse response = f.improve(pc, "intelligence", 2);
 
             assertThat(response.getIntelligence()).isEqualTo(18);
             assertThat(response.getSpellSaveDc()).isEqualTo(14);
             assertThat(response.getSpellAttackBonus()).isEqualTo(6);
         }
-
-        @Test
-        @DisplayName("15.11 @Valid constraints reject invalid values (HP -5, STR 31)")
-        void updateValidConstraintsRejectInvalid() {
-            Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-            CharacterUpdateRequest req = new CharacterUpdateRequest();
-            req.setHpCurrent(-5);
-            req.setStrength(31);
-
-            Set<String> violatedPaths = new HashSet<>();
-            for (ConstraintViolation<CharacterUpdateRequest> v : validator.validate(req)) {
-                violatedPaths.add(v.getPropertyPath().toString());
-            }
-            assertThat(violatedPaths).contains("hpCurrent", "strength");
-        }
-
-        @Test
-        @DisplayName("The PUT changes only what is spent: slots' used counts, remaining Hit Dice and pools' uses, each within its maximum")
-        void putChangesOnlyWhatIsSpent() {
-            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 2, f.wizard, 1);
-            CharacterUpdateRequest req = new CharacterUpdateRequest();
-            req.setSpellSlots(Map.of("1", new SpellSlot(9, 1), "9", new SpellSlot(4, 0)));
-            req.setHitDice(Map.of("Fighter", new HitDicePool(12, 20, 0), "Wizard", new HitDicePool(6, 1, 7)));
-            req.setResourcePools(List.of(new ResourcePoolEntry("class:fighter-action-surge", "Action Surge",
-                    "CLASS", null, 5, "5", -2, "shortRest", null, null, null, null, Map.of()),
-                    ResourcePoolEntry.innate("Wish", 3, "RACE", "Genie")));
-            req.setHpCurrent(99);
-
-            CharacterResponse response = f.service.updateCharacter(pc.getId(), req, f.userId);
-
-            assertThat(response.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(2, 1)));
-            assertThat(response.getHitDice()).containsEntry("Fighter", new HitDicePool(10, 2, 0))
-                    .containsEntry("Wizard", new HitDicePool(6, 1, 1));
-            assertThat(response.getResourcePools()).singleElement().satisfies(surge -> {
-                assertThat(surge.poolId()).isEqualTo("class:fighter-action-surge");
-                assertThat(surge.maxUses()).isEqualTo(1);
-                assertThat(surge.currentUses()).isZero();
-            });
-            assertThat(response.getHpCurrent()).isEqualTo(response.getHpMax());
-        }
-
-        @Test
-        @DisplayName("Joining a campaign through the PUT needs the owner to be a member")
-        void campaignNeedsMembership() {
-            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 1);
-            Campaign campaign = Campaign.builder().id(UUID.randomUUID()).name("Lost Mine")
-                    .dm(User.builder().id(UUID.randomUUID()).build()).inviteCode("ABCD2345").build();
-            when(f.campaignRepository.findById(campaign.getId())).thenReturn(Optional.of(campaign));
-            CharacterUpdateRequest req = new CharacterUpdateRequest();
-            req.setCampaignId(campaign.getId());
-
-            assertThatThrownBy(() -> f.service.updateCharacter(pc.getId(), req, f.userId))
-                    .isInstanceOf(ForbiddenException.class)
-                    .hasMessage("You are not a member of this campaign");
-        }
-    }
-
-    // ========================================================================
-    // Rests, unchanged until workstream D
-    // ========================================================================
-
-    private PlayerCharacter restingCharacter(String className, int level, int hpMax, int hpCurrent, int constitution,
-                                             Map<String, HitDicePool> hitDice, Map<String, SpellSlot> spellSlots,
-                                             List<FeatResourceEntry> featResources) {
-        PlayerCharacter pc = PlayerCharacter.builder()
-                .user(f.user).name("RestTestChar")
-                .characterClass(className).level(level)
-                .classRef(f.fighter)
-                .strength(10).dexterity(10).constitution(constitution)
-                .intelligence(10).wisdom(10).charisma(10)
-                .hpMax(hpMax).hpCurrent(hpCurrent)
-                .armourClass(10)
-                .proficiencyBonus(CharacterService.proficiencyBonusForLevel(level))
-                .speed(30)
-                .hitDice(hitDice)
-                .spellSlots(spellSlots)
-                .featResources(featResources)
-                .isActive(true)
-                .build();
-        return f.characterRepository.save(pc);
     }
 
     @Nested
-    @DisplayName("Short Rest")
-    class ShortRest {
+    @DisplayName("Encounters under way (D166)")
+    class EncountersUnderWay {
 
         @Test
-        @DisplayName("15.12 Spending 1 hit die heals avg die + CON mod, decreases remaining")
-        void shortRestSpend1HitDie() {
-            PlayerCharacter pc = restingCharacter("Fighter", 5, 45, 20, 14,
-                    Map.of("Fighter", new HitDicePool(10, 5, 3)), null, null);
-            ShortRestRequest req = new ShortRestRequest();
-            req.setHitDiceToSpend(Map.of("Fighter", 1));
+        @DisplayName("Levelling up, levelling down and the choices a level brings wait while the character is in an Active or Paused encounter")
+        void levellingWaits() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 4);
+            when(f.liveEncounters.includes(pc.getId())).thenReturn(true);
 
-            CharacterResponse response = f.service.shortRest(pc.getId(), req, f.userId);
-
-            assertThat(response.getHpCurrent()).isEqualTo(28);
-            assertThat(response.getHitDice().get("Fighter").remaining()).isEqualTo(2);
-        }
-
-        @Test
-        @DisplayName("15.13 Spending multiple hit dice from multiclass uses correct die sizes")
-        void shortRestMultipleHitDiceMulticlass() {
-            Map<String, HitDicePool> hitDice = new LinkedHashMap<>();
-            hitDice.put("Fighter", new HitDicePool(10, 3, 2));
-            hitDice.put("Wizard", new HitDicePool(6, 2, 1));
-            PlayerCharacter pc = restingCharacter("Fighter / Wizard", 5, 35, 15, 12, hitDice, null, null);
-            ShortRestRequest req = new ShortRestRequest();
-            Map<String, Integer> spend = new LinkedHashMap<>();
-            spend.put("Fighter", 1);
-            spend.put("Wizard", 1);
-            req.setHitDiceToSpend(spend);
-
-            CharacterResponse response = f.service.shortRest(pc.getId(), req, f.userId);
-
-            // (6+1) + (4+1)
-            assertThat(response.getHpCurrent()).isEqualTo(27);
-            assertThat(response.getHitDice().get("Fighter").remaining()).isEqualTo(1);
-            assertThat(response.getHitDice().get("Wizard").remaining()).isEqualTo(0);
-        }
-
-        @Test
-        @DisplayName("15.14 Cannot spend more hit dice than remaining")
-        void shortRestCannotSpendMoreThanRemaining() {
-            PlayerCharacter pc = restingCharacter("Fighter", 3, 30, 20, 14,
-                    Map.of("Fighter", new HitDicePool(10, 3, 0)), null, null);
-            ShortRestRequest req = new ShortRestRequest();
-            req.setHitDiceToSpend(Map.of("Fighter", 1));
-
-            assertThatThrownBy(() -> f.service.shortRest(pc.getId(), req, f.userId))
+            assertThatThrownBy(() -> f.levelUp(pc, f.fighter))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("Not enough hit dice remaining");
-        }
-
-        @Test
-        @DisplayName("15.15 Warlock pact slots reset on short rest, regular slots unchanged")
-        void shortRestWarlockPactSlotsReset() {
-            PlayerCharacter pc = restingCharacter("Warlock / Wizard", 5, 30, 30, 10,
-                    Map.of("Warlock", new HitDicePool(8, 3, 3), "Wizard", new HitDicePool(6, 2, 2)),
-                    Map.of("1", new SpellSlot(3, 1), "pact_3", new SpellSlot(2, 2)), null);
-
-            CharacterResponse response = f.service.shortRest(pc.getId(), new ShortRestRequest(), f.userId);
-
-            assertThat(response.getSpellSlots().get("pact_3")).isEqualTo(new SpellSlot(2, 0));
-            assertThat(response.getSpellSlots().get("1")).isEqualTo(new SpellSlot(3, 1));
-        }
-
-        @Test
-        @DisplayName("15.16 Feat resources with shortRestReset restored on short rest")
-        void shortRestFeatResourcesRestored() {
-            PlayerCharacter pc = restingCharacter("Fighter", 3, 30, 25, 14,
-                    Map.of("Fighter", new HitDicePool(10, 3, 3)), null, List.of(
-                            new FeatResourceEntry("Battle Master", "Superiority Dice", 4, 1, "shortRest"),
-                            new FeatResourceEntry("Lucky", "Luck Points", 3, 0, "longRest")));
-
-            CharacterResponse response = f.service.shortRest(pc.getId(), new ShortRestRequest(), f.userId);
-
-            assertThat(response.getFeatResources()).extracting(FeatResourceEntry::name, FeatResourceEntry::currentUses)
-                    .containsExactly(tuple("Superiority Dice", 4), tuple("Luck Points", 0));
-        }
-    }
-
-    @Nested
-    @DisplayName("Long Rest")
-    class LongRest {
-
-        @Test
-        @DisplayName("15.17 Long rest restores full HP")
-        void longRestFullHpRestored() {
-            PlayerCharacter pc = restingCharacter("Fighter", 5, 45, 20, 14,
-                    Map.of("Fighter", new HitDicePool(10, 5, 5)), null, null);
-
-            CharacterResponse response = f.service.longRest(pc.getId(), f.userId);
-
-            assertThat(response.getHpCurrent()).isEqualTo(45);
-            assertThat(response.getHpMax()).isEqualTo(45);
-        }
-
-        @Test
-        @DisplayName("15.18 Long rest restores all spell slots (regular and pact)")
-        void longRestAllSpellSlotsRestored() {
-            PlayerCharacter pc = restingCharacter("Wizard / Warlock", 7, 40, 25, 10,
-                    Map.of("Wizard", new HitDicePool(6, 5, 3), "Warlock", new HitDicePool(8, 2, 2)),
-                    Map.of("1", new SpellSlot(4, 4), "2", new SpellSlot(3, 3), "pact_3", new SpellSlot(2, 2)), null);
-
-            CharacterResponse response = f.service.longRest(pc.getId(), f.userId);
-
-            assertThat(response.getSpellSlots()).isEqualTo(Map.of(
-                    "1", new SpellSlot(4, 0), "2", new SpellSlot(3, 0), "pact_3", new SpellSlot(2, 0)));
-        }
-
-        @Test
-        @DisplayName("15.19 Long rest recovers half hit dice rounded down, minimum 1")
-        void longRestHitDiceRecovery() {
-            PlayerCharacter pc = restingCharacter("Fighter", 7, 60, 50, 14,
-                    Map.of("Fighter", new HitDicePool(10, 7, 0)), null, null);
-
-            CharacterResponse response = f.service.longRest(pc.getId(), f.userId);
-
-            assertThat(response.getHitDice().get("Fighter")).isEqualTo(new HitDicePool(10, 7, 3));
-        }
-
-        @Test
-        @DisplayName("15.20 Long rest restores all feat resources (both short and long rest)")
-        void longRestAllFeatResourcesRestored() {
-            PlayerCharacter pc = restingCharacter("Fighter", 5, 40, 30, 14,
-                    Map.of("Fighter", new HitDicePool(10, 5, 2)), null, List.of(
-                            new FeatResourceEntry("Lucky", "Luck Points", 3, 0, "longRest"),
-                            new FeatResourceEntry("Battle Master", "Superiority Dice", 4, 2, "shortRest")));
-
-            CharacterResponse response = f.service.longRest(pc.getId(), f.userId);
-
-            assertThat(response.getFeatResources()).extracting(FeatResourceEntry::currentUses).containsExactly(3, 4);
-        }
-
-        @Test
-        @DisplayName("A long rest resets the innate uses the sheet keeps as pools (D165)")
-        void longRestResetsInnatePools() {
-            PlayerCharacter pc = restingCharacter("Fighter", 5, 40, 30, 14,
-                    Map.of("Fighter", new HitDicePool(10, 5, 5)), null, null);
-            pc.setResourcePools(List.of(ResourcePoolEntry.innate("Faerie Fire", 1, "RACE", "Fairy")
-                    .withCurrentUses(0)));
-
-            CharacterResponse response = f.service.longRest(pc.getId(), f.userId);
-
-            assertThat(response.getResourcePools()).singleElement()
-                    .extracting(ResourcePoolEntry::currentUses).isEqualTo(1);
+                    .hasMessage("Aria is in an encounter that is under way, so can't level up until it ends");
+            assertThatThrownBy(() -> f.levelDown(pc))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Aria is in an encounter that is under way, so can't level down until it ends");
+            assertThatThrownBy(() -> f.improve(pc, "strength", 2))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Aria is in an encounter that is under way, so can't make the choices its levels "
+                            + "bring until it ends");
+            assertThat(pc.getLevel()).isEqualTo(4);
+            assertThat(pc.getStrength()).isEqualTo(16);
         }
     }
 
@@ -568,12 +361,22 @@ class CharacterServiceTest {
         @DisplayName("15.21 Soft delete sets isActive=false")
         void softDeleteSetsInactiveFalse() {
             PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 5);
-            when(f.participantRepository.existsByCharacter_IdAndEncounter_StatusIn(eq(pc.getId()), any()))
-                    .thenReturn(false);
 
             f.service.deleteCharacter(pc.getId(), f.userId);
 
             assertThat(pc.getIsActive()).isFalse();
+        }
+
+        @Test
+        @DisplayName("A character in an encounter that hasn't been completed, a Preparing one included, can't be deleted")
+        void cannotDeleteDuringAnEncounter() {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 5);
+            when(f.liveEncounters.includesUnfinished(pc.getId())).thenReturn(true);
+
+            assertThatThrownBy(() -> f.service.deleteCharacter(pc.getId(), f.userId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Cannot delete a character that is in an active encounter");
+            assertThat(pc.getIsActive()).isTrue();
         }
 
         @Test

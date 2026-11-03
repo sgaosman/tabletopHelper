@@ -1,8 +1,11 @@
 package com.tabletophelper.resourcepool;
 
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
@@ -58,10 +61,12 @@ public class ResourcePoolService {
     // ── Character sheet ──────────────────────────────────────────
 
     /**
-     * The pools a character should have, from the class feature definitions for its classes and subclasses, and one
-     * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165). A pool it already has
-     * keeps its place and the uses it has spent; one whose source is gone is dropped. Changes nothing, and a failure
-     * stops the command that asked rather than leaving the pools half worked out (D155).
+     * The pools a character should have, from the class feature definitions for its classes and subclasses, one
+     * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165), and one
+     * {@code feat:<feat>} pool for each feat with limited uses that its level history records, such as Lucky's
+     * (D158). A pool it already has keeps its place and the uses it has spent; one whose source is gone is dropped.
+     * Changes nothing, and a failure stops the command that asked rather than leaving the pools half worked out
+     * (D155).
      *
      * @param context the variables the maximums' formulas read, as {@link #buildCharacterContext} gives them
      */
@@ -100,6 +105,19 @@ public class ResourcePoolService {
                     sourceName(spell.source())).withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
         }
 
+        for (FeatResourceEntry resource : recordedFeatResources(character)) {
+            String featName = resource.featName().trim();
+            String poolId = ResourcePoolEntry.featPoolId(featName);
+            // A feat taken twice has one pool, with the first's uses
+            if (!desiredPoolIds.add(poolId)) continue;
+
+            int uses = Math.max(0, resource.maxUses());
+            String name = resource.name() != null && !resource.name().isBlank() ? resource.name().trim() : featName;
+            String resetOn = resource.resetOn() != null && !resource.resetOn().isBlank() ? resource.resetOn() : "longRest";
+            byPoolId.put(poolId, ResourcePoolEntry.feat(featName, name, uses, resetOn)
+                    .withCurrentUses(keptUses(byPoolId.get(poolId), uses)));
+        }
+
         // Remove orphaned pools (source no longer present)
         byPoolId.keySet().retainAll(desiredPoolIds);
         return new ArrayList<>(byPoolId.values());
@@ -120,6 +138,21 @@ public class ResourcePoolService {
                 && spell.usesPerLongRest() != null && spell.usesPerLongRest() > 0
                 && !Boolean.TRUE.equals(spell.atWill())
                 && (spell.unlocksAtLevel() == null || spell.unlocksAtLevel() <= characterLevel);
+    }
+
+    // The limited uses of the feats the level history records as taken, oldest first: those whose effects were
+    // applied, as an Ability Score Improvement's feat
+    private static List<FeatResourceEntry> recordedFeatResources(PlayerCharacter character) {
+        List<FeatResourceEntry> resources = new ArrayList<>();
+        for (LevelHistoryEntry entry : orEmpty(character.getLevelHistory())) {
+            AbilityScoreImprovement asi = entry.choices() != null ? entry.choices().asi() : null;
+            FeatResourceEntry resource = asi != null && asi.appliedEffects() != null
+                    ? asi.appliedEffects().resource() : null;
+            if (resource != null && resource.featName() != null && !resource.featName().isBlank()) {
+                resources.add(resource);
+            }
+        }
+        return resources;
     }
 
     // RACE or FEAT for a race or feat spell, CLASS for any other a character knows

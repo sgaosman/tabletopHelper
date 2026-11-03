@@ -88,15 +88,19 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "Missing required parameter: " + ex.getParameterName());
     }
 
-    /** Two people changed the same encounter at once (D034); the next broadcast carries the winner. */
+    /**
+     * Two people changed the same encounter at once (D034), whose next broadcast carries the winner, or a write from
+     * a copy of a character that a command has changed since, which the character's version catches (D158).
+     */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> handleOptimisticLock(OptimisticLockingFailureException ex) {
         return error(HttpStatus.CONFLICT, "Someone else changed this at the same time. Please try again.");
     }
 
     /**
-     * A lock wait ran out: an encounter command waited more than five seconds for the one before it
-     * (D160), or two transactions deadlocked. The transaction rolled back, so trying again is safe.
+     * A lock wait ran out: an encounter or character command waited more than five seconds for the one
+     * before it (D158, D160), or two transactions deadlocked. The transaction rolled back, so trying again
+     * is safe.
      */
     @ExceptionHandler({PessimisticLockingFailureException.class, LockTimeoutException.class})
     public ResponseEntity<Map<String, String>> handleLockTimeout(RuntimeException ex) {

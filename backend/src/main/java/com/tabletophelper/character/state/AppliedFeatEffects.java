@@ -13,7 +13,7 @@ import java.util.Map;
  * @param abilityIncreases each ability increased, spelled out or abbreviated in lower case, and by how much: the
  *                         amount actually applied under the maximum (D167), or for a feat taken before R6 the amount
  *                         the feat gives
- * @param resource         the limited uses the feat added to {@code feat_resources}
+ * @param resource         the feat's limited uses, which the sheet keeps in a {@code feat:<feat>} pool (D158)
  * @param spellsAdded      the spells the feat added to the known spells
  * @param featName         the feat, whose feature entry levelling down removes
  */

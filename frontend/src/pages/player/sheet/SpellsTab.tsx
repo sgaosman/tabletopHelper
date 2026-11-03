@@ -1,16 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Lock, Search, X, Plus, Check } from 'lucide-react';
-import { searchSpells, getFeats } from '../../../api/referenceApi';
+import { Lock, Search, X, Plus, Undo2 } from 'lucide-react';
+import { searchSpells } from '../../../api/referenceApi';
 import { useTypeAhead } from '../../../hooks/useTypeAhead';
+import {
+  useAddToSpellbook, useRemoveFromSpellbook, useRestoreSlot, useSetKnownSpells, useSetPreparedSpells, useSpendSlot,
+} from '../../../queries/characters';
 import SpellCard from '../../../components/reference/SpellCard';
-import type { PlayerCharacter, CharacterUpdateRequest, ClassSpellcasting } from '../../../types/character';
+import IconButton from '../../../components/ui/IconButton';
+import type { PlayerCharacter, ClassSpellcasting } from '../../../types/character';
 import type { SpellSlot } from '../../../types/encounter';
-import type { Spell, Feat } from '../../../types/reference';
+import type { Spell } from '../../../types/reference';
 import { THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST } from '../../../utils/spellConstants';
-import { parseFeatOptions } from '../../../utils/featSpellParser';
-import type { ParsedFeatOption } from '../../../utils/featSpellParser';
 import { formatMod } from '../../../utils/dndRules';
-import type { SpellEntry } from './types';
+import type { RunCommand, SpellEntry } from './types';
 import StatCard from './StatCard';
 
 // The class a class's spells come from: the Wizard's list for an Eldritch Knight or Arcane Trickster
@@ -20,24 +22,29 @@ function spellListOf(casting: ClassSpellcasting | undefined, className: string) 
     : className;
 }
 
+type ManageType = 'prepared' | 'known' | 'cantrips' | 'spellbook' | 'remove-spellbook';
+
 /**
  * The character's spells by where they come from. What each class casts with, its save DC, attack bonus, highest
  * spell level and cantrip, known and prepared limits, is the server's (char.spellcasting, D167); race and feat spells
- * use the main numbers.
+ * use the main numbers. Every change is a command the server checks (D158): a slot spent or got back, the spells a
+ * class prepares, a wizard's spellbook, and until Pending Choices the cantrips and spells a class knows. Spells from a
+ * feat come with the feat, at a level's Ability Score Improvement or, from workstream E, as the DM's grant.
  */
-export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pendingSpellManage, onSpellManageHandled }: {
+export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, pendingSpellManage, onSpellManageHandled }: {
   char: PlayerCharacter;
   spellsKnown: SpellEntry[];
   spellSlots: Record<string, SpellSlot>;
-  saveField: (u: CharacterUpdateRequest) => Promise<void>;
+  runCommand: RunCommand;
   pendingSpellManage?: { className: string; type: 'known' | 'prepared' } | null;
   onSpellManageHandled?: () => void;
 }) {
+  const spendSlotCommand = useSpendSlot();
+  const restoreSlotCommand = useRestoreSlot();
+  const setPrepared = useSetPreparedSpells();
   const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
   const [loadingSpell, setLoadingSpell] = useState(false);
-  const [manageModal, setManageModal] = useState<{ type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook'; className: string; spellListClass?: string; classLevel?: number } | null>(null);
-  const [showAddFeat, setShowAddFeat] = useState(false);
-  const [confirmRemoveFeat, setConfirmRemoveFeat] = useState<string | null>(null);
+  const [manageModal, setManageModal] = useState<{ type: ManageType; className: string; spellListClass?: string; classLevel?: number } | null>(null);
 
   useEffect(() => {
     if (pendingSpellManage && !manageModal) {
@@ -123,11 +130,14 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     .filter(([k]) => k.startsWith('pact_'))
     .sort((a, b) => parseInt(a[0].replace('pact_', '')) - parseInt(b[0].replace('pact_', '')));
 
-  async function spendSlot(level: string) {
+  function spendSlot(level: string) {
     const slot = spellSlots[level];
     if (!slot || slot.used >= slot.max) return;
-    const updated = { ...spellSlots, [level]: { ...slot, used: slot.used + 1 } };
-    await saveField({ spellSlots: updated });
+    void runCommand(spendSlotCommand.mutateAsync({ characterId: char.id, slot: level }));
+  }
+
+  function restoreSlot(level: string) {
+    void runCommand(restoreSlotCommand.mutateAsync({ characterId: char.id, slot: level }));
   }
 
   async function viewSpellDetail(spellName: string) {
@@ -140,19 +150,17 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
     setLoadingSpell(false);
   }
 
-  async function togglePrepared(spell: SpellEntry) {
-    if (spell.alwaysPrepared || spell.level === 0) return;
-    const updated = taggedSpells.map(s =>
-      s.name === spell.name && s.source === spell.source
-        ? { ...s, prepared: !s.prepared }
-        : s
-    );
-    await saveField({ spellsKnown: updated });
-  }
-
-  async function removeFeatSpells(source: string) {
-    const updated = taggedSpells.filter(s => s.source !== source);
-    await saveField({ spellsKnown: updated });
+  // Prepares or unprepares one of a class's spells, with the rest of the class's prepared spells as they are; the
+  // server holds the class to its limit
+  function togglePrepared(spell: SpellEntry) {
+    if (spell.alwaysPrepared || spell.level === 0 || !spell.source?.startsWith('class:')) return;
+    const prepared = taggedSpells
+      .filter(s => s.source === spell.source && s.level > 0 && s.prepared && !s.alwaysPrepared && s.name !== spell.name)
+      .map(s => s.name);
+    void runCommand(setPrepared.mutateAsync({
+      characterId: char.id,
+      prepared: { className: spell.source.slice(6), spells: spell.prepared ? prepared : [...prepared, spell.name] },
+    }));
   }
 
   // A class the server gives no spellcasting still lists the spells the sheet has from it, with no limits
@@ -179,7 +187,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
           spell.alwaysPrepared ? (
             <Lock className="w-3 h-3 text-cls-cleric flex-shrink-0" />
           ) : (
-            <button
+            <IconButton
+              label={spell.prepared ? `Unprepare ${spell.name}` : `Prepare ${spell.name}`}
               onClick={(e) => { e.stopPropagation(); togglePrepared(spell); }}
               className={`w-3 h-3 rounded-full flex-shrink-0 border ${
                 spell.prepared ? 'bg-buff border-buff' : 'bg-transparent border-rule'
@@ -206,14 +215,24 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
           {slots.map(([level, slot]) => {
             const displayLevel = level.startsWith('pact_') ? level.replace('pact_', '') : level;
             return (
-              <button
-                key={level}
-                onClick={() => spendSlot(level)}
-                className="bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors"
-              >
-                <p className="font-heading text-[11px] font-semibold text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
-                <p className="font-heading text-[17px] font-bold text-ink">{slot.max - slot.used}/{slot.max}</p>
-              </button>
+              <div key={level} className="relative">
+                <button
+                  onClick={() => spendSlot(level)}
+                  className="w-full bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors"
+                >
+                  <p className="font-heading text-[11px] font-semibold text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
+                  <p className="font-heading text-[17px] font-bold text-ink">{slot.max - slot.used}/{slot.max}</p>
+                </button>
+                {slot.used > 0 && (
+                  <IconButton
+                    label={`Get back a ${label === 'Pact Slots' ? 'pact' : `level ${displayLevel}`} slot`}
+                    onClick={() => restoreSlot(level)}
+                    className="absolute top-1 right-1 p-0.5 text-faint hover:text-ink"
+                  >
+                    <Undo2 className="w-3 h-3" />
+                  </IconButton>
+                )}
+              </div>
             );
           })}
         </div>
@@ -308,9 +327,19 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
 
             {(cantrips.length > 0 || (cantripLimit && cantripLimit > 0)) && (
               <div>
-                <h4 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint mb-1">
-                  Cantrips ({cantrips.length}{cantripLimit ? `/${cantripLimit}` : ''})
-                </h4>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">
+                    Cantrips ({cantrips.length}{cantripLimit ? `/${cantripLimit}` : ''})
+                  </h4>
+                  {info.casting && cantripLimit ? (
+                    <button
+                      onClick={() => setManageModal({ type: 'cantrips', className, spellListClass, classLevel })}
+                      className="font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors"
+                    >
+                      Manage Cantrips
+                    </button>
+                  ) : null}
+                </div>
                 <div className="space-y-0.5">{cantrips.map(s => renderSpellRow(s, false))}</div>
               </div>
             )}
@@ -395,49 +424,15 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
       ))}
 
       {/* Feat spell boxes */}
-      {featGroups.map(({ featName, source, spells }) => (
+      {featGroups.map(({ featName, spells }) => (
         <div key={featName} className="bg-card border border-rule p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="font-heading text-[16px] font-semibold text-ink">{featName}</h3>
-              <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-cls-cleric-border">Feat</span>
-            </div>
-            <button
-              onClick={() => setConfirmRemoveFeat(confirmRemoveFeat === source ? null : source)}
-              className="text-faint hover:text-debuff transition-colors"
-              title="Remove feat spells"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className="flex items-center gap-2">
+            <h3 className="font-heading text-[16px] font-semibold text-ink">{featName}</h3>
+            <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-cls-cleric-border">Feat</span>
           </div>
-          {confirmRemoveFeat === source && (
-            <div className="flex items-center gap-2 bg-debuff-bg border border-debuff/30 px-3 py-2">
-              <p className="font-body text-[14px] font-semibold text-debuff flex-1">Remove all {featName} spells?</p>
-              <button
-                onClick={() => { removeFeatSpells(source); setConfirmRemoveFeat(null); }}
-                className="px-2 py-1 bg-debuff text-card font-body text-[14px] font-semibold transition-colors hover:opacity-80"
-              >
-                Remove
-              </button>
-              <button
-                onClick={() => setConfirmRemoveFeat(null)}
-                className="px-2 py-1 font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
           <div className="space-y-0.5">{spells.map(s => renderSpellRow(s, false))}</div>
         </div>
       ))}
-
-      {/* Add Feat button */}
-      <button
-        onClick={() => setShowAddFeat(true)}
-        className="w-full py-2 border border-dashed border-cls-cleric/30 font-body text-[15px] font-semibold text-cls-cleric hover:bg-cls-cleric-bg transition-colors flex items-center justify-center gap-2"
-      >
-        <Plus className="w-4 h-4" /> Add Feat Spells
-      </button>
 
       {taggedSpells.length === 0 && classGroups.every(g => g.spells.length === 0) && (
         <p className="font-body text-[15px] text-faint">No spells yet. Use the Change Prepared or Manage Known button to add spells.</p>
@@ -473,34 +468,33 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, saveField, pe
           spellListClass={manageModal.spellListClass ?? spellListOf(
             classCasting.find(c => c.className === manageModal.className), manageModal.className)}
           currentSpells={taggedSpells}
-          saveField={saveField}
+          runCommand={runCommand}
           onClose={() => setManageModal(null)}
-        />
-      )}
-
-      {/* Add Feat Modal */}
-      {showAddFeat && (
-        <AddFeatModal
-          currentSpells={taggedSpells}
-          saveField={saveField}
-          onClose={() => setShowAddFeat(false)}
         />
       )}
     </div>
   );
 }
 
-function ManageSpellsModal({ char, type, className, casting, spellListClass, currentSpells, saveField, onClose }: {
+/**
+ * Chooses a class's spells, which one command saves: the spells it prepares, its known spells or cantrips, or what a
+ * wizard copies into or takes out of its spellbook. The server checks each against the class's list, level and limit.
+ */
+function ManageSpellsModal({ char, type, className, casting, spellListClass, currentSpells, runCommand, onClose }: {
   char: PlayerCharacter;
-  type: 'prepared' | 'known' | 'spellbook' | 'remove-spellbook';
+  type: ManageType;
   className: string;
   // What the class casts with, from the server; a class without spellcasting has no limits
   casting?: ClassSpellcasting;
   spellListClass?: string;
   currentSpells: SpellEntry[];
-  saveField: (u: CharacterUpdateRequest) => Promise<void>;
+  runCommand: RunCommand;
   onClose: () => void;
 }) {
+  const setPrepared = useSetPreparedSpells();
+  const setKnown = useSetKnownSpells();
+  const addToSpellbook = useAddToSpellbook();
+  const removeFromSpellbook = useRemoveFromSpellbook();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Spell[]>([]);
   const [selectedLevel, setSelectedLevel] = useState<number | ''>('');
@@ -510,9 +504,12 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
   const source = `class:${className}`;
   const classSpells = localSpells.filter(s => s.source === source);
   const leveled = classSpells.filter(s => s.level > 0);
+  const cantrips = classSpells.filter(s => s.level === 0);
   const preparedCount = leveled.filter(s => s.prepared || s.alwaysPrepared).length;
   const prepLimit = casting?.preparedSpells ?? 0;
   const knownLimit = casting?.spellsKnown ?? 0;
+  const cantripLimit = casting?.cantripsKnown ?? 0;
+  const isCantrips = type === 'cantrips';
 
   const isWizardPrepared = type === 'prepared' && className === 'Wizard';
   const isSpellbookMode = type === 'spellbook';
@@ -527,9 +524,10 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
     const n = parseInt(k);
     return isNaN(n) ? 0 : n;
   }));
-  const canSwapCantrips = className === 'Wizard' && char.level >= 3;
-  const minSpellLevel = canSwapCantrips ? 0 : 1;
-  const validLevels = Array.from({ length: maxSlotLevel - minSpellLevel + 1 }, (_, i) => i + minSpellLevel);
+  // Cantrips are chosen on their own; a spellbook, and the spells a class prepares or knows, are of 1st level or higher
+  const minSpellLevel = isCantrips ? 0 : 1;
+  const maxSpellLevel = isCantrips ? 0 : maxSlotLevel;
+  const validLevels = Array.from({ length: Math.max(0, maxSpellLevel - minSpellLevel + 1) }, (_, i) => i + minSpellLevel);
 
   const spellbookSpells = useMemo(() => {
     if (!isWizardPrepared && !isRemoveSpellbook) return [];
@@ -568,7 +566,7 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
       params.level = validLevels.join(',');
     }
     return searchSpells(params as any)
-      .then(res => res.content.filter(s => s.level >= minSpellLevel && s.level <= maxSlotLevel));
+      .then(res => res.content.filter(s => s.level >= minSpellLevel && s.level <= maxSpellLevel));
   }, setSearchResults);
 
   // Loads the list when the modal opens, and again whenever the level filter changes
@@ -617,7 +615,7 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
       if (exists) {
         setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
       } else {
-        if (knownLimit > 0 && leveled.length >= knownLimit) return;
+        if (isCantrips ? cantrips.length >= cantripLimit : knownLimit > 0 && leveled.length >= knownLimit) return;
         setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source }]);
       }
     }
@@ -625,9 +623,40 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
 
   async function handleSave() {
     setSaving(true);
-    await saveField({ spellsKnown: localSpells });
+    const characterId = char.id;
+    const classNames = (spells: SpellEntry[], levelled: boolean) => spells
+      .filter(s => s.source === source && (levelled ? s.level > 0 : s.level === 0))
+      .map(s => s.name);
+    let saved: boolean;
+    if (type === 'prepared') {
+      const spells = localSpells
+        .filter(s => s.source === source && s.level > 0 && s.prepared && !s.alwaysPrepared)
+        .map(s => s.name);
+      saved = await runCommand(setPrepared.mutateAsync({ characterId, prepared: { className, spells } }));
+    } else if (type === 'known') {
+      saved = await runCommand(setKnown.mutateAsync({
+        characterId, known: { className, spells: classNames(localSpells, true) },
+      }));
+    } else if (isCantrips) {
+      saved = await runCommand(setKnown.mutateAsync({
+        characterId, known: { className, cantrips: classNames(localSpells, false) },
+      }));
+    } else {
+      // What the spellbook gained and lost
+      const before = classNames(currentSpells, true);
+      const after = classNames(localSpells, true);
+      const added = after.filter(name => !before.includes(name));
+      const removed = before.filter(name => !after.includes(name));
+      saved = true;
+      if (added.length > 0) {
+        saved = await runCommand(addToSpellbook.mutateAsync({ characterId, spells: added }));
+      }
+      if (saved && removed.length > 0) {
+        saved = await runCommand(removeFromSpellbook.mutateAsync({ characterId, spells: removed }));
+      }
+    }
     setSaving(false);
-    onClose();
+    if (saved) onClose();
   }
 
   const displayResults = needsApiSearch ? searchResults : filteredSpellbook;
@@ -639,14 +668,18 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
         ? 'Prepare from Spellbook'
         : type === 'prepared'
           ? 'Change Prepared Spells'
-          : 'Manage Known Spells';
+          : isCantrips
+            ? 'Manage Cantrips'
+            : 'Manage Known Spells';
   const modalSubtitle = isSpellbookMode
     ? `${leveled.length} spells in spellbook`
     : isRemoveSpellbook
       ? `${leveled.length} spells in spellbook`
       : type === 'prepared'
         ? `${preparedCount}/${prepLimit} prepared`
-        : `${leveled.length}${knownLimit ? `/${knownLimit}` : ''} known`;
+        : isCantrips
+          ? `${cantrips.length}/${cantripLimit} known`
+          : `${leveled.length}${knownLimit ? `/${knownLimit}` : ''} known`;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
@@ -726,6 +759,8 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
                   disabled = !added;
                 } else if (type === 'prepared') {
                   disabled = isAlwaysPrep || (preparedCount >= prepLimit && !prepared);
+                } else if (isCantrips) {
+                  disabled = cantrips.length >= cantripLimit && !added;
                 } else {
                   disabled = isAlwaysPrep || (knownLimit > 0 && leveled.length >= knownLimit && !added);
                 }
@@ -805,359 +840,6 @@ function ManageSpellsModal({ char, type, className, casting, spellListClass, cur
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function AddFeatModal({ currentSpells, saveField, onClose }: {
-  currentSpells: SpellEntry[];
-  saveField: (u: CharacterUpdateRequest) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [allFeats, setAllFeats] = useState<Feat[]>([]);
-  const [featSearch, setFeatSearch] = useState('');
-  const [selectedFeat, setSelectedFeat] = useState<Feat | null>(null);
-  const [selectedOptionIdx, setSelectedOptionIdx] = useState<number | null>(null);
-  const [selectedAbility, setSelectedAbility] = useState<string | null>(null);
-  const [chosenCantrips, setChosenCantrips] = useState<Spell[]>([]);
-  const [chosenSpells, setChosenSpells] = useState<Spell[]>([]);
-  const [cantripResults, setCantripResults] = useState<Spell[]>([]);
-  const [spellResults, setSpellResults] = useState<Spell[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState<'pick' | 'configure'>('pick');
-
-  useEffect(() => {
-    getFeats().then(f => setAllFeats(f)).catch(() => {});
-  }, []);
-
-  const spellGrantingFeats = useMemo(() => {
-    return allFeats.filter(f => f.grantsFeatures && f.grantsFeatures !== 'null');
-  }, [allFeats]);
-
-  const filteredFeats = useMemo(() => {
-    if (!featSearch.trim()) return spellGrantingFeats;
-    const q = featSearch.trim().toLowerCase();
-    return spellGrantingFeats.filter(f => f.name.toLowerCase().includes(q));
-  }, [spellGrantingFeats, featSearch]);
-
-  const parsedOptions = useMemo(() => {
-    if (!selectedFeat) return [];
-    return parseFeatOptions(selectedFeat.grantsFeatures);
-  }, [selectedFeat]);
-
-  const selectedOption: ParsedFeatOption | null = selectedOptionIdx != null ? parsedOptions[selectedOptionIdx] ?? null : null;
-
-  useEffect(() => {
-    if (!selectedOption) return;
-    if (selectedOption.cantripChoice && selectedOption.cantripChoice.classes.length > 0) {
-      Promise.all(selectedOption.cantripChoice.classes.map(cls =>
-        searchSpells({ className: cls, level: 0, size: 50 }).then(r => r.content)
-      )).then(results => {
-        const all = results.flat();
-        const seen = new Set<string>();
-        setCantripResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-      }).catch(() => {});
-    }
-    if (selectedOption.spellChoice) {
-      if (selectedOption.spellChoice.fromList) {
-        const fakeSpells: Spell[] = selectedOption.spellChoice.fromList.map((name, i) => ({
-          id: `feat-list-${i}`, name, level: 1, school: null, castingTime: null,
-          rangeDistance: null, components: null, duration: null, concentration: false,
-          ritual: false, description: null, higherLevels: null, classes: null,
-          damageType: null, damageDice: null, saveAbility: null, source: null,
-        }));
-        setSpellResults(fakeSpells);
-      } else if (selectedOption.spellChoice.classes.length > 0) {
-        Promise.all(selectedOption.spellChoice.classes.map(cls =>
-          searchSpells({ className: cls, level: 1, size: 50 }).then(r => r.content)
-        )).then(results => {
-          const all = results.flat();
-          const seen = new Set<string>();
-          setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-        }).catch(() => {});
-      }
-    }
-    if (selectedOption.ability) setSelectedAbility(selectedOption.ability);
-  }, [selectedOptionIdx]);
-
-  function selectFeat(feat: Feat) {
-    setSelectedFeat(feat);
-    setSelectedOptionIdx(null);
-    setSelectedAbility(null);
-    setChosenCantrips([]);
-    setChosenSpells([]);
-    setCantripResults([]);
-    setSpellResults([]);
-    const opts = parseFeatOptions(feat.grantsFeatures);
-    if (opts.length === 1) {
-      setSelectedOptionIdx(0);
-    }
-    setStep('configure');
-  }
-
-  function toggleCantrip(spell: Spell) {
-    if (!selectedOption?.cantripChoice) return;
-    const exists = chosenCantrips.some(s => s.name === spell.name);
-    if (exists) setChosenCantrips(chosenCantrips.filter(s => s.name !== spell.name));
-    else if (chosenCantrips.length < selectedOption.cantripChoice.count) setChosenCantrips([...chosenCantrips, spell]);
-  }
-
-  function toggleSpell(spell: Spell) {
-    if (!selectedOption?.spellChoice) return;
-    const exists = chosenSpells.some(s => s.name === spell.name);
-    if (exists) setChosenSpells(chosenSpells.filter(s => s.name !== spell.name));
-    else if (chosenSpells.length < selectedOption.spellChoice.count) setChosenSpells([...chosenSpells, spell]);
-  }
-
-  const canSave = useMemo(() => {
-    if (!selectedFeat || !selectedOption) return false;
-    if (selectedOption.abilityChoices && !selectedAbility) return false;
-    if (selectedOption.cantripChoice && chosenCantrips.length < selectedOption.cantripChoice.count) return false;
-    if (selectedOption.spellChoice && chosenSpells.length < selectedOption.spellChoice.count) return false;
-    return true;
-  }, [selectedFeat, selectedOption, selectedAbility, chosenCantrips, chosenSpells]);
-
-  async function handleSave() {
-    if (!selectedFeat || !selectedOption) return;
-    setSaving(true);
-    const featSource = `feat:${selectedFeat.name}`;
-    const newEntries: SpellEntry[] = [];
-    for (const name of selectedOption.fixedCantrips) {
-      newEntries.push({ name, level: 0, source: featSource, atWill: true });
-    }
-    for (const s of chosenCantrips) {
-      newEntries.push({ name: s.name, level: 0, source: featSource, atWill: true });
-    }
-    for (const { name, usesPerDay } of selectedOption.fixedSpells) {
-      newEntries.push({ name, level: 1, source: featSource, usesPerLongRest: usesPerDay });
-    }
-    for (const s of chosenSpells) {
-      newEntries.push({
-        name: s.name, level: s.level, source: featSource,
-        usesPerLongRest: selectedOption.spellChoice?.usesPerDay ?? 1,
-      });
-    }
-    await saveField({ spellsKnown: [...currentSpells, ...newEntries] });
-    setSaving(false);
-    onClose();
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="add-feat-title" className="bg-card border border-rule w-full max-w-lg max-h-[85vh] flex flex-col">
-        <div className="px-4 py-3 border-b border-rule flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {step === 'configure' && (
-              <button onClick={() => { setStep('pick'); setSelectedFeat(null); }} className="text-faint hover:text-ink" aria-label="Back to feat list">
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
-            <h2 id="add-feat-title" className="font-heading text-[17px] font-semibold text-ink">
-              {step === 'pick' ? 'Add Feat Spells' : selectedFeat?.name ?? ''}
-            </h2>
-          </div>
-          <button onClick={onClose} className="text-faint hover:text-ink"><X className="w-5 h-5" /></button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-          {step === 'pick' && (
-            <>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
-                <input
-                  value={featSearch}
-                  onChange={e => setFeatSearch(e.target.value)}
-                  placeholder="Search spell-granting feats..."
-                  className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
-                />
-              </div>
-              <div className="space-y-1">
-                {filteredFeats.map(feat => (
-                  <button
-                    key={feat.id}
-                    onClick={() => selectFeat(feat)}
-                    className="w-full flex items-center justify-between py-2 px-3 font-body text-[15px] font-semibold text-muted hover:bg-page-alt transition-colors"
-                  >
-                    <span>{feat.name}</span>
-                    <span className="text-[13px] text-faint">{feat.source}</span>
-                  </button>
-                ))}
-                {filteredFeats.length === 0 && (
-                  <p className="font-body text-[15px] text-faint py-4 text-center">No spell-granting feats found.</p>
-                )}
-              </div>
-            </>
-          )}
-
-          {step === 'configure' && selectedFeat && (
-            <>
-              {parsedOptions.length > 1 && (
-                <div>
-                  <p className="font-body text-[14px] text-muted mb-2">Choose an option:</p>
-                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-                    {parsedOptions.map((opt, i) => (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          setSelectedOptionIdx(selectedOptionIdx === i ? null : i);
-                          setSelectedAbility(null);
-                          setChosenCantrips([]);
-                          setChosenSpells([]);
-                        }}
-                        className={`px-3 py-2 border font-body text-[14px] text-left transition-colors ${
-                          selectedOptionIdx === i
-                            ? 'bg-cls-cleric-bg border-cls-cleric text-ink'
-                            : 'bg-page border-rule text-muted hover:border-muted'
-                        }`}
-                      >
-                        <span className="font-semibold">{opt.name}</span>
-                        {opt.fixedCantrips.length > 0 && (
-                          <span className="block text-faint mt-0.5">{opt.fixedCantrips.join(', ')}</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedOption?.abilityChoices && (
-                <div>
-                  <p className="font-body text-[14px] text-muted mb-2">Spellcasting Ability:</p>
-                  <div className="flex gap-1.5">
-                    {selectedOption.abilityChoices.map(a => (
-                      <button
-                        key={a}
-                        onClick={() => setSelectedAbility(selectedAbility === a ? null : a)}
-                        className={`px-3 py-1.5 font-heading text-[13px] font-semibold transition-colors ${
-                          selectedAbility === a ? 'bg-ink text-card' : 'bg-page border border-rule text-muted hover:bg-page-alt'
-                        }`}
-                      >
-                        {a}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedOption?.fixedCantrips.length ? (
-                <div>
-                  <p className="font-body text-[14px] text-muted mb-1">Granted cantrips:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedOption.fixedCantrips.map(name => (
-                      <span key={name} className="bg-cls-cleric-bg border border-cls-cleric-border text-cls-cleric px-2 py-1 font-body text-[13px] font-semibold">{name}</span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {selectedOption?.cantripChoice && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-body text-[14px] text-muted">Choose {selectedOption.cantripChoice.count} cantrip{selectedOption.cantripChoice.count > 1 ? 's' : ''}:</p>
-                    <span className="font-body text-[13px] text-faint">{chosenCantrips.length}/{selectedOption.cantripChoice.count}</span>
-                  </div>
-                  {chosenCantrips.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {chosenCantrips.map(s => (
-                        <span key={s.name} className="flex items-center gap-1 bg-cls-cleric-bg border border-cls-cleric-border text-cls-cleric px-2 py-1 font-body text-[13px] font-semibold">
-                          {s.name}
-                          <button onClick={() => toggleCantrip(s)} className="text-cls-cleric hover:text-ink"><X className="w-3 h-3" /></button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="max-h-32 overflow-y-auto space-y-1">
-                    {cantripResults.map(spell => {
-                      const sel = chosenCantrips.some(s => s.name === spell.name);
-                      const dis = !sel && chosenCantrips.length >= selectedOption!.cantripChoice!.count;
-                      return (
-                        <button
-                          key={spell.id}
-                          onClick={() => !dis && toggleCantrip(spell)}
-                          disabled={dis}
-                          className={`w-full flex items-center justify-between py-1 px-2 rounded text-xs transition-colors ${
-                            sel ? 'bg-cls-cleric-bg text-cls-cleric' : dis ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page-alt'
-                          }`}
-                        >
-                          <span>{spell.name}</span>
-                          {sel && <Check className="w-3 h-3 text-cls-cleric" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {selectedOption?.fixedSpells.length ? (
-                <div>
-                  <p className="font-body text-[14px] text-muted mb-1">Granted spells:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedOption.fixedSpells.map(s => (
-                      <span key={s.name} className="bg-cls-cleric-bg border border-cls-cleric-border text-cls-cleric px-2 py-1 font-body text-[13px] font-semibold">{s.name} ({s.usesPerDay}/day)</span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {selectedOption?.spellChoice && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-body text-[14px] text-muted">
-                      Choose {selectedOption.spellChoice.count} spell{selectedOption.spellChoice.count > 1 ? 's' : ''} ({selectedOption.spellChoice.usesPerDay}/day):
-                    </p>
-                    <span className="font-body text-[13px] text-faint">{chosenSpells.length}/{selectedOption.spellChoice.count}</span>
-                  </div>
-                  {chosenSpells.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {chosenSpells.map(s => (
-                        <span key={s.name} className="flex items-center gap-1 bg-cls-cleric-bg border border-cls-cleric-border text-cls-cleric px-2 py-1 font-body text-[13px] font-semibold">
-                          {s.name}
-                          <button onClick={() => toggleSpell(s)} className="text-cls-cleric hover:text-ink"><X className="w-3 h-3" /></button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="max-h-32 overflow-y-auto space-y-1">
-                    {spellResults.map(spell => {
-                      const sel = chosenSpells.some(s => s.name === spell.name);
-                      const dis = !sel && chosenSpells.length >= selectedOption!.spellChoice!.count;
-                      return (
-                        <button
-                          key={spell.id}
-                          onClick={() => !dis && toggleSpell(spell)}
-                          disabled={dis}
-                          className={`w-full flex items-center justify-between py-1 px-2 rounded text-xs transition-colors ${
-                            sel ? 'bg-cls-cleric-bg text-cls-cleric' : dis ? 'text-faint cursor-not-allowed' : 'text-muted hover:bg-page-alt'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span>{spell.name}</span>
-                            {spell.school && <span className="text-faint">{spell.school}</span>}
-                          </div>
-                          {sel && <Check className="w-3 h-3 text-cls-cleric" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {step === 'configure' && (
-          <div className="px-4 py-3 border-t border-rule flex justify-end gap-2">
-            <button onClick={onClose} className="px-3 py-1.5 font-body text-[15px] font-semibold text-muted hover:text-ink transition-colors">Cancel</button>
-            <button
-              onClick={handleSave}
-              disabled={!canSave || saving}
-              className="px-4 py-1.5 bg-ink text-card font-body text-[15px] font-semibold hover:opacity-80 transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Add Feat Spells'}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
-import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
@@ -134,8 +133,8 @@ public class PlayerCharacter {
     private Integer proficiencyBonus = 2;
 
     // The JSONB columns map to records (D168). The deprecated hit_dice_total, hit_dice_remaining and hit_dice_map,
-    // which hit_dice replaces, and prepared_spells, attuned_items and equipped_items, which nothing read, are no
-    // longer mapped; R7 drops them.
+    // which hit_dice replaces, prepared_spells, attuned_items and equipped_items, which nothing read, and
+    // feat_resources, whose uses are now pools (D158), are no longer mapped; R7 drops them.
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "saving_throw_proficiencies", columnDefinition = "jsonb")
@@ -253,11 +252,6 @@ public class PlayerCharacter {
     @Column(name = "level_history", columnDefinition = "jsonb")
     private List<LevelHistoryEntry> levelHistory;
 
-    // DEPRECATED: meant to be superseded by resource_pools, but feats with uses, rests and the sheet still use it
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "feat_resources", columnDefinition = "jsonb")
-    private List<FeatResourceEntry> featResources;
-
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "resource_pools", columnDefinition = "jsonb")
     private List<ResourcePoolEntry> resourcePools;
@@ -265,6 +259,11 @@ public class PlayerCharacter {
     @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;
+
+    // The backstop behind the row lock every command takes: a write from a copy that someone else has changed since
+    // fails instead of overwriting it (D158, V21)
+    @Version
+    private Long version;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

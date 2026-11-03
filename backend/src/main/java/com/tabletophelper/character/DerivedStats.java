@@ -24,7 +24,8 @@ import java.util.Map;
  *                             them at creation, or else the first class's that casts; null for neither
  * @param spellSaveDc          the main save DC, from that ability; null without one
  * @param spellAttackBonus     the main attack bonus, from that ability; null without one
- * @param resourcePools        the pools the character's classes, subclasses and innate spells give, keeping their uses
+ * @param resourcePools        the pools the character's classes, subclasses, innate spells and feats give, keeping
+ *                             their uses
  * @param warnings             what the rules would refuse but the sheet already has, such as more cantrips than the
  *                             class knows; nothing changes them
  */

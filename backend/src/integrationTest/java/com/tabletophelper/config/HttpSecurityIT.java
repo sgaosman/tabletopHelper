@@ -263,7 +263,7 @@ class HttpSecurityIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("A character cannot be attached to a campaign its owner has not joined, on create or on update")
+    @DisplayName("A character cannot be attached to a campaign its owner has not joined, on create or by the campaign command")
     void attachingCharacterNeedsMembership() {
         var dm = register("dungeonmaster");
         var player = register("aria");
@@ -278,7 +278,7 @@ class HttpSecurityIT extends IntegrationTest {
                 "intelligence", 10, "wisdom", 10, "charisma", 10));
         createBody.put("campaignId", campaignId);
         var onCreate = exchange(HttpMethod.POST, "/api/characters", createBody, player.accessToken());
-        var onUpdate = exchange(HttpMethod.PUT, "/api/characters/" + characterId,
+        var onUpdate = exchange(HttpMethod.PUT, "/api/characters/" + characterId + "/campaign",
                 Map.of("campaignId", campaignId), player.accessToken());
 
         assertThat(onCreate.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -338,7 +338,7 @@ class HttpSecurityIT extends IntegrationTest {
         join(owner.accessToken(), campaign);
         join(otherPlayer.accessToken(), campaign);
         UUID characterId = createCharacter(owner.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
-        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + characterId,
+        expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + characterId + "/campaign",
                 Map.of("campaignId", campaign.get("id").asText()), owner.accessToken()));
 
         var asOtherPlayer = exchange(HttpMethod.GET, "/api/characters/" + characterId, null, otherPlayer.accessToken());

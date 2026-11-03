@@ -77,7 +77,6 @@ class FeatEffectResolverTest {
                 .damageResistances(List.of())
                 .features(List.of())
                 .spellsKnown(null)
-                .featResources(null)
                 .build();
     }
 
@@ -269,7 +268,7 @@ class FeatEffectResolverTest {
     // --- 6.10 Resource pool: Lucky ---
 
     @Test
-    @DisplayName("6.10 Resource pool: Lucky creates 3 luck points")
+    @DisplayName("6.10 Lucky records its 3 luck points, of which CharacterStats makes the sheet a pool (D158)")
     void resourcePoolLucky() throws Exception {
         PlayerCharacter c = baseCharacter();
 
@@ -284,8 +283,9 @@ class FeatEffectResolverTest {
         assertEquals(3, effects.resource().maxUses());
         assertEquals(3, effects.resource().currentUses());
         assertEquals("longRest", effects.resource().resetOn());
-        assertNotNull(c.getFeatResources());
-        assertTrue(c.getFeatResources().stream().anyMatch(r -> "Luck Points".equals(r.name())));
+        assertEquals("Lucky", effects.resource().featName());
+        // The pool is a Derived Stat: applying the feat leaves the pools to CharacterStats
+        assertNull(c.getResourcePools());
     }
 
     // --- 6.11 Spell grant: Magic Initiate ---

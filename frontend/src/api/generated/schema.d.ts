@@ -172,7 +172,7 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getCharacter"];
-        put: operations["updateCharacter"];
+        put?: never;
         post?: never;
         delete: operations["deleteCharacter"];
         options?: never;
@@ -196,6 +196,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{characterId}/campaign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setCampaign"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateDetails"];
+        trace?: never;
+    };
     "/api/characters/{characterId}/eligible-classes": {
         parameters: {
             query?: never;
@@ -205,6 +237,38 @@ export interface paths {
         };
         get: operations["getEligibleClasses"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/hp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeHitPoints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateInventory"];
         post?: never;
         delete?: never;
         options?: never;
@@ -238,6 +302,150 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["levelUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/long-rest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["longRest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/pools/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recoverPool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/pools/spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["spendPool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/short-rest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["shortRest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/spell-slots/{slot}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restoreSlot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/spell-slots/{slot}/spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["spendSlot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/spellbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addToSpellbook"];
+        delete: operations["removeFromSpellbook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/spells/known": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setKnownSpells"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{characterId}/spells/prepared": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setPreparedSpells"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1586,6 +1794,10 @@ export interface components {
             spellSource: "SLOT" | "PACT_SLOT" | "INNATE" | "NONE";
             targets: components["schemas"]["TargetOutcome"][];
         };
+        CharacterCampaignRequest: {
+            /** Format: uuid */
+            campaignId?: string | null;
+        };
         CharacterClass: {
             armorProficiencies?: string | null;
             /** Format: date-time */
@@ -1662,6 +1874,18 @@ export interface components {
             /** Format: int32 */
             wisdom?: number | null;
         };
+        CharacterDetailsRequest: {
+            alignment?: string | null;
+            bonds?: string | null;
+            /** Format: int32 */
+            experiencePoints?: number | null;
+            flaws?: string | null;
+            ideals?: string | null;
+            name?: string | null;
+            notes?: string | null;
+            personalityTraits?: string | null;
+            portraitUrl?: string | null;
+        };
         CharacterResponse: {
             abilityScoreMaximums: components["schemas"]["AbilityScoreMaximums"];
             abilityScoreMethod?: string | null;
@@ -1699,7 +1923,6 @@ export interface components {
             equipment?: components["schemas"]["InventoryItem"][] | null;
             /** Format: int32 */
             experiencePoints: number;
-            featResources?: components["schemas"]["FeatResourceEntry"][] | null;
             features?: components["schemas"]["Feature"][] | null;
             flaws?: string | null;
             hitDice?: {
@@ -1714,6 +1937,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             ideals?: string | null;
+            inLiveEncounter: boolean;
             /** Format: int32 */
             initiativeBonus: number;
             /** Format: int32 */
@@ -1771,66 +1995,6 @@ export interface components {
             weaponProficiencies?: string[] | null;
             /** Format: int32 */
             wisdom: number;
-        };
-        CharacterUpdateRequest: {
-            abilityScoreMethod?: string | null;
-            alignment?: string | null;
-            armorProficiencies?: string[] | null;
-            background?: string | null;
-            /** Format: uuid */
-            backgroundId?: string | null;
-            bonds?: string | null;
-            /** Format: uuid */
-            campaignId?: string | null;
-            /** Format: int32 */
-            charisma?: number | null;
-            clearCampaign?: boolean | null;
-            conditionImmunities?: string[] | null;
-            /** Format: int32 */
-            constitution?: number | null;
-            currency?: components["schemas"]["Currency"] | null;
-            damageImmunities?: string[] | null;
-            damageResistances?: string[] | null;
-            /** Format: int32 */
-            dexterity?: number | null;
-            equipment?: components["schemas"]["InventoryItem"][] | null;
-            /** Format: int32 */
-            experiencePoints?: number | null;
-            featResources?: components["schemas"]["FeatResourceEntry"][] | null;
-            flaws?: string | null;
-            hitDice?: {
-                [key: string]: components["schemas"]["HitDicePool"];
-            } | null;
-            /** Format: int32 */
-            hpCurrent?: number | null;
-            /** Format: int32 */
-            hpTemp?: number | null;
-            ideals?: string | null;
-            /** Format: int32 */
-            intelligence?: number | null;
-            languageProficiencies?: string[] | null;
-            name?: string | null;
-            notes?: string | null;
-            personalityTraits?: string | null;
-            portraitUrl?: string | null;
-            race?: string | null;
-            /** Format: uuid */
-            raceId?: string | null;
-            racialAbilityBonuses?: components["schemas"]["AbilityBonus"][] | null;
-            resourcePools?: components["schemas"]["ResourcePoolEntry"][] | null;
-            savingThrowProficiencies?: string[] | null;
-            skillExpertises?: string[] | null;
-            skillProficiencies?: string[] | null;
-            spellSlots?: {
-                [key: string]: components["schemas"]["SpellSlot"];
-            } | null;
-            spellsKnown?: components["schemas"]["KnownSpell"][] | null;
-            /** Format: int32 */
-            strength?: number | null;
-            toolProficiencies?: string[] | null;
-            weaponProficiencies?: string[] | null;
-            /** Format: int32 */
-            wisdom?: number | null;
         };
         ClassEntry: {
             /** Format: uuid */
@@ -2052,6 +2216,17 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        HitDieSpent: {
+            className: string;
+            /** Format: int32 */
+            roll?: number | null;
+        };
+        HitPointChangeRequest: {
+            /** Format: int32 */
+            amount: number;
+            /** @enum {string} */
+            kind: "DAMAGE" | "HEALING" | "TEMPORARY";
+        };
         InventoryItem: {
             attuned?: boolean | null;
             description?: string | null;
@@ -2061,6 +2236,10 @@ export interface components {
             name: string;
             /** Format: int32 */
             quantity?: number | null;
+        };
+        InventoryRequest: {
+            currency: components["schemas"]["Currency"];
+            equipment: components["schemas"]["InventoryItem"][];
         };
         Item: {
             attunementCondition?: string | null;
@@ -2102,6 +2281,11 @@ export interface components {
             unlocksAtLevel?: number | null;
             /** Format: int32 */
             usesPerLongRest?: number | null;
+        };
+        KnownSpellsRequest: {
+            cantrips?: string[] | null;
+            className: string;
+            spells?: string[] | null;
         };
         LairStatusRequest: {
             monsterIds?: string[] | null;
@@ -2398,11 +2582,20 @@ export interface components {
             spellSelectionType?: string | null;
             subclassRequired: boolean;
         };
+        PoolUseRequest: {
+            /** Format: int32 */
+            amount?: number | null;
+            poolId: string;
+        };
         PowerAttackOption: {
             /** Format: int32 */
             attackBonus: number;
             damage: string;
             feat: string;
+        };
+        PreparedSpellsRequest: {
+            className: string;
+            spells: string[];
         };
         ProficienciesGained: {
             armor?: string[] | null;
@@ -2488,6 +2681,9 @@ export interface components {
             /** Format: uuid */
             participantId: string;
         };
+        ShortRestRequest: {
+            hitDice?: components["schemas"]["HitDieSpent"][] | null;
+        };
         SortObject: {
             empty?: boolean | null;
             sorted?: boolean | null;
@@ -2555,6 +2751,9 @@ export interface components {
             maxTargets: number;
             selfOnly: boolean;
             targetType: string;
+        };
+        SpellbookRequest: {
+            spells: string[];
         };
         Subclass: {
             additionalProficiencies?: string | null;
@@ -2925,32 +3124,6 @@ export interface operations {
             };
         };
     };
-    updateCharacter: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                characterId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CharacterUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CharacterResponse"];
-                };
-            };
-        };
-    };
     deleteCharacter: {
         parameters: {
             query?: never;
@@ -2997,6 +3170,58 @@ export interface operations {
             };
         };
     };
+    setCampaign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterCampaignRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    updateDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterDetailsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
     getEligibleClasses: {
         parameters: {
             query?: never;
@@ -3015,6 +3240,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EligibleClassResponse"][];
+                };
+            };
+        };
+    };
+    changeHitPoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HitPointChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    updateInventory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
                 };
             };
         };
@@ -3063,6 +3340,256 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LevelUpResponse"];
+                };
+            };
+        };
+    };
+    longRest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    recoverPool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PoolUseRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    spendPool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PoolUseRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    shortRest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ShortRestRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    restoreSlot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+                slot: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    spendSlot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+                slot: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    addToSpellbook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpellbookRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    removeFromSpellbook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpellbookRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    setKnownSpells: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnownSpellsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    setPreparedSpells: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreparedSpellsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
                 };
             };
         };

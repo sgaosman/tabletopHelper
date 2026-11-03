@@ -99,9 +99,14 @@ export const characterHandlers = [
     return HttpResponse.json(makeMockCharacter('char-new', 'New Character', 'Ranger', 1));
   }),
 
-  http.put(`${BASE}/characters/:id`, async () => {
-    return HttpResponse.json(makeMockCharacter('char-001', 'Updated Character', 'Fighter', 6));
-  }),
+  // The sheet's intent commands (D158), each answering with the character
+  ...[
+    ['patch', 'details'], ['put', 'campaign'], ['put', 'inventory'], ['post', 'hp'],
+    ['post', 'spell-slots/:slot/spend'], ['post', 'spell-slots/:slot/restore'], ['post', 'pools/spend'],
+    ['post', 'pools/recover'], ['post', 'short-rest'], ['post', 'long-rest'], ['put', 'spells/prepared'],
+    ['put', 'spells/known'], ['post', 'spellbook'], ['delete', 'spellbook'],
+  ].map(([method, path]) => http[method as 'patch' | 'put' | 'post' | 'delete'](`${BASE}/characters/:id/${path}`,
+    async ({ params }) => HttpResponse.json(makeMockCharacter(params.id as string, 'Test Character', 'Wizard', 3)))),
 
   http.delete(`${BASE}/characters/:id`, async () => {
     return new HttpResponse(null, { status: 204 });
@@ -424,7 +429,7 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     multiclassEntries: null,
     hitDice: { [cls]: { total: level, remaining: level, dieSize: 10 } },
     levelHistory: [{ characterLevel: 1, classId: 'cls-fighter', className: cls, classLevel: 1, hpGained: 12, hitDieResult: 10, featuresGained: [], choices: {} }],
-    featResources: null, isActive: true,
+    isActive: true, inLiveEncounter: false,
     createdAt: makeTimestamp(), updatedAt: makeTimestamp(),
   } satisfies PlayerCharacter;
 }

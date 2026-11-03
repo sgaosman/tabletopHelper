@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.WeaponRules.PowerAttack;
@@ -73,6 +74,21 @@ class CharacterWeaponsTest {
         assertEquals(new WeaponRules.Weapon("Dagger", WeaponRules.Category.SIMPLE, false, true, false, Dice.parse("1d4"),
                 "piercing"), dagger);
         assertTrue(held.getLast().proficient());
+    }
+
+    @Test
+    @DisplayName("An entry linked to a mundane weapon is that weapon whatever its name; one linked to another item is matched by name (D164)")
+    void linkedEntriesMatchTheirItemFirst() {
+        Item longsword = weapon("Longsword", "Melee Weapon", "martial", "1d8", "slashing", "V");
+        Item greatsword = weapon("Greatsword", "Melee Weapon", "martial", "2d6", "slashing", "H", "2H");
+        when(itemRepository.findMundaneWeapons()).thenReturn(List.of(longsword, greatsword));
+        character.setEquipment(List.of(
+                new InventoryItem("Grandfather's blade", 1, null, greatsword.getId(), null, null),
+                // Linked to an item that isn't a mundane weapon, such as a magic one
+                new InventoryItem("Longsword", 1, null, UUID.randomUUID(), null, null),
+                new InventoryItem("Heirloom", 1, null, UUID.randomUUID(), null, null)));
+
+        assertEquals(List.of("Greatsword", "Longsword", "Unarmed Strike"), names(weapons.of(character)));
     }
 
     @Test

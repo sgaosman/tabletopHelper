@@ -31,6 +31,7 @@ function mockCharacter(overrides: Partial<PlayerCharacter> = {}): PlayerCharacte
     spellcasting: [],
     abilityScoreMaximums: { strength: 20, dexterity: 20, constitution: 20, intelligence: 20, wisdom: 20, charisma: 20 },
     isActive: true,
+    inLiveEncounter: false,
     createdAt: '2024-01-01',
     updatedAt: '2024-01-01',
     ...overrides,

@@ -11,7 +11,6 @@ import com.tabletophelper.character.dto.LevelUpRequest;
 import com.tabletophelper.character.dto.LevelUpResponse;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.ClassEntry;
-import com.tabletophelper.encounter.EncounterParticipantRepository;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.BackgroundRepository;
@@ -20,14 +19,18 @@ import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.FeatRepository;
+import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.RaceRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.Rng;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,11 +43,13 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 /**
- * CharacterService wired as in the app, with CharacterStats, CharacterMapper, FeatEffectResolver and
- * ResourcePoolService real, over mocked repositories. Saved characters are kept in memory, so a test creates a
- * character through the service and levels it up and down by its ID. The classes carry the class data the rules
- * read: hit dice, spellcasting, the features of the levels the tests take, and multiclassing prerequisites and
- * proficiencies as the 5eTools data has them. A Fighter gains Action Surge's pool at 2nd level.
+ * The character services wired as in the app, with CharacterStats, CharacterMapper, CharacterCommands,
+ * FeatEffectResolver and ResourcePoolService real, over mocked repositories, a mocked LiveEncounters (no character is
+ * in an encounter until a test says so) and dice a test scripts. Saved characters are kept in memory, so a test
+ * creates a character through the service and levels it up and down, rests it and changes its sheet by its ID; the
+ * row lock is the stored character itself. The classes carry the class data the rules read: hit dice, spellcasting,
+ * the features of the levels the tests take, and multiclassing prerequisites and proficiencies as the 5eTools data has
+ * them. A Fighter gains Action Surge's pool at 2nd level.
  */
 class CharacterFixture {
 
@@ -56,20 +61,40 @@ class CharacterFixture {
     final CharacterClassRepository classRepository = mock(CharacterClassRepository.class);
     final SubclassRepository subclassRepository = mock(SubclassRepository.class);
     final BackgroundRepository backgroundRepository = mock(BackgroundRepository.class);
-    final EncounterParticipantRepository participantRepository = mock(EncounterParticipantRepository.class);
     final FeatRepository featRepository = mock(FeatRepository.class);
     final SpellRepository spellRepository = mock(SpellRepository.class);
+    final ItemRepository itemRepository = mock(ItemRepository.class);
     final ClassFeaturePoolRepository featurePoolRepository = mock(ClassFeaturePoolRepository.class);
+    final LiveEncounters liveEncounters = mock(LiveEncounters.class);
+
+    // The rolls the server's dice will make, in order; running out fails the test
+    final Deque<Integer> rolls = new ArrayDeque<>();
+    final Rng rng = sides -> {
+        Integer roll = rolls.poll();
+        if (roll == null) {
+            throw new IllegalStateException("No scripted roll left for a d" + sides);
+        }
+        return roll;
+    };
 
     final ObjectMapper objectMapper = new ObjectMapper();
+    final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final ResourcePoolService resourcePoolService = new ResourcePoolService(featurePoolRepository);
     final CharacterStats characterStats = new CharacterStats(classRepository, resourcePoolService, objectMapper);
-    final CharacterMapper mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats);
+    final CharacterMapper mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats, liveEncounters);
+    final CharacterCommands commands = new CharacterCommands(characterRepository, accessPolicy, liveEncounters,
+            characterStats, mapper);
+    final InventoryChecks inventoryChecks = new InventoryChecks(itemRepository);
     final FeatEffectResolver featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
     final CharacterService service = new CharacterService(characterRepository, userService, campaignRepository,
-            raceRepository, classRepository, subclassRepository, backgroundRepository, participantRepository,
-            featRepository, featEffectResolver, mapper, objectMapper, resourcePoolService,
-            new AccessPolicy(campaignRepository, campaignMemberRepository), characterStats);
+            raceRepository, classRepository, subclassRepository, backgroundRepository, featRepository,
+            featEffectResolver, mapper, objectMapper, accessPolicy, characterStats, commands, liveEncounters,
+            inventoryChecks);
+    final CharacterSheetService sheet = new CharacterSheetService(commands, campaignRepository, accessPolicy,
+            inventoryChecks);
+    final RestService rests = new RestService(commands, resourcePoolService, rng);
+    final CharacterSpellService spells = new CharacterSpellService(commands, characterStats, spellRepository,
+            objectMapper);
 
     final UUID userId = UUID.randomUUID();
     final User user = User.builder().id(userId).username("aria").email("aria@test.com").passwordHash("hash")
@@ -148,6 +173,11 @@ class CharacterFixture {
         });
         lenient().when(characterRepository.findById(any(UUID.class)))
                 .thenAnswer(inv -> Optional.ofNullable(saved.get(inv.<UUID>getArgument(0))));
+        lenient().when(characterRepository.lockById(any(UUID.class)))
+                .thenAnswer(inv -> Optional.ofNullable(saved.get(inv.<UUID>getArgument(0))));
+        lenient().when(characterRepository.findOwnerIdById(any(UUID.class)))
+                .thenAnswer(inv -> Optional.ofNullable(saved.get(inv.<UUID>getArgument(0)))
+                        .map(pc -> pc.getUser().getId()));
         ClassFeaturePool surge = ClassFeaturePool.builder().characterClass(fighter).minLevel(2)
                 .poolDefinition(actionSurge).build();
         lenient().when(featurePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(

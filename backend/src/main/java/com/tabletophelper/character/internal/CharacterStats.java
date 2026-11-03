@@ -41,10 +41,10 @@ import java.util.function.Function;
  * rules in rules.character: the proficiency bonus, hit point maximum, initiative and speed, the ability scores and
  * their maximums, the spell slot and Hit Dice maximums, what each class casts with, and the main spell save DC and
  * attack bonus that race and feat spells use (D164). Applying it writes the stored copies and syncs the resource
- * pools, the innate uses of known spells among them (D165).
+ * pools, the innate uses of known spells (D165) and the limited uses of feats, such as Lucky's, among them (D158).
  * <p>
  * Tough, the Hill Dwarf and the Draconic Bloodline are matched by name until R7's data files hold their effects, and
- * initiative and speed add only the feat bonuses the level history records.
+ * initiative, speed and feats' pools come only from the feats the level history records.
  */
 @Component
 @RequiredArgsConstructor

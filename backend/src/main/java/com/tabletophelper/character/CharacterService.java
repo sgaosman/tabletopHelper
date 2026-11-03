@@ -12,20 +12,13 @@ import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
-import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.Feature;
-import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.ProficienciesGained;
-import com.tabletophelper.character.state.ResourcePoolEntry;
-import com.tabletophelper.character.state.SpellSlot;
-import com.tabletophelper.encounter.EncounterParticipantRepository;
-import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.*;
-import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
@@ -44,9 +37,11 @@ import static com.tabletophelper.character.CharacterUpdates.copy;
 import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 
 /**
- * Characters: creating them, levelling them up and down, the choices levels bring, rests and the interim PUT. After
- * every change CharacterStats works out the Derived Stats again, writes their stored copies and syncs the pools
- * (D158, D167), so nothing here does that arithmetic itself.
+ * Characters: creating them, levelling them up and down and the choices levels bring, deleting them and reading them.
+ * The sheet's other commands are CharacterSheetService's, RestService's and CharacterSpellService's (D158). Every
+ * change starts in CharacterCommands, which checks access and locks the row, and after it CharacterStats works out the
+ * Derived Stats again, writes their stored copies and syncs the pools (D158, D167), so nothing here does that
+ * arithmetic itself.
  */
 @Service
 @RequiredArgsConstructor
@@ -66,14 +61,15 @@ public class CharacterService {
     private final CharacterClassRepository characterClassRepository;
     private final SubclassRepository subclassRepository;
     private final BackgroundRepository backgroundRepository;
-    private final EncounterParticipantRepository encounterParticipantRepository;
     private final FeatRepository featRepository;
     private final FeatEffectResolver featEffectResolver;
     private final CharacterMapper characterMapper;
     private final ObjectMapper objectMapper;
-    private final ResourcePoolService resourcePoolService;
     private final AccessPolicy accessPolicy;
     private final CharacterStats characterStats;
+    private final CharacterCommands characterCommands;
+    private final LiveEncounters liveEncounters;
+    private final InventoryChecks inventoryChecks;
 
     // ── Creating ─────────────────────────────────────────────────
 
@@ -230,8 +226,8 @@ public class CharacterService {
                 .damageResistances(request.getDamageResistances())
                 .spellsKnown(request.getSpellsKnown())
                 .spellcastingAbility(chosenSpellcastingAbility(request.getSpellcastingAbility()))
-                .equipment(request.getEquipment())
-                .currency(request.getCurrency() != null ? request.getCurrency() : Currency.NONE)
+                .equipment(request.getEquipment() != null ? inventoryChecks.checked(request.getEquipment()) : null)
+                .currency(request.getCurrency() != null ? InventoryChecks.checked(request.getCurrency()) : Currency.NONE)
                 .multiclassEntries(multiclassEntries)
                 .levelHistory(LevelUpCalculator.levelHistory(progression))
                 .build();
@@ -260,142 +256,11 @@ public class CharacterService {
         character.setLevelHistory(history);
     }
 
-    // ── The interim PUT ──────────────────────────────────────────
-
-    @Transactional
-    public CharacterResponse updateCharacter(UUID characterId, CharacterUpdateRequest request, UUID userId) {
-        PlayerCharacter character = loadCharacter(characterId);
-        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
-
-        if (request.getName() != null) character.setName(request.getName());
-        if (request.getRace() != null) character.setRace(request.getRace());
-        if (request.getExperiencePoints() != null) character.setExperiencePoints(request.getExperiencePoints());
-        if (request.getBackground() != null) character.setBackground(request.getBackground());
-        if (request.getAlignment() != null) character.setAlignment(request.getAlignment());
-        if (request.getAbilityScoreMethod() != null) character.setAbilityScoreMethod(request.getAbilityScoreMethod());
-        if (request.getRacialAbilityBonuses() != null) character.setRacialAbilityBonuses(request.getRacialAbilityBonuses());
-
-        if (request.getRaceId() != null) {
-            Race r = raceRepository.findById(request.getRaceId())
-                    .orElseThrow(() -> new ValidationException("Race not found"));
-            character.setRaceRef(r);
-            character.setRace(r.getName());
-        }
-        if (request.getBackgroundId() != null) {
-            Background bg = backgroundRepository.findById(request.getBackgroundId())
-                    .orElseThrow(() -> new ValidationException("Background not found"));
-            character.setBackgroundRef(bg);
-            character.setBackground(bg.getName());
-        }
-
-        if (request.getStrength() != null) character.setStrength(request.getStrength());
-        if (request.getDexterity() != null) character.setDexterity(request.getDexterity());
-        if (request.getConstitution() != null) character.setConstitution(request.getConstitution());
-        if (request.getIntelligence() != null) character.setIntelligence(request.getIntelligence());
-        if (request.getWisdom() != null) character.setWisdom(request.getWisdom());
-        if (request.getCharisma() != null) character.setCharisma(request.getCharisma());
-
-        if (request.getHpCurrent() != null) character.setHpCurrent(request.getHpCurrent());
-        if (request.getHpTemp() != null) character.setHpTemp(request.getHpTemp());
-
-        if (request.getSavingThrowProficiencies() != null) character.setSavingThrowProficiencies(request.getSavingThrowProficiencies());
-        if (request.getSkillProficiencies() != null) character.setSkillProficiencies(request.getSkillProficiencies());
-        if (request.getSkillExpertises() != null) character.setSkillExpertises(request.getSkillExpertises());
-        if (request.getArmorProficiencies() != null) character.setArmorProficiencies(request.getArmorProficiencies());
-        if (request.getWeaponProficiencies() != null) character.setWeaponProficiencies(request.getWeaponProficiencies());
-        if (request.getToolProficiencies() != null) character.setToolProficiencies(request.getToolProficiencies());
-        if (request.getLanguageProficiencies() != null) character.setLanguageProficiencies(request.getLanguageProficiencies());
-        if (request.getDamageResistances() != null) character.setDamageResistances(request.getDamageResistances());
-        if (request.getDamageImmunities() != null) character.setDamageImmunities(request.getDamageImmunities());
-        if (request.getConditionImmunities() != null) character.setConditionImmunities(request.getConditionImmunities());
-
-        if (request.getSpellsKnown() != null) character.setSpellsKnown(request.getSpellsKnown());
-        if (request.getSpellSlots() != null) {
-            character.setSpellSlots(withUsedCounts(character.getSpellSlots(), request.getSpellSlots()));
-        }
-
-        if (request.getEquipment() != null) character.setEquipment(request.getEquipment());
-        if (request.getCurrency() != null) character.setCurrency(request.getCurrency());
-
-        if (request.getPersonalityTraits() != null) character.setPersonalityTraits(request.getPersonalityTraits());
-        if (request.getIdeals() != null) character.setIdeals(request.getIdeals());
-        if (request.getBonds() != null) character.setBonds(request.getBonds());
-        if (request.getFlaws() != null) character.setFlaws(request.getFlaws());
-        if (request.getNotes() != null) character.setNotes(request.getNotes());
-        if (request.getPortraitUrl() != null) character.setPortraitUrl(request.getPortraitUrl());
-
-        if (request.getHitDice() != null) {
-            character.setHitDice(withRemainingCounts(character.getHitDice(), request.getHitDice()));
-        }
-        if (request.getFeatResources() != null) character.setFeatResources(request.getFeatResources());
-        if (request.getResourcePools() != null) {
-            character.setResourcePools(withCurrentUses(character.getResourcePools(), request.getResourcePools()));
-        }
-
-        if (Boolean.TRUE.equals(request.getClearCampaign())) {
-            character.setCampaign(null);
-        } else if (request.getCampaignId() != null) {
-            Campaign campaign = campaignRepository.findById(request.getCampaignId())
-                    .orElseThrow(() -> new ValidationException("Campaign not found"));
-            accessPolicy.requireMember(campaign.getId(), userId);
-            character.setCampaign(campaign);
-        }
-
-        characterStats.apply(character);
-        character = characterRepository.save(character);
-        return characterMapper.toResponse(character);
-    }
-
-    // The slots with the used counts asked for, each between 0 and the slot's maximum; a slot the character
-    // doesn't have is ignored
-    private static Map<String, SpellSlot> withUsedCounts(Map<String, SpellSlot> slots, Map<String, SpellSlot> asked) {
-        if (slots == null) return null;
-        Map<String, SpellSlot> updated = new LinkedHashMap<>();
-        slots.forEach((key, slot) -> {
-            SpellSlot wanted = asked.get(key);
-            updated.put(key, wanted != null ? new SpellSlot(slot.max(), clamp(wanted.used(), slot.max())) : slot);
-        });
-        return updated;
-    }
-
-    // The Hit Dice with the remaining counts asked for, each between 0 and the class's total
-    private static Map<String, HitDicePool> withRemainingCounts(Map<String, HitDicePool> hitDice,
-                                                                Map<String, HitDicePool> asked) {
-        if (hitDice == null) return null;
-        Map<String, HitDicePool> updated = new LinkedHashMap<>();
-        hitDice.forEach((className, pool) -> {
-            HitDicePool wanted = asked.get(className);
-            updated.put(className, wanted != null
-                    ? new HitDicePool(pool.dieSize(), pool.total(), clamp(wanted.remaining(), pool.total())) : pool);
-        });
-        return updated;
-    }
-
-    // The pools with the uses asked for, each between 0 and the pool's maximum; a pool the character doesn't have is
-    // ignored
-    private static List<ResourcePoolEntry> withCurrentUses(List<ResourcePoolEntry> pools,
-                                                           List<ResourcePoolEntry> asked) {
-        if (pools == null) return null;
-        Map<String, Integer> wanted = new HashMap<>();
-        for (ResourcePoolEntry pool : asked) {
-            if (pool != null && pool.poolId() != null) wanted.putIfAbsent(pool.poolId(), pool.currentUses());
-        }
-        return pools.stream()
-                .map(pool -> wanted.containsKey(pool.poolId())
-                        ? pool.withCurrentUses(clamp(wanted.get(pool.poolId()), pool.maxUses())) : pool)
-                .toList();
-    }
-
-    private static int clamp(int value, int maximum) {
-        return Math.max(0, Math.min(value, maximum));
-    }
-
     // ── Levelling up ─────────────────────────────────────────────
 
     @Transactional
     public LevelUpResponse levelUp(UUID characterId, LevelUpRequest request, UUID userId) {
-        PlayerCharacter character = loadCharacter(characterId);
-        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
+        PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId, "level up");
         if (character.getLevel() >= 20)
             throw new ConflictException("Character is already at maximum level");
 
@@ -563,8 +428,7 @@ public class CharacterService {
      */
     @Transactional
     public CharacterResponse levelDown(UUID characterId, UUID userId) {
-        PlayerCharacter character = loadCharacter(characterId);
-        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
+        PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId, "level down");
         if (character.getLevel() <= 1)
             throw new ConflictException("Character is already at minimum level");
 
@@ -595,9 +459,7 @@ public class CharacterService {
 
         character.setLevelHistory(history);
         character.setLevel(character.getLevel() - 1);
-        characterStats.apply(character);
-        character = characterRepository.save(character);
-        return characterMapper.toResponse(character);
+        return characterCommands.finish(character);
     }
 
     // Reverses the choices a level recorded: Expertise, and the Ability Score Improvement by the amount applied, or,
@@ -633,8 +495,8 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse applyChoices(UUID characterId, ApplyChoicesRequest request, UUID userId) {
-        PlayerCharacter character = loadCharacter(characterId);
-        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
+        PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId,
+                "make the choices its levels bring");
 
         if (request.getAsi() != null) {
             applyAsi(character, request.getAsi());
@@ -669,9 +531,7 @@ public class CharacterService {
             CharacterUpdates.appendFeatures(character, scFeatures);
         }
 
-        characterStats.apply(character);
-        character = characterRepository.save(character);
-        return characterMapper.toResponse(character);
+        return characterCommands.finish(character);
     }
 
     /**
@@ -831,146 +691,16 @@ public class CharacterService {
         return MulticlassValidator.classLevels(character.getMulticlassEntries()).getOrDefault(classId, 1);
     }
 
-    // ── Rests ────────────────────────────────────────────────────
-
-    @Transactional
-    public CharacterResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
-        PlayerCharacter character = loadCharacter(characterId);
-        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
-
-        int conMod = abilityMod(character.getConstitution());
-
-        // Spend hit dice for healing
-        if (request != null && request.getHitDiceToSpend() != null && !request.getHitDiceToSpend().isEmpty()) {
-            Map<String, HitDicePool> hitDice = character.getHitDice() != null
-                    ? new LinkedHashMap<>(character.getHitDice()) : new LinkedHashMap<>();
-            int totalHeal = 0;
-
-            for (var entry : request.getHitDiceToSpend().entrySet()) {
-                String className = entry.getKey();
-                int count = entry.getValue();
-                HitDicePool pool = hitDice.get(className);
-                if (pool == null)
-                    throw new ValidationException("No hit dice for class: " + className);
-                if (pool.remaining() < count)
-                    throw new ConflictException("Not enough hit dice remaining for " + className);
-
-                int healPerDie = (pool.dieSize() / 2 + 1) + conMod;
-                totalHeal += count * healPerDie;
-                hitDice.put(className, new HitDicePool(pool.dieSize(), pool.total(), pool.remaining() - count));
-            }
-
-            character.setHpCurrent(Math.min(character.getHpMax(), character.getHpCurrent() + totalHeal));
-            character.setHitDice(hitDice);
-        }
-
-        // Reset pact slots
-        resetPactSlots(character);
-
-        // Reset short rest resource pools (and keep feat_resources for backward compat)
-        resetFeatResources(character, true);
-        resetResourcePools(character, "shortRest");
-
-        character = characterRepository.save(character);
-        return characterMapper.toResponse(character);
-    }
-
-    @Transactional
-    public CharacterResponse longRest(UUID characterId, UUID userId) {
-        PlayerCharacter character = loadCharacter(characterId);
-        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
-
-        // Restore full HP
-        character.setHpCurrent(character.getHpMax());
-
-        // Restore all spell slots
-        resetAllSpellSlots(character);
-
-        // Recover hit dice: floor(total/2), min 1
-        recoverHitDice(character);
-
-        // Reset all feat resources (backward compat) and resource pools
-        resetFeatResources(character, false);
-        resetResourcePools(character, "longRest");
-
-        character = characterRepository.save(character);
-        return characterMapper.toResponse(character);
-    }
-
-    private void resetPactSlots(PlayerCharacter character) {
-        resetSpellSlots(character, true);
-    }
-
-    private void resetAllSpellSlots(PlayerCharacter character) {
-        resetSpellSlots(character, false);
-    }
-
-    // Each slot level's used count goes back to 0, or only the pact slots'
-    private static void resetSpellSlots(PlayerCharacter character, boolean pactOnly) {
-        if (character.getSpellSlots() == null) return;
-        Map<String, SpellSlot> slots = new LinkedHashMap<>();
-        character.getSpellSlots().forEach((key, slot) -> slots.put(key,
-                slot != null && (!pactOnly || key.startsWith("pact_")) ? new SpellSlot(slot.max(), 0) : slot));
-        character.setSpellSlots(slots);
-    }
-
-    private void recoverHitDice(PlayerCharacter character) {
-        if (character.getHitDice() == null) return;
-        Map<String, HitDicePool> hitDice = new LinkedHashMap<>(character.getHitDice());
-
-        int totalDice = hitDice.values().stream().mapToInt(HitDicePool::total).sum();
-        int recovery = Math.max(1, totalDice / 2);
-
-        for (var entry : hitDice.entrySet()) {
-            HitDicePool pool = entry.getValue();
-            int missing = pool.total() - pool.remaining();
-            int classRecovery = Math.min(missing, recovery);
-            if (classRecovery > 0) {
-                entry.setValue(new HitDicePool(pool.dieSize(), pool.total(), pool.remaining() + classRecovery));
-                recovery -= classRecovery;
-            }
-            if (recovery <= 0) break;
-        }
-
-        character.setHitDice(hitDice);
-    }
-
-    private void resetFeatResources(PlayerCharacter character, boolean shortRestOnly) {
-        if (character.getFeatResources() == null) return;
-        List<FeatResourceEntry> updated = new ArrayList<>();
-        for (FeatResourceEntry r : character.getFeatResources()) {
-            if (!shortRestOnly || "shortRest".equals(r.resetOn())) {
-                updated.add(new FeatResourceEntry(r.featName(), r.name(), r.maxUses(), r.maxUses(), r.resetOn()));
-            } else {
-                updated.add(r);
-            }
-        }
-        character.setFeatResources(updated);
-    }
-
-    /**
-     * Resets resource pools matching the given trigger (shortRest / longRest), innate uses included on a long rest.
-     * A pool whose reset can't be worked out stops the rest (D155).
-     */
-    private void resetResourcePools(PlayerCharacter character, String resetTrigger) {
-        List<ResourcePoolEntry> pools = orEmpty(character.getResourcePools());
-        if (pools.isEmpty()) return;
-        Map<String, Integer> context = resourcePoolService.buildCharacterContext(character);
-        character.setResourcePools(new ArrayList<>(resourcePoolService.resetPools(pools, resetTrigger, context).pools()));
-    }
-
     // ── Deleting and reading ─────────────────────────────────────
 
+    /**
+     * Soft-deletes a character. One in an encounter that hasn't been completed, a Preparing one included, can't be
+     * deleted.
+     */
     @Transactional
     public void deleteCharacter(UUID characterId, UUID userId) {
-        PlayerCharacter character = loadCharacter(characterId);
-        accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
-
-        boolean inActiveCombat = encounterParticipantRepository
-                .existsByCharacter_IdAndEncounter_StatusIn(characterId,
-                        List.of(EncounterStatus.ACTIVE, EncounterStatus.PAUSED, EncounterStatus.PREPARING));
-
-        if (inActiveCombat) {
+        PlayerCharacter character = characterCommands.beginAsOwner(characterId, userId);
+        if (liveEncounters.includesUnfinished(characterId)) {
             throw new ConflictException("Cannot delete a character that is in an active encounter");
         }
 

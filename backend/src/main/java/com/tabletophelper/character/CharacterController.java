@@ -11,12 +11,20 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Characters. The server is the only authority over a character (D158): besides creating it, levelling it and
+ * choosing what its levels bring, its owner changes it only through the intent endpoints below, each answering with
+ * the character as the server then works it out.
+ */
 @RestController
 @RequestMapping("/api/characters")
 @RequiredArgsConstructor
 public class CharacterController {
 
     private final CharacterService characterService;
+    private final CharacterSheetService sheetService;
+    private final RestService restService;
+    private final CharacterSpellService spellService;
 
     @PostMapping
     public ResponseEntity<CharacterResponse> createCharacter(
@@ -25,15 +33,6 @@ public class CharacterController {
         UUID userId = (UUID) authentication.getPrincipal();
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(characterService.createCharacter(request, userId));
-    }
-
-    @PutMapping("/{characterId}")
-    public ResponseEntity<CharacterResponse> updateCharacter(
-            @PathVariable UUID characterId,
-            @Valid @RequestBody CharacterUpdateRequest request,
-            Authentication authentication) {
-        UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(characterService.updateCharacter(characterId, request, userId));
     }
 
     @GetMapping
@@ -57,6 +56,140 @@ public class CharacterController {
         UUID userId = (UUID) authentication.getPrincipal();
         return ResponseEntity.ok(characterService.getCharacter(characterId, userId));
     }
+
+    // ── The sheet ────────────────────────────────────────────────
+
+    @PatchMapping("/{characterId}/details")
+    public ResponseEntity<CharacterResponse> updateDetails(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody CharacterDetailsRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.updateDetails(characterId, request, userId));
+    }
+
+    @PutMapping("/{characterId}/campaign")
+    public ResponseEntity<CharacterResponse> setCampaign(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody CharacterCampaignRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.setCampaign(characterId, request, userId));
+    }
+
+    @PutMapping("/{characterId}/inventory")
+    public ResponseEntity<CharacterResponse> updateInventory(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody InventoryRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.updateInventory(characterId, request, userId));
+    }
+
+    @PostMapping("/{characterId}/hp")
+    public ResponseEntity<CharacterResponse> changeHitPoints(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody HitPointChangeRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.changeHitPoints(characterId, request, userId));
+    }
+
+    /** Spends a slot of a spell level, "1" to "9", or a pact slot, "pact_N". */
+    @PostMapping("/{characterId}/spell-slots/{slot}/spend")
+    public ResponseEntity<CharacterResponse> spendSlot(
+            @PathVariable UUID characterId,
+            @PathVariable String slot,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.spendSlot(characterId, slot, userId));
+    }
+
+    @PostMapping("/{characterId}/spell-slots/{slot}/restore")
+    public ResponseEntity<CharacterResponse> restoreSlot(
+            @PathVariable UUID characterId,
+            @PathVariable String slot,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.restoreSlot(characterId, slot, userId));
+    }
+
+    @PostMapping("/{characterId}/pools/spend")
+    public ResponseEntity<CharacterResponse> spendPool(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody PoolUseRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.spendPool(characterId, request, userId));
+    }
+
+    @PostMapping("/{characterId}/pools/recover")
+    public ResponseEntity<CharacterResponse> recoverPool(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody PoolUseRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.recoverPool(characterId, request, userId));
+    }
+
+    // ── Rests ────────────────────────────────────────────────────
+
+    @PostMapping("/{characterId}/short-rest")
+    public ResponseEntity<CharacterResponse> shortRest(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody(required = false) ShortRestRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(restService.shortRest(characterId, request, userId));
+    }
+
+    @PostMapping("/{characterId}/long-rest")
+    public ResponseEntity<CharacterResponse> longRest(
+            @PathVariable UUID characterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(restService.longRest(characterId, userId));
+    }
+
+    // ── Spells ───────────────────────────────────────────────────
+
+    @PutMapping("/{characterId}/spells/prepared")
+    public ResponseEntity<CharacterResponse> setPreparedSpells(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody PreparedSpellsRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(spellService.setPrepared(characterId, request, userId));
+    }
+
+    @PutMapping("/{characterId}/spells/known")
+    public ResponseEntity<CharacterResponse> setKnownSpells(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody KnownSpellsRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(spellService.setKnown(characterId, request, userId));
+    }
+
+    @PostMapping("/{characterId}/spellbook")
+    public ResponseEntity<CharacterResponse> addToSpellbook(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody SpellbookRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(spellService.addToSpellbook(characterId, request, userId));
+    }
+
+    @DeleteMapping("/{characterId}/spellbook")
+    public ResponseEntity<CharacterResponse> removeFromSpellbook(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody SpellbookRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(spellService.removeFromSpellbook(characterId, request, userId));
+    }
+
+    // ── Levels ───────────────────────────────────────────────────
 
     @PostMapping("/{characterId}/level-up")
     public ResponseEntity<LevelUpResponse> levelUp(

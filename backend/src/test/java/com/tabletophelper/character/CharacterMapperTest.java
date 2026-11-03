@@ -43,11 +43,14 @@ class CharacterMapperTest {
     @Mock
     private CharacterStats characterStats;
 
+    @Mock
+    private LiveEncounters liveEncounters;
+
     private CharacterMapper mapper;
 
     @BeforeEach
     void setUp() {
-        mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats);
+        mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats, liveEncounters);
     }
 
     private User testUser() {
@@ -166,7 +169,6 @@ class CharacterMapperTest {
         c.setMulticlassEntries(null);
         c.setLevelHistory(null);
         c.setHitDice(null);
-        c.setFeatResources(null);
 
         CharacterResponse response = assertDoesNotThrow(() -> mapper.toResponse(c));
 
@@ -175,7 +177,6 @@ class CharacterMapperTest {
         assertNull(response.getMulticlassEntries());
         assertNull(response.getLevelHistory());
         assertNull(response.getHitDice());
-        assertNull(response.getFeatResources());
         assertNull(response.getSubclassAlwaysPreparedSpells());
         // Non-null fields still mapped
         assertEquals("Thorin", response.getName());
@@ -255,5 +256,16 @@ class CharacterMapperTest {
         ConflictException e = assertThrows(ConflictException.class, () -> mapper.toResponse(c));
 
         assertEquals("The always-prepared spells of the subclass Life Domain can't be read", e.getMessage());
+    }
+
+    @Test
+    @DisplayName("8.8 toResponse says whether the character is in an Active or Paused encounter, so the sheet can wait to rest (D166)")
+    void toResponseSaysWhetherInLiveEncounter() {
+        PlayerCharacter inCombat = baseCharacter(testUser());
+        PlayerCharacter resting = baseCharacter(testUser());
+        when(liveEncounters.includes(inCombat.getId())).thenReturn(true);
+
+        assertTrue(mapper.toResponse(inCombat).isInLiveEncounter());
+        assertFalse(mapper.toResponse(resting).isInLiveEncounter());
     }
 }

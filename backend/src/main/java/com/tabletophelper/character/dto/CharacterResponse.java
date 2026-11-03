@@ -3,7 +3,6 @@ package com.tabletophelper.character.dto;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
-import com.tabletophelper.character.state.FeatResourceEntry;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
@@ -170,11 +169,15 @@ public class CharacterResponse {
     private Map<String, HitDicePool> hitDice;
 
     private List<LevelHistoryEntry> levelHistory;
-    private List<FeatResourceEntry> featResources;
     private List<ResourcePoolEntry> resourcePools;
 
     @Schema(requiredMode = REQUIRED)
     private Boolean isActive;
+
+    // Whether the character is in an Active or Paused encounter, while rests, levelling and the choices a level
+    // brings wait for it to end (D166)
+    @Schema(requiredMode = REQUIRED)
+    private boolean inLiveEncounter;
 
     // Null in the response that creates the character: @CreationTimestamp and @UpdateTimestamp only fill
     // them in when the insert is flushed, after the response is built

@@ -1,9 +1,28 @@
-import { describe, it, expect, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { render } from '../../../test/test-utils';
+import { server } from '../../../test/mocks/server';
 import { makeMockCharacter } from '../../../test/mocks/handlers';
-import type { ClassSpellcasting, PlayerCharacter } from '../../../types/character';
+import type { ClassSpellcasting, KnownSpellsRequest, PlayerCharacter, PreparedSpellsRequest } from '../../../types/character';
+import type { PageResponse, Spell } from '../../../types/reference';
+import type { RunCommand } from './types';
 import SpellsTab from './SpellsTab';
+
+// Passes the command through, as the sheet does, so a test sees what reached the server
+const runCommand: RunCommand = async command => {
+  await command;
+  return true;
+};
+
+function spell(id: string, name: string, level: number): Spell {
+  return {
+    id, name, level, school: 'Evocation', castingTime: '1 action', rangeDistance: '60 feet', components: null,
+    duration: 'Instantaneous', concentration: false, ritual: false, description: null, higherLevels: null,
+    classes: ['Wizard'], damageType: null, damageDice: null, saveAbility: null, source: 'PHB',
+  };
+}
 
 function casting(overrides: Partial<ClassSpellcasting>): ClassSpellcasting {
   return {
@@ -15,7 +34,7 @@ function casting(overrides: Partial<ClassSpellcasting>): ClassSpellcasting {
 
 function renderTab(char: PlayerCharacter) {
   return render(<SpellsTab char={char} spellsKnown={char.spellsKnown ?? []} spellSlots={char.spellSlots ?? {}}
-    saveField={vi.fn()} />);
+    runCommand={runCommand} />);
 }
 
 // The box that a class's or race's spells are listed in, by its heading
@@ -86,5 +105,73 @@ describe('SpellsTab', () => {
 
     expect(screen.getByText('Race & Feat')).toBeInTheDocument();
     expect(box('Tiefling Spells')).toBeInTheDocument();
+  });
+
+  it("prepares a spell by sending the class's prepared spells, which the server checks (D158)", async () => {
+    const sent: PreparedSpellsRequest[] = [];
+    server.use(http.put('/api/characters/:id/spells/prepared', async ({ params, request }) => {
+      sent.push(await request.json() as PreparedSpellsRequest);
+      return HttpResponse.json(makeMockCharacter(params.id as string, 'Elara', 'Cleric', 3));
+    }));
+    const char = {
+      ...makeMockCharacter('char-005', 'Elara', 'Cleric', 3),
+      spellsKnown: [
+        { name: 'Bless', level: 1, source: 'class:Cleric', prepared: true },
+        { name: 'Cure Wounds', level: 1, source: 'class:Cleric', prepared: false },
+        { name: 'Sanctuary', level: 1, source: 'class:Cleric', prepared: true, alwaysPrepared: true },
+      ],
+      spellcasting: [casting({ className: 'Cleric', ability: 'WIS', preparedSpells: 4 })],
+    };
+    renderTab(char);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Prepare Cure Wounds' }));
+    await waitFor(() => expect(sent).toEqual([{ className: 'Cleric', spells: ['Bless', 'Cure Wounds'] }]));
+    await user.click(screen.getByRole('button', { name: 'Unprepare Bless' }));
+    await waitFor(() => expect(sent[1]).toEqual({ className: 'Cleric', spells: [] }));
+  });
+
+  it("chooses a class's cantrips within its limit and sends them as the cantrips it knows", async () => {
+    let sent: KnownSpellsRequest | undefined;
+    server.use(
+      http.get('/api/reference/spells', () => HttpResponse.json({
+        content: [spell('spell-1', 'Fire Bolt', 0), spell('spell-2', 'Light', 0), spell('spell-3', 'Mage Hand', 0)],
+        totalElements: 3, totalPages: 1, number: 0, size: 50,
+      } satisfies PageResponse<Spell>)),
+      http.put('/api/characters/:id/spells/known', async ({ params, request }) => {
+        sent = await request.json() as KnownSpellsRequest;
+        return HttpResponse.json(makeMockCharacter(params.id as string, 'Elminster', 'Wizard', 3));
+      }),
+    );
+    const char = {
+      ...makeMockCharacter('char-006', 'Elminster', 'Wizard', 3),
+      spellsKnown: [{ name: 'Fire Bolt', level: 0, source: 'class:Wizard' }],
+      spellcasting: [casting({ cantripsKnown: 2 })],
+    };
+    renderTab(char);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Manage Cantrips' }));
+    const dialog = screen.getByRole('dialog', { name: /Manage Cantrips/ });
+    await user.click(await within(dialog).findByRole('button', { name: /Light/ }));
+    // Two of two: Mage Hand waits until one goes
+    expect(within(dialog).getByRole('button', { name: /Mage Hand/ })).toBeDisabled();
+    await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(sent).toEqual({ className: 'Wizard', cantrips: ['Fire Bolt', 'Light'] }));
+  });
+
+  it("has no way to add feat spells by hand: a feat's spells come with the feat", () => {
+    const char = {
+      ...makeMockCharacter('char-007', 'Zara', 'Wizard', 3),
+      spellsKnown: [{ name: 'Misty Step', level: 2, source: 'feat:Fey Touched', usesPerLongRest: 1 }],
+      spellcasting: [casting({})],
+    };
+
+    renderTab(char);
+
+    expect(box('Fey Touched')).toBeInTheDocument();
+    expect(screen.queryByText(/Add Feat Spells/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Remove feat spells')).not.toBeInTheDocument();
   });
 });
