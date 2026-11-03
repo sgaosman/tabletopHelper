@@ -183,9 +183,9 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | equipped_items | JSONB | DEPRECATED — unmapped since V19 | Replaced by `equipment[].equipped` (R6, D168). R7 drops it. |
 | hit_dice_map | JSONB | **DEPRECATED** — unmapped since V19 | Per-class hit dice: {className: {total, remaining, faces}}, copied into `hit_dice` by V19. No resource pool holds hit dice. R7 drops it. |
 | hit_dice | JSONB | | Per-class hit dice `{className: {dieSize, total, remaining}}`, filled from `hit_dice_map` by V19 (R6, D158, D168) |
-| level_history | JSONB | | Array of per-level entries for deterministic rollback |
+| level_history | JSONB | | Array of per-level entries for deterministic rollback. Since R6 workstream C (D167) each entry records its `hitDieResult`, the Hit Die Result the HP maximum is worked out from (V20 filled it in for older entries); `hpGained`, what the level added to the maximum, is a record only. An entry also records an ASI's increases as applied (`choices.asi.applied`), the skills given Expertise (`choices.expertise`), Primal Champion's increases (`abilityIncreases`) and the armour, weapon and tool proficiencies a multiclass level added (`proficienciesGained`), so levelling down reverses exactly those. |
 | feat_resources | JSONB | **DEPRECATED** — superseded by `resource_pools` | Array of feat resource entries. Still written by feats with uses, such as Lucky, until R6 workstream D. |
-| **resource_pools** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. See the [Resource Pool reference tables](#resource-pool-tables-m245) section for schema. Subsumes `feat_resources` and `hit_dice_map`. |
+| **resource_pools** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. See the [Resource Pool reference tables](#resource-pool-tables-m245) section for schema. Subsumes `feat_resources` and `hit_dice_map`. Since R6 workstream C it also holds an `innate:<spell>` pool for each known spell with uses of its own, such as a race or feat spell, which resets on a long rest (D165). The pools are worked out again with the Derived Stats, and each keeps the uses already spent (D167). |
 | is_active | BOOLEAN | DEFAULT TRUE | Soft delete |
 | created_at | TIMESTAMPTZ | | |
 | updated_at | TIMESTAMPTZ | | |
@@ -489,7 +489,7 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 | spell_save_dc | INTEGER | | Copied from character on encounter join |
 | spellcasting_ability | VARCHAR(20) | | Copied from character on encounter join |
 | spells_known | JSONB | | Copied from character on encounter join |
-| **resource_pools_current** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. Copied from character sheet on join for PCs. For monsters, built by `MonsterPools` from the pool triggers, recharge actions and innate spells, whose uses are pools named `innate:<spell>` (D165). A PC's innate spell uses join on its first cast in an encounter. |
+| **resource_pools_current** | **JSONB** | | **NEW (M24.5).** Array of ResourcePoolEntry objects. Copied from character sheet on join for PCs. For monsters, built by `MonsterPools` from the pool triggers, recharge actions and innate spells, whose uses are pools named `innate:<spell>` (D165). Since R6 workstream C a PC's innate spell uses are sheet pools and join with it; one that joined without them starts them full on its first cast. |
 | is_visible_to_players | BOOLEAN | DEFAULT TRUE | |
 | life_state | VARCHAR(10) | NOT NULL, CHECK | ALIVE, DYING, STABLE or DEAD (V16, D161). Replaced `is_alive`, because a Stable PC's death saves are reset and can't otherwise be told from a Dying PC's. |
 | controlled_by_user_id | UUID | FK → users, NULLABLE | For PLAYER, set to character owner |
@@ -651,6 +651,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V17 | `V17__turn_order.sql` | `encounters.current_turn_participant_id` and `is_lair_turn` replace `current_turn_index` and `encounter_participants.is_current_turn`; `encounter_participants.death_save_due`; `campaigns.prompt_player_repeat_saves` (D157, D162, D163) |
 | V18 | `V18__manual_modifiers_and_monster_triggers.sql` | `campaigns.allow_player_manual_modifiers` BOOLEAN NOT NULL DEFAULT TRUE; the Legendary Resistance trigger becomes `{"hasFeature": "Legendary Resistance"}`; deletes the breath-weapon trigger (D164, D165) |
 | V19 | `V19__typed_character_json.sql` | Character JSON normalised for typed records: slots become `{max, used}`, a new `hit_dice` column is filled from `hit_dice_map`, equipment names become entries, and values of the wrong JSON type become NULL (D168) |
+| V20 | `V20__hit_die_results.sql` | Each `level_history` entry gains `hitDieResult`, with the values the old `calculateHpGain` used: the class's Hit Die at character level 1, and half the die plus 1 after that. The die comes from the entry's `classId`, else the character's Hit Dice of that class, else d8. Entries that already have a result are left alone, and the file has no DO blocks (D167) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -663,6 +664,7 @@ One-off data corrections that run with the backend after reference data seeding,
 | `recompute-spell-slots` | Recomputes spell slot maximums in `player_characters.spell_slots`. Used counts are kept, capped at the new maximum. | D153 |
 | `relink-feat-ids` | Re-points `featId` in `level_history` feat records at the current feat with the same name. | D169 |
 | `preview-migration` | Nothing. Runs migration `--maintenance.version=N` inside a transaction that is always rolled back, prints every changed row before and after, and checks that each converted row loads. Pass `--spring.flyway.target=N-1 --spring.jpa.hibernate.ddl-auto=none` too, so Flyway doesn't apply the migration first. It splits the file into statements, so migrations it previews avoid DO blocks. | D168 |
+| `recompute-characters` | Works out every character's Derived Stats again with the R6 rules and writes the stored copies: the HP maximum from the recorded Hit Die Results (a higher maximum raises current HP by as much, and a lower one caps it), proficiency bonus, initiative, speed, slot and Hit Dice maximums, the main spell DC and attack bonus, and the resource pools, innate uses included. It reports each changed stat before and after. What a sheet already has beyond the rules, such as more cantrips than its class knows, is a warning and is left as it is; a sheet that can't be worked out is skipped with a warning. | D167 |
 
 Run locally from `backend/`:
 `./gradlew bootRun --args="--maintenance.job=<name> --server.port=0"`
@@ -732,6 +734,8 @@ The plan was approved on 2026-11-03 (D150). Migrations V19–V24 land with works
 Two maintenance jobs, both dry runs unless `--maintenance.apply=true` is passed: `recompute-characters` (C) derives every character's stats again, and `backfill-pending-choices` (F) adds the choices existing characters missed.
 
 **Done (2026-11-03):** V19 (workstream B) is applied to the local database after a backup and a `preview-migration` dry run: 276 rows examined, all 13 characters changed (hit dice on 13, slots on 5), and every row loads.
+
+**Done (2026-11-03, workstream C):** V20 and the `recompute-characters` job are applied to the local database, each after a backup and a dry run. The backups are `before-r6-v20-20261103T0917Z.sql`, `before-r6-v20-final-20261103T0919Z.sql` and `before-r6-recompute-20261103T0920Z.sql` in `tabletopHelper-backups/`. The `preview-migration` dry run of V20 examined 276 rows and found 13 characters to change, none failing to load. V20 was applied at 09:19 UTC: 97 level entries on 13 characters gained `hitDieResult`, and on every entry `hpGained` minus `hitDieResult` equals the character's current CON modifier, which confirms the backfill. The job's dry run examined 13 characters and found 6 to change, all soft-deleted test characters; `asdasd`, the only active one, is unchanged. No HP maximum, proficiency bonus, slot, main DC, speed or Hit Dice changes. Initiative rises by 1 for TestBM, TestEcho and both TestFighters, whose DEX increases never reached it. Seven pools are added on 3 characters: Magic Awareness and Bolstering Magic, 3/3 each, and innate pools for Faerie Fire, Enlarge/Reduce and Absorb Elements, 1/1 each, on TestBarb; Superiority Dice, 5/5, on a TestFighter; and Emboldening Bond, 4/4, on TestPeace. TestBM's Superiority Dice go from 0/0 to 5/5 and the other TestFighter's from 4/4 to 5/5, which is right for a Battle Master at Fighter 9 (D167). TestPeace knows 5 Cleric cantrips where a level 9 Cleric knows 4: a warning, and its cantrips are left as they are. The job was applied at 09:20 UTC; a second dry run found nothing to change, and all 13 characters and all 15 encounters load through the API. C adds no column: each class's spell numbers and the ability score maximums are worked out when a character is read (D164, D167).
 
 ### R3–R7 — Outline
 

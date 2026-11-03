@@ -184,6 +184,7 @@ Create a new player character owned by the authenticated user. Uses FK reference
   "classId": "uuid",
   "subclassId": "uuid (optional)",
   "backgroundId": "uuid",
+  "level": 5,
   "alignment": "Neutral Good",
   "abilityScoreMethod": "standard_array",
   "strength": 10,
@@ -192,8 +193,6 @@ Create a new player character owned by the authenticated user. Uses FK reference
   "intelligence": 20,
   "wisdom": 18,
   "charisma": 16,
-  "hpMax": 120,
-  "speed": 30,
   "campaignId": "uuid (optional)",
   "savingThrowProficiencies": ["INT", "WIS"],
   "skillProficiencies": ["Arcana", "History"],
@@ -211,7 +210,6 @@ Create a new player character owned by the authenticated user. Uses FK reference
   "features": [
     {"name": "Magic Initiate", "description": "Granted by Astral Drifter background.", "source": "Astral Drifter"}
   ],
-  "hitDice": {"Wizard": {"dieSize": 6, "total": 1, "remaining": 1}},
   "multiclassClassEntries": [{"classId": "uuid", "level": 3, "subclassId": "uuid"}, {"classId": "uuid2", "level": 2}]
 }
 ```
@@ -223,23 +221,29 @@ Create a new player character owned by the authenticated user. Uses FK reference
 - `equipment` entries are `{name, quantity, description, itemId, equipped, attuned}`. `equipped` and `attuned` replace the response's `equippedItems` and `attunedItems`.
 - `racialAbilityBonuses` entries are `{ability, bonus}`, with the ability abbreviated, such as `"INT"`, or `null` until the player assigns it.
 
-For spellcaster classes, `spellSlots`, `spellSaveDc`, and `spellAttackBonus` are auto-calculated server-side if not provided. For non-casters with feat spells, the frontend calculates and sends these values.
+The request no longer takes the stats the server works out (R6 workstream C, D158, D167): `hpMax`, `armourClass`, `initiativeBonus`, `speed`, `proficiencyBonus`, `spellSlots`, `spellSaveDc`, `spellAttackBonus` and `hitDice`. Armour class starts at 10 + the DEX modifier, because armour isn't modelled, and speed is the race's walking speed. `spellcastingAbility` is only the ability race and feat spells are cast with, such as a Fairy's choice of INT, WIS or CHA; a class's own spells use the class's ability.
 
-For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries`, `hitDice`, `levelHistory`, and HP from this data using `LevelUpCalculator.buildMulticlassProgression()`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. ASI choices are applied post-creation via `POST /characters/{characterId}/apply-choices` — the server records each ASI on the correct level history entry (first unrecorded ASI level, not the last entry).
+For multiclass characters (level >= 2), the `multiclassClassEntries` field contains a JSON array of class entries with `classId`, `level`, and optional `subclassId`. The server builds `multiclassEntries` and `levelHistory` from this data with `LevelUpCalculator.buildMulticlassProgression()`, each level with its `hitDieResult`, and works out `hitDice` and HP from them. The class levels must add up to `level`, or the request answers `400`. The `characterClass` field is auto-set to "ClassName1 / ClassName2" format. ASI choices are applied after creation through `POST /characters/{characterId}/apply-choices`, and since R6 workstream C the server records each one on the latest level that owes one, so levelling down reverses the right one.
 
 The `spellsKnown` array uses source prefixes: `"class:ClassName"`, `"race:RaceName"`, `"feat:FeatName"`. Entries support `prepared`, `alwaysPrepared`, `atWill`, `usesPerLongRest`, and `unlocksAtLevel` fields.
 
 **Response (201):** Full character object with auto-populated derived stats (proficiencyBonus, initiativeBonus, armourClass, spellSlots, spellSaveDc, spellAttackBonus, subclassAlwaysPreparedSpells). The `subclassAlwaysPreparedSpells` field is an object keyed by subclass name and then by the class level the spells come at, with an entry for each of the character's subclasses (e.g. `{"Life Domain": {"1": ["Bless", "Cure Wounds"], "3": ["Lesser Restoration", "Spiritual Weapon"]}}`) — populated from the Subclass entity's seeded 5etools data. It is `null` when none of them has any.
 
+Every character response also has `spellcasting` and `abilityScoreMaximums`, worked out when it is read rather than stored (R6 workstream C, D164, D167). `spellcasting` has an entry for each class that casts, in the order the classes were taken: `{className, subclassName, classLevel, ability, spellSaveDc, spellAttackBonus, highestSpellLevel, cantripsKnown, spellsKnown, preparedSpells, pactMagic}`. `spellsKnown` is `null` for a class that prepares its spells and `preparedSpells` for one that knows them; a class without slots yet prepares 0, an Eldritch Knight or Arcane Trickster appears from 3rd level with INT, and `pactMagic` is `true` for a Warlock. The top-level `spellSaveDc`, `spellAttackBonus` and `spellcastingAbility` are the main numbers, which race and feat spells use: the ability is the one chosen at creation, or else the first casting class's. `abilityScoreMaximums` gives each score's maximum: 20, or 24 for STR and CON after Primal Champion.
+
 **Errors:**
 - `400` — Unknown `raceId`, `classId`, `subclassId`, `backgroundId` or `campaignId` (IDs in the body are a 400, not a 404), or validation failed
+- `400` — The class levels in `multiclassClassEntries` don't add up to `level` (R6 workstream C)
 - `403` — `campaignId` names a campaign the user isn't a member of (D155)
+- `409` — Reference data the character needs can't be read, such as a race's speed or a class's features (R6 workstream C, D155)
 
 ### PUT /characters/{characterId}
 
 Update an existing character. Only the owner can update. All fields are optional — only provided fields are updated.
 
 **Request:** Any subset of character fields. A field left out, or `null`, keeps its value, and a JSON field that is given (an array or object, as in the create request) replaces the whole value. Includes `clearCampaign` (boolean) — set to `true` to unassign the character from its campaign (since `campaignId: null` is indistinguishable from "not provided" in a partial update). Assigning a `campaignId` requires the owner to be a member of that campaign.
+
+Since R6 workstream C the PUT takes no Derived Stat and nothing that only levelling changes (D158, D167): `hpMax`, `armourClass`, `initiativeBonus`, `speed`, `proficiencyBonus`, `spellSaveDc`, `spellAttackBonus`, `spellcastingAbility`, `level`, `characterClass`, `subclass`, `classId`, `subclassId`, `multiclassEntries`, `features` and `levelHistory` are ignored. Of `spellSlots` it reads only each slot's `used`, of `hitDice` each class's `remaining`, and of `resourcePools` each pool's `currentUses`, for those the character has, each held between 0 and its maximum; `hpCurrent` is capped at the HP maximum. The server then works out the Derived Stats again. Workstream D replaces the PUT with intent endpoints (D158).
 
 **Response (200):** Full updated character object.
 
@@ -286,7 +290,7 @@ List all active characters assigned to a campaign. DM only since R3; before it, 
 
 ### POST /characters/{characterId}/level-up
 
-Level up a character. Supports multiclassing — if classId differs from the character's current class, prerequisite validation runs (must meet both exit prereqs for current class and entry prereqs for the new class, per PHB multiclass rules).
+Level up a character. Supports multiclassing: when `classId` names a class the character doesn't have yet, the character must meet that class's prerequisites and those of every class it already has (PHB p.163), so a Fighter/Paladin with CHA 12 can't take a third class. Before R6 workstream C only the first class was checked.
 
 **Request:**
 ```json
@@ -312,13 +316,15 @@ Level up a character. Supports multiclassing — if classId differs from the cha
 
 If `asiAvailable` is true, the client should prompt for ASI/feat choice via `/apply-choices`. If `subclassRequired` is true, the client should prompt for subclass selection.
 
+Since R6 workstream C (D167) the new level records its `hitDieResult`: the fixed average of the class's Hit Die, or its maximum at character level 1 only, so a multiclass dip's first level gets the average (PHB p.163). The server then works out the Derived Stats again: a higher HP maximum raises `hpCurrent` by as much, and spent slots, Hit Dice and pool uses stay spent. `spellSelectionNeeded` and `maxSpellLevel` come from the class's own table, so Eldritch Knights and Arcane Tricksters are asked for spells and a Paladin's 1st level brings none. Barbarian 20 adds Primal Champion's +4 STR and CON, up to 24.
+
 **Errors:**
 - `409` — Character at max level (20) / Multiclass prerequisites not met
 - `400` — Class not found
 
 ### POST /characters/{characterId}/level-down
 
-Remove the most recent level. Reverses HP, features, ASI choices, hit dice, and multiclass entries from the last `levelHistory` entry. If the removed level was the only level in a secondary class, that class is removed from `multiclassEntries` entirely.
+Remove the most recent level. It removes the last `levelHistory` entry and, since R6 workstream C, reverses only what that entry recorded (D167): the latest copy of each feature it gained, so earlier levels keep theirs; its ASI or feat, at the amount applied; its Expertise; the proficiencies a multiclass level added; Primal Champion's increases; and its class's level. The server then works out the Derived Stats again, capping `hpCurrent` at the new maximum and the spent Hit Dice at the new total, and syncs the pools. A subclass chosen through apply-choices isn't recorded on its level, so levelling down doesn't reverse it (workstream F). If the removed level was the only level in a secondary class, that class is removed from `multiclassEntries` entirely.
 
 **Response (200):** Full character object.
 
@@ -342,7 +348,13 @@ Apply pending choices after a level-up (ASI/feat selection, subclass selection).
 
 For `type: "feat"`, provide `featId` (UUID) for full feat automation. The server loads the feat's `effects` JSON and auto-applies all mechanical bonuses (ability scores, proficiencies, resistances, expertise, speed, initiative, HP per level, passive stats, resources, spells). Provide choice fields as needed: `featAbility` (half-feat ability), `resistanceChoice`, `skillProficiencyChoices`, `savingThrowChoice`, `expertiseSkillChoices`, `toolProficiencyChoices`, `languageChoices`, `weaponChoices`, `spellIds`, `optionalFeatureIds`. Legacy `featName` (string) path still works for text-only feat recording. Both `asi` and `subclassId` are optional — provide whichever choices are pending. All applied effects are recorded in `levelHistory[].choices.asi.appliedEffects` for deterministic reversal on level-down.
 
+Since R6 workstream C (D167) an `ability` ASI must be +2 to one score or +1 to two different scores, none taken above its maximum (the character's `abilityScoreMaximums`), or it answers `400`. An ASI goes on the latest level that owes one, at the amount actually applied (`choices.asi.applied`), and Expertise on the latest level that gives it (`choices.expertise`), so levelling down reverses the right ones. A feat's speed, initiative and HP per level are recorded there and added when the Derived Stats are worked out.
+
 **Response (200):** Full character object with updated ability scores / subclass.
+
+**Errors:**
+- `400` — An ASI that isn't +2 to one score or +1 to two, takes a score past its maximum or names something that isn't an ability, or more Expertise skills than the level gives
+- `409` — No level owes the ASI or the Expertise, or the feat's data can't be read
 
 ### GET /characters/{characterId}/eligible-classes
 
@@ -371,6 +383,8 @@ List all 13 classes with their multiclass prerequisite status relative to the ch
 ```
 
 Classes are sorted: current class(es) first, then eligible classes, then ineligible (sorted alphabetically within each group).
+
+Since R6 workstream C a class whose prerequisites can't be read answers `409`, instead of counting as having none (D155).
 
 ## Monsters
 
@@ -1067,6 +1081,8 @@ Cast a spell as a combat action. Player characters and monsters cast through thi
 
 A player may cast only what `GET /combat/spell-options` lists for their character: a levelled spell must be known or prepared (always-prepared subclass spells count), a race spell must be unlocked at their level, and a slot, pact slot or innate use must be left. A PC in a running encounter needs a slot or use for every levelled spell. The DM casting for a PC follows the same rules. Monsters cast their slot, innate and at-will spells.
 
+**Spell numbers (R6 workstream C, D164):** a player character's class spell uses that class's save DC and attack bonus, worked out from the live sheet (the class's `spellcasting` entry), so a Cleric/Wizard's Cleric spells use WIS and its Wizard spells INT. Race and feat spells, and monsters' spells, use the caster's main numbers. A spell the character has from a class and from somewhere else counts as the class's, unless an innate use pays for it. `overrideSpellAttackBonus` and `overrideSpellSaveDC` are logged against the number the spell would have used.
+
 **Response (200):**
 ```json
 {
@@ -1171,6 +1187,7 @@ Repeat the damaging effect of a concentration spell without consuming a spell sl
 - Supports healing repeats (Aura of Vitality: 2d6 healing)
 - Witch Bolt special case: repeat is AUTO_HIT (no save), 1d12 lightning, no upcast scaling
 - Damage resistances/immunities/vulnerabilities applied to targets
+- A player character's class spell repeats with that class's save DC and attack bonus, and a race or feat spell with the main numbers, as in cast-spell (R6 workstream C, D164)
 - Logged as `SPELL_EFFECT_REPEAT` action type
 
 **Errors:**
