@@ -1,6 +1,7 @@
 import api from './axiosConfig';
 import type {
   Encounter, EncounterCreateRequest, AddParticipantRequest, BulkInitiativeRequest, TieOrderRequest,
+  CombatResultPreview, EndEncounterRequest,
 } from '../types/encounter';
 
 export const encounterApi = {
@@ -62,8 +63,14 @@ export const encounterApi = {
     return api.post<Encounter>(`/encounters/${encounterId}/resume`);
   },
 
-  end(encounterId: string) {
-    return api.post<Encounter>(`/encounters/${encounterId}/end`);
+  /** Completes the encounter, writing its results back to the character sheets unless the DM declines (D166). */
+  end(encounterId: string, applyResults: boolean) {
+    return api.post<Encounter>(`/encounters/${encounterId}/end`, { applyResults } satisfies EndEncounterRequest);
+  },
+
+  /** What ending the encounter with its results applied would write back to each character sheet; DM only. */
+  getResults(encounterId: string) {
+    return api.get<CombatResultPreview[]>(`/encounters/${encounterId}/results`);
   },
 
   getBySessionCode(code: string) {

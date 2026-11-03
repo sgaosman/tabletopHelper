@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, ChevronUp, ChevronDown, Skull } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns } from '../../queries/campaigns';
 import {
@@ -62,7 +62,9 @@ interface ChoiceRun {
  * A character's sheet. Every change is a command to the server (D158), and the character it returns replaces the
  * cached one, so the sheet shows it without loading the character again. The sheet works nothing out itself: rests,
  * hit points, slots and pools are the server's. While the character is in an encounter that is under way, resting,
- * levelling and making choices wait for it to end (D166).
+ * levelling and making choices wait for it to end, and the sheet is fetched again every 10 seconds, so it shows what
+ * the encounter writes back when the DM ends it (D166). A character who died can't rest, change its hit points or
+ * level until the DM revives it.
  *
  * The choices its levels owe are its Pending Choices (D159), on a banner with a button for each. Levelling up opens
  * the new level's dialogs one after another, and a subclass can bring more, such as an Eldritch Knight's spells, which
@@ -71,7 +73,8 @@ interface ChoiceRun {
 export default function CharacterSheetPage() {
   const { characterId } = useParams<{ characterId: string }>();
   const navigate = useNavigate();
-  const characterQuery = useCharacter(characterId);
+  // Fetched again now and then, so the sheet shows what an encounter writes back when it ends (D166)
+  const characterQuery = useCharacter(characterId, { followChanges: true });
   const char = characterQuery.data;
   const { data: campaigns = [] } = useCampaigns();
   const setCampaign = useSetCampaign();
@@ -170,6 +173,8 @@ export default function CharacterSheetPage() {
   }
 
   const waitingForEncounter = char.inLiveEncounter;
+  // A character who died waits for the DM to revive them: no rests, hit point changes or levels (D166)
+  const dead = char.dead;
 
   // Each die spent, with the roll entered or none for the server to roll; null while a roll entered can't be right
   const diceToSpend: HitDieSpent[] | null = (() => {
@@ -322,7 +327,7 @@ export default function CharacterSheetPage() {
             <IconButton
               label="Level Down"
               onClick={() => setLevelDownConfirm(true)}
-              disabled={char.level <= 1 || waitingForEncounter}
+              disabled={char.level <= 1 || waitingForEncounter || dead}
               className="p-2 text-debuff hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronDown className="w-4 h-4" />
@@ -330,17 +335,17 @@ export default function CharacterSheetPage() {
             <IconButton
               label="Level Up"
               onClick={() => setShowLevelUp(true)}
-              disabled={char.level >= 20 || waitingForEncounter}
+              disabled={char.level >= 20 || waitingForEncounter || dead}
               className="p-2 text-buff hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronUp className="w-4 h-4" />
             </IconButton>
             <div className="w-px h-5 bg-rule mx-1" />
-            <IconButton label="Short Rest" onClick={() => setRestModal('short')} disabled={waitingForEncounter}
+            <IconButton label="Short Rest" onClick={() => setRestModal('short')} disabled={waitingForEncounter || dead}
               className="p-2 text-cls-monk hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <Moon className="w-4 h-4" />
             </IconButton>
-            <IconButton label="Long Rest" onClick={() => setRestModal('long')} disabled={waitingForEncounter}
+            <IconButton label="Long Rest" onClick={() => setRestModal('long')} disabled={waitingForEncounter || dead}
               className="p-2 text-cls-wizard hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <Sun className="w-4 h-4" />
             </IconButton>
@@ -352,6 +357,19 @@ export default function CharacterSheetPage() {
           </p>
         )}
       </header>
+
+      {/* Dead until the DM revives them, at 1 hit point (D166) */}
+      {dead && (
+        <div className="max-w-5xl mx-auto px-4 pt-3">
+          <div role="status" className="flex items-start gap-2 px-4 py-2.5 bg-debuff text-card">
+            <Skull className="w-4 h-4 shrink-0 mt-0.5" />
+            <p className="font-body text-[15px] font-semibold">
+              {char.name} died in an encounter. Until the DM revives them, they can't rest, be healed, level or join
+              an encounter.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* HP Bar */}
       <div className="max-w-5xl mx-auto px-4 py-3">
@@ -371,9 +389,9 @@ export default function CharacterSheetPage() {
             />
           </div>
           <div className="flex gap-1">
-            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('DAMAGE')}>Damage</Button>
-            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('HEALING')}>Heal</Button>
-            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('TEMPORARY')}>+ Temp HP</Button>
+            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('DAMAGE')} disabled={dead}>Damage</Button>
+            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('HEALING')} disabled={dead}>Heal</Button>
+            <Button size="sm" variant="secondary" onClick={() => openHitPointDialog('TEMPORARY')} disabled={dead}>+ Temp HP</Button>
           </div>
           <div className="flex gap-3">
             <span className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">AC <span className="font-heading text-[15px] font-bold text-ink">{char.armourClass}</span></span>

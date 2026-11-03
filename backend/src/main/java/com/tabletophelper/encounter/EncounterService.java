@@ -7,11 +7,10 @@ import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
-import com.tabletophelper.character.DmAdjustments;
+import com.tabletophelper.character.CombatSnapshot;
 import com.tabletophelper.character.PlayerCharacter;
-import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.dto.CombatResultPreview;
 import com.tabletophelper.character.state.ResourcePoolEntry;
-import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.EncounterTurns;
@@ -22,7 +21,6 @@ import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
-import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.TurnOrder;
@@ -50,15 +48,17 @@ public class EncounterService {
     private final CharacterRepository characterRepository;
     private final MonsterRepository monsterRepository;
     private final ObjectMapper objectMapper;
-    private final ResourcePoolService resourcePoolService;
     private final MonsterPools monsterPools;
     private final AccessPolicy accessPolicy;
     private final EncounterCommands encounterCommands;
     private final CombatLogReader combatLogReader;
     private final TurnProcessor turnProcessor;
+    private final EncounterResults encounterResults;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    // An encounter under way, from which a player character leaving takes its changes (D166)
+    private static final Set<EncounterStatus> LIVE = EnumSet.of(EncounterStatus.ACTIVE, EncounterStatus.PAUSED);
 
     @Transactional
     public EncounterResponse createEncounter(EncounterCreateRequest request, UUID userId) {
@@ -114,34 +114,47 @@ public class EncounterService {
         }
         PlayerCharacter character = characterRepository.findById(request.getCharacterId())
                 .orElseThrow(() -> new ValidationException("Character not found"));
-        accessPolicy.requireOwnerIsMember(encounter.getCampaign().getId(), character.getUser().getId());
+        CombatSnapshot snapshot = CombatSnapshot.of(character);
+        accessPolicy.requireOwnerIsMember(encounter.getCampaign().getId(), snapshot.ownerId());
+        if (snapshot.dead()) {
+            throw new ConflictException(snapshot.name() + " is dead, so can't join an encounter until the DM revives them");
+        }
 
-        // The hit points and life state must agree (D161). A character who arrives at 0 HP is stable and
-        // unconscious: the sheet doesn't say how they got there, so they make no death saves until hit.
-        int hpMax = Math.max(1, character.getHpMax() != null ? character.getHpMax() : 1);
-        int hp = Math.max(0, Math.min(hpMax, character.getHpCurrent() != null ? character.getHpCurrent() : hpMax));
         EncounterParticipant participant = EncounterParticipant.builder()
                 .encounter(encounter)
                 .participantType(ParticipantType.PLAYER)
                 .character(character)
-                .displayName(character.getName())
-                .initiativeModifier(character.getInitiativeBonus())
-                .hpMax(hpMax)
-                .hpCurrent(hp)
-                .lifeState(hp > 0 ? LifeState.ALIVE : LifeState.STABLE)
-                .activeConditions(hp > 0 ? null : new ArrayList<>(List.of(ConditionEntry.unconsciousAtZeroHp(1))))
-                // With the DM's AC adjustments, as the stored Derived Stats copied here have theirs (D158)
-                .armourClass(DmAdjustments.armourClass(character))
-                .controlledByUserId(character.getUser().getId())
-                .spellSlotsCurrent(copySpellSlots(character))
-                .spellAttackBonus(character.getSpellAttackBonus())
-                .spellSaveDc(character.getSpellSaveDc())
-                .spellcastingAbility(character.getSpellcastingAbility())
-                .spellsKnown(copySpellsKnown(character))
+                .displayName(snapshot.name())
                 .build();
-
-        resourcePoolService.copyToParticipant(participant, character);
+        joinWith(participant, snapshot);
         encounter.getParticipants().add(participant);
+    }
+
+    /**
+     * Copies a player character into its participant through the character module's snapshot of its sheet (D166):
+     * its hit points, temporary hit points, AC, initiative modifier, slots, spell numbers, spells and pools, with the
+     * totals as what it joined with, from which Write-back works out what the encounter changes. The hit points and
+     * life state must agree (D161): a character who arrives at 0 HP is stable and unconscious, since the sheet doesn't
+     * say how they got there, so they make no death saves until hit.
+     */
+    private static void joinWith(EncounterParticipant participant, CombatSnapshot snapshot) {
+        int hp = snapshot.totals().hpCurrent();
+        participant.setInitiativeModifier(snapshot.initiativeBonus());
+        participant.setHpMax(snapshot.hpMax());
+        participant.setHpCurrent(hp);
+        participant.setHpTemp(snapshot.totals().hpTemp());
+        participant.setLifeState(hp > 0 ? LifeState.ALIVE : LifeState.STABLE);
+        participant.setActiveConditions(hp > 0 ? null
+                : new ArrayList<>(List.of(ConditionEntry.unconsciousAtZeroHp(1))));
+        participant.setArmourClass(snapshot.armourClass());
+        participant.setControlledByUserId(snapshot.ownerId());
+        participant.setSpellSlotsCurrent(snapshot.spellSlots());
+        participant.setSpellAttackBonus(snapshot.spellAttackBonus());
+        participant.setSpellSaveDc(snapshot.spellSaveDc());
+        participant.setSpellcastingAbility(snapshot.spellcastingAbility());
+        participant.setSpellsKnown(snapshot.spellsKnown());
+        participant.setResourcePoolsCurrent(snapshot.resourcePools());
+        participant.setJoinedWith(snapshot.totals());
     }
 
     private void addMonsterParticipants(Encounter encounter, AddParticipantRequest request, int quantity) {
@@ -251,7 +264,9 @@ public class EncounterService {
 
     /**
      * Removes a participant while the encounter is prepared or fought. Mid-fight its concentration ends, it
-     * leaves its lair, and if the turn is its own, the turn passes to the next creature in the order (D163).
+     * leaves its lair, and if the turn is its own, the turn passes to the next creature in the order (D163). A player
+     * character leaving an encounter under way takes what the encounter changed for it so far to its sheet then,
+     * through Write-back (D166).
      */
     @Transactional
     public EncounterResponse removeParticipant(UUID encounterId, UUID participantId, UUID userId) {
@@ -264,7 +279,9 @@ public class EncounterService {
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Participant not found"));
 
-        if (encounter.getStatus() == EncounterStatus.ACTIVE) {
+        if (LIVE.contains(encounter.getStatus())) {
+            // Before the turn order reads the sheets, so the character's is read once its row is locked
+            encounterResults.apply(encounter, List.of(participant));
             turnProcessor.leave(encounter, participant);
         }
         encounter.getParticipants().remove(participant);
@@ -314,6 +331,20 @@ public class EncounterService {
             throw new ConflictException("All participants must have initiative set before starting");
         }
 
+        // Every player character was added while the encounter was prepared, and its sheet may have changed since, by
+        // a rest or a DM Adjustment, so each joins again with its sheet as it stands now: what Write-back measures the
+        // encounter's changes from (D166). The initiative the DM set stays.
+        for (EncounterParticipant participant : encounter.getParticipants()) {
+            if (participant.getParticipantType() == ParticipantType.PLAYER && participant.getCharacter() != null) {
+                CombatSnapshot snapshot = CombatSnapshot.of(participant.getCharacter());
+                if (snapshot.dead()) {
+                    throw new ConflictException(snapshot.name() + " has died since joining, so the encounter can't "
+                            + "start with them until the DM revives them or removes them from it");
+                }
+                joinWith(participant, snapshot);
+            }
+        }
+
         encounter.setStatus(EncounterStatus.ACTIVE);
         encounter.setSessionCode(generateSessionCode());
         encounter.setRoundNumber(1);
@@ -336,20 +367,37 @@ public class EncounterService {
         return toResponse(encounterRepository.save(encounter));
     }
 
+    /**
+     * Completes the encounter (D166). With its results applied, what the encounter changed for each player character
+     * is written back to their sheets: the encounter's row is locked first, by the command, and then the characters'
+     * in ID order. Without, no sheet changes, pool uses included. Completed is final, so the results apply once.
+     *
+     * @param applyResults the DM's choice, made once for the whole encounter
+     */
     @Transactional
-    public EncounterResponse endEncounter(UUID encounterId, UUID userId) {
+    public EncounterResponse endEncounter(UUID encounterId, boolean applyResults, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
-        // Completed is final and the row is locked, so the pools below sync back once (D166)
         EncounterLifecycle.apply(encounter, Transition.COMPLETE);
-
-        // Sync resource pool currentUses back to character sheets
-        for (EncounterParticipant p : encounter.getParticipants()) {
-            if (p.getParticipantType() == ParticipantType.PLAYER && p.getCharacter() != null) {
-                resourcePoolService.syncBackToCharacter(p, p.getCharacter());
-            }
+        encounter.setResultsApplied(applyResults);
+        if (applyResults) {
+            encounterResults.apply(encounter, encounter.getParticipants());
         }
-
+        log.info("DM {} completed encounter {} {} its results applied", userId, encounterId,
+                applyResults ? "with" : "without");
         return toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * What completing the encounter with its results applied would write back to each player character's sheet as it
+     * stands now, for the DM's End dialog (D166); changes nothing. Only an encounter that can be completed, Active or
+     * Paused, has results to preview.
+     */
+    @Transactional(readOnly = true)
+    public List<CombatResultPreview> previewResults(UUID encounterId, UUID userId) {
+        Encounter encounter = loadEncounter(encounterId);
+        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        EncounterLifecycle.require(encounter, Transition.COMPLETE);
+        return encounterResults.preview(encounter);
     }
 
     @Transactional
@@ -580,22 +628,5 @@ public class EncounterService {
                 .filter(p -> Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
                 .collect(Collectors.toMap(EncounterParticipant::getId, EncounterParticipant::getDisplayName));
         return EncounterViews.playerLog(entries, hiddenParticipants);
-    }
-
-    // Sheets and participants hold slots in the same {max, used} shape (D168); each used count is copied
-    // between 0 and the maximum, and a level without a value is left out
-    private Map<String, SpellSlot> copySpellSlots(PlayerCharacter character) {
-        if (character.getSpellSlots() == null) return null;
-        Map<String, SpellSlot> encounterSlots = new LinkedHashMap<>();
-        character.getSpellSlots().forEach((level, slot) -> {
-            if (slot != null) {
-                encounterSlots.put(level, new SpellSlot(slot.max(), Math.max(0, Math.min(slot.max(), slot.used()))));
-            }
-        });
-        return encounterSlots;
-    }
-
-    private List<KnownSpell> copySpellsKnown(PlayerCharacter character) {
-        return character.getSpellsKnown() != null ? new ArrayList<>(character.getSpellsKnown()) : null;
     }
 }

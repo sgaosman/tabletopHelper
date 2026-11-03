@@ -36,13 +36,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * The preview-migration dry run (D150, D168). V15 is previewed against rows in the shapes it converts, with
  * {@code preview} called directly because Flyway has already applied it to this database. V16 is applied to a
  * schema of its own that Flyway takes only to V15, so its backfill is checked row by row (D161, D162); its
- * preview, which loads the rows with entities now at V17, gave way to V17's. V17 is previewed through
- * {@code run}, pending as it would be in use, against a schema at V16, and then applied there (D163). V19 is applied
+ * preview, which loads the rows with entities now at V17, gave way to V17's. V17 is applied to a schema at V16
+ * (D163); its preview through {@code run}, pending as it would be in use, gave way to V24's once the encounter
+ * entities mapped V24's columns. V19 is applied
  * the same way, against player characters in a schema at V18 (D168), and so is V20, against level histories in a
  * schema at V19 (D167); their previews, which load the characters with entities now at V23, gave way to V21's,
  * applied against characters in a schema at V20 (D158), whose preview in turn gave way to V22's, applied against
- * characters in a schema at V21 (D158), and V22's preview to V23's, previewed and applied against characters in a
- * schema at V22 (D159).
+ * characters in a schema at V21 (D158), and V22's preview to V23's, applied against characters in a schema at V22
+ * (D159), whose preview in turn gave way to V24's, previewed and applied against encounters and characters in a schema
+ * at V23 (D166).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
@@ -53,6 +55,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private static final String V21_SCHEMA = "v21_preview";
     private static final String V22_SCHEMA = "v22_preview";
     private static final String V23_SCHEMA = "v23_preview";
+    private static final String V24_SCHEMA = "v24_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -77,6 +80,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V21_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V22_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V23_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V24_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -388,28 +392,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private int v17Columns(String table, String... columns) {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
                 + "AND table_name = ? AND column_name = ANY (?)", Integer.class, V17_SCHEMA, table, columns);
-    }
-
-    @Test
-    @DisplayName("Previews V17 on a database at V16: every encounter and participant changes, every row loads, nothing is written")
-    void previewsV17() {
-        Map<String, UUID> rows = v17Rows();
-        DataSource v17 = schemaDataSource(V17_SCHEMA);
-
-        MaintenanceReport report = new PreviewMigrationJob(v17, new JdbcTemplate(v17), entityManagerFactory,
-                objectMapper, "17").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(report.examined()).isEqualTo(10);
-        // Three encounters and seven participants, which lose their turn columns and gain the new ones
-        assertThat(report.changes()).hasSize(10);
-        String ambush = report.changes().stream().filter(c -> c.contains(rows.get("Ambush").toString()))
-                .findFirst().orElseThrow();
-        assertThat(ambush).containsPattern("current_turn_participant_id: +→ \"" + rows.get("Goblin") + "\"")
-                .containsPattern("current_turn_index: 1 → *\n")
-                .containsPattern("is_lair_turn: +→ false");
-        assertThat(v17Columns("encounter_participants", "is_current_turn")).isEqualTo(1);
-        assertThat(v17Columns("encounters", "current_turn_participant_id")).isZero();
     }
 
     @Test
@@ -753,29 +735,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
         return rows;
     }
 
-    private Integer v23PendingChoiceColumns() {
-        return jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND table_name = 'player_characters' AND column_name = 'pending_choices'", Integer.class, V23_SCHEMA);
-    }
-
-    @Test
-    @DisplayName("Previews V23 on a database at V22: every character gains an empty list of Pending Choices, every row loads, nothing is written")
-    void previewsV23() {
-        Map<String, UUID> rows = v23Rows();
-        DataSource v23 = schemaDataSource(V23_SCHEMA);
-
-        MaintenanceReport report = new PreviewMigrationJob(v23, new JdbcTemplate(v23), entityManagerFactory,
-                objectMapper, "23").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        assertThat(report.examined()).isEqualTo(2);
-        assertThat(report.changes()).hasSize(2);
-        assertThat(characterChange(report, rows.get("Fighter"))).contains("(Fighter)")
-                .containsPattern("pending_choices: +→ \\[]");
-        assertThat(characterChange(report, rows.get("Empty"))).containsPattern("pending_choices: +→ \\[]");
-        assertThat(v23PendingChoiceColumns()).isZero();
-    }
-
     @Test
     @DisplayName("V23 gives every character an empty list of Pending Choices, never null, and leaves the rest of the row as it was")
     void appliesV23() {
@@ -795,5 +754,125 @@ class PreviewMigrationJobIT extends IntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V23_SCHEMA + ".player_characters "
                 + "SET pending_choices = NULL WHERE id = ?", rows.get("Empty")))
                 .hasMessageContaining("pending_choices");
+    }
+
+    // ── V24: Write-back (D166) ───────────────────────────────────
+
+    /**
+     * Takes a schema of its own to V23 and fills it as R6 workstream F left it: Aria, at 30 of 38 hit points with 5
+     * temporary, a level 1 slot spent, pact slots spent past their maximum and Rage held twice, the first with 1 use
+     * left, in an Active, a Paused, a Preparing and a Completed encounter; and Bram, whose hit points stand above his
+     * maximum, with no slots or pools, beside a goblin in the Active one.
+     */
+    private Map<String, UUID> v24Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V24_SCHEMA).locations("classpath:db/migration")
+                .target("23").load().migrate();
+        UUID owner = UUID.randomUUID();
+        UUID campaign = UUID.randomUUID();
+        UUID race = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V24_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'aria', 'aria@example.com', 'hash')", owner);
+        jdbcTemplate.update("INSERT INTO " + V24_SCHEMA + ".campaigns (id, name, invite_code, dm_user_id) "
+                + "VALUES (?, 'Lost Mine', 'ABCD2345', ?)", campaign, owner);
+        jdbcTemplate.update("INSERT INTO " + V24_SCHEMA + ".races (id, name) VALUES (?, 'Human')", race);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        rows.put("Aria", character(owner, race, "Aria", 38, 30, 5,
+                "{\"1\": {\"max\": 4, \"used\": 1}, \"pact_1\": {\"max\": 2, \"used\": 3}}",
+                "[" + rage(1) + ", " + rage(0) + "]"));
+        rows.put("Bram", character(owner, race, "Bram", 12, 15, 0, null, null));
+        for (String status : List.of("ACTIVE", "PAUSED", "PREPARING", "COMPLETED")) {
+            UUID encounter = UUID.randomUUID();
+            jdbcTemplate.update("INSERT INTO " + V24_SCHEMA + ".encounters (id, name, status, campaign_id) "
+                    + "VALUES (?, ?, ?, ?)", encounter, status.toLowerCase(), status, campaign);
+            rows.put(status, encounter);
+            rows.put("Aria " + status, participant(encounter, "Aria", "PLAYER", rows.get("Aria")));
+        }
+        rows.put("Bram ACTIVE", participant(rows.get("ACTIVE"), "Bram", "PLAYER", rows.get("Bram")));
+        rows.put("Goblin ACTIVE", participant(rows.get("ACTIVE"), "Goblin", "MONSTER", null));
+        return rows;
+    }
+
+    private UUID character(UUID owner, UUID race, String name, int hpMax, int hp, int tempHp, String slots,
+                           String pools) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V24_SCHEMA + ".player_characters (id, user_id, race_id, name, strength, "
+                + "dexterity, constitution, intelligence, wisdom, charisma, hp_max, hp_current, hp_temp, armour_class, "
+                + "spell_slots, resource_pools) VALUES (?, ?, ?, ?, 10, 10, 14, 10, 10, 10, ?, ?, ?, 10, ?::jsonb, "
+                + "?::jsonb)", id, owner, race, name, hpMax, hp, tempHp, slots, pools);
+        return id;
+    }
+
+    private static String rage(int currentUses) {
+        return "{\"poolId\": \"class:barbarian-rage\", \"displayName\": \"Rage\", \"sourceType\": \"CLASS\", "
+                + "\"maxUses\": 2, \"currentUses\": " + currentUses + ", \"resetOn\": \"longRest\"}";
+    }
+
+    private UUID participant(UUID encounter, String name, String type, UUID character) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V24_SCHEMA + ".encounter_participants (id, display_name, "
+                + "participant_type, hp_max, hp_current, armour_class, life_state, encounter_id, character_id) "
+                + "VALUES (?, ?, ?, 20, 7, 12, 'ALIVE', ?, ?)", id, name, type, encounter, character);
+        return id;
+    }
+
+    private String v24JoinedWith(UUID participant) {
+        return jdbcTemplate.queryForObject("SELECT joined_with::text FROM " + V24_SCHEMA
+                + ".encounter_participants WHERE id = ?", String.class, participant);
+    }
+
+    @Test
+    @DisplayName("Previews V24 on a database at V23: the player participants of encounters under way join with their sheets, every character gains is_dead, every row loads, nothing is written")
+    void previewsV24() {
+        Map<String, UUID> rows = v24Rows();
+        DataSource v24 = schemaDataSource(V24_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v24, new JdbcTemplate(v24), entityManagerFactory,
+                objectMapper, "24").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        // 4 encounters, 6 participants and 2 characters
+        assertThat(report.examined()).isEqualTo(12);
+        // Encounters gain results_applied as null, which changes nothing in the row
+        assertThat(report.changes()).hasSize(5);
+        assertThat(characterChange(report, rows.get("Aria ACTIVE"))).contains("(Aria)").contains("joined_with:  → "
+                + "{\"hpTemp\":5,\"hpCurrent\":30,\"slotsUsed\":{\"1\":1,\"pact_1\":2},"
+                + "\"poolsCurrentUses\":{\"class:barbarian-rage\":1}}");
+        assertThat(characterChange(report, rows.get("Aria PAUSED"))).contains("joined_with:");
+        assertThat(characterChange(report, rows.get("Bram ACTIVE"))).contains("joined_with:  → "
+                + "{\"hpTemp\":0,\"hpCurrent\":12,\"slotsUsed\":{},\"poolsCurrentUses\":{}}");
+        assertThat(characterChange(report, rows.get("Aria"))).containsPattern("is_dead: +→ false");
+        assertThat(characterChange(report, rows.get("Bram"))).containsPattern("is_dead: +→ false");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND column_name IN ('joined_with', 'results_applied', 'is_dead')", Integer.class, V24_SCHEMA)).isZero();
+    }
+
+    @Test
+    @DisplayName("V24 gives player participants of Active and Paused encounters what they joined with from their sheets, and nobody else, and leaves the rest as it was")
+    void appliesV24() {
+        Map<String, UUID> rows = v24Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V24_SCHEMA).locations("classpath:db/migration")
+                .target("24").load().migrate();
+
+        String aria = "{\"hpTemp\": 5, \"hpCurrent\": 30, \"slotsUsed\": {\"1\": 1, \"pact_1\": 2}, "
+                + "\"poolsCurrentUses\": {\"class:barbarian-rage\": 1}}";
+        assertThat(v24JoinedWith(rows.get("Aria ACTIVE"))).isEqualTo(aria);
+        assertThat(v24JoinedWith(rows.get("Aria PAUSED"))).isEqualTo(aria);
+        assertThat(v24JoinedWith(rows.get("Bram ACTIVE")))
+                .isEqualTo("{\"hpTemp\": 0, \"hpCurrent\": 12, \"slotsUsed\": {}, \"poolsCurrentUses\": {}}");
+        assertThat(v24JoinedWith(rows.get("Aria PREPARING"))).isNull();
+        assertThat(v24JoinedWith(rows.get("Aria COMPLETED"))).isNull();
+        assertThat(v24JoinedWith(rows.get("Goblin ACTIVE"))).isNull();
+        // The participant's own totals stay as combat left them
+        assertThat(jdbcTemplate.queryForObject("SELECT hp_current FROM " + V24_SCHEMA
+                + ".encounter_participants WHERE id = ?", Integer.class, rows.get("Aria ACTIVE"))).isEqualTo(7);
+        assertThat(jdbcTemplate.queryForList("SELECT results_applied FROM " + V24_SCHEMA + ".encounters",
+                Boolean.class)).hasSize(4).containsOnlyNulls();
+        assertThat(jdbcTemplate.queryForList("SELECT is_dead FROM " + V24_SCHEMA + ".player_characters ORDER BY name",
+                Boolean.class)).containsExactly(false, false);
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V24_SCHEMA + ".player_characters "
+                + "SET is_dead = NULL WHERE id = ?", rows.get("Bram")))
+                .hasMessageContaining("is_dead");
     }
 }

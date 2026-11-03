@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Copy, Check, Users, ScrollText, Settings, SlidersHorizontal } from 'lucide-react';
+import { Copy, Check, Users, ScrollText, Settings, SlidersHorizontal, HeartPulse } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaign, useUpdateCampaignSettings } from '../../queries/campaigns';
-import { useCampaignCharacters } from '../../queries/characters';
+import { useCampaignCharacters, useReviveCharacter } from '../../queries/characters';
 import NavBar from '../../components/common/NavBar';
 import DmAdjustmentsModal from '../../components/character/DmAdjustmentsModal';
 import Button from '../../components/ui/Button';
@@ -21,6 +21,7 @@ export default function CampaignDetailPage() {
   const campaignQuery = useCampaign(campaignId, { refetchInterval: REFRESH_INTERVAL_MS });
   const charactersQuery = useCampaignCharacters(campaignId, { refetchInterval: REFRESH_INTERVAL_MS });
   const updateSettings = useUpdateCampaignSettings();
+  const revive = useReviveCharacter();
   const [copiedCode, setCopiedCode] = useState(false);
   // The character whose DM Adjustments are open, read from the list so the dialog shows each change (D158)
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
@@ -48,6 +49,11 @@ export default function CampaignDetailPage() {
   function handleAllowPlayerManualModifiers(allowPlayerManualModifiers: boolean) {
     if (!campaign) return;
     updateSettings.mutate({ campaignId: campaign.id, settings: { allowPlayerManualModifiers } });
+  }
+
+  function handleRevive(characterId: string) {
+    if (!campaign) return;
+    revive.mutate({ characterId, campaignId: campaign.id });
   }
 
   function modifierString(score: number) {
@@ -182,6 +188,12 @@ export default function CampaignDetailPage() {
                             {choicesPending(c.pendingChoices.length)}
                           </span>
                         )}
+                        {/* Died in an encounter, until the DM revives them (D166) */}
+                        {c.dead && (
+                          <span className="inline-block mt-1 ml-1 font-heading text-[11px] font-semibold tracking-[0.04em] px-2 py-0.5 bg-debuff text-card">
+                            Dead
+                          </span>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-heading text-[13px] font-semibold text-ink">HP {c.hpCurrent}/{c.hpMax}</p>
@@ -202,13 +214,29 @@ export default function CampaignDetailPage() {
                           );
                         })}
                       </div>
-                      {/* The DM's adjustments to the character (D158); the name says whose, as every card has one */}
-                      <Button size="sm" variant="secondary" onClick={() => setAdjustingId(c.id)}
-                        aria-label={`${adjustmentsLabel} for ${c.name}`}>
-                        <SlidersHorizontal className="w-3.5 h-3.5" />
-                        {adjustmentsLabel}
-                      </Button>
+                      <div className="flex gap-2">
+                        {/* Brings a character who died back at 1 hit point (D166) */}
+                        {c.dead && (
+                          <Button size="sm" variant="primary" onClick={() => handleRevive(c.id)}
+                            loading={revive.isPending && revive.variables?.characterId === c.id}
+                            aria-label={`Revive ${c.name}`}>
+                            <HeartPulse className="w-3.5 h-3.5" />
+                            Revive
+                          </Button>
+                        )}
+                        {/* The DM's adjustments to the character (D158); the name says whose, as every card has one */}
+                        <Button size="sm" variant="secondary" onClick={() => setAdjustingId(c.id)}
+                          aria-label={`${adjustmentsLabel} for ${c.name}`}>
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                          {adjustmentsLabel}
+                        </Button>
+                      </div>
                     </div>
+                    {revive.isError && revive.variables?.characterId === c.id && (
+                      <p role="alert" className="font-body text-[13px] font-semibold text-debuff mt-2">
+                        {apiErrorMessage(revive.error)}
+                      </p>
+                    )}
                   </div>
                 );
               })}

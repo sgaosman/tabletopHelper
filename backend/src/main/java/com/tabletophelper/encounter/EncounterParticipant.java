@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.CombatTotals;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -112,6 +113,12 @@ public class EncounterParticipant {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "resource_pools_current", columnDefinition = "jsonb")
     private List<ResourcePoolEntry> resourcePoolsCurrent;
+
+    // What a player character joined with, from which Write-back works out what the encounter changed (D166, V24);
+    // null for a monster, and for a participant of an encounter completed before R6
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "joined_with", columnDefinition = "jsonb")
+    private CombatTotals joinedWith;
 
     @Column(name = "action_used")
     @Builder.Default

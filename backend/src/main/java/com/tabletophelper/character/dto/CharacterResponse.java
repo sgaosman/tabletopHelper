@@ -204,6 +204,11 @@ public class CharacterResponse {
     @Schema(requiredMode = REQUIRED)
     private boolean inLiveEncounter;
 
+    // Whether the character died in an encounter: until the DM of its campaign revives it, at 1 hit point, it stays at
+    // 0 and can't rest, be healed, gain or lose a level, or join an encounter (D166)
+    @Schema(requiredMode = REQUIRED)
+    private boolean dead;
+
     // Null in the response that creates the character: @CreationTimestamp and @UpdateTimestamp only fill
     // them in when the insert is flushed, after the response is built
     private Instant createdAt;

@@ -92,16 +92,6 @@ class SpellcastingIT extends IntegrationTest {
                 .traits("[{\"name\": \"Legendary Resistance (3/Day)\"}]")
                 .actionTemplates("{\"legendaryActionCount\": 3, \"legendaryResistanceCount\": 3}"));
 
-        EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
-        aria.setHpMax(40);
-        aria.setHpCurrent(40);
-        aria.setSpellSaveDc(13);
-        aria.setSpellAttackBonus(5);
-        aria.setSpellSlotsCurrent(Map.of("pact_2", new SpellSlot(2, 0)));
-        aria.setSpellsKnown(List.of(
-                new KnownSpell(null, "Hellish Rebuke", 1, "class:Warlock", null, null, null, null, null)));
-        participantRepository.save(aria);
-
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/initiatives",
                 Map.of("initiatives", List.of(
                         Map.of("participantId", ariaId, "initiative", 20),
@@ -111,6 +101,16 @@ class SpellcastingIT extends IntegrationTest {
                 dm.accessToken()));
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null,
                 dm.accessToken()));
+        // Set after the start, which copies each player character's sheet into its participant again (D166)
+        EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
+        aria.setHpMax(40);
+        aria.setHpCurrent(40);
+        aria.setSpellSaveDc(13);
+        aria.setSpellAttackBonus(5);
+        aria.setSpellSlotsCurrent(Map.of("pact_2", new SpellSlot(2, 0)));
+        aria.setSpellsKnown(List.of(
+                new KnownSpell(null, "Hellish Rebuke", 1, "class:Warlock", null, null, null, null, null)));
+        participantRepository.save(aria);
     }
 
     @Test

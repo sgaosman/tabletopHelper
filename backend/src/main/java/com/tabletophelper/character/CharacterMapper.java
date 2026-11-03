@@ -25,9 +25,9 @@ import java.util.UUID;
 /**
  * A character as the API returns it: its sheet, with what each class casts with and the ability score maximums
  * worked out by CharacterStats, since the sheet stores neither (D158, D167), and whether it is in an encounter that
- * is under way (D166). The ability scores, armour class and damage defences include the active DM Adjustments, as
- * the stored Derived Stats do, and the adjustments themselves come with them, the removed ones as the record. So do
- * the Pending Choices its levels still owe (D159).
+ * is under way and whether it has died (D166). The ability scores, armour class and damage defences include the active
+ * DM Adjustments, as the stored Derived Stats do, and the adjustments themselves come with them, the removed ones as
+ * the record. So do the Pending Choices its levels still owe (D159).
  */
 @Slf4j
 @Component
@@ -120,6 +120,7 @@ public class CharacterMapper {
                 .pendingChoices(c.getPendingChoices() != null ? c.getPendingChoices() : List.of())
                 .isActive(c.getIsActive())
                 .inLiveEncounter(c.getId() != null && liveEncounters.includes(c.getId()))
+                .dead(c.isDead())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();

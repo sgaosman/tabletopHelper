@@ -918,6 +918,37 @@
         ]
       }
     },
+    "/api/characters/{characterId}/revive": {
+      "post": {
+        "operationId": "revive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
     "/api/characters/{characterId}/short-rest": {
       "post": {
         "operationId": "shortRest",
@@ -2253,6 +2284,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndEncounterRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -2630,6 +2670,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "encounter-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/results": {
+      "get": {
+        "operationId": "previewResults",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CombatResultPreview"
+                  }
                 }
               }
             },
@@ -4998,6 +5072,7 @@
           "damageImmunities",
           "damageResistances",
           "damageVulnerabilities",
+          "dead",
           "deathSaveFailures",
           "deathSaveSuccesses",
           "dexterity",
@@ -5131,6 +5206,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "dead": {
+            "type": "boolean"
           },
           "deathSaveFailures": {
             "type": "integer",
@@ -5631,6 +5709,79 @@
           }
         }
       },
+      "CombatResultPreview": {
+        "required": [
+          "characterId",
+          "deadAfter",
+          "deadBefore",
+          "hpAfter",
+          "hpBefore",
+          "hpMax",
+          "hpTempAfter",
+          "hpTempBefore",
+          "lifeState",
+          "name",
+          "pools",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "characterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deadAfter": {
+            "type": "boolean"
+          },
+          "deadBefore": {
+            "type": "boolean"
+          },
+          "hpAfter": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hpBefore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hpMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hpTempAfter": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hpTempBefore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lifeState": {
+            "type": "string",
+            "enum": [
+              "ALIVE",
+              "DYING",
+              "STABLE",
+              "DEAD"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "pools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PoolChange"
+            }
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlotChange"
+            }
+          }
+        }
+      },
       "ComponentOption": {
         "required": [
           "automated",
@@ -6109,6 +6260,15 @@
             "items": {
               "$ref": "#/components/schemas/TurnResponse"
             }
+          }
+        }
+      },
+      "EndEncounterRequest": {
+        "type": "object",
+        "properties": {
+          "applyResults": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },
@@ -7618,6 +7778,36 @@
           }
         }
       },
+      "PoolChange": {
+        "required": [
+          "currentAfter",
+          "currentBefore",
+          "displayName",
+          "maxUses",
+          "poolId"
+        ],
+        "type": "object",
+        "properties": {
+          "currentAfter": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentBefore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "maxUses": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "poolId": {
+            "type": "string"
+          }
+        }
+      },
       "PoolUseRequest": {
         "required": [
           "poolId"
@@ -7987,6 +8177,32 @@
             "items": {
               "$ref": "#/components/schemas/HitDieSpent"
             }
+          }
+        }
+      },
+      "SlotChange": {
+        "required": [
+          "max",
+          "slot",
+          "usedAfter",
+          "usedBefore"
+        ],
+        "type": "object",
+        "properties": {
+          "max": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "usedAfter": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "usedBefore": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

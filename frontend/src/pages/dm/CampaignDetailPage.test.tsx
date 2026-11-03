@@ -190,6 +190,46 @@ describe('CampaignDetailPage', () => {
     expect(screen.queryByRole('button', { name: /choice/i })).not.toBeInTheDocument();
   });
 
+  it('shows a character who died as dead, with a Revive button that brings them back at 1 hit point (D166)', async () => {
+    const aria = { ...makeMockCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
+    const bram = makeMockCharacter('char-002', 'Bram', 'Wizard', 3);
+    const revived: string[] = [];
+    server.use(
+      http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([aria, bram])),
+      http.post('/api/characters/:id/revive', ({ params }) => {
+        revived.push(params.id as string);
+        return HttpResponse.json({ ...aria, hpCurrent: 1, dead: false });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText('Dead')).toBeInTheDocument();
+    expect(screen.getByText('HP 0/30')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revive Bram' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Revive Aria' }));
+
+    expect(await screen.findByText('HP 1/30')).toBeInTheDocument();
+    expect(revived).toEqual(['char-001']);
+    expect(screen.queryByText('Dead')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revive Aria' })).not.toBeInTheDocument();
+  });
+
+  it("shows why a character couldn't be revived on its card", async () => {
+    const aria = { ...makeMockCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true };
+    server.use(
+      http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([aria])),
+      http.post('/api/characters/:id/revive', () => HttpResponse.json({ error: "Aria isn't dead" }, { status: 409 })),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Revive Aria' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Aria isn't dead");
+  });
+
   describe('polling', () => {
     afterEach(() => {
       vi.restoreAllMocks();

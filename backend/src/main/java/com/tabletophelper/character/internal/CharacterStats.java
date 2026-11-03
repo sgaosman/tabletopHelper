@@ -127,7 +127,8 @@ public class CharacterStats {
     /**
      * Derives the stats and writes the stored copies: the proficiency bonus, hit point maximum, initiative, speed,
      * spell slots, Hit Dice, main spell DC and attack bonus, and the resource pools. A higher hit point maximum raises
-     * current hit points by as much; a lower one caps them (D167).
+     * current hit points by as much; a lower one caps them (D167). A dead character stays at 0 hit points whatever its
+     * maximum does, since only the DM's revival brings it back (D166).
      */
     public DerivedStats apply(PlayerCharacter character) {
         DerivedStats stats = derive(character);
@@ -139,7 +140,7 @@ public class CharacterStats {
 
         character.setProficiencyBonus(stats.proficiencyBonus());
         character.setHpMax(stats.hpMax());
-        character.setHpCurrent(Math.max(0, Math.min(current, stats.hpMax())));
+        character.setHpCurrent(character.isDead() ? 0 : Math.max(0, Math.min(current, stats.hpMax())));
         character.setInitiativeBonus(stats.initiativeBonus());
         character.setSpeed(stats.speed());
         character.setSpellSlots(stats.spellSlots());

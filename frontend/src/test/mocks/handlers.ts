@@ -9,7 +9,7 @@ import type {
   SpellOption,
 } from '../../types/combat';
 import type {
-  ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, TurnEntry,
+  CombatResultPreview, ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, TurnEntry,
 } from '../../types/encounter';
 import type { Monster } from '../../types/monster';
 import type {
@@ -149,6 +149,10 @@ export const characterHandlers = [
   http.delete(`${BASE}/characters/:id/adjustments/:adjustmentId`, async ({ params }) => {
     return HttpResponse.json(makeMockCharacter(params.id as string, 'Player 1 Char', 'Cleric', 4));
   }),
+  // The DM's revival of a character who died (D166)
+  http.post(`${BASE}/characters/:id/revive`, async ({ params }) => {
+    return HttpResponse.json({ ...makeMockCharacter(params.id as string, 'Player 1 Char', 'Cleric', 4), hpCurrent: 1 });
+  }),
 ];
 
 /**
@@ -222,6 +226,11 @@ export const encounterHandlers = [
 
   http.post(`${BASE}/encounters/:id/end`, async () => {
     return HttpResponse.json(makeMockEncounter({ status: 'COMPLETED' }));
+  }),
+
+  // The End dialog's preview of what each character sheet takes (D166)
+  http.get(`${BASE}/encounters/:id/results`, async () => {
+    return HttpResponse.json([] satisfies CombatResultPreview[]);
   }),
 ];
 
@@ -465,7 +474,7 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     dmAdjustments: [],
     // The choices its levels owe, of which there are none (D159)
     pendingChoices: [],
-    isActive: true, inLiveEncounter: false,
+    isActive: true, inLiveEncounter: false, dead: false,
     createdAt: makeTimestamp(), updatedAt: makeTimestamp(),
   } satisfies PlayerCharacter;
 }

@@ -26,9 +26,11 @@ import java.util.stream.Collectors;
  * <h3>Pool lifecycle</h3>
  * <ol>
  *   <li>reconciledPools — the pools a character sheet should have, which CharacterStats writes after every change</li>
- *   <li>copyToParticipant — copies currentUses to encounter participant on join</li>
+ *   <li>A player character's participant copies the sheet's pools when it joins, through character's
+ *       CombatSnapshot (D166)</li>
  *   <li>Spend/recover during combat — tracked independently on participant</li>
- *   <li>syncBackToCharacter — writes currentUses back to character sheet on COMPLETED</li>
+ *   <li>Write-back applies the change in each pool's uses to the sheet when the DM completes the encounter with its
+ *       results applied, through character's WriteBackService (D166)</li>
  *   <li>resetPools — applies rest recovery (short/long) or per-turn resets</li>
  * </ol>
  */
@@ -164,36 +166,6 @@ public class ResourcePoolService {
 
     private static String sourceName(String source) {
         return source != null && source.contains(":") ? source.substring(source.indexOf(':') + 1) : null;
-    }
-
-    /**
-     * Copies currentUses from the character sheet to the encounter participant.
-     * Called when a player character joins an encounter.
-     */
-    public void copyToParticipant(EncounterParticipant participant, PlayerCharacter character) {
-        participant.setResourcePoolsCurrent(new ArrayList<>(orEmpty(character.getResourcePools())));
-    }
-
-    /**
-     * Writes currentUses back from the participant to the character sheet
-     * for matching poolIds. Called when an encounter transitions to COMPLETED.
-     */
-    public void syncBackToCharacter(EncounterParticipant participant, PlayerCharacter character) {
-        if (participant.getResourcePoolsCurrent() == null) return;
-        List<ResourcePoolEntry> partPools = participant.getResourcePoolsCurrent();
-        List<ResourcePoolEntry> charPools = orEmpty(character.getResourcePools());
-
-        // A participant holds one pool per ID; should it hold two, the first counts
-        Map<String, Integer> currentByPoolId = partPools.stream()
-                .collect(Collectors.toMap(ResourcePoolEntry::poolId, ResourcePoolEntry::currentUses, (a, b) -> a));
-
-        List<ResourcePoolEntry> updated = charPools.stream()
-                .map(e -> currentByPoolId.containsKey(e.poolId())
-                        ? e.withCurrentUses(currentByPoolId.get(e.poolId()))
-                        : e)
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        character.setResourcePools(updated);
     }
 
     // ── Pool mutation (in-combat) ─────────────────────────────────

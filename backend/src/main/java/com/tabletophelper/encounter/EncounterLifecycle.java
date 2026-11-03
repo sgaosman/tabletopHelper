@@ -9,8 +9,8 @@ import java.util.Set;
 /**
  * The encounter lifecycle (D166): Preparing → Active ⇄ Paused → Completed. The DM's start, pause, resume
  * and complete commands each make one {@link Transition}, and any other move is a 409. Completed is final,
- * so an encounter completes, and syncs its pools back, only once. Combat needs an Active encounter, so a
- * Paused one can only resume or complete.
+ * so an encounter completes, and writes its results back to the character sheets, only once. Combat needs an
+ * Active encounter, so a Paused one can only resume or complete.
  */
 public final class EncounterLifecycle {
 

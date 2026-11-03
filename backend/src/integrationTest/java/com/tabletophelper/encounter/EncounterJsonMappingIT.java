@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
+import com.tabletophelper.character.state.CombatTotals;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -160,6 +161,33 @@ class EncounterJsonMappingIT extends IntegrationTest {
         UUID id = saveParticipant(EncounterParticipant.builder().resourcePoolsCurrent(pools), null);
 
         assertThat(reload(id).getResourcePoolsCurrent()).isEqualTo(pools);
+    }
+
+    @Test
+    @DisplayName("What a player character joined with round-trips, keyed as slots and pools are, and an encounter's results choice with it (D166)")
+    void joinedWithRoundTrips() {
+        Map<String, Integer> slotsUsed = new LinkedHashMap<>();
+        slotsUsed.put("1", 2);
+        slotsUsed.put("pact_3", 0);
+        CombatTotals joined = new CombatTotals(38, 5, slotsUsed, Map.of("class:barbarian-rage", 2));
+
+        UUID id = saveParticipant(EncounterParticipant.builder().joinedWith(joined), null);
+        UUID encounterId = jdbcTemplate.queryForObject(
+                "SELECT encounter_id FROM encounter_participants WHERE id = ?", UUID.class, id);
+        Encounter encounter = encounterRepository.findById(encounterId).orElseThrow();
+        assertThat(encounter.getResultsApplied()).isNull();
+        encounter.setResultsApplied(false);
+        encounterRepository.save(encounter);
+
+        assertThat(reload(id).getJoinedWith()).isEqualTo(joined);
+        assertThat(column("SELECT joined_with::text FROM encounter_participants WHERE id = ?", id))
+                .isEqualTo("{\"hpTemp\": 5, \"hpCurrent\": 38, \"slotsUsed\": {\"1\": 2, \"pact_3\": 0}, "
+                        + "\"poolsCurrentUses\": {\"class:barbarian-rage\": 2}}");
+        assertThat(jdbcTemplate.queryForObject("SELECT results_applied FROM encounters WHERE id = ?", Boolean.class,
+                encounterId)).isFalse();
+        // A monster joins with nothing to write back
+        assertThat(column("SELECT joined_with::text FROM encounter_participants WHERE id = ?",
+                saveParticipant(EncounterParticipant.builder(), null))).isNull();
     }
 
     @Test

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, onTestFinished } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, onTestFinished, vi } from 'vitest';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
@@ -208,6 +208,52 @@ describe('CharacterSheetPage', () => {
     }
     // Hit points can still change on the sheet
     expect(screen.getByRole('button', { name: 'Damage' })).toBeEnabled();
+  });
+
+  describe('Write-back (D166)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("shows a character who died as dead, with rests, hit points and levels waiting for the DM to revive them", async () => {
+      server.use(http.get('/api/characters/:id', () => HttpResponse.json({ ...hurtFighter, hpCurrent: 0, dead: true })));
+      renderSheet();
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        "Gimli died in an encounter. Until the DM revives them, they can't rest, be healed, level or join an encounter.");
+      for (const name of ['Short Rest', 'Long Rest', 'Level Up', 'Level Down', 'Damage', 'Heal', '+ Temp HP']) {
+        expect(screen.getByRole('button', { name })).toBeDisabled();
+      }
+    });
+
+    it('loads the sheet again every 10 seconds while the character is in an encounter under way, so it shows what the encounter wrote back, then every 30', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      let character = { ...hurtFighter, hpCurrent: 30, inLiveEncounter: true };
+      let loads = 0;
+      server.use(http.get('/api/characters/:id', () => {
+        loads += 1;
+        return HttpResponse.json(character);
+      }));
+      const { unmount } = renderSheet();
+      expect(await screen.findByText('30/30')).toBeInTheDocument();
+
+      // The DM ends the encounter, and its 18 damage is written back
+      character = { ...hurtFighter, inLiveEncounter: false };
+      await act(() => vi.advanceTimersByTimeAsync(9999));
+      expect(loads).toBe(1);
+      await act(() => vi.advanceTimersByTimeAsync(1));
+
+      expect(await screen.findByText('12/30')).toBeInTheDocument();
+      expect(loads).toBe(2);
+      expect(screen.queryByText(/In an encounter that is under way/)).not.toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(29999));
+      expect(loads).toBe(2);
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      await waitFor(() => expect(loads).toBe(3));
+
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   describe('Pending Choices (D159)', () => {

@@ -8,7 +8,7 @@ import { server } from '../../test/mocks/server';
 import { makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
 import type { MonsterActionResponse, MonsterActionTemplate, MultiattackOption } from '../../types/combat';
-import type { Encounter, EncounterParticipant, TurnEntry } from '../../types/encounter';
+import type { CombatResultPreview, Encounter, EncounterParticipant, TurnEntry } from '../../types/encounter';
 import EncounterSessionPage from './EncounterSessionPage';
 
 const NAMES = /^(Test Goblin|Gimli|Hidden Bugbear)$/;
@@ -526,6 +526,127 @@ describe('DM EncounterSessionPage', () => {
       expect(await within(dialog).findByRole('alert'))
         .toHaveTextContent('Participants can be removed only while the encounter is prepared or active');
       expect(within(dialog).getByRole('button', { name: 'Remove' })).toBeEnabled();
+    });
+
+    it('says a player character leaving mid-fight takes its changes to its sheet; a monster takes nothing', async () => {
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Remove Gimli' }));
+      expect(screen.getByRole('dialog', { name: 'Remove Gimli?' }))
+        .toHaveTextContent('such as hit points, spell slots and pool uses, is written back to their character sheet now');
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+      await user.click(screen.getByRole('button', { name: 'Remove Test Goblin' }));
+
+      expect(screen.getByRole('dialog', { name: 'Remove Test Goblin?' })).not.toHaveTextContent('character sheet');
+    });
+  });
+
+  describe('ending (D166)', () => {
+    const preview = [
+      {
+        characterId: 'char-001', name: 'Gimli', lifeState: 'ALIVE', hpMax: 30, hpBefore: 30, hpAfter: 12,
+        hpTempBefore: 0, hpTempAfter: 4, deadBefore: false, deadAfter: false,
+        slots: [{ slot: '1', max: 2, usedBefore: 0, usedAfter: 1 }],
+        pools: [{ poolId: 'class:barbarian-rage', displayName: 'Rage', maxUses: 2, currentBefore: 2, currentAfter: 1 }],
+      },
+      {
+        characterId: 'char-002', name: 'Bram', lifeState: 'DEAD', hpMax: 20, hpBefore: 20, hpAfter: 0,
+        hpTempBefore: 0, hpTempAfter: 0, deadBefore: false, deadAfter: true, slots: [], pools: [],
+      },
+      {
+        characterId: 'char-003', name: 'Cora', lifeState: 'STABLE', hpMax: 24, hpBefore: 0, hpAfter: 0,
+        hpTempBefore: 0, hpTempAfter: 0, deadBefore: false, deadAfter: false, slots: [], pools: [],
+      },
+    ] satisfies CombatResultPreview[];
+
+    // Answers the preview, and records each end's body
+    function recordEnd() {
+      const bodies: unknown[] = [];
+      server.use(
+        http.get('/api/encounters/:id/results', () => HttpResponse.json(preview)),
+        http.post('/api/encounters/:id/end', async ({ request }) => {
+          bodies.push(await request.json());
+          return HttpResponse.json(makeMockEncounter({ status: 'COMPLETED', participants: [gimli(), goblin(), bugbear()] }));
+        }),
+      );
+      return bodies;
+    }
+
+    async function openEndDialog(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole('button', { name: /End/ }));
+      return screen.getByRole('dialog', { name: 'End this encounter?' });
+    }
+
+    it("previews what each sheet takes, which the DM can't edit, and ends with the results applied by default", async () => {
+      const bodies = recordEnd();
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      const dialog = await openEndDialog(user);
+      const results = within(dialog).getByRole('region', { name: 'Results for each character' });
+
+      expect(await within(results).findByText('HP 30 → 12 of 30')).toBeInTheDocument();
+      expect(within(results).getByText('Temporary HP 0 → 4')).toBeInTheDocument();
+      expect(within(results).getByText('Level 1 slots spent 0 → 1 of 2')).toBeInTheDocument();
+      expect(within(results).getByText('Rage 2 → 1 of 2')).toBeInTheDocument();
+      expect(within(results).getByText('Dies')).toBeInTheDocument();
+      expect(within(results).getByText('Down: back on the sheet alive at 0 HP')).toBeInTheDocument();
+      expect(within(results).getByText('No change to the sheet')).toBeInTheDocument();
+      // The preview is read only: the box is the one control beside the buttons
+      expect(within(dialog).queryAllByRole('textbox')).toHaveLength(0);
+      expect(within(dialog).queryAllByRole('spinbutton')).toHaveLength(0);
+      expect(within(dialog).getAllByRole('checkbox')).toHaveLength(1);
+      expect(within(dialog).getByRole('checkbox', { name: /Apply results to character sheets/ })).toBeChecked();
+      expect(bodies).toEqual([]);
+
+      await user.click(within(dialog).getByRole('button', { name: 'End encounter' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(bodies).toEqual([{ applyResults: true }]);
+      expect(screen.getByText('Complete')).toBeInTheDocument();
+    });
+
+    it('ends without writing anything back once the DM unticks the box', async () => {
+      const bodies = recordEnd();
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      const dialog = await openEndDialog(user);
+      await within(dialog).findByText('HP 30 → 12 of 30');
+      await user.click(within(dialog).getByRole('checkbox', { name: /Apply results to character sheets/ }));
+
+      expect(within(dialog).getByText('Nothing is written back: every sheet stays as it is, pool uses included.'))
+        .toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'End encounter' }));
+
+      await waitFor(() => expect(bodies).toEqual([{ applyResults: false }]));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('keeps the encounter going when the DM cancels, and shows why the server refused an end', async () => {
+      const ends: unknown[] = [];
+      server.use(
+        http.get('/api/encounters/:id/results', () => HttpResponse.json([] satisfies CombatResultPreview[])),
+        http.post('/api/encounters/:id/end', async ({ request }) => {
+          ends.push(await request.json());
+          return HttpResponse.json({ error: 'The encounter is already completed' }, { status: 409 });
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      let dialog = await openEndDialog(user);
+      expect(await within(dialog).findByText('No player characters to write back to.')).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(ends).toEqual([]);
+
+      dialog = await openEndDialog(user);
+      await user.click(within(dialog).getByRole('button', { name: 'End encounter' }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('The encounter is already completed');
+      expect(within(dialog).getByRole('button', { name: 'End encounter' })).toBeEnabled();
     });
   });
 

@@ -48,10 +48,11 @@ import static org.mockito.Mockito.mock;
 
 /**
  * The character services wired as in the app, with CharacterStats, CharacterMapper, CharacterCommands,
- * FeatEffectResolver, PendingChoiceService and ResourcePoolService real, over mocked repositories, a mocked
- * LiveEncounters (no character is in an encounter until a test says so) and dice a test scripts. Saved characters are
- * kept in memory, so a test creates a character through the service and levels it up and down, rests it, makes its
- * Pending Choices and changes its sheet by its ID; the row lock is the stored character itself. The classes carry the
+ * FeatEffectResolver, PendingChoiceService, WriteBackService and ResourcePoolService real, over mocked repositories, a
+ * mocked LiveEncounters (no character is in an encounter until a test says so) and dice a test scripts. Saved
+ * characters are kept in memory, so a test creates a character through the service and levels it up and down, rests
+ * it, makes its Pending Choices, writes an encounter's results back to it and changes its sheet by its ID; the row lock
+ * is the stored character itself. The classes carry the
  * class data the rules read: hit dice, spellcasting, the features of the levels the tests take, and multiclassing
  * prerequisites and proficiencies as the 5eTools data has them. A Fighter gains Action Surge's pool at 2nd level, and
  * chooses between the Champion and the Eldritch Knight at 3rd; a Wizard has the School of Evocation at 2nd. No other
@@ -104,6 +105,7 @@ class CharacterFixture {
     final CharacterSheetService sheet = new CharacterSheetService(commands, campaignRepository, accessPolicy,
             inventoryChecks);
     final RestService rests = new RestService(commands, resourcePoolService, rng);
+    final WriteBackService writeBack = new WriteBackService(commands, characterRepository);
 
     final UUID userId = UUID.randomUUID();
     final User user = User.builder().id(userId).username("aria").email("aria@test.com").passwordHash("hash")

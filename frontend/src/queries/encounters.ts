@@ -182,6 +182,21 @@ export function useCombatLog(): CombatLogEntry[] {
   return useLiveEncounter().log;
 }
 
+/**
+ * What ending the page's live encounter with its results applied would write back to each player character's sheet,
+ * for the DM's End dialog; DM only (D166). The fight and the sheets change all the time, so it loads afresh each time
+ * the dialog opens and is dropped when it closes.
+ */
+export function useEncounterResults() {
+  const { encounterId } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.results(encounterId),
+    queryFn: async () => (await encounterApi.getResults(encounterId)).data,
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
+
 /** A monster's action templates, with the current uses of its resource pools; DM only (D157). */
 export function useMonsterActionTemplates(participantId: string) {
   const { encounterId } = useLiveEncounter();
@@ -263,13 +278,21 @@ export function useEncounterAction() {
     // Answers with a result that carries the encounter state
     const resolve = <A extends unknown[], T extends { encounterState: Encounter }>(request: EncounterRequest<A, T>) =>
       (...args: A) => run(() => request(encounterId, ...args), result => result.encounterState);
+    // Writes the encounter's results back to character sheets (D166), so the cached characters are fetched again
+    const writeBack = <A extends unknown[]>(request: EncounterRequest<A, Encounter>) =>
+      async (...args: A) => {
+        const encounter = await change(request)(...args);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.characters.mine() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.characters(encounter.campaignId) });
+        return encounter;
+      };
 
     return {
       pause: change(encounterApi.pause),
       resume: change(encounterApi.resume),
-      end: change(encounterApi.end),
+      end: writeBack(encounterApi.end),
       setVisibility: change(encounterApi.setVisibility),
-      removeParticipant: change(encounterApi.removeParticipant),
+      removeParticipant: writeBack(encounterApi.removeParticipant),
       nextTurn: change(combatApi.advanceTurn),
       previousTurn: change(combatApi.previousTurn),
       reorderTie: change(encounterApi.reorderTie),

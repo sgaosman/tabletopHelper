@@ -8,6 +8,9 @@ import com.tabletophelper.shared.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -19,8 +22,9 @@ import java.util.function.Consumer;
  * character is then loaded under a pessimistic write lock held until the transaction ends: commands on one character
  * queue instead of failing, and each starts from the last one's committed state. A wait longer than five seconds is a
  * 409, and so is a write from a copy that someone else has changed since, which the row's version catches. Resting and
- * levelling are refused while the character is in an Active or Paused encounter (D166). Once the command has made its
- * change, {@link #finish} works the Derived Stats out again and saves.
+ * levelling are refused while the character is in an Active or Paused encounter (D166), and for a dead character. Once
+ * the command has made its change, {@link #finish} works the Derived Stats out again and saves. Write-back locks the
+ * characters an encounter's results apply to through {@link #beginWriteBack}.
  *
  * <p>Call it from inside the command's transaction.
  */
@@ -80,12 +84,50 @@ class CharacterCommands {
     }
 
     /**
+     * Refuses with a 409 what a dead character can't do until the DM revives it (D166): a rest, healing, damage or
+     * temporary hit points on the sheet, or a level gained or lost.
+     *
+     * @param doing what the command does, as in "take a short rest"
+     */
+    static void requireAlive(PlayerCharacter character, String doing) {
+        if (character.isDead()) {
+            throw new ConflictException(character.getName() + " is dead, so can't " + doing
+                    + " until the DM revives them");
+        }
+    }
+
+    /**
+     * The characters an encounter's results are written back to (D166), each locked with the five-second wait in ID
+     * order, the order PostgreSQL sorts UUIDs in, after the encounter's own row, which the command completing the
+     * encounter or removing the participant already holds. So two completions that share characters, or a completion
+     * and a character command, never wait on each other in a circle. Access was the encounter's to check: only its DM
+     * completes it or removes a participant. A character loaded earlier in the transaction and changed since by
+     * someone else fails the lock's version check with a 409 rather than being written back stale. A character that
+     * no longer exists, which its participant's foreign key rules out, is left out.
+     */
+    List<PlayerCharacter> beginWriteBack(Collection<UUID> characterIds) {
+        List<UUID> inOrder = characterIds.stream().distinct().sorted(Comparator.comparing(UUID::toString)).toList();
+        if (inOrder.isEmpty()) {
+            return List.of();
+        }
+        characterRepository.limitLockWaits();
+        return inOrder.stream()
+                .flatMap(characterId -> characterRepository.lockById(characterId).stream())
+                .toList();
+    }
+
+    /**
      * Works the character's Derived Stats out again, writing their stored copies and syncing its pools, then saves it
      * and returns it as the API does.
      */
     CharacterResponse finish(PlayerCharacter character) {
+        return characterMapper.toResponse(save(character));
+    }
+
+    /** As {@link #finish}, for a change that answers with no character: Write-back's. */
+    PlayerCharacter save(PlayerCharacter character) {
         characterStats.apply(character);
-        return characterMapper.toResponse(characterRepository.save(character));
+        return characterRepository.save(character);
     }
 
     /** A whole command by the owner: the lock, the change, then {@link #finish}. */

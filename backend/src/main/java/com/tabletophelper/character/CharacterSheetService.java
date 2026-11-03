@@ -35,7 +35,8 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  * and inventory, damage, healing and temporary hit points, and the spell slots and pool uses it spends and gets
  * back. Each starts in CharacterCommands, which checks that the user owns the character and locks its row, and each
  * answers with the character as the server then works it out. None is refused during an encounter: combat changes the
- * participant, not the sheet.
+ * participant, not the sheet, and Write-back applies its changes when the encounter ends (D166). The hit point commands
+ * are refused for a character who died, until the DM revives it.
  */
 @Service
 @RequiredArgsConstructor
@@ -98,11 +99,19 @@ public class CharacterSheetService {
 
     /**
      * Damage, healing or temporary hit points (PHB p.198): damage comes off the temporary hit points first and stops
-     * at 0, healing stops at the maximum, and temporary hit points keep the larger amount.
+     * at 0, healing stops at the maximum, and temporary hit points keep the larger amount. A dead character's hit points
+     * stay at 0 until the DM revives it, as combat treats the dead (D161, D166).
+     *
+     * @throws ConflictException for a dead character
      */
     @Transactional
     public CharacterResponse changeHitPoints(UUID characterId, HitPointChangeRequest request, UUID userId) {
         return characterCommands.run(characterId, userId, character -> {
+            CharacterCommands.requireAlive(character, switch (request.kind()) {
+                case DAMAGE -> "take damage";
+                case HEALING -> "be healed";
+                case TEMPORARY -> "gain temporary hit points";
+            });
             CurrentHitPoints.Totals totals = totals(character);
             CurrentHitPoints.Totals changed = switch (request.kind()) {
                 case DAMAGE -> CurrentHitPoints.damage(totals, request.amount());

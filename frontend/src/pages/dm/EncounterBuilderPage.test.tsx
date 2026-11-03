@@ -100,6 +100,26 @@ describe('EncounterBuilderPage', () => {
     expect(listRequests).toBe(1);
   });
 
+  it("offers no Add for a character who died, who can't join until the DM revives them (D166)", async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockCharacter, makeMockEncounter } = await import('../../test/mocks/handlers');
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () =>
+        HttpResponse.json([makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants: [] })])),
+      http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([
+        { ...makeMockCharacter('char-001', 'Aria', 'Fighter', 3), hpCurrent: 0, dead: true },
+        makeMockCharacter('char-002', 'Bram', 'Wizard', 3),
+      ])),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+
+    expect(await screen.findByRole('button', { name: 'Dead' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
+  });
+
   it('shows a conflict in the builder and fetches the encounters again', async () => {
     const { server } = await import('../../test/mocks/server');
     const { http, HttpResponse } = await import('msw');

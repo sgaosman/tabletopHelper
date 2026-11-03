@@ -73,8 +73,6 @@ class MultiattackIT extends IntegrationTest {
                 Map.of("participantType", "PLAYER", "characterId", aria, "displayName", "Aria")), "Aria");
         bramId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", bram, "displayName", "Bram")), "Bram");
-        setVitals(ariaId, 40, 12);
-        setVitals(bramId, 9, 10);
 
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/initiatives",
                 Map.of("initiatives", List.of(
@@ -84,6 +82,9 @@ class MultiattackIT extends IntegrationTest {
                 dm.accessToken()));
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null,
                 dm.accessToken()));
+        // Set after the start, which copies each player character's sheet into its participant again (D166)
+        setVitals(ariaId, 40, 12);
+        setVitals(bramId, 9, 10);
     }
 
     @Test

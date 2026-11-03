@@ -70,11 +70,6 @@ class LegendaryResistanceIT extends IntegrationTest {
             }
         }
 
-        EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
-        aria.setSpellSlotsCurrent(Map.of("3", new SpellSlot(2, 0)));
-        aria.setSpellSaveDc(15);
-        aria.setSpellsKnown(List.of(new KnownSpell(null, "Fireball", 3, "class:Wizard", true, null, null, null, null)));
-        participantRepository.save(aria);
         EncounterParticipant dragonParticipant = participantRepository.findById(UUID.fromString(dragonId)).orElseThrow();
         dragonParticipant.setResourcePoolsCurrent(new ArrayList<>(List.of(new ResourcePoolEntry(
                 "monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Adult Blue Dragon",
@@ -88,6 +83,12 @@ class LegendaryResistanceIT extends IntegrationTest {
                 dm.accessToken()));
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null,
                 dm.accessToken()));
+        // Set after the start, which copies each player character's sheet into its participant again (D166)
+        EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
+        aria.setSpellSlotsCurrent(Map.of("3", new SpellSlot(2, 0)));
+        aria.setSpellSaveDc(15);
+        aria.setSpellsKnown(List.of(new KnownSpell(null, "Fireball", 3, "class:Wizard", true, null, null, null, null)));
+        participantRepository.save(aria);
     }
 
     @Test

@@ -388,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{characterId}/revive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{characterId}/short-rest": {
         parameters: {
             query?: never;
@@ -1038,6 +1054,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["pauseEncounter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewResults"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1950,6 +1982,7 @@ export interface components {
             damageImmunities: string[];
             damageResistances: string[];
             damageVulnerabilities: string[];
+            dead: boolean;
             /** Format: int32 */
             deathSaveFailures: number;
             /** Format: int32 */
@@ -2100,6 +2133,27 @@ export interface components {
             targetName?: string | null;
             turnParticipantName?: string | null;
         };
+        CombatResultPreview: {
+            /** Format: uuid */
+            characterId: string;
+            deadAfter: boolean;
+            deadBefore: boolean;
+            /** Format: int32 */
+            hpAfter: number;
+            /** Format: int32 */
+            hpBefore: number;
+            /** Format: int32 */
+            hpMax: number;
+            /** Format: int32 */
+            hpTempAfter: number;
+            /** Format: int32 */
+            hpTempBefore: number;
+            /** @enum {string} */
+            lifeState: "ALIVE" | "DYING" | "STABLE" | "DEAD";
+            name: string;
+            pools: components["schemas"]["PoolChange"][];
+            slots: components["schemas"]["SlotChange"][];
+        };
         ComponentOption: {
             automated: boolean;
             manualReason?: string | null;
@@ -2240,6 +2294,9 @@ export interface components {
             /** @enum {string} */
             status: "PREPARING" | "ACTIVE" | "PAUSED" | "COMPLETED";
             turnOrder: components["schemas"]["TurnResponse"][];
+        };
+        EndEncounterRequest: {
+            applyResults?: boolean | null;
         };
         EndRule: {
             /** Format: uuid */
@@ -2669,6 +2726,16 @@ export interface components {
             /** @enum {string} */
             type: "SUBCLASS" | "FIGHTING_STYLE" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
         };
+        PoolChange: {
+            /** Format: int32 */
+            currentAfter: number;
+            /** Format: int32 */
+            currentBefore: number;
+            displayName: string;
+            /** Format: int32 */
+            maxUses: number;
+            poolId: string;
+        };
         PoolUseRequest: {
             /** Format: int32 */
             amount?: number | null;
@@ -2770,6 +2837,15 @@ export interface components {
         };
         ShortRestRequest: {
             hitDice?: components["schemas"]["HitDieSpent"][] | null;
+        };
+        SlotChange: {
+            /** Format: int32 */
+            max: number;
+            slot: string;
+            /** Format: int32 */
+            usedAfter: number;
+            /** Format: int32 */
+            usedBefore: number;
         };
         SortObject: {
             empty?: boolean | null;
@@ -3558,6 +3634,28 @@ export interface operations {
                 "application/json": components["schemas"]["PoolUseRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    revive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -4405,7 +4503,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EndEncounterRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {
@@ -4640,6 +4742,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    previewResults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CombatResultPreview"][];
                 };
             };
         };

@@ -175,47 +175,6 @@ class ResourcePoolServiceTest {
     // ── Sheet pools (typed since R6, D168) ───────────────────────
 
     @Test
-    @DisplayName("copyToParticipant gives a participant an empty list when the sheet has no pools")
-    void copyToParticipantWithoutSheetPools() {
-        EncounterParticipant participant = EncounterParticipant.builder().build();
-
-        service.copyToParticipant(participant, PlayerCharacter.builder().resourcePools(null).build());
-
-        assertEquals(List.of(), participant.getResourcePoolsCurrent());
-    }
-
-    @Test
-    @DisplayName("syncBackToCharacter copies each participant pool's uses to the sheet pool with its ID")
-    void syncBackCopiesUsesByPoolId() {
-        PlayerCharacter barbarian = PlayerCharacter.builder()
-                .resourcePools(List.of(entry("rage", 3, 3, "longRest", null), entry("ki", 2, 2, "shortRest", null)))
-                .build();
-        EncounterParticipant participant = EncounterParticipant.builder()
-                .resourcePoolsCurrent(List.of(entry("rage", 3, 1, "longRest", null)))
-                .build();
-
-        service.syncBackToCharacter(participant, barbarian);
-
-        assertEquals(List.of(entry("rage", 3, 1, "longRest", null), entry("ki", 2, 2, "shortRest", null)),
-                barbarian.getResourcePools());
-    }
-
-    @Test
-    @DisplayName("syncBackToCharacter takes the first of two participant pools with one ID rather than failing")
-    void syncBackTakesTheFirstOfTwoPools() {
-        PlayerCharacter barbarian = PlayerCharacter.builder()
-                .resourcePools(List.of(entry("rage", 3, 3, "longRest", null)))
-                .build();
-        EncounterParticipant participant = EncounterParticipant.builder()
-                .resourcePoolsCurrent(List.of(entry("rage", 3, 1, "longRest", null), entry("rage", 3, 0, "longRest", null)))
-                .build();
-
-        service.syncBackToCharacter(participant, barbarian);
-
-        assertEquals(List.of(entry("rage", 3, 1, "longRest", null)), barbarian.getResourcePools());
-    }
-
-    @Test
     @DisplayName("reconciledPools adds an innate pool for each levelled spell the character can cast now with uses of its own, keeping its uses (D165)")
     void syncAddsInnatePools() {
         ResourcePoolEntry spent = ResourcePoolEntry.innate("Hellish Rebuke", 1, "RACE", "Tiefling").withCurrentUses(0);
@@ -377,19 +336,6 @@ class ResourcePoolServiceTest {
 
         assertEquals(5, findPool(monk.getResourcePoolsCurrent(), "ki").currentUses());
         assertFalse(service.recoverPool(EncounterParticipant.builder().build(), "ki", 1));
-    }
-
-    @Test
-    @DisplayName("copyToParticipant reads the sheet's pools into the participant's typed list")
-    void copyToParticipantReadsTheSheet() {
-        PlayerCharacter barbarian = PlayerCharacter.builder()
-                .resourcePools(List.of(entry("rage", 3, 1, "longRest", null)))
-                .build();
-        EncounterParticipant participant = EncounterParticipant.builder().build();
-
-        service.copyToParticipant(participant, barbarian);
-
-        assertEquals(List.of(entry("rage", 3, 1, "longRest", null)), participant.getResourcePoolsCurrent());
     }
 
     // ── Context building ─────────────────────────────────────────

@@ -55,3 +55,12 @@ export type BulkInitiativeRequest = Schemas['BulkInitiativeRequest'];
 
 /** Every participant of a tie on initiative and DEX, in the order the DM wants them to act (D163). */
 export type TieOrderRequest = Schemas['TieOrderRequest'];
+
+/** The DM's choice on ending an encounter: whether its results are written back to the character sheets (D166). */
+export type EndEncounterRequest = Schemas['EndEncounterRequest'];
+
+/**
+ * What ending an encounter with its results applied would write back to one player character's sheet as it stands
+ * now (D166): hit points and temporary hit points before and after, the slots and pools that change, and death.
+ */
+export type CombatResultPreview = Schemas['CombatResultPreview'];

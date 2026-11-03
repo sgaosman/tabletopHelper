@@ -6,8 +6,12 @@ import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.CharacterRepository;
+import com.tabletophelper.character.CombatResults;
 import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.WriteBackService;
+import com.tabletophelper.character.state.CombatTotals;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.CombatLogWriter;
@@ -18,6 +22,7 @@ import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.rules.Rng;
+import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -27,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -52,6 +58,7 @@ class EncounterServiceTest {
     @Mock private com.tabletophelper.encounter.internal.MonsterPools monsterPools;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private CombatLogRepository combatLogRepository;
+    @Mock private WriteBackService writeBackService;
 
     private EncounterService encounterService;
 
@@ -68,10 +75,10 @@ class EncounterServiceTest {
         TurnProcessor turnProcessor = new TurnProcessor(new EffectApplier(new Resolver(Rng.random()),
                 new CreatureStats(objectMapper), combatLog, resourcePoolService), combatLog);
         encounterService = new EncounterService(encounterRepository, participantRepository, campaignRepository,
-                characterRepository, monsterRepository, objectMapper, resourcePoolService,
-                monsterPools, accessPolicy,
+                characterRepository, monsterRepository, objectMapper, monsterPools, accessPolicy,
                 new EncounterCommands(encounterRepository, accessPolicy, eventPublisher),
-                new CombatLogReader(combatLogRepository), turnProcessor);
+                new CombatLogReader(combatLogRepository), turnProcessor,
+                new EncounterResults(eventPublisher, writeBackService));
 
         dmUserId = UUID.randomUUID();
         campaignId = UUID.randomUUID();
@@ -303,6 +310,91 @@ class EncounterServiceTest {
                 participant.getActiveConditions().stream().map(c -> c.name()).toList());
         assertEquals(com.tabletophelper.encounter.state.EndRule.HP_REGAINED,
                 participant.getActiveConditions().get(0).endRule());
+    }
+
+    @Test
+    @DisplayName("A PC joins with its sheet's temporary hit points, and keeps the totals it joined with for Write-back (D166)")
+    void addPcParticipant_keepsWhatItJoinedWith() {
+        User playerUser = User.builder().id(UUID.randomUUID()).username("player1").build();
+        PlayerCharacter thorin = PlayerCharacter.builder()
+                .id(UUID.randomUUID()).name("Thorin").user(playerUser)
+                .hpMax(45).hpCurrent(40).hpTemp(5).armourClass(18)
+                .spellSlots(Map.of("1", new SpellSlot(2, 1)))
+                .resourcePools(List.of(rage(1)))
+                .build();
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING);
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("PLAYER");
+        request.setCharacterId(thorin.getId());
+        when(characterRepository.findById(thorin.getId())).thenReturn(Optional.of(thorin));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
+
+        encounterService.addParticipant(encounter.getId(), request, dmUserId);
+
+        EncounterParticipant participant = encounter.getParticipants().getFirst();
+        assertEquals(40, participant.getHpCurrent());
+        assertEquals(5, participant.getHpTemp());
+        assertEquals(new CombatTotals(40, 5, Map.of("1", 1), Map.of("class:barbarian-rage", 1)),
+                participant.getJoinedWith());
+        assertEquals(List.of(rage(1)), participant.getResourcePoolsCurrent());
+    }
+
+    @Test
+    @DisplayName("A dead character can't join an encounter until the DM revives them (D166)")
+    void addPcParticipant_refusesTheDead() {
+        User playerUser = User.builder().id(UUID.randomUUID()).username("player1").build();
+        PlayerCharacter thorin = PlayerCharacter.builder()
+                .id(UUID.randomUUID()).name("Thorin").user(playerUser)
+                .hpMax(45).hpCurrent(0).armourClass(18).dead(true)
+                .build();
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING);
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("PLAYER");
+        request.setCharacterId(thorin.getId());
+        when(characterRepository.findById(thorin.getId())).thenReturn(Optional.of(thorin));
+        when(campaignMemberRepository.existsByCampaignIdAndUserId(campaignId, playerUser.getId())).thenReturn(true);
+
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> encounterService.addParticipant(encounter.getId(), request, dmUserId));
+
+        assertEquals("Thorin is dead, so can't join an encounter until the DM revives them", ex.getMessage());
+        assertTrue(encounter.getParticipants().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Starting an encounter copies each PC again from its sheet as it stands, keeping the initiative the DM set (D166)")
+    void startEncounter_copiesPlayerCharactersAgain() {
+        EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 0);
+        EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 1);
+        Encounter encounter = encounterIn(EncounterStatus.PREPARING, fighter, goblin);
+        when(encounterRepository.findBySessionCode(anyString())).thenReturn(Optional.empty());
+        // Hurt and rested on the sheet since it was added
+        PlayerCharacter sheet = fighter.getCharacter();
+        sheet.setHpCurrent(22);
+        sheet.setHpTemp(3);
+        sheet.setInitiativeBonus(4);
+        sheet.setSpellSlots(Map.of("1", new SpellSlot(2, 1)));
+
+        encounterService.startEncounter(encounter.getId(), dmUserId);
+
+        assertEquals(22, fighter.getHpCurrent());
+        assertEquals(3, fighter.getHpTemp());
+        assertEquals(4, fighter.getInitiativeModifier());
+        assertEquals(18, fighter.getInitiative());
+        assertEquals(new CombatTotals(22, 3, Map.of("1", 1), Map.of()), fighter.getJoinedWith());
+        assertEquals(Map.of("1", new SpellSlot(2, 1)), fighter.getSpellSlotsCurrent());
+        assertNull(goblin.getJoinedWith());
+
+        PlayerCharacter dead = PlayerCharacter.builder().id(UUID.randomUUID()).name("Brom")
+                .user(User.builder().id(UUID.randomUUID()).build()).hpMax(20).hpCurrent(0).dead(true).build();
+        Encounter another = encounterIn(EncounterStatus.PREPARING, EncounterParticipant.builder()
+                .id(UUID.randomUUID()).participantType(ParticipantType.PLAYER).character(dead).displayName("Brom")
+                .initiative(9).hpMax(20).hpCurrent(20).armourClass(12).build());
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> encounterService.startEncounter(another.getId(), dmUserId));
+        assertEquals("Brom has died since joining, so the encounter can't start with them until the DM revives them "
+                + "or removes them from it", ex.getMessage());
+        assertEquals(EncounterStatus.PREPARING, another.getStatus());
     }
 
     @Test
@@ -729,9 +821,10 @@ class EncounterServiceTest {
         stubLock(encounter);
         when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
 
-        EncounterResponse response = encounterService.endEncounter(encounterId, dmUserId);
+        EncounterResponse response = encounterService.endEncounter(encounterId, true, dmUserId);
 
         assertEquals("COMPLETED", response.getStatus());
+        assertEquals(Boolean.TRUE, encounter.getResultsApplied());
     }
 
     @Test
@@ -961,25 +1054,115 @@ class EncounterServiceTest {
     }
 
     @Test
-    @DisplayName("Completing an encounter syncs its pools back once; completing it again is a 409 that syncs nothing")
-    void endEncounter_syncsPoolsBackOnce() {
-        PlayerCharacter thorin = PlayerCharacter.builder().id(UUID.randomUUID()).name("Thorin").build();
-        EncounterParticipant participant = EncounterParticipant.builder()
-                .id(UUID.randomUUID())
-                .participantType(ParticipantType.PLAYER)
-                .character(thorin)
-                .displayName("Thorin")
-                .hpMax(45).hpCurrent(45).armourClass(18)
-                .build();
-        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, participant);
+    @DisplayName("Completing an encounter publishes its player characters' results once; completing it again is a 409 that publishes nothing")
+    void endEncounter_publishesResultsOnce() {
+        EncounterParticipant thorin = joined("Thorin", 45, 30);
+        thorin.setHpTemp(4);
+        thorin.setResourcePoolsCurrent(List.of(rage(1)));
+        EncounterParticipant goblin = participant("Goblin", ParticipantType.MONSTER);
+        Encounter encounter = encounterIn(EncounterStatus.ACTIVE, goblin, thorin);
 
-        encounterService.endEncounter(encounter.getId(), dmUserId);
+        encounterService.endEncounter(encounter.getId(), true, dmUserId);
         ConflictException ex = assertThrows(ConflictException.class,
-                () -> encounterService.endEncounter(encounter.getId(), dmUserId));
+                () -> encounterService.endEncounter(encounter.getId(), true, dmUserId));
 
         assertEquals("The encounter is already completed", ex.getMessage());
         assertEquals(EncounterStatus.COMPLETED, encounter.getStatus());
-        verify(resourcePoolService, times(1)).syncBackToCharacter(participant, thorin);
+        List<CombatResults> published = publishedResults();
+        assertEquals(1, published.size());
+        assertEquals(encounter.getId(), published.getFirst().encounterId());
+        assertEquals(List.of(new CombatResults.CharacterResult(thorin.getCharacter().getId(),
+                        new CombatTotals(45, 0, Map.of(), Map.of("class:barbarian-rage", 2)),
+                        new CombatTotals(30, 4, Map.of(), Map.of("class:barbarian-rage", 1)),
+                        LifeState.ALIVE)),
+                published.getFirst().characters());
+    }
+
+    @Test
+    @DisplayName("Completing an encounter without its results publishes nothing, and records the DM's choice")
+    void endEncounter_declinedPublishesNothing() {
+        Encounter encounter = encounterIn(EncounterStatus.PAUSED, joined("Thorin", 45, 0));
+
+        encounterService.endEncounter(encounter.getId(), false, dmUserId);
+
+        assertEquals(EncounterStatus.COMPLETED, encounter.getStatus());
+        assertEquals(Boolean.FALSE, encounter.getResultsApplied());
+        assertEquals(List.of(), publishedResults());
+    }
+
+    @Test
+    @DisplayName("Removing a player character mid-fight publishes its results then; removing one while preparing publishes none")
+    void removeParticipant_publishesResultsMidFight() {
+        EncounterParticipant thorin = joined("Thorin", 45, 20);
+        EncounterParticipant brom = joined("Brom", 30, 30);
+        Encounter active = encounterIn(EncounterStatus.ACTIVE, thorin, brom);
+        EncounterParticipant cael = joined("Cael", 12, 12);
+        Encounter preparing = encounterIn(EncounterStatus.PREPARING, cael);
+
+        encounterService.removeParticipant(active.getId(), thorin.getId(), dmUserId);
+        encounterService.removeParticipant(preparing.getId(), cael.getId(), dmUserId);
+
+        List<CombatResults> published = publishedResults();
+        assertEquals(1, published.size());
+        assertEquals(List.of(thorin.getCharacter().getId()), published.getFirst().characters().stream()
+                .map(CombatResults.CharacterResult::characterId).toList());
+        assertEquals(20, published.getFirst().characters().getFirst().endedWith().hpCurrent());
+        assertEquals(List.of("Brom"), active.getParticipants().stream().map(EncounterParticipant::getDisplayName).toList());
+    }
+
+    @Test
+    @DisplayName("The End dialog's preview is the DM's alone, for an encounter that can be completed, and publishes nothing")
+    void previewResults_isForTheDmOfAnEncounterUnderWay() {
+        EncounterParticipant thorin = joined("Thorin", 45, 20);
+        Encounter active = encounterIn(EncounterStatus.ACTIVE, thorin);
+        Encounter preparing = encounterIn(EncounterStatus.PREPARING);
+        when(encounterRepository.findById(active.getId())).thenReturn(Optional.of(active));
+        when(encounterRepository.findById(preparing.getId())).thenReturn(Optional.of(preparing));
+        when(writeBackService.preview(any(CombatResults.class))).thenReturn(List.of());
+
+        encounterService.previewResults(active.getId(), dmUserId);
+        assertThrows(ForbiddenException.class, () -> encounterService.previewResults(active.getId(), UUID.randomUUID()));
+        ConflictException early = assertThrows(ConflictException.class,
+                () -> encounterService.previewResults(preparing.getId(), dmUserId));
+
+        assertEquals("Cannot complete an encounter that is still being prepared", early.getMessage());
+        verify(writeBackService).preview(argThat(results -> results.characters().size() == 1
+                && results.characters().getFirst().characterId().equals(thorin.getCharacter().getId())));
+        assertEquals(List.of(), publishedResults());
+    }
+
+    // A player character's participant that joined with these hit points and two uses of Rage, and has these now
+    private static EncounterParticipant joined(String name, int joinedHp, int hpNow) {
+        PlayerCharacter character = PlayerCharacter.builder().id(UUID.randomUUID()).name(name)
+                .user(User.builder().id(UUID.randomUUID()).username(name.toLowerCase()).build())
+                .hpMax(joinedHp).hpCurrent(joinedHp).armourClass(15).dexterity(12)
+                .build();
+        return EncounterParticipant.builder()
+                .id(UUID.randomUUID())
+                .participantType(ParticipantType.PLAYER)
+                .character(character)
+                .displayName(name)
+                .initiative(10)
+                .hpMax(joinedHp).hpCurrent(hpNow).armourClass(15)
+                .lifeState(hpNow > 0 ? LifeState.ALIVE : LifeState.DYING)
+                .resourcePoolsCurrent(List.of(rage(2)))
+                .joinedWith(new CombatTotals(joinedHp, 0, Map.of(), Map.of("class:barbarian-rage", 2)))
+                .build();
+    }
+
+    private static ResourcePoolEntry rage(int currentUses) {
+        return new ResourcePoolEntry("class:barbarian-rage", "Rage", "CLASS", null, 2, "2", currentUses, "longRest",
+                null, null, "BONUS_ACTION", "flame", Map.of());
+    }
+
+    // The Write-back results the service published, beside the EncounterChanged events EncounterCommands publishes
+    private List<CombatResults> publishedResults() {
+        ArgumentCaptor<Object> events = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher, atLeast(0)).publishEvent(events.capture());
+        return events.getAllValues().stream()
+                .filter(CombatResults.class::isInstance)
+                .map(CombatResults.class::cast)
+                .toList();
     }
 
     @Test
@@ -987,7 +1170,7 @@ class EncounterServiceTest {
     void endEncounter_completesPausedEncounter() {
         Encounter encounter = encounterIn(EncounterStatus.PAUSED);
 
-        EncounterResponse response = encounterService.endEncounter(encounter.getId(), dmUserId);
+        EncounterResponse response = encounterService.endEncounter(encounter.getId(), true, dmUserId);
 
         assertEquals("COMPLETED", response.getStatus());
     }
@@ -1110,7 +1293,11 @@ class EncounterServiceTest {
         if (type == ParticipantType.MONSTER) {
             participant.monster(Monster.builder().id(UUID.randomUUID()).name(name).dexterity(dexterity).build());
         } else {
-            participant.character(PlayerCharacter.builder().id(UUID.randomUUID()).name(name).dexterity(dexterity).build());
+            // A sheet that joins with the participant's hit points and AC, as starting an encounter copies it again
+            participant.character(PlayerCharacter.builder().id(UUID.randomUUID()).name(name).dexterity(dexterity)
+                    .user(User.builder().id(UUID.randomUUID()).username(name.toLowerCase()).build())
+                    .hpMax(30).hpCurrent(30).armourClass(14)
+                    .build());
         }
         return participant.build();
     }

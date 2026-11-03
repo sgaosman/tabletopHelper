@@ -14,8 +14,8 @@ import java.util.UUID;
 /**
  * Characters. The server is the only authority over a character (D158): besides creating it, levelling it and
  * making the Pending Choices its levels owe (D159), its owner changes it only through the intent endpoints below, and
- * the DM of its campaign only through DM Adjustments, each answering with the character as the server then works it
- * out.
+ * the DM of its campaign only through DM Adjustments and by reviving it once it has died, each answering with the
+ * character as the server then works it out. Encounters change it only through Write-back (D166).
  */
 @RestController
 @RequestMapping("/api/characters")
@@ -28,6 +28,7 @@ public class CharacterController {
     private final CharacterSpellService spellService;
     private final DmAdjustmentService adjustmentService;
     private final PendingChoiceService choiceService;
+    private final WriteBackService writeBackService;
 
     @PostMapping
     public ResponseEntity<CharacterResponse> createCharacter(
@@ -203,6 +204,15 @@ public class CharacterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         return ResponseEntity.ok(adjustmentService.remove(characterId, adjustmentId, userId));
+    }
+
+    /** Revives a character who died in an encounter, at 1 hit point, which only the DM of its campaign may (D166). */
+    @PostMapping("/{characterId}/revive")
+    public ResponseEntity<CharacterResponse> revive(
+            @PathVariable UUID characterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(writeBackService.revive(characterId, userId));
     }
 
     // ── Levels ───────────────────────────────────────────────────

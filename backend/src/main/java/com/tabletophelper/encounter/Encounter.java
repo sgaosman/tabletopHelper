@@ -62,6 +62,11 @@ public class Encounter {
     @Column(name = "session_code", length = 8, unique = true)
     private String sessionCode;
 
+    // Whether the DM applied the results to the character sheets on completing it (D166, V24): null until it
+    // completes, and for an encounter completed before R6
+    @Column(name = "results_applied")
+    private Boolean resultsApplied;
+
     // The monster participants fighting in their lair (D136), typed since R5 (D168). The Lair takes a turn
     // while any of them is alive (D163).
     @JdbcTypeCode(SqlTypes.JSON)

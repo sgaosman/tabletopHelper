@@ -274,6 +274,11 @@ public class PlayerCharacter {
     @Builder.Default
     private Boolean isActive = true;
 
+    // A character who died in an encounter, until the DM revives it: it stays at 0 hit points, and can't rest, be
+    // healed, gain or lose a level, or join an encounter (D166, V24)
+    @Column(name = "is_dead", nullable = false)
+    private boolean dead;
+
     // The backstop behind the row lock every command takes: a write from a copy that someone else has changed since
     // fails instead of overwriting it (D158, V21)
     @Version

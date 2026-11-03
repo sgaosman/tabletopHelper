@@ -13,6 +13,7 @@ import LairTurnRow from '../../components/encounter/LairTurnRow';
 import MultiattackPicker from '../../components/encounter/MultiattackPicker';
 import RepeatSavePrompt from '../../components/encounter/RepeatSavePrompt';
 import TieOrderArrows from '../../components/encounter/TieOrderArrows';
+import EndEncounterModal from '../../components/encounter/EndEncounterModal';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
@@ -953,6 +954,8 @@ function DmSessionView() {
   const [removeTarget, setRemoveTarget] = useState<EncounterParticipant | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState('');
+  // Whether the End dialog is open (D166)
+  const [ending, setEnding] = useState(false);
 
   // The targets chosen in the inline selector, unless the action brings its own, as a multiattack does (D165)
   async function executeInlineAction(participantId: string, actionName: string, source: 'ACTION' | 'LEGENDARY' | 'LAIR',
@@ -1021,9 +1024,9 @@ function DmSessionView() {
     await actions.resume();
   }
 
-  async function handleEnd() {
-    if (!window.confirm('End this encounter? This cannot be undone.')) return;
-    await actions.end();
+  // Ending asks first, previewing what each character sheet takes (D166)
+  function handleEnd() {
+    setEnding(true);
   }
 
   // A turn-order change the server refuses, such as a turn when nobody can act, says why (D163)
@@ -1232,8 +1235,20 @@ function DmSessionView() {
               {isActive && ' Any spell they are concentrating on ends, and if it is their turn, the turn passes to the'
                 + ' next creature. Nobody can join once the fight has started, so they can\'t be added back.'}
             </p>
+            {/* A player character leaving mid-fight takes its changes to its sheet then (D166) */}
+            {isActive && removeTarget.participantType === 'PLAYER' && (
+              <p className="font-body text-[15px] font-semibold text-muted mt-2">
+                What this fight has changed for them so far, such as hit points, spell slots and pool uses, is written
+                back to their character sheet now.
+              </p>
+            )}
             {removeError && <p role="alert" className="text-debuff font-body text-[15px] mt-3">{removeError}</p>}
           </Modal>
+        )}
+
+        {ending && (
+          <EndEncounterModal encounterName={encounter.name} onEnd={applyResults => actions.end(applyResults)}
+            onClose={() => setEnding(false)} />
         )}
 
         {/* Action panel */}

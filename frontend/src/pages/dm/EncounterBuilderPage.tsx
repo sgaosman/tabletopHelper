@@ -393,6 +393,8 @@ export default function EncounterBuilderPage() {
                               <div className="space-y-2">
                                 {campaignCharacters.map(c => {
                                   const added = addedCharacterIds.has(c.id);
+                                  // A character who died can't join until the DM revives them (D166)
+                                  const unavailable = added || c.dead;
                                   const classClr = getClassColour(c.characterClass);
                                   return (
                                     <div key={c.id} className="flex items-center justify-between bg-page border border-rule-light px-3 py-2">
@@ -404,15 +406,16 @@ export default function EncounterBuilderPage() {
                                       </div>
                                       <button
                                         onClick={() => handleAddPlayer(c)}
-                                        disabled={added}
+                                        disabled={unavailable}
+                                        title={c.dead && !added ? 'Dead until you revive them on the campaign page' : undefined}
                                         className={`px-2.5 py-1 font-heading text-[11px] font-semibold tracking-[0.02em] border transition-colors ${
-                                          added
+                                          unavailable
                                             ? 'bg-page-alt text-faint border-rule cursor-not-allowed'
                                             : 'text-card border-transparent'
                                         }`}
-                                        style={!added ? { backgroundColor: classClr } : undefined}
+                                        style={!unavailable ? { backgroundColor: classClr } : undefined}
                                       >
-                                        {added ? 'Added' : 'Add'}
+                                        {added ? 'Added' : c.dead ? 'Dead' : 'Add'}
                                       </button>
                                     </div>
                                   );

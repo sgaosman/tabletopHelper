@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.character.dto.CombatResultPreview;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.shared.ValidationException;
 import jakarta.validation.Valid;
@@ -164,13 +165,28 @@ public class EncounterController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    /** Completes the encounter, writing its results back to the character sheets unless the DM declines (D166). */
     @PostMapping("/{encounterId}/end")
     public ResponseEntity<EncounterResponse> endEncounter(
             @PathVariable UUID encounterId,
+            @RequestBody(required = false) EndEncounterRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        EncounterResponse response = encounterService.endEncounter(encounterId, userId);
+        boolean applyResults = request == null || request.applies();
+        EncounterResponse response = encounterService.endEncounter(encounterId, applyResults, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    /**
+     * What completing the encounter with its results applied would write back to each player character's sheet, for
+     * the DM's End dialog; DM only, and it changes nothing (D166).
+     */
+    @GetMapping("/{encounterId}/results")
+    public ResponseEntity<List<CombatResultPreview>> previewResults(
+            @PathVariable UUID encounterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(encounterService.previewResults(encounterId, userId));
     }
 
     // DM only: action templates are part of the DM View (D157)

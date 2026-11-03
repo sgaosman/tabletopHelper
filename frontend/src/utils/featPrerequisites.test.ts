@@ -38,6 +38,7 @@ function mockCharacter(overrides: Partial<PlayerCharacter> = {}): PlayerCharacte
     pendingChoices: [],
     isActive: true,
     inLiveEncounter: false,
+    dead: false,
     createdAt: '2024-01-01',
     updatedAt: '2024-01-01',
     ...overrides,

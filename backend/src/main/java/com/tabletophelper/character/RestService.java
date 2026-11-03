@@ -28,7 +28,8 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 
 /**
  * Short and long rests, worked out by the server from the 2014 rules (PHB p.186, D158) in rules.character's Rests and
- * HitDice. Neither is allowed while the character is in an Active or Paused encounter (D166).
+ * HitDice. Neither is allowed while the character is in an Active or Paused encounter, or once it has died, until the DM
+ * revives it (D166).
  * <ul>
  *   <li>A short rest spends the Hit Dice the player names: each heals its roll, entered by the player or rolled
  *       here, plus the Constitution modifier, never less than 0, up to the hit point maximum. The pools that reset on
@@ -54,12 +55,13 @@ public class RestService {
      *
      * @throws ValidationException for a class without Hit Dice, more dice than a class has left, or a roll outside 1
      *                             to the die's size
-     * @throws ConflictException   while the character is in an Active or Paused encounter
+     * @throws ConflictException   while the character is in an Active or Paused encounter, or dead
      */
     @Transactional
     public CharacterResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
         PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId,
                 "take a short rest");
+        CharacterCommands.requireAlive(character, "take a short rest");
         List<HitDieSpent> dice = request != null && request.hitDice() != null ? request.hitDice() : List.of();
         spendHitDice(character, dice);
         resetPactSlots(character);
@@ -70,11 +72,13 @@ public class RestService {
     /**
      * A long rest.
      *
-     * @throws ConflictException while the character is in an Active or Paused encounter, or has no hit points left
+     * @throws ConflictException while the character is in an Active or Paused encounter, is dead, or has no hit
+     *                           points left
      */
     @Transactional
     public CharacterResponse longRest(UUID characterId, UUID userId) {
         PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId, "take a long rest");
+        CharacterCommands.requireAlive(character, "take a long rest");
         // A character must have at least 1 hit point at the start of the rest to gain its benefits (PHB p.186)
         if (character.getHpCurrent() == null || character.getHpCurrent() < 1) {
             throw new ConflictException(character.getName() + " needs at least 1 hit point to benefit from a long rest");

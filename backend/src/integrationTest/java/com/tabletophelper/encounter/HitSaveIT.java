@@ -83,11 +83,6 @@ class HitSaveIT extends IntegrationTest {
                 "Mind Flayer");
         ariaId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", aria, "displayName", "Aria")), "Aria");
-        EncounterParticipant ariaParticipant = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
-        ariaParticipant.setHpMax(40);
-        ariaParticipant.setHpCurrent(40);
-        ariaParticipant.setArmourClass(12);
-        participantRepository.save(ariaParticipant);
 
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/initiatives",
                 Map.of("initiatives", List.of(
@@ -97,6 +92,12 @@ class HitSaveIT extends IntegrationTest {
                 dm.accessToken()));
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null,
                 dm.accessToken()));
+        // Set after the start, which copies each player character's sheet into its participant again (D166)
+        EncounterParticipant ariaParticipant = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
+        ariaParticipant.setHpMax(40);
+        ariaParticipant.setHpCurrent(40);
+        ariaParticipant.setArmourClass(12);
+        participantRepository.save(ariaParticipant);
     }
 
     @Test

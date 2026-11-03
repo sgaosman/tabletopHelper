@@ -15,11 +15,23 @@ export function useMyCharacters() {
   });
 }
 
-/** One character, which its owner and the DM of its campaign may read (D155). */
-export function useCharacter(characterId: string | undefined) {
+// How often an open sheet is fetched again while its character is in an encounter under way, and otherwise
+const LIVE_SHEET_REFRESH_MS = 10_000;
+const IDLE_SHEET_REFRESH_MS = 30_000;
+
+/**
+ * One character, which its owner and the DM of its campaign may read (D155). With `followChanges` it is fetched again
+ * every 10 seconds while the character is in an encounter under way, and every 30 seconds otherwise, so an open sheet
+ * shows what the DM writes back when the encounter ends or the character leaves it (D166), and a revival. Like every
+ * refetch interval, it pauses while the tab is hidden.
+ */
+export function useCharacter(characterId: string | undefined, { followChanges = false }: { followChanges?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.characters.detail(characterId ?? ''),
     queryFn: characterId ? async () => (await characterApi.getById(characterId)).data : skipToken,
+    refetchInterval: followChanges
+      ? query => (query.state.data?.inLiveEncounter ? LIVE_SHEET_REFRESH_MS : IDLE_SHEET_REFRESH_MS)
+      : undefined,
   });
 }
 
@@ -209,11 +221,12 @@ export function useApplyChoices() {
 }
 
 /**
- * A DM's command on a character in their campaign (D158): the character the server answers with replaces the cached
- * copies, the campaign's character list that the DM's page shows among them. A 409 means the cached character is out
- * of date, such as an adjustment already removed in another tab, so the character and the list are fetched again.
+ * A DM's command on a character in their campaign (D158, D166): the character the server answers with replaces the
+ * cached copies, the campaign's character list that the DM's page shows among them. A 409 means the cached character
+ * is out of date, such as an adjustment already removed in another tab, so the character and the list are fetched
+ * again.
  */
-function useAdjustmentCommand<Variables extends { characterId: string; campaignId: string }>(
+function useDmCommand<Variables extends { characterId: string; campaignId: string }>(
   send: (variables: Variables) => Promise<{ data: PlayerCharacter }>,
 ) {
   const queryClient = useQueryClient();
@@ -231,16 +244,22 @@ function useAdjustmentCommand<Variables extends { characterId: string; campaignI
 
 /** Adds a DM Adjustment to a character in the DM's campaign: a stat changed, a damage defence, or a feat granted. */
 export function useAddAdjustment() {
-  return useAdjustmentCommand((
+  return useDmCommand((
     { characterId, adjustment }: { characterId: string; campaignId: string; adjustment: DmAdjustmentRequest },
   ) => characterApi.addAdjustment(characterId, adjustment));
 }
 
 /** Removes a DM Adjustment, which stays on the sheet as the record; a granted feat's effects are reversed. */
 export function useRemoveAdjustment() {
-  return useAdjustmentCommand((
+  return useDmCommand((
     { characterId, adjustmentId }: { characterId: string; campaignId: string; adjustmentId: string },
   ) => characterApi.removeAdjustment(characterId, adjustmentId));
+}
+
+/** Revives a character in the DM's campaign who died in an encounter, at 1 hit point (D166). */
+export function useReviveCharacter() {
+  return useDmCommand(({ characterId }: { characterId: string; campaignId: string }) =>
+    characterApi.revive(characterId));
 }
 
 /** Deletes one of the user's characters. It leaves the list at once; the lists it was in are fetched again. */

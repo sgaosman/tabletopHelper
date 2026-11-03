@@ -259,6 +259,7 @@ public class CharacterService {
     @Transactional
     public LevelUpResponse levelUp(UUID characterId, LevelUpRequest request, UUID userId) {
         PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId, "level up");
+        CharacterCommands.requireAlive(character, "level up");
         if (character.getLevel() >= 20)
             throw new ConflictException("Character is already at maximum level");
 
@@ -401,6 +402,7 @@ public class CharacterService {
     @Transactional
     public CharacterResponse levelDown(UUID characterId, UUID userId) {
         PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId, "level down");
+        CharacterCommands.requireAlive(character, "level down");
         if (character.getLevel() <= 1)
             throw new ConflictException("Character is already at minimum level");
 

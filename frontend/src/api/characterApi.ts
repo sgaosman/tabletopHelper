@@ -6,8 +6,9 @@ import type {
 } from '../types/character';
 
 /**
- * The character endpoints. A character changes only through its intent commands (D158), and the DM's adjustments,
- * each answering with the character as the server then works it out.
+ * The character endpoints. A character changes only through its intent commands (D158), the DM's adjustments and
+ * revival, and Write-back when an encounter ends (D166), each command answering with the character as the server then
+ * works it out.
  */
 export const characterApi = {
   create(data: CharacterCreateRequest) {
@@ -107,5 +108,10 @@ export const characterApi = {
   /** Removes a DM Adjustment, which stays on the sheet as the record. */
   removeAdjustment(id: string, adjustmentId: string) {
     return api.delete<PlayerCharacter>(`/characters/${id}/adjustments/${adjustmentId}`);
+  },
+
+  /** Revives a character who died in an encounter, at 1 hit point; only the DM of its campaign may (D166). */
+  revive(id: string) {
+    return api.post<PlayerCharacter>(`/characters/${id}/revive`);
   },
 };
