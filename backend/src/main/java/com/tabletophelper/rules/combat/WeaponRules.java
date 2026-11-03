@@ -79,11 +79,6 @@ public final class WeaponRules {
     private WeaponRules() {
     }
 
-    /** An ability modifier: (score - 10) / 2, rounding down (PHB p.13). */
-    public static int modifier(int score) {
-        return Math.floorDiv(score - 10, 2);
-    }
-
     /**
      * The ability a weapon attacks with: STR for a melee weapon, DEX for a ranged one, and for a finesse weapon
      * whichever has the higher modifier, keeping the weapon's own on a tie.
@@ -94,8 +89,8 @@ public final class WeaponRules {
             return own;
         }
         Ability other = own == Ability.STR ? Ability.DEX : Ability.STR;
-        int ownModifier = modifier(own == Ability.STR ? strength : dexterity);
-        int otherModifier = modifier(other == Ability.STR ? strength : dexterity);
+        int ownModifier = Ability.modifier(own == Ability.STR ? strength : dexterity);
+        int otherModifier = Ability.modifier(other == Ability.STR ? strength : dexterity);
         return otherModifier > ownModifier ? other : own;
     }
 
@@ -136,7 +131,7 @@ public final class WeaponRules {
             throw new IllegalArgumentException(weapon.name() + " allows neither Great Weapon Master nor Sharpshooter");
         }
         Ability ability = ability(weapon, strength, dexterity);
-        int abilityModifier = modifier(ability == Ability.STR ? strength : dexterity);
+        int abilityModifier = Ability.modifier(ability == Ability.STR ? strength : dexterity);
         int attackBonus = abilityModifier + (proficient ? proficiencyBonus : 0)
                 - (powerAttack ? POWER_ATTACK_PENALTY : 0);
         Dice dice = weapon.damage();

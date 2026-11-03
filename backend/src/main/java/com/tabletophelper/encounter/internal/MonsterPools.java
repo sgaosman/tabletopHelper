@@ -12,6 +12,7 @@ import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ExpressionEvaluator;
 import com.tabletophelper.rules.ProficiencyBonus;
 import lombok.RequiredArgsConstructor;
@@ -242,7 +243,7 @@ public class MonsterPools {
     }
 
     private static int modifier(Integer score) {
-        return CreatureStats.modifier(score != null ? score : 10);
+        return Ability.modifier(score != null ? score : 10);
     }
 
     // ── Spells ───────────────────────────────────────────────────

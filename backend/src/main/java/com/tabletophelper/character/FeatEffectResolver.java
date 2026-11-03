@@ -9,6 +9,7 @@ import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.rules.Ability;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -250,9 +251,9 @@ public class FeatEffectResolver {
             case "str", "strength" -> character.setStrength(Math.min(20, character.getStrength() + amount));
             case "dex", "dexterity" -> character.setDexterity(Math.min(20, character.getDexterity() + amount));
             case "con", "constitution" -> {
-                int oldMod = abilityMod(character.getConstitution());
+                int oldMod = Ability.modifier(character.getConstitution());
                 character.setConstitution(Math.min(20, character.getConstitution() + amount));
-                int newMod = abilityMod(character.getConstitution());
+                int newMod = Ability.modifier(character.getConstitution());
                 int hpAdjust = (newMod - oldMod) * character.getLevel();
                 character.setHpMax(character.getHpMax() + hpAdjust);
                 character.setHpCurrent(character.getHpCurrent() + hpAdjust);
@@ -742,9 +743,5 @@ public class FeatEffectResolver {
     private String titleCase(String s) {
         if (s == null || s.isEmpty()) return s;
         return s.substring(0, 1).toUpperCase() + s.substring(1);
-    }
-
-    private static int abilityMod(int score) {
-        return (score - 10) / 2;
     }
 }

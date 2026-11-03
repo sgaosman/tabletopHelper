@@ -9,6 +9,7 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ExpressionEvaluator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -324,7 +325,7 @@ public class ResourcePoolService {
 
     private int abilityMod(Integer score) {
         if (score == null) return 0;
-        return Math.floorDiv(score - 10, 2);
+        return Ability.modifier(score);
     }
 
     // ── JSON helpers ─────────────────────────────────────────────

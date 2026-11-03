@@ -12,6 +12,7 @@ import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.*;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.shared.ConflictException;
@@ -1136,7 +1137,7 @@ public class CharacterService {
 
     static int abilityMod(Integer score) {
         if (score == null) return 0;
-        return Math.floorDiv(score - 10, 2);
+        return Ability.modifier(score);
     }
 
     static boolean isExpertiseLevel(String className, int classLevel) {

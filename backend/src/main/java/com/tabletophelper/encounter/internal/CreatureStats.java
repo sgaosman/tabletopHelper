@@ -34,11 +34,6 @@ public class CreatureStats {
 
     private final ObjectMapper objectMapper;
 
-    /** An ability modifier: (score - 10) / 2, rounding down (PHB p.13). */
-    public static int modifier(int score) {
-        return Math.floorDiv(score - 10, 2);
-    }
-
     /** The condition names a participant has. */
     public static List<String> conditionNames(EncounterParticipant participant) {
         return participant.getActiveConditions() == null ? List.of()
@@ -86,7 +81,7 @@ public class CreatureStats {
         }
         if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
-            int modifier = modifier(abilityScore(participant, ability));
+            int modifier = Ability.modifier(abilityScore(participant, ability));
             if (!proficientInSave(character, ability)) {
                 return modifier;
             }
@@ -97,7 +92,7 @@ public class CreatureStats {
             JsonNode saves = StoredJson.read(objectMapper, monster.getSavingThrows(),
                     monster.getName() + "'s saving throws");
             Integer listed = bonus(saves.path(ability.name().toLowerCase()));
-            return listed != null ? listed : modifier(abilityScore(participant, ability));
+            return listed != null ? listed : Ability.modifier(abilityScore(participant, ability));
         }
         return 0;
     }

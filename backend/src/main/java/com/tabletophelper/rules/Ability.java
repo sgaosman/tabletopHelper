@@ -17,6 +17,11 @@ public enum Ability {
         return fullName;
     }
 
+    /** The modifier for an ability score: (score - 10) / 2, rounded down, so 9 gives -1 (PHB p.13). */
+    public static int modifier(int score) {
+        return Math.floorDiv(score - 10, 2);
+    }
+
     /**
      * The ability a name stands for, given as the abbreviation or the full name in any case, such as "DEX",
      * "dex" or "Dexterity", with surrounding spaces ignored. Empty for anything else, null included.

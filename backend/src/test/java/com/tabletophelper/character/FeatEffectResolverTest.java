@@ -518,6 +518,31 @@ class FeatEffectResolverTest {
         assertEquals(origArmorProfs, c.getArmorProficiencies());
     }
 
+    // --- 6.20 Constitution increase: modifiers round down ---
+
+    @Test
+    @DisplayName("6.20 Constitution increase: CON 8 to 9 leaves HP alone, and 9 to 10 adds 1 a level, as modifiers round down")
+    void constitutionIncreaseRoundsModifiersDown() throws Exception {
+        Feat durable = buildFeat("Durable", "[{\"con\": 1}]", null, null);
+
+        PlayerCharacter fromEight = baseCharacter();
+        fromEight.setConstitution(8);
+        resolver.applyFeat(fromEight, durable, null);
+        assertEquals(9, fromEight.getConstitution());
+        assertEquals(38, fromEight.getHpMax());
+
+        PlayerCharacter fromNine = baseCharacter();
+        fromNine.setConstitution(9);
+        FeatEffectResolver.AppliedEffects effects = resolver.applyFeat(fromNine, durable, null);
+        assertEquals(10, fromNine.getConstitution());
+        assertEquals(43, fromNine.getHpMax());
+        assertEquals(43, fromNine.getHpCurrent());
+
+        resolver.reverseFeatEffects(fromNine, buildAppliedMap(effects, "Durable"));
+        assertEquals(9, fromNine.getConstitution());
+        assertEquals(38, fromNine.getHpMax());
+    }
+
     // --- Helper: convert AppliedEffects to the Map format used by reverseFeatEffects ---
 
     private Map<String, Object> buildAppliedMap(FeatEffectResolver.AppliedEffects effects, String featName) {

@@ -22,6 +22,7 @@ import com.tabletophelper.encounter.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.TurnOrder;
 import com.tabletophelper.shared.ConflictException;
@@ -148,7 +149,7 @@ public class EncounterService {
         Monster monster = monsterRepository.findById(request.getMonsterId())
                 .orElseThrow(() -> new ValidationException("Monster not found"));
 
-        int dexMod = (monster.getDexterity() - 10) / 2;
+        int dexMod = Ability.modifier(monster.getDexterity());
         String baseName = request.getDisplayName();
 
         long existingCount = encounter.getParticipants().stream()

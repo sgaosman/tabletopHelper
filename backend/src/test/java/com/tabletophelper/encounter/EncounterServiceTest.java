@@ -178,6 +178,43 @@ class EncounterServiceTest {
     }
 
     @Test
+    @DisplayName("A monster with an odd Dexterity below 10 rounds its initiative modifier down")
+    void addMonsterParticipant_oddDexterityBelowTenRoundsDown() {
+        UUID encounterId = UUID.randomUUID();
+        UUID monsterId = UUID.randomUUID();
+
+        Monster aboleth = Monster.builder()
+                .id(monsterId)
+                .name("Aboleth")
+                .hitPoints(135)
+                .armourClass(17)
+                .dexterity(9) // DEX mod -1
+                .build();
+
+        Encounter encounter = Encounter.builder()
+                .id(encounterId)
+                .campaign(campaign)
+                .name("Test Encounter")
+                .status(EncounterStatus.PREPARING)
+                .participants(new ArrayList<>())
+                .build();
+
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("MONSTER");
+        request.setMonsterId(monsterId);
+        request.setDisplayName("Aboleth");
+        request.setQuantity(1);
+
+        stubLock(encounter);
+        when(monsterRepository.findById(monsterId)).thenReturn(Optional.of(aboleth));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
+
+        EncounterResponse response = encounterService.addParticipant(encounterId, request, dmUserId);
+
+        assertEquals(-1, response.getParticipants().get(0).getInitiativeModifier());
+    }
+
+    @Test
     @DisplayName("Add PC participant auto-populates from character sheet")
     void addPcParticipant_autoPopulatesFromCharacterSheet() {
         UUID encounterId = UUID.randomUUID();
