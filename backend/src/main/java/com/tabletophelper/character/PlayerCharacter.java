@@ -10,6 +10,7 @@ import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
@@ -262,6 +263,12 @@ public class PlayerCharacter {
     @Column(name = "dm_adjustments", columnDefinition = "jsonb", nullable = false)
     @Builder.Default
     private List<DmAdjustment> dmAdjustments = List.of();
+
+    // The choices its levels owe that the player hasn't made yet, oldest level first (D159, V23)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pending_choices", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<PendingChoice> pendingChoices = List.of();
 
     @Column(name = "is_active")
     @Builder.Default

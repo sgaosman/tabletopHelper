@@ -1,62 +1,38 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Lock, Search, X, Plus, Undo2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Lock, X, Undo2 } from 'lucide-react';
 import { searchSpells } from '../../../api/referenceApi';
-import { useTypeAhead } from '../../../hooks/useTypeAhead';
-import {
-  useAddToSpellbook, useRemoveFromSpellbook, useRestoreSlot, useSetKnownSpells, useSetPreparedSpells, useSpendSlot,
-} from '../../../queries/characters';
+import { useRestoreSlot, useSetPreparedSpells, useSpendSlot } from '../../../queries/characters';
 import SpellCard from '../../../components/reference/SpellCard';
 import IconButton from '../../../components/ui/IconButton';
-import type { PlayerCharacter, ClassSpellcasting } from '../../../types/character';
+import type { PlayerCharacter } from '../../../types/character';
 import type { SpellSlot } from '../../../types/encounter';
 import type { Spell } from '../../../types/reference';
-import { THIRD_CASTER_SUBCLASSES, THIRD_CASTER_SPELL_LIST } from '../../../utils/spellConstants';
+import { THIRD_CASTER_SUBCLASSES, spellListClass } from '../../../utils/spellConstants';
 import { formatMod } from '../../../utils/dndRules';
 import type { RunCommand, SpellEntry } from './types';
 import StatCard from './StatCard';
-
-// The class a class's spells come from: the Wizard's list for an Eldritch Knight or Arcane Trickster
-function spellListOf(casting: ClassSpellcasting | undefined, className: string) {
-  return casting?.subclassName && THIRD_CASTER_SUBCLASSES.has(casting.subclassName)
-    ? THIRD_CASTER_SPELL_LIST[casting.subclassName]
-    : className;
-}
-
-type ManageType = 'prepared' | 'known' | 'cantrips' | 'spellbook' | 'remove-spellbook';
+import ManageSpellsModal, { type ManageType } from '../../../components/character/ManageSpellsModal';
 
 /**
  * The character's spells by where they come from. What each class casts with, its save DC, attack bonus, highest
  * spell level and cantrip, known and prepared limits, is the server's (char.spellcasting, D167); race and feat spells
  * use the main numbers. Every change is a command the server checks (D158): a slot spent or got back, the spells a
- * class prepares, a wizard's spellbook, and until Pending Choices the cantrips and spells a class knows. Spells from a
- * feat come with the feat, at a level's Ability Score Improvement or, from workstream E, as the DM's grant.
+ * class prepares, and a wizard's spellbook. The cantrips and spells a class learns come with its levels' Pending
+ * Choices, made from the sheet's banner (D159). Spells from a feat come with the feat, at a level's Ability Score
+ * Improvement or a race's or background's FEAT choice, or as the DM's grant.
  */
-export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, pendingSpellManage, onSpellManageHandled }: {
+export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }: {
   char: PlayerCharacter;
   spellsKnown: SpellEntry[];
   spellSlots: Record<string, SpellSlot>;
   runCommand: RunCommand;
-  pendingSpellManage?: { className: string; type: 'known' | 'prepared' } | null;
-  onSpellManageHandled?: () => void;
 }) {
   const spendSlotCommand = useSpendSlot();
   const restoreSlotCommand = useRestoreSlot();
   const setPrepared = useSetPreparedSpells();
   const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
   const [loadingSpell, setLoadingSpell] = useState(false);
-  const [manageModal, setManageModal] = useState<{ type: ManageType; className: string; spellListClass?: string; classLevel?: number } | null>(null);
-
-  useEffect(() => {
-    if (pendingSpellManage && !manageModal) {
-      const mcEntries = char.multiclassEntries ?? [];
-      const entry = mcEntries.find(e => e.className === pendingSpellManage.className);
-      const classLevel = entry ? entry.level : char.level;
-      const isThirdCaster = entry?.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName);
-      const spellListClass = isThirdCaster ? THIRD_CASTER_SPELL_LIST[entry!.subclassName!] : pendingSpellManage.className;
-      setManageModal({ type: pendingSpellManage.type, className: pendingSpellManage.className, spellListClass, classLevel });
-      onSpellManageHandled?.();
-    }
-  }, [pendingSpellManage]);
+  const [manageModal, setManageModal] = useState<{ type: ManageType; className: string } | null>(null);
 
   const subclassAlwaysPreparedGroups = useMemo(() => {
     if (!char.subclassAlwaysPreparedSpells) return [];
@@ -115,7 +91,6 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, p
     }
   }
 
-  const mcEntries = char.multiclassEntries ?? [];
   for (const casting of classCasting) {
     const source = `class:${casting.className}`;
     if (!classGroups.some(g => g.source === source)) {
@@ -286,12 +261,9 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, p
         const cantrips = spells.filter(s => s.level === 0);
         const leveled = spells.filter(s => s.level > 0);
         const prepared = leveled.filter(s => s.prepared || s.alwaysPrepared);
-        const classEntry = mcEntries.find(e => e.className === className);
-        const classLevel = info.casting?.classLevel ?? (classEntry ? classEntry.level : char.level);
         const prepLimit = info.casting?.preparedSpells ?? 0;
         const knownLimit = info.casting?.spellsKnown ?? 0;
         const cantripLimit = info.casting?.cantripsKnown;
-        const spellListClass = spellListOf(info.casting, className);
         const displayName = info.thirdCasterSubclass ? `${className} (${info.thirdCasterSubclass})` : className;
 
         const isWizard = className === 'Wizard';
@@ -327,19 +299,9 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, p
 
             {(cantrips.length > 0 || (cantripLimit && cantripLimit > 0)) && (
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">
-                    Cantrips ({cantrips.length}{cantripLimit ? `/${cantripLimit}` : ''})
-                  </h4>
-                  {info.casting && cantripLimit ? (
-                    <button
-                      onClick={() => setManageModal({ type: 'cantrips', className, spellListClass, classLevel })}
-                      className="font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors"
-                    >
-                      Manage Cantrips
-                    </button>
-                  ) : null}
-                </div>
+                <h4 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint mb-1">
+                  Cantrips ({cantrips.length}{cantripLimit ? `/${cantripLimit}` : ''})
+                </h4>
                 <div className="space-y-0.5">{cantrips.map(s => renderSpellRow(s, false))}</div>
               </div>
             )}
@@ -367,17 +329,9 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, p
 
             {info.isKnown && (
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint">
-                    Known Spells ({leveled.length}{knownLimit ? `/${knownLimit}` : ''})
-                  </h4>
-                  <button
-                    onClick={() => setManageModal({ type: 'known', className, spellListClass, classLevel })}
-                    className="font-body text-[14px] font-semibold text-muted hover:text-ink transition-colors"
-                  >
-                    Manage Known
-                  </button>
-                </div>
+                <h4 className="font-heading text-[11px] font-semibold tracking-[0.08em] uppercase text-faint mb-1">
+                  Known Spells ({leveled.length}{knownLimit ? `/${knownLimit}` : ''})
+                </h4>
                 {leveled.length > 0 ? (
                   <div className="space-y-0.5">{leveled.map(s => renderSpellRow(s, false))}</div>
                 ) : (
@@ -435,7 +389,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, p
       ))}
 
       {taggedSpells.length === 0 && classGroups.every(g => g.spells.length === 0) && (
-        <p className="font-body text-[15px] text-faint">No spells yet. Use the Change Prepared or Manage Known button to add spells.</p>
+        <p className="font-body text-[15px] text-faint">No spells yet. A class learns its cantrips and spells through the choices its levels bring, and a prepared caster picks its spells with Change Prepared.</p>
       )}
 
       {/* Spell Detail Modal */}
@@ -465,382 +419,13 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand, p
           type={manageModal.type}
           className={manageModal.className}
           casting={classCasting.find(c => c.className === manageModal.className)}
-          spellListClass={manageModal.spellListClass ?? spellListOf(
-            classCasting.find(c => c.className === manageModal.className), manageModal.className)}
+          spellListClass={spellListClass(manageModal.className,
+            classCasting.find(c => c.className === manageModal.className)?.subclassName)}
           currentSpells={taggedSpells}
           runCommand={runCommand}
           onClose={() => setManageModal(null)}
         />
       )}
-    </div>
-  );
-}
-
-/**
- * Chooses a class's spells, which one command saves: the spells it prepares, its known spells or cantrips, or what a
- * wizard copies into or takes out of its spellbook. The server checks each against the class's list, level and limit.
- */
-function ManageSpellsModal({ char, type, className, casting, spellListClass, currentSpells, runCommand, onClose }: {
-  char: PlayerCharacter;
-  type: ManageType;
-  className: string;
-  // What the class casts with, from the server; a class without spellcasting has no limits
-  casting?: ClassSpellcasting;
-  spellListClass?: string;
-  currentSpells: SpellEntry[];
-  runCommand: RunCommand;
-  onClose: () => void;
-}) {
-  const setPrepared = useSetPreparedSpells();
-  const setKnown = useSetKnownSpells();
-  const addToSpellbook = useAddToSpellbook();
-  const removeFromSpellbook = useRemoveFromSpellbook();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Spell[]>([]);
-  const [selectedLevel, setSelectedLevel] = useState<number | ''>('');
-  const [localSpells, setLocalSpells] = useState<SpellEntry[]>(currentSpells);
-  const [saving, setSaving] = useState(false);
-
-  const source = `class:${className}`;
-  const classSpells = localSpells.filter(s => s.source === source);
-  const leveled = classSpells.filter(s => s.level > 0);
-  const cantrips = classSpells.filter(s => s.level === 0);
-  const preparedCount = leveled.filter(s => s.prepared || s.alwaysPrepared).length;
-  const prepLimit = casting?.preparedSpells ?? 0;
-  const knownLimit = casting?.spellsKnown ?? 0;
-  const cantripLimit = casting?.cantripsKnown ?? 0;
-  const isCantrips = type === 'cantrips';
-
-  const isWizardPrepared = type === 'prepared' && className === 'Wizard';
-  const isSpellbookMode = type === 'spellbook';
-  const isRemoveSpellbook = type === 'remove-spellbook';
-  const needsApiSearch = !isWizardPrepared && !isRemoveSpellbook;
-
-  // The highest level the class itself can learn or prepare, from its own table, whatever slots a multiclass
-  // character has (PHB p.164)
-  const slots = char.spellSlots ?? {};
-  const maxSlotLevel = casting ? casting.highestSpellLevel : Math.max(0, ...Object.keys(slots).map(k => {
-    if (k.startsWith('pact_')) return parseInt(k.replace('pact_', ''));
-    const n = parseInt(k);
-    return isNaN(n) ? 0 : n;
-  }));
-  // Cantrips are chosen on their own; a spellbook, and the spells a class prepares or knows, are of 1st level or higher
-  const minSpellLevel = isCantrips ? 0 : 1;
-  const maxSpellLevel = isCantrips ? 0 : maxSlotLevel;
-  const validLevels = Array.from({ length: Math.max(0, maxSpellLevel - minSpellLevel + 1) }, (_, i) => i + minSpellLevel);
-
-  const spellbookSpells = useMemo(() => {
-    if (!isWizardPrepared && !isRemoveSpellbook) return [];
-    return classSpells.filter(s => s.level > 0).map(s => ({
-      id: `spellbook-${s.name}`,
-      name: s.name,
-      level: s.level,
-      school: null, castingTime: null, rangeDistance: null, components: null,
-      duration: null, concentration: false, ritual: false, description: null,
-      higherLevels: null, classes: null, damageType: null, damageDice: null,
-      saveAbility: null, source: null,
-    } as Spell));
-  }, [isWizardPrepared, isRemoveSpellbook, classSpells]);
-
-  const filteredSpellbook = useMemo(() => {
-    let list = spellbookSpells;
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(s => s.name.toLowerCase().includes(q));
-    }
-    if (selectedLevel !== '') {
-      list = list.filter(s => s.level === selectedLevel);
-    }
-    return list;
-  }, [spellbookSpells, searchQuery, selectedLevel]);
-
-  // Results follow the search box as you type; Enter searches straight away.
-  // The spellbook modes filter on the page instead (filteredSpellbook)
-  const { searchNow: doSearch, searching } = useTypeAhead(searchQuery, () => {
-    if (!needsApiSearch) return;
-    const params: Record<string, unknown> = { className: spellListClass || className, size: 50 };
-    if (searchQuery.trim()) params.name = searchQuery.trim();
-    if (selectedLevel !== '') {
-      params.level = selectedLevel;
-    } else {
-      params.level = validLevels.join(',');
-    }
-    return searchSpells(params as any)
-      .then(res => res.content.filter(s => s.level >= minSpellLevel && s.level <= maxSpellLevel));
-  }, setSearchResults);
-
-  // Loads the list when the modal opens, and again whenever the level filter changes
-  useEffect(() => {
-    doSearch();
-  }, [selectedLevel, doSearch]);
-
-  function isAdded(spell: Spell): boolean {
-    return classSpells.some(s => s.name === spell.name);
-  }
-
-  function isPreparedSpell(spell: Spell): boolean {
-    return classSpells.some(s => s.name === spell.name && (s.prepared || s.alwaysPrepared));
-  }
-
-  function toggleSpell(spell: Spell) {
-    if (isSpellbookMode) {
-      const exists = localSpells.some(s => s.name === spell.name && s.source === source);
-      if (exists) {
-        setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
-      } else {
-        setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source, prepared: false }]);
-      }
-    } else if (isRemoveSpellbook) {
-      setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
-    } else if (type === 'prepared') {
-      const existing = localSpells.find(s => s.name === spell.name && s.source === source);
-      if (existing) {
-        if (existing.alwaysPrepared) return;
-        if (existing.prepared) {
-          setLocalSpells(localSpells.map(s =>
-            s.name === spell.name && s.source === source ? { ...s, prepared: false } : s
-          ));
-        } else {
-          if (preparedCount >= prepLimit) return;
-          setLocalSpells(localSpells.map(s =>
-            s.name === spell.name && s.source === source ? { ...s, prepared: true } : s
-          ));
-        }
-      } else {
-        if (preparedCount >= prepLimit) return;
-        setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source, prepared: true }]);
-      }
-    } else {
-      const exists = localSpells.some(s => s.name === spell.name && s.source === source);
-      if (exists) {
-        setLocalSpells(localSpells.filter(s => !(s.name === spell.name && s.source === source)));
-      } else {
-        if (isCantrips ? cantrips.length >= cantripLimit : knownLimit > 0 && leveled.length >= knownLimit) return;
-        setLocalSpells([...localSpells, { name: spell.name, level: spell.level, source }]);
-      }
-    }
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    const characterId = char.id;
-    const classNames = (spells: SpellEntry[], levelled: boolean) => spells
-      .filter(s => s.source === source && (levelled ? s.level > 0 : s.level === 0))
-      .map(s => s.name);
-    let saved: boolean;
-    if (type === 'prepared') {
-      const spells = localSpells
-        .filter(s => s.source === source && s.level > 0 && s.prepared && !s.alwaysPrepared)
-        .map(s => s.name);
-      saved = await runCommand(setPrepared.mutateAsync({ characterId, prepared: { className, spells } }));
-    } else if (type === 'known') {
-      saved = await runCommand(setKnown.mutateAsync({
-        characterId, known: { className, spells: classNames(localSpells, true) },
-      }));
-    } else if (isCantrips) {
-      saved = await runCommand(setKnown.mutateAsync({
-        characterId, known: { className, cantrips: classNames(localSpells, false) },
-      }));
-    } else {
-      // What the spellbook gained and lost
-      const before = classNames(currentSpells, true);
-      const after = classNames(localSpells, true);
-      const added = after.filter(name => !before.includes(name));
-      const removed = before.filter(name => !after.includes(name));
-      saved = true;
-      if (added.length > 0) {
-        saved = await runCommand(addToSpellbook.mutateAsync({ characterId, spells: added }));
-      }
-      if (saved && removed.length > 0) {
-        saved = await runCommand(removeFromSpellbook.mutateAsync({ characterId, spells: removed }));
-      }
-    }
-    setSaving(false);
-    if (saved) onClose();
-  }
-
-  const displayResults = needsApiSearch ? searchResults : filteredSpellbook;
-  const modalTitle = isSpellbookMode
-    ? 'Add to Spellbook'
-    : isRemoveSpellbook
-      ? 'Remove from Spellbook'
-      : isWizardPrepared
-        ? 'Prepare from Spellbook'
-        : type === 'prepared'
-          ? 'Change Prepared Spells'
-          : isCantrips
-            ? 'Manage Cantrips'
-            : 'Manage Known Spells';
-  const modalSubtitle = isSpellbookMode
-    ? `${leveled.length} spells in spellbook`
-    : isRemoveSpellbook
-      ? `${leveled.length} spells in spellbook`
-      : type === 'prepared'
-        ? `${preparedCount}/${prepLimit} prepared`
-        : isCantrips
-          ? `${cantrips.length}/${cantripLimit} known`
-          : `${leveled.length}${knownLimit ? `/${knownLimit}` : ''} known`;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="manage-spells-title" className="bg-card border border-rule w-full max-w-lg max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-rule flex items-center justify-between">
-          <div>
-            <h2 id="manage-spells-title" className="font-heading text-[17px] font-semibold text-ink">{modalTitle}</h2>
-            <p className="font-body text-[13px] font-semibold text-faint mt-0.5">{modalSubtitle}</p>
-          </div>
-          <button onClick={onClose} className="text-faint hover:text-ink"><X className="w-5 h-5" /></button>
-        </div>
-
-        {/* Search bar */}
-        <div className="px-4 py-3 border-b border-rule space-y-2">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
-              <input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && doSearch()}
-                placeholder={needsApiSearch ? "Search spells..." : "Filter spellbook..."}
-                className="w-full bg-page border border-rule pl-8 pr-3 py-1.5 font-body text-[15px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
-              />
-            </div>
-            {(isWizardPrepared || isRemoveSpellbook) && (
-              <select
-                value={selectedLevel}
-                onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
-                className="bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
-              >
-                <option value="">All Levels</option>
-                {validLevels.filter(l => l > 0).map(l => (
-                  <option key={l} value={l}>Level {l}</option>
-                ))}
-              </select>
-            )}
-            {needsApiSearch && (
-              <select
-                value={selectedLevel}
-                onChange={e => setSelectedLevel(e.target.value === '' ? '' : parseInt(e.target.value))}
-                className="bg-page border border-rule px-2 py-1.5 font-body text-[15px] font-semibold text-ink focus:outline-none focus:border-muted"
-              >
-                <option value="">All Levels</option>
-                {validLevels.map(l => (
-                  <option key={l} value={l}>{l === 0 ? 'Cantrips' : `Level ${l}`}</option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-
-        {/* Results. The last ones stay up while a new search runs, so typing doesn't flicker */}
-        <div className="flex-1 overflow-y-auto px-4 py-2">
-          {searching && displayResults.length === 0 ? (
-            <p className="font-body text-[15px] text-muted py-4 text-center">Searching...</p>
-          ) : displayResults.length === 0 ? (
-            <p className="font-body text-[15px] text-faint py-4 text-center">
-              {needsApiSearch
-                ? `Search for ${className} spells to add them.`
-                : isRemoveSpellbook
-                  ? 'No spells in spellbook.'
-                  : 'No spells in spellbook to prepare.'}
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {displayResults.map(spell => {
-                const added = isAdded(spell);
-                const prepared = isPreparedSpell(spell);
-                const isAlwaysPrep = classSpells.some(s => s.name === spell.name && s.alwaysPrepared);
-
-                let disabled = false;
-                if (isSpellbookMode) {
-                  disabled = false;
-                } else if (isRemoveSpellbook) {
-                  disabled = !added;
-                } else if (type === 'prepared') {
-                  disabled = isAlwaysPrep || (preparedCount >= prepLimit && !prepared);
-                } else if (isCantrips) {
-                  disabled = cantrips.length >= cantripLimit && !added;
-                } else {
-                  disabled = isAlwaysPrep || (knownLimit > 0 && leveled.length >= knownLimit && !added);
-                }
-
-                return (
-                  <button
-                    key={spell.id}
-                    onClick={() => !disabled && toggleSpell(spell)}
-                    disabled={disabled}
-                    className={`w-full flex items-center justify-between py-2 px-3 font-body text-[15px] font-semibold transition-colors ${
-                      isAlwaysPrep && (type === 'prepared' || isWizardPrepared)
-                        ? 'bg-cls-cleric-bg text-cls-cleric cursor-not-allowed'
-                        : disabled
-                          ? 'text-faint cursor-not-allowed'
-                          : isRemoveSpellbook
-                            ? 'text-muted hover:bg-debuff-bg'
-                            : isSpellbookMode
-                              ? added
-                                ? 'bg-buff-bg text-buff hover:opacity-80'
-                                : 'text-muted hover:bg-page-alt'
-                              : (type === 'prepared' || isWizardPrepared ? prepared : added)
-                                ? 'bg-cls-wizard-bg text-cls-wizard hover:opacity-80'
-                                : 'text-muted hover:bg-page-alt'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {isAlwaysPrep && (type === 'prepared' || isWizardPrepared) && <Lock className="w-3 h-3 text-cls-cleric" />}
-                      <span>{spell.name}</span>
-                      <span className="text-[13px] text-faint">
-                        {spell.level === 0 ? 'Cantrip' : `Lv ${spell.level}`}
-                      </span>
-                    </div>
-                    {isSpellbookMode ? (
-                      added ? (
-                        <span className="text-[13px] text-buff">In Spellbook</span>
-                      ) : (
-                        <Plus className="w-4 h-4 text-faint" />
-                      )
-                    ) : isRemoveSpellbook ? (
-                      added ? (
-                        <span className="text-[13px] text-debuff">Remove</span>
-                      ) : (
-                        <span className="text-[13px] text-faint">Removed</span>
-                      )
-                    ) : type === 'prepared' || isWizardPrepared ? (
-                      isAlwaysPrep ? (
-                        <span className="text-[13px] text-cls-cleric">Always</span>
-                      ) : prepared ? (
-                        <span className="text-[13px] text-buff">Prepared</span>
-                      ) : added ? (
-                        <span className="text-[13px] text-faint">In list</span>
-                      ) : (
-                        <Plus className="w-4 h-4 text-faint" />
-                      )
-                    ) : added ? (
-                      <span className="text-[13px] text-debuff">Remove</span>
-                    ) : (
-                      <Plus className="w-4 h-4 text-faint" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 py-3 border-t border-rule flex justify-end gap-2">
-          <button onClick={onClose} className="px-3 py-1.5 font-body text-[15px] font-semibold text-muted hover:text-ink transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-1.5 bg-ink text-card font-body text-[15px] font-semibold hover:opacity-80 transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

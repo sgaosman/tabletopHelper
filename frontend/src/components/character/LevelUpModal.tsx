@@ -8,7 +8,8 @@ import Modal from '../ui/Modal';
 
 interface Props {
   character: PlayerCharacter;
-  onComplete: (response: LevelUpResponse, leveledClassId: string, leveledClassName: string) => void;
+  /** The level was gained: what the player has to choose for it is among the character's Pending Choices (D159) */
+  onComplete: (response: LevelUpResponse) => void;
   onClose: () => void;
 }
 
@@ -28,10 +29,9 @@ export default function LevelUpModal({ character, onComplete, onClose }: Props) 
 
   function handleConfirm() {
     if (!selectedClassId) return;
-    const className = classes.find(c => c.classId === selectedClassId)?.className ?? '';
     levelUp.mutate(
       { characterId: character.id, classId: selectedClassId },
-      { onSuccess: response => onComplete(response, selectedClassId, className) },
+      { onSuccess: response => onComplete(response) },
     );
   }
 

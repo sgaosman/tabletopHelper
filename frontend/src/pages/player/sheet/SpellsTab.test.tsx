@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { render } from '../../../test/test-utils';
 import { server } from '../../../test/mocks/server';
 import { makeMockCharacter } from '../../../test/mocks/handlers';
-import type { ClassSpellcasting, KnownSpellsRequest, PlayerCharacter, PreparedSpellsRequest } from '../../../types/character';
+import type { ClassSpellcasting, PlayerCharacter, PreparedSpellsRequest, SpellbookRequest } from '../../../types/character';
 import type { PageResponse, Spell } from '../../../types/reference';
 import type { RunCommand } from './types';
 import SpellsTab from './SpellsTab';
@@ -131,34 +131,46 @@ describe('SpellsTab', () => {
     await waitFor(() => expect(sent[1]).toEqual({ className: 'Cleric', spells: [] }));
   });
 
-  it("chooses a class's cantrips within its limit and sends them as the cantrips it knows", async () => {
-    let sent: KnownSpellsRequest | undefined;
+  it("has no way to rewrite a class's cantrips or known spells: they come with its levels' choices (D159)", () => {
+    const char = {
+      ...makeMockCharacter('char-006', 'Mira', 'Sorcerer', 3),
+      spellsKnown: [{ name: 'Fire Bolt', level: 0, source: 'class:Sorcerer' }, { name: 'Shield', level: 1, source: 'class:Sorcerer' }],
+      spellcasting: [casting({ className: 'Sorcerer', ability: 'CHA', cantripsKnown: 4, spellsKnown: 4, preparedSpells: null })],
+    };
+
+    renderTab(char);
+
+    expect(within(box('Sorcerer Spells')).getByText('Known Spells (1/4)')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Manage Cantrips' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Manage Known' })).not.toBeInTheDocument();
+  });
+
+  it("copies spells into a wizard's spellbook, which costs no choice", async () => {
+    let sent: SpellbookRequest | undefined;
     server.use(
       http.get('/api/reference/spells', () => HttpResponse.json({
-        content: [spell('spell-1', 'Fire Bolt', 0), spell('spell-2', 'Light', 0), spell('spell-3', 'Mage Hand', 0)],
-        totalElements: 3, totalPages: 1, number: 0, size: 50,
+        content: [spell('spell-1', 'Magic Missile', 1), spell('spell-2', 'Shield', 1)],
+        totalElements: 2, totalPages: 1, number: 0, size: 50,
       } satisfies PageResponse<Spell>)),
-      http.put('/api/characters/:id/spells/known', async ({ params, request }) => {
-        sent = await request.json() as KnownSpellsRequest;
+      http.post('/api/characters/:id/spellbook', async ({ params, request }) => {
+        sent = await request.json() as SpellbookRequest;
         return HttpResponse.json(makeMockCharacter(params.id as string, 'Elminster', 'Wizard', 3));
       }),
     );
     const char = {
-      ...makeMockCharacter('char-006', 'Elminster', 'Wizard', 3),
-      spellsKnown: [{ name: 'Fire Bolt', level: 0, source: 'class:Wizard' }],
-      spellcasting: [casting({ cantripsKnown: 2 })],
+      ...makeMockCharacter('char-008', 'Elminster', 'Wizard', 3),
+      spellsKnown: [{ name: 'Magic Missile', level: 1, source: 'class:Wizard', prepared: false }],
+      spellcasting: [casting({})],
     };
     renderTab(char);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole('button', { name: 'Manage Cantrips' }));
-    const dialog = screen.getByRole('dialog', { name: /Manage Cantrips/ });
-    await user.click(await within(dialog).findByRole('button', { name: /Light/ }));
-    // Two of two: Mage Hand waits until one goes
-    expect(within(dialog).getByRole('button', { name: /Mage Hand/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: '+ Spellbook' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add to Spellbook' });
+    await user.click(await within(dialog).findByRole('button', { name: /Shield/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
 
-    await waitFor(() => expect(sent).toEqual({ className: 'Wizard', cantrips: ['Fire Bolt', 'Light'] }));
+    await waitFor(() => expect(sent).toEqual({ spells: ['Shield'] }));
   });
 
   it("has no way to add feat spells by hand: a feat's spells come with the feat", () => {

@@ -140,26 +140,6 @@ export function hasChooseSet(raw: string | null): ProfEntry[][] | null {
   return null;
 }
 
-const STANDARD_ASI_LEVELS = new Set([4, 8, 12, 16, 19]);
-const FIGHTER_ASI_LEVELS = new Set([4, 6, 8, 12, 14, 16, 19]);
-const ROGUE_ASI_LEVELS = new Set([4, 8, 10, 12, 16, 19]);
-
-export function isAsiLevel(className: string, classLevel: number): boolean {
-  if (className === 'Fighter') return FIGHTER_ASI_LEVELS.has(classLevel);
-  if (className === 'Rogue') return ROGUE_ASI_LEVELS.has(classLevel);
-  return STANDARD_ASI_LEVELS.has(classLevel);
-}
-
-export function countAsiLevels(entries: ClassEntry[]): number {
-  let count = 0;
-  for (const entry of entries) {
-    for (let lvl = 1; lvl <= entry.level; lvl++) {
-      if (isAsiLevel(entry.cls.name, lvl)) count++;
-    }
-  }
-  return count;
-}
-
 export function checkMulticlassEligibility(
   cls: CharacterClassRef,
   scores: AbilityScores

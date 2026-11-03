@@ -13,6 +13,8 @@ export interface RaceStepProps {
   raceChoiceSelections: Record<string, string[]>;
   handleRaceChoice: (key: string, value: string, count: number) => void;
   raceChoicesComplete: boolean;
+  /** How many feats the race grants, such as a Variant Human's, which the character takes on its sheet (D159) */
+  raceFeats: number;
   bonusAssignments: Array<{ bonus: number; ability: string | null }>;
   handleBonusAssignment: (rowIndex: number, ability: string) => void;
   isVanillaHuman: boolean;
@@ -21,7 +23,7 @@ export interface RaceStepProps {
 export default function RaceStep({
   filteredRaces, raceSearch, setRaceSearch,
   selectedRace, setSelectedRace,
-  raceChoiceReqs, raceChoiceSelections, handleRaceChoice, raceChoicesComplete,
+  raceChoiceReqs, raceChoiceSelections, handleRaceChoice, raceChoicesComplete, raceFeats,
   bonusAssignments, handleBonusAssignment, isVanillaHuman,
 }: RaceStepProps) {
   return (
@@ -107,6 +109,16 @@ export default function RaceStep({
           {!raceChoicesComplete && (
             <p className="font-body text-[13px] font-semibold text-hp-wounded mt-3">Complete all selections to continue</p>
           )}
+        </div>
+      )}
+      {/* The feat is a Pending Choice, made on the sheet so its effects apply (D159) */}
+      {selectedRace && raceFeats > 0 && (
+        <div className="bg-card border border-rule p-4 mt-4">
+          <h3 className="font-heading text-[15px] font-semibold text-ink mb-1">Feat</h3>
+          <p className="font-body text-[13px] font-semibold text-muted">
+            {selectedRace.name} grants {raceFeats === 1 ? 'a feat' : `${raceFeats} feats`} of your choice.
+            You'll choose {raceFeats === 1 ? 'this feat' : 'them'} on your character sheet after creation.
+          </p>
         </div>
       )}
       {selectedRace && !isVanillaHuman && bonusAssignments.length > 0 && (

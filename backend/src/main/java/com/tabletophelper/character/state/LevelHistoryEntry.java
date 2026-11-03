@@ -20,6 +20,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param hitDieResult        the Hit Die Result: the die's maximum at character level 1 and its fixed average after,
  *                            a multiclass dip's first level included (PHB p.163). V20 filled it in for the levels
  *                            recorded before; one still without it counts as the fixed value
+ * @param featuresGained      the features the level brought, and those its choices added since: a Fighting Style's,
+ *                            and a subclass's at its class level, even when the subclass was chosen later (D159)
  * @param choices             what was chosen at this level; empty when nothing was
  * @param proficienciesGained the proficiencies multiclassing into the class added
  * @param abilityIncreases    increases the level itself applied, spelled out ("strength"), at the amount actually
@@ -43,6 +45,11 @@ public record LevelHistoryEntry(
     public LevelHistoryEntry withChoices(LevelChoices newChoices) {
         return new LevelHistoryEntry(characterLevel, classId, className, classLevel, hpGained, hitDieResult,
                 featuresGained, newChoices, proficienciesGained, abilityIncreases);
+    }
+
+    public LevelHistoryEntry withFeaturesGained(List<Feature> newFeaturesGained) {
+        return new LevelHistoryEntry(characterLevel, classId, className, classLevel, hpGained, hitDieResult,
+                newFeaturesGained, choices, proficienciesGained, abilityIncreases);
     }
 
     public LevelHistoryEntry withHpGained(int newHpGained) {

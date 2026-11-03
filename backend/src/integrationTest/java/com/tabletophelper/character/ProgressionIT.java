@@ -30,7 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Character progression end to end on PostgreSQL (D167): a Fighter 3 is created, dips into Wizard, takes a CON
  * improvement at Fighter 4 and Tough at Fighter 6, and levels back down to Fighter 3, with every Derived Stat checked
- * on the way and the sheet back as it began. The recompute-characters job then reports and repairs a stored stat.
+ * on the way and the sheet back as it began. Since R6 workstream F each level's choices are Pending Choices, made by
+ * their IDs (D159). The recompute-characters job then reports and repairs a stored stat.
  */
 class ProgressionIT extends IntegrationTest {
 
@@ -92,6 +93,17 @@ class ProgressionIT extends IntegrationTest {
                 player.accessToken()));
     }
 
+    // The ID of the character's pending choice of the type at the character level
+    private static String choiceId(JsonNode character, String type, int characterLevel) {
+        for (JsonNode choice : character.get("pendingChoices")) {
+            if (choice.get("type").asText().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
+                return choice.get("id").asText();
+            }
+        }
+        throw new AssertionError("No pending " + type + " at level " + characterLevel + ": "
+                + character.get("pendingChoices"));
+    }
+
     // The stats CharacterStats works out, and what levelling changes, in one comparable shape
     private static Map<String, Object> stats(JsonNode c) {
         List<Integer> hitDieResults = new ArrayList<>();
@@ -145,16 +157,20 @@ class ProgressionIT extends IntegrationTest {
         assertThat(wizard4.get("spellcasting").get(0).get("className").asText()).isEqualTo("Wizard");
         assertThat(wizard4.get("spellcasting").get(0).get("spellSaveDc").asInt()).isEqualTo(12);
         assertThat(wizard4.get("spellSaveDc").asInt()).isEqualTo(12);
-        assertThat(dip.get("pendingChoices").get("spellSelectionType").asText()).isEqualTo("prepared");
-        assertThat(dip.get("pendingChoices").get("maxSpellLevel").asInt()).isEqualTo(1);
+        // The dip's 1st level owes three cantrips and six spellbook spells of 1st level
+        JsonNode spellbook = wizard4.get("pendingChoices").get(wizard4.get("pendingChoices").size() - 1);
+        assertThat(spellbook.get("type").asText()).isEqualTo("SPELLS");
+        assertThat(spellbook.get("characterLevel").asInt()).isEqualTo(4);
+        assertThat(spellbook.get("count").asInt()).isEqualTo(6);
+        assertThat(spellbook.get("maxSpellLevel").asInt()).isEqualTo(1);
 
         // Fighter 4 brings an ASI; one past the rules is refused, and +2 CON counts for all five levels
-        assertThat(levelUp(id, fighterId).get("pendingChoices").get("asiAvailable").asBoolean()).isTrue();
-        var tooHigh = exchange(HttpMethod.POST, "/api/characters/" + id + "/apply-choices", Map.of("asi",
-                Map.of("type", "ability", "increases", List.of(Map.of("ability", "strength", "bonus", 3)))),
+        String asi = choiceId(levelUp(id, fighterId).get("character"), "ASI", 5);
+        var tooHigh = exchange(HttpMethod.POST, "/api/characters/" + id + "/apply-choices", Map.of("choiceId", asi,
+                "asi", Map.of("type", "ability", "increases", List.of(Map.of("ability", "strength", "bonus", 3)))),
                 player.accessToken());
         assertThat(tooHigh.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        JsonNode improved = applyChoices(id, Map.of("asi", Map.of("type", "ability",
+        JsonNode improved = applyChoices(id, Map.of("choiceId", asi, "asi", Map.of("type", "ability",
                 "increases", List.of(Map.of("ability", "constitution", "bonus", 2)))));
         assertThat(improved.get("constitution").asInt()).isEqualTo(16);
         // 13, 9, 9, then the Wizard's 4 + 3 and Fighter 4's 6 + 3
@@ -165,16 +181,16 @@ class ProgressionIT extends IntegrationTest {
 
         // Fighter 6 brings another, taken as Tough: 2 for each of the seven levels
         levelUp(id, fighterId);
-        levelUp(id, fighterId);
-        JsonNode tough = applyChoices(id, Map.of("asi", Map.of("type", "feat", "featId", toughId)));
+        String sixth = choiceId(levelUp(id, fighterId).get("character"), "ASI", 7);
+        JsonNode tough = applyChoices(id, Map.of("choiceId", sixth, "asi", Map.of("type", "feat", "featId", toughId)));
         assertThat(tough.get("hpMax").asInt()).isEqualTo(65 + 14);
         assertThat(tough.get("hpCurrent").asInt()).isEqualTo(79);
         assertThat(tough.get("levelHistory").get(6).get("choices").get("asi").get("featName").asText())
                 .isEqualTo("Tough");
 
         // A taken ASI isn't owed again
-        var again = exchange(HttpMethod.POST, "/api/characters/" + id + "/apply-choices", Map.of("asi",
-                Map.of("type", "ability", "increases", List.of(Map.of("ability", "strength", "bonus", 2)))),
+        var again = exchange(HttpMethod.POST, "/api/characters/" + id + "/apply-choices", Map.of("choiceId", sixth,
+                "asi", Map.of("type", "ability", "increases", List.of(Map.of("ability", "strength", "bonus", 2)))),
                 player.accessToken());
         assertThat(again.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 

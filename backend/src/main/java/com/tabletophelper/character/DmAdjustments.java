@@ -3,6 +3,7 @@ package com.tabletophelper.character;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
 import com.tabletophelper.character.state.DmAdjustment;
+import com.tabletophelper.character.state.FeatTaken;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
@@ -106,13 +107,20 @@ public final class DmAdjustments {
 
     /**
      * Every feat the character has taken whose effects were applied, with what applying it recorded: those its level
-     * history records in place of an Ability Score Improvement, oldest first, then those the DM granted. A feat's
-     * speed, initiative and limited uses are worked out from these (D158, D167).
+     * history records, oldest first, a race's or background's taken at creation (D159) before an Ability Score
+     * Improvement's on the same level, then those the DM granted. A feat's speed, initiative and limited uses are
+     * worked out from these (D158, D167).
      */
     public static List<AppliedFeatEffects> featsTaken(PlayerCharacter character) {
         List<AppliedFeatEffects> feats = new ArrayList<>();
         for (LevelHistoryEntry entry : CharacterUpdates.orEmpty(character.getLevelHistory())) {
-            AbilityScoreImprovement asi = entry.choices() != null ? entry.choices().asi() : null;
+            if (entry.choices() == null) continue;
+            for (FeatTaken feat : CharacterUpdates.orEmpty(entry.choices().feats())) {
+                if (feat.appliedEffects() != null) {
+                    feats.add(feat.appliedEffects());
+                }
+            }
+            AbilityScoreImprovement asi = entry.choices().asi();
             if (asi != null && asi.appliedEffects() != null) {
                 feats.add(asi.appliedEffects());
             }
@@ -123,6 +131,34 @@ public final class DmAdjustments {
             }
         }
         return feats;
+    }
+
+    /**
+     * Whether the character has the feat, in any case: a feature a feat added, which every feat applied adds whatever
+     * gave it, a level that took it, in place of an Ability Score Improvement (by name too, as before R6) or from its
+     * race or background at creation, or a grant of the DM's still active. A feat can't be taken again unless its
+     * text says it can (D158).
+     */
+    public static boolean hasFeat(PlayerCharacter character, String featName) {
+        String wanted = featName.trim();
+        boolean listed = CharacterUpdates.orEmpty(character.getFeatures()).stream()
+                .anyMatch(f -> FeatEffectResolver.FEAT_SOURCE.equals(f.source()) && f.name() != null
+                        && f.name().trim().equalsIgnoreCase(wanted));
+        if (listed) return true;
+        for (LevelHistoryEntry entry : CharacterUpdates.orEmpty(character.getLevelHistory())) {
+            if (entry.choices() == null) continue;
+            AbilityScoreImprovement asi = entry.choices().asi();
+            if (asi != null && asi.featName() != null && asi.featName().trim().equalsIgnoreCase(wanted)) {
+                return true;
+            }
+            for (FeatTaken feat : CharacterUpdates.orEmpty(entry.choices().feats())) {
+                if (feat.featName() != null && feat.featName().trim().equalsIgnoreCase(wanted)) {
+                    return true;
+                }
+            }
+        }
+        return active(character).stream()
+                .anyMatch(a -> a.kind() == DmAdjustment.Kind.FEAT && wanted.equalsIgnoreCase(a.target()));
     }
 
     // Adds a damage type, trimmed, unless it is blank or the list has it in any case

@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
 import { keepPreviousData, queryOptions, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
-  getAllConditions, getItemRarities, getItemSources, getItemTypes, getQuickReference, getSpellClasses, getSpellSchools,
-  getSpellSources, getSpellSubclasses, getSpellTargeting, getSubclasses, searchItems, searchSpells,
+  getAllConditions, getItemRarities, getItemSources, getItemTypes, getOptionalFeatures, getQuickReference,
+  getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses, getSpellTargeting, getSubclasses, searchItems,
+  searchSpells,
 } from '../api/referenceApi';
 import type { ItemSearchParams, SpellSearchParams } from '../types/reference';
 import { queryKeys } from './keys';
@@ -128,6 +129,15 @@ export function useSubclasses(classId: string) {
   return useQuery({
     queryKey: queryKeys.reference.subclasses(classId),
     queryFn: () => getSubclasses(classId),
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+/** The optional features of one type, such as 'FightingStyle', by name; a style each class has is listed once for each. */
+export function useOptionalFeatures(type: string) {
+  return useQuery({
+    queryKey: queryKeys.reference.optionalFeatures(type),
+    queryFn: () => getOptionalFeatures(type),
     staleTime: REFERENCE_STALE_TIME,
   });
 }

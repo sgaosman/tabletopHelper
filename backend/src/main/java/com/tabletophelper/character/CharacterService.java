@@ -9,11 +9,9 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.*;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.AbilityBonus;
-import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
 import com.tabletophelper.character.state.Feature;
-import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.identity.User;
@@ -22,7 +20,6 @@ import com.tabletophelper.reference.*;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
-import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.HitPoints;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
@@ -37,8 +34,9 @@ import static com.tabletophelper.character.CharacterUpdates.copy;
 import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 
 /**
- * Characters: creating them, levelling them up and down and the choices levels bring, deleting them and reading them.
- * The sheet's other commands are CharacterSheetService's, RestService's and CharacterSpellService's, and the DM's
+ * Characters: creating them, levelling them up and down, deleting them and reading them. The choices levels bring are
+ * PendingChoiceService's (D159): creating and levelling add them, and levelling down undoes the last level's. The
+ * sheet's other commands are CharacterSheetService's, RestService's and CharacterSpellService's, and the DM's
  * adjustments DmAdjustmentService's (D158). Every change starts in CharacterCommands, which checks access and locks the
  * row, and after it CharacterStats works out the Derived Stats again, writes their stored copies and syncs the pools
  * (D158, D167), so nothing here does that arithmetic itself.
@@ -61,8 +59,6 @@ public class CharacterService {
     private final CharacterClassRepository characterClassRepository;
     private final SubclassRepository subclassRepository;
     private final BackgroundRepository backgroundRepository;
-    private final FeatRepository featRepository;
-    private final FeatEffectResolver featEffectResolver;
     private final CharacterMapper characterMapper;
     private final ObjectMapper objectMapper;
     private final AccessPolicy accessPolicy;
@@ -70,6 +66,7 @@ public class CharacterService {
     private final CharacterCommands characterCommands;
     private final LiveEncounters liveEncounters;
     private final InventoryChecks inventoryChecks;
+    private final PendingChoiceService pendingChoices;
 
     // ── Creating ─────────────────────────────────────────────────
 
@@ -233,6 +230,7 @@ public class CharacterService {
                 .build();
 
         recordCreationHpGains(character);
+        pendingChoices.owedAtCreation(character, request);
         characterStats.apply(character);
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
@@ -305,10 +303,6 @@ public class CharacterService {
                 levelClass.getFeatures(), subclassFeatures ? levelSubclass.getFeatures() : null, newClassLevel,
                 levelClass.getName(), subclassFeatures ? levelSubclass.getName() : null);
 
-        boolean asiAvailable = ClassProgression.isAsiLevel(levelClass.getName(), newClassLevel);
-        boolean subclassRequired = newClassLevel == subclassLevel(levelClass) && levelSubclass == null;
-        int expertiseCount = ClassProgression.expertiseChoices(levelClass.getName(), newClassLevel);
-
         character.setLevel(newCharLevel);
         CharacterUpdates.appendFeatures(character, newFeatures);
         CharacterUpdates.updateClassEntry(character, levelClassId, levelClass, levelSubclass, classLevels);
@@ -317,38 +311,16 @@ public class CharacterService {
         CharacterUpdates.appendLevelHistory(character, newCharLevel, levelClassId, levelClass.getName(), newClassLevel,
                 HitPoints.fixedHitDieResult(newCharLevel, levelClass.getHitDice()), newFeatures, proficienciesGained,
                 abilityIncreases);
+        pendingChoices.owedAtLevelUp(character, levelClass, newCharLevel, newClassLevel);
 
         int oldHpMax = character.getHpMax();
         DerivedStats stats = characterStats.apply(character);
         CharacterUpdates.recordHpGained(character, stats.hpMax() - oldHpMax);
         character = characterRepository.save(character);
 
-        // The class's own table says whether this level brings spells to learn or prepare, an Eldritch Knight's and
-        // an Arcane Trickster's included, and how high they go (PHB p.164)
-        ClassSpellcasting casting = stats.spellcasting().stream()
-                .filter(c -> c.className().equals(levelClass.getName()))
-                .findFirst()
-                .orElse(null);
-        boolean spellSelectionNeeded = casting != null
-                && (casting.highestSpellLevel() > 0 || casting.cantripsKnown() > 0);
-        String spellSelectionType = spellSelectionNeeded
-                ? (casting.preparedSpells() != null ? "prepared" : "known") : null;
-
-        List<String> featureNames = newFeatures.stream().map(LevelUpCalculator.FeatureEntry::name).toList();
-        LevelUpResponse.PendingChoices choices = LevelUpResponse.PendingChoices.builder()
-                .asiAvailable(asiAvailable)
-                .subclassRequired(subclassRequired)
-                .expertiseAvailable(expertiseCount > 0)
-                .expertiseCount(expertiseCount)
-                .spellSelectionNeeded(spellSelectionNeeded)
-                .spellSelectionType(spellSelectionType)
-                .newFeatures(featureNames)
-                .maxSpellLevel(casting != null ? casting.highestSpellLevel() : 0)
-                .build();
-
         return LevelUpResponse.builder()
                 .character(characterMapper.toResponse(character))
-                .pendingChoices(choices)
+                .newFeatures(newFeatures.stream().map(LevelUpCalculator.FeatureEntry::name).toList())
                 .build();
     }
 
@@ -423,8 +395,8 @@ public class CharacterService {
 
     /**
      * Removes the last level: its history entry goes, only what it recorded is reversed (its features, choices,
-     * proficiencies and ability increases), and the Derived Stats and pools are worked out again, capping current hit
-     * points and spent Hit Dice (D167).
+     * proficiencies and ability increases), the choices it still owed go (D159), and the Derived Stats and pools are
+     * worked out again, capping current hit points and spent Hit Dice (D167).
      */
     @Transactional
     public CharacterResponse levelDown(UUID characterId, UUID userId) {
@@ -438,7 +410,7 @@ public class CharacterService {
         LevelHistoryEntry lastEntry = history.removeLast();
 
         CharacterUpdates.removeFeatures(character, orEmpty(lastEntry.featuresGained()));
-        reverseChoices(character, lastEntry.choices());
+        pendingChoices.levelRemoved(character, lastEntry);
         CharacterUpdates.removeProficiencies(character, lastEntry.proficienciesGained());
         for (AbilityBonus increase : orEmpty(lastEntry.abilityIncreases())) {
             CharacterUpdates.decreaseAbility(character, increase.ability(), increase.bonus());
@@ -460,189 +432,6 @@ public class CharacterService {
         character.setLevelHistory(history);
         character.setLevel(character.getLevel() - 1);
         return characterCommands.finish(character);
-    }
-
-    // Reverses the choices a level recorded: Expertise, and the Ability Score Improvement by the amount applied, or,
-    // for one recorded before R6, the amount requested
-    private void reverseChoices(PlayerCharacter character, LevelChoices choices) {
-        if (choices == null) return;
-        if (choices.expertise() != null && !choices.expertise().isEmpty()) {
-            character.setSkillExpertises(CharacterUpdates.without(character.getSkillExpertises(), choices.expertise()));
-        }
-        AbilityScoreImprovement asi = choices.asi();
-        if (asi == null) return;
-        if ("ability".equals(asi.type())) {
-            for (AbilityBonus increase : asi.applied() != null ? asi.applied() : orEmpty(asi.increases())) {
-                CharacterUpdates.decreaseAbility(character, increase.ability(), increase.bonus());
-            }
-        } else if ("feat".equals(asi.type())) {
-            if (asi.appliedEffects() != null) {
-                featEffectResolver.reverseFeatEffects(character, asi.appliedEffects());
-            } else {
-                if (asi.featName() != null) CharacterUpdates.removeFeatureByName(character, asi.featName());
-                if (asi.applied() != null) {
-                    for (AbilityBonus increase : asi.applied()) {
-                        CharacterUpdates.decreaseAbility(character, increase.ability(), increase.bonus());
-                    }
-                } else if (asi.featAbility() != null && !asi.featAbility().isBlank()) {
-                    CharacterUpdates.decreaseAbility(character, asi.featAbility(), 1);
-                }
-            }
-        }
-    }
-
-    // ── Choices ──────────────────────────────────────────────────
-
-    @Transactional
-    public CharacterResponse applyChoices(UUID characterId, ApplyChoicesRequest request, UUID userId) {
-        PlayerCharacter character = characterCommands.beginOutsideEncounters(characterId, userId,
-                "make the choices its levels bring");
-
-        if (request.getAsi() != null) {
-            applyAsi(character, request.getAsi());
-        }
-
-        if (request.getExpertiseSkills() != null && !request.getExpertiseSkills().isEmpty()) {
-            applyExpertise(character, request.getExpertiseSkills());
-        }
-
-        if (request.getSubclassId() != null) {
-            Subclass sc = subclassRepository.findById(request.getSubclassId())
-                    .orElseThrow(() -> new ValidationException("Subclass not found"));
-
-            UUID targetClassId = request.getClassId() != null ? request.getClassId()
-                    : (character.getClassRef() != null ? character.getClassRef().getId() : null);
-            boolean isPrimaryClass = character.getClassRef() != null
-                    && targetClassId != null && targetClassId.equals(character.getClassRef().getId());
-
-            if (isPrimaryClass) {
-                character.setSubclassRef(sc);
-                character.setSubclass(sc.getName());
-            }
-
-            CharacterUpdates.setClassEntrySubclass(character, targetClassId, sc);
-
-            CharacterClass targetClass = targetClassId != null
-                    ? characterClassRepository.findById(targetClassId).orElse(null) : null;
-            String targetClassName = targetClass != null ? targetClass.getName() : character.getCharacterClass();
-            int classLevel = getCurrentClassLevel(character, targetClassId);
-            List<LevelUpCalculator.FeatureEntry> scFeatures = LevelUpCalculator.collectFeaturesForLevel(
-                    null, sc.getFeatures(), classLevel, targetClassName, sc.getName());
-            CharacterUpdates.appendFeatures(character, scFeatures);
-        }
-
-        return characterCommands.finish(character);
-    }
-
-    /**
-     * Applies an Ability Score Improvement, or a feat in its place, to the latest level that owes one, and records it
-     * there (D167): +2 to one score or +1 to two, within each score's maximum, recorded at the amount applied.
-     */
-    private void applyAsi(PlayerCharacter character, ApplyChoicesRequest.AsiChoice asi) {
-        int index = CharacterUpdates.owedAsiLevel(orEmpty(character.getLevelHistory()));
-        if (index < 0)
-            throw new ConflictException("No Ability Score Improvement is owed");
-
-        if ("ability".equals(asi.getType())) {
-            List<AbilityBonus> requested = validIncreases(character, asi.getIncreases());
-            List<AbilityBonus> applied = requested.stream()
-                    .map(increase -> new AbilityBonus(increase.ability(),
-                            CharacterUpdates.increaseAbility(character, increase.ability(), increase.bonus())))
-                    .toList();
-            CharacterUpdates.recordAsi(character, index,
-                    new AbilityScoreImprovement("ability", requested, null, null, null, null, applied));
-        } else if ("feat".equals(asi.getType())) {
-            if (asi.getFeatId() != null) {
-                Feat feat = featRepository.findById(asi.getFeatId())
-                        .orElseThrow(() -> new ValidationException("Feat not found"));
-                FeatEffectResolver.AppliedEffects applied = featEffectResolver.applyFeat(character, feat, asi);
-                CharacterUpdates.recordAsi(character, index, new AbilityScoreImprovement("feat", null, feat.getName(),
-                        asi.getFeatId(), null, CharacterUpdates.recordedEffects(applied, feat.getName()), null));
-            } else if (asi.getFeatName() != null && !asi.getFeatName().isBlank()) {
-                List<Feature> features = copy(character.getFeatures());
-                features.add(new Feature(asi.getFeatName(), "Feat", "Feat"));
-                character.setFeatures(features);
-                List<AbilityBonus> applied = null;
-                if (asi.getFeatAbility() != null && !asi.getFeatAbility().isBlank()) {
-                    applied = List.of(new AbilityBonus(asi.getFeatAbility(),
-                            CharacterUpdates.increaseAbility(character, asi.getFeatAbility(), 1)));
-                }
-                CharacterUpdates.recordAsi(character, index, new AbilityScoreImprovement("feat", null,
-                        asi.getFeatName(), null, asi.getFeatAbility(), null, applied));
-            } else {
-                throw new ValidationException("A feat taken in place of an Ability Score Improvement needs its ID or name");
-            }
-        } else {
-            throw new ValidationException("An Ability Score Improvement is of type 'ability' or 'feat'");
-        }
-    }
-
-    /**
-     * The increases of an Ability Score Improvement, each spelled out: +2 to one score or +1 to two different scores
-     * (PHB p.15), none above its maximum.
-     *
-     * @throws ValidationException for anything else
-     */
-    private List<AbilityBonus> validIncreases(PlayerCharacter character,
-                                              List<ApplyChoicesRequest.AbilityIncrease> increases) {
-        String rule = "An Ability Score Improvement is +2 to one ability score or +1 to two";
-        if (increases == null || increases.isEmpty() || increases.size() > 2) {
-            throw new ValidationException(rule);
-        }
-        AbilityScoreMaximums maximums = characterStats.abilityScoreMaximums(character);
-        Set<Ability> abilities = EnumSet.noneOf(Ability.class);
-        List<AbilityBonus> valid = new ArrayList<>();
-        for (ApplyChoicesRequest.AbilityIncrease increase : increases) {
-            Ability ability = CharacterUpdates.ability(increase.getAbility());
-            int expected = increases.size() == 1 ? 2 : 1;
-            if (increase.getBonus() != expected || !abilities.add(ability)) {
-                throw new ValidationException(rule);
-            }
-            int score = CharacterUpdates.score(character, ability);
-            int maximum = maximum(maximums, ability);
-            if (score + increase.getBonus() > maximum) {
-                throw new ValidationException(capitalised(ability.fullName()) + " is " + score
-                        + ", and an Ability Score Improvement can't take it above " + maximum);
-            }
-            valid.add(new AbilityBonus(ability.fullName(), increase.getBonus()));
-        }
-        return valid;
-    }
-
-    private static int maximum(AbilityScoreMaximums maximums, Ability ability) {
-        return switch (ability) {
-            case STR -> maximums.strength();
-            case DEX -> maximums.dexterity();
-            case CON -> maximums.constitution();
-            case INT -> maximums.intelligence();
-            case WIS -> maximums.wisdom();
-            case CHA -> maximums.charisma();
-        };
-    }
-
-    private static String capitalised(String text) {
-        return text.substring(0, 1).toUpperCase(Locale.ROOT) + text.substring(1);
-    }
-
-    /**
-     * Gives skills Expertise for the latest level that owes it, recording on that level those it didn't have so that
-     * levelling down removes them (D167).
-     */
-    private void applyExpertise(PlayerCharacter character, List<String> skills) {
-        List<LevelHistoryEntry> history = orEmpty(character.getLevelHistory());
-        int index = CharacterUpdates.owedExpertiseLevel(history);
-        if (index < 0)
-            throw new ConflictException("No Expertise is owed");
-        LevelHistoryEntry level = history.get(index);
-        int allowed = ClassProgression.expertiseChoices(level.className(), level.classLevel());
-        List<String> chosen = skills.stream().filter(s -> s != null && !s.isBlank()).distinct().toList();
-        if (chosen.size() > allowed)
-            throw new ValidationException("Level " + level.classLevel() + " " + level.className() + " gives Expertise in "
-                    + allowed + " skills, not " + chosen.size());
-
-        List<String> added = CharacterUpdates.added(character.getSkillExpertises(), chosen);
-        character.setSkillExpertises(CharacterUpdates.merged(character.getSkillExpertises(), chosen));
-        CharacterUpdates.recordExpertise(character, index, added);
     }
 
     @Transactional(readOnly = true)
@@ -685,10 +474,6 @@ public class CharacterService {
         return characterStats.spellcasting(character).stream()
                 .filter(c -> c.className().equals(className))
                 .findFirst();
-    }
-
-    private int getCurrentClassLevel(PlayerCharacter character, UUID classId) {
-        return MulticlassValidator.classLevels(character.getMulticlassEntries()).getOrDefault(classId, 1);
     }
 
     // ── Deleting and reading ─────────────────────────────────────

@@ -13,7 +13,6 @@ import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.character.AbilityScores;
-import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.shared.ValidationException;
 
 import java.util.ArrayList;
@@ -22,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 
 /**
  * Changes to a character's typed sheet state that levelling up and down and applying choices share: features, class
@@ -92,6 +92,19 @@ final class CharacterUpdates {
             entries.add(new ClassEntry(classId, characterClass.getName(),
                     subclass != null ? subclass.getId() : null, subclass != null ? subclass.getName() : null,
                     classLevels.get(classId)));
+        }
+        character.setMulticlassEntries(entries);
+    }
+
+    /** Takes the subclass away from the class's entry, as levelling down past the level that chose it does. */
+    static void clearClassEntrySubclass(PlayerCharacter character, UUID classId) {
+        List<ClassEntry> entries = copy(character.getMulticlassEntries());
+        for (int i = 0; i < entries.size(); i++) {
+            ClassEntry entry = entries.get(i);
+            if (classId.equals(entry.classId())) {
+                entries.set(i, entry.withSubclass(null, null));
+                break;
+            }
         }
         character.setMulticlassEntries(entries);
     }
@@ -267,50 +280,55 @@ final class CharacterUpdates {
     }
 
     /**
-     * Where an Ability Score Improvement is owed: the latest level that brings one in its class, by
-     * ClassProgression, with none recorded yet. -1 when none is owed.
+     * The index of the level history entry of a character level, which records the choices that level owes (D159);
+     * -1 when the history has none.
      */
-    static int owedAsiLevel(List<LevelHistoryEntry> history) {
-        for (int i = history.size() - 1; i >= 0; i--) {
-            LevelHistoryEntry entry = history.get(i);
-            if (entry.className() != null && ClassProgression.isAsiLevel(entry.className(), entry.classLevel())
-                    && (entry.choices() == null || entry.choices().asi() == null)) {
+    static int historyIndex(PlayerCharacter character, int characterLevel) {
+        List<LevelHistoryEntry> history = orEmpty(character.getLevelHistory());
+        for (int i = 0; i < history.size(); i++) {
+            if (history.get(i).characterLevel() == characterLevel) {
                 return i;
             }
         }
         return -1;
     }
 
-    /**
-     * Where Expertise is owed: the latest level that brings it in its class, by ClassProgression, with none recorded
-     * yet. -1 when none is owed.
-     */
-    static int owedExpertiseLevel(List<LevelHistoryEntry> history) {
-        for (int i = history.size() - 1; i >= 0; i--) {
-            LevelHistoryEntry entry = history.get(i);
-            if (entry.className() != null && ClassProgression.expertiseChoices(entry.className(), entry.classLevel()) > 0
-                    && (entry.choices() == null || entry.choices().expertise() == null)) {
-                return i;
-            }
-        }
-        return -1;
+    /** Changes the choices the level history entry at the index records. */
+    static void recordChoices(PlayerCharacter character, int index, UnaryOperator<LevelChoices> change) {
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        LevelHistoryEntry target = history.get(index);
+        LevelChoices choices = target.choices() != null ? target.choices() : LevelChoices.NONE;
+        history.set(index, target.withChoices(change.apply(choices)));
+        character.setLevelHistory(history);
     }
 
     /** Records an Ability Score Improvement, or the feat taken instead, on the level history entry at the index. */
     static void recordAsi(PlayerCharacter character, int index, AbilityScoreImprovement improvement) {
-        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
-        LevelHistoryEntry target = history.get(index);
-        LevelChoices choices = target.choices() != null ? target.choices() : LevelChoices.NONE;
-        history.set(index, target.withChoices(choices.withAsi(improvement)));
-        character.setLevelHistory(history);
+        recordChoices(character, index, choices -> choices.withAsi(improvement));
     }
 
-    /** Records the skills given Expertise on the level history entry at the index. */
+    /**
+     * Records skills given Expertise on the level history entry at the index, after any it records already, as when
+     * creation gave the level part of its Expertise.
+     */
     static void recordExpertise(PlayerCharacter character, int index, List<String> skills) {
+        recordChoices(character, index, choices -> choices.withExpertise(List.copyOf(
+                merged(choices.expertise(), skills))));
+    }
+
+    /**
+     * Adds features to those the level history entry at the index records it gained, as a subclass chosen later or a
+     * Fighting Style adds them, so levelling down past the level removes them.
+     */
+    static void appendFeaturesGained(PlayerCharacter character, int index, List<Feature> features) {
+        if (features.isEmpty()) {
+            return;
+        }
         List<LevelHistoryEntry> history = copy(character.getLevelHistory());
         LevelHistoryEntry target = history.get(index);
-        LevelChoices choices = target.choices() != null ? target.choices() : LevelChoices.NONE;
-        history.set(index, target.withChoices(choices.withExpertise(List.copyOf(skills))));
+        List<Feature> gained = copy(target.featuresGained());
+        gained.addAll(features);
+        history.set(index, target.withFeaturesGained(gained));
         character.setLevelHistory(history);
     }
 

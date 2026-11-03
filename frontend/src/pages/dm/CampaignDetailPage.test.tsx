@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeCampaign, makeMockAdjustment, makeMockCharacter } from '../../test/mocks/handlers';
+import { makeCampaign, makeMockAdjustment, makeMockCharacter, makeMockPendingChoice } from '../../test/mocks/handlers';
 import CampaignDetailPage from './CampaignDetailPage';
 
 function renderPage() {
@@ -168,6 +168,26 @@ describe('CampaignDetailPage', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it("shows how many choices each character's levels still owe, which only its player makes (D159)", async () => {
+    const aria = {
+      ...makeMockCharacter('char-001', 'Aria', 'Fighter', 4),
+      pendingChoices: [
+        makeMockPendingChoice({ id: 'choice-asi' }),
+        makeMockPendingChoice({ id: 'choice-style', type: 'FIGHTING_STYLE', characterLevel: 1, classLevel: 1 }),
+      ],
+    };
+    const bram = { ...makeMockCharacter('char-002', 'Bram', 'Wizard', 2), pendingChoices: [makeMockPendingChoice({ id: 'choice-spells', type: 'SPELLS', className: 'Wizard', classLevel: 2, characterLevel: 2, count: 2 })] };
+    const cora = makeMockCharacter('char-003', 'Cora', 'Cleric', 1);
+    server.use(http.get('/api/characters/campaign/:campaignId', () => HttpResponse.json([aria, bram, cora])));
+    renderPage();
+
+    expect(await screen.findByText('2 choices pending')).toBeInTheDocument();
+    expect(screen.getByText('1 choice pending')).toBeInTheDocument();
+    expect(screen.getAllByText(/choices? pending/)).toHaveLength(2);
+    // The DM sees the count, but has nothing to make or waive the choices with
+    expect(screen.queryByRole('button', { name: /choice/i })).not.toBeInTheDocument();
   });
 
   describe('polling', () => {

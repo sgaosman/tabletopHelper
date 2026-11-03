@@ -55,7 +55,7 @@ describe('LevelUpModal', () => {
   it('levels up in the current class unless another is picked, and caches the levelled character', async () => {
     const response = {
       character: makeMockCharacter('char-001', 'Gimli', 'Fighter', 6),
-      pendingChoices: { asiAvailable: true, subclassRequired: false, expertiseAvailable: false, expertiseCount: 0, spellSelectionNeeded: false, newFeatures: [], maxSpellLevel: 0 },
+      newFeatures: ['Ability Score Improvement'],
     } satisfies LevelUpResponse;
     let levelUpRequest: unknown;
     server.use(
@@ -72,7 +72,7 @@ describe('LevelUpModal', () => {
 
     await user.click(confirm);
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(response, 'cls-fighter', 'Fighter'));
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith(response));
     expect(levelUpRequest).toEqual({ classId: 'cls-fighter' });
     expect(queryClient.getQueryData(queryKeys.characters.detail('char-001'))).toEqual(response.character);
   });

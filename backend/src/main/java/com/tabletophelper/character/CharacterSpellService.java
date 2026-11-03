@@ -3,13 +3,15 @@ package com.tabletophelper.character;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ClassSpellcasting;
-import com.tabletophelper.character.dto.KnownSpellsRequest;
 import com.tabletophelper.character.dto.PreparedSpellsRequest;
 import com.tabletophelper.character.dto.SpellbookRequest;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.PendingChoice;
+import com.tabletophelper.character.state.SpellsLearned;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.rules.SpellSlotCalculator;
@@ -28,13 +30,15 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 import static com.tabletophelper.character.CharacterUpdates.copy;
+import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 
 /**
- * The spells a player chooses for a class between levels (D158): the spells a prepared caster prepares, a wizard's
- * spellbook, and, until workstream F's Pending Choices replace it (D159), the cantrips and spells a class knows. Each
- * spell must be on the class's spell list, which reads the spells table's class lists (a subclass's additions appear
- * as "Warlock (The Fiend)", and an Eldritch Knight or Arcane Trickster takes the wizard's), and of a level the class
- * can cast, within the numbers ClassProgression gives the class (D167). Race and feat spells are left as they are.
+ * The spells a player chooses for a class (D158): the spells a prepared caster prepares, a wizard's spellbook, and the
+ * cantrips and spells a class learns as its levels' CANTRIPS and SPELLS Pending Choices are made (D159), with a known
+ * caster's swap of one spell it knows. Each spell must be on the class's spell list, which reads the spells table's
+ * class lists (a subclass's additions appear as "Warlock (The Fiend)", and an Eldritch Knight or Arcane Trickster takes
+ * the wizard's), and of a level the class can cast, within the numbers ClassProgression gives the class (D167). Race
+ * and feat spells are left as they are.
  */
 @Service
 @RequiredArgsConstructor
@@ -150,57 +154,179 @@ public class CharacterSpellService {
         });
     }
 
+    // ── Pending Choices (D159) ───────────────────────────────────
+
     /**
-     * Sets the cantrips a class knows, or the spells a class that knows a set number knows, or both, each list
-     * replacing what the class knows of its kind. The interim command until Pending Choices (D159).
+     * Learns the cantrips a CANTRIPS choice owes the class: as many as it counts, each a cantrip on the class's list
+     * that the class doesn't know yet, and no more than the class knows now. The caller records them on the choice's
+     * level, so levelling down past it forgets them.
      *
-     * @throws ValidationException for neither list, spells for a class that prepares them, a spell the class can't
-     *                             learn, or more than the class knows
+     * @return the cantrips learned, by name
+     * @throws ValidationException for another number of cantrips, or one the class can't learn
      */
-    @Transactional
-    public CharacterResponse setKnown(UUID characterId, KnownSpellsRequest request, UUID userId) {
-        return characterCommands.run(characterId, userId, character -> {
-            ClassSpellcasting casting = casting(character, request.className());
-            if (request.cantrips() == null && request.spells() == null) {
-                throw new ValidationException("Name the cantrips or the spells the " + casting.className() + " knows");
+    List<String> learnCantrips(PlayerCharacter character, PendingChoice choice, List<String> names) {
+        ClassSpellcasting casting = choiceCasting(character, choice);
+        List<String> chosen = distinct(orEmpty(names));
+        requireCount(chosen, choice, "cantrip");
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        List<Spell> cantrips = new ArrayList<>();
+        for (String name : chosen) {
+            Spell spell = classSpell(casting, name);
+            if (spell.getLevel() != 0) {
+                throw new ValidationException(spell.getName() + " is a level " + spell.getLevel()
+                        + " spell, not a cantrip");
             }
-            List<KnownSpell> known = copy(character.getSpellsKnown());
-            if (request.cantrips() != null) {
-                List<Spell> cantrips = new ArrayList<>();
-                for (String name : distinct(request.cantrips())) {
-                    Spell spell = classSpell(casting, name);
-                    if (spell.getLevel() != 0) {
-                        throw new ValidationException(spell.getName() + " is a level " + spell.getLevel()
-                                + " spell, not a cantrip");
-                    }
-                    cantrips.add(spell);
-                }
-                if (cantrips.size() > casting.cantripsKnown()) {
-                    throw new ValidationException(classAtLevel(casting) + " knows " + casting.cantripsKnown()
-                            + " cantrips, not " + cantrips.size());
-                }
-                known = replaced(known, character, casting, spell -> spell.level() == 0, cantrips);
+            requireUnknown(known, character, casting, spell.getName(), "knows");
+            cantrips.add(spell);
+        }
+        long knownBefore = known.stream().filter(s -> ofClass(s, character, casting) && s.level() == 0).count();
+        if (knownBefore + cantrips.size() > casting.cantripsKnown()) {
+            throw new ValidationException(classAtLevel(casting) + " knows " + casting.cantripsKnown()
+                    + " cantrips, not " + (knownBefore + cantrips.size()));
+        }
+        cantrips.forEach(spell -> known.add(classEntry(casting, spell, null)));
+        character.setSpellsKnown(known);
+        return cantrips.stream().map(Spell::getName).toList();
+    }
+
+    /**
+     * Learns the spells a SPELLS choice owes the class: as many as it counts, each a spell on the class's list of 1st
+     * level or higher, up to the highest level the class could learn at the choice's class level, that the class
+     * doesn't know yet. A wizard copies them into its spellbook. A class that knows a set number of spells may also
+     * replace one it knows with another of those levels, when the choice offers the swap, and knows no more than its
+     * Spells Known after. The caller records what this returns on the choice's level, so levelling down past it
+     * forgets the spells learned and gives back the one replaced.
+     *
+     * @throws ValidationException for another number of spells, one the class can't learn, or a swap the choice
+     *                             doesn't offer or the class can't make
+     */
+    SpellsLearned learnSpells(PlayerCharacter character, PendingChoice choice, List<String> names,
+                              ApplyChoicesRequest.SpellSwap swap) {
+        ClassSpellcasting casting = choiceCasting(character, choice);
+        boolean spellbook = WIZARD.equals(casting.className());
+        int highest = choice.maxSpellLevel() != null ? choice.maxSpellLevel() : casting.highestSpellLevel();
+        List<String> chosen = distinct(orEmpty(names));
+        requireCount(chosen, choice, "spell");
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        String alreadyHas = spellbook ? "has in its spellbook" : "knows";
+        List<Spell> spells = new ArrayList<>();
+        for (String name : chosen) {
+            Spell spell = classSpell(casting, name);
+            requireLevelled(spell);
+            requireLearnable(choice, spell, highest);
+            requireUnknown(known, character, casting, spell.getName(), alreadyHas);
+            spells.add(spell);
+        }
+
+        KnownSpell replaced = null;
+        Spell replacement = null;
+        if (swap != null) {
+            if (!Boolean.TRUE.equals(choice.swap())) {
+                throw new ValidationException("This choice doesn't let the " + casting.className()
+                        + " replace a spell it knows");
             }
-            if (request.spells() != null) {
-                if (casting.spellsKnown() == null) {
-                    throw new ValidationException("A " + casting.className()
-                            + " prepares its spells rather than knowing a set number");
-                }
-                List<Spell> spells = new ArrayList<>();
-                for (String name : distinct(request.spells())) {
-                    Spell spell = classSpell(casting, name);
-                    requireLevelled(spell);
-                    requireCastable(casting, spell.getName(), spell.getLevel());
-                    spells.add(spell);
-                }
-                if (spells.size() > casting.spellsKnown()) {
-                    throw new ValidationException(classAtLevel(casting) + " knows " + casting.spellsKnown()
-                            + " spells, not " + spells.size());
-                }
-                known = replaced(known, character, casting, spell -> spell.level() > 0, spells);
+            replaced = find(known, character, casting, swap.getReplace(),
+                    s -> s.level() > 0 && !Boolean.TRUE.equals(s.alwaysPrepared()));
+            if (replaced == null) {
+                throw new ValidationException(character.getName() + " knows no " + casting.className()
+                        + " spell called " + swap.getReplace().trim());
             }
-            character.setSpellsKnown(known);
-        });
+            replacement = classSpell(casting, swap.getWith());
+            requireLevelled(replacement);
+            requireLearnable(choice, replacement, highest);
+            requireUnknown(known, character, casting, replacement.getName(), alreadyHas);
+            String replacementKey = key(replacement.getName());
+            if (spells.stream().anyMatch(spell -> key(spell.getName()).equals(replacementKey))) {
+                throw new ValidationException(replacement.getName() + " is already among the spells chosen");
+            }
+        }
+
+        if (!spellbook && casting.spellsKnown() != null) {
+            long knownBefore = known.stream()
+                    .filter(s -> ofClass(s, character, casting) && s.level() > 0
+                            && !Boolean.TRUE.equals(s.alwaysPrepared()))
+                    .count();
+            if (knownBefore + spells.size() > casting.spellsKnown()) {
+                throw new ValidationException(classAtLevel(casting) + " knows " + casting.spellsKnown()
+                        + " spells, not " + (knownBefore + spells.size()));
+            }
+        }
+
+        if (replaced != null) {
+            known.remove(replaced);
+            known.add(classEntry(casting, replacement, null));
+        }
+        spells.forEach(spell -> known.add(classEntry(casting, spell, spellbook ? Boolean.FALSE : null)));
+        character.setSpellsKnown(known);
+        return new SpellsLearned(spells.stream().map(Spell::getName).toList(), replaced,
+                replacement != null ? replacement.getName() : null);
+    }
+
+    /**
+     * Forgets what a level's CANTRIPS and SPELLS choices gave one of the character's classes, as levelling down past
+     * the level does: the cantrips and spells learned, and a swap's replacement, whose replaced spell comes back as
+     * the sheet had it.
+     */
+    static void forget(PlayerCharacter character, String className, List<String> cantrips, SpellsLearned spells) {
+        if ((cantrips == null || cantrips.isEmpty()) && spells == null) {
+            return;
+        }
+        String source = "class:" + className;
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        removeNamed(known, source, orEmpty(cantrips), s -> s.level() == 0);
+        if (spells != null) {
+            removeNamed(known, source, orEmpty(spells.learned()), s -> s.level() > 0);
+            if (spells.replacement() != null) {
+                removeNamed(known, source, List.of(spells.replacement()), s -> s.level() > 0);
+            }
+            if (spells.replaced() != null) {
+                known.add(spells.replaced());
+            }
+        }
+        character.setSpellsKnown(known);
+    }
+
+    // The class a choice is for, as it casts now; a choice whose class doesn't cast is one the sheet can't make
+    private ClassSpellcasting choiceCasting(PlayerCharacter character, PendingChoice choice) {
+        return characterStats.spellcasting(character).stream()
+                .filter(c -> c.className().equals(choice.className()))
+                .findFirst()
+                .orElseThrow(() -> new ConflictException(character.getName() + " casts no " + choice.className()
+                        + " spells, so can't learn the spells this choice owes"));
+    }
+
+    private static void requireCount(List<String> chosen, PendingChoice choice, String what) {
+        if (chosen.size() != choice.count()) {
+            throw new ValidationException("Choose " + choice.count() + " " + choice.className() + " " + what
+                    + (choice.count() == 1 ? "" : "s") + ", not " + chosen.size());
+        }
+    }
+
+    // A level's spells are of a level the class could learn at that class level, from its own table (PHB p.164)
+    private static void requireLearnable(PendingChoice choice, Spell spell, int highest) {
+        if (spell.getLevel() > highest) {
+            throw new ValidationException("A level " + choice.classLevel() + " " + choice.className()
+                    + " learns spells up to level " + highest + ", so can't take " + spell.getName() + " (level "
+                    + spell.getLevel() + ")");
+        }
+    }
+
+    private static void requireUnknown(List<KnownSpell> known, PlayerCharacter character, ClassSpellcasting casting,
+                                       String name, String alreadyHas) {
+        if (find(known, character, casting, name, spell -> true) != null) {
+            throw new ValidationException(character.getName() + " already " + alreadyHas + " " + name);
+        }
+    }
+
+    // Takes away the class's entries of those names that match
+    private static void removeNamed(List<KnownSpell> known, String source, List<String> names,
+                                    Predicate<KnownSpell> matches) {
+        if (names.isEmpty()) {
+            return;
+        }
+        List<String> keys = names.stream().map(CharacterSpellService::key).toList();
+        known.removeIf(spell -> source.equals(spell.source()) && spell.name() != null
+                && keys.contains(key(spell.name())) && matches.test(spell));
     }
 
     // ── The class and its list ───────────────────────────────────
@@ -294,29 +420,6 @@ public class CharacterSpellService {
                 .orElse(null);
     }
 
-    /**
-     * The known spells with the class's entries of one kind replaced by those chosen: an entry already on the sheet
-     * keeps what it records, and always-prepared entries stay.
-     */
-    private static List<KnownSpell> replaced(List<KnownSpell> known, PlayerCharacter character,
-                                             ClassSpellcasting casting, Predicate<KnownSpell> kind,
-                                             List<Spell> chosen) {
-        Map<String, Spell> wanted = new LinkedHashMap<>();
-        chosen.forEach(spell -> wanted.put(key(spell.getName()), spell));
-        List<KnownSpell> updated = new ArrayList<>();
-        for (KnownSpell spell : known) {
-            boolean replaceable = ofClass(spell, character, casting) && kind.test(spell)
-                    && !Boolean.TRUE.equals(spell.alwaysPrepared());
-            if (!replaceable) {
-                updated.add(spell);
-            } else if (spell.name() != null && wanted.remove(key(spell.name())) != null) {
-                updated.add(withSource(spell, casting));
-            }
-        }
-        wanted.values().forEach(spell -> updated.add(classEntry(casting, spell, null)));
-        return updated;
-    }
-
     private static KnownSpell classEntry(ClassSpellcasting casting, Spell spell, Boolean prepared) {
         return new KnownSpell(null, spell.getName(), spell.getLevel(), source(casting), prepared, null, null, null,
                 null);
@@ -325,11 +428,6 @@ public class CharacterSpellService {
     private static KnownSpell withPrepared(KnownSpell spell, ClassSpellcasting casting, boolean prepared) {
         return new KnownSpell(spell.id(), spell.name(), spell.level(), source(casting), prepared, spell.alwaysPrepared(),
                 spell.atWill(), spell.usesPerLongRest(), spell.unlocksAtLevel());
-    }
-
-    private static KnownSpell withSource(KnownSpell spell, ClassSpellcasting casting) {
-        return new KnownSpell(spell.id(), spell.name(), spell.level(), source(casting), spell.prepared(),
-                spell.alwaysPrepared(), spell.atWill(), spell.usesPerLongRest(), spell.unlocksAtLevel());
     }
 
     private static String source(ClassSpellcasting casting) {

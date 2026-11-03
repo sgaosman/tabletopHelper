@@ -30,28 +30,34 @@ export type HitDieSpent = Schemas['HitDieSpent'];
 /** The spells one class has prepared, which replace those it had prepared. */
 export type PreparedSpellsRequest = Schemas['PreparedSpellsRequest'];
 
-/**
- * The cantrips, and for a class that knows a set number of spells its spells, that one class knows. A list left out
- * keeps what the class knows of that kind. Interim, until Pending Choices (D159).
- */
-export type KnownSpellsRequest = Schemas['KnownSpellsRequest'];
-
 /** Spells to copy into a wizard's spellbook, or to take out of it. */
 export type SpellbookRequest = Schemas['SpellbookRequest'];
 
 /**
  * A character. Its JSON fields, such as spellsKnown and features, arrive as structured JSON in the shapes below
  * (D168). createdAt and updatedAt are null in the response that creates it. inLiveEncounter is true while it is in an
- * Active or Paused encounter, when rests and levelling wait for the encounter to end (D166).
+ * Active or Paused encounter, when rests and levelling wait for the encounter to end (D166). pendingChoices are the
+ * choices its levels owe that the player hasn't made yet (D159).
  */
 export type PlayerCharacter = Schemas['CharacterResponse'];
 
+/** A level gained: the character, and the names of the features the level brought. */
 export type LevelUpResponse = Schemas['LevelUpResponse'];
 
-/** What the player still has to choose for the level just gained. */
-export type PendingChoices = Schemas['PendingChoices'];
+/**
+ * A Pending Choice (D159): a choice one of the character's levels owes, such as an Ability Score Improvement or a
+ * subclass, which the player makes on the sheet or leaves for later. count says how many to choose, and options the
+ * fixed list it is chosen from, where it has one.
+ */
+export type PendingChoice = Schemas['PendingChoice'];
 
+export type PendingChoiceType = PendingChoice['type'];
+
+/** Makes one Pending Choice, named by its ID, with only the answer its type takes. */
 export type ApplyChoicesRequest = Schemas['ApplyChoicesRequest'];
+
+/** A known caster's swap of one spell it knows for another, as it gains a level. */
+export type SpellSwap = Schemas['SpellSwap'];
 
 export type AsiChoice = Schemas['AsiChoice'];
 

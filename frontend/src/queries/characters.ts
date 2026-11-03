@@ -2,7 +2,7 @@ import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } fr
 import { characterApi } from '../api/characterApi';
 import type {
   ApplyChoicesRequest, CharacterDetailsRequest, DmAdjustmentRequest, HitPointChangeRequest, InventoryRequest,
-  KnownSpellsRequest, PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
+  PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
 } from '../types/character';
 import { queryKeys } from './keys';
 import { invalidateOnConflict } from './queryClient';
@@ -153,12 +153,6 @@ export function useSetPreparedSpells() {
     characterApi.setPreparedSpells(characterId, prepared));
 }
 
-/** Sets the cantrips, or the spells, one class knows (interim, until Pending Choices). */
-export function useSetKnownSpells() {
-  return useCharacterCommand(({ characterId, known }: { characterId: string; known: KnownSpellsRequest }) =>
-    characterApi.setKnownSpells(characterId, known));
-}
-
 /** Copies spells into a wizard's spellbook. */
 export function useAddToSpellbook() {
   return useCharacterCommand(({ characterId, spells }: { characterId: string; spells: string[] }) =>
@@ -172,8 +166,8 @@ export function useRemoveFromSpellbook() {
 }
 
 /**
- * Adds a level in `classId` to a character. The response says what the player still has to choose for it;
- * the levelled character replaces the cached copies.
+ * Adds a level in `classId` to a character. What the player has to choose for it is among the levelled character's
+ * Pending Choices (D159); the levelled character replaces the cached copies.
  */
 export function useLevelUp() {
   const queryClient = useQueryClient();
@@ -186,7 +180,10 @@ export function useLevelUp() {
   });
 }
 
-/** Removes a character's last level and every choice made at it; the result replaces the cached copies. */
+/**
+ * Removes a character's last level, every choice made at it and those it still owed; the result replaces the cached
+ * copies.
+ */
 export function useLevelDown() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -197,8 +194,8 @@ export function useLevelDown() {
 }
 
 /**
- * Applies the choices of a new level, such as an ability score improvement, a feat, a subclass or expertise;
- * the updated character replaces the cached copies.
+ * Makes one of a character's Pending Choices (D159), such as an ability score improvement, a feat, a subclass,
+ * expertise, a fighting style, cantrips or spells; the updated character replaces the cached copies.
  */
 export function useApplyChoices() {
   const queryClient = useQueryClient();

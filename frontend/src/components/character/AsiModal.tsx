@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useApplyChoices } from '../../queries/characters';
-import type { PlayerCharacter, ApplyChoicesRequest, AsiChoice } from '../../types/character';
+import type { PlayerCharacter, ApplyChoicesRequest, AsiChoice, PendingChoice } from '../../types/character';
 import Button from '../ui/Button';
 import IconButton from '../ui/IconButton';
 import Modal from '../ui/Modal';
@@ -21,18 +21,24 @@ type AbilityKey = typeof ABILITIES[number]['key'];
 
 interface Props {
   character: PlayerCharacter;
+  /** An ASI Pending Choice, or a FEAT one, a race's or background's feat at creation (D159) */
+  choice: PendingChoice;
   onComplete: (updated: PlayerCharacter) => void;
+  /** Leaves the choice pending for later */
+  onSkip: () => void;
   onClose: () => void;
 }
 
 /**
  * An ability score improvement, or a feat in its place: +2 to one score or +1 to two, none above the maximum the
  * server gives it (20, or 24 for STR and CON after Primal Champion). It raises the scores without the DM's
- * adjustments, which may take a score past the maximum (D158). The updated character replaces the cached one.
+ * adjustments, which may take a score past the maximum (D158). For a FEAT choice only a feat can be taken, one of
+ * those the background offers where it lists them. The updated character replaces the cached one.
  */
-export default function AsiModal({ character, onComplete, onClose }: Props) {
+export default function AsiModal({ character, choice, onComplete, onSkip, onClose }: Props) {
   const applyChoices = useApplyChoices();
-  const [mode, setMode] = useState<'ability' | 'feat'>('ability');
+  const featOnly = choice.type === 'FEAT';
+  const [mode, setMode] = useState<'ability' | 'feat'>(featOnly ? 'feat' : 'ability');
   const [increases, setIncreases] = useState<Record<string, number>>({});
   const [featSelection, setFeatSelection] = useState<AsiChoice | null>(null);
   // Stays disabled once the choice is applied, until the page closes the dialog
@@ -58,8 +64,10 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
   const canSubmit = mode === 'ability' ? pointsSpent === 2 : featSelection !== null;
 
   function handleSubmit() {
-    const request: ApplyChoicesRequest = {};
-    if (mode === 'ability') {
+    const request: ApplyChoicesRequest = { choiceId: choice.id };
+    if (featOnly && featSelection) {
+      request.feat = featSelection;
+    } else if (mode === 'ability') {
       request.asi = {
         type: 'ability',
         increases: Object.entries(increases).map(([ability, bonus]) => ({ ability, bonus })),
@@ -70,15 +78,21 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
     applyChoices.mutate({ characterId: character.id, choices: request }, { onSuccess: updated => onComplete(updated) });
   }
 
+  const subtitle = featOnly
+    ? choice.source === 'BACKGROUND'
+      ? `From your background${character.backgroundName ? ` (${character.backgroundName})` : ''}`
+      : `From your race${character.raceName ? ` (${character.raceName})` : ''}`
+    : `${choice.className} ${choice.classLevel} (level ${choice.characterLevel})`;
+
   return (
     <Modal
-      title="Ability Score Improvement"
-      subtitle={`Level ${character.level}`}
+      title={featOnly ? 'Feat' : 'Ability Score Improvement'}
+      subtitle={subtitle}
       size="lg"
       onClose={onClose}
       footer={(
         <>
-          <Button variant="secondary" onClick={onClose}>Skip</Button>
+          <Button variant="secondary" onClick={onSkip}>Skip</Button>
           <Button onClick={handleSubmit} loading={submitting} disabled={!canSubmit}>
             {submitting ? 'Applying...' : 'Apply'}
           </Button>
@@ -90,24 +104,26 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
           <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{apiErrorMessage(applyChoices.error)}</div>
         )}
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => { setMode('ability'); setFeatSelection(null); }}
-            aria-pressed={mode === 'ability'}
-            className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
-              mode === 'ability' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
-            }`}
-          >Ability Scores</button>
-          <button
-            type="button"
-            onClick={() => { setMode('feat'); setIncreases({}); }}
-            aria-pressed={mode === 'feat'}
-            className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
-              mode === 'feat' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
-            }`}
-          >Feat</button>
-        </div>
+        {!featOnly && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setMode('ability'); setFeatSelection(null); }}
+              aria-pressed={mode === 'ability'}
+              className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
+                mode === 'ability' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
+              }`}
+            >Ability Scores</button>
+            <button
+              type="button"
+              onClick={() => { setMode('feat'); setIncreases({}); }}
+              aria-pressed={mode === 'feat'}
+              className={`flex-1 py-2 font-body text-[16px] font-semibold transition-colors ${
+                mode === 'feat' ? 'bg-ink text-card' : 'bg-page-alt text-muted hover:text-ink'
+              }`}
+            >Feat</button>
+          </div>
+        )}
 
         {mode === 'ability' && (
           <>
@@ -157,7 +173,7 @@ export default function AsiModal({ character, onComplete, onClose }: Props) {
         )}
 
         {mode === 'feat' && (
-          <FeatPicker character={character} onSelectionChange={setFeatSelection} />
+          <FeatPicker character={character} onSelectionChange={setFeatSelection} only={featOnly ? choice.options : null} />
         )}
       </div>
     </Modal>

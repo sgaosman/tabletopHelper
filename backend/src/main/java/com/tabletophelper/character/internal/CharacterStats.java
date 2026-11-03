@@ -48,9 +48,9 @@ import java.util.function.Function;
  * The DM's ability score adjustments apply first, so the modifiers and everything worked out from them use the
  * adjusted scores; the other STAT adjustments are added to the hit point maximum, initiative, speed and every spell
  * save DC and attack bonus, each class's and the main ones. Feats count whether a level took one in place of an
- * Ability Score Improvement or the DM granted it: Alert's initiative, Mobile's speed and feats' pools come from both,
- * and so does Tough, whose feature either adds. Tough, the Hill Dwarf and the Draconic Bloodline are matched by name
- * until R7's data files hold their effects.
+ * Ability Score Improvement, the race or background gave it at creation (D159) or the DM granted it: Alert's
+ * initiative, Mobile's speed and feats' pools come from each, and so does Tough, whose feature each adds. Tough, the
+ * Hill Dwarf and the Draconic Bloodline are matched by name until R7's data files hold their effects.
  */
 @Component
 @RequiredArgsConstructor
@@ -277,7 +277,7 @@ public class CharacterStats {
     // ── Initiative and speed ─────────────────────────────────────
 
     // The bonus the character's feats recorded, such as Alert's +5 initiative or Mobile's +10 speed: those the level
-    // history records and those the DM granted
+    // history records, at an Ability Score Improvement or at creation, and those the DM granted
     private static int featBonus(PlayerCharacter character, Function<AppliedFeatEffects, Integer> bonus) {
         int total = 0;
         for (AppliedFeatEffects feat : DmAdjustments.featsTaken(character)) {

@@ -1,10 +1,8 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.character.dto.CharacterResponse;
-import com.tabletophelper.character.dto.KnownSpellsRequest;
 import com.tabletophelper.character.dto.PreparedSpellsRequest;
 import com.tabletophelper.character.dto.SpellbookRequest;
-import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.shared.ValidationException;
@@ -28,9 +26,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 
 /**
- * Preparing spells, a wizard's spellbook and the interim known-spells command (D158), checked against the spells
- * table's class lists, the highest level each class can cast and the numbers it knows or prepares (D167). They
- * replaced the spells the sheet wrote through the PUT, which checked none of these.
+ * Preparing spells and a wizard's spellbook (D158), checked against the spells table's class lists, the highest level
+ * each class can cast and the numbers it prepares (D167). They replaced the spells the sheet wrote through the PUT,
+ * which checked none of these. The interim known-spells command's cases went to PendingChoiceServiceTest's "Cantrips
+ * and spells" group in R6 workstream F, whose CANTRIPS and SPELLS choices replaced it (D159), with the same checks.
  */
 class CharacterSpellServiceTest {
 
@@ -247,107 +246,6 @@ class CharacterSpellServiceTest {
                     new SpellbookRequest(List.of("Shield")), f.userId))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("Shield isn't in Aria's spellbook");
-        }
-    }
-
-    @Nested
-    @DisplayName("Known spells (interim, until Pending Choices)")
-    class Known {
-
-        @Test
-        @DisplayName("A warlock's spells are replaced within its limit, and its cantrips and race spells are kept")
-        void replacesTheSpellsKnown() {
-            PlayerCharacter pc = warlock();
-            pc.setSpellsKnown(List.of(
-                    new KnownSpell(null, "Eldritch Blast", 0, "class:Warlock", null, null, null, null, null),
-                    new KnownSpell(null, "Hex", 1, "class:Warlock", null, null, null, null, null),
-                    new KnownSpell(null, "Hellish Rebuke", 1, "race:Tiefling", null, null, null, 1, null)));
-
-            CharacterResponse response = f.spells.setKnown(pc.getId(), new KnownSpellsRequest("Warlock", null,
-                    List.of("Hex", "Armor of Agathys", "Witch Bolt", "Misty Step")), f.userId);
-
-            assertThat(response.getSpellsKnown()).extracting(KnownSpell::name, KnownSpell::source).containsExactly(
-                    tuple("Eldritch Blast", "class:Warlock"), tuple("Hex", "class:Warlock"),
-                    tuple("Hellish Rebuke", "race:Tiefling"), tuple("Armor of Agathys", "class:Warlock"),
-                    tuple("Witch Bolt", "class:Warlock"), tuple("Misty Step", "class:Warlock"));
-        }
-
-        @Test
-        @DisplayName("Cantrips are replaced within the class's cantrips known, and a levelled spell isn't a cantrip")
-        void replacesTheCantrips() {
-            PlayerCharacter pc = warlock();
-
-            CharacterResponse response = f.spells.setKnown(pc.getId(),
-                    new KnownSpellsRequest("Warlock", List.of("Eldritch Blast", "Minor Illusion"), null), f.userId);
-
-            assertThat(names(response, "class:Warlock", false)).containsExactly("Eldritch Blast", "Minor Illusion");
-            assertThatThrownBy(() -> f.spells.setKnown(pc.getId(), new KnownSpellsRequest("Warlock",
-                    List.of("Eldritch Blast", "Minor Illusion", "Chill Touch"), null), f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("A level 3 Warlock knows 2 cantrips, not 3");
-            assertThatThrownBy(() -> f.spells.setKnown(pc.getId(),
-                    new KnownSpellsRequest("Warlock", List.of("Hex"), null), f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("Hex is a level 1 spell, not a cantrip");
-        }
-
-        @Test
-        @DisplayName("More spells than the class knows, one it can't cast yet, or spells for a class that prepares them is a 400")
-        void refusesWhatTheClassCantKnow() {
-            PlayerCharacter pc = warlock();
-
-            assertThatThrownBy(() -> f.spells.setKnown(pc.getId(), new KnownSpellsRequest("Warlock", null,
-                    List.of("Hex", "Armor of Agathys", "Witch Bolt", "Misty Step", "Hellish Rebuke")), f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("A level 3 Warlock knows 4 spells, not 5");
-            assertThatThrownBy(() -> f.spells.setKnown(pc.getId(),
-                    new KnownSpellsRequest("Warlock", null, List.of("Wish")), f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("Wish isn't on the Warlock spell list");
-            assertThatThrownBy(() -> f.spells.setKnown(cleric().getId(),
-                    new KnownSpellsRequest("Cleric", null, List.of("Bless")), f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("A Cleric prepares its spells rather than knowing a set number");
-            assertThatThrownBy(() -> f.spells.setKnown(pc.getId(), new KnownSpellsRequest("Warlock", null, null),
-                    f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("Name the cantrips or the spells the Warlock knows");
-        }
-
-        @Test
-        @DisplayName("A subclass's additions to its class's list count, as \"Warlock (The Hexblade)\" in the spells table")
-        void subclassAdditionsCount() {
-            PlayerCharacter pc = warlock();
-            ClassEntry entry = pc.getMulticlassEntries().getFirst();
-            pc.setMulticlassEntries(List.of(entry.withSubclass(UUID.randomUUID(), "The Hexblade")));
-
-            CharacterResponse response = f.spells.setKnown(pc.getId(),
-                    new KnownSpellsRequest("Warlock", null, List.of("Shield")), f.userId);
-
-            assertThat(names(response, "class:Warlock", false)).containsExactly("Shield");
-        }
-
-        @Test
-        @DisplayName("An Eldritch Knight learns from the wizard's list, up to the level its own table gives")
-        void eldritchKnightUsesTheWizardsList() {
-            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 3);
-            ClassEntry entry = pc.getMulticlassEntries().getFirst();
-            pc.setMulticlassEntries(List.of(entry.withSubclass(UUID.randomUUID(), "Eldritch Knight")));
-
-            CharacterResponse response = f.spells.setKnown(pc.getId(),
-                    new KnownSpellsRequest("Fighter", List.of("Fire Bolt"), List.of("Shield", "Magic Missile")),
-                    f.userId);
-
-            assertThat(names(response, "class:Fighter", false)).containsExactly("Fire Bolt", "Shield",
-                    "Magic Missile");
-            assertThatThrownBy(() -> f.spells.setKnown(pc.getId(),
-                    new KnownSpellsRequest("Fighter", null, List.of("Cure Wounds")), f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("Cure Wounds isn't on the Wizard spell list");
-            assertThatThrownBy(() -> f.spells.setKnown(pc.getId(),
-                    new KnownSpellsRequest("Fighter", null, List.of("Misty Step")), f.userId))
-                    .isInstanceOf(ValidationException.class)
-                    .hasMessage("A level 3 Fighter casts spells up to level 1, so can't take Misty Step (level 2)");
         }
     }
 }

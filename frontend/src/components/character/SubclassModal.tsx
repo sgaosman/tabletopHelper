@@ -3,16 +3,18 @@ import { ChevronRight } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useApplyChoices } from '../../queries/characters';
 import { useSubclasses } from '../../queries/reference';
-import type { PlayerCharacter } from '../../types/character';
+import type { PendingChoice, PlayerCharacter } from '../../types/character';
 import { safeJsonParse } from '../../utils/dndRules';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 
 interface Props {
   character: PlayerCharacter;
-  classId: string;
-  className: string;
+  /** A SUBCLASS Pending Choice, which names the class (D159) */
+  choice: PendingChoice;
   onComplete: (updated: PlayerCharacter) => void;
+  /** Leaves the choice pending for later */
+  onSkip: () => void;
   onClose: () => void;
 }
 
@@ -23,8 +25,14 @@ interface SubclassFeature {
   description: string;
 }
 
-/** Picks the subclass of one of a character's classes. The updated character replaces the cached one. */
-export default function SubclassModal({ character, classId, className, onComplete, onClose }: Props) {
+/**
+ * Picks the subclass of one of a character's classes, for its subclass level. It brings the subclass's features at
+ * every class level the character has, and may bring choices of its own, such as an Eldritch Knight's spells. The
+ * updated character replaces the cached one.
+ */
+export default function SubclassModal({ character, choice, onComplete, onSkip, onClose }: Props) {
+  const classId = choice.classId ?? '';
+  const className = choice.className ?? '';
   const subclassesQuery = useSubclasses(classId);
   const applyChoices = useApplyChoices();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -38,15 +46,17 @@ export default function SubclassModal({ character, classId, className, onComplet
   function handleConfirm() {
     if (!selectedId) return;
     applyChoices.mutate(
-      { characterId: character.id, choices: { subclassId: selectedId, classId } },
+      { characterId: character.id, choices: { choiceId: choice.id, subclassId: selectedId } },
       { onSuccess: updated => onComplete(updated) },
     );
   }
 
   const selected = subclasses.find(s => s.id === selectedId);
-  // The server sends the features as JSON rather than a string, so they go through safeJsonParse
+  // The server sends the features as JSON rather than a string, so they go through safeJsonParse. Those up to the
+  // class's own level come with it
+  const classLevel = character.multiclassEntries?.find(e => e.classId === classId)?.level ?? character.level;
   const selectedFeatures = selected
-    ? safeJsonParse<SubclassFeature[]>(selected.features, []).filter(f => f.level <= character.level)
+    ? safeJsonParse<SubclassFeature[]>(selected.features, []).filter(f => f.level <= classLevel)
     : [];
 
   return (
@@ -56,7 +66,7 @@ export default function SubclassModal({ character, classId, className, onComplet
       onClose={onClose}
       footer={(
         <>
-          <Button variant="secondary" onClick={onClose}>Skip</Button>
+          <Button variant="secondary" onClick={onSkip}>Skip</Button>
           <Button onClick={handleConfirm} loading={submitting} disabled={!selectedId}>
             {submitting ? 'Selecting...' : 'Confirm'}
           </Button>

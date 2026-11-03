@@ -41,6 +41,11 @@ export const THIRD_CASTER_ABILITY: Record<string, string> = {
   'Arcane Trickster': 'INT',
 };
 
+/** The class whose list a class's spells come from: the Wizard's for an Eldritch Knight or Arcane Trickster. */
+export function spellListClass(className: string, subclassName?: string | null): string {
+  return subclassName && THIRD_CASTER_SUBCLASSES.has(subclassName) ? THIRD_CASTER_SPELL_LIST[subclassName] : className;
+}
+
 export function wizardSpellbookCount(level: number): number {
   if (level <= 0) return 0;
   return 6 + (level - 1) * 2;

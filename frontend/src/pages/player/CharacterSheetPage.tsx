@@ -1,23 +1,23 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Shield, Swords, BookOpen, Backpack, Star, ScrollText, Heart, Moon, Sun, ChevronUp, ChevronDown } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns } from '../../queries/campaigns';
 import {
-  useApplyChoices, useChangeHitPoints, useCharacter, useLevelDown, useLongRest, useRecoverPool, useSetCampaign,
-  useShortRest, useSpendPool,
+  useChangeHitPoints, useCharacter, useLevelDown, useLongRest, useRecoverPool, useSetCampaign, useShortRest,
+  useSpendPool,
 } from '../../queries/characters';
 import LevelUpModal from '../../components/character/LevelUpModal';
-import AsiModal from '../../components/character/AsiModal';
-import SubclassModal from '../../components/character/SubclassModal';
-import ExpertiseModal from '../../components/character/ExpertiseModal';
+import ChoiceDialog from '../../components/character/ChoiceDialog';
+import PendingChoicesBanner from '../../components/character/PendingChoicesBanner';
 import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import type { PlayerCharacter, Currency, HitDicePool, HitDieSpent, HitPointChange, LevelUpResponse } from '../../types/character';
+import type {
+  PlayerCharacter, Currency, HitDicePool, HitDieSpent, HitPointChange, LevelUpResponse, PendingChoice,
+} from '../../types/character';
 import type { SpellSlot } from '../../types/encounter';
-import { THIRD_CASTER_SUBCLASSES } from '../../utils/spellConstants';
 import { formatMod } from '../../utils/dndRules';
 import { getClassColour } from '../../utils/classColours';
 import StatsTab from './sheet/StatsTab';
@@ -52,11 +52,21 @@ function wholeNumber(text: string | undefined): number | undefined {
   return /^\d+$/.test(trimmed) ? Number(trimmed) : NaN;
 }
 
+/** A run of Pending Choices whose dialogs open one after another: the one open, and those still to come. */
+interface ChoiceRun {
+  current: string;
+  queue: string[];
+}
+
 /**
  * A character's sheet. Every change is a command to the server (D158), and the character it returns replaces the
  * cached one, so the sheet shows it without loading the character again. The sheet works nothing out itself: rests,
- * hit points, slots and pools are the server's. While the character is in an encounter that is under way, resting
- * and levelling wait for it to end (D166).
+ * hit points, slots and pools are the server's. While the character is in an encounter that is under way, resting,
+ * levelling and making choices wait for it to end (D166).
+ *
+ * The choices its levels owe are its Pending Choices (D159), on a banner with a button for each. Levelling up opens
+ * the new level's dialogs one after another, and a subclass can bring more, such as an Eldritch Knight's spells, which
+ * open next. A choice skipped stays on the banner for later.
  */
 export default function CharacterSheetPage() {
   const { characterId } = useParams<{ characterId: string }>();
@@ -71,7 +81,6 @@ export default function CharacterSheetPage() {
   const shortRest = useShortRest();
   const longRest = useLongRest();
   const levelDown = useLevelDown();
-  const applyChoices = useApplyChoices();
   const [activeTab, setActiveTab] = useState<Tab>('Stats');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -81,13 +90,11 @@ export default function CharacterSheetPage() {
   const [hitPointDialog, setHitPointDialog] = useState<HitPointChange | null>(null);
   const [hitPointAmount, setHitPointAmount] = useState('');
   const [showLevelUp, setShowLevelUp] = useState(false);
-  const [showAsi, setShowAsi] = useState(false);
-  const [subclassPrompt, setSubclassPrompt] = useState<{ classId: string; className: string } | null>(null);
   const [levelUpBanner, setLevelUpBanner] = useState<string | null>(null);
   const [levelDownConfirm, setLevelDownConfirm] = useState(false);
-  const [pendingLevelClass, setPendingLevelClass] = useState<{ classId: string; className: string; subclassRequired: boolean; expertiseAvailable: boolean; expertiseCount: number; spellSelectionNeeded: boolean; spellSelectionType?: string | null } | null>(null);
-  const [showExpertise, setShowExpertise] = useState(false);
-  const [pendingSpellManage, setPendingSpellManage] = useState<{ className: string; type: 'known' | 'prepared' } | null>(null);
+  const [choiceRun, setChoiceRun] = useState<ChoiceRun | null>(null);
+  // The level gained, announced once its choices' dialogs have run
+  const [levelGained, setLevelGained] = useState<number | null>(null);
 
   // Sends a command and shows how it went: `done` for a moment on success, or the server's message
   const runCommand = useCallback<RunCommand>(async (command, done) => {
@@ -124,6 +131,33 @@ export default function CharacterSheetPage() {
   const showLongRestAbilities = longRestPools.length > 0;
 
   const classAccent = getClassColour(char?.characterClass);
+
+  const announceLevel = useCallback((level: number) => {
+    setLevelUpBanner(`Level up to ${level} complete!`);
+    setTimeout(() => setLevelUpBanner(null), 4000);
+  }, []);
+
+  // Opens the next of the run's choices still pending, or ends the run, announcing a level gained
+  const continueRun = useCallback((queue: string[], pending: PendingChoice[]) => {
+    const [next, ...rest] = queue.filter(id => pending.some(choice => choice.id === id));
+    if (next) {
+      setChoiceRun({ current: next, queue: rest });
+      return;
+    }
+    setChoiceRun(null);
+    if (levelGained !== null) {
+      announceLevel(levelGained);
+      setLevelGained(null);
+    }
+  }, [levelGained, announceLevel]);
+
+  // A choice the run was on that is no longer pending, made in another tab say, moves the run on
+  const pendingChoices = char?.pendingChoices;
+  useEffect(() => {
+    if (choiceRun && pendingChoices && !pendingChoices.some(choice => choice.id === choiceRun.current)) {
+      continueRun(choiceRun.queue, pendingChoices);
+    }
+  }, [choiceRun, pendingChoices, continueRun]);
 
   if (!char) {
     return (
@@ -213,82 +247,42 @@ export default function CharacterSheetPage() {
     await runCommand(setCampaign.mutateAsync({ characterId: char.id, campaignId: value || null }), 'Campaign updated');
   }
 
-  function finishLevelUp(level: number) {
-    if (pendingLevelClass?.spellSelectionNeeded) {
-      const type = (pendingLevelClass.spellSelectionType === 'known' ? 'known' : 'prepared') as 'known' | 'prepared';
-      setPendingSpellManage({ className: pendingLevelClass.className, type });
-      setActiveTab('Spells');
-    }
-    setPendingLevelClass(null);
-    setLevelUpBanner(`Level up to ${level} complete!`);
-    setTimeout(() => setLevelUpBanner(null), 4000);
-  }
-
-  function handleLevelUpComplete(response: LevelUpResponse, leveledClassId: string, leveledClassName: string) {
+  // The new level's choices open one after another; a level that owes none is announced at once
+  function handleLevelUpComplete(response: LevelUpResponse) {
     setShowLevelUp(false);
-    const { pendingChoices } = response;
-    const pending = { classId: leveledClassId, className: leveledClassName, subclassRequired: pendingChoices.subclassRequired, expertiseAvailable: pendingChoices.expertiseAvailable, expertiseCount: pendingChoices.expertiseCount, spellSelectionNeeded: pendingChoices.spellSelectionNeeded, spellSelectionType: pendingChoices.spellSelectionType };
-    setPendingLevelClass(pending);
-    if (pendingChoices.asiAvailable) {
-      setShowAsi(true);
-    } else if (pendingChoices.subclassRequired) {
-      setSubclassPrompt({ classId: leveledClassId, className: leveledClassName });
-    } else if (pendingChoices.expertiseAvailable) {
-      setShowExpertise(true);
-    } else {
-      finishLevelUp(response.character.level);
+    const level = response.character.level;
+    const owed = response.character.pendingChoices.filter(choice => choice.characterLevel === level).map(c => c.id);
+    if (owed.length === 0) {
+      announceLevel(level);
+      return;
+    }
+    setLevelGained(level);
+    setChoiceRun({ current: owed[0], queue: owed.slice(1) });
+  }
+
+  // A choice made can bring others, such as an Eldritch Knight's spells with its subclass, which open next
+  function handleChoiceComplete(updated: PlayerCharacter) {
+    if (!char || !choiceRun) return;
+    const before = new Set(char.pendingChoices.map(choice => choice.id));
+    const brought = updated.pendingChoices.filter(choice => !before.has(choice.id)).map(choice => choice.id);
+    continueRun([...brought, ...choiceRun.queue], updated.pendingChoices);
+  }
+
+  function handleChoiceSkip() {
+    if (!char || !choiceRun) return;
+    continueRun(choiceRun.queue, char.pendingChoices);
+  }
+
+  // Closing a dialog stops the run; its choices stay on the banner
+  function handleChoiceClose() {
+    setChoiceRun(null);
+    if (levelGained !== null) {
+      announceLevel(levelGained);
+      setLevelGained(null);
     }
   }
 
-  function handleAsiComplete(updated: PlayerCharacter) {
-    setShowAsi(false);
-    if (pendingLevelClass?.subclassRequired) {
-      setSubclassPrompt({ classId: pendingLevelClass.classId, className: pendingLevelClass.className });
-    } else if (pendingLevelClass?.expertiseAvailable) {
-      setShowExpertise(true);
-    } else {
-      finishLevelUp(updated.level);
-    }
-  }
-
-  function handleSubclassComplete(updated: PlayerCharacter) {
-    setSubclassPrompt(null);
-
-    let updatedPending = pendingLevelClass;
-    if (updatedPending && !updatedPending.spellSelectionNeeded) {
-      const mcEntries = updated.multiclassEntries ?? [];
-      const entry = mcEntries.find(e => e.className === updatedPending!.className);
-      if (entry?.subclassName && THIRD_CASTER_SUBCLASSES.has(entry.subclassName)) {
-        updatedPending = { ...updatedPending, spellSelectionNeeded: true, spellSelectionType: 'known' };
-        setPendingLevelClass(updatedPending);
-      }
-    }
-
-    if (updatedPending?.expertiseAvailable) {
-      setShowExpertise(true);
-    } else {
-      if (updatedPending?.spellSelectionNeeded) {
-        const type = (updatedPending.spellSelectionType === 'known' ? 'known' : 'prepared') as 'known' | 'prepared';
-        setPendingSpellManage({ className: updatedPending.className, type });
-        setActiveTab('Spells');
-      }
-      setPendingLevelClass(null);
-      setLevelUpBanner(`Level up to ${updated.level} complete!`);
-      setTimeout(() => setLevelUpBanner(null), 4000);
-    }
-  }
-
-  async function handleExpertiseComplete(skills: string[]) {
-    if (!char) return;
-    // The level is kept either way; a failure only leaves the expertise unchosen
-    try {
-      await applyChoices.mutateAsync({ characterId: char.id, choices: { expertiseSkills: skills } });
-    } catch (err) {
-      setError(apiErrorMessage(err));
-    }
-    setShowExpertise(false);
-    finishLevelUp(char.level);
-  }
+  const currentChoice = choiceRun ? char.pendingChoices.find(choice => choice.id === choiceRun.current) : undefined;
 
   async function handleLevelDown() {
     if (!characterId || !char) return;
@@ -354,7 +348,7 @@ export default function CharacterSheetPage() {
         </div>
         {waitingForEncounter && (
           <p className="max-w-5xl mx-auto mt-2 font-body text-[13px] font-semibold text-muted text-right">
-            In an encounter that is under way: resting and levelling wait until it ends.
+            In an encounter that is under way: resting, levelling and choices wait until it ends.
           </p>
         )}
       </header>
@@ -397,6 +391,17 @@ export default function CharacterSheetPage() {
             onRecover={poolId => void runCommand(recoverPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
           />
         </div>
+
+        {/* The choices its levels owe (D159), which wait while it is in an encounter that is under way */}
+        {char.pendingChoices.length > 0 && (
+          <div className="mt-3">
+            <PendingChoicesBanner
+              choices={char.pendingChoices}
+              disabled={waitingForEncounter}
+              onChoose={choice => setChoiceRun({ current: choice.id, queue: [] })}
+            />
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -448,7 +453,7 @@ export default function CharacterSheetPage() {
           <ActionsTab char={char} features={features} />
         )}
         {activeTab === 'Spells' && (
-          <SpellsTab char={char} spellsKnown={spellsKnown} spellSlots={spellSlots} runCommand={runCommand} pendingSpellManage={pendingSpellManage} onSpellManageHandled={() => setPendingSpellManage(null)} />
+          <SpellsTab char={char} spellsKnown={spellsKnown} spellSlots={spellSlots} runCommand={runCommand} />
         )}
         {activeTab === 'Inventory' && (
           <InventoryTab characterId={char.id} equipment={equipment} currency={currency} runCommand={runCommand} />
@@ -477,43 +482,15 @@ export default function CharacterSheetPage() {
         />
       )}
 
-      {/* ASI Modal */}
-      {showAsi && (
-        <AsiModal
+      {/* The dialog of the Pending Choice the run is on; each is keyed by its choice, so each opens afresh */}
+      {currentChoice && (
+        <ChoiceDialog
+          key={currentChoice.id}
           character={char}
-          onComplete={handleAsiComplete}
-          onClose={() => {
-            setShowAsi(false);
-            setPendingLevelClass(null);
-            setLevelUpBanner(`Level up to ${char.level} complete!`);
-            setTimeout(() => setLevelUpBanner(null), 4000);
-          }}
-        />
-      )}
-
-      {/* Subclass Modal */}
-      {subclassPrompt && (
-        <SubclassModal
-          character={char}
-          classId={subclassPrompt.classId}
-          className={subclassPrompt.className}
-          onComplete={handleSubclassComplete}
-          onClose={() => {
-            setSubclassPrompt(null);
-            setPendingLevelClass(null);
-            setLevelUpBanner(`Level up to ${char.level} complete!`);
-            setTimeout(() => setLevelUpBanner(null), 4000);
-          }}
-        />
-      )}
-
-      {/* Expertise Modal */}
-      {showExpertise && char && pendingLevelClass && (
-        <ExpertiseModal
-          character={char}
-          count={pendingLevelClass.expertiseCount}
-          onComplete={handleExpertiseComplete}
-          onClose={() => { setShowExpertise(false); setPendingLevelClass(null); setLevelUpBanner(`Level up to ${char.level} complete!`); setTimeout(() => setLevelUpBanner(null), 4000); }}
+          choice={currentChoice}
+          onComplete={handleChoiceComplete}
+          onSkip={handleChoiceSkip}
+          onClose={handleChoiceClose}
         />
       )}
 
@@ -531,7 +508,7 @@ export default function CharacterSheetPage() {
           )}
         >
           <p className="font-body text-[15px] font-semibold text-muted">
-            Remove level {char.level}? This will reverse HP, features, and any ASI choices made at that level.
+            Remove level {char.level}? This reverses its hit points, its features and the choices made for it, and drops those it still owes.
           </p>
         </Modal>
       )}

@@ -452,22 +452,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/characters/{characterId}/spells/known": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["setKnownSpells"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/characters/{characterId}/spells/prepared": {
         parameters: {
             query?: never;
@@ -1691,10 +1675,14 @@ export interface components {
         ApplyChoicesRequest: {
             asi?: components["schemas"]["AsiChoice"] | null;
             /** Format: uuid */
-            classId?: string | null;
+            choiceId: string;
             expertiseSkills?: string[] | null;
+            feat?: components["schemas"]["AsiChoice"] | null;
+            fightingStyle?: string | null;
+            spells?: string[] | null;
             /** Format: uuid */
             subclassId?: string | null;
+            swap?: components["schemas"]["SpellSwap"] | null;
         };
         AsiChoice: {
             expertiseSkillChoices?: string[] | null;
@@ -2000,6 +1988,7 @@ export interface components {
             name: string;
             notes?: string | null;
             ownerDisplayName: string;
+            pendingChoices: components["schemas"]["PendingChoice"][];
             personalityTraits?: string | null;
             portraitUrl?: string | null;
             /** Format: int32 */
@@ -2280,6 +2269,12 @@ export interface components {
             name?: string | null;
             resetOn?: string | null;
         };
+        FeatTaken: {
+            appliedEffects: components["schemas"]["AppliedFeatEffects"];
+            /** Format: uuid */
+            featId: string;
+            featName: string;
+        };
         Feature: {
             description?: string | null;
             name: string;
@@ -2365,11 +2360,6 @@ export interface components {
             /** Format: int32 */
             usesPerLongRest?: number | null;
         };
-        KnownSpellsRequest: {
-            cantrips?: string[] | null;
-            className: string;
-            spells?: string[] | null;
-        };
         LairStatusRequest: {
             monsterIds?: string[] | null;
         };
@@ -2379,7 +2369,12 @@ export interface components {
         };
         LevelChoices: {
             asi?: components["schemas"]["AbilityScoreImprovement"] | null;
+            cantrips?: string[] | null;
             expertise?: string[] | null;
+            feats?: components["schemas"]["FeatTaken"][] | null;
+            fightingStyle?: string | null;
+            spells?: components["schemas"]["SpellsLearned"] | null;
+            subclass?: components["schemas"]["SubclassChosen"] | null;
         };
         LevelHistoryEntry: {
             abilityIncreases?: components["schemas"]["AbilityBonus"][] | null;
@@ -2404,7 +2399,7 @@ export interface components {
         };
         LevelUpResponse: {
             character: components["schemas"]["CharacterResponse"];
-            pendingChoices: components["schemas"]["PendingChoices"];
+            newFeatures: string[];
         };
         LoginRequest: {
             password: string;
@@ -2653,17 +2648,26 @@ export interface components {
             spellcastingAbility?: string | null;
             spellsKnown?: components["schemas"]["KnownSpell"][] | null;
         };
-        PendingChoices: {
-            asiAvailable: boolean;
-            expertiseAvailable: boolean;
+        PendingChoice: {
             /** Format: int32 */
-            expertiseCount: number;
+            characterLevel: number;
+            /** Format: uuid */
+            classId?: string | null;
             /** Format: int32 */
-            maxSpellLevel: number;
-            newFeatures: string[];
-            spellSelectionNeeded: boolean;
-            spellSelectionType?: string | null;
-            subclassRequired: boolean;
+            classLevel?: number | null;
+            className?: string | null;
+            /** Format: int32 */
+            count: number;
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            maxSpellLevel?: number | null;
+            options?: string[] | null;
+            /** @enum {string} */
+            source: "LEVEL_UP" | "CREATION" | "RACE" | "BACKGROUND";
+            swap?: boolean | null;
+            /** @enum {string} */
+            type: "SUBCLASS" | "FIGHTING_STYLE" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
         };
         PoolUseRequest: {
             /** Format: int32 */
@@ -2825,6 +2829,10 @@ export interface components {
             /** Format: int32 */
             slotLevel: number;
         };
+        SpellSwap: {
+            replace: string;
+            with: string;
+        };
         SpellTargetingResponse: {
             canTargetAllies: boolean;
             canTargetEnemies: boolean;
@@ -2838,6 +2846,11 @@ export interface components {
         SpellbookRequest: {
             spells: string[];
         };
+        SpellsLearned: {
+            learned: string[];
+            replaced?: components["schemas"]["KnownSpell"] | null;
+            replacement?: string | null;
+        };
         Subclass: {
             additionalProficiencies?: string | null;
             alwaysPreparedSpells?: string | null;
@@ -2850,6 +2863,13 @@ export interface components {
             id: string;
             name: string;
             source: string;
+        };
+        SubclassChosen: {
+            /** Format: uuid */
+            classId: string;
+            /** Format: uuid */
+            subclassId: string;
+            subclassName: string;
         };
         TargetOutcome: {
             /** Format: int32 */
@@ -3660,32 +3680,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SpellbookRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CharacterResponse"];
-                };
-            };
-        };
-    };
-    setKnownSpells: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                characterId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["KnownSpellsRequest"];
             };
         };
         responses: {

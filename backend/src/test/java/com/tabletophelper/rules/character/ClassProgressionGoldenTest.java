@@ -7,6 +7,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -216,6 +217,32 @@ class ClassProgressionGoldenTest {
         assertEquals(0, ClassProgression.highestSpellLevel("Rogue", null, 20));
         assertFalse(ClassProgression.isFightingStyleLevel("Fighter", null, 10));
         assertFalse(ClassProgression.isFightingStyleLevel("Paladin", "Champion", 10));
+    }
+
+    @Test
+    @DisplayName("Fighting Styles: the fighter's six, the paladin's four and the ranger's four from the PHB, then Tasha's for each")
+    void fightingStylesByClass() {
+        assertEquals(List.of("Archery", "Defense", "Dueling", "Great Weapon Fighting", "Protection",
+                "Two-Weapon Fighting", "Blind Fighting", "Interception", "Superior Technique", "Thrown Weapon Fighting",
+                "Unarmed Fighting"), ClassProgression.fightingStyles("Fighter"));
+        assertEquals(List.of("Defense", "Dueling", "Great Weapon Fighting", "Protection", "Blessed Warrior",
+                "Blind Fighting", "Interception"), ClassProgression.fightingStyles("Paladin"));
+        assertEquals(List.of("Archery", "Defense", "Dueling", "Two-Weapon Fighting", "Blind Fighting",
+                "Druidic Warrior", "Thrown Weapon Fighting"), ClassProgression.fightingStyles("Ranger"));
+        assertEquals(List.of(), ClassProgression.fightingStyles("Wizard"));
+        assertEquals(List.of(), ClassProgression.fightingStyles(null));
+    }
+
+    @Test
+    @DisplayName("A wizard's spellbook gains six spells at 1st level and two at each level after (PHB p.114); no other class has one")
+    void spellbookSpells() {
+        assertEquals(6, ClassProgression.spellbookSpells("Wizard", 1));
+        IntStream.rangeClosed(2, 20).forEach(level ->
+                assertEquals(2, ClassProgression.spellbookSpells("Wizard", level), "Wizard " + level));
+        assertEquals(0, ClassProgression.spellbookSpells("Wizard", 0));
+        assertEquals(0, ClassProgression.spellbookSpells("Sorcerer", 3));
+        assertEquals(0, ClassProgression.spellbookSpells("Fighter", 3));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.spellbookSpells("Wizard", 21));
     }
 
     @Test

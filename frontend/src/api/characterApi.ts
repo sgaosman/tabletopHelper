@@ -2,7 +2,7 @@ import api from './axiosConfig';
 import type {
   PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse,
   CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest,
-  ShortRestRequest, PreparedSpellsRequest, KnownSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
+  ShortRestRequest, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
 } from '../types/character';
 
 /**
@@ -73,10 +73,6 @@ export const characterApi = {
 
   setPreparedSpells(id: string, data: PreparedSpellsRequest) {
     return api.put<PlayerCharacter>(`/characters/${id}/spells/prepared`, data);
-  },
-
-  setKnownSpells(id: string, data: KnownSpellsRequest) {
-    return api.put<PlayerCharacter>(`/characters/${id}/spells/known`, data);
   },
 
   addToSpellbook(id: string, data: SpellbookRequest) {

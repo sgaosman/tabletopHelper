@@ -1,6 +1,5 @@
 package com.tabletophelper.character;
 
-import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.LevelUpResponse;
 import com.tabletophelper.character.state.AbilityBonus;
@@ -10,6 +9,8 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.PendingChoice;
+import com.tabletophelper.character.state.PendingChoice.Type;
 import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -45,6 +46,8 @@ import static org.mockito.Mockito.when;
  *       d6's 4 rather than its maximum (PHB p.163).</li>
  *   <li>Multiclass level down: the case of the same name in "Multiclassing".</li>
  * </ul>
+ * Since R6 workstream F a level's choices are Pending Choices on the character rather than flags on the level-up
+ * response (D159), so the cases that read the flags read the choices, and each choice is made by its ID.
  */
 class LevelProgressionTest {
 
@@ -70,18 +73,22 @@ class LevelProgressionTest {
             assertThat(response.getCharacter().getHpMax()).isEqualTo(18);
             assertThat(response.getCharacter().getHpCurrent()).isEqualTo(18);
             assertThat(response.getCharacter().getProficiencyBonus()).isEqualTo(2);
-            assertThat(response.getPendingChoices().getNewFeatures()).contains("Action Surge");
+            assertThat(response.getNewFeatures()).contains("Action Surge");
             assertThat(pc.getResourcePools()).extracting(ResourcePoolEntry::poolId)
                     .containsExactly("class:fighter-action-surge");
         }
 
         @Test
-        @DisplayName("Fighter at level 4 shows ASI available")
+        @DisplayName("Fighter level 4 owes an ASI, a Pending Choice of the level gained")
         void fighterLevel4Asi() {
             LevelUpResponse response = f.levelUp(fighter(3), f.fighter);
 
             assertThat(response.getCharacter().getLevel()).isEqualTo(4);
-            assertThat(response.getPendingChoices().isAsiAvailable()).isTrue();
+            assertThat(response.getCharacter().getPendingChoices())
+                    .filteredOn(choice -> choice.characterLevel() == 4)
+                    .extracting(PendingChoice::type, PendingChoice::source, PendingChoice::className,
+                            PendingChoice::classLevel)
+                    .containsExactly(tuple(Type.ASI, PendingChoice.Source.LEVEL_UP, "Fighter", 4));
         }
 
         @Test
@@ -351,17 +358,20 @@ class LevelProgressionTest {
     class Spellcasters {
 
         @Test
-        @DisplayName("Wizard level up recalculates spell slots and asks for prepared spells up to the class's highest level")
+        @DisplayName("Wizard level up recalculates spell slots and owes two spellbook spells up to the class's highest level")
         void wizardLevelUpRecalculatesSlots() {
             PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.wizard, 1);
 
             LevelUpResponse toTwo = f.levelUp(pc, f.wizard);
             assertThat(toTwo.getCharacter().getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(3, 0)));
-            assertThat(toTwo.getPendingChoices().isSpellSelectionNeeded()).isTrue();
-            assertThat(toTwo.getPendingChoices().getSpellSelectionType()).isEqualTo("prepared");
-            assertThat(toTwo.getPendingChoices().getMaxSpellLevel()).isEqualTo(1);
+            PendingChoice spellbook = f.pending(pc, Type.SPELLS);
+            assertThat(spellbook.characterLevel()).isEqualTo(2);
+            assertThat(spellbook.count()).isEqualTo(2);
+            assertThat(spellbook.maxSpellLevel()).isEqualTo(1);
+            assertThat(spellbook.swap()).isNull();
 
-            assertThat(f.levelUp(pc, f.wizard).getPendingChoices().getMaxSpellLevel()).isEqualTo(2);
+            f.levelUp(pc, f.wizard);
+            assertThat(f.pending(pc, Type.SPELLS).maxSpellLevel()).isEqualTo(2);
         }
 
         @Test
@@ -379,28 +389,31 @@ class LevelProgressionTest {
         }
 
         @Test
-        @DisplayName("An Eldritch Knight is asked for the spells it knows, up to 1st level, as a Fighter 4")
+        @DisplayName("An Eldritch Knight learns a spell of up to 1st level as a Fighter 4, and may swap one it knows")
         void eldritchKnightIsPromptedForSpells() {
             PlayerCharacter pc = fighter(3);
             pc.setMulticlassEntries(List.of(new ClassEntry(f.fighter.getId(), "Fighter", UUID.randomUUID(),
                     "Eldritch Knight", 3)));
 
-            LevelUpResponse.PendingChoices choices = f.levelUp(pc, f.fighter).getPendingChoices();
+            f.levelUp(pc, f.fighter);
 
-            assertThat(choices.isSpellSelectionNeeded()).isTrue();
-            assertThat(choices.getSpellSelectionType()).isEqualTo("known");
-            assertThat(choices.getMaxSpellLevel()).isEqualTo(1);
+            PendingChoice spells = f.pending(pc, Type.SPELLS);
+            assertThat(spells.characterLevel()).isEqualTo(4);
+            assertThat(spells.count()).isEqualTo(1);
+            assertThat(spells.maxSpellLevel()).isEqualTo(1);
+            assertThat(spells.swap()).isTrue();
         }
 
         @Test
-        @DisplayName("A Paladin's 1st level brings no spells to choose")
+        @DisplayName("A Paladin's 1st level brings no spells to choose, since a paladin prepares them")
         void paladinFirstLevelHasNoSpells() {
             PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 1);
 
-            LevelUpResponse.PendingChoices choices = f.levelUp(pc, f.paladin).getPendingChoices();
+            LevelUpResponse response = f.levelUp(pc, f.paladin);
 
-            assertThat(choices.isSpellSelectionNeeded()).isFalse();
-            assertThat(choices.getMaxSpellLevel()).isZero();
+            assertThat(response.getCharacter().getPendingChoices())
+                    .filteredOn(choice -> choice.characterLevel() == 2)
+                    .isEmpty();
         }
     }
 
@@ -487,12 +500,16 @@ class LevelProgressionTest {
     class SubclassThreshold {
 
         @Test
-        @DisplayName("Fighter leveling to level 3 flags subclass as available")
+        @DisplayName("Fighter levelling to level 3 owes its subclass, from the fighter's subclasses")
         void subclassAvailableAtThreshold() {
             LevelUpResponse response = f.levelUp(fighter(2), f.fighter);
 
             assertThat(response.getCharacter().getLevel()).isEqualTo(3);
-            assertThat(response.getPendingChoices().isSubclassRequired()).isTrue();
+            PendingChoice subclass = response.getCharacter().getPendingChoices().stream()
+                    .filter(choice -> choice.type() == Type.SUBCLASS).findFirst().orElseThrow();
+            assertThat(subclass.characterLevel()).isEqualTo(3);
+            assertThat(subclass.classId()).isEqualTo(f.fighter.getId());
+            assertThat(subclass.options()).containsExactly("Champion", "Eldritch Knight");
         }
     }
 
@@ -590,11 +607,11 @@ class LevelProgressionTest {
             PlayerCharacter pc = fighter(3);
 
             assertThatThrownBy(() -> f.improve(pc, "strength", 2)).isInstanceOf(ConflictException.class)
-                    .hasMessage("No Ability Score Improvement is owed");
+                    .hasMessageStartingWith("Aria has no pending choice ");
         }
 
         @Test
-        @DisplayName("An ASI goes on the latest level that owes one, so levelling down past that level reverses it")
+        @DisplayName("An ASI goes on the level whose choice it makes, so levelling down past that level reverses it")
         void asiGoesOnTheLevelThatGaveIt() {
             PlayerCharacter pc = fighter(6);
 
@@ -629,13 +646,8 @@ class LevelProgressionTest {
                     .effects("{\"hpPerLevel\": 2}").build();
             when(f.featRepository.findById(tough.getId())).thenReturn(Optional.of(tough));
             PlayerCharacter pc = fighter(4);
-            ApplyChoicesRequest.AsiChoice asi = new ApplyChoicesRequest.AsiChoice();
-            asi.setType("feat");
-            asi.setFeatId(tough.getId());
-            ApplyChoicesRequest request = new ApplyChoicesRequest();
-            request.setAsi(asi);
 
-            f.service.applyChoices(pc.getId(), request, f.userId);
+            f.takeFeat(pc, tough.getId());
 
             assertThat(pc.getHpMax()).isEqualTo(32 + 8);
             assertThat(pc.getHpCurrent()).isEqualTo(40);
@@ -655,38 +667,49 @@ class LevelProgressionTest {
     class Expertise {
 
         @Test
-        @DisplayName("Expertise is recorded on the level that gives it, and levelling down removes the skills it added")
+        @DisplayName("Expertise is recorded on the level whose choice it makes, and levelling down removes the skills it added")
         void expertiseIsReversed() {
             PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.rogue, 5);
+            pc.setSkillProficiencies(List.of("Stealth", "Perception", "Acrobatics", "Insight"));
             pc.setSkillExpertises(List.of("Stealth"));
-            LevelUpResponse response = f.levelUp(pc, f.rogue);
-            assertThat(response.getPendingChoices().getExpertiseCount()).isEqualTo(2);
-            ApplyChoicesRequest request = new ApplyChoicesRequest();
-            request.setExpertiseSkills(List.of("Stealth", "Perception"));
+            f.levelUp(pc, f.rogue);
+            PendingChoice expertise = f.pending(pc, Type.EXPERTISE);
+            assertThat(expertise.characterLevel()).isEqualTo(6);
+            assertThat(expertise.count()).isEqualTo(2);
 
-            f.service.applyChoices(pc.getId(), request, f.userId);
+            f.choose(pc, expertise, request -> request.setExpertiseSkills(List.of("perception", "Acrobatics")));
 
-            assertThat(pc.getSkillExpertises()).containsExactly("Stealth", "Perception");
-            assertThat(pc.getLevelHistory().getLast().choices().expertise()).containsExactly("Perception");
+            assertThat(pc.getSkillExpertises()).containsExactly("Stealth", "Perception", "Acrobatics");
+            assertThat(pc.getLevelHistory().getLast().choices().expertise()).containsExactly("Perception", "Acrobatics");
             f.levelDown(pc);
             assertThat(pc.getSkillExpertises()).containsExactly("Stealth");
         }
 
         @Test
-        @DisplayName("More skills than the level gives is a 400, and Expertise no level owes a 409")
+        @DisplayName("Another number of skills, one without proficiency or one with Expertise already is a 400, and a choice the character doesn't have a 409")
         void invalidExpertise() {
             PlayerCharacter rogue = f.create(f.human, CharacterFixture.scores(), f.rogue, 6);
-            ApplyChoicesRequest three = new ApplyChoicesRequest();
-            three.setExpertiseSkills(List.of("Stealth", "Perception", "Athletics"));
-            ApplyChoicesRequest two = new ApplyChoicesRequest();
-            two.setExpertiseSkills(List.of("Stealth", "Perception"));
+            rogue.setSkillProficiencies(List.of("Stealth", "Perception", "Athletics"));
+            rogue.setSkillExpertises(List.of("Athletics"));
+            PendingChoice expertise = f.pending(rogue, Type.EXPERTISE);
 
-            assertThatThrownBy(() -> f.service.applyChoices(rogue.getId(), three, f.userId))
+            assertThatThrownBy(() -> f.choose(rogue, expertise,
+                    request -> request.setExpertiseSkills(List.of("Stealth", "Perception", "History"))))
                     .isInstanceOf(ValidationException.class)
-                    .hasMessage("Level 6 Rogue gives Expertise in 2 skills, not 3");
-            assertThatThrownBy(() -> f.service.applyChoices(fighter(2).getId(), two, f.userId))
+                    .hasMessage("Aria isn't proficient in History, so can't have Expertise in it");
+            assertThatThrownBy(() -> f.choose(rogue, expertise,
+                    request -> request.setExpertiseSkills(List.of("Stealth"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Choose 2 skills for Expertise, not 1");
+            assertThatThrownBy(() -> f.choose(rogue, expertise,
+                    request -> request.setExpertiseSkills(List.of("Stealth", "Athletics"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria already has Expertise in Athletics");
+            assertThatThrownBy(() -> f.choose(fighter(2), null,
+                    request -> request.setExpertiseSkills(List.of("Stealth", "Perception"))))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessage("No Expertise is owed");
+                    .hasMessageStartingWith("Aria has no pending choice ");
+            assertThat(rogue.getSkillExpertises()).containsExactly("Athletics");
         }
     }
 }

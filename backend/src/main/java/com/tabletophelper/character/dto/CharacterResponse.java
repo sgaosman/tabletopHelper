@@ -9,6 +9,7 @@ import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -190,6 +191,10 @@ public class CharacterResponse {
     // The DM's adjustments, oldest first, the removed ones kept as the record; only the active ones count (D158)
     @Schema(requiredMode = REQUIRED)
     private List<DmAdjustment> dmAdjustments;
+
+    // The choices its levels owe that the player hasn't made yet, oldest level first; apply-choices makes one (D159)
+    @Schema(requiredMode = REQUIRED)
+    private List<PendingChoice> pendingChoices;
 
     @Schema(requiredMode = REQUIRED)
     private Boolean isActive;

@@ -141,8 +141,9 @@ public class ResourcePoolService {
                 && (spell.unlocksAtLevel() == null || spell.unlocksAtLevel() <= characterLevel);
     }
 
-    // The limited uses of the feats the character has taken with their effects applied, oldest first: an Ability Score
-    // Improvement's feat, as the level history records it, then the DM's grants (D158)
+    // The limited uses of the feats the character has taken with their effects applied, oldest first: a race's or
+    // background's at creation and an Ability Score Improvement's, as the level history records them (D159), then the
+    // DM's grants (D158)
     private static List<FeatResourceEntry> recordedFeatResources(PlayerCharacter character) {
         List<FeatResourceEntry> resources = new ArrayList<>();
         for (AppliedFeatEffects feat : DmAdjustments.featsTaken(character)) {

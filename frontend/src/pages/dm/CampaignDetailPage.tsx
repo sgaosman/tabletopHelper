@@ -10,6 +10,7 @@ import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import { getClassColour } from '../../utils/classColours';
 import { activeAdjustments } from '../../utils/dmAdjustments';
+import { choicesPending } from '../../utils/pendingChoices';
 
 // Players who join, and their characters, appear without a reload. Like every refetch interval, this one
 // pauses while the tab is hidden.
@@ -175,6 +176,12 @@ export default function CampaignDetailPage() {
                           Level {c.level} {c.race} {c.characterClass}{c.subclass ? ` (${c.subclass})` : ''}
                           <span className="text-faint"> — played by {c.ownerDisplayName}</span>
                         </p>
+                        {/* The choices its levels owe, which only its player makes (D159) */}
+                        {c.pendingChoices.length > 0 && (
+                          <span className="inline-block mt-1 font-heading text-[11px] font-semibold tracking-[0.04em] px-2 py-0.5 border text-cls-monk bg-cls-monk-bg border-div-border">
+                            {choicesPending(c.pendingChoices.length)}
+                          </span>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-heading text-[13px] font-semibold text-ink">HP {c.hpCurrent}/{c.hpMax}</p>

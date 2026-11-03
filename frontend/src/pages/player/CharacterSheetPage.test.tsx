@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCharacter, makeMockResourcePool } from '../../test/mocks/handlers';
+import { makeMockCharacter, makeMockPendingChoice, makeMockResourcePool } from '../../test/mocks/handlers';
 import CharacterSheetPage from './CharacterSheetPage';
 
 function renderSheet(characterId = 'char-001') {
@@ -201,13 +201,110 @@ describe('CharacterSheetPage', () => {
     server.use(http.get('/api/characters/:id', () => HttpResponse.json({ ...hurtFighter, inLiveEncounter: true })));
     renderSheet();
 
-    expect(await screen.findByText('In an encounter that is under way: resting and levelling wait until it ends.'))
+    expect(await screen.findByText('In an encounter that is under way: resting, levelling and choices wait until it ends.'))
       .toBeInTheDocument();
     for (const name of ['Short Rest', 'Long Rest', 'Level Up', 'Level Down']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();
     }
     // Hit points can still change on the sheet
     expect(screen.getByRole('button', { name: 'Damage' })).toBeEnabled();
+  });
+
+  describe('Pending Choices (D159)', () => {
+    const style = makeMockPendingChoice({
+      id: 'choice-style', type: 'FIGHTING_STYLE', characterLevel: 6, classLevel: 6, options: ['Archery', 'Defense'],
+    });
+    const improvement = makeMockPendingChoice({ id: 'choice-asi', characterLevel: 6, classLevel: 6 });
+    const older = makeMockPendingChoice({ id: 'choice-old', characterLevel: 4, classLevel: 4 });
+    const levelled = { ...makeMockCharacter('char-001', 'Gimli', 'Fighter', 6), pendingChoices: [older, style, improvement] };
+
+    async function levelUp(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByTitle('Level Up'));
+      const confirm = within(screen.getByRole('dialog', { name: 'Level Up' })).getByRole('button', { name: 'Level Up' });
+      await waitFor(() => expect(confirm).toBeEnabled());
+      await user.click(confirm);
+    }
+
+    it('lists each choice its levels owe on a banner, with a button that opens its dialog', async () => {
+      server.use(http.get('/api/characters/:id', () => HttpResponse.json(levelled)));
+      renderSheet();
+      const user = userEvent.setup();
+
+      const banner = await screen.findByRole('region', { name: 'Choices to make' });
+      expect(within(banner).getByText('3 choices to make')).toBeInTheDocument();
+      expect(within(banner).getAllByRole('button').map(b => b.textContent)).toEqual([
+        'Ability Score Improvement (Fighter 4)', 'Fighting Style (Fighter 6)', 'Ability Score Improvement (Fighter 6)',
+      ]);
+
+      await user.click(within(banner).getByRole('button', { name: 'Fighting Style (Fighter 6)' }));
+
+      expect(screen.getByRole('dialog', { name: 'Choose a Fighting Style' })).toBeInTheDocument();
+    });
+
+    it('waits while the character is in an encounter under way', async () => {
+      server.use(http.get('/api/characters/:id', () => HttpResponse.json({ ...levelled, inLiveEncounter: true })));
+      renderSheet();
+
+      const banner = await screen.findByRole('region', { name: 'Choices to make' });
+      within(banner).getAllByRole('button').forEach(button => expect(button).toBeDisabled());
+    });
+
+    it("opens the new level's choices one after another; one skipped stays on the banner", async () => {
+      server.use(http.post('/api/characters/:id/level-up', () => HttpResponse.json({ character: levelled, newFeatures: [] })));
+      renderSheet();
+      const user = userEvent.setup();
+      expect(await screen.findByText('Test Character')).toBeInTheDocument();
+
+      await levelUp(user);
+      // The level's own, in order: the level 4 improvement waits on the banner
+      const first = await screen.findByRole('dialog', { name: 'Choose a Fighting Style' });
+      await user.click(within(first).getByRole('button', { name: 'Skip' }));
+      const second = await screen.findByRole('dialog', { name: 'Ability Score Improvement' });
+      expect(within(second).getByText('Fighter 6 (level 6)')).toBeInTheDocument();
+      await user.click(within(second).getByRole('button', { name: 'Skip' }));
+
+      expect(await screen.findByText('Level up to 6 complete!')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('region', { name: 'Choices to make' })).getAllByRole('button')).toHaveLength(3);
+    });
+
+    it('makes a choice by its ID, shows the character the server returns, and opens the choices it brought', async () => {
+      // The Eldritch Knight's cantrips its subclass brought
+      const cantrips = makeMockPendingChoice({
+        id: 'choice-cantrips', type: 'CANTRIPS', characterLevel: 6, classLevel: 3, count: 2, maxSpellLevel: 0,
+      });
+      const afterStyle = { ...levelled, pendingChoices: [older, cantrips, improvement] };
+      const bodies = recordCommand('post', 'apply-choices', afterStyle);
+      server.use(http.post('/api/characters/:id/level-up', () => HttpResponse.json({ character: levelled, newFeatures: [] })));
+      renderSheet();
+      const user = userEvent.setup();
+      expect(await screen.findByText('Test Character')).toBeInTheDocument();
+
+      await levelUp(user);
+      const dialog = await screen.findByRole('dialog', { name: 'Choose a Fighting Style' });
+      await user.click(within(dialog).getByRole('button', { name: /Defense/ }));
+      await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+
+      expect(await screen.findByRole('dialog', { name: 'Learn Cantrips' })).toBeInTheDocument();
+      expect(bodies).toEqual([{ choiceId: 'choice-style', fightingStyle: 'Defense' }]);
+      const banner = screen.getByRole('region', { name: 'Choices to make' });
+      expect(within(banner).queryByRole('button', { name: 'Fighting Style (Fighter 6)' })).not.toBeInTheDocument();
+      expect(within(banner).getByRole('button', { name: 'Cantrips (Fighter 3)' })).toBeInTheDocument();
+    });
+
+    it('closing a dialog stops the run', async () => {
+      server.use(http.post('/api/characters/:id/level-up', () => HttpResponse.json({ character: levelled, newFeatures: [] })));
+      renderSheet();
+      const user = userEvent.setup();
+      expect(await screen.findByText('Test Character')).toBeInTheDocument();
+
+      await levelUp(user);
+      await screen.findByRole('dialog', { name: 'Choose a Fighting Style' });
+      await user.keyboard('{Escape}');
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(await screen.findByText('Level up to 6 complete!')).toBeInTheDocument();
+    });
   });
 
   it('shows the server\'s message when it refuses a command', async () => {

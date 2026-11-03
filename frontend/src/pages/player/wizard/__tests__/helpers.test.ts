@@ -1,15 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   checkMulticlassEligibility,
-  isAsiLevel,
-  countAsiLevels,
   expandToolFrom,
   getToolAnyOptions,
   ARTISANS_TOOLS,
   MUSICAL_INSTRUMENTS,
   GAMING_SETS,
 } from '../types';
-import type { AbilityScores, ClassEntry } from '../types';
+import type { AbilityScores } from '../types';
 import type { CharacterClassRef } from '../../../../types/reference';
 
 function mockClassRef(overrides: Partial<CharacterClassRef> = {}): CharacterClassRef {
@@ -114,73 +112,6 @@ describe('wizard helper functions', () => {
 
       const result = checkMulticlassEligibility(cls, scores);
       expect(result.eligible).toBe(true);
-    });
-  });
-
-  // 23.4 isAsiLevel: standard + Fighter/Rogue extras
-  describe('isAsiLevel', () => {
-    it('returns true at level 4 for all classes', () => {
-      expect(isAsiLevel('Fighter', 4)).toBe(true);
-      expect(isAsiLevel('Rogue', 4)).toBe(true);
-      expect(isAsiLevel('Wizard', 4)).toBe(true);
-    });
-
-    it('returns true at level 6 only for Fighter', () => {
-      expect(isAsiLevel('Fighter', 6)).toBe(true);
-      expect(isAsiLevel('Rogue', 6)).toBe(false);
-      expect(isAsiLevel('Wizard', 6)).toBe(false);
-    });
-
-    it('returns true at level 10 only for Rogue', () => {
-      expect(isAsiLevel('Fighter', 10)).toBe(false);
-      expect(isAsiLevel('Rogue', 10)).toBe(true);
-      expect(isAsiLevel('Wizard', 10)).toBe(false);
-    });
-
-    it('returns true at level 14 only for Fighter', () => {
-      expect(isAsiLevel('Fighter', 14)).toBe(true);
-      expect(isAsiLevel('Rogue', 14)).toBe(false);
-      expect(isAsiLevel('Wizard', 14)).toBe(false);
-    });
-
-    it('returns false at non-ASI levels', () => {
-      expect(isAsiLevel('Wizard', 3)).toBe(false);
-      expect(isAsiLevel('Wizard', 5)).toBe(false);
-      expect(isAsiLevel('Wizard', 7)).toBe(false);
-    });
-
-    it('returns true at standard ASI levels (8, 12, 16, 19) for all classes', () => {
-      for (const level of [8, 12, 16, 19]) {
-        expect(isAsiLevel('Wizard', level)).toBe(true);
-        expect(isAsiLevel('Fighter', level)).toBe(true);
-        expect(isAsiLevel('Rogue', level)).toBe(true);
-      }
-    });
-  });
-
-  // 23.5 countAsiLevels: total ASIs up to a level
-  describe('countAsiLevels', () => {
-    it('counts 3 ASIs for Fighter at level 8 (levels 4, 6, 8)', () => {
-      const entries: ClassEntry[] = [
-        { cls: mockClassRef({ name: 'Fighter' }), level: 8, subclass: null, subclasses: [] },
-      ];
-      expect(countAsiLevels(entries)).toBe(3);
-    });
-
-    it('counts 2 ASIs for Wizard at level 8 (levels 4, 8)', () => {
-      const entries: ClassEntry[] = [
-        { cls: mockClassRef({ name: 'Wizard' }), level: 8, subclass: null, subclasses: [] },
-      ];
-      expect(countAsiLevels(entries)).toBe(2);
-    });
-
-    it('counts ASIs across multiclass entries', () => {
-      const entries: ClassEntry[] = [
-        { cls: mockClassRef({ name: 'Fighter' }), level: 6, subclass: null, subclasses: [] },
-        { cls: mockClassRef({ name: 'Wizard' }), level: 4, subclass: null, subclasses: [] },
-      ];
-      // Fighter levels 4,6 = 2 ASIs, Wizard level 4 = 1 ASI -> total 3
-      expect(countAsiLevels(entries)).toBe(3);
     });
   });
 

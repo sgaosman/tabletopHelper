@@ -3,7 +3,7 @@ import NumberStepper from '../../../components/common/NumberStepper';
 import type { CharacterClassRef, Race, Subclass } from '../../../types/reference';
 import { safeJsonParse } from '../../../utils/dndRules';
 import type { ClassEntry, AbilityScores } from './types';
-import { checkMulticlassEligibility, countAsiLevels, isAsiLevel } from './types';
+import { checkMulticlassEligibility } from './types';
 
 export interface ClassStepProps {
   classes: CharacterClassRef[];
@@ -26,7 +26,7 @@ export interface ClassStepProps {
   mcSkillSelections: Record<string, string[]>;
   setMcSkillSelections: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   resolvedBgProfs: { skills: string[]; tools: string[]; languages: string[] };
-  resolvedRaceChoices: { languages: string[]; skills: string[]; tools: string[]; weapons: string[]; resistances: string[]; spellAbility: string | null; feats: string[] };
+  resolvedRaceChoices: { languages: string[]; skills: string[]; tools: string[]; weapons: string[]; resistances: string[]; spellAbility: string | null };
   selectedExpertise: string[];
   setSelectedExpertise: React.Dispatch<React.SetStateAction<string[]>>;
   expertiseCount: number;
@@ -191,70 +191,55 @@ export default function ClassStep({
         </div>
       )}
 
-      {/* Per-class subclass selection */}
-      {classEntries.map(entry => {
+      {/* Only the first class's 1st level chooses its subclass here, as a cleric, sorcerer or warlock does; every
+          other subclass is a Pending Choice made on the sheet when its class reaches its subclass level (D159) */}
+      {classEntries.map((entry, index) => {
+        if (entry.subclasses.length === 0) return null;
         const subclassLvl = entry.cls.subclassLevel || 3;
-        const needsSubclass = entry.level >= subclassLvl && entry.subclasses.length > 0;
-        const belowSubclass = entry.level < subclassLvl && entry.subclasses.length > 0;
+        if (index > 0 || subclassLvl > 1) {
+          return (
+            <p key={`sc-${entry.cls.id}`} className="font-body text-[14px] text-faint mt-2">
+              {entry.cls.name} subclass: chosen on your character sheet {entry.level >= subclassLvl
+                ? 'after creation' : `when the class reaches level ${subclassLvl}`}
+            </p>
+          );
+        }
         return (
-          <div key={`sc-${entry.cls.id}`}>
-            {needsSubclass && (
-              <div className="mt-4">
-                <h3 className="font-heading text-[17px] font-semibold text-ink mb-3">
-                  {classEntries.length > 1 ? `${entry.cls.name} Subclass` : 'Choose a Subclass'}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                  {entry.subclasses.map(sc => (
-                    <button
-                      key={sc.id}
-                      onClick={() => handleEntrySubclass(entry.cls.id, entry.subclass?.id === sc.id ? null : sc)}
-                      className={`p-3 border text-left transition-colors ${
-                        entry.subclass?.id === sc.id
-                          ? 'bg-page-alt border-ink'
-                          : 'bg-card border-rule hover:border-muted'
-                      }`}
-                    >
-                      <h4 className="font-heading text-[15px] font-semibold text-ink">{sc.name}</h4>
-                      <p className="font-body text-[13px] text-faint">{sc.source}</p>
-                    </button>
-                  ))}
-                </div>
-                {!entry.subclass && (
-                  <p className="font-body text-[14px] font-semibold text-hp-wounded mt-2">Subclass selection required at {entry.cls.name} level {subclassLvl}+</p>
-                )}
-              </div>
-            )}
-            {belowSubclass && classEntries.length <= 1 && (
-              <p className="font-body text-[14px] text-faint mt-2">Subclass available at level {subclassLvl}</p>
+          <div key={`sc-${entry.cls.id}`} className="mt-4">
+            <h3 className="font-heading text-[17px] font-semibold text-ink mb-3">Choose a Subclass</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+              {entry.subclasses.map(sc => (
+                <button
+                  key={sc.id}
+                  onClick={() => handleEntrySubclass(entry.cls.id, entry.subclass?.id === sc.id ? null : sc)}
+                  className={`p-3 border text-left transition-colors ${
+                    entry.subclass?.id === sc.id
+                      ? 'bg-page-alt border-ink'
+                      : 'bg-card border-rule hover:border-muted'
+                  }`}
+                >
+                  <h4 className="font-heading text-[15px] font-semibold text-ink">{sc.name}</h4>
+                  <p className="font-body text-[13px] text-faint">{sc.source}</p>
+                </button>
+              ))}
+            </div>
+            {!entry.subclass && (
+              <p className="font-body text-[14px] font-semibold text-hp-wounded mt-2">Subclass selection required at {entry.cls.name} level 1</p>
             )}
           </div>
         );
       })}
 
-      {/* ASI level preview */}
-      {classEntries.length > 0 && (() => {
-        const asiCount = countAsiLevels(classEntries);
-        if (asiCount === 0) return null;
-        const asiDetails = classEntries.flatMap(entry => {
-          const levels: string[] = [];
-          for (let lvl = 1; lvl <= entry.level; lvl++) {
-            if (isAsiLevel(entry.cls.name, lvl)) {
-              levels.push(classEntries.length > 1 ? `${entry.cls.name} ${lvl}` : `Level ${lvl}`);
-            }
-          }
-          return levels;
-        });
-        return (
-          <div className="mt-4 bg-cls-monk-bg border border-div-border p-4">
-            <h3 className="font-heading text-[14px] font-semibold text-cls-monk">
-              {asiCount} Ability Score Improvement{asiCount > 1 ? 's' : ''}
-            </h3>
-            <p className="font-body text-[13px] font-semibold text-muted mt-1">
-              ASI at: {asiDetails.join(', ')}. You'll choose ability increases or feats after creation.
-            </p>
-          </div>
-        );
-      })()}
+      {/* The choices of the levels above the 1st are Pending Choices, made on the sheet (D159) */}
+      {classEntries.length > 0 && level > 1 && (
+        <div className="mt-4 bg-cls-monk-bg border border-div-border p-4">
+          <h3 className="font-heading text-[14px] font-semibold text-cls-monk">Choices above level 1</h3>
+          <p className="font-body text-[13px] font-semibold text-muted mt-1">
+            Ability Score Improvements, subclasses, Fighting Styles, Expertise, and the cantrips and spells of each
+            level above the 1st are made on your character sheet after creation.
+          </p>
+        </div>
+      )}
 
       {/* Class skill proficiency selection */}
       {selectedClass && classSkillChoices.count > 0 && (

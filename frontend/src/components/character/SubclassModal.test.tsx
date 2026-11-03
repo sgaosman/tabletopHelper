@@ -4,13 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCharacter } from '../../test/mocks/handlers';
+import { makeMockCharacter, makeMockPendingChoice } from '../../test/mocks/handlers';
 import { queryKeys } from '../../queries/keys';
 import SubclassModal from './SubclassModal';
 
 describe('SubclassModal', () => {
   const character = makeMockCharacter('char-001', 'Gimli', 'Fighter', 3);
+  // The subclass a Fighter 3 owes (D159)
+  const subclass = makeMockPendingChoice({
+    id: 'choice-subclass', type: 'SUBCLASS', characterLevel: 3, classLevel: 3, options: ['Battle Master', 'Champion'],
+  });
   const onComplete = () => {};
+  const onSkip = () => {};
   const onClose = () => {};
 
   beforeEach(() => {
@@ -18,13 +23,13 @@ describe('SubclassModal', () => {
   });
 
   it('renders the modal with class name context', () => {
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     expect(screen.getByText('Choose Subclass')).toBeInTheDocument();
     expect(screen.getByText('Fighter specialization')).toBeInTheDocument();
   });
 
   it('shows loading state initially', () => {
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     expect(screen.getByText('Loading subclasses...')).toBeInTheDocument();
   });
 
@@ -39,7 +44,7 @@ describe('SubclassModal', () => {
         ])
       )
     );
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     await waitFor(() => {
       expect(screen.getByText('Champion')).toBeInTheDocument();
       expect(screen.getByText('Battle Master')).toBeInTheDocument();
@@ -54,7 +59,7 @@ describe('SubclassModal', () => {
         HttpResponse.json([{ id: 'sc-champion', name: 'Champion', source: 'PHB', features: '[]' }])
       )
     );
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     await waitFor(() => screen.getByText('Champion'));
 
     const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
@@ -73,7 +78,7 @@ describe('SubclassModal', () => {
         HttpResponse.json([{ id: 'sc-champion', name: 'Champion', source: 'PHB', features: '[]' }])
       )
     );
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     await waitFor(() => screen.getByText('Champion'));
     const user = userEvent.setup();
     await user.click(screen.getByText('Champion'));
@@ -94,7 +99,7 @@ describe('SubclassModal', () => {
         HttpResponse.json({ error: 'Already has a subclass' }, { status: 409 })
       )
     );
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     await waitFor(() => screen.getByText('Champion'));
     const user = userEvent.setup();
     await user.click(screen.getByText('Champion'));
@@ -105,14 +110,14 @@ describe('SubclassModal', () => {
   });
 
   it('has correct ARIA attributes', () => {
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
     expect(screen.getByRole('dialog')).toHaveAccessibleName('Choose Subclass');
   });
 
-  it('calls onClose when Skip is clicked', async () => {
+  it('leaves the choice pending when Skip is clicked', async () => {
     let closed = false;
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={() => { closed = true; }} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={() => { closed = true; }} onClose={onClose} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Skip' }));
     expect(closed).toBe(true);
@@ -129,7 +134,7 @@ describe('SubclassModal', () => {
           ],
         }])),
     );
-    render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={onComplete} onClose={onClose} />);
+    render(<SubclassModal character={character} choice={subclass} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />);
     const user = userEvent.setup();
 
     await user.click(await screen.findByText('Battle Master'));
@@ -151,14 +156,14 @@ describe('SubclassModal', () => {
       }),
     );
     const completed = vi.fn();
-    const { queryClient } = render(<SubclassModal character={character} classId="cls-fighter" className="Fighter" onComplete={completed} onClose={onClose} />);
+    const { queryClient } = render(<SubclassModal character={character} choice={subclass} onComplete={completed} onSkip={onSkip} onClose={onClose} />);
     const user = userEvent.setup();
 
     await user.click(await screen.findByText('Champion'));
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
     await waitFor(() => expect(completed).toHaveBeenCalledWith(updated));
-    expect(applied).toEqual({ subclassId: 'sc-champion', classId: 'cls-fighter' });
+    expect(applied).toEqual({ choiceId: 'choice-subclass', subclassId: 'sc-champion' });
     expect(queryClient.getQueryData(queryKeys.characters.detail('char-001'))).toEqual(updated);
   });
 });

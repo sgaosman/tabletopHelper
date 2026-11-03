@@ -1,7 +1,6 @@
 import { Search } from 'lucide-react';
-import type { Background, Feat, Spell } from '../../../types/reference';
+import type { Background } from '../../../types/reference';
 import { safeJsonParse } from '../../../utils/dndRules';
-import type { ParsedFeatOption } from '../../../utils/featSpellParser';
 import type { ChoiceReq, ProfEntry } from './types';
 import { formatProfEntry, formatProficiencies, hasChooseSet } from './types';
 
@@ -18,22 +17,8 @@ export interface BackgroundStepProps {
   handleBgSetChoice: (key: string, index: number) => void;
   bgChoicesComplete: boolean;
   bgSkillConflicts: string[];
+  /** The feats the background grants, one of which the character takes on its sheet after creation (D159) */
   bgFeatNames: string[];
-  selectedBgFeat: string | null;
-  setSelectedBgFeat: (v: string | null) => void;
-  selectedFeatObj: Feat | null;
-  parsedFeatOptions: ParsedFeatOption[];
-  selectedFeatOptionIdx: number | null;
-  setSelectedFeatOptionIdx: (v: number | null) => void;
-  selectedFeatOption: ParsedFeatOption | null;
-  selectedFeatAbility: string | null;
-  setSelectedFeatAbility: (v: string | null) => void;
-  selectedFeatAsiAbility: string | null;
-  setSelectedFeatAsiAbility: (v: string | null) => void;
-  featAsi: { fixed: Record<string, number>; choose?: { from: string[]; amount: number } } | null;
-  featConfigComplete: boolean;
-  setFeatCantrips: (s: Spell[]) => void;
-  setFeatSpells: (s: Spell[]) => void;
 }
 
 export default function BackgroundStep({
@@ -41,15 +26,7 @@ export default function BackgroundStep({
   selectedBackground, setSelectedBackground,
   bgChoiceReqs, bgProfChoices, handleBgProfChoice,
   bgSetChoices, handleBgSetChoice, bgChoicesComplete,
-  bgSkillConflicts,
-  bgFeatNames, selectedBgFeat, setSelectedBgFeat,
-  selectedFeatObj, parsedFeatOptions,
-  selectedFeatOptionIdx, setSelectedFeatOptionIdx,
-  selectedFeatOption,
-  selectedFeatAbility, setSelectedFeatAbility,
-  selectedFeatAsiAbility, setSelectedFeatAsiAbility,
-  featAsi, featConfigComplete,
-  setFeatCantrips, setFeatSpells,
+  bgSkillConflicts, bgFeatNames,
 }: BackgroundStepProps) {
   return (
     <div className="space-y-4">
@@ -162,145 +139,16 @@ export default function BackgroundStep({
           </p>
         </div>
       )}
+      {/* The feat is a Pending Choice, made on the sheet so its effects apply (D159) */}
       {selectedBackground && bgFeatNames.length > 0 && (
-        <div className="bg-card border border-buff-border p-4 mt-4 space-y-4">
+        <div className="bg-card border border-buff-border p-4 mt-4">
           <h3 className="font-heading text-[15px] font-semibold text-ink">Background Feat</h3>
-
-          {bgFeatNames.length > 1 ? (
-            <div>
-              <p className="font-body text-[13px] font-semibold text-muted mb-2">Choose one feat granted by this background:</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {bgFeatNames.map(fn => (
-                  <button
-                    key={fn}
-                    onClick={() => {
-                      setSelectedBgFeat(selectedBgFeat === fn ? null : fn);
-                      setSelectedFeatOptionIdx(null);
-                      setSelectedFeatAbility(null);
-                      setSelectedFeatAsiAbility(null);
-                      setFeatCantrips([]);
-                      setFeatSpells([]);
-                    }}
-                    className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
-                      selectedBgFeat?.toLowerCase() === fn.toLowerCase()
-                        ? 'bg-ink text-card border-ink'
-                        : 'bg-page text-muted border-rule hover:border-muted'
-                    }`}
-                  >
-                    {fn}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="font-body text-[15px] font-semibold text-buff">
-              This background grants: <span className="font-semibold">{bgFeatNames[0]}</span>
-            </p>
-          )}
-
-          {selectedFeatObj && parsedFeatOptions.length > 1 && (
-            <div>
-              <p className="font-body text-[13px] font-semibold text-muted mb-2">Choose an option for {selectedFeatObj.name}:</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                {parsedFeatOptions.map((opt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedFeatOptionIdx(selectedFeatOptionIdx === i ? null : i)}
-                    className={`px-3 py-2 border font-body text-[13px] text-left transition-colors ${
-                      selectedFeatOptionIdx === i
-                        ? 'bg-page-alt border-ink text-ink font-semibold'
-                        : 'bg-page border-rule text-muted hover:border-muted'
-                    }`}
-                  >
-                    <span className="font-semibold">{opt.name}</span>
-                    {opt.fixedCantrips.length > 0 && (
-                      <span className="block text-faint mt-0.5">{opt.fixedCantrips.join(', ')}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedFeatOption?.abilityChoices && (
-            <div>
-              <p className="font-body text-[13px] font-semibold text-muted mb-2">Spellcasting Ability:</p>
-              <div className="flex gap-1.5">
-                {selectedFeatOption.abilityChoices.map(a => (
-                  <button
-                    key={a}
-                    onClick={() => setSelectedFeatAbility(selectedFeatAbility === a ? null : a)}
-                    className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
-                      selectedFeatAbility === a
-                        ? 'bg-ink text-card border-ink'
-                        : 'bg-page text-muted border-rule hover:border-muted'
-                    }`}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedFeatObj && featAsi?.choose && (
-            <div>
-              <p className="font-body text-[13px] font-semibold text-muted mb-2">
-                Ability Score Increase (+{featAsi.choose.amount}):
-              </p>
-              <div className="flex gap-1.5">
-                {featAsi.choose.from.map(a => (
-                  <button
-                    key={a}
-                    onClick={() => setSelectedFeatAsiAbility(selectedFeatAsiAbility === a ? null : a)}
-                    className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
-                      selectedFeatAsiAbility === a
-                        ? 'bg-cls-druid text-card border-cls-druid'
-                        : 'bg-page text-muted border-rule hover:border-muted'
-                    }`}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedFeatObj && featAsi && Object.keys(featAsi.fixed).length > 0 && (
-            <div className="font-body text-[13px] font-semibold text-cls-druid">
-              {Object.entries(featAsi.fixed).map(([k, v]) => `+${v} ${k}`).join(', ')}
-            </div>
-          )}
-
-          {selectedFeatOption && (
-            <div className="font-body text-[13px] font-semibold text-faint space-y-0.5">
-              {selectedFeatOption.fixedCantrips.length > 0 && (
-                <p>Cantrips: {selectedFeatOption.fixedCantrips.join(', ')}</p>
-              )}
-              {selectedFeatOption.cantripChoice && (
-                <p>Choose {selectedFeatOption.cantripChoice.count} cantrip{selectedFeatOption.cantripChoice.count > 1 ? 's' : ''} from {selectedFeatOption.cantripChoice.classes.join('/')}</p>
-              )}
-              {selectedFeatOption.fixedSpells.length > 0 && (
-                <p>Spells: {selectedFeatOption.fixedSpells.map(s => `${s.name} (${s.usesPerDay}/day)`).join(', ')}</p>
-              )}
-              {selectedFeatOption.spellChoice && (
-                <p>
-                  Choose {selectedFeatOption.spellChoice.count} spell{selectedFeatOption.spellChoice.count > 1 ? 's' : ''}
-                  {selectedFeatOption.spellChoice.fromList
-                    ? ' from a list'
-                    : ` from ${selectedFeatOption.spellChoice.classes.join('/')}`}
-                  {' '}({selectedFeatOption.spellChoice.usesPerDay}/day)
-                </p>
-              )}
-              {selectedFeatOption.ability && !selectedFeatOption.abilityChoices && (
-                <p>Spellcasting Ability: {selectedFeatOption.ability}</p>
-              )}
-            </div>
-          )}
-
-          {!featConfigComplete && (
-            <p className="font-body text-[13px] font-semibold text-hp-wounded">Complete all feat selections to continue</p>
-          )}
+          <p className="font-body text-[13px] font-semibold text-muted mt-1">
+            {bgFeatNames.length > 1
+              ? `This background grants one of these feats: ${bgFeatNames.join(', ')}.`
+              : `This background grants ${bgFeatNames[0]}.`}
+            {' '}You'll choose this feat on your character sheet after creation.
+          </p>
         </div>
       )}
     </div>

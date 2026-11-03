@@ -24,26 +24,22 @@ const sorcerer = {
   id: 'cls-sorcerer', name: 'Sorcerer', isSpellcaster: true, isKnownCaster: true, isPreparedCaster: false,
 } as CharacterClassRef;
 
-function Harness() {
+function Harness({ level = 1 }: { level?: number }) {
   const [selectedCantrips, setSelectedCantrips] = useState<Spell[]>([]);
   const [selectedSpells, setSelectedSpells] = useState<Spell[]>([]);
   const [cantripResults, setCantripResults] = useState<Spell[]>([]);
   const [spellResults, setSpellResults] = useState<Spell[]>([]);
   const [cantripSearch, setCantripSearch] = useState('');
   const [spellSearch, setSpellSearch] = useState('');
-  const [mcSpellSelections, setMcSpellSelections] = useState<Record<string, { cantrips: Spell[]; spells: Spell[] }>>({});
   return (
     <SpellsStep
-      selectedClass={sorcerer} classEntries={[]} level={1}
+      selectedClass={sorcerer} classEntries={[]} level={level}
       selectedCantrips={selectedCantrips} setSelectedCantrips={setSelectedCantrips}
       selectedSpells={selectedSpells} setSelectedSpells={setSelectedSpells}
       cantripResults={cantripResults} setCantripResults={setCantripResults}
       spellResults={spellResults} setSpellResults={setSpellResults}
       cantripSearch={cantripSearch} setCantripSearch={setCantripSearch}
       spellSearch={spellSearch} setSpellSearch={setSpellSearch}
-      mcSpellSelections={mcSpellSelections} setMcSpellSelections={setMcSpellSelections}
-      selectedFeatObj={null} selectedFeatOption={null} hasFeatSpellChoices={false}
-      featCantrips={[]} setFeatCantrips={() => {}} featSpells={[]} setFeatSpells={() => {}}
     />
   );
 }
@@ -87,5 +83,14 @@ describe('SpellsStep search', () => {
     await userEvent.clear(searchBox);
 
     expect(await screen.findByRole('button', { name: 'Fire Bolt' })).toBeInTheDocument();
+  });
+
+  it("chooses a level 5 sorcerer's 1st-level spells only: the later levels' come as choices on the sheet (D159)", async () => {
+    render(<Harness level={5} />);
+
+    expect(await screen.findByText('0/4 selected')).toBeInTheDocument();
+    expect(screen.getByText('0/2 selected')).toBeInTheDocument();
+    expect(screen.getByText('Level 1 Spells')).toBeInTheDocument();
+    expect(screen.getByText(/are chosen on your character sheet after creation/)).toBeInTheDocument();
   });
 });

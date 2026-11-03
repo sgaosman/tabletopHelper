@@ -1,6 +1,5 @@
 package com.tabletophelper.character;
 
-import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
@@ -93,12 +92,7 @@ class RestServiceTest {
                 .effects("{\"resource\": {\"name\": \"Luck Points\", \"maxUses\": 3, \"resetOn\": \"longRest\"}}")
                 .build();
         when(f.featRepository.findById(lucky.getId())).thenReturn(Optional.of(lucky));
-        ApplyChoicesRequest.AsiChoice asi = new ApplyChoicesRequest.AsiChoice();
-        asi.setType("feat");
-        asi.setFeatId(lucky.getId());
-        ApplyChoicesRequest request = new ApplyChoicesRequest();
-        request.setAsi(asi);
-        f.service.applyChoices(pc.getId(), request, f.userId);
+        f.takeFeat(pc, lucky.getId());
         return f.stored(pc.getId());
     }
 

@@ -13,8 +13,9 @@ import java.util.UUID;
 
 /**
  * Characters. The server is the only authority over a character (D158): besides creating it, levelling it and
- * choosing what its levels bring, its owner changes it only through the intent endpoints below, and the DM of its
- * campaign only through DM Adjustments, each answering with the character as the server then works it out.
+ * making the Pending Choices its levels owe (D159), its owner changes it only through the intent endpoints below, and
+ * the DM of its campaign only through DM Adjustments, each answering with the character as the server then works it
+ * out.
  */
 @RestController
 @RequestMapping("/api/characters")
@@ -26,6 +27,7 @@ public class CharacterController {
     private final RestService restService;
     private final CharacterSpellService spellService;
     private final DmAdjustmentService adjustmentService;
+    private final PendingChoiceService choiceService;
 
     @PostMapping
     public ResponseEntity<CharacterResponse> createCharacter(
@@ -163,15 +165,6 @@ public class CharacterController {
         return ResponseEntity.ok(spellService.setPrepared(characterId, request, userId));
     }
 
-    @PutMapping("/{characterId}/spells/known")
-    public ResponseEntity<CharacterResponse> setKnownSpells(
-            @PathVariable UUID characterId,
-            @Valid @RequestBody KnownSpellsRequest request,
-            Authentication authentication) {
-        UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(spellService.setKnown(characterId, request, userId));
-    }
-
     @PostMapping("/{characterId}/spellbook")
     public ResponseEntity<CharacterResponse> addToSpellbook(
             @PathVariable UUID characterId,
@@ -231,13 +224,14 @@ public class CharacterController {
         return ResponseEntity.ok(characterService.levelDown(characterId, userId));
     }
 
+    /** Makes one of the character's Pending Choices, named by its ID (D159). */
     @PostMapping("/{characterId}/apply-choices")
     public ResponseEntity<CharacterResponse> applyChoices(
             @PathVariable UUID characterId,
             @Valid @RequestBody ApplyChoicesRequest request,
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
-        return ResponseEntity.ok(characterService.applyChoices(characterId, request, userId));
+        return ResponseEntity.ok(choiceService.apply(characterId, request, userId));
     }
 
     @GetMapping("/{characterId}/eligible-classes")

@@ -1,21 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft } from 'lucide-react';
-import { getRaces, getClasses, getSubclasses, getBackgrounds, getFeats } from '../../api/referenceApi';
+import { getRaces, getClasses, getSubclasses, getBackgrounds } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
-import type { PlayerCharacter } from '../../types/character';
 import type { SpellEntry } from './sheet/types';
-import type { Race, CharacterClassRef, Subclass, Background, Feat, Spell } from '../../types/reference';
-import AsiModal from '../../components/character/AsiModal';
-import { THIRD_CASTER_SUBCLASSES, THIRD_CASTER_ABILITY } from '../../utils/spellConstants';
-import { parseFeatOptions } from '../../utils/featSpellParser';
-import type { ParsedFeatOption } from '../../utils/featSpellParser';
-import { parseAbilityScoreIncrease } from '../../utils/featPrerequisites';
-import { ABILITIES, ABILITY_FROM_ABBR, ALL_SKILLS, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../utils/dndRules';
+import type { Race, CharacterClassRef, Subclass, Background, Spell } from '../../types/reference';
+import { ABILITIES, ALL_SKILLS, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../utils/dndRules';
 
 import {
   ALL_STEPS, ALL_LANGUAGES, ALL_TOOLS, ARTISANS_TOOLS, MUSICAL_INSTRUMENTS,
-  getToolAnyOptions, expandToolFrom, formatProfEntry, countAsiLevels,
+  getToolAnyOptions, expandToolFrom, formatProfEntry,
 } from './wizard/types';
 import type { AbilityScores, ProfEntry, ClassEntry, RaceChoiceReq, ChoiceReq } from './wizard/types';
 
@@ -27,6 +21,13 @@ import BackgroundStep from './wizard/BackgroundStep';
 import SpellsStep from './wizard/SpellsStep';
 import ReviewStep from './wizard/ReviewStep';
 
+/**
+ * Creates a character in seven steps, with a draft kept in the browser. It makes the choices of the 1st level: the
+ * first class's skills, its subclass where that comes at 1st level, as a cleric's does, a rogue's Expertise, and the
+ * first class's cantrips and spells. Every choice of a later level, of another class, and the feat a race or
+ * background gives are Pending Choices the server adds, made on the sheet, where the player lands after creation
+ * (D159). The server works out hit points, speed, slots, spell DCs and Hit Dice (D167).
+ */
 export default function CharacterCreateWizard() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -48,8 +49,6 @@ export default function CharacterCreateWizard() {
 
   const [classEntries, setClassEntries] = useState<ClassEntry[]>([]);
 
-  const [createdCharacter, setCreatedCharacter] = useState<PlayerCharacter | null>(null);
-  const [pendingAsiCount, setPendingAsiCount] = useState(0);
   const [multiclassExpanded, setMulticlassExpanded] = useState(false);
 
   const [abilityMethod, setAbilityMethod] = useState<'standard' | 'pointbuy' | 'manual'>('standard');
@@ -65,7 +64,6 @@ export default function CharacterCreateWizard() {
   const [bgProfChoices, setBgProfChoices] = useState<Record<string, string[]>>({});
   const [bgSetChoices, setBgSetChoices] = useState<Record<string, number | null>>({});
 
-  const [feats, setFeats] = useState<Feat[]>([]);
   const [raceChoiceSelections, setRaceChoiceSelections] = useState<Record<string, string[]>>({});
 
   const [bonusAssignments, setBonusAssignments] = useState<Array<{ bonus: number; ability: string | null }>>([]);
@@ -75,17 +73,10 @@ export default function CharacterCreateWizard() {
   const [spellResults, setSpellResults] = useState<Spell[]>([]);
   const [spellSearch, setSpellSearch] = useState('');
   const [cantripSearch, setCantripSearch] = useState('');
-  const [mcSpellSelections, setMcSpellSelections] = useState<Record<string, { cantrips: Spell[]; spells: Spell[] }>>({});
   const [selectedClassSkills, setSelectedClassSkills] = useState<string[]>([]);
   const [mcSkillSelections, setMcSkillSelections] = useState<Record<string, string[]>>({});
   const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
 
-  const [selectedBgFeat, setSelectedBgFeat] = useState<string | null>(null);
-  const [selectedFeatOptionIdx, setSelectedFeatOptionIdx] = useState<number | null>(null);
-  const [selectedFeatAbility, setSelectedFeatAbility] = useState<string | null>(null);
-  const [selectedFeatAsiAbility, setSelectedFeatAsiAbility] = useState<string | null>(null);
-  const [featCantrips, setFeatCantrips] = useState<Spell[]>([]);
-  const [featSpells, setFeatSpells] = useState<Spell[]>([]);
   const [showDraftBanner, setShowDraftBanner] = useState(false);
   const draftRestoredRef = useRef(false);
 
@@ -157,73 +148,19 @@ export default function CharacterCreateWizard() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [hasMeaningfulData]);
 
-  // ── Feat configuration ──
+  // ── Feats ──
 
+  // A background's feat, and a race's, such as a Variant Human's, are Pending Choices made on the sheet (D159)
   const bgFeatNames = useMemo(() => {
     if (!selectedBackground?.feats) return [];
     return safeJsonParse<string[]>(selectedBackground.feats, []);
   }, [selectedBackground]);
 
-  const selectedFeatObj = useMemo(() => {
-    if (!selectedBgFeat) return null;
-    return feats.find(f => f.name.toLowerCase() === selectedBgFeat.toLowerCase()) || null;
-  }, [selectedBgFeat, feats]);
-
-  const parsedFeatOptions = useMemo(() => {
-    if (!selectedFeatObj) return [];
-    return parseFeatOptions(selectedFeatObj.grantsFeatures);
-  }, [selectedFeatObj]);
-
-  const selectedFeatOption: ParsedFeatOption | null = selectedFeatOptionIdx != null ? parsedFeatOptions[selectedFeatOptionIdx] ?? null : null;
-
-  const featAsi = useMemo(() => {
-    if (!selectedFeatObj) return null;
-    return parseAbilityScoreIncrease(selectedFeatObj);
-  }, [selectedFeatObj]);
-
-  useEffect(() => {
-    if (bgFeatNames.length === 1) setSelectedBgFeat(bgFeatNames[0]);
-    else setSelectedBgFeat(null);
-    setSelectedFeatOptionIdx(null);
-    setSelectedFeatAbility(null);
-    setSelectedFeatAsiAbility(null);
-    setFeatCantrips([]);
-    setFeatSpells([]);
-  }, [selectedBackground]);
-
-  useEffect(() => {
-    if (parsedFeatOptions.length === 1) setSelectedFeatOptionIdx(0);
-    else if (parsedFeatOptions.length === 0) setSelectedFeatOptionIdx(null);
-    setFeatCantrips([]);
-    setFeatSpells([]);
-  }, [parsedFeatOptions.length, selectedBgFeat]);
-
-  useEffect(() => {
-    if (selectedFeatOption?.ability) setSelectedFeatAbility(selectedFeatOption.ability);
-    else if (selectedFeatOption?.abilityChoices) setSelectedFeatAbility(null);
-    setFeatCantrips([]);
-    setFeatSpells([]);
-  }, [selectedFeatOptionIdx]);
-
-  useEffect(() => {
-    if (featAsi?.choose) setSelectedFeatAsiAbility(null);
-    else if (featAsi?.fixed) setSelectedFeatAsiAbility(null);
-  }, [selectedBgFeat]);
-
-  const hasFeatSpellChoices = useMemo(() => {
-    if (!selectedFeatOption) return false;
-    return selectedFeatOption.cantripChoice != null || selectedFeatOption.spellChoice != null;
-  }, [selectedFeatOption]);
-
-  const featConfigComplete = useMemo(() => {
-    if (bgFeatNames.length === 0) return true;
-    if (!selectedBgFeat) return false;
-    if (featAsi?.choose && !selectedFeatAsiAbility) return false;
-    if (!selectedFeatObj?.grantsFeatures) return true;
-    if (parsedFeatOptions.length > 0 && selectedFeatOptionIdx == null) return false;
-    if (selectedFeatOption?.abilityChoices && !selectedFeatAbility) return false;
-    return true;
-  }, [bgFeatNames, selectedBgFeat, selectedFeatObj, parsedFeatOptions, selectedFeatOptionIdx, selectedFeatOption, selectedFeatAbility, featAsi, selectedFeatAsiAbility]);
+  const raceFeats = useMemo(() => {
+    if (!selectedRace) return 0;
+    const choices = safeJsonParse<{ feats?: number } | null>(selectedRace.raceChoices, null);
+    return typeof choices?.feats === 'number' ? choices.feats : 0;
+  }, [selectedRace]);
 
   // ── Class / skill / expertise ──
 
@@ -244,21 +181,16 @@ export default function CharacterCreateWizard() {
     return map;
   }, [classEntries]);
 
-  const expertiseCount = useMemo(() => {
-    let count = 0;
-    for (const entry of classEntries) {
-      const n = entry.cls.name, lvl = entry.level;
-      if (n === 'Rogue') { if (lvl >= 1) count += 2; if (lvl >= 6) count += 2; }
-      else if (n === 'Bard') { if (lvl >= 3) count += 2; if (lvl >= 10) count += 2; }
-    }
-    return count;
-  }, [classEntries]);
+  // A rogue's 1st-level Expertise (PHB p.94); every later level's is a Pending Choice made on the sheet (D159)
+  const expertiseCount = classEntries[0]?.cls.name === 'Rogue' ? 2 : 0;
+
+  // Whether the first class's 1st level chooses its subclass, as a cleric's, sorcerer's or warlock's does
+  const firstLevelSubclass = classEntries[0]?.cls.subclassLevel === 1 && (classEntries[0]?.subclasses.length ?? 0) > 0;
 
   // ── Spellcaster / step visibility ──
 
-  const hasThirdCasterSubclass = classEntries.some(e => e.subclass && THIRD_CASTER_SUBCLASSES.has(e.subclass.name) && e.level >= 3);
-  const isSpellcaster = classEntries.some(e => e.cls.isSpellcaster) || (selectedClass?.isSpellcaster ?? false) || hasThirdCasterSubclass;
-  const showSpellsStep = isSpellcaster || hasFeatSpellChoices;
+  // Only the first class's 1st-level spells are chosen here; another class's are chosen on the sheet
+  const showSpellsStep = selectedClass?.isSpellcaster ?? false;
   const steps = useMemo(() => showSpellsStep ? ALL_STEPS : ALL_STEPS.filter(s => s !== 'Spells'), [showSpellsStep]);
 
   // ── Data loading ──
@@ -267,7 +199,6 @@ export default function CharacterCreateWizard() {
     getRaces().then(res => setRaces(res));
     getClasses().then(res => setClasses(res));
     getBackgrounds().then(res => setBackgrounds(res));
-    getFeats().then(res => setFeats(res));
   }, []);
 
   useEffect(() => {
@@ -319,7 +250,6 @@ export default function CharacterCreateWizard() {
       const freedLevels = entry.level;
       return prev.filter(e => e.cls.id !== clsId).map((e, i) => i === 0 ? { ...e, level: e.level + freedLevels } : e);
     });
-    setMcSpellSelections(prev => { const next = { ...prev }; delete next[clsId]; return next; });
   }, []);
 
   const handleClassLevelChange = useCallback((clsId: string, newLevel: number) => {
@@ -340,11 +270,11 @@ export default function CharacterCreateWizard() {
   const handleSelectPrimaryClass = useCallback((cls: CharacterClassRef | null) => {
     if (!cls) {
       setSelectedClass(null); setSelectedSubclass(null); setClassEntries([]);
-      setMcSpellSelections({}); setSelectedClassSkills([]); setMcSkillSelections({}); setSelectedExpertise([]);
+      setSelectedClassSkills([]); setMcSkillSelections({}); setSelectedExpertise([]);
     } else {
       setSelectedClass(cls); setSelectedSubclass(null);
       setSelectedCantrips([]); setSelectedSpells([]); setCantripResults([]); setSpellResults([]);
-      setMcSpellSelections({}); setSelectedClassSkills([]); setMcSkillSelections({}); setSelectedExpertise([]);
+      setSelectedClassSkills([]); setMcSkillSelections({}); setSelectedExpertise([]);
       getSubclasses(cls.id).then(scs => {
         setSubclasses(scs);
         setClassEntries([{ cls, level, subclass: null, subclasses: scs }]);
@@ -398,9 +328,8 @@ export default function CharacterCreateWizard() {
     if (choices.weapons) { for (const wc of choices.weapons as Array<{ from?: string[]; count?: number }>) reqs.push({ key: `weapon_${reqs.length}`, label: 'Martial Weapon Proficiency', options: wc.from ?? [], count: wc.count ?? 2 }); }
     if (choices.resistances) { for (const rc of choices.resistances as Array<{ from: string[] }>) reqs.push({ key: `resist_${reqs.length}`, label: 'Damage Resistance', options: rc.from, count: 1 }); }
     if (choices.spellAbility) reqs.push({ key: 'spellAbility', label: 'Spellcasting Ability', options: choices.spellAbility as string[], count: 1 });
-    if (choices.feats) { const featNames = feats.map(f => f.name).sort(); if (featNames.length > 0) reqs.push({ key: `feat_${reqs.length}`, label: 'Feat', options: featNames, count: choices.feats as number }); }
     return reqs;
-  }, [selectedRace, feats]);
+  }, [selectedRace]);
 
   function handleRaceChoice(key: string, value: string, count: number) {
     setRaceChoiceSelections(prev => {
@@ -414,7 +343,7 @@ export default function CharacterCreateWizard() {
   const raceChoicesComplete = useMemo(() => raceChoiceReqs.every(req => (raceChoiceSelections[req.key] ?? []).length === req.count), [raceChoiceReqs, raceChoiceSelections]);
 
   const resolvedRaceChoices = useMemo(() => {
-    const result = { languages: [] as string[], skills: [] as string[], tools: [] as string[], weapons: [] as string[], resistances: [] as string[], spellAbility: null as string | null, feats: [] as string[] };
+    const result = { languages: [] as string[], skills: [] as string[], tools: [] as string[], weapons: [] as string[], resistances: [] as string[], spellAbility: null as string | null };
     for (const req of raceChoiceReqs) {
       const selected = raceChoiceSelections[req.key] ?? [];
       if (req.key.startsWith('lang_')) result.languages.push(...selected);
@@ -423,7 +352,6 @@ export default function CharacterCreateWizard() {
       else if (req.key.startsWith('weapon_')) result.weapons.push(...selected);
       else if (req.key.startsWith('resist_')) result.resistances.push(...selected);
       else if (req.key === 'spellAbility') result.spellAbility = selected[0] ?? null;
-      else if (req.key.startsWith('feat_')) result.feats.push(...selected);
     }
     return result;
   }, [raceChoiceReqs, raceChoiceSelections]);
@@ -559,18 +487,8 @@ export default function CharacterCreateWizard() {
     for (const [ability, bonus] of Object.entries(racialBonuses)) {
       if (ability in result) result[ability as keyof AbilityScores] += bonus;
     }
-    if (featAsi) {
-      for (const [ability, bonus] of Object.entries(featAsi.fixed)) {
-        const key = ABILITY_FROM_ABBR[ability] || ability.toLowerCase();
-        if (key in result) result[key as keyof AbilityScores] = Math.min(20, result[key as keyof AbilityScores] + bonus);
-      }
-      if (featAsi.choose && selectedFeatAsiAbility) {
-        const key = ABILITY_FROM_ABBR[selectedFeatAsiAbility] || selectedFeatAsiAbility.toLowerCase();
-        if (key in result) result[key as keyof AbilityScores] = Math.min(20, result[key as keyof AbilityScores] + featAsi.choose.amount);
-      }
-    }
     return result;
-  }, [scores, standardAssignments, abilityMethod, racialBonuses, featAsi, selectedFeatAsiAbility]);
+  }, [scores, standardAssignments, abilityMethod, racialBonuses]);
 
   const pointBuyTotal = useMemo(() => {
     let total = 0;
@@ -599,7 +517,7 @@ export default function CharacterCreateWizard() {
         if (!selectedClass) return false;
         const totalClassLevels = classEntries.reduce((s, e) => s + e.level, 0);
         if (totalClassLevels !== level) return false;
-        for (const entry of classEntries) { if (entry.level >= (entry.cls.subclassLevel || 3) && entry.subclasses.length > 0 && !entry.subclass) return false; }
+        if (firstLevelSubclass && !classEntries[0].subclass) return false;
         if (classSkillChoices.count > 0 && selectedClassSkills.length < classSkillChoices.count) return false;
         return true;
       }
@@ -607,7 +525,7 @@ export default function CharacterCreateWizard() {
         if (abilityMethod === 'standard') return Object.values(standardAssignments).every(v => v !== null);
         if (abilityMethod === 'pointbuy') return pointBuyTotal <= 27;
         return true;
-      case 'Background': return selectedBackground !== null && bgChoicesComplete && featConfigComplete;
+      case 'Background': return selectedBackground !== null && bgChoicesComplete;
       case 'Spells': return true;
       default: return true;
     }
@@ -615,6 +533,8 @@ export default function CharacterCreateWizard() {
 
   // ── Character creation ──
 
+  // The first class's 1st-level cantrips and spells, and the race's spells; the server counts the class's as its 1st
+  // level's choices
   function buildSpellsKnown(): SpellEntry[] | undefined {
     const entries: SpellEntry[] = [];
     if (selectedClass?.isSpellcaster) {
@@ -625,23 +545,6 @@ export default function CharacterCreateWizard() {
         entries.push({ name: s.name, level: s.level, source, ...(selectedClass.isPreparedCaster && !isWiz ? { prepared: true } : {}) });
       }
     }
-    for (const entry of classEntries.slice(1)) {
-      if (!entry.cls.isSpellcaster) continue;
-      const sel = mcSpellSelections[entry.cls.id]; if (!sel) continue;
-      const source = `class:${entry.cls.name}`;
-      for (const s of sel.cantrips) entries.push({ name: s.name, level: 0, source });
-      for (const s of sel.spells) {
-        const isWiz = entry.cls.name === 'Wizard';
-        entries.push({ name: s.name, level: s.level, source, ...(entry.cls.isPreparedCaster && !isWiz ? { prepared: true } : {}) });
-      }
-    }
-    for (const entry of classEntries) {
-      if (!entry.subclass || !THIRD_CASTER_SUBCLASSES.has(entry.subclass.name)) continue;
-      const sel = mcSpellSelections[`third:${entry.cls.id}`]; if (!sel) continue;
-      const source = `class:${entry.cls.name}`;
-      for (const s of sel.cantrips) entries.push({ name: s.name, level: 0, source });
-      for (const s of sel.spells) entries.push({ name: s.name, level: s.level, source });
-    }
     if (selectedRace?.additionalSpells) {
       const raceSpells = safeJsonParse<{ fixedSpells?: Array<{ name: string; level: number; atWill?: boolean; usesPerLongRest?: number; unlocksAtLevel?: number }> }>(selectedRace.additionalSpells, {});
       const raceSource = `race:${selectedRace.name}`;
@@ -650,13 +553,6 @@ export default function CharacterCreateWizard() {
           entries.push({ name: s.name, level: s.level ?? 0, source: raceSource, ...(s.atWill ? { atWill: true } : {}), ...(s.usesPerLongRest ? { usesPerLongRest: s.usesPerLongRest } : {}), ...(s.unlocksAtLevel ? { unlocksAtLevel: s.unlocksAtLevel } : {}) });
         }
       }
-    }
-    if (selectedFeatObj && selectedFeatOption) {
-      const featSource = `feat:${selectedFeatObj.name}`;
-      for (const n of selectedFeatOption.fixedCantrips) entries.push({ name: n, level: 0, source: featSource, atWill: true });
-      for (const s of featCantrips) entries.push({ name: s.name, level: 0, source: featSource, atWill: true });
-      for (const { name, usesPerDay } of selectedFeatOption.fixedSpells) entries.push({ name, level: 1, source: featSource, usesPerLongRest: usesPerDay });
-      for (const s of featSpells) entries.push({ name: s.name, level: s.level, source: featSource, usesPerLongRest: selectedFeatOption.spellChoice?.usesPerDay ?? 1 });
     }
     return entries.length > 0 ? entries : undefined;
   }
@@ -684,25 +580,16 @@ export default function CharacterCreateWizard() {
     const allWeapons = [...(raceProfs.weapons ?? []), ...resolvedRaceChoices.weapons, ...classWeapons];
     const allTools = [...(raceProfs.tools ?? []), ...resolvedRaceChoices.tools, ...resolvedBgProfs.tools, ...classTools];
     const allLanguages = [...(raceProfs.languages ?? []), ...resolvedRaceChoices.languages, ...resolvedBgProfs.languages];
-    const featFeatures: Array<{ name: string; description: string; source: string }> = [];
-    for (const featName of resolvedRaceChoices.feats) featFeatures.push({ name: featName, description: 'Racial feat', source: selectedRace.name });
-    if (selectedFeatObj && selectedFeatOption) {
-      const optionDesc = parsedFeatOptions.length > 1 ? ` (${selectedFeatOption.name})` : '';
-      const abilityDesc = selectedFeatAbility ? ` Spellcasting ability: ${selectedFeatAbility}.` : '';
-      featFeatures.push({ name: selectedFeatObj.name, description: `Granted by ${selectedBackground.name} background.${optionDesc}${abilityDesc}`, source: selectedBackground.name });
-    } else if (selectedBgFeat) {
-      const feat = feats.find(f => f.name.toLowerCase() === selectedBgFeat.toLowerCase());
-      if (feat) featFeatures.push({ name: feat.name, description: `Granted by ${selectedBackground.name} background.`, source: selectedBackground.name });
-    }
-    const featSpellAbility = selectedFeatAbility ?? selectedFeatOption?.ability;
-    let resolvedSpellAbility: string | undefined = selectedClass.spellcastingAbility ?? undefined;
-    if (!resolvedSpellAbility) { const thirdCasterEntry = classEntries.find(e => e.subclass && THIRD_CASTER_SUBCLASSES.has(e.subclass.name)); if (thirdCasterEntry) resolvedSpellAbility = THIRD_CASTER_ABILITY[thirdCasterEntry.subclass!.name]; }
-    if (!resolvedSpellAbility && featSpellAbility) resolvedSpellAbility = featSpellAbility;
-    const multiclassClassEntries = isMulticlass ? classEntries.map(e => ({ classId: e.cls.id, subclassId: e.subclass?.id ?? null, level: e.level })) : undefined;
+    const resolvedSpellAbility: string | undefined = selectedClass.spellcastingAbility ?? undefined;
+    // Only a subclass the first class chooses at 1st level goes with the request; every other is chosen on the sheet
+    const firstSubclassId = firstLevelSubclass ? (classEntries[0]?.subclass?.id ?? selectedSubclass?.id) : undefined;
+    const multiclassClassEntries = isMulticlass
+      ? classEntries.map((e, i) => ({ classId: e.cls.id, subclassId: i === 0 ? firstSubclassId ?? null : null, level: e.level }))
+      : undefined;
     try {
       const res = await characterApi.create({
         name: name.trim(), level, raceId: selectedRace.id, classId: selectedClass.id,
-        subclassId: classEntries[0]?.subclass?.id ?? selectedSubclass?.id,
+        subclassId: firstSubclassId,
         backgroundId: selectedBackground.id, alignment: alignment || undefined,
         abilityScoreMethod: abilityMethod,
         racialAbilityBonuses: bonusAssignments.map(a => ({ ability: a.ability ? ABILITY_LABELS[a.ability] : null, bonus: a.bonus })),
@@ -718,21 +605,14 @@ export default function CharacterCreateWizard() {
         damageResistances: resistances.length > 0 ? resistances : undefined,
         spellcastingAbility: resolvedSpellAbility,
         spellsKnown: buildSpellsKnown(),
-        features: featFeatures.length > 0 ? featFeatures : undefined,
         multiclassClassEntries,
       });
       localStorage.removeItem(DRAFT_KEY);
-      const asiCount = countAsiLevels(classEntries);
-      if (asiCount > 0) { setCreatedCharacter(res.data); setPendingAsiCount(asiCount); }
-      else navigate(`/player/characters/${res.data.id}`);
+      // The sheet's banner lists the choices still to make, feats and later levels' among them (D159)
+      navigate(`/player/characters/${res.data.id}`);
     } catch (err: any) {
       setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create character');
     } finally { setSubmitting(false); }
-  }
-
-  function handleAsiComplete(updated: PlayerCharacter) {
-    if (pendingAsiCount <= 1) navigate(`/player/characters/${updated.id}`);
-    else { setCreatedCharacter(updated); setPendingAsiCount(prev => prev - 1); }
   }
 
   // ── Render ──
@@ -785,7 +665,7 @@ export default function CharacterCreateWizard() {
             filteredRaces={filteredRaces} raceSearch={raceSearch} setRaceSearch={setRaceSearch}
             selectedRace={selectedRace} setSelectedRace={setSelectedRace}
             raceChoiceReqs={raceChoiceReqs} raceChoiceSelections={raceChoiceSelections}
-            handleRaceChoice={handleRaceChoice} raceChoicesComplete={raceChoicesComplete}
+            handleRaceChoice={handleRaceChoice} raceChoicesComplete={raceChoicesComplete} raceFeats={raceFeats}
             bonusAssignments={bonusAssignments} handleBonusAssignment={handleBonusAssignment}
             isVanillaHuman={isVanillaHuman}
           />
@@ -821,14 +701,7 @@ export default function CharacterCreateWizard() {
             bgChoiceReqs={bgChoiceReqs} bgProfChoices={bgProfChoices} handleBgProfChoice={handleBgProfChoice}
             bgSetChoices={bgSetChoices} handleBgSetChoice={handleBgSetChoice}
             bgChoicesComplete={bgChoicesComplete} bgSkillConflicts={bgSkillConflicts}
-            bgFeatNames={bgFeatNames} selectedBgFeat={selectedBgFeat} setSelectedBgFeat={setSelectedBgFeat}
-            selectedFeatObj={selectedFeatObj} parsedFeatOptions={parsedFeatOptions}
-            selectedFeatOptionIdx={selectedFeatOptionIdx} setSelectedFeatOptionIdx={setSelectedFeatOptionIdx}
-            selectedFeatOption={selectedFeatOption} selectedFeatAbility={selectedFeatAbility}
-            setSelectedFeatAbility={setSelectedFeatAbility}
-            selectedFeatAsiAbility={selectedFeatAsiAbility} setSelectedFeatAsiAbility={setSelectedFeatAsiAbility}
-            featAsi={featAsi} featConfigComplete={featConfigComplete}
-            setFeatCantrips={setFeatCantrips} setFeatSpells={setFeatSpells}
+            bgFeatNames={bgFeatNames}
           />
         )}
         {currentStepName === 'Spells' && (
@@ -840,11 +713,6 @@ export default function CharacterCreateWizard() {
             spellResults={spellResults} setSpellResults={setSpellResults}
             cantripSearch={cantripSearch} setCantripSearch={setCantripSearch}
             spellSearch={spellSearch} setSpellSearch={setSpellSearch}
-            mcSpellSelections={mcSpellSelections} setMcSpellSelections={setMcSpellSelections}
-            selectedFeatObj={selectedFeatObj} selectedFeatOption={selectedFeatOption}
-            hasFeatSpellChoices={hasFeatSpellChoices}
-            featCantrips={featCantrips} setFeatCantrips={setFeatCantrips}
-            featSpells={featSpells} setFeatSpells={setFeatSpells}
           />
         )}
         {currentStepName === 'Review' && (
@@ -854,12 +722,9 @@ export default function CharacterCreateWizard() {
             selectedBackground={selectedBackground} finalScores={finalScores}
             selectedClassSkills={selectedClassSkills}
             resolvedRaceChoices={resolvedRaceChoices} resolvedBgProfs={resolvedBgProfs}
-            selectedBgFeat={selectedBgFeat} selectedFeatOption={selectedFeatOption}
-            parsedFeatOptions={parsedFeatOptions} selectedFeatAbility={selectedFeatAbility}
-            selectedFeatAsiAbility={selectedFeatAsiAbility} featAsi={featAsi}
-            featCantrips={featCantrips} featSpells={featSpells}
+            raceFeats={raceFeats} bgFeatNames={bgFeatNames}
             selectedCantrips={selectedCantrips} selectedSpells={selectedSpells}
-            mcSpellSelections={mcSpellSelections} error={error}
+            error={error}
           />
         )}
 
@@ -879,9 +744,6 @@ export default function CharacterCreateWizard() {
         </div>
       </main>
 
-      {createdCharacter && pendingAsiCount > 0 && (
-        <AsiModal character={createdCharacter} onComplete={handleAsiComplete} onClose={() => navigate(`/player/characters/${createdCharacter.id}`)} />
-      )}
     </div>
   );
 }

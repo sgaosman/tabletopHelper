@@ -35,9 +35,11 @@ interface FeatPickerProps {
   onSelectionChange: (selection: AsiChoice | null) => void;
   /** For a DM's grant (D158): a feat whose prerequisites the character doesn't meet can be picked, with them shown */
   ignorePrerequisites?: boolean;
+  /** For a background's feat (D159): only the feats it offers, by name in any case, are listed */
+  only?: string[] | null;
 }
 
-export default function FeatPicker({ character, onSelectionChange, ignorePrerequisites = false }: FeatPickerProps) {
+export default function FeatPicker({ character, onSelectionChange, ignorePrerequisites = false, only }: FeatPickerProps) {
   const [feats, setFeats] = useState<Feat[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -72,7 +74,8 @@ export default function FeatPicker({ character, onSelectionChange, ignorePrerequ
 
   const featList = useMemo(() => {
     if (feats.length === 0) return [];
-    return feats.map(feat => {
+    const offered = only ? new Set(only.map(name => name.trim().toLowerCase())) : null;
+    return feats.filter(feat => !offered || offered.has(feat.name.trim().toLowerCase())).map(feat => {
       const prereq = checkFeatPrerequisites(feat, character);
       const existingFeats = getCharacterFeatNames(character);
       // A feat that can be taken more than once, such as Elemental Adept, stays open (D158)
@@ -86,7 +89,7 @@ export default function FeatPicker({ character, onSelectionChange, ignorePrerequ
       if (a.eligible !== b.eligible) return a.eligible ? -1 : 1;
       return a.feat.name.localeCompare(b.feat.name);
     });
-  }, [feats, character, ignorePrerequisites]);
+  }, [feats, character, ignorePrerequisites, only]);
 
   const filteredFeats = useMemo(() => {
     if (!search.trim()) return featList;

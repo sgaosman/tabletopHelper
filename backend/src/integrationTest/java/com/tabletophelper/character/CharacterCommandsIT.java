@@ -39,7 +39,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * character's row lock and answers with the character as the server then works it out; resting and levelling wait
  * while the character is in an Active or Paused encounter (D166). Aria is a Tiefling Fighter 3 with CON 14 (28 hit
  * points) in the DM's campaign; Bram is a Tiefling Warlock 2 / Wizard 1 with CON 14 (23 hit points), Hellish Rebuke
- * once a long rest and the pact and wizard slots of both classes.
+ * once a long rest and the pact and wizard slots of both classes. Since R6 workstream F a warlock learns its spells
+ * through its levels' Pending Choices rather than the interim known-spells command (D159).
  */
 class CharacterCommandsIT extends IntegrationTest {
 
@@ -167,13 +168,15 @@ class CharacterCommandsIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("A wizard copies spells into its spellbook and prepares from it; a warlock's known spells are checked against its list")
+    @DisplayName("A wizard copies spells into its spellbook and prepares from it; the spells a warlock's level owes are checked against its list")
     void spellCommands() {
         spell("Magic Missile", 1, "[\"Sorcerer\",\"Wizard\"]");
         spell("Shield", 1, "[\"Sorcerer\",\"Wizard\",\"Warlock (The Hexblade)\"]");
         spell("Fireball", 3, "[\"Sorcerer\",\"Wizard\"]");
         spell("Hex", 1, "[\"Warlock\"]");
+        spell("Armor of Agathys", 1, "[\"Warlock\"]");
         spell("Eldritch Blast", 0, "[\"Warlock\"]");
+        spell("Minor Illusion", 0, "[\"Warlock\",\"Wizard\"]");
         String bram = create(Map.of("name", "Bram", "classId", warlockId, "level", 3, "multiclassClassEntries",
                 List.of(Map.of("classId", warlockId, "level", 2), Map.of("classId", wizardId, "level", 1))));
 
@@ -189,13 +192,19 @@ class CharacterCommandsIT extends IntegrationTest {
         JsonNode removed = ok(HttpMethod.DELETE, bram, "/spellbook", Map.of("spells", List.of("Magic Missile")));
         assertThat(removed.get("spellsKnown")).hasSize(1);
 
-        JsonNode known = ok(HttpMethod.PUT, bram, "/spells/known",
-                Map.of("className", "Warlock", "cantrips", List.of("Eldritch Blast"), "spells", List.of("Hex")));
+        JsonNode owed = get(bram);
+        ok(HttpMethod.POST, bram, "/apply-choices", Map.of("choiceId", choiceId(owed, "CANTRIPS", 1),
+                "spells", List.of("Eldritch Blast", "Minor Illusion")));
+        assertThat(error(command(HttpMethod.POST, bram, "/apply-choices", Map.of("choiceId",
+                choiceId(owed, "SPELLS", 1), "spells", List.of("Hex", "Magic Missile"))), HttpStatus.BAD_REQUEST))
+                .isEqualTo("Magic Missile isn't on the Warlock spell list");
+        JsonNode known = ok(HttpMethod.POST, bram, "/apply-choices", Map.of("choiceId", choiceId(owed, "SPELLS", 1),
+                "spells", List.of("Hex", "Armor of Agathys")));
         assertThat(known.get("spellsKnown").toString()).contains("\"name\":\"Eldritch Blast\",\"level\":0,"
                 + "\"source\":\"class:Warlock\"", "\"name\":\"Hex\",\"level\":1,\"source\":\"class:Warlock\"");
-        assertThat(error(command(HttpMethod.PUT, bram, "/spells/known",
-                Map.of("className", "Warlock", "spells", List.of("Magic Missile"))), HttpStatus.BAD_REQUEST))
-                .isEqualTo("Magic Missile isn't on the Warlock spell list");
+        // The interim command is gone
+        assertThat(command(HttpMethod.PUT, bram, "/spells/known", Map.of("className", "Warlock",
+                "spells", List.of("Hex"))).getStatusCode().is4xxClientError()).isTrue();
     }
 
     @Test
@@ -218,11 +227,10 @@ class CharacterCommandsIT extends IntegrationTest {
         commands.put("/short-rest", Map.entry(HttpMethod.POST, Map.of()));
         commands.put("/long-rest", Map.entry(HttpMethod.POST, Map.of()));
         commands.put("/spells/prepared", Map.entry(HttpMethod.PUT, Map.of("className", "Wizard", "spells", List.of())));
-        commands.put("/spells/known", Map.entry(HttpMethod.PUT, Map.of("className", "Warlock", "spells", List.of())));
         commands.put("/spellbook", Map.entry(HttpMethod.POST, Map.of("spells", List.of("Shield"))));
         commands.put("/level-up", Map.entry(HttpMethod.POST, Map.of()));
         commands.put("/level-down", Map.entry(HttpMethod.POST, Map.of()));
-        commands.put("/apply-choices", Map.entry(HttpMethod.POST, Map.of()));
+        commands.put("/apply-choices", Map.entry(HttpMethod.POST, Map.of("choiceId", UUID.randomUUID())));
         commands.put("", Map.entry(HttpMethod.DELETE, Map.of()));
         int version = version(aria);
 
@@ -266,7 +274,8 @@ class CharacterCommandsIT extends IntegrationTest {
         refusals.put("/level-up", "level up");
         refusals.put("/level-down", "level down");
         refusals.put("/apply-choices", "make the choices its levels bring");
-        refusals.forEach((path, doing) -> assertThat(error(command(HttpMethod.POST, aria, path, Map.of()),
+        refusals.forEach((path, doing) -> assertThat(error(command(HttpMethod.POST, aria, path,
+                path.equals("/apply-choices") ? Map.of("choiceId", UUID.randomUUID()) : Map.of()),
                 HttpStatus.CONFLICT)).as(path)
                 .isEqualTo("Aria is in an encounter that is under way, so can't " + doing + " until it ends"));
         assertThat(hp("HEALING", 1).get("hpCurrent").asInt()).isEqualTo(19);
@@ -376,6 +385,16 @@ class CharacterCommandsIT extends IntegrationTest {
         body.putAll(details);
         return expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", body, player.accessToken()))
                 .get("id").asText();
+    }
+
+    // The ID of the character's pending choice of the type at the character level (D159)
+    private static String choiceId(JsonNode character, String type, int characterLevel) {
+        for (JsonNode choice : character.get("pendingChoices")) {
+            if (choice.get("type").asText().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
+                return choice.get("id").asText();
+            }
+        }
+        throw new AssertionError("No pending " + type + " at level " + characterLevel);
     }
 
     private void spell(String name, int level, String classes) {

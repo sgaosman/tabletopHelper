@@ -4,26 +4,29 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCharacter } from '../../test/mocks/handlers';
+import { makeMockCharacter, makeMockPendingChoice } from '../../test/mocks/handlers';
+import type { Feat } from '../../types/reference';
 import { queryKeys } from '../../queries/keys';
 import AsiModal from './AsiModal';
 
 describe('AsiModal', () => {
   const character = makeMockCharacter('char-001', 'Gimli', 'Fighter', 4);
+  // The Fighter 4 Ability Score Improvement the character owes (D159)
+  const asi = makeMockPendingChoice();
 
   beforeEach(() => {
     setupAuthToken();
   });
 
   it('renders with title and both mode buttons', () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     expect(screen.getByText('Ability Score Improvement')).toBeInTheDocument();
     expect(screen.getByText('Ability Scores')).toBeInTheDocument();
     expect(screen.getByText('Feat')).toBeInTheDocument();
   });
 
   it('shows all six abilities in ability score mode', () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     expect(screen.getByText('STR')).toBeInTheDocument();
     expect(screen.getByText('DEX')).toBeInTheDocument();
     expect(screen.getByText('CON')).toBeInTheDocument();
@@ -33,14 +36,14 @@ describe('AsiModal', () => {
   });
 
   it('shows base ability scores from character', () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     // character has strength: 14, dex: 12
     const scores = screen.getAllByText(/^1[0-4]$|^10$/);
     expect(scores.length).toBeGreaterThanOrEqual(4); // multiple scores displayed
   });
 
   it('increments ability and decrements points remaining', async () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     expect(screen.getByText('2 points remaining')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
@@ -48,7 +51,7 @@ describe('AsiModal', () => {
   });
 
   it('disables + buttons after spending 2 points', async () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
@@ -59,7 +62,7 @@ describe('AsiModal', () => {
   });
 
   it('decrement restores a point', async () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     expect(screen.getByText('1 point remaining')).toBeInTheDocument();
@@ -69,7 +72,7 @@ describe('AsiModal', () => {
 
   it('stops each score at the maximum the server gives it', async () => {
     const nineteen = { ...character, strength: 19, baseAbilityScores: { ...character.baseAbilityScores, strength: 19 } };
-    render(<AsiModal character={nineteen} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={nineteen} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     expect(screen.getByRole('button', { name: 'Increase Strength' })).toBeDisabled();
@@ -82,7 +85,7 @@ describe('AsiModal', () => {
       ...character, strength: 20, baseAbilityScores: { ...character.baseAbilityScores, strength: 20 },
       abilityScoreMaximums: { ...character.abilityScoreMaximums, strength: 24, constitution: 24 },
     };
-    render(<AsiModal character={champion} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={champion} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     expect(screen.getAllByText('max 24')).toHaveLength(2);
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
@@ -94,7 +97,7 @@ describe('AsiModal', () => {
   it("raises the score without the DM's adjustments, which may already pass the maximum (D158)", async () => {
     // A belt makes STR 21, but the score an improvement raises is 18
     const belted = { ...character, strength: 21, baseAbilityScores: { ...character.baseAbilityScores, strength: 18 } };
-    render(<AsiModal character={belted} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={belted} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
 
     expect(screen.getByText("21 with the DM's adjustments")).toBeInTheDocument();
@@ -105,12 +108,12 @@ describe('AsiModal', () => {
   });
 
   it('disables Apply until exactly 2 points spent', () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
   });
 
   it('enables Apply when 2 points are allocated', async () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     await user.click(screen.getByRole('button', { name: 'Increase Dexterity' }));
@@ -118,7 +121,7 @@ describe('AsiModal', () => {
   });
 
   it('calls API on Apply', async () => {
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     await user.click(screen.getByRole('button', { name: 'Increase Dexterity' }));
@@ -138,7 +141,7 @@ describe('AsiModal', () => {
       }),
     );
     const onComplete = vi.fn();
-    const { queryClient } = render(<AsiModal character={character} onComplete={onComplete} onClose={() => {}} />);
+    const { queryClient } = render(<AsiModal character={character} choice={asi} onComplete={onComplete} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     const strengthPlus = screen.getByRole('button', { name: 'Increase Strength' });
     await user.click(strengthPlus);
@@ -146,7 +149,7 @@ describe('AsiModal', () => {
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith(updated));
-    expect(applied).toEqual({ asi: { type: 'ability', increases: [{ ability: 'strength', bonus: 2 }] } });
+    expect(applied).toEqual({ choiceId: 'choice-001', asi: { type: 'ability', increases: [{ ability: 'strength', bonus: 2 }] } });
     expect(queryClient.getQueryData(queryKeys.characters.detail('char-001'))).toEqual(updated);
   });
 
@@ -155,7 +158,7 @@ describe('AsiModal', () => {
       http.post('/api/characters/:id/apply-choices', () =>
         HttpResponse.json({ error: 'No ability score improvement is pending' }, { status: 409 })),
     );
-    render(<AsiModal character={character} onComplete={() => {}} onClose={() => {}} />);
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Increase Strength' }));
     await user.click(screen.getByRole('button', { name: 'Increase Dexterity' }));
@@ -163,5 +166,64 @@ describe('AsiModal', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No ability score improvement is pending');
     expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
+  });
+
+  it('shows the class level that owes the improvement, and Skip leaves it pending', async () => {
+    const onSkip = vi.fn();
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={onSkip} onClose={() => {}} />);
+
+    expect(screen.getByText('Fighter 4 (level 4)')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Skip' }));
+
+    expect(onSkip).toHaveBeenCalled();
+  });
+
+  describe("a race's or background's feat (D159)", () => {
+    const feats = ['Alert', 'Lucky', 'Tough'].map(name => ({
+      id: `feat-${name.toLowerCase()}`, name, source: 'PHB', description: `${name} text`,
+    } satisfies Feat));
+
+    beforeEach(() => {
+      server.use(http.get('/api/reference/feats', () => HttpResponse.json(feats)));
+    });
+
+    it('offers only a feat, and only those the background lists', async () => {
+      const background = makeMockPendingChoice({
+        id: 'choice-feat', type: 'FEAT', source: 'BACKGROUND', characterLevel: 1, classId: null, className: null,
+        classLevel: null, options: ['Alert', 'Tough'],
+      });
+      render(<AsiModal character={{ ...character, backgroundName: 'Ruined' }} choice={background} onComplete={() => {}}
+        onSkip={() => {}} onClose={() => {}} />);
+
+      expect(await screen.findByText('Alert')).toBeInTheDocument();
+      expect(screen.getByText('Tough')).toBeInTheDocument();
+      expect(screen.queryByText('Lucky')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Ability Scores' })).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Feat' })).toBeInTheDocument();
+      expect(screen.getByText('From your background (Ruined)')).toBeInTheDocument();
+    });
+
+    it("sends a race's feat as the choice's feat", async () => {
+      let applied: unknown;
+      server.use(
+        http.post('/api/characters/:id/apply-choices', async ({ request }) => {
+          applied = await request.json();
+          return HttpResponse.json(character);
+        }),
+      );
+      const race = makeMockPendingChoice({
+        id: 'choice-race', type: 'FEAT', source: 'RACE', characterLevel: 1, classId: null, className: null,
+        classLevel: null,
+      });
+      const onComplete = vi.fn();
+      render(<AsiModal character={character} choice={race} onComplete={onComplete} onSkip={() => {}} onClose={() => {}} />);
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByText('Lucky'));
+      await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+      await waitFor(() => expect(onComplete).toHaveBeenCalledWith(character));
+      expect(applied).toEqual({ choiceId: 'choice-race', feat: { type: 'feat', featId: 'feat-lucky' } });
+    });
   });
 });

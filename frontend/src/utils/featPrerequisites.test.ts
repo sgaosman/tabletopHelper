@@ -35,6 +35,7 @@ function mockCharacter(overrides: Partial<PlayerCharacter> = {}): PlayerCharacte
     damageImmunities: [],
     damageVulnerabilities: [],
     dmAdjustments: [],
+    pendingChoices: [],
     isActive: true,
     inLiveEncounter: false,
     createdAt: '2024-01-01',

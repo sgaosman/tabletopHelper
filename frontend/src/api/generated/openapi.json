@@ -1116,47 +1116,6 @@
         ]
       }
     },
-    "/api/characters/{characterId}/spells/known": {
-      "put": {
-        "operationId": "setKnownSpells",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "characterId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/KnownSpellsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CharacterResponse"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "character-controller"
-        ]
-      }
-    },
     "/api/characters/{characterId}/spells/prepared": {
       "put": {
         "operationId": "setPreparedSpells",
@@ -4057,6 +4016,9 @@
         }
       },
       "ApplyChoicesRequest": {
+        "required": [
+          "choiceId"
+        ],
         "type": "object",
         "properties": {
           "asi": {
@@ -4067,12 +4029,30 @@
               }
             ]
           },
-          "classId": {
+          "choiceId": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
           },
           "expertiseSkills": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "feat": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AsiChoice"
+              }
+            ]
+          },
+          "fightingStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "spells": {
             "type": "array",
             "nullable": true,
             "items": {
@@ -4083,6 +4063,14 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "swap": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpellSwap"
+              }
+            ]
           }
         }
       },
@@ -5026,6 +5014,7 @@
           "level",
           "name",
           "ownerDisplayName",
+          "pendingChoices",
           "proficiencyBonus",
           "raceId",
           "raceName",
@@ -5258,6 +5247,12 @@
           },
           "ownerDisplayName": {
             "type": "string"
+          },
+          "pendingChoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingChoice"
+            }
           },
           "personalityTraits": {
             "type": "string",
@@ -6216,6 +6211,26 @@
           }
         }
       },
+      "FeatTaken": {
+        "required": [
+          "appliedEffects",
+          "featId",
+          "featName"
+        ],
+        "type": "object",
+        "properties": {
+          "appliedEffects": {
+            "$ref": "#/components/schemas/AppliedFeatEffects"
+          },
+          "featId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "featName": {
+            "type": "string"
+          }
+        }
+      },
       "Feature": {
         "required": [
           "name"
@@ -6498,31 +6513,6 @@
           }
         }
       },
-      "KnownSpellsRequest": {
-        "required": [
-          "className"
-        ],
-        "type": "object",
-        "properties": {
-          "cantrips": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          },
-          "className": {
-            "type": "string"
-          },
-          "spells": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
       "LairStatusRequest": {
         "type": "object",
         "properties": {
@@ -6559,12 +6549,46 @@
               }
             ]
           },
+          "cantrips": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "expertise": {
             "type": "array",
             "nullable": true,
             "items": {
               "type": "string"
             }
+          },
+          "feats": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/FeatTaken"
+            }
+          },
+          "fightingStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "spells": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpellsLearned"
+              }
+            ]
+          },
+          "subclass": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubclassChosen"
+              }
+            ]
           }
         }
       },
@@ -6647,15 +6671,18 @@
       "LevelUpResponse": {
         "required": [
           "character",
-          "pendingChoices"
+          "newFeatures"
         ],
         "type": "object",
         "properties": {
           "character": {
             "$ref": "#/components/schemas/CharacterResponse"
           },
-          "pendingChoices": {
-            "$ref": "#/components/schemas/PendingChoices"
+          "newFeatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -7516,47 +7543,78 @@
           }
         }
       },
-      "PendingChoices": {
+      "PendingChoice": {
         "required": [
-          "asiAvailable",
-          "expertiseAvailable",
-          "expertiseCount",
-          "maxSpellLevel",
-          "newFeatures",
-          "spellSelectionNeeded",
-          "subclassRequired"
+          "characterLevel",
+          "count",
+          "id",
+          "source",
+          "type"
         ],
         "type": "object",
         "properties": {
-          "asiAvailable": {
-            "type": "boolean"
-          },
-          "expertiseAvailable": {
-            "type": "boolean"
-          },
-          "expertiseCount": {
+          "characterLevel": {
             "type": "integer",
             "format": "int32"
+          },
+          "classId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "classLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "className": {
+            "type": "string",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           },
           "maxSpellLevel": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
-          "newFeatures": {
+          "options": {
             "type": "array",
+            "nullable": true,
             "items": {
               "type": "string"
             }
           },
-          "spellSelectionNeeded": {
-            "type": "boolean"
-          },
-          "spellSelectionType": {
+          "source": {
             "type": "string",
+            "enum": [
+              "LEVEL_UP",
+              "CREATION",
+              "RACE",
+              "BACKGROUND"
+            ]
+          },
+          "swap": {
+            "type": "boolean",
             "nullable": true
           },
-          "subclassRequired": {
-            "type": "boolean"
+          "type": {
+            "type": "string",
+            "enum": [
+              "SUBCLASS",
+              "FIGHTING_STYLE",
+              "ASI",
+              "FEAT",
+              "EXPERTISE",
+              "CANTRIPS",
+              "SPELLS"
+            ]
           }
         }
       },
@@ -8134,6 +8192,21 @@
           }
         }
       },
+      "SpellSwap": {
+        "required": [
+          "replace",
+          "with"
+        ],
+        "type": "object",
+        "properties": {
+          "replace": {
+            "type": "string"
+          },
+          "with": {
+            "type": "string"
+          }
+        }
+      },
       "SpellTargetingResponse": {
         "required": [
           "canTargetAllies",
@@ -8184,6 +8257,32 @@
           }
         }
       },
+      "SpellsLearned": {
+        "required": [
+          "learned"
+        ],
+        "type": "object",
+        "properties": {
+          "learned": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "replaced": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/KnownSpell"
+              }
+            ]
+          },
+          "replacement": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "Subclass": {
         "required": [
           "characterClass",
@@ -8225,6 +8324,27 @@
             "type": "string"
           },
           "source": {
+            "type": "string"
+          }
+        }
+      },
+      "SubclassChosen": {
+        "required": [
+          "classId",
+          "subclassId",
+          "subclassName"
+        ],
+        "type": "object",
+        "properties": {
+          "classId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subclassId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subclassName": {
             "type": "string"
           }
         }

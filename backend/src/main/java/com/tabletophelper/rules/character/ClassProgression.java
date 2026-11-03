@@ -2,17 +2,19 @@ package com.tabletophelper.rules.character;
 
 import com.tabletophelper.rules.SpellSlotTables;
 
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 
 /**
  * What a class gains at each class level under the 2014 rules (D167): Ability Score Improvements, Expertise, Fighting
- * Styles, and the cantrips, spells known, spells prepared and highest spell level that its class table and
- * Spellcasting feature give. Classes and subclasses are named as the class data names them, such as "Fighter" and
- * "Eldritch Knight", and the Artificer's numbers are Tasha's Cauldron of Everything's. A class level runs from 0,
- * before the character has any levels in the class, to 20. Page references are to the start of the class's or
- * subclass's entry, or of the fighter's class features. The spell tables move to data files in R7.
+ * Styles and the styles to choose from, and the cantrips, spells known, spells prepared, spellbook spells and highest
+ * spell level that its class table and Spellcasting feature give. Classes and subclasses are named as the class data
+ * names them, such as "Fighter" and "Eldritch Knight", and the Artificer's numbers are Tasha's Cauldron of
+ * Everything's. A class level runs from 0, before the character has any levels in the class, to 20. Page references
+ * are to the start of the class's or subclass's entry, or of the fighter's class features. The spell tables move to
+ * data files in R7.
  */
 public final class ClassProgression {
 
@@ -21,6 +23,21 @@ public final class ClassProgression {
     private static final Set<Integer> ASI_LEVELS = Set.of(4, 8, 12, 16, 19);
     private static final Set<Integer> FIGHTER_ASI_LEVELS = Set.of(4, 6, 8, 12, 14, 16, 19);
     private static final Set<Integer> ROGUE_ASI_LEVELS = Set.of(4, 8, 10, 12, 16, 19);
+
+    // The Fighting Styles each class chooses from: the PHB's, then those Tasha's Cauldron of Everything adds, as the
+    // optional features data lists them for the class (FS:F, FS:P and FS:R)
+    private static final Map<String, List<String>> FIGHTING_STYLES = Map.of(
+            "Fighter", List.of("Archery", "Defense", "Dueling", "Great Weapon Fighting", "Protection",
+                    "Two-Weapon Fighting", "Blind Fighting", "Interception", "Superior Technique",
+                    "Thrown Weapon Fighting", "Unarmed Fighting"),
+            "Paladin", List.of("Defense", "Dueling", "Great Weapon Fighting", "Protection", "Blessed Warrior",
+                    "Blind Fighting", "Interception"),
+            "Ranger", List.of("Archery", "Defense", "Dueling", "Two-Weapon Fighting", "Blind Fighting",
+                    "Druidic Warrior", "Thrown Weapon Fighting"));
+
+    // A wizard's spellbook starts with six 1st-level spells and gains two at each wizard level after (PHB p.114)
+    private static final int FIRST_SPELLBOOK_SPELLS = 6;
+    private static final int SPELLBOOK_SPELLS_PER_LEVEL = 2;
 
     // Cantrips Known and Spells Known columns, by class level from 0
     private static final int[] ARTIFICER_CANTRIPS = {0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4};
@@ -101,6 +118,25 @@ public final class ClassProgression {
         }
         if ("Paladin".equals(className) || "Ranger".equals(className)) return classLevel == 2;
         return false;
+    }
+
+    /**
+     * The Fighting Styles a class chooses from: the fighter's (PHB p.72), which the Champion's Additional Fighting
+     * Style chooses from too, the paladin's (PHB p.82) and the ranger's (PHB p.89), each followed by those Tasha's
+     * Cauldron of Everything adds for it. Empty for a class without a Fighting Style.
+     */
+    public static List<String> fightingStyles(String className) {
+        return className != null ? FIGHTING_STYLES.getOrDefault(className, List.of()) : List.of();
+    }
+
+    /**
+     * The spells a wizard adds to its spellbook for free at a wizard level: six 1st-level spells at 1st level and two
+     * at each level after, each of a level it has spell slots for (PHB p.114). 0 for every other class.
+     */
+    public static int spellbookSpells(String className, int classLevel) {
+        requireClassLevel(classLevel);
+        if (!"Wizard".equals(className) || classLevel == 0) return 0;
+        return classLevel == 1 ? FIRST_SPELLBOOK_SPELLS : SPELLBOOK_SPELLS_PER_LEVEL;
     }
 
     /**

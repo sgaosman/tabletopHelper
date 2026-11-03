@@ -1,7 +1,6 @@
 import type { CharacterClassRef, Race, Spell } from '../../../types/reference';
 import { ABILITIES, abilityMod, formatMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
-import { THIRD_CASTER_SUBCLASSES, proficiencyBonusForLevel } from '../../../utils/spellConstants';
-import type { ParsedFeatOption } from '../../../utils/featSpellParser';
+import { proficiencyBonusForLevel } from '../../../utils/spellConstants';
 import type { AbilityScores, ClassEntry } from './types';
 
 export interface ReviewStepProps {
@@ -21,20 +20,13 @@ export interface ReviewStepProps {
     weapons: string[];
     resistances: string[];
     spellAbility: string | null;
-    feats: string[];
   };
   resolvedBgProfs: { skills: string[]; tools: string[]; languages: string[] };
-  selectedBgFeat: string | null;
-  selectedFeatOption: ParsedFeatOption | null;
-  parsedFeatOptions: ParsedFeatOption[];
-  selectedFeatAbility: string | null;
-  selectedFeatAsiAbility: string | null;
-  featAsi: { fixed: Record<string, number>; choose?: { from: string[]; amount: number } } | null;
-  featCantrips: Spell[];
-  featSpells: Spell[];
+  /** The feats the race and background grant, which the character takes on its sheet after creation (D159) */
+  raceFeats: number;
+  bgFeatNames: string[];
   selectedCantrips: Spell[];
   selectedSpells: Spell[];
-  mcSpellSelections: Record<string, { cantrips: Spell[]; spells: Spell[] }>;
   error: string;
 }
 
@@ -43,10 +35,8 @@ export default function ReviewStep({
   selectedBackground, finalScores,
   selectedClassSkills,
   resolvedRaceChoices, resolvedBgProfs,
-  selectedBgFeat, selectedFeatOption, parsedFeatOptions,
-  selectedFeatAbility, selectedFeatAsiAbility, featAsi,
-  featCantrips, featSpells,
-  selectedCantrips, selectedSpells, mcSpellSelections,
+  raceFeats, bgFeatNames,
+  selectedCantrips, selectedSpells,
   error,
 }: ReviewStepProps) {
   return (
@@ -89,7 +79,7 @@ export default function ReviewStep({
           </div>
         )}
 
-        {(resolvedRaceChoices.languages.length > 0 || resolvedRaceChoices.skills.length > 0 || resolvedRaceChoices.tools.length > 0 || resolvedRaceChoices.weapons.length > 0 || resolvedRaceChoices.resistances.length > 0 || resolvedRaceChoices.spellAbility || resolvedRaceChoices.feats.length > 0) && (
+        {(resolvedRaceChoices.languages.length > 0 || resolvedRaceChoices.skills.length > 0 || resolvedRaceChoices.tools.length > 0 || resolvedRaceChoices.weapons.length > 0 || resolvedRaceChoices.resistances.length > 0 || resolvedRaceChoices.spellAbility) && (
           <div className="border-t border-rule pt-4">
             <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Race Choices</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -110,9 +100,6 @@ export default function ReviewStep({
               )}
               {resolvedRaceChoices.spellAbility && (
                 <ReviewField label="Spellcasting Ability" value={resolvedRaceChoices.spellAbility} />
-              )}
-              {resolvedRaceChoices.feats.length > 0 && (
-                <ReviewField label="Feat" value={resolvedRaceChoices.feats.join(', ')} />
               )}
             </div>
           </div>
@@ -135,36 +122,18 @@ export default function ReviewStep({
           </div>
         )}
 
-        {selectedBgFeat && (
+        {/* Feats and the choices of later levels are Pending Choices, made on the sheet so they apply (D159) */}
+        {(raceFeats > 0 || bgFeatNames.length > 0 || level > 1) && (
           <div className="border-t border-rule pt-4">
-            <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Feat</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <ReviewField label="Feat" value={selectedBgFeat} />
-              {selectedFeatOption && parsedFeatOptions.length > 1 && (
-                <ReviewField label="Option" value={selectedFeatOption.name} />
+            <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">To Choose on Your Sheet</h3>
+            <ul className="font-body text-[15px] font-semibold text-ink list-disc list-inside space-y-1">
+              {raceFeats > 0 && <li>{raceFeats === 1 ? 'A feat' : `${raceFeats} feats`} from your race</li>}
+              {bgFeatNames.length > 0 && (
+                <li>{bgFeatNames.length > 1 ? `One of ${bgFeatNames.join(', ')}` : bgFeatNames[0]}, from your background</li>
               )}
-              {selectedFeatAbility && (
-                <ReviewField label="Spellcasting Ability" value={selectedFeatAbility} />
-              )}
-              {selectedFeatAsiAbility && featAsi?.choose && (
-                <ReviewField label="Ability Increase" value={`+${featAsi.choose.amount} ${selectedFeatAsiAbility}`} />
-              )}
-              {featAsi && Object.keys(featAsi.fixed).length > 0 && (
-                <ReviewField label="Ability Increase" value={Object.entries(featAsi.fixed).map(([k, v]) => `+${v} ${k}`).join(', ')} />
-              )}
-              {(selectedFeatOption?.fixedCantrips.length ?? 0) > 0 && (
-                <ReviewField label="Feat Cantrips" value={selectedFeatOption!.fixedCantrips.join(', ')} />
-              )}
-              {featCantrips.length > 0 && (
-                <ReviewField label="Chosen Cantrips" value={featCantrips.map(s => s.name).join(', ')} />
-              )}
-              {featSpells.length > 0 && (
-                <ReviewField label="Feat Spells" value={featSpells.map(s => s.name).join(', ')} />
-              )}
-              {(selectedFeatOption?.fixedSpells.length ?? 0) > 0 && (
-                <ReviewField label="Granted Spells" value={selectedFeatOption!.fixedSpells.map(s => s.name).join(', ')} />
-              )}
-            </div>
+              {level > 1 && <li>The choices of your levels above the 1st, such as Ability Score Improvements and spells</li>}
+            </ul>
+            <p className="font-body text-[13px] text-faint mt-2">You'll choose these on your character sheet after creation.</p>
           </div>
         )}
 
@@ -175,18 +144,6 @@ export default function ReviewStep({
           }
           if (selectedSpells.length > 0) {
             spellGroups.push({ label: `${selectedClass?.name ?? 'Class'} Spells`, spells: selectedSpells.map(s => s.name) });
-          }
-          for (const entry of classEntries) {
-            if (entry.cls.id === selectedClass?.id) continue;
-            const sel = mcSpellSelections[entry.cls.id];
-            if (sel?.cantrips?.length) spellGroups.push({ label: `${entry.cls.name} Cantrips`, spells: sel.cantrips.map(s => s.name) });
-            if (sel?.spells?.length) spellGroups.push({ label: `${entry.cls.name} Spells`, spells: sel.spells.map(s => s.name) });
-          }
-          for (const entry of classEntries) {
-            if (!entry.subclass || !THIRD_CASTER_SUBCLASSES.has(entry.subclass.name)) continue;
-            const sel = mcSpellSelections[`third:${entry.cls.id}`];
-            if (sel?.cantrips?.length) spellGroups.push({ label: `${entry.subclass.name} Cantrips`, spells: sel.cantrips.map(s => s.name) });
-            if (sel?.spells?.length) spellGroups.push({ label: `${entry.subclass.name} Spells`, spells: sel.spells.map(s => s.name) });
           }
           if (spellGroups.length === 0) return null;
           return (

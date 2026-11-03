@@ -3,10 +3,8 @@ package com.tabletophelper.character;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.DmAdjustmentRequest;
-import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.DmAdjustment.Kind;
-import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.rules.combat.DamageRules;
@@ -26,7 +24,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.tabletophelper.character.CharacterUpdates.copy;
-import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 
 /**
  * DM Adjustments (D158): the named changes the DM of a character's campaign makes on top of what the rules give the
@@ -152,7 +149,7 @@ public class DmAdjustmentService {
         }
         Feat feat = featRepository.findById(choices.getFeatId())
                 .orElseThrow(() -> new ValidationException("Feat not found"));
-        if (hasFeat(character, feat.getName()) && !FeatEffectResolver.repeatable(feat)) {
+        if (DmAdjustments.hasFeat(character, feat.getName()) && !FeatEffectResolver.repeatable(feat)) {
             throw new ConflictException(character.getName() + " already has " + feat.getName()
                     + ", which can't be taken again");
         }
@@ -163,25 +160,6 @@ public class DmAdjustmentService {
     }
 
     // ── Helpers ──────────────────────────────────────────────────
-
-    // Whether the character has the feat: a feature a feat added, which an Ability Score Improvement's feat and the
-    // DM's grants both add, a level that took it by name, or a grant still active
-    private static boolean hasFeat(PlayerCharacter character, String featName) {
-        String wanted = featName.trim();
-        boolean listed = orEmpty(character.getFeatures()).stream()
-                .anyMatch(f -> FeatEffectResolver.FEAT_SOURCE.equals(f.source()) && f.name() != null
-                        && f.name().trim().equalsIgnoreCase(wanted));
-        boolean taken = false;
-        for (LevelHistoryEntry entry : orEmpty(character.getLevelHistory())) {
-            AbilityScoreImprovement asi = entry.choices() != null ? entry.choices().asi() : null;
-            if (asi != null && asi.featName() != null && asi.featName().trim().equalsIgnoreCase(wanted)) {
-                taken = true;
-            }
-        }
-        boolean granted = DmAdjustments.active(character).stream()
-                .anyMatch(a -> a.kind() == Kind.FEAT && wanted.equalsIgnoreCase(a.target()));
-        return listed || taken || granted;
-    }
 
     // A field another kind uses is refused rather than ignored, so the record holds only what the kind means
     private static void refuseUnused(Object value, String field, Kind kind) {

@@ -1,7 +1,9 @@
 import { http, HttpResponse } from 'msw';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
-import type { DmAdjustment, EligibleClassResponse, LevelUpResponse, PlayerCharacter } from '../../types/character';
+import type {
+  DmAdjustment, EligibleClassResponse, LevelUpResponse, PendingChoice, PlayerCharacter,
+} from '../../types/character';
 import type {
   AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
   SpellOption,
@@ -104,7 +106,7 @@ export const characterHandlers = [
     ['patch', 'details'], ['put', 'campaign'], ['put', 'inventory'], ['post', 'hp'],
     ['post', 'spell-slots/:slot/spend'], ['post', 'spell-slots/:slot/restore'], ['post', 'pools/spend'],
     ['post', 'pools/recover'], ['post', 'short-rest'], ['post', 'long-rest'], ['put', 'spells/prepared'],
-    ['put', 'spells/known'], ['post', 'spellbook'], ['delete', 'spellbook'],
+    ['post', 'spellbook'], ['delete', 'spellbook'],
   ].map(([method, path]) => http[method as 'patch' | 'put' | 'post' | 'delete'](`${BASE}/characters/:id/${path}`,
     async ({ params }) => HttpResponse.json(makeMockCharacter(params.id as string, 'Test Character', 'Wizard', 3)))),
 
@@ -122,7 +124,7 @@ export const characterHandlers = [
   http.post(`${BASE}/characters/:id/level-up`, async () => {
     return HttpResponse.json({
       character: makeMockCharacter('char-001', 'Gimli', 'Fighter', 6),
-      pendingChoices: { asiAvailable: false, subclassRequired: false, expertiseAvailable: false, expertiseCount: 0, spellSelectionNeeded: false, newFeatures: ['Extra Attack (2)'], maxSpellLevel: 0 },
+      newFeatures: ['Extra Attack (2)'],
     } satisfies LevelUpResponse);
   }),
 
@@ -148,6 +150,18 @@ export const characterHandlers = [
     return HttpResponse.json(makeMockCharacter(params.id as string, 'Player 1 Char', 'Cleric', 4));
   }),
 ];
+
+/**
+ * A Pending Choice as the server stores one (D159): a Fighter 4's Ability Score Improvement from levelling up, unless
+ * the overrides make it another.
+ */
+export function makeMockPendingChoice(overrides: Partial<PendingChoice> = {}): PendingChoice {
+  const choice = {
+    id: 'choice-001', type: 'ASI', source: 'LEVEL_UP', characterLevel: 4, classId: 'cls-fighter',
+    className: 'Fighter', classLevel: 4, count: 1,
+  } satisfies PendingChoice;
+  return { ...choice, ...overrides };
+}
 
 /** A DM Adjustment as the server records one: added by the DM, still active unless the overrides remove it. */
 export function makeMockAdjustment(overrides: Partial<DmAdjustment> = {}): DmAdjustment {
@@ -449,6 +463,8 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     hitDice: { [cls]: { total: level, remaining: level, dieSize: 10 } },
     levelHistory: [{ characterLevel: 1, classId: 'cls-fighter', className: cls, classLevel: 1, hpGained: 12, hitDieResult: 10, featuresGained: [], choices: {} }],
     dmAdjustments: [],
+    // The choices its levels owe, of which there are none (D159)
+    pendingChoices: [],
     isActive: true, inLiveEncounter: false,
     createdAt: makeTimestamp(), updatedAt: makeTimestamp(),
   } satisfies PlayerCharacter;

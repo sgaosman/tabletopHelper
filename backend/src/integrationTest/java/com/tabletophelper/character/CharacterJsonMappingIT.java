@@ -9,15 +9,19 @@ import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Currency;
 import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.FeatResourceEntry;
+import com.tabletophelper.character.state.FeatTaken;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.character.state.SpellsLearned;
+import com.tabletophelper.character.state.SubclassChosen;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.internal.UserRepository;
 import com.tabletophelper.reference.Race;
@@ -44,7 +48,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * the amounts improvements applied, Expertise, and the proficiencies and ability increases levels added, and the
  * Derived Stats a request sends are ignored (D167). Since workstream D the sheet changes through intent commands rather
  * than a PUT, feat_resources is no longer mapped, and each row carries a version (D158); since workstream E it carries
- * its DM Adjustments too.
+ * its DM Adjustments too, and since workstream F its Pending Choices and the rest of the choices a level records
+ * (D159).
  */
 class CharacterJsonMappingIT extends IntegrationTest {
 
@@ -92,7 +97,11 @@ class CharacterJsonMappingIT extends IntegrationTest {
                         null, null),
                 new LevelHistoryEntry(4, fighterId, "Fighter", 4, 7, 6, List.of(), new LevelChoices(
                         new AbilityScoreImprovement("ability", List.of(new AbilityBonus("constitution", 2)), null,
-                                null, null, null, List.of(new AbilityBonus("constitution", 1))), List.of("Athletics")),
+                                null, null, null, List.of(new AbilityBonus("constitution", 1))), List.of("Athletics"),
+                        new SubclassChosen(fighterId, championId, "Champion"), "Archery", List.of("Fire Bolt"),
+                        new SpellsLearned(List.of("Shield"), new KnownSpell(null, "Hex", 1, "class:Fighter", null,
+                                null, null, null, null), "Magic Missile"),
+                        List.of(new FeatTaken("Tough", UUID.randomUUID(), tough))),
                         null, null),
                 new LevelHistoryEntry(5, wizardId, "Wizard", 1, 5, 4, List.of(), LevelChoices.NONE.withAsi(
                         new AbilityScoreImprovement("feat", null, "Tough", UUID.randomUUID(), null, tough, null)),
@@ -108,6 +117,15 @@ class CharacterJsonMappingIT extends IntegrationTest {
                         null, null, "Curse of the frost giant", dmId, added, null, null),
                 new DmAdjustment(UUID.randomUUID(), DmAdjustment.Kind.FEAT, "Tough", null, null, UUID.randomUUID(),
                         tough, "Boon of fortitude", dmId, added, null, null));
+
+        // A choice of each shape: one with options, and a spell choice with its highest level and swap (D159)
+        List<PendingChoice> pending = List.of(
+                new PendingChoice(UUID.randomUUID(), PendingChoice.Type.SUBCLASS, PendingChoice.Source.CREATION, 3,
+                        fighterId, "Fighter", 3, 1, List.of("Champion", "Eldritch Knight"), null, null),
+                new PendingChoice(UUID.randomUUID(), PendingChoice.Type.SPELLS, PendingChoice.Source.LEVEL_UP, 5,
+                        wizardId, "Wizard", 1, 6, null, 1, true),
+                new PendingChoice(UUID.randomUUID(), PendingChoice.Type.FEAT, PendingChoice.Source.BACKGROUND, 1,
+                        null, null, null, 1, List.of("Lucky", "Skilled"), null, null));
 
         PlayerCharacter saved = characterRepository.save(character()
                 .savingThrowProficiencies(List.of("STR", "CON"))
@@ -133,6 +151,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 .resourcePools(List.of(new ResourcePoolEntry("class:fighter-second-wind", "Second Wind", "CLASS",
                         "Fighter", 1, "1", 0, "shortRest", null, null, "BONUS_ACTION", "heart", Map.of())))
                 .dmAdjustments(adjustments)
+                .pendingChoices(pending)
                 .build());
 
         PlayerCharacter reloaded = reload(saved.getId());
@@ -158,6 +177,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(reloaded.getLevelHistory()).isEqualTo(history);
         assertThat(reloaded.getResourcePools()).isEqualTo(saved.getResourcePools());
         assertThat(reloaded.getDmAdjustments()).isEqualTo(adjustments);
+        assertThat(reloaded.getPendingChoices()).isEqualTo(pending);
 
         // The shapes V19 normalises rows to: slots {max, used}, Hit Dice by class name, and fields an entry
         // doesn't have left out
@@ -195,15 +215,33 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 .isEqualTo("2026-11-03T11:00:00Z");
         assertThat(column("SELECT dm_adjustments -> 2 -> 'appliedEffects' ->> 'featName' FROM player_characters "
                 + "WHERE id = ?", id)).isEqualTo("Tough");
+        // R6 workstream F's Pending Choices, the fields a type doesn't use left out (V23), and the choices a level
+        // records beside its ASI and Expertise
+        assertThat(column("SELECT pending_choices -> 0 ->> 'type' || ' ' || (pending_choices -> 0 -> 'maxSpellLevel' "
+                + "IS NULL)::text FROM player_characters WHERE id = ?", id)).isEqualTo("SUBCLASS true");
+        assertThat(column("SELECT pending_choices -> 1 ->> 'swap' FROM player_characters WHERE id = ?", id))
+                .isEqualTo("true");
+        assertThat(column("SELECT (pending_choices -> 2 -> 'classId' IS NULL)::text FROM player_characters "
+                + "WHERE id = ?", id)).isEqualTo("true");
+        assertThat(column("SELECT level_history -> 1 -> 'choices' -> 'subclass' ->> 'subclassName' "
+                + "FROM player_characters WHERE id = ?", id)).isEqualTo("Champion");
+        assertThat(column("SELECT level_history -> 1 -> 'choices' -> 'spells' -> 'replaced' ->> 'name' "
+                + "FROM player_characters WHERE id = ?", id)).isEqualTo("Hex");
+        assertThat(column("SELECT level_history -> 1 -> 'choices' -> 'feats' -> 0 ->> 'featName' "
+                + "FROM player_characters WHERE id = ?", id)).isEqualTo("Tough");
+        assertThat(column("SELECT (level_history -> 0 -> 'choices' -> 'subclass' IS NULL)::text "
+                + "FROM player_characters WHERE id = ?", id)).isEqualTo("true");
     }
 
     @Test
-    @DisplayName("A character saved without DM Adjustments has an empty list, never null")
+    @DisplayName("A character saved without DM Adjustments or Pending Choices has empty lists, never null")
     void noAdjustmentsIsAnEmptyList() {
         UUID id = characterRepository.save(character().build()).getId();
 
         assertThat(column("SELECT dm_adjustments::text FROM player_characters WHERE id = ?", id)).isEqualTo("[]");
         assertThat(reload(id).getDmAdjustments()).isEmpty();
+        assertThat(column("SELECT pending_choices::text FROM player_characters WHERE id = ?", id)).isEqualTo("[]");
+        assertThat(reload(id).getPendingChoices()).isEmpty();
     }
 
     @Test

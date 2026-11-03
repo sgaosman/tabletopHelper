@@ -25,7 +25,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * 7.1 to 7.16, kept with their numbers; 7.7 and 7.8, the "5d10" hit dice text, are now the sheet's to format
  * (StatsTab.test.tsx), since the server no longer stores it. In R6 workstream C the Hit Dice became a Derived Stat, so
  * 7.4 to 7.6 and the case after them, on updateHitDice, are CharacterStatsTest's Hit Dice cases; 7.14 and 7.15 record
- * on the level that owes the improvement, which owedAsiLevel finds in place of findNextAsiEntry.
+ * on the level that owes the improvement. In R6 workstream F a Pending Choice names that level (D159), so
+ * owedAsiLevel and owedExpertiseLevel, which guessed it, went; their cases became the history helpers' below, and the
+ * levels that missed a choice are PendingChoiceServiceTest's backfill cases.
  */
 class CharacterUpdatesTest {
 
@@ -264,7 +266,7 @@ class CharacterUpdatesTest {
         c.setLevel(4);
         c.setLevelHistory(fighterHistory(UUID.randomUUID(), 4));
 
-        int owed = CharacterUpdates.owedAsiLevel(c.getLevelHistory());
+        int owed = CharacterUpdates.historyIndex(c, 4);
         CharacterUpdates.recordAsi(c, owed, new AbilityScoreImprovement("ability",
                 List.of(new AbilityBonus("strength", 2)), null, null, null, null,
                 List.of(new AbilityBonus("strength", 2))));
@@ -297,7 +299,7 @@ class CharacterUpdatesTest {
                 0, 5, 0, 0, 0, null, List.of(), List.of()
         );
 
-        CharacterUpdates.recordAsi(c, CharacterUpdates.owedAsiLevel(c.getLevelHistory()),
+        CharacterUpdates.recordAsi(c, CharacterUpdates.historyIndex(c, 4),
                 new AbilityScoreImprovement("feat", null, "Alert", asi.getFeatId(), null,
                         CharacterUpdates.recordedEffects(applied, "Alert"), null));
 
@@ -314,26 +316,20 @@ class CharacterUpdatesTest {
     }
 
     @Test
-    @DisplayName("An ASI is owed by the latest ASI level without one, so one taken at 6th level isn't put on 4th; none owed is -1")
-    void owedAsiLevel() {
-        UUID classId = UUID.randomUUID();
-        List<LevelHistoryEntry> history = fighterHistory(classId, 7);
-        // Fighters also improve at level 6
-        assertEquals(5, CharacterUpdates.owedAsiLevel(history));
+    @DisplayName("historyIndex finds a character level's entry, and -1 for a level the history doesn't have")
+    void historyIndex() {
+        PlayerCharacter c = baseCharacter();
+        c.setLevelHistory(fighterHistory(UUID.randomUUID(), 7));
 
-        AbilityScoreImprovement taken = new AbilityScoreImprovement("ability",
-                List.of(new AbilityBonus("strength", 2)), null, null, null, null, null);
-        history.set(5, history.get(5).withChoices(LevelChoices.NONE.withAsi(taken)));
-        assertEquals(3, CharacterUpdates.owedAsiLevel(history));
-
-        history.set(3, history.get(3).withChoices(LevelChoices.NONE.withAsi(taken)));
-        assertEquals(-1, CharacterUpdates.owedAsiLevel(history));
-        assertEquals(-1, CharacterUpdates.owedAsiLevel(List.of()));
+        assertEquals(5, CharacterUpdates.historyIndex(c, 6));
+        assertEquals(-1, CharacterUpdates.historyIndex(c, 8));
+        c.setLevelHistory(null);
+        assertEquals(-1, CharacterUpdates.historyIndex(c, 1));
     }
 
     @Test
-    @DisplayName("Expertise is owed by the latest level that gives it, and recordExpertise records the skills there")
-    void owedExpertise() {
+    @DisplayName("recordExpertise adds to the skills a level records, as when creation gave it part of its Expertise")
+    void recordExpertiseAdds() {
         UUID rogueId = UUID.randomUUID();
         List<LevelHistoryEntry> history = new ArrayList<>();
         for (int level = 1; level <= 6; level++) {
@@ -343,13 +339,28 @@ class CharacterUpdatesTest {
         PlayerCharacter c = baseCharacter();
         c.setLevelHistory(history);
 
-        int owed = CharacterUpdates.owedExpertiseLevel(history);
-        CharacterUpdates.recordExpertise(c, owed, List.of("Stealth", "Perception"));
+        CharacterUpdates.recordExpertise(c, 5, List.of("Stealth"));
+        CharacterUpdates.recordExpertise(c, 5, List.of("Perception", "Stealth"));
 
-        assertEquals(5, owed);
         assertEquals(List.of("Stealth", "Perception"), c.getLevelHistory().get(5).choices().expertise());
-        // Rogue 1st level gives Expertise too
-        assertEquals(0, CharacterUpdates.owedExpertiseLevel(c.getLevelHistory()));
+        assertNull(c.getLevelHistory().get(0).choices().expertise());
+    }
+
+    @Test
+    @DisplayName("appendFeaturesGained adds to what a level records it gained, and clearClassEntrySubclass takes a class's subclass away")
+    void featuresGainedAndSubclass() {
+        UUID fighterId = UUID.randomUUID();
+        PlayerCharacter c = baseCharacter();
+        c.setLevelHistory(fighterHistory(fighterId, 3));
+        c.setMulticlassEntries(List.of(new ClassEntry(fighterId, "Fighter", UUID.randomUUID(), "Champion", 3)));
+        Feature critical = new Feature("Improved Critical", "Crit on 19", "Champion");
+
+        CharacterUpdates.appendFeaturesGained(c, 2, List.of(critical));
+        CharacterUpdates.clearClassEntrySubclass(c, fighterId);
+
+        assertEquals(List.of(critical), c.getLevelHistory().get(2).featuresGained());
+        assertEquals(List.of(), c.getLevelHistory().get(1).featuresGained());
+        assertEquals(new ClassEntry(fighterId, "Fighter", null, null, 3), c.getMulticlassEntries().getFirst());
     }
 
     @Test

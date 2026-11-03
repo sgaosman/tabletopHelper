@@ -11,6 +11,7 @@ import com.tabletophelper.character.dto.LevelUpRequest;
 import com.tabletophelper.character.dto.LevelUpResponse;
 import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.ClassEntry;
+import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.BackgroundRepository;
@@ -20,10 +21,12 @@ import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.reference.ItemRepository;
+import com.tabletophelper.reference.OptionalFeatureRepository;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.RaceRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Rng;
@@ -36,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -44,12 +48,14 @@ import static org.mockito.Mockito.mock;
 
 /**
  * The character services wired as in the app, with CharacterStats, CharacterMapper, CharacterCommands,
- * FeatEffectResolver and ResourcePoolService real, over mocked repositories, a mocked LiveEncounters (no character is
- * in an encounter until a test says so) and dice a test scripts. Saved characters are kept in memory, so a test
- * creates a character through the service and levels it up and down, rests it and changes its sheet by its ID; the
- * row lock is the stored character itself. The classes carry the class data the rules read: hit dice, spellcasting,
- * the features of the levels the tests take, and multiclassing prerequisites and proficiencies as the 5eTools data has
- * them. A Fighter gains Action Surge's pool at 2nd level.
+ * FeatEffectResolver, PendingChoiceService and ResourcePoolService real, over mocked repositories, a mocked
+ * LiveEncounters (no character is in an encounter until a test says so) and dice a test scripts. Saved characters are
+ * kept in memory, so a test creates a character through the service and levels it up and down, rests it, makes its
+ * Pending Choices and changes its sheet by its ID; the row lock is the stored character itself. The classes carry the
+ * class data the rules read: hit dice, spellcasting, the features of the levels the tests take, and multiclassing
+ * prerequisites and proficiencies as the 5eTools data has them. A Fighter gains Action Surge's pool at 2nd level, and
+ * chooses between the Champion and the Eldritch Knight at 3rd; a Wizard has the School of Evocation at 2nd. No other
+ * class has a subclass to choose, so their levels owe no SUBCLASS choice.
  */
 class CharacterFixture {
 
@@ -65,6 +71,7 @@ class CharacterFixture {
     final SpellRepository spellRepository = mock(SpellRepository.class);
     final ItemRepository itemRepository = mock(ItemRepository.class);
     final ClassFeaturePoolRepository featurePoolRepository = mock(ClassFeaturePoolRepository.class);
+    final OptionalFeatureRepository optionalFeatureRepository = mock(OptionalFeatureRepository.class);
     final LiveEncounters liveEncounters = mock(LiveEncounters.class);
 
     // The rolls the server's dice will make, in order; running out fails the test
@@ -86,15 +93,17 @@ class CharacterFixture {
             characterStats, mapper);
     final InventoryChecks inventoryChecks = new InventoryChecks(itemRepository);
     final FeatEffectResolver featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
+    final CharacterSpellService spells = new CharacterSpellService(commands, characterStats, spellRepository,
+            objectMapper);
+    final PendingChoiceService choices = new PendingChoiceService(commands, characterStats, spells,
+            featEffectResolver, classRepository, subclassRepository, featRepository, optionalFeatureRepository,
+            objectMapper);
     final CharacterService service = new CharacterService(characterRepository, userService, campaignRepository,
-            raceRepository, classRepository, subclassRepository, backgroundRepository, featRepository,
-            featEffectResolver, mapper, objectMapper, accessPolicy, characterStats, commands, liveEncounters,
-            inventoryChecks);
+            raceRepository, classRepository, subclassRepository, backgroundRepository, mapper, objectMapper,
+            accessPolicy, characterStats, commands, liveEncounters, inventoryChecks, choices);
     final CharacterSheetService sheet = new CharacterSheetService(commands, campaignRepository, accessPolicy,
             inventoryChecks);
     final RestService rests = new RestService(commands, resourcePoolService, rng);
-    final CharacterSpellService spells = new CharacterSpellService(commands, characterStats, spellRepository,
-            objectMapper);
 
     final UUID userId = UUID.randomUUID();
     final User user = User.builder().id(userId).username("aria").email("aria@test.com").passwordHash("hash")
@@ -144,6 +153,25 @@ class CharacterFixture {
             .subclassLevel(1).isSpellcaster(true).isPactMagic(true).spellcastingAbility("CHA")
             .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]")
             .build();
+    final CharacterClass sorcerer = CharacterClass.builder().id(UUID.randomUUID()).name("Sorcerer").hitDice(6)
+            .subclassLevel(1).isSpellcaster(true).isPactMagic(false).spellcastingAbility("CHA")
+            .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]")
+            .build();
+
+    final Subclass champion = Subclass.builder().id(UUID.randomUUID()).name("Champion").characterClass(fighter)
+            .features("[{\"level\":3,\"name\":\"Improved Critical\",\"description\":\"Crit on a 19\"},"
+                    + "{\"level\":7,\"name\":\"Remarkable Athlete\",\"description\":\"Half proficiency\"},"
+                    + "{\"level\":10,\"name\":\"Additional Fighting Style\",\"description\":\"Another style\"}]")
+            .build();
+    final Subclass eldritchKnight = Subclass.builder().id(UUID.randomUUID()).name("Eldritch Knight")
+            .characterClass(fighter)
+            .features("[{\"level\":3,\"name\":\"Spellcasting\",\"description\":\"Wizard spells\"},"
+                    + "{\"level\":3,\"name\":\"Weapon Bond\",\"description\":\"Bonded weapons\"}]")
+            .build();
+    final Subclass evocation = Subclass.builder().id(UUID.randomUUID()).name("School of Evocation")
+            .characterClass(wizard)
+            .features("[{\"level\":2,\"name\":\"Sculpt Spells\",\"description\":\"Spare your allies\"}]")
+            .build();
 
     final Race human = Race.builder().id(UUID.randomUUID()).name("Human").speed("{\"walk\": 30}").build();
     final Race hillDwarf = Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}").build();
@@ -158,11 +186,19 @@ class CharacterFixture {
         for (Race race : List.of(human, hillDwarf)) {
             lenient().when(raceRepository.findById(race.getId())).thenReturn(Optional.of(race));
         }
-        List<CharacterClass> classes = List.of(fighter, wizard, paladin, rogue, barbarian, cleric, warlock);
+        List<CharacterClass> classes = List.of(fighter, wizard, paladin, rogue, barbarian, cleric, warlock,
+                sorcerer);
         for (CharacterClass c : classes) {
             lenient().when(classRepository.findById(c.getId())).thenReturn(Optional.of(c));
         }
         lenient().when(classRepository.findAll()).thenReturn(classes);
+        lenient().when(subclassRepository.findByCharacterClassIdOrderByNameAsc(fighter.getId()))
+                .thenReturn(List.of(champion, eldritchKnight));
+        lenient().when(subclassRepository.findByCharacterClassIdOrderByNameAsc(wizard.getId()))
+                .thenReturn(List.of(evocation));
+        for (Subclass subclass : List.of(champion, eldritchKnight, evocation)) {
+            lenient().when(subclassRepository.findById(subclass.getId())).thenReturn(Optional.of(subclass));
+        }
         lenient().when(characterRepository.save(any(PlayerCharacter.class))).thenAnswer(inv -> {
             PlayerCharacter pc = inv.getArgument(0);
             if (pc.getId() == null) {
@@ -236,7 +272,30 @@ class CharacterFixture {
         return service.levelDown(pc.getId(), userId);
     }
 
-    /** An Ability Score Improvement of these abilities and bonuses, given in pairs. */
+    /** The character's latest Pending Choice of the type, the one the newest level owes; null for none. */
+    PendingChoice pending(PlayerCharacter pc, PendingChoice.Type type) {
+        List<PendingChoice> pending = stored(pc.getId()).getPendingChoices();
+        PendingChoice latest = null;
+        for (PendingChoice choice : pending != null ? pending : List.<PendingChoice>of()) {
+            if (choice.type() == type) {
+                latest = choice;
+            }
+        }
+        return latest;
+    }
+
+    /** Makes a Pending Choice with the answer a test fills in. */
+    CharacterResponse choose(PlayerCharacter pc, PendingChoice choice, Consumer<ApplyChoicesRequest> answer) {
+        ApplyChoicesRequest request = new ApplyChoicesRequest();
+        request.setChoiceId(choice != null ? choice.id() : UUID.randomUUID());
+        answer.accept(request);
+        return choices.apply(pc.getId(), request, userId);
+    }
+
+    /**
+     * An Ability Score Improvement of these abilities and bonuses, given in pairs, for the latest level that owes one,
+     * or for a choice the character doesn't have when none does.
+     */
     CharacterResponse improve(PlayerCharacter pc, Object... abilitiesAndBonuses) {
         ApplyChoicesRequest.AsiChoice asi = new ApplyChoicesRequest.AsiChoice();
         asi.setType("ability");
@@ -248,8 +307,14 @@ class CharacterFixture {
             increases.add(increase);
         }
         asi.setIncreases(increases);
-        ApplyChoicesRequest request = new ApplyChoicesRequest();
-        request.setAsi(asi);
-        return service.applyChoices(pc.getId(), request, userId);
+        return choose(pc, pending(pc, PendingChoice.Type.ASI), request -> request.setAsi(asi));
+    }
+
+    /** A feat taken for the latest level that owes an Ability Score Improvement. */
+    CharacterResponse takeFeat(PlayerCharacter pc, UUID featId) {
+        ApplyChoicesRequest.AsiChoice asi = new ApplyChoicesRequest.AsiChoice();
+        asi.setType("feat");
+        asi.setFeatId(featId);
+        return choose(pc, pending(pc, PendingChoice.Type.ASI), request -> request.setAsi(asi));
     }
 }
