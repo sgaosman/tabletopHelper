@@ -254,7 +254,7 @@ Because most seeders skip a table that already has rows, data fixes don't reach 
 
 **Count:** 2,684 monsters
 
-**`action_templates` keys the encounter reads (R5, D168).** `MonsterTemplates` reads the column into records and ignores every other key. The column itself stays JSON until R7 gives it a record type. 2,357 monsters have templates, each a JSON object.
+**`action_templates` keys the encounter reads (R5, D168).** `MonsterTemplates` reads the column into records and ignores every other key. Since the R5 follow-ups it also reads a hit's saving throws: `saveDC` and `saveAbility` on condition effects and on attack actions, and `secondarySaveDC` and `secondarySaveAbility` on attack actions (D165). The column itself stays JSON until R7 gives it a record type. 2,357 monsters have templates, each a JSON object.
 - Top level: `actions`, `legendaryActions`, `lairActions`, `bonusActions`, `reactions`, `traits`, `legendaryActionCount`, `legendaryResistanceCount` and `spellcasting`.
 - Each action, legendary action, lair action and trait: `name`, `description`, `automatable`, `deliveryMethod`, `attackType`, `attackBonus`, `saveDC`, `saveAbility`, `halfOnSave`, `targetCount`, `effects`, `recharge`, `cost`, `isMultiattack`, `multiattackComponents`, `multiattackDescription`, `_multiattackNote`, `isEyeRays`, `rayCount` and `rays`.
 - Each effect: `effectType`, `damageDice`, `damageType`, `condition`, `durationRounds`, `saveToEndEachTurn`, `saveToEndDC` and `saveToEndAbility`. Each ray: `name`, `saveDC`, `saveAbility`, `halfOnSave` and `effects`. The `spellcasting` block: `ability`, `attackBonus`, `saveDC`, `slots`, `spellsByLevel`, `dailySpells`, `atWillSpells` and `innateSpells`.
