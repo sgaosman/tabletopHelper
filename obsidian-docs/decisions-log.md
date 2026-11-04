@@ -2762,6 +2762,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 
 **Update (2026-11-03, R7 planning):** `content_versions` (V25) holds one row per loader: its name, the SHA-256 of its files plus the loader's code version, the row count and the load time. A loader runs again when that hash changes or a loader it depends on ran. Rows missing from the data are kept and logged **(choice)**. `content.mode` (`apply`, `preview` or `off`) keeps maintenance starts from loading content. The proof is a by-ID diff on the restored copy, plus a by-natural-key diff between a database seeded from scratch by `1a0f53c` and one loaded by the new code.
 
+**Update (2026-11-04, R7 workstream A):** `maintenance/TableSnapshot` now holds the `to_jsonb` snapshot and column diff that `preview-migration` used (D168), and that job calls it. The new read-only `content-snapshot` job writes the 13 reference tables as sorted JSON Lines, by ID and by natural key, to `--maintenance.output`. With `--maintenance.compare` it reports the rows added, deleted and changed and the natural keys whose ID changed; `--maintenance.compare-by` (`both`, `id` or `key`) limits it to one view, since separately seeded databases differ in IDs. A baseline of the local database was taken before workstream B. It found 9 Fighting Style rows in `optional_features` stored two to four times with identical text, which B removes. The pool sizes' baseline is on D172.
+
 ## D170: Indexes Managed Only by Flyway
 
 **Date:** 2026-11-01
@@ -2871,6 +2873,8 @@ The full list is settled during R2 planning.
 **Update (2026-11-02, R2 planning):** each golden table lands in its own phase: spell slots by caster type in R1 (done); spell slots for every class, and proficiency by level and by CR, in R2; pool sizes in R7, written before D169's level tables because today's formulas are known to be wrong; D161's damage and dying table in R5, written before the `EffectApplier`. Tests for the wizard reducer and the R8 encounter components come in R8. Integration tests assert today's HTTP and STOMP behaviour, and R3 flips the cases that D155–D157 change. `integrationTest` stops at once with a clear message when Docker isn't running, and it isn't part of `./gradlew build`.
 
 **Update (2026-11-03, R7 planning):** `PoolSizesGoldenTest` is written in A against today's formulas, with the known-wrong cases listed, and D makes them pass.
+
+**Update (2026-11-04, R7 workstream A):** `PoolSizesGoldenTest` checks all 74 pool definitions, 70 class pools and 4 monster pools, at class levels 1 to 20 with ability modifiers of −1, 0 and +3, against values typed from the PHB, XGE and TCE (D169). Its `KNOWN_WRONG` list holds the cases today's definitions get wrong, such as Rage, Channel Divinity, Action Surge and the "at least once" pools, each asserted to still give today's value; workstream D corrects them and empties the list. `ExpressionEvaluatorTest` gains precedence, bracket, unary minus and `max` cases, kept in a `KNOWN_WRONG` list of their own until D's parser.
 
 ## D173: Selectable Themes and a More Readable Tourmaline
 
