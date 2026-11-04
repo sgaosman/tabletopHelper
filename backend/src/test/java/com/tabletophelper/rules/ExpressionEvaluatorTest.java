@@ -9,6 +9,36 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ExpressionEvaluatorTest {
 
+    /**
+     * Expressions today's evaluator gets wrong, each with the value it gives today: it works strictly left to right,
+     * reads an operator after another as replacing it, and reads anything it can't parse, such as {@code max} or a
+     * bracket, as 0. Each is asserted to give that value still, and not the right one, so the suite passes and a
+     * case that changes fails until it leaves this list; R7 workstream D's parser empties it (D169, D172).
+     */
+    private static final Map<String, Integer> KNOWN_WRONG = Map.of(
+            "2 + 3 * 4", 20,
+            "10 - 2 * 3", 24,
+            "(2 + 3) * 4", 0,
+            "ceil(fighterLevel + 1 / 7)", 3,
+            "2 * -3", -1,
+            "2 * wisdomModifier", 1,
+            "5 - -2", 3,
+            "max(1, wisdomModifier)", 0,
+            "max(1, intelligenceModifier)", 0,
+            "max(0, 1 + charismaModifier)", 0);
+
+    // The value arithmetic gives, or for a known-wrong expression, today's value and not that one
+    private static void assertEvaluates(int expected, String formula, Map<String, Integer> context) {
+        int actual = ExpressionEvaluator.evaluate(formula, context);
+        Integer today = KNOWN_WRONG.get(formula);
+        if (today == null) {
+            assertEquals(expected, actual, formula);
+        } else {
+            assertNotEquals(expected, actual, formula + " now gives " + expected + "; take it out of KNOWN_WRONG");
+            assertEquals(today, actual, formula + ": KNOWN_WRONG expects " + today + " today");
+        }
+    }
+
     // ── Basic variable substitution ───────────────────────────────
 
     @Test
@@ -218,5 +248,52 @@ class ExpressionEvaluatorTest {
         // which fails NumberFormatException → returns 0
         int result = ExpressionEvaluator.evaluate("unknownVar", Map.of());
         assertEquals(0, result);
+    }
+
+    // ── Precedence, unary minus and max (KNOWN_WRONG until R7 workstream D) ──
+
+    @Test
+    @DisplayName("Multiplication binds tighter than addition and subtraction: 2 + 3 * 4 = 14 and 10 - 2 * 3 = 4")
+    void multiplicationBeforeAddition() {
+        assertEvaluates(14, "2 + 3 * 4", Map.of());
+        assertEvaluates(4, "10 - 2 * 3", Map.of());
+        assertEvaluates(10, "2 * 3 + 4", Map.of());
+    }
+
+    @Test
+    @DisplayName("Brackets group: (2 + 3) * 4 = 20")
+    void bracketsGroup() {
+        assertEvaluates(20, "(2 + 3) * 4", Map.of());
+    }
+
+    @Test
+    @DisplayName("Inside ceil, division binds tighter too: ceil(fighterLevel + 1 / 7) at 14 is ceil(14.14) = 15")
+    void precedenceInsideCeil() {
+        // The Battle Master's formula, 3+ceil(fighterLevel+1/7), gives its dice only because it is read left to right
+        assertEvaluates(15, "ceil(fighterLevel + 1 / 7)", Map.of("fighterLevel", 14));
+    }
+
+    @Test
+    @DisplayName("A minus sign after an operator negates the number after it: 2 * -3 = -6 and 5 - -2 = 7")
+    void unaryMinusAfterAnOperator() {
+        assertEvaluates(-6, "2 * -3", Map.of());
+        assertEvaluates(7, "5 - -2", Map.of());
+        assertEvaluates(2, "-3 + 5", Map.of());
+    }
+
+    @Test
+    @DisplayName("A negative modifier substituted after an operator stays negative: 2 * wisdomModifier at -1 is -2, 1 + charismaModifier at -1 is 0")
+    void negativeModifierAfterAnOperator() {
+        assertEvaluates(-2, "2 * wisdomModifier", Map.of("wisdomModifier", -1));
+        assertEvaluates(0, "1 + charismaModifier", Map.of("charismaModifier", -1));
+    }
+
+    @Test
+    @DisplayName("max gives the larger argument: max(1, -1) = 1, max(1, 3) = 3, max(0, 1 + 2) = 3")
+    void maxGivesTheLargerArgument() {
+        // "a number of times equal to your Wisdom modifier (a minimum of once)", and the Paladin's Divine Sense, 1 + the Charisma modifier (PHB)
+        assertEvaluates(1, "max(1, wisdomModifier)", Map.of("wisdomModifier", -1));
+        assertEvaluates(3, "max(1, intelligenceModifier)", Map.of("intelligenceModifier", 3));
+        assertEvaluates(3, "max(0, 1 + charismaModifier)", Map.of("charismaModifier", 2));
     }
 }

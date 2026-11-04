@@ -1,6 +1,5 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
@@ -25,10 +24,8 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Savepoint;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -66,15 +63,12 @@ public class PreviewMigrationJob implements MaintenanceJob {
         TABLES.put("player_characters", PlayerCharacter.class);
     }
 
-    // The columns that name a row in the report
-    private static final List<String> LABEL_COLUMNS = List.of("display_name", "name", "action_type", "pool_id");
-
     private static final Pattern MIGRATION_FILE = Pattern.compile("V(\\d+)__.+\\.sql");
 
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
     private final EntityManagerFactory entityManagerFactory;
-    private final ObjectMapper objectMapper;
+    private final TableSnapshot tableSnapshot;
     private final String version;
 
     public PreviewMigrationJob(DataSource dataSource, JdbcTemplate jdbcTemplate,
@@ -83,7 +77,7 @@ public class PreviewMigrationJob implements MaintenanceJob {
         this.dataSource = dataSource;
         this.jdbcTemplate = jdbcTemplate;
         this.entityManagerFactory = entityManagerFactory;
-        this.objectMapper = objectMapper;
+        this.tableSnapshot = new TableSnapshot(objectMapper);
         this.version = version;
     }
 
@@ -123,7 +117,7 @@ public class PreviewMigrationJob implements MaintenanceJob {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                Map<String, Map<String, JsonNode>> before = snapshot(connection);
+                Map<String, Map<String, JsonNode>> before = tableSnapshot.byId(connection, TABLES.keySet());
                 examined = before.values().stream().mapToInt(Map::size).sum();
                 try {
                     ScriptUtils.executeSqlScript(connection, new EncodedResource(script, StandardCharsets.UTF_8));
@@ -131,8 +125,8 @@ public class PreviewMigrationJob implements MaintenanceJob {
                     warnings.add("Flyway would fail too: " + e.getMessage() + ": " + rootMessage(e));
                     return report(target, examined, changes, warnings);
                 }
-                Map<String, Map<String, JsonNode>> after = snapshot(connection);
-                compare(before, after, changes);
+                Map<String, Map<String, JsonNode>> after = tableSnapshot.byId(connection, TABLES.keySet());
+                changes.addAll(TableSnapshot.compare(before, after, true));
                 checkRowsLoad(connection, after, warnings);
             } finally {
                 connection.rollback();
@@ -187,76 +181,6 @@ public class PreviewMigrationJob implements MaintenanceJob {
         }
     }
 
-    // ── Before and after ─────────────────────────────────────────
-
-    /** Every row of each table as {@code to_jsonb}, by ID. */
-    private Map<String, Map<String, JsonNode>> snapshot(Connection connection) throws SQLException {
-        Map<String, Map<String, JsonNode>> tables = new LinkedHashMap<>();
-        for (String table : TABLES.keySet()) {
-            Map<String, JsonNode> rows = new LinkedHashMap<>();
-            try (Statement statement = connection.createStatement();
-                 ResultSet resultSet = statement.executeQuery(
-                         "SELECT id::text, to_jsonb(t)::text FROM " + table + " t ORDER BY id")) {
-                while (resultSet.next()) {
-                    rows.put(resultSet.getString(1), readTree(resultSet.getString(2)));
-                }
-            }
-            tables.put(table, rows);
-        }
-        return tables;
-    }
-
-    private static void compare(Map<String, Map<String, JsonNode>> before, Map<String, Map<String, JsonNode>> after,
-                                List<String> changes) {
-        for (String table : TABLES.keySet()) {
-            Map<String, JsonNode> oldRows = before.get(table);
-            Map<String, JsonNode> newRows = after.get(table);
-            oldRows.forEach((id, oldRow) -> {
-                JsonNode newRow = newRows.get(id);
-                if (newRow == null) {
-                    changes.add(row(table, id, oldRow) + ": deleted");
-                } else {
-                    String changed = changedColumns(oldRow, newRow);
-                    if (!changed.isEmpty()) {
-                        changes.add(row(table, id, oldRow) + changed);
-                    }
-                }
-            });
-            newRows.forEach((id, newRow) -> {
-                if (!oldRows.containsKey(id)) {
-                    changes.add(row(table, id, newRow) + ": added");
-                }
-            });
-        }
-    }
-
-    // Each column whose value differs. A column added as NULL, or dropped while NULL, changes nothing in the row.
-    private static String changedColumns(JsonNode oldRow, JsonNode newRow) {
-        Set<String> columns = new TreeSet<>();
-        oldRow.fieldNames().forEachRemaining(columns::add);
-        newRow.fieldNames().forEachRemaining(columns::add);
-        StringBuilder sb = new StringBuilder();
-        for (String column : columns) {
-            JsonNode oldValue = oldRow.path(column);
-            JsonNode newValue = newRow.path(column);
-            boolean bothAbsent = (oldValue.isMissingNode() || oldValue.isNull())
-                    && (newValue.isMissingNode() || newValue.isNull());
-            if (!oldValue.equals(newValue) && !bothAbsent) {
-                sb.append("\n      ").append(column).append(": ").append(oldValue).append(" → ").append(newValue);
-            }
-        }
-        return sb.toString();
-    }
-
-    private static String row(String table, String id, JsonNode row) {
-        String label = LABEL_COLUMNS.stream()
-                .map(column -> row.path(column).asText(null))
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
-        return table + " " + id + (label != null ? " (" + label + ")" : "");
-    }
-
     // ── Loading ──────────────────────────────────────────────────
 
     /**
@@ -278,21 +202,13 @@ public class PreviewMigrationJob implements MaintenanceJob {
                         connection.releaseSavepoint(savepoint);
                     } catch (RuntimeException e) {
                         connection.rollback(savepoint);
-                        warnings.add(row(table.getKey(), row.getKey(), row.getValue())
+                        warnings.add(TableSnapshot.describe(table.getKey(), row.getKey(), row.getValue())
                                 + " does not load: " + rootMessage(e));
                     } finally {
                         session.clear();
                     }
                 }
             }
-        }
-    }
-
-    private JsonNode readTree(String json) {
-        try {
-            return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("PostgreSQL returned JSON that doesn't parse: " + json, e);
         }
     }
 
