@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,18 +15,31 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ConditionSeeder {
+public class ConditionLoader implements ContentLoader {
+
+    private static final String FILE = "data/5etools/conditionsdiseases.json";
 
     private final ConditionRepository conditionRepository;
     private final ObjectMapper objectMapper;
 
-    public void seed() throws Exception {
-        if (conditionRepository.count() > 0) {
-            log.info("Conditions already seeded, skipping");
-            return;
-        }
+    @Override
+    public String name() {
+        return "conditions";
+    }
 
-        ClassPathResource resource = new ClassPathResource("data/5etools/conditionsdiseases.json");
+    @Override
+    public List<String> files() {
+        return List.of(FILE);
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
+        ClassPathResource resource = new ClassPathResource(FILE);
         try (InputStream is = resource.getInputStream()) {
             JsonNode root = objectMapper.readTree(is);
             JsonNode conditions = root.get("condition");
@@ -38,8 +51,8 @@ public class ConditionSeeder {
                 if (condition != null) batch.add(condition);
             }
 
-            conditionRepository.saveAll(batch);
-            log.info("Condition seeding complete: {} conditions", batch.size());
+            // A condition is known by its name alone, as content-snapshot reads it
+            context.upsert("conditions", conditionRepository, batch, Condition::getName);
         }
     }
 

@@ -83,6 +83,13 @@ public class ContentSnapshotJob implements MaintenanceJob {
             new ReferenceTable("monster_pool_triggers", "id", "t.pool_id || '|' || t.trigger_condition::text", "",
                     List.of(), null));
 
+    /** The reference tables, each with its primary key column, in the order the snapshot reads them. */
+    static Map<String, String> referenceTables() {
+        Map<String, String> tables = new LinkedHashMap<>();
+        TABLES.forEach(table -> tables.put(table.table(), table.idColumn()));
+        return tables;
+    }
+
     private static ReferenceTable byNameAndSource(String table) {
         return new ReferenceTable(table, "id", "t.name || '|' || coalesce(t.source, '')", "", List.of(), null);
     }

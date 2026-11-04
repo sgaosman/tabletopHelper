@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * PHB 2014 spell slot progressions, shared by {@link SpellSlotCalculator} and the class seeder (D153).
+ * PHB 2014 spell slot progressions, shared by {@link SpellSlotCalculator} and the class loader (D153).
  * Row index is the class level (or combined caster level for the multiclass table); each row lists
  * slot counts by spell level starting at 1st. Pact Magic rows hold the count at the slot's level.
  */
@@ -152,7 +152,7 @@ public final class SpellSlotTables {
     }
 
     /**
-     * Seeder format: {"classLevel": {"spellLevel": count}}, leaving out levels without slots.
+     * The class loader's format: {"classLevel": {"spellLevel": count}}, leaving out levels without slots.
      * Returns null for caster types without a table.
      */
     public static Map<String, Map<String, Integer>> progression(String casterType) {

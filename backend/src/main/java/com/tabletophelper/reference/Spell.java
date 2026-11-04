@@ -53,7 +53,7 @@ public class Spell {
     @Column(length = 100)
     private String duration;
 
-    // The columns allow null, but spells are only written by SpellSeeder, which sets both
+    // The columns allow null, but spells are only written by SpellLoader, which sets both
     @Schema(requiredMode = REQUIRED)
     @Builder.Default
     private Boolean concentration = false;

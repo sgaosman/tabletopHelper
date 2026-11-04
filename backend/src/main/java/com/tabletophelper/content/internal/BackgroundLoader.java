@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,18 +17,31 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class BackgroundSeeder {
+public class BackgroundLoader implements ContentLoader {
+
+    private static final String FILE = "data/5etools/backgrounds.json";
 
     private final BackgroundRepository backgroundRepository;
     private final ObjectMapper objectMapper;
 
-    public void seed() throws Exception {
-        if (backgroundRepository.count() > 0) {
-            log.info("Backgrounds already seeded, skipping");
-            return;
-        }
+    @Override
+    public String name() {
+        return "backgrounds";
+    }
 
-        ClassPathResource resource = new ClassPathResource("data/5etools/backgrounds.json");
+    @Override
+    public List<String> files() {
+        return List.of(FILE);
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
+        ClassPathResource resource = new ClassPathResource(FILE);
         try (InputStream is = resource.getInputStream()) {
             JsonNode root = objectMapper.readTree(is);
             JsonNode backgrounds = root.get("background");
@@ -50,8 +63,8 @@ public class BackgroundSeeder {
                 }
             }
 
-            backgroundRepository.saveAll(batch);
-            log.info("Background seeding complete: {} backgrounds", batch.size());
+            context.upsert("backgrounds", backgroundRepository, batch,
+                    b -> LoadContext.nameAndSource(b.getName(), b.getSource()));
         }
     }
 

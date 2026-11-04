@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +17,7 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class SpellSeeder {
+public class SpellLoader implements ContentLoader {
 
     private final SpellRepository spellRepository;
     private final ObjectMapper objectMapper;
@@ -28,12 +28,24 @@ public class SpellSeeder {
             "T", "Transmutation", "V", "Evocation"
     );
 
-    public void seed() throws Exception {
-        if (spellRepository.count() > 0) {
-            log.info("Spells already seeded, skipping");
-            return;
-        }
+    @Override
+    public String name() {
+        return "spells";
+    }
 
+    @Override
+    public List<String> files() {
+        return List.of("data/5etools/spells/spells-*.json", "data/5etools/spells/sources.json",
+                "data/5etools/class/class-*.json");
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
         Map<String, Set<String>> classMap = loadSpellClassMap();
         log.info("Loaded spell-class associations for {} spells", classMap.size());
 
@@ -66,62 +78,9 @@ public class SpellSeeder {
             }
         }
 
-        int total = 0;
-        List<Spell> batch = new ArrayList<>();
-        for (Spell spell : allSpells) {
-            batch.add(spell);
-            total++;
-            if (batch.size() >= 100) {
-                spellRepository.saveAll(batch);
-                batch.clear();
-                log.info("Seeding spells... {}", total);
-            }
-        }
-        if (!batch.isEmpty()) {
-            spellRepository.saveAll(batch);
-        }
-        log.info("Spell seeding complete: {} spells", total);
-
-        seedEffectTemplates();
-    }
-
-    public void seedEffectTemplates() {
-        long populated = spellRepository.count() == 0 ? 0 :
-                spellRepository.findAll().stream().filter(s -> s.getEffectTemplate() != null).count();
-        if (populated > 0) {
-            log.info("Spell effect templates already seeded ({} spells), skipping", populated);
-            return;
-        }
-
-        try {
-            ClassPathResource resource = new ClassPathResource("data/spell-effects/spell-effect-definitions.json");
-            JsonNode definitions = objectMapper.readTree(resource.getInputStream());
-            if (!definitions.isArray()) {
-                log.warn("spell-effect-definitions.json is not an array, skipping effect template seeding");
-                return;
-            }
-
-            int matched = 0;
-            int unmatched = 0;
-            for (JsonNode def : definitions) {
-                String spellName = def.path("spellName").asText(null);
-                if (spellName == null) continue;
-
-                var spellOpt = spellRepository.findByNameIgnoreCase(spellName);
-                if (spellOpt.isPresent()) {
-                    Spell spell = spellOpt.get();
-                    spell.setEffectTemplate(objectMapper.writeValueAsString(def));
-                    spellRepository.save(spell);
-                    matched++;
-                } else {
-                    unmatched++;
-                    log.debug("No spell entity found for effect template: {}", spellName);
-                }
-            }
-            log.info("Spell effect template seeding complete: {} matched, {} unmatched", matched, unmatched);
-        } catch (Exception e) {
-            log.error("Failed to seed spell effect templates: {}", e.getMessage(), e);
-        }
+        // The effect templates are spell-effects' to write
+        context.upsert("spells", spellRepository, allSpells,
+                spell -> LoadContext.nameAndSource(spell.getName(), spell.getSource()), "effectTemplate");
     }
 
     private Map<String, Set<String>> loadSpellClassMap() {

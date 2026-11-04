@@ -32,7 +32,7 @@ public class Subclass {
     @Column(length = 200, nullable = false)
     private String name;
 
-    // The column allows null, but subclasses are only written by CharacterClassSeeder, which falls back to ""
+    // The column allows null, but subclasses are only written by CharacterClassLoader, which falls back to ""
     @Schema(requiredMode = REQUIRED)
     @Column(length = 100)
     private String source;

@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.CharacterClass;
@@ -7,19 +7,33 @@ import com.tabletophelper.reference.SubclassRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-class CharacterClassSeederIT extends IntegrationTest {
+class CharacterClassLoaderIT extends IntegrationTest {
 
-    @Autowired private CharacterClassSeeder characterClassSeeder;
+    @Autowired private CharacterClassLoader characterClassLoader;
     @Autowired private SubclassRepository subclassRepository;
+    @Autowired private PlatformTransactionManager transactionManager;
+
+    // Runs the loader in a transaction, as ContentLoading does
+    private void load() {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            try {
+                characterClassLoader.load(new LoadContext(objectMapper));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
 
     @Test
-    @DisplayName("After seeding, the 13 classes carry the spellcaster and pact magic flags the every-class slot table assumes")
-    void seededClassesCarryCasterFlags() throws Exception {
-        characterClassSeeder.seed();
+    @DisplayName("After loading, the 13 classes carry the spellcaster and pact magic flags the every-class slot table assumes")
+    void seededClassesCarryCasterFlags() {
+        load();
 
         assertThat(characterClassRepository.findAll())
                 .extracting(CharacterClass::getName, CharacterClass::getSource,
@@ -41,9 +55,9 @@ class CharacterClassSeederIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("After seeding, each class's primary ability reads as the PHB's class table gives it: a Fighter's STR or DEX, a Paladin's STR and CHA")
-    void primaryAbilitiesReadAsThePhbGivesThem() throws Exception {
-        characterClassSeeder.seed();
+    @DisplayName("After loading, each class's primary ability reads as the PHB's class table gives it: a Fighter's STR or DEX, a Paladin's STR and CHA")
+    void primaryAbilitiesReadAsThePhbGivesThem() {
+        load();
 
         assertThat(characterClassRepository.findAll())
                 .extracting(CharacterClass::getName, CharacterClass::getPrimaryAbility)
@@ -64,14 +78,14 @@ class CharacterClassSeederIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Seeding classes already seeded corrects a primary ability older code read wrongly, such as the Fighter's OR")
-    void seedingAgainCorrectsThePrimaryAbility() throws Exception {
-        characterClassSeeder.seed();
+    @DisplayName("Loading classes already loaded corrects a primary ability older code read wrongly, such as the Fighter's OR")
+    void loadingAgainCorrectsThePrimaryAbility() {
+        load();
         CharacterClass fighter = characterClassRepository.findByNameAndSource("Fighter", "PHB").orElseThrow();
         fighter.setPrimaryAbility("OR");
         characterClassRepository.save(fighter);
 
-        characterClassSeeder.seed();
+        load();
 
         assertThat(characterClassRepository.findByNameAndSource("Fighter", "PHB").orElseThrow().getPrimaryAbility())
                 .isEqualTo("STR or DEX");
@@ -80,9 +94,9 @@ class CharacterClassSeederIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("After seeding, the third-caster subclasses sit under the non-caster Fighter and Rogue")
-    void thirdCasterSubclassesBelongToNonCasters() throws Exception {
-        characterClassSeeder.seed();
+    @DisplayName("After loading, the third-caster subclasses sit under the non-caster Fighter and Rogue")
+    void thirdCasterSubclassesBelongToNonCasters() {
+        load();
 
         assertThat(subclassRepository.findAll())
                 .filteredOn(subclass -> subclass.getName().equals("Eldritch Knight")

@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

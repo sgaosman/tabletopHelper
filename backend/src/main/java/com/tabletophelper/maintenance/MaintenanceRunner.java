@@ -16,8 +16,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.List;
 
 /**
- * Runs one maintenance job after reference data seeding, then exits. Does nothing unless
- * {@code --maintenance.job} is set. Dry run by default; {@code --maintenance.apply=true} writes.
+ * Runs one maintenance job, then exits. Does nothing unless {@code --maintenance.job} is set. Dry run by default;
+ * {@code --maintenance.apply=true} writes. A maintenance start loads no content (D169: content.ContentStartup is
+ * off for it), so a job sees the reference data as the database holds it; {@code preview-content} runs the loaders
+ * itself, in a transaction it rolls back.
  * <p>
  * Local example, on a random free port (the error handler needs the web server's settings, so
  * {@code --spring.main.web-application-type=none} doesn't start):

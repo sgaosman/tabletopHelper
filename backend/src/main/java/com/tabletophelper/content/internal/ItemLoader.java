@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +15,7 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ItemSeeder {
+public class ItemLoader implements ContentLoader {
 
     private final ItemRepository itemRepository;
     private final ObjectMapper objectMapper;
@@ -49,32 +49,29 @@ public class ItemSeeder {
             Map.entry("A", "acid"), Map.entry("Y", "psychic")
     );
 
-    public void seed() throws Exception {
-        if (itemRepository.count() > 0) {
-            log.info("Items already seeded, skipping");
-            return;
-        }
+    @Override
+    public String name() {
+        return "items";
+    }
 
+    @Override
+    public List<String> files() {
+        return List.of("data/5etools/items-base.json", "data/5etools/items.json");
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
         List<Item> allItems = new ArrayList<>();
 
         seedFromFile("data/5etools/items-base.json", "baseitem", allItems);
         seedFromFile("data/5etools/items.json", "item", allItems);
 
-        int total = 0;
-        List<Item> batch = new ArrayList<>();
-        for (Item item : allItems) {
-            batch.add(item);
-            total++;
-            if (batch.size() >= 100) {
-                itemRepository.saveAll(batch);
-                batch.clear();
-                log.info("Seeding items... {}", total);
-            }
-        }
-        if (!batch.isEmpty()) {
-            itemRepository.saveAll(batch);
-        }
-        log.info("Item seeding complete: {} items", total);
+        context.upsert("items", itemRepository, allItems, i -> LoadContext.nameAndSource(i.getName(), i.getSource()));
     }
 
     private void seedFromFile(String path, String rootKey, List<Item> allItems) {

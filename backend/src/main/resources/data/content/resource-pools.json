@@ -1,0 +1,1452 @@
+{
+  "definitions": [
+    {
+      "poolId": "class:monk-ki",
+      "displayName": "Ki Points",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "monkLevel",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Ki points power Flurry of Blows, Patient Defense, Step of the Wind, and Stunning Strike.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "class:sorcerer-sorcery-points",
+      "displayName": "Sorcery Points",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "sorcererLevel",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Sorcery points fuel Metamagic options and can be converted to spell slots via Flexible Casting.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "class:cleric-channel-divinity",
+      "displayName": "Channel Divinity",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Channel Divinity grants a domain-specific effect. Regains all uses on a short or long rest.",
+      "icon": "sun"
+    },
+    {
+      "poolId": "class:paladin-channel-divinity",
+      "displayName": "Channel Divinity",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Channel Divinity grants an oath-specific effect. Regains all uses on a short or long rest.",
+      "icon": "sun"
+    },
+    {
+      "poolId": "class:druid-wild-shape",
+      "displayName": "Wild Shape",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "2",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Transform into a beast you have seen before. Regains uses on a short or long rest.",
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "class:fighter-second-wind",
+      "displayName": "Second Wind",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Regain 1d10 + fighter level HP as a bonus action.",
+      "icon": "heart"
+    },
+    {
+      "poolId": "class:fighter-action-surge",
+      "displayName": "Action Surge",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Take one additional action on your turn. Starting at 17th level, you can use it twice before a rest.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "class:bard-bardic-inspiration",
+      "displayName": "Bardic Inspiration",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "charismaModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Inspire an ally with a die (d6 at levels 1-4, d8 at 5-9, d10 at 10-14, d12 at 15+). Regains on short rest starting at 5th level.",
+      "icon": "music"
+    },
+    {
+      "poolId": "class:barbarian-rage",
+      "displayName": "Rage",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "2",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Enter a rage for 1 minute. Advantage on STR checks/saves, bonus melee damage, resistance to bludgeoning/piercing/slashing.",
+      "icon": "flame"
+    },
+    {
+      "poolId": "subclass:battle-master-superiority-dice",
+      "displayName": "Superiority Dice",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "3+ceil(fighterLevel+1/7)",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "d8 superiority dice that fuel combat manoeuvres. 4 dice at L3, 5 at L7, 6 at L15. Regain all on a short or long rest.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:arcane-archer-arcane-shot",
+      "displayName": "Arcane Shot",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "2",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Magical arrow shots with special effects. Regain all uses on a short or long rest.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:psi-warrior-psionic-energy",
+      "displayName": "Psionic Energy Dice",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "2*proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": "1",
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Psionic power dice. Regain all on a long rest, or 1 die on a short rest.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:samurai-fighting-spirit",
+      "displayName": "Fighting Spirit",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "3",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Gain temporary HP and advantage on weapon attacks until the end of this turn.",
+      "icon": "heart"
+    },
+    {
+      "poolId": "subclass:rune-knight-giants-might",
+      "displayName": "Giant's Might",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Grow to Large size, advantage on STR checks/saves, bonus damage once per turn for 1 minute.",
+      "icon": "flame"
+    },
+    {
+      "poolId": "subclass:echo-knight-unleash-incarnation",
+      "displayName": "Unleash Incarnation",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "constitutionModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When taking the Attack action, make one additional melee attack from your echo's position.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:cavalier-unwavering-mark",
+      "displayName": "Unwavering Mark",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "strengthModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Mark a creature you hit. While marked and within 5ft, it has disadvantage on attacks against others. You get a bonus-action special attack against marked targets.",
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "subclass:cavalier-warding-maneuver",
+      "displayName": "Warding Maneuver",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "constitutionModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Roll 1d8 and add it to a creature's AC against an attack. If it still hits, the creature gains resistance to the attack's damage.",
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "subclass:wild-magic-magic-awareness",
+      "displayName": "Magic Awareness",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Detect the presence of magic within 60 feet for 10 minutes.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:wild-magic-bolstering-magic",
+      "displayName": "Bolstering Magic",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Grant a creature a d3 bonus to attack rolls or ability checks, or restore a 1st-level spell slot.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:beast-infectious-fury",
+      "displayName": "Infectious Fury",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Force a creature hit by your Bestial Soul to make a WIS save or take 2d12 psychic damage and attack a target of your choice.",
+      "icon": "flame"
+    },
+    {
+      "poolId": "subclass:zealot-zealous-presence",
+      "displayName": "Zealous Presence",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Unleash a battle cry. Allies within 60 feet gain advantage on attack rolls and saving throws until the start of your next turn.",
+      "icon": "crown"
+    },
+    {
+      "poolId": "subclass:glamour-mantle-of-majesty",
+      "displayName": "Mantle of Majesty",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Cast Command as a bonus action every turn for 1 minute without expending a spell slot. Creatures auto-succeed if already charmed.",
+      "icon": "crown"
+    },
+    {
+      "poolId": "subclass:light-warding-flare",
+      "displayName": "Warding Flare",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Impose disadvantage on an attacker within 30 feet that you can see.",
+      "icon": "sun"
+    },
+    {
+      "poolId": "subclass:tempest-wrath-of-the-storm",
+      "displayName": "Wrath of the Storm",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When hit by a creature within 5 feet, deal 2d8 lightning or thunder damage (DEX save for half).",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:war-war-priest",
+      "displayName": "War Priest",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Make one weapon attack as a bonus action.",
+      "icon": "swords"
+    },
+    {
+      "poolId": "subclass:grave-eyes-of-the-grave",
+      "displayName": "Eyes of the Grave",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Detect undead within 60 feet that aren't behind total cover or warded against divination.",
+      "icon": "sun"
+    },
+    {
+      "poolId": "subclass:grave-sentinel-at-deaths-door",
+      "displayName": "Sentinel at Death's Door",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Turn a critical hit against a creature within 30 feet into a normal hit.",
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "subclass:peace-emboldening-bond",
+      "displayName": "Emboldening Bond",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Forge a bond among up to PB creatures for 10 minutes. Bonded creatures can roll a d4 and add it to an attack roll, ability check, or saving throw once per turn.",
+      "icon": "heart"
+    },
+    {
+      "poolId": "subclass:twilight-eyes-of-night",
+      "displayName": "Eyes of Night",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Grant darkvision out to 300 feet to up to PB willing creatures for 1 hour.",
+      "icon": "moon"
+    },
+    {
+      "poolId": "subclass:twilight-steps-of-night",
+      "displayName": "Steps of Night",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Gain a flying speed equal to your walking speed for 1 minute. Usable only in dim light or darkness.",
+      "icon": "moon"
+    },
+    {
+      "poolId": "subclass:forge-blessing-of-the-forge",
+      "displayName": "Blessing of the Forge",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Touch one nonmagical suit of armor or weapon. Until the end of your next long rest, it becomes a +1 magic item.",
+      "icon": "flame"
+    },
+    {
+      "poolId": "subclass:order-embodiment-of-the-law",
+      "displayName": "Embodiment of the Law",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Cast an enchantment spell of 1st level or higher with a casting time of 1 action as a bonus action.",
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "subclass:land-natural-recovery",
+      "displayName": "Natural Recovery",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "During a short rest, recover expended spell slots of combined level up to half your druid level (rounded up).",
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "subclass:dreams-balm-of-the-summer-court",
+      "displayName": "Balm of the Summer Court",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "druidLevel",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Heal a creature you can see within 120 feet. Spend dice (d6s) from this pool. Each die heals 1 HP + the die's result.",
+      "icon": "heart"
+    },
+    {
+      "poolId": "subclass:dreams-hidden-paths",
+      "displayName": "Hidden Paths",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Teleport up to 60 feet to an unoccupied space you can see.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:shepherd-spirit-totem",
+      "displayName": "Spirit Totem",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Summon a spirit totem that grants an aura for 1 minute. Choose Bear (temp HP), Hawk (advantage on attacks), or Unicorn (healing on spell cast).",
+      "icon": "paw-print"
+    },
+    {
+      "poolId": "subclass:stars-guiding-bolts",
+      "displayName": "Guiding Bolts",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Cast Guiding Bolt without expending a spell slot. The number of free casts equals your proficiency bonus.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:stars-cosmic-omen",
+      "displayName": "Cosmic Omen",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Use Weal (add d6 to ally's roll) or Woe (subtract d6 from enemy's roll). Which omen is available depends on the current star configuration rolled at the end of each long rest.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:spores-fungal-infestation",
+      "displayName": "Fungal Infestation",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When a Small or Medium beast or humanoid dies within 10 feet, animate it with 1 HP. It acts immediately after your turn for 1 hour or until your Symbiotic Entity ends.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:wildfire-cauterizing-flames",
+      "displayName": "Cauterizing Flames",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When a Small or larger creature dies within 30 feet of you or your wildfire spirit, wreathe it in spectral flames. A creature you choose within 30 feet regains 2d10 HP or takes 2d10 fire damage.",
+      "icon": "flame"
+    },
+    {
+      "poolId": "subclass:open-hand-wholeness-of-body",
+      "displayName": "Wholeness of Body",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Regain hit points equal to 3x your monk level.",
+      "icon": "heart"
+    },
+    {
+      "poolId": "subclass:ascendant-dragon-breath-of-the-dragon",
+      "displayName": "Breath of the Dragon",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Replace one attack with a breath weapon in a 20-ft cone or 30-ft line (5-ft wide), dealing damage of your draconic type (2 rolls of your Martial Arts die). Free uses = PB; additional uses cost 2 ki each.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:ascendant-dragon-wings-unfurled",
+      "displayName": "Wings Unfurled",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Gain a flying speed equal to your walking speed until the end of your turn.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:horizon-walker-ethereal-step",
+      "displayName": "Ethereal Step",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Cast Etherealness as a bonus action without expending a spell slot. Lasts until the start of your next turn.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:swarmkeeper-writhing-tide",
+      "displayName": "Writhing Tide",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Gain a flying speed of 10 feet and hover for 1 minute.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:monster-slayer-hunters-sense",
+      "displayName": "Hunter's Sense",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "wisdomModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Learn a creature's damage immunities, resistances, and vulnerabilities. The target must be within 60 feet and you must see it.",
+      "icon": "sun"
+    },
+    {
+      "poolId": "subclass:soulknife-psionic-power-dice",
+      "displayName": "Psionic Power Dice",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "2*proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": "1",
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Psionic Energy dice (d6) used for Psionic talents. Regain all on a long rest, or 1 die on a short rest.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:phantom-wails-from-the-grave",
+      "displayName": "Wails from the Grave",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When you deal Sneak Attack damage, deal half your Sneak Attack dice (rounded up) as necrotic damage to a second creature within 30 feet.",
+      "icon": "music"
+    },
+    {
+      "poolId": "subclass:phantom-tokens-of-the-departed",
+      "displayName": "Tokens of the Departed",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "When a creature dies within 30 feet, capture a soul trinket (PB max). Destroy a trinket to ask the spirit one question, gain advantage on death saves, or gain advantage on a CON save.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:divine-soul-favored-by-gods",
+      "displayName": "Favored by the Gods",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Add 2d4 to a failed saving throw or missed attack roll, potentially turning it into a success.",
+      "icon": "sun"
+    },
+    {
+      "poolId": "subclass:wild-magic-tides-of-chaos",
+      "displayName": "Tides of Chaos",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Gain advantage on one attack roll, ability check, or saving throw. Refreshes when the DM forces a Wild Magic Surge.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:shadow-strength-of-the-grave",
+      "displayName": "Strength of the Grave",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When reduced to 0 HP, make a CHA save (DC 5 + damage taken). On success, drop to 1 HP instead.",
+      "icon": "moon"
+    },
+    {
+      "poolId": "subclass:clockwork-soul-restore-balance",
+      "displayName": "Restore Balance",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Negate advantage or disadvantage on a d20 roll made by a creature you can see within 60 feet.",
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "subclass:archfey-fey-presence",
+      "displayName": "Fey Presence",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Force creatures in a 10-ft cube originating from you to make a WIS save or become charmed or frightened until the end of your next turn.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:archfey-misty-escape",
+      "displayName": "Misty Escape",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When you take damage, turn invisible and teleport up to 60 feet. Invisibility lasts until the start of your next turn or until you attack/cast.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:hexblade-curse",
+      "displayName": "Hexblade's Curse",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Curse a creature for 1 minute. You gain bonus damage equal to proficiency bonus, crit on 19-20, and the cursed target heals you when it dies.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:fiend-dark-ones-own-luck",
+      "displayName": "Dark One's Own Luck",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Add 1d10 to an ability check or saving throw you make.",
+      "icon": "flame"
+    },
+    {
+      "poolId": "subclass:great-old-one-entropic-ward",
+      "displayName": "Entropic Ward",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Impose disadvantage on an attack roll against you. If it misses, your next attack against that creature has advantage.",
+      "icon": "moon"
+    },
+    {
+      "poolId": "subclass:celestial-healing-light",
+      "displayName": "Healing Light",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1+warlockLevel",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Heal a creature you can see within 60 feet. Spend up to CHA mod dice (d6s) from this pool per use.",
+      "icon": "heart"
+    },
+    {
+      "poolId": "subclass:fathomless-tentacle-of-the-deeps",
+      "displayName": "Tentacle of the Deeps",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Summon a spectral tentacle at a point within 60 feet for 1 minute. It deals 1d8 cold damage on a hit and reduces speed by 10 feet.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:undead-form-of-dread",
+      "displayName": "Form of Dread",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Transform for 1 minute. Gain 1d10+warlockLevel temp HP, immunity to frightened, and once per turn your attack can force a WIS save vs frightened.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:genie-bottled-respite",
+      "displayName": "Bottled Respite",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Enter your Genie's Vessel for up to PB x 2 hours. You can hear as normal outside. Party members can carry the vessel.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "subclass:genie-elemental-gift",
+      "displayName": "Elemental Gift",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Gain a flying speed of 30 feet for 10 minutes.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "subclass:divination-portent",
+      "displayName": "Portent",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "2",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Roll 2d20 at the end of each long rest. Replace any attack roll, saving throw, or ability check with one of these rolls before the outcome is determined.",
+      "icon": "sun"
+    },
+    {
+      "poolId": "subclass:bladesinger-bladesong",
+      "displayName": "Bladesong",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "Enter bladesong for 1 minute. Gain +INT mod to AC, +10ft walking speed, advantage on Acrobatics, and +INT mod to CON saves to maintain concentration.",
+      "icon": "swords"
+    },
+    {
+      "poolId": "subclass:chronurgy-chronal-shift",
+      "displayName": "Chronal Shift",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "2",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "Force a creature you can see within 30 feet to reroll a d20 after seeing the result but before the outcome is determined.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:chronurgy-momentary-stasis",
+      "displayName": "Momentary Stasis",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "intelligenceModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Force a Large or smaller creature within 60 feet to make a CON save or be incapacitated until the end of your next turn.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:graviturgy-violent-attraction",
+      "displayName": "Violent Attraction",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "intelligenceModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "When a creature within 60 feet hits with a weapon attack, increase the velocity: the attack deals an additional 1d10 force damage.",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:war-magic-power-surge",
+      "displayName": "Power Surge",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "intelligenceModifier",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Deal extra force damage equal to half your wizard level when you damage a creature with a wizard spell. Resets to 1 on long rest (increasing when you use Dispel Magic or Counterspell).",
+      "icon": "zap"
+    },
+    {
+      "poolId": "subclass:scribes-manifest-mind",
+      "displayName": "Manifest Mind",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "proficiencyBonus",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Conjure a spectral mind within 60 feet for 10 minutes. You can see and cast spells through it as if you were in its space.",
+      "icon": "sparkles"
+    },
+    {
+      "poolId": "monster:legendary-actions",
+      "displayName": "Legendary Actions",
+      "sourceType": "MONSTER",
+      "maxUsesFormula": "3",
+      "resetOn": "turn",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Can take up to 3 legendary actions per round, one per turn after another creature's turn.",
+      "icon": "crown"
+    },
+    {
+      "poolId": "monster:legendary-resistance",
+      "displayName": "Legendary Resistance",
+      "sourceType": "MONSTER",
+      "maxUsesFormula": "3",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "REACTION",
+      "description": "If the monster fails a saving throw, it can choose to succeed instead.",
+      "icon": "shield-check"
+    },
+    {
+      "poolId": "monster:breath-weapon-5-6",
+      "displayName": "Breath Weapon (Recharge 5–6)",
+      "sourceType": "MONSTER",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": "1d6>=5",
+      "spendActionType": "ACTION",
+      "description": "Breath weapon recharges on a roll of 5 or 6 on a d6 at the start of the monster's turn.",
+      "icon": "wind"
+    },
+    {
+      "poolId": "monster:breath-weapon-6",
+      "displayName": "Breath Weapon (Recharge 6)",
+      "sourceType": "MONSTER",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": "1d6>=6",
+      "spendActionType": "ACTION",
+      "description": "Breath weapon recharges on a roll of 6 on a d6 at the start of the monster's turn.",
+      "icon": "wind"
+    }
+  ],
+  "classPools": [
+    {
+      "class": "Monk",
+      "classSource": "PHB",
+      "minLevel": 2,
+      "poolId": "class:monk-ki"
+    },
+    {
+      "class": "Sorcerer",
+      "classSource": "PHB",
+      "minLevel": 2,
+      "poolId": "class:sorcerer-sorcery-points"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "minLevel": 2,
+      "poolId": "class:cleric-channel-divinity"
+    },
+    {
+      "class": "Paladin",
+      "classSource": "PHB",
+      "minLevel": 3,
+      "poolId": "class:paladin-channel-divinity"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "minLevel": 2,
+      "poolId": "class:druid-wild-shape"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "minLevel": 1,
+      "poolId": "class:fighter-second-wind"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "minLevel": 2,
+      "poolId": "class:fighter-action-surge"
+    },
+    {
+      "class": "Bard",
+      "classSource": "PHB",
+      "minLevel": 1,
+      "poolId": "class:bard-bardic-inspiration"
+    },
+    {
+      "class": "Barbarian",
+      "classSource": "PHB",
+      "minLevel": 1,
+      "poolId": "class:barbarian-rage"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Battle Master",
+      "subclassSource": "PHB",
+      "minLevel": 3,
+      "poolId": "subclass:battle-master-superiority-dice"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Arcane Archer",
+      "subclassSource": "XGE",
+      "minLevel": 3,
+      "poolId": "subclass:arcane-archer-arcane-shot"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Psi Warrior",
+      "subclassSource": "TCE",
+      "minLevel": 3,
+      "poolId": "subclass:psi-warrior-psionic-energy"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Samurai",
+      "subclassSource": "XGE",
+      "minLevel": 3,
+      "poolId": "subclass:samurai-fighting-spirit"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Rune Knight",
+      "subclassSource": "TCE",
+      "minLevel": 3,
+      "poolId": "subclass:rune-knight-giants-might"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Echo Knight",
+      "subclassSource": "EGW",
+      "minLevel": 3,
+      "poolId": "subclass:echo-knight-unleash-incarnation"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Cavalier",
+      "subclassSource": "XGE",
+      "minLevel": 3,
+      "poolId": "subclass:cavalier-unwavering-mark"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Cavalier",
+      "subclassSource": "XGE",
+      "minLevel": 7,
+      "poolId": "subclass:cavalier-warding-maneuver"
+    },
+    {
+      "class": "Barbarian",
+      "classSource": "PHB",
+      "subclass": "Path of Wild Magic",
+      "subclassSource": "TCE",
+      "minLevel": 3,
+      "poolId": "subclass:wild-magic-magic-awareness"
+    },
+    {
+      "class": "Barbarian",
+      "classSource": "PHB",
+      "subclass": "Path of Wild Magic",
+      "subclassSource": "TCE",
+      "minLevel": 6,
+      "poolId": "subclass:wild-magic-bolstering-magic"
+    },
+    {
+      "class": "Barbarian",
+      "classSource": "PHB",
+      "subclass": "Path of the Beast",
+      "subclassSource": "TCE",
+      "minLevel": 10,
+      "poolId": "subclass:beast-infectious-fury"
+    },
+    {
+      "class": "Barbarian",
+      "classSource": "PHB",
+      "subclass": "Path of the Zealot",
+      "subclassSource": "XGE",
+      "minLevel": 10,
+      "poolId": "subclass:zealot-zealous-presence"
+    },
+    {
+      "class": "Bard",
+      "classSource": "PHB",
+      "subclass": "College of Glamour",
+      "subclassSource": "XGE",
+      "minLevel": 6,
+      "poolId": "subclass:glamour-mantle-of-majesty"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Light Domain",
+      "subclassSource": "PHB",
+      "minLevel": 1,
+      "poolId": "subclass:light-warding-flare"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Tempest Domain",
+      "subclassSource": "PHB",
+      "minLevel": 1,
+      "poolId": "subclass:tempest-wrath-of-the-storm"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "War Domain",
+      "subclassSource": "PHB",
+      "minLevel": 1,
+      "poolId": "subclass:war-war-priest"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Grave Domain",
+      "subclassSource": "XGE",
+      "minLevel": 1,
+      "poolId": "subclass:grave-eyes-of-the-grave"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Grave Domain",
+      "subclassSource": "XGE",
+      "minLevel": 6,
+      "poolId": "subclass:grave-sentinel-at-deaths-door"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Peace Domain",
+      "subclassSource": "TCE",
+      "minLevel": 1,
+      "poolId": "subclass:peace-emboldening-bond"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Twilight Domain",
+      "subclassSource": "TCE",
+      "minLevel": 1,
+      "poolId": "subclass:twilight-eyes-of-night"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Twilight Domain",
+      "subclassSource": "TCE",
+      "minLevel": 6,
+      "poolId": "subclass:twilight-steps-of-night"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Forge Domain",
+      "subclassSource": "XGE",
+      "minLevel": 1,
+      "poolId": "subclass:forge-blessing-of-the-forge"
+    },
+    {
+      "class": "Cleric",
+      "classSource": "PHB",
+      "subclass": "Order Domain",
+      "subclassSource": "TCE",
+      "minLevel": 6,
+      "poolId": "subclass:order-embodiment-of-the-law"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of the Land",
+      "subclassSource": "PHB",
+      "minLevel": 2,
+      "poolId": "subclass:land-natural-recovery"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of Dreams",
+      "subclassSource": "XGE",
+      "minLevel": 2,
+      "poolId": "subclass:dreams-balm-of-the-summer-court"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of Dreams",
+      "subclassSource": "XGE",
+      "minLevel": 10,
+      "poolId": "subclass:dreams-hidden-paths"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of the Shepherd",
+      "subclassSource": "XGE",
+      "minLevel": 2,
+      "poolId": "subclass:shepherd-spirit-totem"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of Stars",
+      "subclassSource": "TCE",
+      "minLevel": 2,
+      "poolId": "subclass:stars-guiding-bolts"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of Stars",
+      "subclassSource": "TCE",
+      "minLevel": 6,
+      "poolId": "subclass:stars-cosmic-omen"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of Spores",
+      "subclassSource": "TCE",
+      "minLevel": 6,
+      "poolId": "subclass:spores-fungal-infestation"
+    },
+    {
+      "class": "Druid",
+      "classSource": "PHB",
+      "subclass": "Circle of Wildfire",
+      "subclassSource": "TCE",
+      "minLevel": 10,
+      "poolId": "subclass:wildfire-cauterizing-flames"
+    },
+    {
+      "class": "Monk",
+      "classSource": "PHB",
+      "subclass": "Way of the Open Hand",
+      "subclassSource": "PHB",
+      "minLevel": 6,
+      "poolId": "subclass:open-hand-wholeness-of-body"
+    },
+    {
+      "class": "Monk",
+      "classSource": "PHB",
+      "subclass": "Way of the Ascendant Dragon",
+      "subclassSource": "FTD",
+      "minLevel": 3,
+      "poolId": "subclass:ascendant-dragon-breath-of-the-dragon"
+    },
+    {
+      "class": "Monk",
+      "classSource": "PHB",
+      "subclass": "Way of the Ascendant Dragon",
+      "subclassSource": "FTD",
+      "minLevel": 6,
+      "poolId": "subclass:ascendant-dragon-wings-unfurled"
+    },
+    {
+      "class": "Ranger",
+      "classSource": "PHB",
+      "subclass": "Horizon Walker",
+      "subclassSource": "XGE",
+      "minLevel": 7,
+      "poolId": "subclass:horizon-walker-ethereal-step"
+    },
+    {
+      "class": "Ranger",
+      "classSource": "PHB",
+      "subclass": "Swarmkeeper",
+      "subclassSource": "TCE",
+      "minLevel": 7,
+      "poolId": "subclass:swarmkeeper-writhing-tide"
+    },
+    {
+      "class": "Ranger",
+      "classSource": "PHB",
+      "subclass": "Monster Slayer",
+      "subclassSource": "XGE",
+      "minLevel": 3,
+      "poolId": "subclass:monster-slayer-hunters-sense"
+    },
+    {
+      "class": "Rogue",
+      "classSource": "PHB",
+      "subclass": "Soulknife",
+      "subclassSource": "TCE",
+      "minLevel": 3,
+      "poolId": "subclass:soulknife-psionic-power-dice"
+    },
+    {
+      "class": "Rogue",
+      "classSource": "PHB",
+      "subclass": "Phantom",
+      "subclassSource": "TCE",
+      "minLevel": 3,
+      "poolId": "subclass:phantom-wails-from-the-grave"
+    },
+    {
+      "class": "Rogue",
+      "classSource": "PHB",
+      "subclass": "Phantom",
+      "subclassSource": "TCE",
+      "minLevel": 9,
+      "poolId": "subclass:phantom-tokens-of-the-departed"
+    },
+    {
+      "class": "Sorcerer",
+      "classSource": "PHB",
+      "subclass": "Divine Soul",
+      "subclassSource": "XGE",
+      "minLevel": 1,
+      "poolId": "subclass:divine-soul-favored-by-gods"
+    },
+    {
+      "class": "Sorcerer",
+      "classSource": "PHB",
+      "subclass": "Wild Magic",
+      "subclassSource": "PHB",
+      "minLevel": 1,
+      "poolId": "subclass:wild-magic-tides-of-chaos"
+    },
+    {
+      "class": "Sorcerer",
+      "classSource": "PHB",
+      "subclass": "Shadow Magic",
+      "subclassSource": "XGE",
+      "minLevel": 1,
+      "poolId": "subclass:shadow-strength-of-the-grave"
+    },
+    {
+      "class": "Sorcerer",
+      "classSource": "PHB",
+      "subclass": "Clockwork Soul",
+      "subclassSource": "TCE",
+      "minLevel": 1,
+      "poolId": "subclass:clockwork-soul-restore-balance"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Archfey",
+      "subclassSource": "PHB",
+      "minLevel": 1,
+      "poolId": "subclass:archfey-fey-presence"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Archfey",
+      "subclassSource": "PHB",
+      "minLevel": 6,
+      "poolId": "subclass:archfey-misty-escape"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Hexblade",
+      "subclassSource": "XGE",
+      "minLevel": 1,
+      "poolId": "subclass:hexblade-curse"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Fiend",
+      "subclassSource": "PHB",
+      "minLevel": 6,
+      "poolId": "subclass:fiend-dark-ones-own-luck"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Great Old One",
+      "subclassSource": "PHB",
+      "minLevel": 6,
+      "poolId": "subclass:great-old-one-entropic-ward"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Celestial",
+      "subclassSource": "XGE",
+      "minLevel": 1,
+      "poolId": "subclass:celestial-healing-light"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Fathomless",
+      "subclassSource": "TCE",
+      "minLevel": 1,
+      "poolId": "subclass:fathomless-tentacle-of-the-deeps"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Undead",
+      "subclassSource": "VRGR",
+      "minLevel": 1,
+      "poolId": "subclass:undead-form-of-dread"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Genie",
+      "subclassSource": "TCE",
+      "minLevel": 1,
+      "poolId": "subclass:genie-bottled-respite"
+    },
+    {
+      "class": "Warlock",
+      "classSource": "PHB",
+      "subclass": "The Genie",
+      "subclassSource": "TCE",
+      "minLevel": 6,
+      "poolId": "subclass:genie-elemental-gift"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "subclass": "School of Divination",
+      "subclassSource": "PHB",
+      "minLevel": 2,
+      "poolId": "subclass:divination-portent"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "subclass": "Bladesinging",
+      "subclassSource": "TCE",
+      "minLevel": 2,
+      "poolId": "subclass:bladesinger-bladesong"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "subclass": "Chronurgy Magic",
+      "subclassSource": "EGW",
+      "minLevel": 2,
+      "poolId": "subclass:chronurgy-chronal-shift"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "subclass": "Chronurgy Magic",
+      "subclassSource": "EGW",
+      "minLevel": 6,
+      "poolId": "subclass:chronurgy-momentary-stasis"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "subclass": "Graviturgy Magic",
+      "subclassSource": "EGW",
+      "minLevel": 10,
+      "poolId": "subclass:graviturgy-violent-attraction"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "subclass": "War Magic",
+      "subclassSource": "XGE",
+      "minLevel": 6,
+      "poolId": "subclass:war-magic-power-surge"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "subclass": "Order of Scribes",
+      "subclassSource": "TCE",
+      "minLevel": 6,
+      "poolId": "subclass:scribes-manifest-mind"
+    }
+  ],
+  "monsterTriggers": [
+    {
+      "poolId": "monster:legendary-actions",
+      "triggerCondition": {
+        "hasField": "legendary"
+      },
+      "priority": 1
+    },
+    {
+      "poolId": "monster:legendary-resistance",
+      "triggerCondition": {
+        "hasFeature": "Legendary Resistance"
+      },
+      "priority": 2
+    }
+  ]
+}

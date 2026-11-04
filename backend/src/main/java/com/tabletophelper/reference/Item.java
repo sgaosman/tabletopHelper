@@ -49,7 +49,7 @@ public class Item {
     @Column(columnDefinition = "jsonb")
     private String properties;
 
-    // The columns allow null, but items are only written by ItemSeeder, which sets this and isHomebrew
+    // The columns allow null, but items are only written by ItemLoader, which sets this and isHomebrew
     @Schema(requiredMode = REQUIRED)
     @Column(name = "requires_attunement")
     @Builder.Default

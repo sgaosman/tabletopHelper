@@ -1,6 +1,9 @@
 package com.tabletophelper.rules;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.content.internal.LoadContext;
+import com.tabletophelper.content.internal.ResourcePoolLoader;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -14,13 +17,14 @@ import com.tabletophelper.reference.ResourcePoolDefinitionRepository;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
-import com.tabletophelper.seeder.ResourcePoolSeeder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.core.io.ClassPathResource;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,7 +52,8 @@ import static org.mockito.Mockito.when;
  * VRGR. Each pool is checked at every class level from 1 to 20, absent below the level that grants it, with every
  * ability modifier at -1, 0 and +3 (scores of 8, 10 and 16) and the proficiency bonus of the PHB's table (p.15).
  * <p>
- * The definitions and their class mappings are the ones {@link ResourcePoolSeeder} writes, read through mocked
+ * The definitions and their class mappings are the ones {@link ResourcePoolLoader} writes from resource-pools.json,
+ * read through mocked
  * repositories, and each size is the one {@link ResourcePoolService#reconciledPools} gives a single-class character,
  * so the test reads the formulas and the context the app uses. The page given for each pool is the feature's
  * {@code page} in the bundled 5etools class data, whose text was read for it; for the PHB's own class features
@@ -336,7 +341,7 @@ class PoolSizesGoldenTest {
             new Wrong("subclass:graviturgy-violent-attraction", 10, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
             new Wrong("subclass:war-magic-power-surge", 6, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER));
 
-    // ── What the seeder writes ───────────────────────────────────
+    // ── What the loader writes ───────────────────────────────────
 
     private static final Map<String, ResourcePoolDefinition> DEFINITIONS = new LinkedHashMap<>();
     private static final List<ClassFeaturePool> MAPPINGS = new ArrayList<>();
@@ -346,36 +351,54 @@ class PoolSizesGoldenTest {
 
     @BeforeAll
     @SuppressWarnings("unchecked")
-    static void seed() {
+    static void seed() throws Exception {
         for (String name : List.of("Barbarian", "Bard", "Cleric", "Druid", "Fighter", "Monk", "Paladin", "Ranger",
                 "Rogue", "Sorcerer", "Warlock", "Wizard")) {
             CLASSES.put(name, CharacterClass.builder().id(UUID.randomUUID()).name(name).source("PHB").build());
         }
+        // The subclasses the file maps pools to, as the classes loader writes them
+        ObjectMapper objectMapper = new ObjectMapper();
+        try (InputStream in = new ClassPathResource("data/content/resource-pools.json").getInputStream()) {
+            for (JsonNode pool : objectMapper.readTree(in).path("classPools")) {
+                if (pool.hasNonNull("subclass")) {
+                    SUBCLASSES.computeIfAbsent(pool.get("subclass").asText(), name -> Subclass.builder()
+                            .id(UUID.randomUUID()).name(name).source(pool.get("subclassSource").asText())
+                            .characterClass(CLASSES.get(pool.get("class").asText())).build());
+                }
+            }
+        }
 
         ResourcePoolDefinitionRepository definitions = mock(ResourcePoolDefinitionRepository.class);
-        when(definitions.count()).thenReturn(0L);
         when(definitions.saveAll(anyIterable())).thenAnswer(invocation -> {
             Iterable<ResourcePoolDefinition> saved = invocation.getArgument(0);
-            saved.forEach(definition -> DEFINITIONS.put(definition.getPoolId(), definition));
-            return saved;
+            List<ResourcePoolDefinition> list = new ArrayList<>();
+            saved.forEach(definition -> {
+                DEFINITIONS.put(definition.getPoolId(), definition);
+                list.add(definition);
+            });
+            return list;
         });
-        when(definitions.findById(anyString()))
-                .thenAnswer(invocation -> Optional.ofNullable(DEFINITIONS.get(invocation.<String>getArgument(0))));
         ClassFeaturePoolRepository mappings = mock(ClassFeaturePoolRepository.class);
         when(mappings.saveAll(anyIterable())).thenAnswer(invocation -> {
             Iterable<ClassFeaturePool> saved = invocation.getArgument(0);
-            saved.forEach(MAPPINGS::add);
-            return saved;
+            List<ClassFeaturePool> list = new ArrayList<>();
+            saved.forEach(list::add);
+            MAPPINGS.addAll(list);
+            return list;
         });
         MonsterPoolTriggerRepository triggers = mock(MonsterPoolTriggerRepository.class);
-        when(triggers.saveAll(anyIterable())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(triggers.saveAll(anyIterable())).thenAnswer(invocation -> {
+            List<Object> list = new ArrayList<>();
+            invocation.<Iterable<?>>getArgument(0).forEach(list::add);
+            return list;
+        });
         CharacterClassRepository classes = mock(CharacterClassRepository.class);
         when(classes.findAll()).thenReturn(new ArrayList<>(CLASSES.values()));
         SubclassRepository subclasses = mock(SubclassRepository.class);
-        when(subclasses.findByName(anyString())).thenAnswer(invocation -> SUBCLASSES.computeIfAbsent(
-                invocation.getArgument(0), name -> Subclass.builder().id(UUID.randomUUID()).name(name).build()));
+        when(subclasses.findAll()).thenReturn(new ArrayList<>(SUBCLASSES.values()));
 
-        new ResourcePoolSeeder(definitions, mappings, triggers, classes, subclasses, new ObjectMapper()).seed();
+        new ResourcePoolLoader(definitions, mappings, triggers, classes, subclasses, objectMapper)
+                .load(new LoadContext(objectMapper));
 
         // The class's pools as the repository's queries find them
         ClassFeaturePoolRepository lookups = mock(ClassFeaturePoolRepository.class);
@@ -421,7 +444,7 @@ class PoolSizesGoldenTest {
     // ── Tests ────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("Every pool definition the seeder writes has its sizes typed out here, and every one typed out here is written")
+    @DisplayName("Every pool definition the loader writes has its sizes typed out here, and every one typed out here is written")
     void everyDefinitionIsCovered() {
         Set<String> typed = new TreeSet<>(MONSTER_POOLS.keySet());
         CLASS_POOLS.forEach(book -> typed.add(book.poolId()));

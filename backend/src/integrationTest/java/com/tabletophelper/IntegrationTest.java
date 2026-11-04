@@ -7,7 +7,7 @@ import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.RaceRepository;
-import com.tabletophelper.seeder.DataSeeder;
+import com.tabletophelper.content.ContentStartup;
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,9 +42,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("it")
 public abstract class IntegrationTest {
 
-    // Tests insert the reference rows they need; only docker-smoke runs the full seed
+    // Tests insert the reference rows they need; ContentLoadIT runs the full load itself
     @MockitoBean
-    protected DataSeeder dataSeeder;
+    protected ContentStartup contentStartup;
 
     @LocalServerPort
     protected int port;

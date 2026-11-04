@@ -184,17 +184,22 @@ class ContentSnapshotJobIT extends IntegrationTest {
     @Test
     @DisplayName("A natural key that two rows share is a warning, and both rows are kept, told apart by a number")
     void sharedNaturalKeyIsAWarning() throws IOException {
-        UUID secondElf = insert("INSERT INTO races (id, name, source, size) VALUES (?, 'Elf', 'PHB', 'M')");
+        // V26 gives the tables known by name and source unique keys, but not the monster pool triggers (R7, D169)
+        String trigger = "INSERT INTO monster_pool_triggers (id, pool_id, trigger_condition, priority) VALUES "
+                + "(?, 'subclass:battle-master-superiority-dice', '{\"hasFeature\": \"Lair\"}', 3)";
+        UUID first = insert(trigger);
+        UUID second = insert(trigger);
         Path output = directory.resolve("shared");
 
         MaintenanceReport report = snapshot(output);
 
-        List<String> ids = List.of(elf.toString(), secondElf.toString()).stream().sorted().toList();
+        String key = "subclass:battle-master-superiority-dice|{\"hasFeature\": \"Lair\"}";
+        List<String> ids = List.of(first.toString(), second.toString()).stream().sorted().toList();
         assertThat(report.warnings()).containsExactly(
-                "races Elf|PHB: 2 rows share this natural key (" + ids.get(0) + ", " + ids.get(1) + ")");
-        assertThat(lines(output.resolve("races.by-key.jsonl")))
+                "monster_pool_triggers " + key + ": 2 rows share this natural key (" + ids.get(0) + ", " + ids.get(1) + ")");
+        assertThat(lines(output.resolve("monster_pool_triggers.by-key.jsonl")))
                 .extracting(line -> line.path("key").asText() + " " + line.path("id").asText())
-                .containsExactly("Dwarf|PHB " + dwarf, "Elf|PHB " + ids.get(0), "Elf|PHB #2 " + ids.get(1));
+                .contains(key + " " + ids.get(0), key + " #2 " + ids.get(1));
     }
 
     @Test

@@ -147,7 +147,7 @@ class SpellSlotsEveryClassGoldenTest {
             {4, 5},                         // 20
     };
 
-    // Flags as CharacterClassSeeder sets them: a class with a spellcasting ability is a spellcaster, and only
+    // Flags as CharacterClassLoader sets them: a class with a spellcasting ability is a spellcaster, and only
     // the Warlock has Pact Magic. Fighter and Rogue cast only through their third-caster subclasses.
     static Stream<Arguments> everyClass() {
         return Stream.of(

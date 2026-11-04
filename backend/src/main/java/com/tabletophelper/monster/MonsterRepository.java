@@ -56,7 +56,4 @@ public interface MonsterRepository extends JpaRepository<Monster, UUID> {
     java.util.List<String> findDistinctChallengeRatings();
 
     Optional<Monster> findByNameIgnoreCaseAndSource(String name, String source);
-
-    @Query("SELECT m FROM Monster m WHERE m.actionTemplates IS NULL")
-    List<Monster> findAllWithoutActionTemplates(Pageable pageable);
 }

@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,7 +19,9 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class RaceSeeder {
+public class RaceLoader implements ContentLoader {
+
+    private static final String FILE = "data/5etools/races.json";
 
     private final RaceRepository raceRepository;
     private final SpellRepository spellRepository;
@@ -55,49 +57,55 @@ public class RaceSeeder {
         log.info("Built spell level lookup with {} entries from database", map.size());
     }
 
-    public void fixRaceSpellLevels() {
-        buildSpellLevelLookup();
-        if (spellLevelLookup.isEmpty()) return;
-        int fixed = 0;
-        for (Race race : raceRepository.findAll()) {
-            if (race.getAdditionalSpells() == null) continue;
-            try {
-                JsonNode root = objectMapper.readTree(race.getAdditionalSpells());
-                boolean changed = false;
-                JsonNode fixedSpells = root.get("fixedSpells");
-                if (fixedSpells != null && fixedSpells.isArray()) {
-                    for (JsonNode spell : fixedSpells) {
-                        if (spell.path("level").asInt(0) == 0 && !spell.path("atWill").asBoolean(false)) {
-                            String name = spell.path("name").asText("").toLowerCase();
-                            Integer correctLevel = spellLevelLookup.get(name);
-                            if (correctLevel != null && correctLevel > 0) {
-                                ((ObjectNode) spell).put("level", correctLevel);
-                                changed = true;
-                            }
-                        }
+    // Gives a fixed innate spell recorded at level 0 the level of the spell of its name, unless it is at will
+    private void fixRaceSpellLevels(Race race) throws Exception {
+        if (race.getAdditionalSpells() == null || spellLevelLookup.isEmpty()) return;
+        JsonNode root = objectMapper.readTree(race.getAdditionalSpells());
+        boolean changed = false;
+        JsonNode fixedSpells = root.get("fixedSpells");
+        if (fixedSpells != null && fixedSpells.isArray()) {
+            for (JsonNode spell : fixedSpells) {
+                if (spell.path("level").asInt(0) == 0 && !spell.path("atWill").asBoolean(false)) {
+                    String name = spell.path("name").asText("").toLowerCase();
+                    Integer correctLevel = spellLevelLookup.get(name);
+                    if (correctLevel != null && correctLevel > 0) {
+                        ((ObjectNode) spell).put("level", correctLevel);
+                        changed = true;
                     }
                 }
-                if (changed) {
-                    race.setAdditionalSpells(objectMapper.writeValueAsString(root));
-                    raceRepository.save(race);
-                    fixed++;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fix spell levels for race {}: {}", race.getName(), e.getMessage());
             }
         }
-        if (fixed > 0) log.info("Fixed spell levels in {} races", fixed);
+        if (changed) {
+            race.setAdditionalSpells(objectMapper.writeValueAsString(root));
+        }
     }
 
-    public void seed() throws Exception {
-        if (raceRepository.count() > 0) {
-            log.info("Races already seeded, skipping");
-            return;
-        }
+    @Override
+    public String name() {
+        return "races";
+    }
 
+    @Override
+    public List<String> files() {
+        return List.of(FILE);
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    // The innate spells' levels come from the spells table
+    @Override
+    public List<String> dependsOn() {
+        return List.of("spells");
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
         buildSpellLevelLookup();
 
-        ClassPathResource resource = new ClassPathResource("data/5etools/races.json");
+        ClassPathResource resource = new ClassPathResource(FILE);
         try (InputStream is = resource.getInputStream()) {
             JsonNode root = objectMapper.readTree(is);
             JsonNode racesArray = root.get("race");
@@ -154,8 +162,10 @@ public class RaceSeeder {
                 }
             }
 
-            raceRepository.saveAll(batch);
-            log.info("Race seeding complete: {} races (base + subraces)", batch.size());
+            for (Race race : batch) {
+                fixRaceSpellLevels(race);
+            }
+            context.upsert("races", raceRepository, batch, r -> LoadContext.nameAndSource(r.getName(), r.getSource()));
         }
     }
 

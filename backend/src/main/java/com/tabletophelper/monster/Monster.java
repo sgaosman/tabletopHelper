@@ -45,8 +45,8 @@ public class Monster {
     private String alignment;
 
     // The columns of armourClass, hitPoints, the ability scores, experiencePoints and isHomebrew allow
-    // null, but monsters are only written by MonsterSeeder, which sets each of them, and
-    // MonsterActionSeeder, which only adds action templates
+    // null, but monsters are only written by MonsterLoader, which sets each of them, and
+    // MonsterActionLoader, which writes only action templates
     @Schema(requiredMode = REQUIRED)
     @Column(name = "armour_class")
     private Integer armourClass;

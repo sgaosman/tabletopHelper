@@ -31,7 +31,7 @@ public class Race {
     @Column(length = 200, nullable = false)
     private String name;
 
-    // The columns of source, size and creatureType allow null, but races are only written by RaceSeeder,
+    // The columns of source, size and creatureType allow null, but races are only written by RaceLoader,
     // which falls back to "", Medium and Humanoid
     @Schema(requiredMode = REQUIRED)
     @Column(length = 100)

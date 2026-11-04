@@ -27,7 +27,8 @@ class FlywayMigrationIT extends IntegrationTest {
             "idx_cm_user_id", "campaign_members.user_id");
 
     // Foreign keys left without an index (D170): nothing filters on them, or they sit on small
-    // reference tables. A new foreign key needs an index or an entry here.
+    // reference tables. A new foreign key needs an index or an entry here. V26's natural keys index
+    // subclasses.character_class_id and class_feature_pools.class_id, their first columns (R7).
     private static final Set<String> UNINDEXED_FOREIGN_KEYS = Set.of(
             "campaigns.dm_user_id",
             "encounter_participants.monster_id",
@@ -35,8 +36,6 @@ class FlywayMigrationIT extends IntegrationTest {
             "player_characters.class_id",
             "player_characters.subclass_id",
             "player_characters.background_id",
-            "subclasses.character_class_id",
-            "class_feature_pools.class_id",
             "class_feature_pools.subclass_id",
             "class_feature_pools.pool_id",
             "monster_pool_triggers.pool_id");
@@ -45,13 +44,13 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V24 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V26 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26");
     }
 
     @Test

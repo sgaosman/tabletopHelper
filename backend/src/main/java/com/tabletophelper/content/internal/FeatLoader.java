@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -21,43 +20,48 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class FeatSeeder {
+public class FeatLoader implements ContentLoader {
 
-    private static final String EMPTY_EFFECTS = "{}";
+    private static final String FEATS_FILE = "data/5etools/feats.json";
+    // The effects the 5etools data doesn't give, by feat name, added to each feat's effects
+    private static final String EFFECTS_FILE = "data/content/feat-effects.json";
 
     private final FeatRepository featRepository;
     private final ObjectMapper objectMapper;
 
-    public void seed() throws Exception {
-        List<Feat> existing = featRepository.findAllByOrderByNameAsc();
-        boolean needsEffectsBackfill = existing.stream().anyMatch(f -> f.getEffects() == null);
-        if (!existing.isEmpty() && !needsEffectsBackfill) {
-            log.info("Feats already seeded, skipping");
-            return;
-        }
-
-        List<Feat> parsed = parseFeatsFile();
-        if (existing.isEmpty()) {
-            featRepository.saveAll(parsed);
-            log.info("Feat seeding complete: {} feats", parsed.size());
-            return;
-        }
-
-        // Backfill in place instead of deleting and reloading, so feat IDs stay stable (D169)
-        Map<String, String> effectsByFeat = new HashMap<>();
-        for (Feat feat : parsed) effectsByFeat.put(featKey(feat), feat.getEffects());
-        int backfilled = 0;
-        for (Feat feat : existing) {
-            if (feat.getEffects() != null) continue;
-            feat.setEffects(effectsByFeat.getOrDefault(featKey(feat), EMPTY_EFFECTS));
-            backfilled++;
-        }
-        featRepository.saveAll(existing);
-        log.info("Backfilled effects on {} existing feats", backfilled);
+    @Override
+    public String name() {
+        return "feats";
     }
 
-    private List<Feat> parseFeatsFile() throws Exception {
-        ClassPathResource resource = new ClassPathResource("data/5etools/feats.json");
+    @Override
+    public List<String> files() {
+        return List.of(FEATS_FILE, EFFECTS_FILE);
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
+        context.upsert("feats", featRepository, parseFeatsFile(readEffects()),
+                feat -> LoadContext.nameAndSource(feat.getName(), feat.getSource()));
+    }
+
+    private JsonNode readEffects() throws Exception {
+        try (InputStream is = new ClassPathResource(EFFECTS_FILE).getInputStream()) {
+            JsonNode effects = objectMapper.readTree(is);
+            if (!effects.isObject()) {
+                throw new IllegalStateException(EFFECTS_FILE + " is not an object of feat names");
+            }
+            return effects;
+        }
+    }
+
+    private List<Feat> parseFeatsFile(JsonNode extraEffects) throws Exception {
+        ClassPathResource resource = new ClassPathResource(FEATS_FILE);
         try (InputStream is = resource.getInputStream()) {
             JsonNode root = objectMapper.readTree(is);
             JsonNode feats = root.get("feat");
@@ -66,7 +70,7 @@ public class FeatSeeder {
 
             for (JsonNode feat : feats) {
                 try {
-                    Feat entity = parseFeat(feat);
+                    Feat entity = parseFeat(feat, extraEffects);
                     if (entity != null) batch.add(entity);
                 } catch (Exception e) {
                     log.warn("Failed to parse feat {}: {}", feat.path("name").asText("unknown"), e.getMessage());
@@ -76,11 +80,7 @@ public class FeatSeeder {
         }
     }
 
-    private static String featKey(Feat feat) {
-        return feat.getName() + "|" + feat.getSource();
-    }
-
-    private Feat parseFeat(JsonNode feat) throws Exception {
+    private Feat parseFeat(JsonNode feat, JsonNode extraEffects) throws Exception {
         String name = feat.path("name").asText(null);
         if (name == null) return null;
 
@@ -91,7 +91,7 @@ public class FeatSeeder {
                 .description(flattenEntries(feat.get("entries")))
                 .abilityScoreIncrease(extractAbilityScoreIncrease(feat))
                 .grantsFeatures(extractGrantsFeatures(feat))
-                .effects(extractEffects(feat, name))
+                .effects(extractEffects(feat, extraEffects.path(name)))
                 .build();
     }
 
@@ -234,7 +234,7 @@ public class FeatSeeder {
         return objectMapper.writeValueAsString(spells);
     }
 
-    private String extractEffects(JsonNode feat, String name) throws Exception {
+    private String extractEffects(JsonNode feat, JsonNode extra) throws Exception {
         ObjectNode effects = objectMapper.createObjectNode();
 
         if (feat.has("resist")) {
@@ -268,25 +268,11 @@ public class FeatSeeder {
             effects.set("optionalFeatureProgression", feat.get("optionalfeatureProgression"));
         }
 
-        switch (name) {
-            case "Tough" -> effects.put("hpPerLevel", 2);
-            case "Alert" -> effects.put("initiativeBonus", 5);
-            case "Observant" -> {
-                effects.put("passivePerceptionBonus", 5);
-                effects.put("passiveInvestigationBonus", 5);
-            }
-            case "Mobile" -> effects.put("speedBonus", 10);
-            case "Squat Nimbleness" -> effects.put("speedBonus", 5);
-            case "Lucky" -> {
-                ObjectNode resource = objectMapper.createObjectNode();
-                resource.put("name", "Luck Points");
-                resource.put("maxUses", 3);
-                resource.put("resetOn", "longRest");
-                effects.set("resource", resource);
-            }
+        if (extra.isObject()) {
+            effects.setAll((ObjectNode) extra.deepCopy());
         }
 
-        // Always an object, never null: a null here used to make seed() delete and reload every feat (D169)
+        // Always an object, never null (D169)
         return objectMapper.writeValueAsString(effects);
     }
 

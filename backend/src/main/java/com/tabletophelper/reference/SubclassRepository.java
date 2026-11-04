@@ -9,5 +9,4 @@ public interface SubclassRepository extends JpaRepository<Subclass, UUID> {
 
     List<Subclass> findByCharacterClassIdOrderByNameAsc(UUID characterClassId);
 
-    Subclass findByName(String name);
 }

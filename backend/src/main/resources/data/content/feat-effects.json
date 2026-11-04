@@ -1,0 +1,8 @@
+{
+  "Tough": { "hpPerLevel": 2 },
+  "Alert": { "initiativeBonus": 5 },
+  "Observant": { "passivePerceptionBonus": 5, "passiveInvestigationBonus": 5 },
+  "Mobile": { "speedBonus": 10 },
+  "Squat Nimbleness": { "speedBonus": 5 },
+  "Lucky": { "resource": { "name": "Luck Points", "maxUses": 3, "resetOn": "longRest" } }
+}

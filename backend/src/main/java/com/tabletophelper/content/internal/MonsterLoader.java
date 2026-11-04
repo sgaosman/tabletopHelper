@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +17,7 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class MonsterSeeder {
+public class MonsterLoader implements ContentLoader {
 
     private final MonsterRepository monsterRepository;
     private final ObjectMapper objectMapper;
@@ -42,17 +42,27 @@ public class MonsterSeeder {
             "L", "Large", "H", "Huge", "G", "Gargantuan"
     );
 
-    public void seed() throws Exception {
-        if (monsterRepository.count() > 0) {
-            log.info("Monsters already seeded, skipping");
-            return;
-        }
+    @Override
+    public String name() {
+        return "monsters";
+    }
 
+    @Override
+    public List<String> files() {
+        return List.of("data/5etools/bestiary/bestiary-*.json");
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         Resource[] resources = resolver.getResources("classpath:data/5etools/bestiary/bestiary-*.json");
 
         List<Monster> batch = new ArrayList<>();
-        int total = 0;
 
         for (Resource resource : resources) {
             String filename = resource.getFilename();
@@ -67,26 +77,16 @@ public class MonsterSeeder {
                     if (m.has("_copy")) continue;
 
                     Monster monster = parseMonster(m);
-                    if (monster != null) {
-                        batch.add(monster);
-                        total++;
-
-                        if (batch.size() >= 100) {
-                            monsterRepository.saveAll(batch);
-                            batch.clear();
-                            log.info("Seeding monsters... {}", total);
-                        }
-                    }
+                    if (monster != null) batch.add(monster);
                 }
             } catch (Exception e) {
                 log.warn("Error reading {}: {}", filename, e.getMessage());
             }
         }
 
-        if (!batch.isEmpty()) {
-            monsterRepository.saveAll(batch);
-        }
-        log.info("Monster seeding complete: {} monsters", total);
+        // The action templates are monster-actions' to write
+        context.upsert("monsters", monsterRepository, batch,
+                m -> LoadContext.nameAndSource(m.getName(), m.getSource()), "actionTemplates");
     }
 
     private Monster parseMonster(JsonNode m) {

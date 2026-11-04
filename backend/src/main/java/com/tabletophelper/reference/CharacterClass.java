@@ -32,7 +32,7 @@ public class CharacterClass {
     private String name;
 
     // The columns of source, hitDice, the four caster flags and subclassLevel allow null, but classes are
-    // only written by CharacterClassSeeder, which sets each of them
+    // only written by CharacterClassLoader, which sets each of them
     @Schema(requiredMode = REQUIRED)
     @Column(length = 100)
     private String source;

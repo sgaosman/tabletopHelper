@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,7 +16,9 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class OptionalFeatureSeeder {
+public class OptionalFeatureLoader implements ContentLoader {
+
+    private static final String FILE = "data/5etools/optionalfeatures.json";
 
     private static final Set<String> RELEVANT_TYPES = Set.of(
             "EI", "MM", "MV:B",
@@ -26,13 +28,24 @@ public class OptionalFeatureSeeder {
     private final OptionalFeatureRepository repository;
     private final ObjectMapper objectMapper;
 
-    public void seed() throws Exception {
-        if (repository.count() > 0) {
-            log.info("Optional features already seeded, skipping");
-            return;
-        }
+    @Override
+    public String name() {
+        return "optional-features";
+    }
 
-        ClassPathResource resource = new ClassPathResource("data/5etools/optionalfeatures.json");
+    @Override
+    public List<String> files() {
+        return List.of(FILE);
+    }
+
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    @Override
+    public void load(LoadContext context) throws Exception {
+        ClassPathResource resource = new ClassPathResource(FILE);
         try (InputStream is = resource.getInputStream()) {
             JsonNode root = objectMapper.readTree(is);
             JsonNode features = root.get("optionalfeature");
@@ -49,8 +62,8 @@ public class OptionalFeatureSeeder {
                 }
             }
 
-            repository.saveAll(batch);
-            log.info("Optional feature seeding complete: {} features", batch.size());
+            context.upsert("optional_features", repository, batch,
+                    f -> LoadContext.nameAndSource(f.getName(), f.getSource()));
         }
     }
 
@@ -61,12 +74,15 @@ public class OptionalFeatureSeeder {
         JsonNode featureTypes = feature.get("featureType");
         if (featureTypes == null || !featureTypes.isArray()) return List.of();
 
+        // A style listed for several classes (FS:F, FS:R, FS:P) is one Fighting Style, so each type is built once
         List<OptionalFeature> results = new ArrayList<>();
+        Set<String> built = new HashSet<>();
         for (JsonNode ft : featureTypes) {
             String type = ft.asText();
             if (!RELEVANT_TYPES.contains(type)) continue;
 
             String normalizedType = normalizeType(type);
+            if (!built.add(normalizedType)) continue;
 
             results.add(OptionalFeature.builder()
                     .name(name)

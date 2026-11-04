@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * A player character's weapons from their sheet (D164). The item rows, proficiencies and features are spelt as the
- * seeders and the character creation wizard write them: class proficiencies such as "simple" and "hand crossbow",
+ * loaders and the character creation wizard write them: class proficiencies such as "simple" and "hand crossbow",
  * multiclass ones such as "Martial", race ones such as "Longsword", and feats listed among the features with the
  * source "Feat" or the race or background that granted them.
  */

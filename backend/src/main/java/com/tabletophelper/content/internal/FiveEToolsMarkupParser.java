@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

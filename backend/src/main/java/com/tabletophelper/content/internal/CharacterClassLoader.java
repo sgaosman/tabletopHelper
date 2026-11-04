@@ -1,4 +1,4 @@
-package com.tabletophelper.seeder;
+package com.tabletophelper.content.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +22,7 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class CharacterClassSeeder {
+public class CharacterClassLoader implements ContentLoader {
 
     private final CharacterClassRepository classRepository;
     private final SubclassRepository subclassRepository;
@@ -41,13 +41,25 @@ public class CharacterClassSeeder {
             Map.entry("Ranger", 3), Map.entry("Rogue", 3)
     );
 
-    public void seed() throws Exception {
-        if (classRepository.count() > 0) {
-            log.info("Classes already seeded, checking for class data updates");
-            updateSeededClasses();
-            return;
-        }
+    @Override
+    public String name() {
+        return "classes";
+    }
 
+    @Override
+    public List<String> files() {
+        return List.of("data/5etools/class/class-*.json");
+    }
+
+    // Version 1 also writes the spell slot tables of rules/SpellSlotTables, so a change to them raises it
+    @Override
+    public int version() {
+        return 1;
+    }
+
+    /** Loads the classes, then the subclasses under them. */
+    @Override
+    public void load(LoadContext context) throws Exception {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         Resource[] resources = resolver.getResources("classpath:data/5etools/class/class-*.json");
 
@@ -82,13 +94,8 @@ public class CharacterClassSeeder {
             }
         }
 
-        classRepository.saveAll(allClasses);
-        log.info("Seeded {} classes", allClasses.size());
-
-        Map<String, CharacterClass> classLookup = new HashMap<>();
-        for (CharacterClass cc : allClasses) {
-            classLookup.put(cc.getName() + "|" + cc.getSource(), cc);
-        }
+        Map<String, CharacterClass> classLookup = context.upsert("character_classes", classRepository, allClasses,
+                cc -> LoadContext.nameAndSource(cc.getName(), cc.getSource()));
 
         List<Subclass> allSubclasses = new ArrayList<>();
         for (SubclassData scd : allSubclassData) {
@@ -96,9 +103,14 @@ public class CharacterClassSeeder {
             if (sc != null) allSubclasses.add(sc);
         }
 
-        subclassRepository.saveAll(allSubclasses);
-        log.info("Seeded {} subclasses", allSubclasses.size());
-        log.info("Class/subclass seeding complete: {} classes, {} subclasses", allClasses.size(), allSubclasses.size());
+        context.upsert("subclasses", subclassRepository, allSubclasses, CharacterClassLoader::subclassKey);
+    }
+
+    /** A subclass's natural key: its class's name and source, then its own. */
+    static String subclassKey(Subclass subclass) {
+        CharacterClass parent = subclass.getCharacterClass();
+        return LoadContext.nameAndSource(parent.getName(), parent.getSource()) + "|"
+                + LoadContext.nameAndSource(subclass.getName(), subclass.getSource());
     }
 
     private CharacterClass parseClass(JsonNode node, Map<String, JsonNode> featureMap) {
@@ -266,51 +278,6 @@ public class CharacterClassSeeder {
             return objectMapper.writeValueAsString(result);
         } catch (Exception e) {
             return null;
-        }
-    }
-
-    // Brings classes seeded by older code up to date with the class data: the multiclass data they lack, and a primary
-    // ability read wrongly, such as the Fighter's, once seeded as "OR"
-    private void updateSeededClasses() throws Exception {
-        List<CharacterClass> existing = classRepository.findAll();
-
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        Resource[] resources = resolver.getResources("classpath:data/5etools/class/class-*.json");
-
-        Map<String, JsonNode> classNodeMap = new HashMap<>();
-        for (Resource resource : resources) {
-            String filename = resource.getFilename();
-            if (filename == null || SKIP_FILES.contains(filename) || filename.startsWith("fluff-")) continue;
-            try (InputStream is = resource.getInputStream()) {
-                JsonNode root = objectMapper.readTree(is);
-                JsonNode classArray = root.get("class");
-                if (classArray == null || !classArray.isArray()) continue;
-                for (JsonNode cn : classArray) {
-                    classNodeMap.put(cn.path("name").asText(), cn);
-                }
-            }
-        }
-
-        int updated = 0;
-        for (CharacterClass cc : existing) {
-            JsonNode node = classNodeMap.get(cc.getName());
-            if (node == null) continue;
-            boolean changed = false;
-            if (cc.getMulticlassRequirements() == null) {
-                cc.setMulticlassRequirements(parseMulticlassRequirements(node));
-                cc.setMulticlassProficiencies(parseMulticlassProficiencies(node));
-                changed = true;
-            }
-            String primaryAbility = inferPrimaryAbility(cc.getName(), node);
-            if (!Objects.equals(primaryAbility, cc.getPrimaryAbility())) {
-                cc.setPrimaryAbility(primaryAbility);
-                changed = true;
-            }
-            if (changed) updated++;
-        }
-        if (updated > 0) {
-            classRepository.saveAll(existing);
-            log.info("Updated the class data of {} classes", updated);
         }
     }
 

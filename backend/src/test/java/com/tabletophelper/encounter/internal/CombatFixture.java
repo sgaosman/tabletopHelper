@@ -276,7 +276,7 @@ class CombatFixture {
     }
 
     /**
-     * A weapon row as ItemSeeder writes one from the 5etools base items: its type, category in subtype, damage, and
+     * A weapon row as ItemLoader writes one from the 5etools base items: its type, category in subtype, damage, and
      * property tags such as F (finesse), H (heavy) and AF|DMG (firearm ammunition).
      */
     static Item weapon(String name, String type, String category, String dice, String damageType, String... tags) {

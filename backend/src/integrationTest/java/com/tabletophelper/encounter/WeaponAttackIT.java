@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Weapon attacks the server works out, end to end (D164). Aria, a player's fighter with STR 16, DEX 14 and +2
  * proficiency, carries a greatsword she calls her grandfather's blade, linked to its item, and a +1 longsword she
  * lists as a plain longsword, and has Great Weapon Master; she goes first, against a 59 HP ogre with AC 11. The weapon
- * rows are the PHB's, as ItemSeeder writes them.
+ * rows are the PHB's, as ItemLoader writes them.
  */
 class WeaponAttackIT extends IntegrationTest {
 
