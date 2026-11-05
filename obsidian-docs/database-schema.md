@@ -230,6 +230,20 @@ These tables are populated automatically on startup by `DataSeeder` if empty. Da
 
 Because most seeders skip a table that already has rows, data fixes don't reach existing databases. **Planned (R7, D169):** loaders update rows by name and source, never delete and reload, and re-run only when a data file's content hash changes (new `content_versions` table).
 
+**Done (R7 workstream B, D169):** the `content` module's loaders replace the seeders. Each finds a row by its natural key and updates it in place, keeping its ID. It inserts new rows and deletes none. A loader runs again only when the hash of its files and code version changes, or a loader it depends on ran. V26 makes the natural keys unique: (name, source) for races, classes, backgrounds, spells, feats, items, monsters and optional features, (class, name, source) for subclasses, and (class, subclass, pool) for `class_feature_pools`. A missing source or subclass counts as a value (`NULLS NOT DISTINCT`). `content.mode` (`apply`, `preview` or `off`) controls loading at startup.
+
+### content_versions
+
+What each content loader last loaded (V25, D169). One row per loader.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| loader | VARCHAR(64) | PK | The loader's name, such as `spells` or `resource-pools` |
+| content_hash | CHAR(64) | NOT NULL | SHA-256 of the loader's files and code version, as hex |
+| loader_version | INT | NOT NULL | The loader's code version, raised when its code changes what it writes |
+| row_count | INT | | The rows the data gave |
+| loaded_at | TIMESTAMPTZ | NOT NULL | When it last loaded |
+
 ### monsters
 
 | Column | Type | Notes |
@@ -521,6 +535,8 @@ Same `ResourcePoolEntry` JSONB array format as `player_characters.resource_pools
 
 Seeded reference tables populated on startup by `ResourcePoolSeeder`. These define what resource pools exist and which class features / monster abilities grant them.
 
+Since R7 workstream B, `ResourcePoolLoader` loads them from `data/content/resource-pools.json`, with the values the seeder held (D169).
+
 ### resource_pool_definitions
 
 | Column | Type | Constraints | Notes |
@@ -662,6 +678,8 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V22 | `V22__dm_adjustments.sql` | `player_characters.dm_adjustments` JSONB NOT NULL DEFAULT `'[]'`, the DM Adjustments as `character.state.DmAdjustment` entries, oldest first; existing characters start with none, and the file has no DO blocks (D158, D161) |
 | V23 | `V23__pending_choices.sql` | `player_characters.pending_choices` JSONB NOT NULL DEFAULT `'[]'`, the Pending Choices as `character.state.PendingChoice` entries, oldest level first; existing characters start with none, the `backfill-pending-choices` job adds what their levels missed, and the file has no DO blocks (D159) |
 | V24 | `V24__write_back.sql` | `encounter_participants.joined_with` JSONB, a `character.state.CombatTotals`, filled from their sheets for the player participants of Active and Paused encounters: hit points kept between 0 and the maximum, temporary hit points at least 0, each slot's used count between 0 and its maximum, and the first of two pools with one ID. `encounters.results_applied` BOOLEAN, NULL until an encounter completes. `player_characters.is_dead` BOOLEAN NOT NULL DEFAULT FALSE. The file has no DO blocks (D166, D168) |
+| V25 | `V25__content_versions.sql` | The `content_versions` table, one row per content loader (D169) |
+| V26 | `V26__natural_key_indexes.sql` | Deletes the 14 duplicate Fighting Style copies in `optional_features`, keeping the oldest of each, after pointing any copy's ID in `level_history` and `dm_adjustments` at it. Then adds the unique natural-key indexes. The file has no DO blocks (D169) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -677,6 +695,7 @@ One-off data corrections that run with the backend after reference data seeding,
 | `recompute-characters` | Works out every character's Derived Stats again with the R6 rules and writes the stored copies: the HP maximum from the recorded Hit Die Results (a higher maximum raises current HP by as much, and a lower one caps it), proficiency bonus, initiative, speed, slot and Hit Dice maximums, the main spell DC and attack bonus, and the resource pools, innate uses included. It reports each changed stat before and after. What a sheet already has beyond the rules, such as more cantrips than its class knows, is a warning and is left as it is; a sheet that can't be worked out is skipped with a warning. | D167 |
 | `backfill-pending-choices` | Adds to `player_characters.pending_choices` the Pending Choices that existing characters' levels missed, each marked `LEVEL_UP`: an ASI at a level that gives one and records none, a subclass for a class at or past its subclass level without one, and Expertise at a level that gives it and records none, less the Expertise the sheet has that no level records, counted against those levels oldest first. Fighting Styles and known spells aren't backfilled. It reports each character that would change with each choice, such as "ASI at Fighter 6 (level 6)", and skips a character whose classes can't be found with a warning. A second run adds nothing, since the choices it added are pending. | D159 |
 | `content-snapshot` | Nothing. Writes the 13 reference tables as sorted JSON Lines, by ID and by natural key, to `--maintenance.output=<dir>`. With `--maintenance.compare=<dir>` it reports the rows added, deleted and changed against that earlier snapshot, and the natural keys whose ID changed; `--maintenance.compare-by=id` or `key` reports only one view (default `both`). For example: `--maintenance.job=content-snapshot --maintenance.output=../snapshots/before`. | D169 |
+| `preview-content` | Nothing. Runs the content loaders the next start would run, inside a transaction it always rolls back, and reports each reference row they would add or change. | D169 |
 
 Run locally from `backend/`:
 `./gradlew bootRun --args="--maintenance.job=<name> --server.port=0"`
@@ -758,6 +777,8 @@ Two maintenance jobs, both dry runs unless `--maintenance.apply=true` is passed:
 **Done (2026-11-03, workstream G):** V24 is applied to the local database after two backups and a dry run. The backups are `before-r6-v24-20261103T1248Z.sql` and `before-r6-v24-final-20261103T1349Z.sql` in `tabletopHelper-backups/`. The `preview-migration` dry run of V24 examined 276 rows and found 16 to change, none failing to load: asdasd's 3 participants in Live Encounters gain `joined_with` with HP 50, temp HP 0, no slots and Rage at 2/2, and all 13 characters gain `is_dead` false. The 15 encounters gain `results_applied` as NULL, which isn't counted as a change. V24 was applied at 13:51 UTC. `recompute-characters` and `backfill-pending-choices` then found nothing to change, and all 13 characters and all 15 encounters load through the API. Ending asdasd's 3 Live Encounters with their results applied would take its HP from 50 to 0 (−50, 0 and −3), alive, with Rage unchanged. A rehearsal on a copy of the data gave the same preview first, and ending the copy's three encounters, one applied, one declined and one applied, took asdasd from 50 to 47 and then to 0 (D166). A backup taken after R6, `after-r6-20261103T1351Z.sql`, is in the same folder.
 
 **R6 is complete (2026-11-03):** V19 to V24 and both maintenance jobs are applied to the local database. What R7 changes is in the outline below.
+
+**Done (2026-11-05, R7 workstream B):** V25 and V26 are applied to the local database, after backups and a `preview-migration` dry run, which found no character to change. V26 deleted the 14 duplicate Fighting Style copies. On the first start all 12 content loaders ran and changed no other row (D169).
 
 ### R3–R7 — Outline
 

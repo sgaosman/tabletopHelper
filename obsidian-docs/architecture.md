@@ -201,7 +201,7 @@ tabletophelper/
 │   │   │                         # the combat rules in rules/combat (R5) and the character rules in rules/character (R6)
 │   │   ├── shared/               # Domain exceptions, mapped to HTTP statuses (D155)
 │   │   ├── maintenance/          # One-off data correction jobs (R1)
-│   │   └── seeder/               # 5e.tools data import (Milestone 3)
+│   │   └── content/              # Game content loaders and content versions (R7, D169), which replaced seeder/
 │   └── src/main/resources/
 │       ├── application.yml       # Shared config
 │       ├── application-dev.yml   # Local dev (Postgres on localhost)
@@ -236,7 +236,8 @@ The backend is a modular monolith: one deployable Spring Boot application whose 
 - **`shared`** holds the domain exceptions any module may throw: `NotFoundException`, `ForbiddenException`, `ConflictException` and `ValidationException` (D155).
 - **`campaign`** holds `AccessPolicy`, which takes IDs rather than entities. `campaign` therefore uses only identity's public API and `shared`, and nothing from `character` or `encounter`, which call the policy (D155). Since R6 workstream E it has `requireCharacterDm`, the check for DM Adjustments: only the DM of the character's campaign passes, and nobody for a character in no campaign (D158).
 - **WebSocket interceptors are registered by the module that owns them:** identity's `WebSocketAuthConfig`, at highest precedence, checks CONNECT before encounter's `EncounterSubscriptionConfig` checks SUBSCRIBE and SEND frames. `EncounterWebSocketIT` asserts the order.
-- The other packages (`config`, `monster`, `reference`, `resourcepool`, `maintenance`, `seeder`) count as modules for the test but haven't been reorganised yet, and D151's `content` module doesn't exist yet.
+- **`content`** (R7 workstream B, D169) replaced `seeder` and `DataSeeder`. `ContentLoading` runs the loaders, and `ContentStartup` calls it at startup unless `content.mode` is `off`, as it is for every maintenance start. The loaders, `LoadContext`, `ContentHash` and `ContentVersion` are in `content.internal`. `maintenance`'s `preview-content` job uses `ContentLoading`.
+- The other packages (`config`, `monster`, `reference`, `resourcepool`, `maintenance`) count as modules for the test but haven't been reorganised yet.
 
 `ModuleBoundaryTest` (ArchUnit, `backend/src/test/java/com/tabletophelper/architecture/`, run by `./gradlew test`) checks the production classes, not the tests, against three rules:
 
