@@ -3,7 +3,7 @@ import java.util.concurrent.TimeUnit
 
 plugins {
     java
-    id("org.springframework.boot") version "3.4.3"
+    id("org.springframework.boot") version "3.5.16"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -41,7 +41,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
 
     runtimeOnly("org.postgresql:postgresql")
 
@@ -56,6 +56,12 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Deprecation and removal warnings show at every compile, so APIs the next Spring Boot, Hibernate or
+// Jackson major removes are seen before the upgrade (D154)
+tasks.withType<JavaCompile> {
+    options.compilerArgs.addAll(listOf("-Xlint:deprecation,removal"))
 }
 
 // Integration tier (D172): real PostgreSQL through Testcontainers, run with ./gradlew integrationTest.

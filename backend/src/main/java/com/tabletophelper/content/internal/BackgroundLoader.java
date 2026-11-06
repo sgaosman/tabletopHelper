@@ -164,7 +164,7 @@ public class BackgroundLoader implements ContentLoader {
         ArrayNode result = objectMapper.createArrayNode();
         for (JsonNode featSet : feats) {
             if (!featSet.isObject()) continue;
-            Iterator<Map.Entry<String, JsonNode>> fields = featSet.fields();
+            Iterator<Map.Entry<String, JsonNode>> fields = featSet.properties().iterator();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> field = fields.next();
                 String key = field.getKey();
@@ -184,7 +184,7 @@ public class BackgroundLoader implements ContentLoader {
             JsonNode expanded = spellSet.get("expanded");
             if (expanded == null) continue;
             ObjectNode spellsByLevel = objectMapper.createObjectNode();
-            Iterator<Map.Entry<String, JsonNode>> fields = expanded.fields();
+            Iterator<Map.Entry<String, JsonNode>> fields = expanded.properties().iterator();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> field = fields.next();
                 String levelKey = field.getKey();
@@ -234,7 +234,7 @@ public class BackgroundLoader implements ContentLoader {
     private ArrayNode parseSingleLangSet(JsonNode profSet) {
         ArrayNode result = objectMapper.createArrayNode();
         if (!profSet.isObject()) return result;
-        Iterator<Map.Entry<String, JsonNode>> fields = profSet.fields();
+        Iterator<Map.Entry<String, JsonNode>> fields = profSet.properties().iterator();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> field = fields.next();
             String key = field.getKey();
@@ -276,7 +276,7 @@ public class BackgroundLoader implements ContentLoader {
     private ArrayNode parseSingleProfSet(JsonNode profSet, boolean handleSpecialTools) {
         ArrayNode result = objectMapper.createArrayNode();
         if (!profSet.isObject()) return result;
-        Iterator<Map.Entry<String, JsonNode>> fields = profSet.fields();
+        Iterator<Map.Entry<String, JsonNode>> fields = profSet.properties().iterator();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> field = fields.next();
             String key = field.getKey();

@@ -179,7 +179,7 @@ class CasterSpells {
             String origin = granted.className() != null ? "class:" + granted.className() : null;
             JsonNode byLevel = StoredJson.read(objectMapper, granted.subclass().getAlwaysPreparedSpells(),
                     granted.subclass().getName() + "'s always-prepared spells");
-            byLevel.fields().forEachRemaining(group -> {
+            byLevel.properties().forEach(group -> {
                 String classLevel = group.getKey().trim();
                 if (!CLASS_LEVEL.matcher(classLevel).matches()
                         || Integer.parseInt(classLevel) > granted.classLevel()) {

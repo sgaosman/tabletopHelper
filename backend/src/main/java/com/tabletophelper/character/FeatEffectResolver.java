@@ -263,7 +263,7 @@ public class FeatEffectResolver {
                 int amount = entry.path("choose").path("amount").asInt(1);
                 applied.put(ability, CharacterUpdates.increaseAbility(character, ability, amount));
             } else {
-                Iterator<Map.Entry<String, JsonNode>> fields = entry.fields();
+                Iterator<Map.Entry<String, JsonNode>> fields = entry.properties().iterator();
                 while (fields.hasNext()) {
                     Map.Entry<String, JsonNode> field = fields.next();
                     if (!"choose".equals(field.getKey())) {
@@ -316,7 +316,7 @@ public class FeatEffectResolver {
 
         for (JsonNode item : node) {
             if (item.isObject()) {
-                Iterator<Map.Entry<String, JsonNode>> fields = item.fields();
+                Iterator<Map.Entry<String, JsonNode>> fields = item.properties().iterator();
                 while (fields.hasNext()) {
                     Map.Entry<String, JsonNode> field = fields.next();
                     if (field.getValue().asBoolean(false)) {
@@ -344,7 +344,7 @@ public class FeatEffectResolver {
 
         for (JsonNode item : node) {
             if (item.isObject()) {
-                Iterator<Map.Entry<String, JsonNode>> fields = item.fields();
+                Iterator<Map.Entry<String, JsonNode>> fields = item.properties().iterator();
                 while (fields.hasNext()) {
                     Map.Entry<String, JsonNode> field = fields.next();
                     if ("choose".equals(field.getKey())) {
@@ -378,7 +378,7 @@ public class FeatEffectResolver {
 
         for (JsonNode item : node) {
             if (item.isObject()) {
-                Iterator<Map.Entry<String, JsonNode>> fields = item.fields();
+                Iterator<Map.Entry<String, JsonNode>> fields = item.properties().iterator();
                 while (fields.hasNext()) {
                     Map.Entry<String, JsonNode> field = fields.next();
                     String key = field.getKey();
@@ -436,7 +436,7 @@ public class FeatEffectResolver {
 
         for (JsonNode item : node) {
             if (item.isObject()) {
-                Iterator<Map.Entry<String, JsonNode>> fields = item.fields();
+                Iterator<Map.Entry<String, JsonNode>> fields = item.properties().iterator();
                 while (fields.hasNext()) {
                     Map.Entry<String, JsonNode> field = fields.next();
                     if ("any".equals(field.getKey())) {
@@ -666,7 +666,7 @@ public class FeatEffectResolver {
             for (JsonNode option : arr) {
                 JsonNode daily = option.path("innate").path("_").path("daily");
                 if (daily.isObject()) {
-                    daily.fields().forEachRemaining(e -> {
+                    daily.properties().forEach(e -> {
                         // Keys such as "1" or "1e" (once each): the uses before any "e"
                         String count = e.getKey().replace("e", "");
                         if (!count.matches("\\d+")) {

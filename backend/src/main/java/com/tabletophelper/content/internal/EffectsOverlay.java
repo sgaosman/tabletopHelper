@@ -36,14 +36,14 @@ final class EffectsOverlay {
             throw new IllegalStateException(file + " is not an object of natural keys");
         }
         Map<String, String> effects = new LinkedHashMap<>();
-        Iterator<Map.Entry<String, JsonNode>> rows = root.fields();
+        Iterator<Map.Entry<String, JsonNode>> rows = root.properties().iterator();
         while (rows.hasNext()) {
             Map.Entry<String, JsonNode> row = rows.next();
             JsonNode value = row.getValue();
             if (!value.isObject() || value.isEmpty()) {
                 throw new IllegalStateException(file + ": " + row.getKey() + " has no effects object");
             }
-            value.fields().forEachRemaining(effect -> {
+            value.properties().forEach(effect -> {
                 if (!known.contains(effect.getKey())) {
                     throw new IllegalStateException(file + ": " + row.getKey() + " has the effect " + effect.getKey()
                             + ", which isn't one of " + known);

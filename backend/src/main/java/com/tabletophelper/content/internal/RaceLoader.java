@@ -251,7 +251,7 @@ public class RaceLoader implements ContentLoader {
         }
         if (speedNode.isObject()) {
             ObjectNode clean = objectMapper.createObjectNode();
-            speedNode.fields().forEachRemaining(entry -> {
+            speedNode.properties().forEach(entry -> {
                 JsonNode v = entry.getValue();
                 if (v.isInt() || v.isNumber()) {
                     clean.put(entry.getKey(), v.asInt());
@@ -300,7 +300,7 @@ public class RaceLoader implements ContentLoader {
     private void addAbilityBonuses(JsonNode abilityArray, List<Map<String, Object>> bonuses) {
         if (abilityArray == null || !abilityArray.isArray()) return;
         for (JsonNode obj : abilityArray) {
-            obj.fields().forEachRemaining(entry -> {
+            obj.properties().forEach(entry -> {
                 String key = entry.getKey();
                 if ("choose".equals(key)) {
                     JsonNode choose = entry.getValue();
@@ -447,7 +447,7 @@ public class RaceLoader implements ContentLoader {
     private void extractSkillProficiencies(JsonNode node, ArrayNode skills) {
         if (node == null || !node.isArray()) return;
         for (JsonNode obj : node) {
-            obj.fields().forEachRemaining(entry -> {
+            obj.properties().forEach(entry -> {
                 String key = entry.getKey();
                 if (!"choose".equals(key) && !"any".equals(key) && entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
                     String skillName = key.substring(0, 1).toUpperCase() + key.substring(1);
@@ -460,7 +460,7 @@ public class RaceLoader implements ContentLoader {
     private void extractLanguageProficiencies(JsonNode node, ArrayNode languages) {
         if (node == null || !node.isArray()) return;
         for (JsonNode obj : node) {
-            obj.fields().forEachRemaining(entry -> {
+            obj.properties().forEach(entry -> {
                 String key = entry.getKey();
                 if ("anyStandard".equals(key) || "other".equals(key)) return;
                 if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
@@ -474,7 +474,7 @@ public class RaceLoader implements ContentLoader {
     private void extractWeaponProficiencies(JsonNode node, ArrayNode weapons) {
         if (node == null || !node.isArray()) return;
         for (JsonNode obj : node) {
-            obj.fields().forEachRemaining(entry -> {
+            obj.properties().forEach(entry -> {
                 if ("choose".equals(entry.getKey())) return;
                 if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
                     String weapon = entry.getKey();
@@ -488,7 +488,7 @@ public class RaceLoader implements ContentLoader {
     private void extractArmorProficiencies(JsonNode node, ArrayNode armor) {
         if (node == null || !node.isArray()) return;
         for (JsonNode obj : node) {
-            obj.fields().forEachRemaining(entry -> {
+            obj.properties().forEach(entry -> {
                 if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
                     armor.add(entry.getKey().substring(0, 1).toUpperCase() + entry.getKey().substring(1));
                 }
@@ -499,7 +499,7 @@ public class RaceLoader implements ContentLoader {
     private void extractToolProficiencies(JsonNode node, ArrayNode tools) {
         if (node == null || !node.isArray()) return;
         for (JsonNode obj : node) {
-            obj.fields().forEachRemaining(entry -> {
+            obj.properties().forEach(entry -> {
                 if ("choose".equals(entry.getKey()) || "any".equals(entry.getKey())) return;
                 if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
                     String tool = entry.getKey();

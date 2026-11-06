@@ -85,13 +85,13 @@ public class SpellLoader implements ContentLoader {
         Map<String, Set<String>> map = new HashMap<>();
 
         JsonNode sources = context.read("data/5etools/spells/sources.json");
-        Iterator<Map.Entry<String, JsonNode>> sourceEntries = sources.fields();
+        Iterator<Map.Entry<String, JsonNode>> sourceEntries = sources.properties().iterator();
         while (sourceEntries.hasNext()) {
             Map.Entry<String, JsonNode> sourceEntry = sourceEntries.next();
             String sourceCode = sourceEntry.getKey();
             JsonNode spellsInSource = sourceEntry.getValue();
 
-            Iterator<Map.Entry<String, JsonNode>> spellEntries = spellsInSource.fields();
+            Iterator<Map.Entry<String, JsonNode>> spellEntries = spellsInSource.properties().iterator();
             while (spellEntries.hasNext()) {
                 Map.Entry<String, JsonNode> spellEntry = spellEntries.next();
                 String spellName = spellEntry.getKey();
@@ -168,7 +168,7 @@ public class SpellLoader implements ContentLoader {
                 target.computeIfAbsent("*" + spellName.toLowerCase(), k -> new LinkedHashSet<>()).add(label);
             }
         } else if (node.isObject()) {
-            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            Iterator<Map.Entry<String, JsonNode>> fields = node.properties().iterator();
             while (fields.hasNext()) {
                 collectSubclassSpells(fields.next().getValue(), label, target);
             }

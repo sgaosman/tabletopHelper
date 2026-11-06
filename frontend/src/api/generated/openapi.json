@@ -3982,6 +3982,7 @@
             "nullable": true
           },
           "participantType": {
+            "minLength": 1,
             "type": "string",
             "enum": [
               "PLAYER",
@@ -4503,6 +4504,7 @@
         "type": "object",
         "properties": {
           "initiatives": {
+            "minItems": 1,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SetInitiativeRequest"
@@ -4534,6 +4536,7 @@
         "type": "object",
         "properties": {
           "inviteCode": {
+            "minLength": 1,
             "type": "string"
           }
         }
@@ -4648,6 +4651,7 @@
             "format": "int32"
           },
           "spellName": {
+            "minLength": 1,
             "type": "string"
           },
           "spellSource": {
@@ -6042,6 +6046,7 @@
         "type": "object",
         "properties": {
           "condition": {
+            "minLength": 1,
             "type": "string"
           },
           "duration": {
@@ -6610,6 +6615,7 @@
         "type": "object",
         "properties": {
           "className": {
+            "minLength": 1,
             "type": "string"
           },
           "roll": {
@@ -7011,9 +7017,11 @@
         "type": "object",
         "properties": {
           "password": {
+            "minLength": 1,
             "type": "string"
           },
           "username": {
+            "minLength": 1,
             "type": "string"
           }
         }
@@ -7980,6 +7988,7 @@
             "nullable": true
           },
           "poolId": {
+            "minLength": 1,
             "type": "string"
           }
         }
@@ -8012,11 +8021,13 @@
         "type": "object",
         "properties": {
           "className": {
+            "minLength": 1,
             "type": "string"
           },
           "spells": {
             "type": "array",
             "items": {
+              "minLength": 1,
               "type": "string"
             }
           }
@@ -8137,9 +8148,10 @@
             "nullable": true
           },
           "email": {
+            "type": "string",
+            "format": "email",
             "maxLength": 255,
-            "minLength": 0,
-            "type": "string"
+            "minLength": 0
           },
           "password": {
             "maxLength": 100,
@@ -8595,9 +8607,11 @@
         "type": "object",
         "properties": {
           "replace": {
+            "minLength": 1,
             "type": "string"
           },
           "with": {
+            "minLength": 1,
             "type": "string"
           }
         }
@@ -8645,8 +8659,10 @@
         "type": "object",
         "properties": {
           "spells": {
+            "minItems": 1,
             "type": "array",
             "items": {
+              "minLength": 1,
               "type": "string"
             }
           }

@@ -89,7 +89,7 @@ public class FeatLoader implements ContentLoader {
         for (JsonNode prereq : prereqs) {
             if (!prereq.isObject()) continue;
             ObjectNode normalized = objectMapper.createObjectNode();
-            Iterator<Map.Entry<String, JsonNode>> fields = prereq.fields();
+            Iterator<Map.Entry<String, JsonNode>> fields = prereq.properties().iterator();
 
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> field = fields.next();
@@ -101,7 +101,7 @@ public class FeatLoader implements ContentLoader {
                         ArrayNode abilities = objectMapper.createArrayNode();
                         if (value.isArray()) {
                             for (JsonNode ab : value) {
-                                ab.fields().forEachRemaining(e ->
+                                ab.properties().forEach(e ->
                                         abilities.add(titleCase(e.getKey()) + " " + e.getValue().asInt()));
                             }
                         }
@@ -189,7 +189,7 @@ public class FeatLoader implements ContentLoader {
         for (JsonNode ab : ability) {
             if (!ab.isObject()) continue;
             ObjectNode entry = objectMapper.createObjectNode();
-            Iterator<Map.Entry<String, JsonNode>> fields = ab.fields();
+            Iterator<Map.Entry<String, JsonNode>> fields = ab.properties().iterator();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> field = fields.next();
                 String key = field.getKey();

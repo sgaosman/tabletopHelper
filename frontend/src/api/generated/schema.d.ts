@@ -2834,6 +2834,7 @@ export interface components {
         };
         RegisterRequest: {
             displayName?: string | null;
+            /** Format: email */
             email: string;
             password: string;
             username: string;
