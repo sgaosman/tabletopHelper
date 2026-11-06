@@ -98,6 +98,15 @@ class ContentLoadIT extends IntegrationTest {
                 .contains("\"levelOf\": \"Barbarian\"").contains("\"unlimited\": true");
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM resource_pool_definitions "
                 + "WHERE level_table IS NOT NULL", Integer.class)).isEqualTo(9);
+        // The pool-use command reads these (D174): Legendary Resistance costs nothing from the turn (MM p.11), and
+        // Action Surge adds an action
+        assertThat(jdbcTemplate.queryForList("SELECT DISTINCT spend_action_type FROM resource_pool_definitions",
+                String.class)).containsAnyOf("ACTION").isSubsetOf("ACTION", "BONUS_ACTION", "REACTION", "FREE",
+                "REPLACE_ATTACK");
+        assertThat(jdbcTemplate.queryForObject("SELECT spend_action_type FROM resource_pool_definitions "
+                + "WHERE pool_id = 'monster:legendary-resistance'", String.class)).isEqualTo("FREE");
+        assertThat(jdbcTemplate.queryForObject("SELECT metadata ->> 'grantsAction' FROM resource_pool_definitions "
+                + "WHERE pool_id = 'class:fighter-action-surge'", String.class)).isEqualTo("true");
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM monsters WHERE action_templates IS NOT NULL",
                 Integer.class)).isGreaterThan(2000);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM spells WHERE effect_template IS NOT NULL",

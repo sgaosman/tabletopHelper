@@ -916,6 +916,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/use-pool": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["usePool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/end": {
         parameters: {
             query?: never;
@@ -2165,7 +2181,7 @@ export interface components {
         };
         CombatLogResponse: {
             /** @enum {string} */
-            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE";
+            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE";
             /** Format: uuid */
             actorId?: string | null;
             actorName?: string | null;
@@ -3267,6 +3283,7 @@ export interface components {
             participantIds: string[];
         };
         TurnEconomy: {
+            actionSurgeUsed?: boolean | null;
             /** Format: int32 */
             actions: number;
             /** Format: int32 */
@@ -3293,6 +3310,13 @@ export interface components {
             skipped: boolean;
             /** Format: int32 */
             tieGroup?: number | null;
+        };
+        UsePoolRequest: {
+            /** Format: uuid */
+            participantId: string;
+            poolId: string;
+            /** Format: int32 */
+            uses?: number | null;
         };
         VisibilityRequest: {
             visible: boolean;
@@ -4801,6 +4825,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    usePool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UsePoolRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

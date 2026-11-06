@@ -129,6 +129,9 @@
       "spendActionType": "FREE",
       "description": "Take one additional action on your turn. Starting at 17th level, you can use it twice before a rest.",
       "icon": "zap",
+      "metadata": {
+        "grantsAction": true
+      },
       "levelTable": {
         "levelOf": "Fighter",
         "rows": [
@@ -1070,7 +1073,7 @@
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
-      "spendActionType": "REACTION",
+      "spendActionType": "FREE",
       "description": "If the monster fails a saving throw, it can choose to succeed instead.",
       "icon": "shield-check"
     },

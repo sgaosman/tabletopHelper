@@ -326,6 +326,7 @@ export const combatHandlers = [
     } satisfies MonsterActionResponse);
   }),
   http.post(`${BASE}/encounters/:id/combat/legendary-resistance`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/use-pool`, async () => HttpResponse.json(makeMockEncounter())),
   http.get(`${BASE}/encounters/:id/participants/:participantId/actions`, async () => {
     return HttpResponse.json({
       actions: [{

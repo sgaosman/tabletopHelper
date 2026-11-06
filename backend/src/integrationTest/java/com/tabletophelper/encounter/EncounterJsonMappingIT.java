@@ -192,9 +192,9 @@ class EncounterJsonMappingIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("A turn economy round-trips, a participant starts with a fresh one, and the column's default is the fresh record (D174, V30)")
+    @DisplayName("A turn economy round-trips, a participant starts with a fresh one, the column's default is the fresh record, and Action Surge is written only once used (D174, V30)")
     void turnEconomyRoundTrips() {
-        TurnEconomy spent = new TurnEconomy(2, 1, true, 1, true, true, true, false, true, true, false);
+        TurnEconomy spent = new TurnEconomy(2, 1, true, 1, true, true, true, false, true, true, false, false);
 
         UUID id = saveParticipant(EncounterParticipant.builder().turnEconomy(spent), null);
 
@@ -214,6 +214,14 @@ class EncounterJsonMappingIT extends IntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "UPDATE encounter_participants SET turn_economy = NULL WHERE id = ?", id))
                 .hasMessageContaining("turn_economy");
+
+        // Action Surge used is written only when true, so a record stored before it existed reads as false (M13 C)
+        TurnEconomy surged = new TurnEconomy(2, 0, false, 0, false, false, false, false, false, false, false, true);
+        UUID surgedId = saveParticipant(EncounterParticipant.builder().turnEconomy(surged), null);
+        assertThat(reload(surgedId).getTurnEconomy()).isEqualTo(surged);
+        assertThat(column("SELECT turn_economy ->> 'actionSurgeUsed' FROM encounter_participants WHERE id = ?",
+                surgedId)).isEqualTo("true");
+        assertThat(reload(fresh).getTurnEconomy().actionSurgeUsed()).isFalse();
     }
 
     @Test

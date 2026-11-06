@@ -32,7 +32,7 @@ class EncounterViewsTest {
     private static final List<ConditionEntry> PRONE = List.of(ConditionEntry.manual("prone", null, 1));
 
     // An action, bonus action and reaction spent (D174)
-    private static final TurnEconomy SPENT = new TurnEconomy(1, 1, true, 0, true, true, false, false, false, false, false);
+    private static final TurnEconomy SPENT = new TurnEconomy(1, 1, true, 0, true, true, false, false, false, false, false, false);
 
     private ParticipantResponse goblin(int hpCurrent) {
         return ParticipantResponse.builder()

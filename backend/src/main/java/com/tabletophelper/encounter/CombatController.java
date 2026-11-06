@@ -6,6 +6,7 @@ import com.tabletophelper.encounter.internal.ConditionService;
 import com.tabletophelper.encounter.internal.HitPointService;
 import com.tabletophelper.encounter.internal.LegendaryResistanceService;
 import com.tabletophelper.encounter.internal.MonsterActionService;
+import com.tabletophelper.encounter.internal.PoolUseService;
 import com.tabletophelper.encounter.internal.SpellcastingService;
 import com.tabletophelper.encounter.internal.TurnService;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ public class CombatController {
     private final SpellcastingService spellcastingService;
     private final MonsterActionService monsterActionService;
     private final LegendaryResistanceService legendaryResistanceService;
+    private final PoolUseService poolUseService;
     private final ConditionService conditionService;
     private final HitPointService hitPointService;
     private final EncounterService encounterService;
@@ -244,6 +246,18 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = legendaryResistanceService.useLegendaryResistance(
                 encounterId, request.combatLogId(), userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // A participant's resource pool, costing its spendActionType from the turn: the DM uses anyone's, a player
+    // their own participant's (D028, D174)
+    @PostMapping("/use-pool")
+    public ResponseEntity<EncounterResponse> usePool(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody UsePoolRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = poolUseService.usePool(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

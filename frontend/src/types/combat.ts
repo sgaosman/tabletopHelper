@@ -21,6 +21,9 @@ export type CastSpellResponse = Schemas['CastSpellResponse'];
 
 export type RepeatSpellEffectRequest = Schemas['RepeatSpellEffectRequest'];
 
+/** Uses of a participant's resource pool spent at the table, one when uses is left out (D174). */
+export type UsePoolRequest = Schemas['UsePoolRequest'];
+
 /**
  * A combat log entry. The players' log leaves out entries about participants the DM hides, and its
  * entries have no Legendary Resistance fields (D157).

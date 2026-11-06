@@ -65,7 +65,7 @@ class TurnServiceTest {
 
     // A turn economy with its action, bonus action, reaction and object interaction spent, in an Attack action (D174)
     private static TurnEconomy spent() {
-        return new TurnEconomy(1, 1, true, 1, true, true, true, false, false, true, false);
+        return new TurnEconomy(1, 1, true, 1, true, true, true, false, false, true, false, false);
     }
 
     private static void give(EncounterParticipant participant, ConditionEntry... conditions) {

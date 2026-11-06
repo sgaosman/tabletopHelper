@@ -117,6 +117,10 @@ public class ResourcePoolLoader implements ContentLoader {
 
     private static final Set<String> RESETS = Set.of("shortRest", "longRest", "turn", "dawn", "never");
 
+    // What a use can cost from the turn, which the pool-use command charges (D174)
+    private static final Set<String> SPEND_ACTION_TYPES = Set.of("ACTION", "BONUS_ACTION", "REACTION", "FREE",
+            "REPLACE_ATTACK");
+
     // A definition's formulas, rests and level table, as the pools will read them
     private static void check(ResourcePoolDefinition def, Set<String> names, Set<String> classNames) {
         String pool = def.getPoolId();
@@ -130,6 +134,10 @@ public class ResourcePoolLoader implements ContentLoader {
             }
         }
         reset(pool, def.getResetOn());
+        if (def.getSpendActionType() != null && !SPEND_ACTION_TYPES.contains(def.getSpendActionType())) {
+            throw new IllegalStateException(FILE + ": " + pool + " is spent as '" + def.getSpendActionType()
+                    + "', which isn't one of " + SPEND_ACTION_TYPES);
+        }
         PoolLevelTable table = def.getLevelTable();
         if (table == null) return;
         if (table.levelOf() == null || !classNames.contains(table.levelOf())) {

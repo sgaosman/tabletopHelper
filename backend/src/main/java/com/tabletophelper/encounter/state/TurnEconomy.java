@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.state;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.tabletophelper.rules.combat.TurnBudget;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -22,6 +23,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                              and other than one cast as a bonus action (PHB p.202)
  * @param dashed                it has taken the Dash action (advisory)
  * @param disengaged            it has taken the Disengage action (advisory)
+ * @param actionSurgeUsed       it has used Action Surge this turn, which it may only once (PHB p.72). Written only
+ *                              when true, so a record stored before it existed reads back unchanged, as false
  */
 public record TurnEconomy(
         @Schema(requiredMode = REQUIRED) int actions,
@@ -34,7 +37,8 @@ public record TurnEconomy(
         @Schema(requiredMode = REQUIRED) boolean bonusActionSpellCast,
         @Schema(requiredMode = REQUIRED) boolean otherSpellCast,
         @Schema(requiredMode = REQUIRED) boolean dashed,
-        @Schema(requiredMode = REQUIRED) boolean disengaged
+        @Schema(requiredMode = REQUIRED) boolean disengaged,
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT) boolean actionSurgeUsed
 ) {
 
     /** The economy at the start of a turn: one action and nothing spent. V30's column default is this record. */
@@ -46,12 +50,13 @@ public record TurnEconomy(
     public static TurnEconomy of(TurnBudget budget) {
         return new TurnEconomy(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(),
                 budget.attacksLeft(), budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
-                budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), budget.disengaged());
+                budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), budget.disengaged(),
+                budget.actionSurgeUsed());
     }
 
     /** This economy as the rules module's budget. */
     public TurnBudget budget() {
         return new TurnBudget(actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed,
-                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged);
+                objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged, actionSurgeUsed);
     }
 }

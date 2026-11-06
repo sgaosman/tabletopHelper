@@ -1,0 +1,172 @@
+package com.tabletophelper.encounter.internal;
+
+import com.tabletophelper.character.state.ResourcePoolEntry;
+import com.tabletophelper.encounter.CombatActionType;
+import com.tabletophelper.encounter.Encounter;
+import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.EncounterRepository;
+import com.tabletophelper.encounter.EncounterService;
+import com.tabletophelper.encounter.dto.EncounterResponse;
+import com.tabletophelper.encounter.dto.UsePoolRequest;
+import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.ActionEconomy;
+import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.shared.ValidationException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * A participant's resource pool used at the table (D174, closing D127's open item): the DM may use anyone's, a player
+ * only their own participant's (D028). The use costs what the pool's {@code spendActionType} says (D125): an action
+ * or a bonus action needs the participant's turn, while a reaction or a free use may be taken on any turn; a use in
+ * place of an attack takes one attack of the Attack action, opening it when none is going. A pool whose metadata says
+ * {@code grantsAction}, Action Surge, adds an action, only on the participant's own turn and only once on the same
+ * turn (PHB p.72). The spend follows the one rule the sheet uses too (ResourcePoolService.spend): an unlimited pool is
+ * never refused, and Psionic Recovery gives back a die of the pool it names, refused when none is expended.
+ * <p>
+ * Pools spent inside other commands, such as a monster's legendary actions or a recharge, are charged with their
+ * command and never come through here.
+ */
+@Service
+@RequiredArgsConstructor
+public class PoolUseService {
+
+    private final CombatAccess access;
+    private final ActionEconomyKeeper economy;
+    private final CombatLogWriter combatLog;
+    private final EncounterRepository encounterRepository;
+    private final EncounterService encounterService;
+
+    /**
+     * Uses the pool: everything is checked, and the use charged to the participant's turn economy, before the pool
+     * changes.
+     *
+     * @throws ValidationException for a pool the participant hasn't, or more than one use of Action Surge at once
+     * @throws com.tabletophelper.shared.ConflictException when the pool hasn't the uses, the pool it recovers has
+     *                                                     none to regain, or a player's use is over budget
+     */
+    @Transactional
+    public EncounterResponse usePool(UUID encounterId, UsePoolRequest request, UUID userId) {
+        int uses = request.uses() != null ? request.uses() : 1;
+        // The cost is the participant's pool's, known only once the encounter is read, as a spell's casting time is
+        Encounter encounter = access.beginFor(encounterId, request.participantId(), userId);
+        EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
+        ResourcePoolEntry pool = pool(participant, request.poolId());
+        ActionCost cost = costOf(pool);
+        boolean grantsAction = grantsAction(pool);
+        // Action Surge is used on the participant's own turn, though it costs nothing from it
+        access.requireTurnForCost(encounter, participant.getId(), userId, grantsAction ? ActionCost.ACTION : cost);
+        if (grantsAction && uses != 1) {
+            throw new ValidationException(pool.displayName() + " can be used only once at a time");
+        }
+        List<ResourcePoolEntry> spent = ResourcePoolService.spend(participant.getResourcePoolsCurrent(),
+                pool.poolId(), uses, participant.getDisplayName());
+
+        boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, participant.getId());
+        String costNote = costNote(cost);
+        String overReason = grantsAction
+                ? ActionEconomy.actionSurgeCheck(economyOf(participant).budget(), ownTurn).orElse(null) : null;
+        economy.charge(encounter, participant, charge(participant, cost, ownTurn), overReason, userId,
+                new ActionEconomyKeeper.Command(CombatActionType.POOL_USE,
+                        participant.getDisplayName() + "'s " + pool.displayName() + costNote));
+        if (grantsAction) {
+            participant.setTurnEconomy(TurnEconomy.of(ActionEconomy.actionSurge(economyOf(participant).budget())));
+        }
+        participant.setResourcePoolsCurrent(spent);
+
+        combatLog.write(encounter, CombatActionType.POOL_USE, describe(participant, pool, uses, costNote, spent,
+                grantsAction), participant, null);
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    private static ResourcePoolEntry pool(EncounterParticipant participant, String poolId) {
+        List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent();
+        return (pools != null ? pools : List.<ResourcePoolEntry>of()).stream()
+                .filter(pool -> pool != null && poolId.equals(pool.poolId()))
+                .findFirst()
+                .orElseThrow(() -> new ValidationException(participant.getDisplayName() + " has no pool " + poolId));
+    }
+
+    // The pool's spendActionType; a pool without one costs nothing from the turn
+    static ActionCost costOf(ResourcePoolEntry pool) {
+        String type = pool.spendActionType();
+        if (type == null || type.isBlank()) {
+            return ActionCost.FREE;
+        }
+        try {
+            return ActionCost.valueOf(type.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("The " + pool.poolId() + " pool has an unknown spendActionType " + type,
+                    e);
+        }
+    }
+
+    static boolean grantsAction(ResourcePoolEntry pool) {
+        return pool.metadata() instanceof Map<?, ?> map && Boolean.TRUE.equals(map.get("grantsAction"));
+    }
+
+    // What the use charges: one attack of the Attack action for a use in place of one, otherwise the pool's cost
+    private static Charge charge(EncounterParticipant participant, ActionCost cost, boolean ownTurn) {
+        if (cost == ActionCost.REPLACE_ATTACK) {
+            int attacksPerAction = TurnEconomies.attacksPerAction(participant);
+            return ownTurn ? Charge.replaceAttack(attacksPerAction)
+                    : new Charge(ActionCost.REPLACE_ATTACK, false, Charge.SpellKind.NONE, false, attacksPerAction);
+        }
+        return Charge.of(cost, ownTurn);
+    }
+
+    private static TurnEconomy economyOf(EncounterParticipant participant) {
+        return participant.getTurnEconomy() != null ? participant.getTurnEconomy() : TurnEconomy.fresh();
+    }
+
+    // How the log names a use's cost when it isn't an action, as the other commands' entries do (D174)
+    static String costNote(ActionCost cost) {
+        return switch (cost) {
+            case BONUS_ACTION -> " (bonus action)";
+            case REACTION -> " (reaction)";
+            case REPLACE_ATTACK -> " (in place of an attack)";
+            case ACTION, FREE, NONE -> "";
+        };
+    }
+
+    // Such as "Vex uses Psionic Recovery (bonus action) and regains a use of Psionic Energy Dice (4/4); 0/1 left"
+    private static String describe(EncounterParticipant participant, ResourcePoolEntry pool, int uses, String costNote,
+                                   List<ResourcePoolEntry> spent, boolean grantsAction) {
+        StringBuilder text = new StringBuilder(participant.getDisplayName()).append(" uses ")
+                .append(pool.displayName());
+        if (uses > 1) {
+            text.append(" ×").append(uses);
+        }
+        text.append(costNote);
+        if (grantsAction) {
+            text.append(" and takes an additional action");
+        }
+        if (pool.recovers() != null) {
+            ResourcePoolEntry recovered = find(spent, pool.recovers());
+            if (recovered != null) {
+                text.append(" and regains ").append(uses == 1 ? "a use" : uses + " uses").append(" of ")
+                        .append(recovered.displayName()).append(" (").append(remaining(recovered)).append(")");
+            }
+        }
+        ResourcePoolEntry after = find(spent, pool.poolId());
+        if (after != null) {
+            text.append("; ").append(after.unlimited() ? "unlimited" : remaining(after) + " left");
+        }
+        return text.toString();
+    }
+
+    private static String remaining(ResourcePoolEntry pool) {
+        return pool.unlimited() ? "unlimited" : pool.currentUses() + "/" + pool.maxUses();
+    }
+
+    private static ResourcePoolEntry find(List<ResourcePoolEntry> pools, String poolId) {
+        return pools.stream().filter(pool -> pool != null && poolId.equals(pool.poolId())).findFirst().orElse(null);
+    }
+}

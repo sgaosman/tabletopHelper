@@ -140,14 +140,38 @@ public final class ActionEconomy {
         }
         return new TurnBudget(budget.actions(), actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed,
                 reactionUsed, budget.objectInteractionUsed(), bonusActionSpellCast, otherSpellCast, budget.dashed(),
-                budget.disengaged());
+                budget.disengaged(), budget.actionSurgeUsed());
     }
 
     /** The budget with one more action, as Action Surge gives (PHB p.72). */
     public static TurnBudget grantAction(TurnBudget budget) {
         return new TurnBudget(budget.actions() + 1, budget.actionsUsed(), budget.attackActionTaken(),
                 budget.attacksLeft(), budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
-                budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), budget.disengaged());
+                budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), budget.disengaged(),
+                budget.actionSurgeUsed());
+    }
+
+    /**
+     * Why the creature can't use Action Surge now, or empty when it can: only on its own turn, and only once on the
+     * same turn, even with two uses (PHB p.72).
+     */
+    public static Optional<String> actionSurgeCheck(TurnBudget budget, boolean ownTurn) {
+        if (!ownTurn) {
+            return Optional.of("Action Surge is used on its own turn");
+        }
+        if (budget.actionSurgeUsed()) {
+            return Optional.of("It has already used Action Surge this turn; it can only once on the same turn");
+        }
+        return Optional.empty();
+    }
+
+    /** The budget after Action Surge: one more action, and Action Surge used this turn (PHB p.72). */
+    public static TurnBudget actionSurge(TurnBudget budget) {
+        TurnBudget granted = grantAction(budget);
+        return new TurnBudget(granted.actions(), granted.actionsUsed(), granted.attackActionTaken(),
+                granted.attacksLeft(), granted.bonusActionUsed(), granted.reactionUsed(),
+                granted.objectInteractionUsed(), granted.bonusActionSpellCast(), granted.otherSpellCast(),
+                granted.dashed(), granted.disengaged(), true);
     }
 
     /**

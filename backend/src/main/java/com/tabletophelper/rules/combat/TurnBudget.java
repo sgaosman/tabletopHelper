@@ -16,10 +16,12 @@ package com.tabletophelper.rules.combat;
  *                             and other than one cast as a bonus action (PHB p.202)
  * @param dashed               it has taken the Dash action (advisory)
  * @param disengaged           it has taken the Disengage action (advisory)
+ * @param actionSurgeUsed      it has used Action Surge this turn, which it may only once (PHB p.72)
  */
 public record TurnBudget(int actions, int actionsUsed, boolean attackActionTaken, int attacksLeft,
                          boolean bonusActionUsed, boolean reactionUsed, boolean objectInteractionUsed,
-                         boolean bonusActionSpellCast, boolean otherSpellCast, boolean dashed, boolean disengaged) {
+                         boolean bonusActionSpellCast, boolean otherSpellCast, boolean dashed, boolean disengaged,
+                         boolean actionSurgeUsed) {
 
     public TurnBudget {
         if (actions < 0 || actionsUsed < 0 || attacksLeft < 0) {
@@ -30,7 +32,7 @@ public record TurnBudget(int actions, int actionsUsed, boolean attackActionTaken
 
     /** The budget at the start of a creature's turn: one action and nothing spent. */
     public static TurnBudget fresh() {
-        return new TurnBudget(1, 0, false, 0, false, false, false, false, false, false, false);
+        return new TurnBudget(1, 0, false, 0, false, false, false, false, false, false, false, false);
     }
 
     /** Whether it has an action it hasn't taken. */

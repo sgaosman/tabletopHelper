@@ -92,7 +92,8 @@ class ResourcePoolLoaderTest {
             "a bad recharge check|\"maxUsesFormula\": \"1\", \"resetCheck\": \"5\"|resetCheck",
             "a level table of a class not loaded|\"maxUsesFormula\": \"1\", \"levelTable\": {\"levelOf\": \"Psion\", \"rows\": [{\"level\": 1}]}|Psion",
             "a bad formula in a level table|\"maxUsesFormula\": \"1\", \"levelTable\": {\"levelOf\": \"Bard\", \"rows\": [{\"level\": 5, \"maxUses\": \"bardLevel +\"}]}|level 5 maxUses",
-            "a rest no reset knows|\"maxUsesFormula\": \"1\", \"levelTable\": {\"levelOf\": \"Bard\", \"rows\": [{\"level\": 5, \"resetOn\": \"sunset\"}]}|sunset"})
+            "a rest no reset knows|\"maxUsesFormula\": \"1\", \"levelTable\": {\"levelOf\": \"Bard\", \"rows\": [{\"level\": 5, \"resetOn\": \"sunset\"}]}|sunset",
+            "a cost the pool-use command can't charge|\"maxUsesFormula\": \"1\", \"spendActionType\": \"MOVE\"|MOVE"})
     @DisplayName("A definition the pools couldn't use fails the loader, naming the pool and the problem, before anything is written")
     void invalidDefinitionFails(String problem, String fields, String named) throws Exception {
         ResourcePoolLoader loader = loader();

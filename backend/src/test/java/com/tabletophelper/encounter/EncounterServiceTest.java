@@ -1353,7 +1353,7 @@ class EncounterServiceTest {
     void startEncounter_givesTheFirstTurn() {
         EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 0);
         EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 1);
-        fighter.setTurnEconomy(new TurnEconomy(1, 1, true, 1, true, true, true, false, false, true, false));
+        fighter.setTurnEconomy(new TurnEconomy(1, 1, true, 1, true, true, true, false, false, true, false, false));
         Encounter encounter = encounterIn(EncounterStatus.PREPARING, goblin, fighter);
         when(encounterRepository.findBySessionCode(anyString())).thenReturn(Optional.empty());
 

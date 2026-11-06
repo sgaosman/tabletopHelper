@@ -27,5 +27,7 @@ public enum CombatActionType {
     // The DM's Set HP / revive (D161)
     HP_SET,
     // A save repeated to end a condition, at the end of its creature's turn or when its player rolls it (D162)
-    REPEAT_SAVE
+    REPEAT_SAVE,
+    // A participant's resource pool used through the pool-use command, with what it cost from the turn (D174)
+    POOL_USE
 }

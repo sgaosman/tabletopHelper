@@ -12,6 +12,7 @@ import type {
   MonsterActionTemplate,
   MultiattackOption,
   SpellOption,
+  UsePoolRequest,
 } from '../types/combat';
 
 export const combatApi = {
@@ -112,6 +113,13 @@ export const combatApi = {
     return api.post<MonsterActionResponse>(`/encounters/${encounterId}/combat/monster-action`, request, {
       params: actorId ? { actorId } : undefined,
     });
+  },
+
+  // A participant's resource pool, costing its spendActionType from the turn: the DM may use anyone's, a player
+  // their own participant's, and an action or bonus action only on its turn. Action Surge adds an action, once per
+  // turn (D174)
+  usePool(encounterId: string, request: UsePoolRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/use-pool`, request);
   },
 
   useLegendaryResistance(encounterId: string, combatLogId: string) {

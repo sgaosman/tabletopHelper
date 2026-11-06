@@ -389,6 +389,45 @@ class ActionEconomyGoldenTest {
         }
     }
 
+    // ── Action Surge ─────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Action Surge (PHB p.72)")
+    class ActionSurge {
+
+        @Test
+        @DisplayName("It adds an action and marks Action Surge used, so a second Attack action is allowed")
+        void addsAnAction() {
+            TurnBudget attacked = ActionEconomy.spend(TurnBudget.fresh(), Charge.attack(1));
+            assertTrue(ActionEconomy.check(attacked, Charge.attack(1), List.of()).isPresent());
+
+            TurnBudget surged = ActionEconomy.actionSurge(attacked);
+
+            assertEquals(2, surged.actions());
+            assertTrue(surged.actionSurgeUsed());
+            assertEquals(Optional.empty(), ActionEconomy.check(surged, Charge.attack(1), List.of()));
+        }
+
+        @Test
+        @DisplayName("Only once on the same turn, and only on its own turn")
+        void oncePerTurn() {
+            assertEquals(Optional.empty(), ActionEconomy.actionSurgeCheck(TurnBudget.fresh(), true));
+            assertEquals(Optional.of("It has already used Action Surge this turn; it can only once on the same turn"),
+                    ActionEconomy.actionSurgeCheck(ActionEconomy.actionSurge(TurnBudget.fresh()), true));
+            assertEquals(Optional.of("Action Surge is used on its own turn"),
+                    ActionEconomy.actionSurgeCheck(TurnBudget.fresh(), false));
+        }
+
+        @Test
+        @DisplayName("Spending keeps Action Surge used")
+        void spendingKeepsIt() {
+            TurnBudget surged = ActionEconomy.actionSurge(TurnBudget.fresh());
+
+            assertTrue(ActionEconomy.spend(surged, Charge.of(ActionCost.ACTION, true)).actionSurgeUsed());
+            assertTrue(ActionEconomy.grantAction(surged).actionSurgeUsed());
+        }
+    }
+
     // ── Spending ─────────────────────────────────────────────────
 
     @Nested
@@ -398,7 +437,7 @@ class ActionEconomyGoldenTest {
         @Test
         @DisplayName("A fresh turn has one action and nothing spent")
         void fresh() {
-            assertEquals(new TurnBudget(1, 0, false, 0, false, false, false, false, false, false, false),
+            assertEquals(new TurnBudget(1, 0, false, 0, false, false, false, false, false, false, false, false),
                     TurnBudget.fresh());
         }
 
@@ -431,7 +470,7 @@ class ActionEconomyGoldenTest {
             assertThrows(NullPointerException.class, () -> new Charge(ActionCost.ACTION, false, null, true, 1));
             assertThrows(IllegalArgumentException.class, () -> Charge.attack(0));
             assertThrows(IllegalArgumentException.class,
-                    () -> new TurnBudget(1, -1, false, 0, false, false, false, false, false, false, false));
+                    () -> new TurnBudget(1, -1, false, 0, false, false, false, false, false, false, false, false));
         }
     }
 }

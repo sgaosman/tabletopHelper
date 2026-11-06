@@ -247,9 +247,9 @@ class TurnBoundaryIT extends IntegrationTest {
     // ── Helpers ──────────────────────────────────────────────────
 
     private static final TurnEconomy FRESH = TurnEconomy.fresh();
-    private static final TurnEconomy SPENT = new TurnEconomy(1, 1, true, 1, true, true, true, true, false, true, false);
+    private static final TurnEconomy SPENT = new TurnEconomy(1, 1, true, 1, true, true, true, true, false, true, false, false);
     private static final TurnEconomy REACTION_TAKEN =
-            new TurnEconomy(1, 0, false, 0, false, true, false, false, false, false, false);
+            new TurnEconomy(1, 0, false, 0, false, true, false, false, false, false, false, false);
 
     private void setEconomy(String participantId, TurnEconomy economy) {
         EncounterParticipant participant = participantRepository.findById(UUID.fromString(participantId)).orElseThrow();
