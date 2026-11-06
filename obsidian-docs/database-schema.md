@@ -685,6 +685,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V26 | `V26__natural_key_indexes.sql` | Deletes the 14 duplicate Fighting Style copies in `optional_features`, keeping the oldest of each, after pointing any copy's ID in `level_history` and `dm_adjustments` at it. Then adds the unique natural-key indexes. The file has no DO blocks (D169) |
 | V27 | `V27__pool_level_tables.sql` | `resource_pool_definitions.level_table` JSONB, NULL until the resource-pools loader fills it (D169) |
 | V28 | `V28__race_and_subclass_effects.sql` | `races.effects` and `subclasses.effects` JSONB, NULL until the race and class loaders fill them (D167) |
+| V29 | `V29__drop_deprecated_character_columns.sql` | Drops `player_characters.hit_dice_total`, `hit_dice_remaining`, `hit_dice_map`, `feat_resources`, `prepared_spells`, `attuned_items` and `equipped_items`, which nothing reads; `hit_dice` holds the hit dice. Destructive: archive the values first (D168) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -790,6 +791,8 @@ Two maintenance jobs, both dry runs unless `--maintenance.apply=true` is passed:
 **Done (2026-11-06, R7 workstream E):** V28 is applied to the local database, after a backup (`before-r7-v28-20261106T0316Z.sql`) and a `preview-migration` dry run that found no row to change. The next start changed only Hill Dwarf's and the Draconic Bloodline's effects and Elemental Adept's, and `recompute-characters` found no character to change (D167).
 
 **Done (2026-11-06, R7 workstream F):** after a backup (`before-r7-f-final-20261106T0355Z.sql`) and a `preview-content` dry run, the next start changed the `action_templates` of the 42 corrected monsters and nothing else (D165). F has no migration.
+
+**R7 workstream G (2026-11-06):** V29 is committed but not yet applied to the local database. Its values are archived in `r7-dropped-columns-20261106T0413Z.csv` (13 characters; only the three hit-dice columns held values) and backed up in `before-r7-v29-final-20261106T0413Z.sql`, and its `preview-migration` dry run listed 39 values on 13 characters, as on the restored copy. The next backend start applies it. The deprecated columns' rows above go once it is applied (D168).
 
 ### R3–R7 — Outline
 
