@@ -235,3 +235,49 @@ describe('RepeatEffectModal', () => {
     expect(cachedEncounter()).toBe(loaded);
   });
 });
+
+describe('RepeatEffectModal and the turn economy (D174)', () => {
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  const onTurn = (economy: Partial<NonNullable<typeof cleric.turnEconomy>> = {}) =>
+    ({ ...cleric, isCurrentTurn: true, turnEconomy: { ...cleric.turnEconomy!, ...economy } });
+
+  it('says what repeating the effect costs, as the spell\'s data has it', async () => {
+    targeting({ repeatActionType: 'BONUS_ACTION' });
+    const { user } = await renderModal({ caster: onTurn(), spellName: 'Spiritual Weapon' });
+
+    expect(await screen.findByText('Repeating it costs a bonus action')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.queryByText(/Bonus action already used/)).not.toBeInTheDocument();
+  });
+
+  it('costs an action when the data names no cost, as on the server', async () => {
+    targeting();
+    await renderModal({ caster: onTurn() });
+
+    expect(await screen.findByText('Repeating it costs an action')).toBeInTheDocument();
+  });
+
+  it('warns at confirm when the turn can\'t pay for the repeat', async () => {
+    targeting({ repeatActionType: 'BONUS_ACTION' });
+    const { user } = await renderModal({ caster: onTurn({ bonusActionUsed: true }), spellName: 'Spiritual Weapon' });
+
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText('Bonus action already used this turn')).toBeInTheDocument();
+  });
+
+  it('notes that an effect costing nothing still needs the player\'s own turn', async () => {
+    targeting({ repeatActionType: 'NONE' });
+    const { user } = await renderModal({ spellName: 'Spirit Guardians' });
+
+    expect(await screen.findByText('Repeating it costs nothing from the turn')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText("Only on your turn; on another creature's turn the DM applies it")).toBeInTheDocument();
+  });
+});

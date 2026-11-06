@@ -12,7 +12,9 @@ import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
 import SpellCastModal from './SpellCastModal';
 
+// On the wizard's own turn, with its whole turn economy left (D174)
 const wizard = makeMockParticipant('part-wizard', 'Elminster', 'PLAYER', {
+  isCurrentTurn: true,
   spellSlotsCurrent: { 1: { max: 4, used: 2 }, 2: { max: 3, used: 3 }, 3: { max: 2, used: 1 } },
   spellAttackBonus: 7,
   spellSaveDc: 15,
@@ -183,7 +185,7 @@ describe('SpellCastModal', () => {
     const requests = castRequests(makeMockCastSpellResponse({
       spellName: 'Misty Step', slotLevelUsed: 2, spellSource: 'INNATE', resultSummary: 'Goblin Shaman vanishes.',
     }));
-    const { user } = await renderModal({ caster: shaman, participants: [shaman, goblin, legolas], allowManualModifiers: true });
+    const { user } = await renderModal({ caster: shaman, participants: [shaman, goblin, legolas], allowManualModifiers: true, asDm: true });
 
     expect(await screen.findByRole('button', { name: /Detect Magic/ })).toHaveTextContent('at will');
     expect(screen.getByRole('button', { name: /Hold Person/ })).toHaveTextContent('Lvl 2');
@@ -208,7 +210,9 @@ describe('SpellCastModal', () => {
   it("offers a warlock's pact slot, which casts at its own level", async () => {
     spellOptions([{ name: 'Hex', level: 1, castingTime: 'BONUS_ACTION', sources: [{ source: 'PACT_SLOT', levels: [3], usesLeft: 1, usesMax: 2 }] }]);
     targeting();
-    const warlock = makeMockParticipant('part-warlock', 'Hexblade', 'PLAYER', { spellSlotsCurrent: { pact_3: { max: 2, used: 1 } } });
+    const warlock = makeMockParticipant('part-warlock', 'Hexblade', 'PLAYER', {
+      isCurrentTurn: true, spellSlotsCurrent: { pact_3: { max: 2, used: 1 } },
+    });
     const requests = castRequests();
     const { user } = await renderModal({ caster: warlock, participants: [warlock, goblin] });
 
@@ -361,5 +365,123 @@ describe('SpellCastModal', () => {
 
     expect(screen.getByRole('button', { name: 'Advantage' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Normal' })).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+describe('SpellCastModal and the turn economy (D174)', () => {
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  const FRESH = wizard.turnEconomy!;
+  const CLERIC_OPTIONS: SpellOption[] = [
+    { name: 'Sacred Flame', level: 0, castingTime: 'ACTION', sources: [{ source: 'NONE', levels: [0] }] },
+    { name: 'Guiding Bolt', level: 1, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [1] }] },
+    { name: 'Healing Word', level: 1, castingTime: 'BONUS_ACTION', sources: [{ source: 'SLOT', levels: [1] }] },
+    { name: 'Shield', level: 1, castingTime: 'REACTION', reactionTrigger: 'which you take when you are hit by an attack', sources: [{ source: 'SLOT', levels: [1] }] },
+    { name: 'Identify', level: 1, castingTime: 'LONGER', sources: [{ source: 'SLOT', levels: [1] }] },
+  ];
+  const cleric = (economy: Partial<typeof FRESH> = {}, overrides: Partial<typeof wizard> = {}) =>
+    ({ ...wizard, turnEconomy: { ...FRESH, ...economy }, ...overrides });
+  const spellButton = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name}`) });
+
+  it('shows each spell\'s casting time', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    await renderModal({ caster: cleric() });
+
+    expect(await screen.findByRole('button', { name: /^Sacred Flame/ })).toHaveTextContent('Action');
+    expect(spellButton('Healing Word')).toHaveTextContent('Casting time: Bonus action');
+    expect(spellButton('Shield')).toHaveTextContent('Casting time: Reaction');
+    expect(spellButton('Identify')).toHaveTextContent('Casting time: Longer');
+  });
+
+  it('greys out a bonus-action spell once the bonus action is used, saying why', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    await renderModal({ caster: cleric({ bonusActionUsed: true }) });
+
+    await screen.findByRole('button', { name: /^Sacred Flame/ });
+    expect(spellButton('Healing Word')).toBeDisabled();
+    expect(spellButton('Healing Word')).toHaveAccessibleDescription('Bonus action already used this turn');
+    expect(spellButton('Guiding Bolt')).toBeEnabled();
+  });
+
+  it('after a bonus-action spell allows only a 1-action cantrip (PHB p.202)', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    await renderModal({ caster: cleric({ bonusActionUsed: true, bonusActionSpellCast: true }) });
+
+    await screen.findByRole('button', { name: /^Sacred Flame/ });
+    expect(spellButton('Sacred Flame')).toBeEnabled();
+    expect(spellButton('Guiding Bolt')).toBeDisabled();
+    expect(spellButton('Guiding Bolt')).toHaveAccessibleDescription(
+      'A bonus-action spell was cast this turn, so only a cantrip with a casting time of 1 action can follow');
+    expect(spellButton('Shield')).toBeDisabled();
+  });
+
+  it('after a levelled spell rules out a bonus-action spell, the rule\'s other order (PHB p.202)', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    await renderModal({ caster: cleric({ actions: 2, actionsUsed: 1, otherSpellCast: true }) });
+
+    await screen.findByRole('button', { name: /^Sacred Flame/ });
+    expect(spellButton('Healing Word')).toBeDisabled();
+    expect(spellButton('Healing Word')).toHaveAccessibleDescription(
+      'A spell other than a 1-action cantrip was cast this turn, so no spell can be cast as a bonus action');
+    expect(spellButton('Guiding Bolt')).toBeEnabled();
+  });
+
+  it('greys out a spell longer than a turn for a player, and off their turn everything but a reaction', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    await renderModal({ caster: cleric({}, { isCurrentTurn: false }) });
+
+    await screen.findByRole('button', { name: /^Sacred Flame/ });
+    expect(spellButton('Identify')).toBeDisabled();
+    expect(spellButton('Identify')).toHaveAccessibleDescription(
+      "Its casting time is longer than a turn, so it can't be cast during combat");
+    expect(spellButton('Sacred Flame')).toBeDisabled();
+    expect(spellButton('Shield')).toBeEnabled();
+  });
+
+  it('shows a reaction spell\'s trigger at confirm', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    targeting({ selfOnly: true });
+    const { user } = await renderModal({ caster: cleric() });
+
+    await user.click(await screen.findByRole('button', { name: /^Shield/ }));
+    await user.click(screen.getByRole('button', { name: /Level 1/ }));
+    await user.click(await screen.findByRole('button', { name: /Elminster/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText('Cast as a reaction, which you take when you are hit by an attack')).toBeInTheDocument();
+  });
+
+  it('lets the DM cast over the action economy, with the reason as a warning', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    targeting();
+    const { user } = await renderModal({ caster: cleric({ bonusActionUsed: true }), asDm: true });
+
+    await screen.findByRole('button', { name: /^Sacred Flame/ });
+    expect(spellButton('Healing Word')).toBeEnabled();
+    expect(spellButton('Healing Word')).toHaveAccessibleDescription('Over the action economy: Bonus action already used this turn');
+    expect(spellButton('Identify')).toBeEnabled();
+
+    await user.click(spellButton('Healing Word'));
+    await user.click(screen.getByRole('button', { name: /Level 1/ }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Over the action economy: Bonus action already used this turn')).toBeInTheDocument();
+  });
+
+  it('still shows the server\'s refusal, which has the last word', async () => {
+    spellOptions(CLERIC_OPTIONS);
+    targeting();
+    server.use(http.post('/api/encounters/:id/combat/cast-spell', () =>
+      HttpResponse.json({ error: 'It has no action left this turn' }, { status: 409 })));
+    const { user } = await renderModal({ caster: cleric() });
+
+    await user.click(await screen.findByRole('button', { name: /^Sacred Flame/ }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('It has no action left this turn');
   });
 });

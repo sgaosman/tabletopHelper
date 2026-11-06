@@ -103,6 +103,8 @@ export interface MonsterAction {
   description?: string;
   cost?: number;
   referencesAction?: string;
+  /** What the DM applies by hand when it is used, such as a Parry's AC against a hit already rolled (D174). */
+  dmNote?: string;
 }
 
 export interface MonsterEffect {

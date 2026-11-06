@@ -64,3 +64,10 @@ export type EndEncounterRequest = Schemas['EndEncounterRequest'];
  * now (D166): hit points and temporary hit points before and after, the slots and pools that change, and death.
  */
 export type CombatResultPreview = Schemas['CombatResultPreview'];
+
+/**
+ * What a participant has spent of its turn (D174): its actions (more after Action Surge), the attacks left in an
+ * Attack action, the bonus action, the reaction, the free object interaction, the bonus-action-spell rule's two flags,
+ * and Dash and Disengage. The Player View leaves it out for monsters (D157).
+ */
+export type TurnEconomy = Schemas['TurnEconomy'];

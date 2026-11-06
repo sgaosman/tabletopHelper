@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../api/errors';
 import { useAttackOptions, useEncounterAction } from '../../queries/encounters';
 import type { AttackOption, AttackRollRequest } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
+import { chargeBlock } from '../../utils/turnEconomy';
 
 const DAMAGE_TYPES = [
   'bludgeoning', 'piercing', 'slashing', 'acid', 'cold', 'fire',
@@ -18,8 +19,20 @@ const LABEL = 'block font-heading text-[12px] font-semibold tracking-[0.1em] upp
 const FIELD = 'w-full px-2 py-2 bg-page-alt border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted';
 const TOGGLE_OFF = 'bg-page-alt text-muted border border-rule';
 
+/** What an attack costs from the attacker's turn (D174). */
+type AttackCost = NonNullable<AttackRollRequest['cost']>;
+
+// An attack of the Attack action; an off-hand attack, the bonus action two-weapon fighting gives after the Attack
+// action (PHB p.195); or an opportunity attack, a reaction that may be made on another creature's turn
+const COSTS: { value: AttackCost; label: string }[] = [
+  { value: 'ACTION', label: 'Attack' },
+  { value: 'BONUS_ACTION', label: 'Off-hand (bonus action)' },
+  { value: 'REACTION', label: 'Opportunity attack (reaction)' },
+];
+
 /** One attack the player rolls: a weapon from their attack options, or numbers entered by hand. */
 interface AttackRow {
+  cost: AttackCost;
   weapon: string;
   powerAttack: boolean;
   advantage: boolean | null;
@@ -34,9 +47,9 @@ interface AttackRow {
 }
 
 // A ranged weapon attacks from beyond 5 feet unless the player says otherwise; there is no map (D161)
-function newRow(option: AttackOption | undefined): AttackRow {
+function newRow(option: AttackOption | undefined, cost: AttackCost): AttackRow {
   return {
-    weapon: option?.weapon ?? ENTERED, powerAttack: false, advantage: null, within5Ft: !(option?.ranged ?? false),
+    cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, advantage: null, within5Ft: !(option?.ranged ?? false),
     forceCrit: false, extraAttackBonus: '', extraDamageDice: '', extraDamageType: '',
     attackBonus: '', damageDice: '', damageType: '',
   };
@@ -62,6 +75,8 @@ function attackRequest(row: AttackRow, option: AttackOption | undefined, targetI
   allowManualModifiers: boolean): AttackRollRequest | null {
   const common = {
     targetId,
+    // Left out, an attack is one of the Attack action's (D174)
+    cost: row.cost === 'ACTION' ? undefined : row.cost,
     advantage: row.advantage ?? undefined,
     within5Ft: row.within5Ft,
     forceCrit: allowManualModifiers && row.forceCrit ? true : undefined,
@@ -90,12 +105,16 @@ function attackRequest(row: AttackRow, option: AttackOption | undefined, targetI
  * the server works out, and Great Weapon Master's or Sharpshooter's trade where the character may take it. While the
  * campaign allows Manual Modifiers, the player may add a magic weapon's bonus or other extra damage, force a critical
  * hit, or enter a whole attack by hand for a weapon the server doesn't know. Up to five attacks roll in one go.
+ * Each attack has a cost (D174), `defaultCost` unless the player picks another: an attack of the Attack action, an
+ * off-hand attack or an opportunity attack. Where the attacker's turn can't pay for it the row says why, and a
+ * refusal from the server shows its reason.
  */
-export default function WeaponAttackForm({ attacker, target, allowManualModifiers, onDone }: {
+export default function WeaponAttackForm({ attacker, target, allowManualModifiers, onDone, defaultCost = 'ACTION' }: {
   attacker: EncounterParticipant;
   target: EncounterParticipant;
   allowManualModifiers: boolean;
   onDone: () => void;
+  defaultCost?: AttackCost;
 }) {
   const actions = useEncounterAction();
   const optionsQuery = useAttackOptions(attacker.id);
@@ -111,7 +130,7 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   }
   const options = optionsQuery.data;
   const optionFor = (weapon: string) => options.find(o => o.weapon === weapon);
-  const current = rows ?? [newRow(options[0])];
+  const current = rows ?? [newRow(options[0], defaultCost)];
 
   function update(index: number, change: Partial<AttackRow>) {
     setRows(current.map((row, i) => i === index ? { ...row, ...change } : row));
@@ -124,7 +143,7 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   }
 
   function addRow() {
-    if (current.length < 5) setRows([...current, newRow(options[0])]);
+    if (current.length < 5) setRows([...current, newRow(options[0], defaultCost)]);
   }
 
   function cloneRow(index: number) {
@@ -161,8 +180,18 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
       {current.map((row, i) => {
         const option = optionFor(row.weapon);
         const entered = row.weapon === ENTERED;
+        // Why the attacker's turn can't pay for this attack, as far as the page can tell; the server decides (D174)
+        const blocked = chargeBlock(attacker, { cost: row.cost, attack: true });
         return (
           <div key={i} role="group" aria-label={`Attack ${i + 1}`} className="flex flex-wrap items-end gap-2 pb-3 border-b border-rule-light last:border-0">
+            <div className="w-56">
+              <label htmlFor={`cost-${i}`} className={LABEL}>Cost</label>
+              <select id={`cost-${i}`} value={row.cost} onChange={e => update(i, { cost: e.target.value as AttackCost })}
+                className={`${FIELD} h-[42px]`}>
+                {COSTS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+
             <div className="w-56">
               <label htmlFor={`weapon-${i}`} className={LABEL}>Weapon</label>
               <select id={`weapon-${i}`} value={row.weapon} onChange={e => chooseWeapon(i, e.target.value)}
@@ -255,6 +284,10 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
                   </select>
                 </div>
               </div>
+            )}
+
+            {blocked && (
+              <p className="basis-full font-body text-[13px] font-semibold text-debuff">{blocked}</p>
             )}
 
             <div className="flex gap-1 ml-auto">

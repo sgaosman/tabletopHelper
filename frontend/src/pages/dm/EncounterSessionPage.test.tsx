@@ -940,4 +940,50 @@ describe('DM EncounterSessionPage', () => {
       await waitFor(() => expect(screen.queryByText('Death save due')).not.toBeInTheDocument());
     });
   });
+
+  describe('turn economy (D174)', () => {
+    it('shows every participant\'s turn economy on its row', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [
+          gimli({ isCurrentTurn: true, attacksPerAction: 2, turnEconomy: { ...gimli().turnEconomy!, actionsUsed: 1, attackActionTaken: true, attacksLeft: 1 } }),
+          goblin({ turnEconomy: { ...goblin().turnEconomy!, reactionUsed: true } }),
+          bugbear(),
+        ],
+      }))));
+      await renderLoaded();
+
+      expect(screen.getByRole('group', { name: "Gimli's turn economy" })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: "Test Goblin's turn economy" })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: "Hidden Bugbear's turn economy" })).toBeInTheDocument();
+      expect(screen.getByText('Attack 1/2')).toBeInTheDocument();
+      expect(within(screen.getByRole('group', { name: "Test Goblin's turn economy" }))
+        .getByRole('button', { name: 'Reaction used' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('replaces a participant\'s whole turn economy when the DM toggles a pip', async () => {
+      let request: unknown;
+      server.use(http.put('/api/encounters/:id/combat/turn-economy', async ({ request: req }) => {
+        request = await req.json();
+        return HttpResponse.json(encounterWith());
+      }));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(within(screen.getByRole('group', { name: "Gimli's turn economy" }))
+        .getByRole('button', { name: 'Bonus action available' }));
+
+      await waitFor(() => expect(request).toEqual({
+        participantId: 'part-gimli', turnEconomy: { ...gimli().turnEconomy!, bonusActionUsed: true },
+      }));
+    });
+
+    it('shows the turn economy read-only while the encounter is Paused', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json({ ...encounterWith(), status: 'PAUSED' })));
+      await renderLoaded();
+
+      const bar = screen.getByRole('group', { name: "Gimli's turn economy" });
+      expect(within(bar).queryAllByRole('button')).toHaveLength(0);
+      expect(within(bar).getByRole('img', { name: 'Action available' })).toBeInTheDocument();
+    });
+  });
 });

@@ -37,6 +37,23 @@ describe('ConfirmStep', () => {
     expect(screen.getByText('Targeting: Test Goblin, Orc')).toBeInTheDocument();
   });
 
+  it("shows the casting time, a reaction's trigger and why the turn can't pay for it (D174)", () => {
+    renderStep({
+      castingTime: 'REACTION', reactionTrigger: 'which you take when you are hit by an attack',
+      economyWarning: 'Reaction already used',
+    });
+
+    expect(screen.getByText('Reaction')).toBeInTheDocument();
+    expect(screen.getByText('Cast as a reaction, which you take when you are hit by an attack')).toBeInTheDocument();
+    expect(screen.getByText('Reaction already used')).toBeInTheDocument();
+  });
+
+  it('shows no casting time or warning unless given', () => {
+    renderStep();
+    expect(screen.queryByText(/Casting time/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cast as a reaction/)).not.toBeInTheDocument();
+  });
+
   it('says None when there are no targets', () => {
     renderStep({ targets: [] });
     expect(screen.getByText('Targeting: None')).toBeInTheDocument();

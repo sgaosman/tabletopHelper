@@ -15,6 +15,7 @@ import ConditionChips from '../../components/encounter/ConditionChips';
 import ActiveSpells from '../../components/encounter/ActiveSpells';
 import DeathSaves from '../../components/encounter/DeathSaves';
 import SpellSlotPips from '../../components/encounter/SpellSlotPips';
+import TurnEconomyBar from '../../components/encounter/TurnEconomyBar';
 import HpReadout from '../../components/encounter/HpReadout';
 import CombatLog from '../../components/encounter/CombatLog';
 import ConnectionStatus from '../../components/encounter/ConnectionStatus';
@@ -50,10 +51,12 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
         <IconButton label="Close action panel" onClick={onClose} className="text-faint hover:text-ink"><X className="w-4 h-4" /></IconButton>
       </div>
 
-      {/* The weapons and numbers come from the server, with Manual Modifiers while the campaign allows them (D164) */}
+      {/* The weapons and numbers come from the server, with Manual Modifiers while the campaign allows them (D164).
+          Off their turn a player's only attack is an opportunity attack, their reaction (D174) */}
       {actionMode === 'attack' && (
         <WeaponAttackForm attacker={myCharacter} target={target}
-          allowManualModifiers={encounter.allowPlayerManualModifiers} onDone={onClose} />
+          allowManualModifiers={encounter.allowPlayerManualModifiers} onDone={onClose}
+          defaultCost={myCharacter.isCurrentTurn ? 'ACTION' : 'REACTION'} />
       )}
       {actionMode === 'condition' && (
         <ConditionForm onSubmit={async (condition, duration) => {
@@ -97,6 +100,9 @@ function PlayerSessionView() {
   const lairMonsters = encounter.monstersInLair.flatMap(id => participantsById.get(id)?.displayName ?? []);
   const isMyTurn = encounter.participants.some(p => p.isCurrentTurn && p.controlledByUserId === user?.userId);
   const myCharacter = encounter.participants.find(p => p.controlledByUserId === user?.userId);
+  // Off their turn a player may still make an opportunity attack while their reaction is unused (D174)
+  const canOpportunityAttack = !isMyTurn && myCharacter?.lifeState === 'ALIVE'
+    && myCharacter.turnEconomy != null && !myCharacter.turnEconomy.reactionUsed;
   // Repeat Saves the campaign leaves to this player, at the end of their character's turn (D162)
   const savesToRoll = (myCharacter?.activeConditions ?? []).filter(c => c.repeatSave?.awaitingRoll);
   // Actions show only while the encounter is Active: the server refuses them while it is Paused or
@@ -147,6 +153,9 @@ function PlayerSessionView() {
             </div>
           )}
         </div>
+
+        {/* What the player's own character has left this turn; the Player View carries no monster's (D157, D174) */}
+        {myCharacter && myCharacter.lifeState === 'ALIVE' && <TurnEconomyBar participant={myCharacter} variant="card" />}
 
         {/* Own character at 0 HP: death saves only while Dying (D161), one due as each turn starts (D163) */}
         {myCharacter?.lifeState === 'DYING' && (
@@ -276,8 +285,8 @@ function PlayerSessionView() {
                       <span className="font-heading text-[13px] font-semibold text-muted">{monsterHealth}</span>
                     )}
                     {/* The dead can't be attacked; the dying can (D161) */}
-                    {isActive && isMyTurn && p.lifeState !== 'DEAD' && (
-                      <IconButton label="Attack" onClick={() => selectAttackTarget(p.id)}
+                    {isActive && (isMyTurn || canOpportunityAttack) && p.lifeState !== 'DEAD' && (
+                      <IconButton label={isMyTurn ? 'Attack' : 'Opportunity attack'} onClick={() => selectAttackTarget(p.id)}
                         className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
                         <Crosshair className="w-3.5 h-3.5" />
                       </IconButton>

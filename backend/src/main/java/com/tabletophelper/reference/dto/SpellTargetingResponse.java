@@ -9,6 +9,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *
  * @param maxTargets -1 when the template sets no target count, such as for an area spell
  * @param targetType SINGLE_TARGET when the template sets none
+ * @param repeatActionType what repeating the spell's effect costs from the caster's turn (D174), or null when it has
+ *                         no repeat effect
  */
 public record SpellTargetingResponse(
         @Schema(requiredMode = REQUIRED) int maxTargets,
@@ -17,4 +19,5 @@ public record SpellTargetingResponse(
         @Schema(requiredMode = REQUIRED) boolean canTargetAllies,
         @Schema(requiredMode = REQUIRED) boolean canTargetEnemies,
         @Schema(requiredMode = REQUIRED) String targetType,
-        @Schema(requiredMode = REQUIRED) boolean hasRepeatEffect) {}
+        @Schema(requiredMode = REQUIRED) boolean hasRepeatEffect,
+        RepeatCost repeatActionType) {}

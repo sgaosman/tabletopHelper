@@ -4,6 +4,7 @@ import { useEncounterAction, useSpellOptions } from '../../queries/encounters';
 import { apiErrorMessage } from '../../api/errors';
 import type { EncounterParticipant, SpellSlot } from '../../types/encounter';
 import type { SpellOption, SpellSource } from '../../types/combat';
+import { spellCastBlock } from '../../utils/turnEconomy';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Modal from '../ui/Modal';
@@ -11,6 +12,7 @@ import useSpellFlow from './spellflow/useSpellFlow';
 import TargetStep from './spellflow/TargetStep';
 import ConfirmStep from './spellflow/ConfirmStep';
 import ResultView from './spellflow/ResultView';
+import CastingTimeBadge from './spellflow/CastingTimeBadge';
 
 interface Props {
   caster: EncounterParticipant;
@@ -18,6 +20,11 @@ interface Props {
   onClose: () => void;
   /** Offers a spell attack bonus and save DC typed by hand: always for the DM, for players while the campaign allows it (D164). */
   allowManualModifiers?: boolean;
+  /**
+   * The DM casts: the server never refuses the DM over the action economy, so a spell the turn can't pay for stays
+   * castable with the reason as a warning, and one longer than a turn costs an action (D174).
+   */
+  asDm?: boolean;
 }
 
 /** How the chosen spell is paid for: a Spell Source, and the level that casts it at (D165). */
@@ -38,10 +45,12 @@ interface ChoiceRow extends CastChoice {
 /**
  * Casts a spell in the live encounter of the surrounding EncounterProvider, whose state the result updates. The
  * server lists what the caster can cast now and what can pay for each spell, for player characters and monsters
- * alike, so only those are offered (D164, D165). Its own steps choose the spell and how to pay for it; the
- * targets, confirm and result are the steps every spell pop-up shares.
+ * alike, so only those are offered (D164, D165). Each shows its casting time, and one the caster's turn can't pay
+ * for is greyed out for a player with the reason, worked out from the caster's turn economy; the server stays the
+ * authority and its refusal shows too (D174). Its own steps choose the spell and how to pay for it; the targets,
+ * confirm and result are the steps every spell pop-up shares.
  */
-export default function SpellCastModal({ caster, participants, onClose, allowManualModifiers = false }: Props) {
+export default function SpellCastModal({ caster, participants, onClose, allowManualModifiers = false, asDm = false }: Props) {
   const actions = useEncounterAction();
   const spellOptions = useSpellOptions(caster.id);
   const flow = useSpellFlow<'spell' | 'slot'>('spell', { allowManualModifiers });
@@ -53,6 +62,9 @@ export default function SpellCastModal({ caster, participants, onClose, allowMan
     const q = search.toLowerCase();
     return (spellOptions.data ?? []).filter(s => s.name.toLowerCase().includes(q));
   }, [spellOptions.data, search]);
+
+  // Why the caster's turn can't pay for a spell now, if it can't (D174)
+  const blockFor = (spell: SpellOption) => spellCastBlock(caster, spell.castingTime, spell.level, { dm: asDm });
 
   const cantrips = filteredSpells.filter(s => s.level === 0);
   const leveled = filteredSpells.filter(s => s.level > 0);
@@ -120,6 +132,8 @@ export default function SpellCastModal({ caster, participants, onClose, allowMan
             search={search}
             onSearch={setSearch}
             onSelect={selectSpell}
+            blockFor={blockFor}
+            asDm={asDm}
             loading={spellOptions.isPending}
             loadError={spellOptions.isError ? apiErrorMessage(spellOptions.error) : null}
           />
@@ -146,6 +160,9 @@ export default function SpellCastModal({ caster, participants, onClose, allowMan
           <ConfirmStep
             spellName={selectedSpell!.name}
             levelLabel={selectedSpell!.level === 0 ? 'Cantrip' : `Level ${selectedSpell!.level}`}
+            castingTime={selectedSpell!.castingTime}
+            reactionTrigger={selectedSpell!.reactionTrigger}
+            economyWarning={overBudget(blockFor(selectedSpell!), asDm)}
             cost={costLine(choice!, selectedSpell!, choiceRows)}
             caster={caster}
             targets={participants.filter(p => flow.selectedTargets.includes(p.id))}
@@ -168,6 +185,11 @@ export default function SpellCastModal({ caster, participants, onClose, allowMan
       </div>
     </Modal>
   );
+}
+
+// The DM goes over the action economy rather than being refused, so the reason reads as a warning (D174)
+function overBudget(blocked: string | null, asDm: boolean) {
+  return blocked && asDm ? `Over the action economy: ${blocked}` : blocked;
 }
 
 /**
@@ -210,12 +232,14 @@ function rowsFor(spell: SpellOption, slots: Record<string, SpellSlot>): ChoiceRo
   return rows;
 }
 
-function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, loading, loadError }: {
+function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, blockFor, asDm, loading, loadError }: {
   cantrips: SpellOption[];
   leveled: SpellOption[];
   search: string;
   onSearch: (s: string) => void;
   onSelect: (spell: SpellOption) => void;
+  blockFor: (spell: SpellOption) => string | null;
+  asDm: boolean;
   loading: boolean;
   loadError: string | null;
 }) {
@@ -248,7 +272,7 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, loa
           <p className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1.5">Cantrips</p>
           <div className="space-y-1">
             {cantrips.map(s => (
-              <SpellRow key={s.name} spell={s} onClick={() => onSelect(s)} />
+              <SpellRow key={s.name} spell={s} blocked={blockFor(s)} asDm={asDm} onClick={() => onSelect(s)} />
             ))}
           </div>
         </div>
@@ -259,7 +283,7 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, loa
           <p className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted mb-1.5">Spells</p>
           <div className="space-y-1">
             {leveled.map(s => (
-              <SpellRow key={s.name} spell={s} onClick={() => onSelect(s)} />
+              <SpellRow key={s.name} spell={s} blocked={blockFor(s)} asDm={asDm} onClick={() => onSelect(s)} />
             ))}
           </div>
         </div>
@@ -268,25 +292,43 @@ function SpellSelectionStep({ cantrips, leveled, search, onSearch, onSelect, loa
   );
 }
 
-// A spell whose every source is spent stays listed, so the caster can see why it can't be cast
-function SpellRow({ spell, onClick }: { spell: SpellOption; onClick: () => void }) {
-  const castable = spell.sources.some(s => s.levels.length > 0);
+/**
+ * A spell to pick. One whose every source is spent stays listed, so the caster can see why it can't be cast, and so
+ * does one the caster's turn can't pay for, with the reason: greyed out for a player, a warning for the DM (D174).
+ */
+function SpellRow({ spell, blocked, asDm, onClick }: {
+  spell: SpellOption;
+  blocked: string | null;
+  asDm: boolean;
+  onClick: () => void;
+}) {
+  const castable = spell.sources.some(s => s.levels.length > 0) && (asDm || !blocked);
   const atWill = spell.level > 0 && spell.sources.some(s => s.source === 'NONE');
   const innate = spell.sources.find(s => s.source === 'INNATE');
+  const reasonId = `spell-block-${spell.name.replace(/[^A-Za-z0-9]+/g, '-')}`;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!castable}
+      aria-describedby={blocked ? reasonId : undefined}
       className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors group ${
         castable ? 'bg-page-alt hover:bg-rule' : 'bg-page-alt/50 opacity-50 cursor-not-allowed'
       }`}
     >
-      <div className="flex items-center gap-2">
-        <Zap className="w-3.5 h-3.5 text-ink shrink-0" />
-        <span className="font-body text-[15px] font-semibold text-ink">{spell.name}</span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-ink shrink-0" />
+          <span className="font-body text-[15px] font-semibold text-ink">{spell.name}</span>
+        </div>
+        {blocked && (
+          <p id={reasonId} className={`font-body text-[12.5px] font-semibold ml-5 ${asDm ? 'text-cls-fighter' : 'text-debuff'}`}>
+            {overBudget(blocked, asDm)}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-2">
+        <CastingTimeBadge castingTime={spell.castingTime} />
         {atWill && <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-buff">at will</span>}
         {innate && (
           <span className="font-heading text-[11px] font-semibold tracking-[0.02em] text-cls-monk">

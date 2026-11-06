@@ -17,7 +17,8 @@ const LOG_TOPIC = '/topic/encounter/enc-001/log';
 
 // Monsters as the Player View sends them (D157): a Health Status instead of HP, unless the DM shows exact HP.
 // The server leaves out the bugbear while the DM hides it.
-const HIDDEN_HP = { hpMax: null, hpCurrent: null, hpTemp: null };
+// Nor a monster's turn economy, attacks or speed (D174).
+const HIDDEN_HP = { hpMax: null, hpCurrent: null, hpTemp: null, turnEconomy: null, attacksPerAction: null, speed: {} };
 const goblin = (overrides: Partial<EncounterParticipant> = {}) =>
   makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { sortOrder: 1, ...HIDDEN_HP, healthStatus: 'UNHARMED', armourClass: 15, ...overrides });
 const bugbear = (overrides: Partial<EncounterParticipant> = {}) =>
@@ -133,8 +134,12 @@ describe('Player EncounterSessionPage', () => {
   });
 
   it('offers the participants in the Player View as spell targets, with a Health Status for monsters', async () => {
-    server.use(http.get('/api/encounters/:id/combat/spell-options', () =>
-      HttpResponse.json([{ name: 'Fire Bolt', level: 0, sources: [{ source: 'NONE', levels: [0] }] }])));
+    server.use(
+      http.get('/api/encounters/:id', () =>
+        HttpResponse.json(makeMockEncounter({ participants: [legolas(), gimli({ isCurrentTurn: true }), goblin()] }))),
+      http.get('/api/encounters/:id/combat/spell-options', () =>
+        HttpResponse.json([{ name: 'Fire Bolt', level: 0, castingTime: 'ACTION', sources: [{ source: 'NONE', levels: [0] }] }])),
+    );
     const user = userEvent.setup();
     renderPage();
 
@@ -496,6 +501,51 @@ describe('Player EncounterSessionPage', () => {
 
       expect(await screen.findByRole('button', { name: 'paralyzed' })).toBeInTheDocument();
       expect(screen.queryByText(/Repeat your/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('turn economy (D174)', () => {
+    it('shows a card of the player\'s own turn economy and no other participant\'s', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [legolas(), gimli({ isCurrentTurn: true, turnEconomy: { ...gimli().turnEconomy!, dashed: true } }), goblin()],
+      }))));
+      renderPage();
+
+      expect(await screen.findByText('This Turn')).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: "Gimli's turn economy" })).toBeInTheDocument();
+      expect(screen.getByText('Dashed')).toBeInTheDocument();
+      expect(screen.getAllByRole('group', { name: /turn economy/ })).toHaveLength(1);
+      expect(screen.queryByRole('group', { name: "Test Goblin's turn economy" })).not.toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: "Legolas's turn economy" })).not.toBeInTheDocument();
+      // The player can't edit it
+      expect(within(screen.getByRole('group', { name: "Gimli's turn economy" })).queryAllByRole('button')).toHaveLength(0);
+    });
+
+    it('offers an opportunity attack off the player\'s turn while their reaction is unused', async () => {
+      let attack: unknown;
+      server.use(http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
+        attack = await request.json();
+        return HttpResponse.json(makeMockEncounter({ participants: [legolas(), gimli(), goblin()] }));
+      }));
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click((await screen.findAllByRole('button', { name: 'Opportunity attack' }))[0]);
+      expect(await screen.findByLabelText('Cost')).toHaveValue('REACTION');
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(attack).toMatchObject({ cost: 'REACTION' }));
+    });
+
+    it('offers no attack off the player\'s turn once their reaction is used', async () => {
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [legolas(), gimli({ turnEconomy: { ...gimli().turnEconomy!, reactionUsed: true } }), goblin()],
+      }))));
+      renderPage();
+
+      expect(await screen.findByText('This Turn')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Opportunity attack' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Attack' })).not.toBeInTheDocument();
     });
   });
 });

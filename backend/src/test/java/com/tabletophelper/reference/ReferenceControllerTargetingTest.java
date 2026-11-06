@@ -2,6 +2,7 @@ package com.tabletophelper.reference;
 
 import com.tabletophelper.shared.JacksonDefaults;
 import tools.jackson.databind.ObjectMapper;
+import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
 import com.tabletophelper.rules.character.TestClassTables;
 import com.tabletophelper.shared.ConflictException;
@@ -159,10 +160,41 @@ class ReferenceControllerTargetingTest {
         SpellTargetingResponse body = response.getBody();
         assertNotNull(body);
         assertTrue(body.hasRepeatEffect());
+        assertNull(body.repeatActionType());
     }
 
     @Test
-    @DisplayName("The response has the same seven JSON fields as the map it replaced, with targetType defaulted")
+    @DisplayName("A repeat effect's cost comes from the template's repeatActionType (D174)")
+    void repeatEffectCost() {
+        Spell spell = new Spell();
+        spell.setName("Spiritual Weapon");
+        spell.setEffectTemplate(SpellTemplate.parse(
+            "{\"spellLevel\":2,\"targetCount\":1,\"repeatEffect\":{},\"repeatActionType\":\"BONUS_ACTION\"}"));
+        when(spellRepository.findByNameIgnoreCase("Spiritual Weapon")).thenReturn(Optional.of(spell));
+
+        SpellTargetingResponse body = controller.getSpellTargeting("Spiritual Weapon", 2).getBody();
+
+        assertNotNull(body);
+        assertTrue(body.hasRepeatEffect());
+        assertEquals(RepeatCost.BONUS_ACTION, body.repeatActionType());
+    }
+
+    @Test
+    @DisplayName("A spell without a repeat effect has no repeat cost, whatever its template says")
+    void noRepeatEffectNoCost() {
+        Spell spell = new Spell();
+        spell.setName("Bless");
+        spell.setEffectTemplate(SpellTemplate.parse("{\"spellLevel\":1,\"repeatActionType\":\"ACTION\"}"));
+        when(spellRepository.findByNameIgnoreCase("Bless")).thenReturn(Optional.of(spell));
+
+        SpellTargetingResponse body = controller.getSpellTargeting("Bless", 1).getBody();
+
+        assertNotNull(body);
+        assertNull(body.repeatActionType());
+    }
+
+    @Test
+    @DisplayName("The response has the seven JSON fields of the map it replaced, with targetType defaulted, and the repeat cost")
     void responseJsonMatchesTheFormerMap() throws Exception {
         Spell spell = new Spell();
         spell.setName("Bless");
@@ -174,7 +206,8 @@ class ReferenceControllerTargetingTest {
 
         var expected = objectMapper.readTree("""
                 {"maxTargets": 4, "selfOnly": false, "canTargetSelf": false, "canTargetAllies": true,
-                 "canTargetEnemies": true, "targetType": "SINGLE_TARGET", "hasRepeatEffect": false}
+                 "canTargetEnemies": true, "targetType": "SINGLE_TARGET", "hasRepeatEffect": false,
+                 "repeatActionType": null}
                 """);
         assertEquals(expected, objectMapper.valueToTree(response.getBody()));
     }

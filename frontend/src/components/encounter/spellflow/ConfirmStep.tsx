@@ -3,6 +3,8 @@ import { Shield, Sparkles, AlertTriangle, type LucideIcon } from 'lucide-react';
 import type { EncounterParticipant } from '../../../types/encounter';
 import Button from '../../ui/Button';
 import Input from '../../ui/Input';
+import type { CastingTime } from '../../../utils/turnEconomy';
+import CastingTimeBadge from './CastingTimeBadge';
 
 interface Props {
   spellName: string;
@@ -10,6 +12,12 @@ interface Props {
   levelLabel?: string;
   /** What the spell is paid with, as a line under the name. */
   cost?: ReactNode;
+  /** The spell's casting time, as a badge beside the name (D174). */
+  castingTime?: CastingTime;
+  /** What a reaction spell is cast in response to, as its casting time says. */
+  reactionTrigger?: string | null;
+  /** Why the caster's turn can't pay for this, as far as the page can tell: shown before the server is asked (D174). */
+  economyWarning?: string | null;
   caster: EncounterParticipant;
   targets: EncounterParticipant[];
   /** Warns that the cast ends the caster's current concentration. */
@@ -39,7 +47,7 @@ const ADVANTAGE_MODES = [
 
 /** Sums up a spell before it is resolved, and takes advantage and any Manual Modifiers. */
 export default function ConfirmStep({
-  spellName, levelLabel, cost, caster, targets, warnConcentration = false, advantage, onAdvantageChange,
+  spellName, levelLabel, cost, castingTime, reactionTrigger, economyWarning, caster, targets, warnConcentration = false, advantage, onAdvantageChange,
   allowManualModifiers, overrideAttackBonus, overrideSaveDC, onOverrideAttackBonus, onOverrideSaveDC,
   submitLabel, busyLabel, submitIcon: SubmitIcon, submitting, onSubmit, onBack,
 }: Props) {
@@ -55,9 +63,21 @@ export default function ConfirmStep({
           <Sparkles className="w-4 h-4 text-ink" />
           <span className="font-heading text-[16px] font-semibold text-ink">{spellName}</span>
           {levelLabel && <span className="font-body text-[13px] font-semibold text-faint">{levelLabel}</span>}
+          {castingTime && <CastingTimeBadge castingTime={castingTime} />}
         </div>
 
+        {castingTime === 'REACTION' && reactionTrigger && (
+          <p className="font-body text-[13px] font-semibold text-faint">Cast as a reaction, {reactionTrigger}</p>
+        )}
+
         {cost && <p className="font-body text-[15px] font-semibold text-muted">{cost}</p>}
+
+        {economyWarning && (
+          <div className="flex items-start gap-2 bg-debuff/10 border border-debuff/30 p-2">
+            <AlertTriangle className="w-4 h-4 text-debuff shrink-0 mt-0.5" />
+            <p className="font-body text-[13px] font-semibold text-debuff">{economyWarning}</p>
+          </div>
+        )}
 
         <p className="font-body text-[15px] font-semibold text-muted">
           <Shield className="w-3.5 h-3.5 inline mr-1" />

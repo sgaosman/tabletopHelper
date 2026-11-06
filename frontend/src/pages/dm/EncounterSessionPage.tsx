@@ -19,6 +19,7 @@ import ConditionChips from '../../components/encounter/ConditionChips';
 import ActiveSpells from '../../components/encounter/ActiveSpells';
 import DeathSaves from '../../components/encounter/DeathSaves';
 import SpellSlotPips from '../../components/encounter/SpellSlotPips';
+import TurnEconomyBar from '../../components/encounter/TurnEconomyBar';
 import HpReadout from '../../components/encounter/HpReadout';
 import CombatLog from '../../components/encounter/CombatLog';
 import ConnectionStatus from '../../components/encounter/ConnectionStatus';
@@ -379,6 +380,7 @@ function DmSessionView() {
             participants={encounter.participants}
             onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
             allowManualModifiers
+            asDm
           />
         )}
 
@@ -390,6 +392,7 @@ function DmSessionView() {
             spellName={(selectedTarget.concentrationSpell || selectedTarget.activeSpell)!}
             onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
             allowManualModifiers
+            asDm
           />
         )}
 
@@ -561,6 +564,12 @@ function DmSessionView() {
                     </>
                   )}
                 >
+                  {/* What the creature has left this turn; the DM's edit replaces it, for Haste, Slow or a fix (D174) */}
+                  <TurnEconomyBar
+                    participant={p}
+                    variant="row"
+                    onEdit={isActive ? turnEconomy => attemptTurnChange(() => actions.setTurnEconomy({ participantId: p.id, turnEconomy })) : undefined}
+                  />
                   <ConditionChips
                     participant={p}
                     roundNumber={encounter.roundNumber}

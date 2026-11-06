@@ -1,0 +1,108 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import type { ComponentProps } from 'react';
+import { render, setupAuthToken } from '../../test/test-utils';
+import { server } from '../../test/mocks/server';
+import { makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
+import type { EncounterParticipant } from '../../types/encounter';
+import { EncounterProvider } from '../../context/EncounterContext';
+import { queryKeys } from '../../queries/keys';
+import WeaponAttackForm from './WeaponAttackForm';
+
+const FRESH = {
+  actions: 1, actionsUsed: 0, attackActionTaken: false, attacksLeft: 0, bonusActionUsed: false,
+  reactionUsed: false, objectInteractionUsed: false, bonusActionSpellCast: false, otherSpellCast: false,
+  dashed: false, disengaged: false,
+};
+
+const rogue = (overrides: Partial<EncounterParticipant> = {}) =>
+  makeMockParticipant('part-rogue', 'Vex', 'PLAYER', { isCurrentTurn: true, controlledByUserId: 'user-001', ...overrides });
+const goblin = makeMockParticipant('part-goblin', 'Test Goblin', 'MONSTER', { armourClass: 15 });
+
+/** Records each attack request, answering with the encounter, or with the response given. */
+function attackRequests(answer?: () => Response) {
+  const bodies: unknown[] = [];
+  server.use(http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
+    bodies.push(await request.json());
+    return answer ? answer() : HttpResponse.json(makeMockEncounter());
+  }));
+  return bodies;
+}
+
+async function renderForm(props: Partial<ComponentProps<typeof WeaponAttackForm>> = {}) {
+  const onDone = vi.fn();
+  const { queryClient } = render(
+    <EncounterProvider encounterId="enc-001">
+      <WeaponAttackForm attacker={rogue()} target={goblin} allowManualModifiers={false} onDone={onDone} {...props} />
+    </EncounterProvider>,
+  );
+  await waitFor(() => expect(queryClient.getQueryData(queryKeys.encounters.detail('enc-001', 'player'))).toBeDefined());
+  return { onDone, user: userEvent.setup() };
+}
+
+describe('WeaponAttackForm', () => {
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  it('makes an attack of the Attack action by default, leaving the cost out (D174)', async () => {
+    const bodies = attackRequests();
+    const { onDone, user } = await renderForm();
+
+    expect(await screen.findByLabelText('Cost')).toHaveValue('ACTION');
+    expect(screen.getByRole('option', { name: 'Off-hand (bonus action)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Opportunity attack (reaction)' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).not.toHaveProperty('cost');
+  });
+
+  it('sends an off-hand attack as a bonus action', async () => {
+    const bodies = attackRequests();
+    const { onDone, user } = await renderForm({
+      attacker: rogue({ turnEconomy: { ...FRESH, actionsUsed: 1, attackActionTaken: true } }),
+    });
+
+    await user.selectOptions(await screen.findByLabelText('Cost'), 'BONUS_ACTION');
+    await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(bodies[0]).toMatchObject({ targetId: 'part-goblin', weapon: 'Longsword', cost: 'BONUS_ACTION' });
+  });
+
+  it('starts from the cost it is given, as an opportunity attack off the player\'s turn', async () => {
+    const bodies = attackRequests();
+    const { onDone, user } = await renderForm({ attacker: rogue({ isCurrentTurn: false }), defaultCost: 'REACTION' });
+
+    expect(await screen.findByLabelText('Cost')).toHaveValue('REACTION');
+    expect(screen.queryByText(/Not this creature's turn/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(bodies[0]).toMatchObject({ cost: 'REACTION' });
+  });
+
+  it('says why the turn can\'t pay for the chosen cost before it is sent', async () => {
+    await renderForm();
+
+    await userEvent.setup().selectOptions(await screen.findByLabelText('Cost'), 'BONUS_ACTION');
+
+    expect(screen.getByText('An off-hand attack needs the Attack action first this turn')).toBeInTheDocument();
+  });
+
+  it('shows the server\'s reason when it refuses the attack over the action economy', async () => {
+    attackRequests(() => HttpResponse.json(
+      { error: 'It has already taken its bonus action this turn' }, { status: 409 }));
+    const { onDone, user } = await renderForm();
+
+    await user.selectOptions(await screen.findByLabelText('Cost'), 'BONUS_ACTION');
+    await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('It has already taken its bonus action this turn');
+    expect(onDone).not.toHaveBeenCalled();
+  });
+});

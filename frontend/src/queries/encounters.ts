@@ -312,6 +312,8 @@ export function useEncounterAction() {
       castSpell: resolve(combatApi.castSpell),
       repeatSpellEffect: resolve(combatApi.repeatSpellEffect),
       monsterAction: resolve(combatApi.monsterAction),
+      // The DM's replacement of a participant's whole turn economy (D174)
+      setTurnEconomy: change(combatApi.setTurnEconomy),
     };
   }, [queryClient, encounterId, view, socketMessages]);
 }

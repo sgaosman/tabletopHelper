@@ -7,6 +7,7 @@ import useSpellFlow from './spellflow/useSpellFlow';
 import TargetStep from './spellflow/TargetStep';
 import ConfirmStep from './spellflow/ConfirmStep';
 import ResultView from './spellflow/ResultView';
+import { chargeBlock, costPhrase } from '../../utils/turnEconomy';
 
 interface Props {
   caster: EncounterParticipant;
@@ -15,18 +16,29 @@ interface Props {
   onClose: () => void;
   /** Offers a spell attack bonus and save DC typed by hand: always for the DM, for players while the campaign allows it (D164). */
   allowManualModifiers?: boolean;
+  /** The DM repeats it: the server never refuses the DM over the action economy (D174). */
+  asDm?: boolean;
 }
 
 /**
  * Repeats a spell's effect in the live encounter of the surrounding EncounterProvider, whose state the result
- * updates. It goes through the steps every spell pop-up shares; no slot is chosen, since the repeat spends none.
+ * updates. It goes through the steps every spell pop-up shares; no slot is chosen, since the repeat spends none. It
+ * says what the repeat costs from the caster's turn, as the spell's data has it, and why the turn can't pay for it
+ * where the page can tell; the server stays the authority (D174).
  */
-export default function RepeatEffectModal({ caster, participants, spellName, onClose, allowManualModifiers = false }: Props) {
+export default function RepeatEffectModal({ caster, participants, spellName, onClose, allowManualModifiers = false, asDm = false }: Props) {
   const actions = useEncounterAction();
   const flow = useSpellFlow('target', { allowManualModifiers });
   // The effect repeats at the level the spell was cast with
   const slotLevel = caster.concentrationSlotLevel || caster.activeSpellSlotLevel || 0;
   const { lookUpTargeting } = flow;
+  // Known once the spell's targeting has loaded; an effect the data doesn't price costs an action, as on the server
+  const repeatCost = flow.targetingInfo ? (flow.targetingInfo.repeatActionType ?? 'ACTION') : null;
+  const blocked = repeatCost === null ? null
+    : repeatCost === 'NONE'
+      ? (!asDm && !caster.isCurrentTurn ? 'Only on your turn; on another creature\'s turn the DM applies it' : null)
+      : chargeBlock(caster, { cost: repeatCost });
+  const economyWarning = blocked && asDm ? `Over the action economy: ${blocked}` : blocked;
 
   useEffect(() => {
     lookUpTargeting(spellName, slotLevel);
@@ -58,6 +70,10 @@ export default function RepeatEffectModal({ caster, participants, spellName, onC
           <p className="font-body text-[13px] font-semibold text-cls-warlock">No spell slot consumed — repeating existing concentration effect</p>
         </div>
 
+        {repeatCost && (
+          <p className="font-body text-[15px] font-semibold text-muted">Repeating it costs {costPhrase(repeatCost)}</p>
+        )}
+
         {flow.error && (
           <div role="alert" className="bg-debuff/10 border border-debuff text-debuff p-3 font-body text-[15px] font-semibold">{flow.error}</div>
         )}
@@ -80,6 +96,7 @@ export default function RepeatEffectModal({ caster, participants, spellName, onC
             spellName={spellName}
             caster={caster}
             targets={participants.filter(p => flow.selectedTargets.includes(p.id))}
+            economyWarning={economyWarning}
             advantage={flow.advantage}
             onAdvantageChange={flow.setAdvantage}
             allowManualModifiers={allowManualModifiers}

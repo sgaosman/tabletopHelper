@@ -6,6 +6,7 @@ import { useEncounterAction, useMonsterActionTemplates } from '../../queries/enc
 import type { MonsterAction, MonsterActionRequest, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
 import MultiattackPicker from './MultiattackPicker';
+import { chargeBlock, type EconomyCost } from '../../utils/turnEconomy';
 
 type ActionSource = MonsterActionRequest['actionSource'];
 type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds'>;
@@ -22,7 +23,17 @@ type TemplatesAnswer = MonsterActionTemplate & {
   error?: string;
 };
 
-type Tab = 'actions' | 'legendary' | 'lair';
+type Tab = 'actions' | 'bonus' | 'reactions' | 'legendary' | 'lair';
+
+/** The action source each tab sends (D138, D163, D174). */
+const TAB_SOURCE: Record<Tab, ActionSource> = {
+  actions: 'ACTION', bonus: 'BONUS', reactions: 'REACTION', legendary: 'LEGENDARY', lair: 'LAIR',
+};
+
+/** What each tab's actions cost from the monster's turn; legendary and lair actions are outside it (D163). */
+const TAB_COST: Record<Tab, EconomyCost> = {
+  actions: 'ACTION', bonus: 'BONUS_ACTION', reactions: 'REACTION', legendary: 'NONE', lair: 'NONE',
+};
 
 /** The server's own words for a refused monster action, where it gave any. */
 function monsterActionError(err: unknown): string {
@@ -55,10 +66,12 @@ function formatActionLabel(a: MonsterAction) {
 }
 
 /**
- * A monster's actions, legendary actions and lair actions for the DM to take, with the targets they go at and the
- * result of the last one (M12). DM only: the Player View carries no action templates (D157). Legendary actions are
- * used on other creatures' turns, the Lair's included, never on the monster's own; lair actions only on the Lair's
- * turn, by a monster fighting in its lair (D163). The server refuses the rest.
+ * A monster's actions, bonus actions, reactions, legendary actions and lair actions for the DM to take, with the
+ * targets they go at and the result of the last one (M12). DM only: the Player View carries no action templates
+ * (D157). Bonus actions cost the monster's bonus action and reactions its reaction, on any turn, the reactions'
+ * notes saying what the DM applies by hand (D174); where its turn economy can't pay, the tab warns, but the DM is
+ * never refused. Legendary actions are used on other creatures' turns, the Lair's included, never on the monster's
+ * own; lair actions only on the Lair's turn, by a monster fighting in its lair (D163). The server refuses the rest.
  */
 export default function InlineMonsterActions({ participant, participants, isLairTurn, inLair }: {
   participant: EncounterParticipant;
@@ -108,6 +121,8 @@ export default function InlineMonsterActions({ participant, participants, isLair
   if (!templates || templates.error) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{templates?.error || 'No data'}</div>;
 
   const actions = templates.actions || [];
+  const bonusActions = templates.bonusActions || [];
+  const reactions = templates.reactions || [];
   const legendary = templates.legendaryActions || [];
   const lair = templates.lairActions || [];
   const pools = templates.resourcePools || {};
@@ -118,7 +133,10 @@ export default function InlineMonsterActions({ participant, participants, isLair
   const lairReady = isLairTurn && inLair;
   const lairReason = !inLair ? `${participant.displayName} isn't fighting in its lair` : 'Lair actions wait for the Lair\'s turn, on initiative 20';
 
-  const currentActions = tab === 'legendary' ? legendary : tab === 'lair' ? lair : actions;
+  const currentActions = tab === 'legendary' ? legendary : tab === 'lair' ? lair
+    : tab === 'bonus' ? bonusActions : tab === 'reactions' ? reactions : actions;
+  // The DM goes over the monster's turn economy rather than being refused (D174)
+  const overBudget = chargeBlock(participant, { cost: TAB_COST[tab] });
 
   const isRecharged = (action: MonsterAction) => {
     if (!action.recharge) return true;
@@ -142,9 +160,11 @@ export default function InlineMonsterActions({ participant, participants, isLair
 
   return (
     <div className="px-4 py-2 border-t border-rule-light bg-page">
-      {(hasLegendary || hasLair) && (
-        <div className="flex gap-2 mb-2">
+      {(hasLegendary || hasLair || bonusActions.length > 0 || reactions.length > 0) && (
+        <div className="flex flex-wrap gap-2 mb-2">
           <TabBtn active={tab === 'actions'} onClick={() => switchTab('actions')} label={`Actions (${actions.length})`} />
+          {bonusActions.length > 0 && <TabBtn active={tab === 'bonus'} onClick={() => switchTab('bonus')} label={`Bonus actions (${bonusActions.length})`} />}
+          {reactions.length > 0 && <TabBtn active={tab === 'reactions'} onClick={() => switchTab('reactions')} label={`Reactions (${reactions.length})`} />}
           {hasLegendary && <TabBtn active={tab === 'legendary'} onClick={() => switchTab('legendary')} label={`Legendary (${legendaryRemaining})`} />}
           {hasLair && <TabBtn active={tab === 'lair'} onClick={() => switchTab('lair')} label={`Lair (${lair.length})`} />}
         </div>
@@ -154,6 +174,9 @@ export default function InlineMonsterActions({ participant, participants, isLair
         <p role="note" className="mb-2 font-body text-[13px] font-semibold text-faint">
           Legendary actions are used on other creatures' turns, not {participant.displayName}'s own.
         </p>
+      )}
+      {overBudget && (
+        <p className="mb-2 font-body text-[13px] font-semibold text-cls-fighter">Over the action economy: {overBudget}</p>
       )}
       {tab === 'lair' && !lairReady && (
         <p role="note" className="mb-2 font-body text-[13px] font-semibold text-faint">{lairReason}.</p>
@@ -223,7 +246,7 @@ export default function InlineMonsterActions({ participant, participants, isLair
                   if (legendaryDepleted || legendaryOnOwnTurn || !recharged) return;
                   setMultiattackName(null);
                   if (manual) {
-                    void execute(a.name, isLegendary ? 'LEGENDARY' : 'ACTION');
+                    void execute(a.name, TAB_SOURCE[tab]);
                   } else {
                     setSelectedAction(selectedAction?.name === a.name ? null : a);
                   }
@@ -235,7 +258,7 @@ export default function InlineMonsterActions({ participant, participants, isLair
                     'border-monster bg-monster-bg text-monster hover:bg-monster/20'}`}
                 title={legendaryOnOwnTurn ? `Not on ${participant.displayName}'s own turn`
                   : legendaryDepleted ? `Not enough legendary actions (need ${actionCost}, have ${legendaryRemaining})`
-                  : (a.description || formatActionLabel(a))}
+                  : [a.description || formatActionLabel(a), a.dmNote && `DM: ${a.dmNote}`].filter(Boolean).join(' — ')}
               >
                 {a.name}
                 {(a.cost ?? 0) > 0 && <span className="ml-1 text-[11px] opacity-70">({a.cost})</span>}
@@ -294,9 +317,12 @@ export default function InlineMonsterActions({ participant, participants, isLair
         ))}
       </div>}
 
-      {/* Execute button for the selected automatable action */}
+      {/* Execute button for the selected automatable action, with what the DM applies by hand (D174) */}
       {selectedAction && (
         <div className="mt-2">
+          {selectedAction.dmNote && (
+            <p className="mb-1 font-body text-[13px] font-semibold text-muted">DM: {selectedAction.dmNote}</p>
+          )}
           <button
             disabled={targets.length === 0 || executing
               || (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1)))
@@ -304,7 +330,7 @@ export default function InlineMonsterActions({ participant, participants, isLair
             onClick={() => {
               if (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1))) return;
               if (tab === 'lair' && !lairReady) return;
-              void execute(selectedAction.name, tab === 'legendary' ? 'LEGENDARY' : tab === 'lair' ? 'LAIR' : 'ACTION');
+              void execute(selectedAction.name, TAB_SOURCE[tab]);
               setSelectedAction(null);
             }}
             className="px-3 py-1 bg-ink hover:bg-ink/90 disabled:bg-page-alt disabled:text-faint text-card font-heading text-[12px] font-semibold tracking-[0.02em]"

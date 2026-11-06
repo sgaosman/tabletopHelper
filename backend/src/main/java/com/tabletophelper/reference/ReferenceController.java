@@ -4,6 +4,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.ClassTablesResponse;
+import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.shared.ConflictException;
@@ -122,7 +123,8 @@ public class ReferenceController {
                 canTargetAllies,
                 canTargetEnemies,
                 targetType != null ? targetType : "SINGLE_TARGET",
-                hasRepeatEffect));
+                hasRepeatEffect,
+                hasRepeatEffect ? RepeatCost.of(template.repeatActionType()) : null));
     }
 
     @Cacheable("spellSchools")

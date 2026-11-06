@@ -3248,6 +3248,8 @@ export interface components {
             hasRepeatEffect: boolean;
             /** Format: int32 */
             maxTargets: number;
+            /** @enum {string|null} */
+            repeatActionType?: "ACTION" | "BONUS_ACTION" | "NONE" | null;
             selfOnly: boolean;
             targetType: string;
         };

@@ -9610,6 +9610,15 @@
             "type": "integer",
             "format": "int32"
           },
+          "repeatActionType": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ACTION",
+              "BONUS_ACTION",
+              "NONE"
+            ]
+          },
           "selfOnly": {
             "type": "boolean"
           },

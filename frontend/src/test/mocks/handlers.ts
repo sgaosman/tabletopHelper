@@ -352,7 +352,7 @@ export const referenceHandlers = [
   http.get(`${BASE}/reference/spells/targeting`, async () => {
     return HttpResponse.json({
       maxTargets: -1, selfOnly: false, canTargetSelf: true, canTargetAllies: true, canTargetEnemies: true,
-      targetType: 'SINGLE_TARGET', hasRepeatEffect: false,
+      targetType: 'SINGLE_TARGET', hasRepeatEffect: false, repeatActionType: null,
     } satisfies SpellTargetingInfo);
   }),
   http.get(`${BASE}/reference/spells/:id`, async () => {
