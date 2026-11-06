@@ -519,9 +519,10 @@ What each content loader last loaded (V25, D169). One row per loader.
 | death_save_failures | INTEGER | DEFAULT 0 | |
 | death_save_due | BOOLEAN | NOT NULL, DEFAULT FALSE | Set when a Dying PC's turn starts, until it rolls the death save or stops dying (V17, D163) |
 | notes | TEXT | | DM-only notes |
-| action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
-| bonus_action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
-| reaction_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system |
+| action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system. Dropped by V30 (M13, D174) |
+| bonus_action_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system. Dropped by V30 (M13, D174) |
+| reaction_used | BOOLEAN | DEFAULT FALSE | Action economy — separate from pool system. Dropped by V30 (M13, D174) |
+| turn_economy | JSONB | NOT NULL, DEFAULT the fresh record | The creature's budget this turn, an `encounter.state.TurnEconomy`: `actions`, `actionsUsed`, `attackActionTaken`, `attacksLeft`, `bonusActionUsed`, `reactionUsed`, `objectInteractionUsed`, `bonusActionSpellCast`, `otherSpellCast`, `dashed`, `disengaged`. Reset at the start of the creature's own turn (V30, M13, D174) |
 | last_lair_action_used | VARCHAR(200) | | Lair action used last round, to enforce the no-repeat rule (V9, D136) |
 | version | BIGINT | | Optimistic locking (`@Version`, D034) |
 | created_at | TIMESTAMPTZ | | |
@@ -686,6 +687,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V27 | `V27__pool_level_tables.sql` | `resource_pool_definitions.level_table` JSONB, NULL until the resource-pools loader fills it (D169) |
 | V28 | `V28__race_and_subclass_effects.sql` | `races.effects` and `subclasses.effects` JSONB, NULL until the race and class loaders fill them (D167) |
 | V29 | `V29__drop_deprecated_character_columns.sql` | Drops `player_characters.hit_dice_total`, `hit_dice_remaining`, `hit_dice_map`, `feat_resources`, `prepared_spells`, `attuned_items` and `equipped_items`, which nothing reads; `hit_dice` holds the hit dice. Destructive: archive the values first (D168) |
+| V30 | `V30__turn_economy.sql` | `encounter_participants.turn_economy` JSONB NOT NULL with the fresh budget, filled from the three action flags, which are then dropped; the combat log types gain POOL_USE, STANDARD_ACTION, OBJECT_INTERACTION, TURN_ECONOMY_SET and REACTION_TAKEN. No DO blocks (D174) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
