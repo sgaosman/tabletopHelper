@@ -1,17 +1,14 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft } from 'lucide-react';
-import { getRaces, getClasses, getSubclasses, getBackgrounds } from '../../api/referenceApi';
 import { characterApi } from '../../api/characterApi';
-import type { SpellEntry } from './sheet/types';
-import type { Race, CharacterClassRef, Subclass, Background, Spell } from '../../types/reference';
-import { ABILITIES, ALL_SKILLS, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../utils/dndRules';
-
 import {
-  ALL_STEPS, ALL_LANGUAGES, ALL_TOOLS, ARTISANS_TOOLS, MUSICAL_INSTRUMENTS,
-  getToolAnyOptions, expandToolFrom, formatProfEntry,
-} from './wizard/types';
-import type { AbilityScores, ProfEntry, ClassEntry, RaceChoiceReq, ChoiceReq } from './wizard/types';
+  backgroundsQuery, classesQuery, racesQuery, subclassesQuery, useBackgrounds, useClasses, useRaces,
+} from '../../queries/reference';
+import type { CharacterClassRef } from '../../types/reference';
+import { initialWizardState, wizardReducer, type WizardDraft } from './wizard/wizardReducer';
+import { buildCreateRequest, canAdvance, currentStepName, hasMeaningfulData, toDraft, wizardSteps } from './wizard/selectors';
 
 import BasicInfoStep from './wizard/BasicInfoStep';
 import RaceStep from './wizard/RaceStep';
@@ -21,6 +18,28 @@ import BackgroundStep from './wizard/BackgroundStep';
 import SpellsStep from './wizard/SpellsStep';
 import ReviewStep from './wizard/ReviewStep';
 
+const DRAFT_KEY = 'characterWizardDraft';
+
+function readDraft(): Partial<WizardDraft> | null {
+  try {
+    const saved = localStorage.getItem(DRAFT_KEY);
+    return saved ? JSON.parse(saved) as Partial<WizardDraft> : null;
+  } catch {
+    // A corrupt draft is no draft
+    return null;
+  }
+}
+
+function hasSavedDraft(): boolean {
+  const draft = readDraft();
+  return !!(draft && (draft.name || draft.raceId || draft.classId));
+}
+
+/** A reference list for restoring a draft; one that can't load restores nothing from it. */
+function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
+  return list.catch(() => []);
+}
+
 /**
  * Creates a character in seven steps, with a draft kept in the browser. It makes most of the choices of the 1st level:
  * the first class's skills, its subclass where that comes at 1st level, as a cleric's does, a rogue's Expertise, and
@@ -28,102 +47,76 @@ import ReviewStep from './wizard/ReviewStep';
  * every choice of a later level, of another class, and the feat a race or background gives are Pending Choices the
  * server adds, made on the sheet, where the player lands after creation (D159). The server works out hit points,
  * speed, slots, spell DCs and Hit Dice (D167).
+ *
+ * The choices are one WizardState (wizard/wizardReducer.ts), whose actions make their own resets; what follows
+ * from them, the request included, is in wizard/selectors.ts.
  */
 export default function CharacterCreateWizard() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
+  const queryClient = useQueryClient();
+  const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showDraftBanner, setShowDraftBanner] = useState(hasSavedDraft);
 
-  const [name, setName] = useState('');
-  const [alignment, setAlignment] = useState('');
+  const races = useRaces().data ?? [];
+  const classes = useClasses().data ?? [];
+  const backgrounds = useBackgrounds().data ?? [];
 
-  const [races, setRaces] = useState<Race[]>([]);
-  const [raceSearch, setRaceSearch] = useState('');
-  const [selectedRace, setSelectedRace] = useState<Race | null>(null);
-
-  const [classes, setClasses] = useState<CharacterClassRef[]>([]);
-  const [selectedClass, setSelectedClass] = useState<CharacterClassRef | null>(null);
-  const [, setSubclasses] = useState<Subclass[]>([]);
-  const [selectedSubclass, setSelectedSubclass] = useState<Subclass | null>(null);
-  const [level, setLevel] = useState(1);
-
-  const [classEntries, setClassEntries] = useState<ClassEntry[]>([]);
-
-  const [multiclassExpanded, setMulticlassExpanded] = useState(false);
-
-  const [abilityMethod, setAbilityMethod] = useState<'standard' | 'pointbuy' | 'manual'>('standard');
-  const [scores, setScores] = useState<AbilityScores>({ strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 });
-  const [standardAssignments, setStandardAssignments] = useState<Record<string, number | null>>({
-    strength: null, dexterity: null, constitution: null,
-    intelligence: null, wisdom: null, charisma: null,
-  });
-
-  const [backgrounds, setBackgrounds] = useState<Background[]>([]);
-  const [bgSearch, setBgSearch] = useState('');
-  const [selectedBackground, setSelectedBackground] = useState<Background | null>(null);
-  const [bgProfChoices, setBgProfChoices] = useState<Record<string, string[]>>({});
-  const [bgSetChoices, setBgSetChoices] = useState<Record<string, number | null>>({});
-
-  const [raceChoiceSelections, setRaceChoiceSelections] = useState<Record<string, string[]>>({});
-
-  const [bonusAssignments, setBonusAssignments] = useState<Array<{ bonus: number; ability: string | null }>>([]);
-  const [selectedCantrips, setSelectedCantrips] = useState<Spell[]>([]);
-  const [selectedSpells, setSelectedSpells] = useState<Spell[]>([]);
-  const [cantripResults, setCantripResults] = useState<Spell[]>([]);
-  const [spellResults, setSpellResults] = useState<Spell[]>([]);
-  const [spellSearch, setSpellSearch] = useState('');
-  const [cantripSearch, setCantripSearch] = useState('');
-  const [selectedClassSkills, setSelectedClassSkills] = useState<string[]>([]);
-  const [mcSkillSelections, setMcSkillSelections] = useState<Record<string, string[]>>({});
-  const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
-
-  const [showDraftBanner, setShowDraftBanner] = useState(false);
-  const draftRestoredRef = useRef(false);
-
-  const DRAFT_KEY = 'characterWizardDraft';
-  const hasMeaningfulData = name.trim().length > 0 || selectedRace !== null || selectedClass !== null;
+  const steps = wizardSteps(state);
+  const stepName = currentStepName(state);
+  const meaningful = hasMeaningfulData(state);
 
   // ── Draft persistence ──
 
+  const draftJson = meaningful ? JSON.stringify(toDraft(state)) : null;
   useEffect(() => {
-    if (draftRestoredRef.current) return;
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        const draft = JSON.parse(saved);
-        if (draft.name || draft.raceId || draft.classId) setShowDraftBanner(true);
-      }
-    } catch { /* ignore corrupt drafts */ }
-  }, []);
+    if (draftJson === null) return;
+    try { localStorage.setItem(DRAFT_KEY, draftJson); } catch { /* the browser's storage is full; the draft is lost */ }
+  }, [draftJson]);
 
-  function restoreDraft() {
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (!saved) return;
-      const d = JSON.parse(saved);
-      draftRestoredRef.current = true;
-      if (d.name) setName(d.name);
-      if (d.alignment) setAlignment(d.alignment);
-      if (d.step != null) setStep(d.step);
-      if (d.abilityMethod) setAbilityMethod(d.abilityMethod);
-      if (d.scores) setScores(d.scores);
-      if (d.standardAssignments) setStandardAssignments(d.standardAssignments);
-      if (d.level) setLevel(d.level);
-      if (d.raceId && races.length > 0) {
-        const r = races.find(r => r.id === d.raceId);
-        if (r) setSelectedRace(r);
-      }
-      if (d.classId && classes.length > 0) {
-        const c = classes.find(c => c.id === d.classId);
-        if (c) setSelectedClass(c);
-      }
-      if (d.backgroundId && backgrounds.length > 0) {
-        const bg = backgrounds.find(b => b.id === d.backgroundId);
-        if (bg) setSelectedBackground(bg);
-      }
-    } catch { /* ignore */ }
+  useEffect(() => {
+    if (!meaningful) return;
+    function onBeforeUnload(e: BeforeUnloadEvent) { e.preventDefault(); }
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [meaningful]);
+
+  // ── Classes ──
+
+  // The first class's entry, with its subclasses; a class whose subclasses can't load is offered none
+  const loadPrimaryClass = useCallback((cls: CharacterClassRef) => {
+    queryClient.fetchQuery(subclassesQuery(cls.id))
+      .catch(() => [])
+      .then(subclasses => dispatch({ type: 'primaryClassLoaded', cls, subclasses }));
+  }, [queryClient]);
+
+  const selectClass = useCallback((cls: CharacterClassRef | null) => {
+    dispatch({ type: 'selectClass', cls });
+    if (cls) loadPrimaryClass(cls);
+  }, [loadPrimaryClass]);
+
+  const addMulticlass = useCallback((cls: CharacterClassRef) => {
+    queryClient.fetchQuery(subclassesQuery(cls.id))
+      .catch(() => [])
+      .then(subclasses => dispatch({ type: 'addMulticlass', cls, subclasses }));
+  }, [queryClient]);
+
+  // ── Drafts ──
+
+  // Restores once the reference lists have loaded, so the draft's race, class and background are found
+  async function restoreDraft() {
     setShowDraftBanner(false);
+    const draft = readDraft();
+    if (!draft) return;
+    const [raceList, classList, backgroundList] = await Promise.all([
+      orEmpty(queryClient.fetchQuery(racesQuery())),
+      orEmpty(queryClient.fetchQuery(classesQuery())),
+      orEmpty(queryClient.fetchQuery(backgroundsQuery())),
+    ]);
+    dispatch({ type: 'restoreDraft', draft, refs: { races: raceList, classes: classList, backgrounds: backgroundList } });
+    const cls = classList.find(c => c.id === draft.classId);
+    if (cls) loadPrimaryClass(cls);
   }
 
   function dismissDraft() {
@@ -131,495 +124,26 @@ export default function CharacterCreateWizard() {
     setShowDraftBanner(false);
   }
 
-  useEffect(() => {
-    if (!hasMeaningfulData) return;
-    const draft = {
-      name, alignment, step, abilityMethod, scores, standardAssignments, level,
-      raceId: selectedRace?.id ?? null,
-      classId: selectedClass?.id ?? null,
-      backgroundId: selectedBackground?.id ?? null,
-    };
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* quota */ }
-  }, [name, alignment, step, abilityMethod, scores, standardAssignments, level, selectedRace, selectedClass, selectedBackground]);
-
-  useEffect(() => {
-    if (!hasMeaningfulData) return;
-    function onBeforeUnload(e: BeforeUnloadEvent) { e.preventDefault(); }
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [hasMeaningfulData]);
-
-  // ── Feats ──
-
-  // A background's feat, and a race's, such as a Variant Human's, are Pending Choices made on the sheet (D159)
-  const bgFeatNames = useMemo(() => {
-    if (!selectedBackground?.feats) return [];
-    return safeJsonParse<string[]>(selectedBackground.feats, []);
-  }, [selectedBackground]);
-
-  const raceFeats = useMemo(() => {
-    if (!selectedRace) return 0;
-    const choices = safeJsonParse<{ feats?: number } | null>(selectedRace.raceChoices, null);
-    return typeof choices?.feats === 'number' ? choices.feats : 0;
-  }, [selectedRace]);
-
-  // ── Class / skill / expertise ──
-
-  const classSkillChoices = useMemo(() => {
-    if (!selectedClass?.skillChoices) return { from: [] as string[], count: 0 };
-    return safeJsonParse<{ from: string[]; count: number }>(selectedClass.skillChoices, { from: [], count: 0 });
-  }, [selectedClass]);
-
-  const mcSkillChoicesMap = useMemo(() => {
-    const map: Record<string, { from: string[]; count: number }> = {};
-    if (classEntries.length <= 1) return map;
-    for (let i = 1; i < classEntries.length; i++) {
-      const entry = classEntries[i];
-      if (!entry.cls.multiclassProficiencies) continue;
-      const mcProfs = safeJsonParse<{ skills?: { from: string[]; count: number } }>(entry.cls.multiclassProficiencies, {});
-      if (mcProfs.skills && mcProfs.skills.from.length > 0 && mcProfs.skills.count > 0) map[entry.cls.id] = mcProfs.skills;
-    }
-    return map;
-  }, [classEntries]);
-
-  // A rogue's 1st-level Expertise (PHB p.94); every later level's is a Pending Choice made on the sheet (D159)
-  const expertiseCount = classEntries[0]?.cls.name === 'Rogue' ? 2 : 0;
-
-  // Whether the first class's 1st level chooses its subclass, as a cleric's, sorcerer's or warlock's does
-  const firstLevelSubclass = classEntries[0]?.cls.subclassLevel === 1 && (classEntries[0]?.subclasses.length ?? 0) > 0;
-
-  // ── Spellcaster / step visibility ──
-
-  // Only the first class's 1st-level spells are chosen here; another class's are chosen on the sheet
-  const showSpellsStep = selectedClass?.isSpellcaster ?? false;
-  const steps = useMemo(() => showSpellsStep ? ALL_STEPS : ALL_STEPS.filter(s => s !== 'Spells'), [showSpellsStep]);
-
-  // ── Data loading ──
-
-  useEffect(() => {
-    getRaces().then(res => setRaces(res));
-    getClasses().then(res => setClasses(res));
-    getBackgrounds().then(res => setBackgrounds(res));
-  }, []);
-
-  useEffect(() => {
-    if (selectedClass) getSubclasses(selectedClass.id).then(res => setSubclasses(res));
-    else { setSubclasses([]); setSelectedSubclass(null); }
-    setSelectedCantrips([]); setSelectedSpells([]); setCantripResults([]); setSpellResults([]);
-    setSpellSearch(''); setCantripSearch('');
-  }, [selectedClass]);
-
-  // ── Class entry management ──
-
-  useEffect(() => {
-    if (classEntries.length === 0) return;
-    const currentTotal = classEntries.reduce((s, e) => s + e.level, 0);
-    if (currentTotal === level) return;
-    setClassEntries(prev => {
-      const newPrimaryLevel = prev[0].level + (level - currentTotal);
-      if (newPrimaryLevel >= 1) return prev.map((e, i) => i === 0 ? { ...e, level: newPrimaryLevel } : e);
-      let remaining = level;
-      const result: ClassEntry[] = [];
-      for (const entry of prev) {
-        if (remaining <= 0) break;
-        const entryLevel = Math.min(entry.level, remaining);
-        result.push({ ...entry, level: Math.max(1, entryLevel) });
-        remaining -= Math.max(1, entryLevel);
-      }
-      if (result.length > 0) {
-        const total = result.reduce((s, e) => s + e.level, 0);
-        if (total < level) result[0] = { ...result[0], level: result[0].level + (level - total) };
-      }
-      return result;
-    });
-  }, [level]);
-
-  const addMulticlass = useCallback(async (cls: CharacterClassRef) => {
-    if (classEntries.some(e => e.cls.id === cls.id)) return;
-    const scs = await getSubclasses(cls.id);
-    setClassEntries(prev => {
-      if (prev.some(e => e.cls.id === cls.id)) return prev;
-      const updated = prev.map((e, i) => i === 0 ? { ...e, level: Math.max(1, e.level - 1) } : e);
-      return [...updated, { cls, level: 1, subclass: null, subclasses: scs }];
-    });
-  }, [classEntries]);
-
-  const removeMulticlass = useCallback((clsId: string) => {
-    setClassEntries(prev => {
-      const entry = prev.find(e => e.cls.id === clsId);
-      if (!entry || prev[0].cls.id === clsId) return prev;
-      const freedLevels = entry.level;
-      return prev.filter(e => e.cls.id !== clsId).map((e, i) => i === 0 ? { ...e, level: e.level + freedLevels } : e);
-    });
-  }, []);
-
-  const handleClassLevelChange = useCallback((clsId: string, newLevel: number) => {
-    setClassEntries(prev => {
-      const idx = prev.findIndex(e => e.cls.id === clsId);
-      if (idx < 0) return prev;
-      const otherTotal = prev.reduce((s, e, i) => i === idx ? s : s + e.level, 0);
-      const clamped = Math.max(1, Math.min(newLevel, level - otherTotal));
-      return prev.map((e, i) => i === idx ? { ...e, level: clamped } : e);
-    });
-  }, [level]);
-
-  const handleEntrySubclass = useCallback((clsId: string, sc: Subclass | null) => {
-    setClassEntries(prev => prev.map(e => e.cls.id === clsId ? { ...e, subclass: sc } : e));
-    if (classEntries.length > 0 && classEntries[0].cls.id === clsId) setSelectedSubclass(sc);
-  }, [classEntries]);
-
-  const handleSelectPrimaryClass = useCallback((cls: CharacterClassRef | null) => {
-    if (!cls) {
-      setSelectedClass(null); setSelectedSubclass(null); setClassEntries([]);
-      setSelectedClassSkills([]); setMcSkillSelections({}); setSelectedExpertise([]);
-    } else {
-      setSelectedClass(cls); setSelectedSubclass(null);
-      setSelectedCantrips([]); setSelectedSpells([]); setCantripResults([]); setSpellResults([]);
-      setSelectedClassSkills([]); setMcSkillSelections({}); setSelectedExpertise([]);
-      getSubclasses(cls.id).then(scs => {
-        setSubclasses(scs);
-        setClassEntries([{ cls, level, subclass: null, subclasses: scs }]);
-      });
-    }
-  }, [level]);
-
-  // ── Race bonuses & choices ──
-
-  useEffect(() => {
-    if (!selectedRace) { setBonusAssignments([]); return; }
-    const bonuses = safeJsonParse<Array<{ ability: string; bonus: number; count?: number }>>(selectedRace.abilityScoreBonuses, []);
-    const rows: Array<{ bonus: number; ability: string | null }> = [];
-    for (const b of bonuses) {
-      if (b.ability === 'CHOOSE') { for (let i = 0; i < (b.count || 1); i++) rows.push({ bonus: b.bonus, ability: null }); }
-      else { const key = b.ability.toLowerCase().slice(0, 3); rows.push({ bonus: b.bonus, ability: ABILITIES.find(a => a.startsWith(key)) || null }); }
-    }
-    setBonusAssignments(rows);
-  }, [selectedRace]);
-
-  useEffect(() => { setRaceChoiceSelections({}); }, [selectedRace]);
-
-  const raceChoiceReqs = useMemo((): RaceChoiceReq[] => {
-    if (!selectedRace) return [];
-    const choices = safeJsonParse<Record<string, unknown> | null>(selectedRace.raceChoices, null);
-    if (!choices) return [];
-    const reqs: RaceChoiceReq[] = [];
-    const profs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[] }>(selectedRace.proficiencies, {});
-    if (choices.languages) {
-      const existingLangs = new Set((profs.languages ?? []).map((l: string) => l.toLowerCase()));
-      for (const lc of choices.languages as Array<Record<string, unknown>>) {
-        if (lc.anyStandard) { reqs.push({ key: `lang_${reqs.length}`, label: 'Language', options: ALL_LANGUAGES.filter(l => !existingLangs.has(l.toLowerCase())), count: lc.anyStandard as number }); }
-        if (lc.choose) { const ch = lc.choose as { from?: string[]; count?: number }; if (ch.from?.length) reqs.push({ key: `lang_${reqs.length}`, label: 'Language', options: ch.from, count: ch.count ?? 1 }); }
-      }
-    }
-    if (choices.skills) {
-      const existingSkills = new Set((profs.skills ?? []).map((s: string) => s.toLowerCase()));
-      for (const sc of choices.skills as Array<Record<string, unknown>>) {
-        if (sc.any) reqs.push({ key: `skill_${reqs.length}`, label: 'Skill Proficiency', options: ALL_SKILLS.filter(s => !existingSkills.has(s.toLowerCase())), count: sc.any as number });
-        if (sc.choose) { const ch = sc.choose as { from?: string[]; count?: number }; if (ch.from?.length) reqs.push({ key: `skill_${reqs.length}`, label: 'Skill Proficiency', options: ch.from, count: ch.count ?? 1 }); }
-      }
-    }
-    if (choices.tools) {
-      for (const tc of choices.tools as Array<Record<string, unknown>>) {
-        if (tc.any) reqs.push({ key: `tool_${reqs.length}`, label: 'Tool Proficiency', options: ALL_TOOLS, count: tc.any as number });
-        if (tc.anyArtisansTool) reqs.push({ key: `tool_${reqs.length}`, label: "Artisan's Tool", options: ARTISANS_TOOLS, count: tc.anyArtisansTool as number });
-        if (tc.anyMusicalInstrument) reqs.push({ key: `tool_${reqs.length}`, label: 'Musical Instrument', options: MUSICAL_INSTRUMENTS, count: tc.anyMusicalInstrument as number });
-        if (tc.choose) { const ch = tc.choose as { from?: string[]; count?: number }; if (ch.from?.length) reqs.push({ key: `tool_${reqs.length}`, label: 'Tool Proficiency', options: ch.from, count: ch.count ?? 1 }); }
-      }
-    }
-    if (choices.weapons) { for (const wc of choices.weapons as Array<{ from?: string[]; count?: number }>) reqs.push({ key: `weapon_${reqs.length}`, label: 'Martial Weapon Proficiency', options: wc.from ?? [], count: wc.count ?? 2 }); }
-    if (choices.resistances) { for (const rc of choices.resistances as Array<{ from: string[] }>) reqs.push({ key: `resist_${reqs.length}`, label: 'Damage Resistance', options: rc.from, count: 1 }); }
-    if (choices.spellAbility) reqs.push({ key: 'spellAbility', label: 'Spellcasting Ability', options: choices.spellAbility as string[], count: 1 });
-    return reqs;
-  }, [selectedRace]);
-
-  function handleRaceChoice(key: string, value: string, count: number) {
-    setRaceChoiceSelections(prev => {
-      const current = prev[key] ?? [];
-      if (current.includes(value)) return { ...prev, [key]: current.filter(v => v !== value) };
-      if (current.length >= count) return { ...prev, [key]: [...current.slice(1), value] };
-      return { ...prev, [key]: [...current, value] };
-    });
-  }
-
-  const raceChoicesComplete = useMemo(() => raceChoiceReqs.every(req => (raceChoiceSelections[req.key] ?? []).length === req.count), [raceChoiceReqs, raceChoiceSelections]);
-
-  const resolvedRaceChoices = useMemo(() => {
-    const result = { languages: [] as string[], skills: [] as string[], tools: [] as string[], weapons: [] as string[], resistances: [] as string[], spellAbility: null as string | null };
-    for (const req of raceChoiceReqs) {
-      const selected = raceChoiceSelections[req.key] ?? [];
-      if (req.key.startsWith('lang_')) result.languages.push(...selected);
-      else if (req.key.startsWith('skill_')) result.skills.push(...selected);
-      else if (req.key.startsWith('tool_')) result.tools.push(...selected);
-      else if (req.key.startsWith('weapon_')) result.weapons.push(...selected);
-      else if (req.key.startsWith('resist_')) result.resistances.push(...selected);
-      else if (req.key === 'spellAbility') result.spellAbility = selected[0] ?? null;
-    }
-    return result;
-  }, [raceChoiceReqs, raceChoiceSelections]);
-
-  // ── Background choices ──
-
-  const bgChoiceReqs = useMemo((): ChoiceReq[] => {
-    if (!selectedBackground) return [];
-    const reqs: ChoiceReq[] = [];
-    const fields: Array<[string, string, string]> = [['skillProficiencies', 'Skill', 'skill'], ['toolProficiencies', 'Tool', 'tool'], ['languageProficiencies', 'Language', 'lang']];
-    for (const [field, label, prefix] of fields) {
-      const raw = (selectedBackground as unknown as Record<string, string | null>)[field];
-      if (!raw) continue;
-      const parsed = safeJsonParse<ProfEntry[]>(raw, []);
-      let chooseIdx = 0;
-      for (const p of parsed) {
-        if (typeof p === 'string') {
-          const anyOpts = prefix === 'tool' ? getToolAnyOptions(p) : prefix === 'skill' && p === 'Any' ? ALL_SKILLS : null;
-          if (anyOpts) { reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label} Proficiency`, type: 'choose', from: [...anyOpts], count: 1 }); chooseIdx++; }
-        } else if (typeof p === 'object' && p !== null && 'any' in p) {
-          const n = (p as { any: number }).any;
-          const pool = prefix === 'skill' ? ALL_SKILLS : prefix === 'tool' ? ALL_TOOLS : ALL_LANGUAGES;
-          reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label} Proficiency`, type: 'choose', from: [...pool], count: n }); chooseIdx++;
-        } else if (typeof p === 'object' && p !== null && 'chooseSet' in p) {
-          const sets = (p as { chooseSet: ProfEntry[][] }).chooseSet;
-          reqs.push({ key: `${prefix}_set`, label: `${label} Proficiencies`, type: 'chooseSet', sets: sets.map(s => s.map(formatProfEntry).filter(Boolean)) });
-        } else if (typeof p === 'object' && p !== null && 'anyStandard' in p) {
-          const n = (p as { anyStandard: number }).anyStandard;
-          reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label}`, type: 'choose', from: ALL_LANGUAGES, count: n }); chooseIdx++;
-        } else if (typeof p === 'object' && p !== null && 'choose' in p) {
-          const c = (p as { choose: { from?: string[]; count?: number } }).choose;
-          if (c.from && c.from.length > 0) { const expanded = prefix === 'tool' ? expandToolFrom(c.from) : c.from; reqs.push({ key: `${prefix}_choose_${chooseIdx}`, label: `${label} Proficiency`, type: 'choose', from: expanded, count: c.count ?? 1 }); chooseIdx++; }
-        }
-      }
-    }
-    return reqs;
-  }, [selectedBackground]);
-
-  useEffect(() => { setBgProfChoices({}); setBgSetChoices({}); }, [selectedBackground]);
-
-  function handleBgProfChoice(key: string, value: string, count: number) {
-    setBgProfChoices(prev => {
-      const current = prev[key] ?? [];
-      if (current.includes(value)) return { ...prev, [key]: current.filter(v => v !== value) };
-      if (current.length >= count) return { ...prev, [key]: [...current.slice(1), value] };
-      return { ...prev, [key]: [...current, value] };
-    });
-  }
-
-  function handleBgSetChoice(key: string, index: number) {
-    setBgSetChoices(prev => ({ ...prev, [key]: prev[key] === index ? null : index }));
-  }
-
-  const bgChoicesComplete = useMemo(() => bgChoiceReqs.every(req => {
-    if (req.type === 'choose') return (bgProfChoices[req.key] ?? []).length === req.count;
-    return bgSetChoices[req.key] != null;
-  }), [bgChoiceReqs, bgProfChoices, bgSetChoices]);
-
-  const resolvedBgProfs = useMemo(() => {
-    if (!selectedBackground) return { skills: [] as string[], tools: [] as string[], languages: [] as string[] };
-    const result: { skills: string[]; tools: string[]; languages: string[]; [key: string]: string[] } = { skills: [], tools: [], languages: [] };
-    const fields: Array<[string, string, string]> = [['skillProficiencies', 'skill', 'skills'], ['toolProficiencies', 'tool', 'tools'], ['languageProficiencies', 'lang', 'languages']];
-    for (const [field, prefix, outKey] of fields) {
-      const raw = (selectedBackground as unknown as Record<string, string | null>)[field];
-      if (!raw) continue;
-      const parsed = safeJsonParse<ProfEntry[]>(raw, []);
-      let chooseIdx = 0;
-      for (const p of parsed) {
-        if (typeof p === 'string') {
-          const isAny = prefix === 'tool' ? !!getToolAnyOptions(p) : prefix === 'skill' && p === 'Any';
-          if (isAny) { result[outKey].push(...(bgProfChoices[`${prefix}_choose_${chooseIdx}`] ?? [])); chooseIdx++; }
-          else result[outKey].push(p);
-        } else if (typeof p === 'object' && p !== null && 'any' in p) { result[outKey].push(...(bgProfChoices[`${prefix}_choose_${chooseIdx}`] ?? [])); chooseIdx++; }
-        else if (typeof p === 'object' && p !== null && 'chooseSet' in p) {
-          const idx = bgSetChoices[`${prefix}_set`];
-          if (idx != null) { const sets = (p as { chooseSet: ProfEntry[][] }).chooseSet; result[outKey].push(...sets[idx].map(formatProfEntry).filter(Boolean)); }
-        } else if (typeof p === 'object' && p !== null && ('anyStandard' in p || 'choose' in p)) { result[outKey].push(...(bgProfChoices[`${prefix}_choose_${chooseIdx}`] ?? [])); chooseIdx++; }
-      }
-    }
-    return result;
-  }, [selectedBackground, bgProfChoices, bgSetChoices]);
-
-  // ── Skill conflicts & score computations ──
-
-  const raceSkills = useMemo(() => {
-    if (!selectedRace) return new Set<string>();
-    const profs = safeJsonParse<{ skills?: string[] }>(selectedRace.proficiencies, {});
-    return new Set([...(profs.skills ?? []).map(s => s.toLowerCase()), ...resolvedRaceChoices.skills.map(s => s.toLowerCase())]);
-  }, [selectedRace, resolvedRaceChoices.skills]);
-
-  const bgSkillConflicts = useMemo(() => {
-    const allTaken = new Set([...raceSkills, ...selectedClassSkills.map(s => s.toLowerCase())]);
-    return resolvedBgProfs.skills.filter(s => allTaken.has(s.toLowerCase()));
-  }, [raceSkills, selectedClassSkills, resolvedBgProfs.skills]);
-
-  const isVanillaHuman = useMemo(() => {
-    if (!selectedRace) return false;
-    const bonuses = safeJsonParse<Array<{ ability: string; bonus: number }>>(selectedRace.abilityScoreBonuses, []);
-    return bonuses.length === 6 && bonuses.every(b => b.ability !== 'CHOOSE' && b.bonus === 1);
-  }, [selectedRace]);
-
-  function handleBonusAssignment(rowIndex: number, ability: string) {
-    setBonusAssignments(prev => prev.map((a, i) => {
-      if (i === rowIndex) return { ...a, ability };
-      if (a.ability === ability) return { ...a, ability: null };
-      return a;
-    }));
-  }
-
-  const filteredRaces = useMemo(() => {
-    if (!raceSearch) return races;
-    const q = raceSearch.toLowerCase();
-    return races.filter(r => r.name.toLowerCase().includes(q));
-  }, [races, raceSearch]);
-
-  const filteredBackgrounds = useMemo(() => {
-    if (!bgSearch) return backgrounds;
-    const q = bgSearch.toLowerCase();
-    return backgrounds.filter(b => b.name.toLowerCase().includes(q));
-  }, [backgrounds, bgSearch]);
-
-  const racialBonuses = useMemo(() => {
-    const map: Record<string, number> = {};
-    bonusAssignments.forEach(a => { if (a.ability) map[a.ability] = (map[a.ability] || 0) + a.bonus; });
-    return map;
-  }, [bonusAssignments]);
-
-  const finalScores = useMemo(() => {
-    const base = abilityMethod === 'standard'
-      ? Object.fromEntries(ABILITIES.map(a => [a, standardAssignments[a] ?? 10])) as AbilityScores
-      : scores;
-    const result: AbilityScores = { ...base };
-    for (const [ability, bonus] of Object.entries(racialBonuses)) {
-      if (ability in result) result[ability as keyof AbilityScores] += bonus;
-    }
-    return result;
-  }, [scores, standardAssignments, abilityMethod, racialBonuses]);
-
-  const pointBuyTotal = useMemo(() => {
-    let total = 0;
-    for (const a of ABILITIES) {
-      const s = scores[a];
-      if (s >= 8 && s <= 13) total += s - 8;
-      else if (s === 14) total += 7;
-      else if (s === 15) total += 9;
-    }
-    return total;
-  }, [scores]);
-
-  // ── Step navigation ──
-
-  const currentStepName = steps[step];
-
-  function canAdvance(): boolean {
-    switch (currentStepName) {
-      case 'Basic Info': return name.trim().length > 0;
-      case 'Race': {
-        if (!selectedRace) return false;
-        const bonusesOk = isVanillaHuman || bonusAssignments.length === 0 || bonusAssignments.every(a => a.ability !== null);
-        return bonusesOk && raceChoicesComplete;
-      }
-      case 'Class': {
-        if (!selectedClass) return false;
-        const totalClassLevels = classEntries.reduce((s, e) => s + e.level, 0);
-        if (totalClassLevels !== level) return false;
-        if (firstLevelSubclass && !classEntries[0].subclass) return false;
-        if (classSkillChoices.count > 0 && selectedClassSkills.length < classSkillChoices.count) return false;
-        return true;
-      }
-      case 'Ability Scores':
-        if (abilityMethod === 'standard') return Object.values(standardAssignments).every(v => v !== null);
-        if (abilityMethod === 'pointbuy') return pointBuyTotal <= 27;
-        return true;
-      case 'Background': return selectedBackground !== null && bgChoicesComplete;
-      case 'Spells': return true;
-      default: return true;
-    }
-  }
-
   // ── Character creation ──
 
-  // The first class's 1st-level cantrips and spells, and the race's spells; the server counts the class's as its 1st
-  // level's choices
-  function buildSpellsKnown(): SpellEntry[] | undefined {
-    const entries: SpellEntry[] = [];
-    if (selectedClass?.isSpellcaster) {
-      const source = `class:${selectedClass.name}`;
-      for (const s of selectedCantrips) entries.push({ name: s.name, level: 0, source });
-      for (const s of selectedSpells) {
-        const isWiz = selectedClass.name === 'Wizard';
-        entries.push({ name: s.name, level: s.level, source, ...(selectedClass.isPreparedCaster && !isWiz ? { prepared: true } : {}) });
-      }
-    }
-    if (selectedRace?.additionalSpells) {
-      const raceSpells = safeJsonParse<{ fixedSpells?: Array<{ name: string; level: number; atWill?: boolean; usesPerLongRest?: number; unlocksAtLevel?: number }> }>(selectedRace.additionalSpells, {});
-      const raceSource = `race:${selectedRace.name}`;
-      for (const s of raceSpells.fixedSpells ?? []) {
-        if (!s.unlocksAtLevel || s.unlocksAtLevel <= level) {
-          entries.push({ name: s.name, level: s.level ?? 0, source: raceSource, ...(s.atWill ? { atWill: true } : {}), ...(s.usesPerLongRest ? { usesPerLongRest: s.usesPerLongRest } : {}), ...(s.unlocksAtLevel ? { unlocksAtLevel: s.unlocksAtLevel } : {}) });
-        }
-      }
-    }
-    return entries.length > 0 ? entries : undefined;
-  }
-
   async function handleCreate() {
-    if (!selectedRace || !selectedClass || !selectedBackground) return;
+    const request = buildCreateRequest(state);
+    if (!request) return;
     setSubmitting(true); setError('');
-    // Hit points, speed, armour class, initiative, Hit Dice, slots and spell DCs are the server's to work out (D167)
-    const savingThrows = safeJsonParse<string[]>(selectedClass.savingThrowProficiencies, []);
-    const resistances = [...safeJsonParse<string[]>(selectedRace.resistances, []), ...resolvedRaceChoices.resistances];
-    const raceProfs = safeJsonParse<{ skills?: string[]; languages?: string[]; tools?: string[]; weapons?: string[] }>(selectedRace.proficiencies, {});
-    const isMulticlass = classEntries.length > 1;
-    const classArmor = [...safeJsonParse<string[]>(selectedClass.armorProficiencies, [])];
-    const classWeapons = [...safeJsonParse<string[]>(selectedClass.weaponProficiencies, [])];
-    const classTools = [...safeJsonParse<string[]>(selectedClass.toolProficiencies, [])];
-    for (let i = 1; i < classEntries.length; i++) {
-      const mc = classEntries[i].cls;
-      if (!mc.multiclassProficiencies) continue;
-      const mcProfs = safeJsonParse<{ armor?: string[]; weapons?: string[]; tools?: string[]; skills?: unknown }>(mc.multiclassProficiencies, {});
-      if (mcProfs.armor) classArmor.push(...mcProfs.armor);
-      if (mcProfs.weapons) classWeapons.push(...mcProfs.weapons);
-      if (mcProfs.tools) classTools.push(...mcProfs.tools);
-    }
-    const allSkills = [...(raceProfs.skills ?? []), ...resolvedRaceChoices.skills, ...selectedClassSkills, ...resolvedBgProfs.skills, ...Object.values(mcSkillSelections).flat()];
-    const allWeapons = [...(raceProfs.weapons ?? []), ...resolvedRaceChoices.weapons, ...classWeapons];
-    const allTools = [...(raceProfs.tools ?? []), ...resolvedRaceChoices.tools, ...resolvedBgProfs.tools, ...classTools];
-    const allLanguages = [...(raceProfs.languages ?? []), ...resolvedRaceChoices.languages, ...resolvedBgProfs.languages];
-    // The ability the race lets the player choose for its spells (D159), if any; the server works out the class's
-    // ability otherwise
-    const resolvedSpellAbility: string | undefined = resolvedRaceChoices.spellAbility ?? undefined;
-    // Only a subclass the first class chooses at 1st level goes with the request; every other is chosen on the sheet
-    const firstSubclassId = firstLevelSubclass ? (classEntries[0]?.subclass?.id ?? selectedSubclass?.id) : undefined;
-    const multiclassClassEntries = isMulticlass
-      ? classEntries.map((e, i) => ({ classId: e.cls.id, subclassId: i === 0 ? firstSubclassId ?? null : null, level: e.level }))
-      : undefined;
     try {
-      const res = await characterApi.create({
-        name: name.trim(), level, raceId: selectedRace.id, classId: selectedClass.id,
-        subclassId: firstSubclassId,
-        backgroundId: selectedBackground.id, alignment: alignment || undefined,
-        abilityScoreMethod: abilityMethod,
-        racialAbilityBonuses: bonusAssignments.map(a => ({ ability: a.ability ? ABILITY_LABELS[a.ability] : null, bonus: a.bonus })),
-        strength: finalScores.strength, dexterity: finalScores.dexterity, constitution: finalScores.constitution,
-        intelligence: finalScores.intelligence, wisdom: finalScores.wisdom, charisma: finalScores.charisma,
-        savingThrowProficiencies: savingThrows,
-        skillProficiencies: allSkills.length > 0 ? [...new Set(allSkills)] : undefined,
-        skillExpertises: selectedExpertise.length > 0 ? selectedExpertise : undefined,
-        armorProficiencies: classArmor.length > 0 ? [...new Set(classArmor)] : undefined,
-        weaponProficiencies: allWeapons.length > 0 ? [...new Set(allWeapons)] : undefined,
-        toolProficiencies: allTools.length > 0 ? [...new Set(allTools)] : undefined,
-        languageProficiencies: allLanguages.length > 0 ? [...new Set(allLanguages)] : undefined,
-        damageResistances: resistances.length > 0 ? resistances : undefined,
-        spellcastingAbility: resolvedSpellAbility,
-        spellsKnown: buildSpellsKnown(),
-        multiclassClassEntries,
-      });
+      const res = await characterApi.create(request);
       localStorage.removeItem(DRAFT_KEY);
       // The sheet's banner lists the choices still to make, feats and later levels' among them (D159)
       navigate(`/player/characters/${res.data.id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create character');
+    } catch (err: unknown) {
+      const data = (err as { response?: { data?: { error?: string; message?: string } } }).response?.data;
+      setError(data?.error || data?.message || 'Failed to create character');
     } finally { setSubmitting(false); }
   }
 
   // ── Render ──
 
+  const step = state.step;
   return (
     <div className="min-h-screen bg-page">
       <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
@@ -660,83 +184,25 @@ export default function CharacterCreateWizard() {
       </div>
 
       <main className="max-w-3xl mx-auto px-6 py-8">
-        {currentStepName === 'Basic Info' && (
-          <BasicInfoStep name={name} setName={setName} alignment={alignment} setAlignment={setAlignment} level={level} setLevel={setLevel} />
-        )}
-        {currentStepName === 'Race' && (
-          <RaceStep
-            filteredRaces={filteredRaces} raceSearch={raceSearch} setRaceSearch={setRaceSearch}
-            selectedRace={selectedRace} setSelectedRace={setSelectedRace}
-            raceChoiceReqs={raceChoiceReqs} raceChoiceSelections={raceChoiceSelections}
-            handleRaceChoice={handleRaceChoice} raceChoicesComplete={raceChoicesComplete} raceFeats={raceFeats}
-            bonusAssignments={bonusAssignments} handleBonusAssignment={handleBonusAssignment}
-            isVanillaHuman={isVanillaHuman}
-          />
-        )}
-        {currentStepName === 'Ability Scores' && (
-          <AbilityScoresStep
-            abilityMethod={abilityMethod} setAbilityMethod={setAbilityMethod}
-            scores={scores} setScores={setScores}
-            standardAssignments={standardAssignments} setStandardAssignments={setStandardAssignments}
-            racialBonuses={racialBonuses} pointBuyTotal={pointBuyTotal}
-          />
-        )}
-        {currentStepName === 'Class' && (
+        {stepName === 'Basic Info' && <BasicInfoStep state={state} dispatch={dispatch} />}
+        {stepName === 'Race' && <RaceStep races={races} state={state} dispatch={dispatch} />}
+        {stepName === 'Ability Scores' && <AbilityScoresStep state={state} dispatch={dispatch} />}
+        {stepName === 'Class' && (
           <ClassStep
-            classes={classes} selectedClass={selectedClass} onSelectClass={handleSelectPrimaryClass}
-            classEntries={classEntries} level={level}
-            multiclassExpanded={multiclassExpanded} setMulticlassExpanded={setMulticlassExpanded}
-            addMulticlass={addMulticlass} removeMulticlass={removeMulticlass}
-            handleClassLevelChange={handleClassLevelChange} handleEntrySubclass={handleEntrySubclass}
-            finalScores={finalScores} classSkillChoices={classSkillChoices}
-            selectedClassSkills={selectedClassSkills} setSelectedClassSkills={setSelectedClassSkills}
-            raceSkills={raceSkills} mcSkillChoicesMap={mcSkillChoicesMap}
-            mcSkillSelections={mcSkillSelections} setMcSkillSelections={setMcSkillSelections}
-            resolvedBgProfs={resolvedBgProfs} resolvedRaceChoices={resolvedRaceChoices}
-            selectedExpertise={selectedExpertise} setSelectedExpertise={setSelectedExpertise}
-            expertiseCount={expertiseCount} selectedRace={selectedRace}
+            classes={classes} state={state} dispatch={dispatch}
+            onSelectClass={selectClass} onAddMulticlass={addMulticlass}
           />
         )}
-        {currentStepName === 'Background' && (
-          <BackgroundStep
-            filteredBackgrounds={filteredBackgrounds} bgSearch={bgSearch} setBgSearch={setBgSearch}
-            selectedBackground={selectedBackground} setSelectedBackground={setSelectedBackground}
-            bgChoiceReqs={bgChoiceReqs} bgProfChoices={bgProfChoices} handleBgProfChoice={handleBgProfChoice}
-            bgSetChoices={bgSetChoices} handleBgSetChoice={handleBgSetChoice}
-            bgChoicesComplete={bgChoicesComplete} bgSkillConflicts={bgSkillConflicts}
-            bgFeatNames={bgFeatNames}
-          />
-        )}
-        {currentStepName === 'Spells' && (
-          <SpellsStep
-            selectedClass={selectedClass} classEntries={classEntries} level={level}
-            selectedCantrips={selectedCantrips} setSelectedCantrips={setSelectedCantrips}
-            selectedSpells={selectedSpells} setSelectedSpells={setSelectedSpells}
-            cantripResults={cantripResults} setCantripResults={setCantripResults}
-            spellResults={spellResults} setSpellResults={setSpellResults}
-            cantripSearch={cantripSearch} setCantripSearch={setCantripSearch}
-            spellSearch={spellSearch} setSpellSearch={setSpellSearch}
-          />
-        )}
-        {currentStepName === 'Review' && (
-          <ReviewStep
-            name={name} alignment={alignment} selectedRace={selectedRace}
-            selectedClass={selectedClass} classEntries={classEntries} level={level}
-            selectedBackground={selectedBackground} finalScores={finalScores}
-            selectedClassSkills={selectedClassSkills}
-            resolvedRaceChoices={resolvedRaceChoices} resolvedBgProfs={resolvedBgProfs}
-            raceFeats={raceFeats} bgFeatNames={bgFeatNames}
-            selectedCantrips={selectedCantrips} selectedSpells={selectedSpells}
-            error={error}
-          />
-        )}
+        {stepName === 'Background' && <BackgroundStep backgrounds={backgrounds} state={state} dispatch={dispatch} />}
+        {stepName === 'Spells' && <SpellsStep state={state} dispatch={dispatch} />}
+        {stepName === 'Review' && <ReviewStep state={state} error={error} />}
 
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-rule">
-          <button onClick={() => step > 0 ? setStep(step - 1) : navigate('/player')} className="flex items-center gap-2 px-4 py-2 font-body text-[16px] font-semibold text-muted hover:text-ink transition-colors">
+          <button onClick={() => step > 0 ? dispatch({ type: 'setStep', step: step - 1 }) : navigate('/player')} className="flex items-center gap-2 px-4 py-2 font-body text-[16px] font-semibold text-muted hover:text-ink transition-colors">
             <ArrowLeft className="w-4 h-4" /> {step > 0 ? 'Previous' : 'Cancel'}
           </button>
           {step < steps.length - 1 ? (
-            <button onClick={() => setStep(step + 1)} disabled={!canAdvance()} className="flex items-center gap-2 px-5 py-2 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            <button onClick={() => dispatch({ type: 'setStep', step: step + 1 })} disabled={!canAdvance(state)} className="flex items-center gap-2 px-5 py-2 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               Next <ArrowRight className="w-4 h-4" />
             </button>
           ) : (

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, type Dispatch } from 'react';
 import { Check, Search, X } from 'lucide-react';
 import type { CharacterClassRef, Spell } from '../../../types/reference';
 import { searchSpells } from '../../../api/referenceApi';
@@ -7,27 +7,14 @@ import { useClassTables } from '../../../queries/reference';
 import {
   type ClassTables, cantripsKnown, highestSpellLevel, spellbookSize, spellsKnown,
 } from '../../../utils/classTables';
-import type { ClassEntry } from './types';
+import type { WizardAction, WizardState } from './wizardReducer';
 
 // The wizard chooses the 1st level's spells; every later level's are Pending Choices made on the sheet (D159)
 const FIRST_LEVEL = 1;
 
 export interface SpellsStepProps {
-  selectedClass: CharacterClassRef | null;
-  classEntries: ClassEntry[];
-  level: number;
-  selectedCantrips: Spell[];
-  setSelectedCantrips: (s: Spell[]) => void;
-  selectedSpells: Spell[];
-  setSelectedSpells: (s: Spell[]) => void;
-  cantripResults: Spell[];
-  setCantripResults: (s: Spell[]) => void;
-  spellResults: Spell[];
-  setSpellResults: (s: Spell[]) => void;
-  cantripSearch: string;
-  setCantripSearch: (s: string) => void;
-  spellSearch: string;
-  setSpellSearch: (s: string) => void;
+  state: WizardState;
+  dispatch: Dispatch<WizardAction>;
 }
 
 /**
@@ -36,15 +23,8 @@ export interface SpellsStepProps {
  * Pending Choices, made on the character sheet after creation (D159), as are a feat's spells, which come with the
  * feat.
  */
-export default function SpellsStep({
-  selectedClass, classEntries, level,
-  selectedCantrips, setSelectedCantrips,
-  selectedSpells, setSelectedSpells,
-  cantripResults, setCantripResults,
-  spellResults, setSpellResults,
-  cantripSearch, setCantripSearch,
-  spellSearch, setSpellSearch,
-}: SpellsStepProps) {
+export default function SpellsStep({ state, dispatch }: SpellsStepProps) {
+  const { selectedClass, classEntries, level, selectedCantrips, selectedSpells } = state;
   const later = level > 1 || classEntries.length > 1;
   const { data: tables, isError } = useClassTables();
   if (!tables) {
@@ -74,21 +54,14 @@ export default function SpellsStep({
         }
         return (
           <SpellSelectionSection
+            // A new class starts a new search
+            key={selectedClass.id}
             tables={tables}
             selectedClass={selectedClass}
             level={FIRST_LEVEL}
             selectedCantrips={selectedCantrips}
-            setSelectedCantrips={setSelectedCantrips}
             selectedSpells={selectedSpells}
-            setSelectedSpells={setSelectedSpells}
-            cantripResults={cantripResults}
-            setCantripResults={setCantripResults}
-            spellResults={spellResults}
-            setSpellResults={setSpellResults}
-            cantripSearch={cantripSearch}
-            setCantripSearch={setCantripSearch}
-            spellSearch={spellSearch}
-            setSpellSearch={setSpellSearch}
+            dispatch={dispatch}
             title={classEntries.length > 1 ? `${selectedClass.name} Spells` : undefined}
           />
         );
@@ -131,33 +104,25 @@ export default function SpellsStep({
   );
 }
 
+/**
+ * One class's cantrip and spell lists with their searches. The chosen spells are the wizard's; the searches and
+ * their results are this section's own.
+ */
 function SpellSelectionSection({
-  tables, selectedClass, level,
-  selectedCantrips, setSelectedCantrips,
-  selectedSpells, setSelectedSpells,
-  cantripResults, setCantripResults,
-  spellResults, setSpellResults,
-  cantripSearch, setCantripSearch,
-  spellSearch, setSpellSearch,
-  title,
+  tables, selectedClass, level, selectedCantrips, selectedSpells, dispatch, title,
 }: {
   tables: ClassTables;
   selectedClass: CharacterClassRef;
   level: number;
   selectedCantrips: Spell[];
-  setSelectedCantrips: (s: Spell[]) => void;
   selectedSpells: Spell[];
-  setSelectedSpells: (s: Spell[]) => void;
-  cantripResults: Spell[];
-  setCantripResults: (s: Spell[]) => void;
-  spellResults: Spell[];
-  setSpellResults: (s: Spell[]) => void;
-  cantripSearch: string;
-  setCantripSearch: (s: string) => void;
-  spellSearch: string;
-  setSpellSearch: (s: string) => void;
+  dispatch: Dispatch<WizardAction>;
   title?: string;
 }) {
+  const [cantripResults, setCantripResults] = useState<Spell[]>([]);
+  const [spellResults, setSpellResults] = useState<Spell[]>([]);
+  const [cantripSearch, setCantripSearch] = useState('');
+  const [spellSearch, setSpellSearch] = useState('');
   const cantripsAllowed = cantripsKnown(tables, selectedClass.name, level);
   const isWizard = selectedClass.name === 'Wizard';
   const spellbook = spellbookSize(tables, selectedClass.name, level);
@@ -169,27 +134,32 @@ function SpellSelectionSection({
   const isPrepared = selectedClass.isPreparedCaster && !isWizard;
   const maxLevel = highestSpellLevel(tables, selectedClass.name, level);
 
+  // The class's whole lists when the section opens; the searches below narrow them
+  const loadsSpells = (spellsAllowed > 0 || (isPrepared && !isWizard)) && maxLevel > 0;
   useEffect(() => {
-    if (cantripsAllowed > 0 && cantripResults.length === 0) {
-      searchSpells({ className: selectedClass.name, level: 0, size: 50 })
-        .then(res => setCantripResults(res.content))
-        .catch(() => {});
-    }
-  }, [selectedClass.name]);
+    if (cantripsAllowed <= 0) return;
+    let current = true;
+    searchSpells({ className: selectedClass.name, level: 0, size: 50 })
+      .then(res => { if (current) setCantripResults(res.content); })
+      .catch(err => console.warn('Loading the cantrips failed', err));
+    return () => { current = false; };
+  }, [cantripsAllowed, selectedClass.name]);
 
   useEffect(() => {
-    if ((spellsAllowed > 0 || (isPrepared && !isWizard)) && maxLevel > 0) {
-      Promise.all(
-        Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl =>
-          searchSpells({ className: selectedClass.name, level: lvl, size: 50 }).then(r => r.content)
-        )
-      ).then(results => {
-        const all = results.flat();
-        const seen = new Set<string>();
-        setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
-      }).catch(() => {});
-    }
-  }, [selectedClass.name, maxLevel]);
+    if (!loadsSpells) return;
+    let current = true;
+    Promise.all(
+      Array.from({ length: maxLevel }, (_, i) => i + 1).map(lvl =>
+        searchSpells({ className: selectedClass.name, level: lvl, size: 50 }).then(r => r.content)
+      )
+    ).then(results => {
+      if (!current) return;
+      const all = results.flat();
+      const seen = new Set<string>();
+      setSpellResults(all.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; }));
+    }).catch(err => console.warn('Loading the spells failed', err));
+    return () => { current = false; };
+  }, [loadsSpells, selectedClass.name, maxLevel]);
 
   // Results follow the search boxes as you type; Enter searches straight away
   const { searchNow: searchCantrips } = useTypeAhead(cantripSearch, () => {
@@ -214,21 +184,11 @@ function SpellSelectionSection({
   }, setSpellResults);
 
   function toggleCantrip(spell: Spell) {
-    const exists = selectedCantrips.some(s => s.id === spell.id);
-    if (exists) {
-      setSelectedCantrips(selectedCantrips.filter(s => s.id !== spell.id));
-    } else if (selectedCantrips.length < cantripsAllowed) {
-      setSelectedCantrips([...selectedCantrips, spell]);
-    }
+    dispatch({ type: 'toggleCantrip', spell, max: cantripsAllowed });
   }
 
   function toggleSpell(spell: Spell) {
-    const exists = selectedSpells.some(s => s.id === spell.id);
-    if (exists) {
-      setSelectedSpells(selectedSpells.filter(s => s.id !== spell.id));
-    } else if (spellsAllowed === 0 || selectedSpells.length < spellsAllowed) {
-      setSelectedSpells([...selectedSpells, spell]);
-    }
+    dispatch({ type: 'toggleSpell', spell, max: spellsAllowed === 0 ? Infinity : spellsAllowed });
   }
 
   return (

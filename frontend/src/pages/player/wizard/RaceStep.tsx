@@ -1,31 +1,27 @@
 import { Search } from 'lucide-react';
 import type { Race } from '../../../types/reference';
 import { ABILITIES, formatMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
-import type { RaceChoiceReq } from './types';
+import type { Dispatch } from 'react';
+import type { WizardAction, WizardState } from './wizardReducer';
+import {
+  filteredRaces as filterRaces, isVanillaHuman as vanillaHuman, raceChoiceReqs as choiceReqs,
+  raceChoicesComplete as choicesComplete, raceFeats as featCount,
+} from './selectors';
 
 export interface RaceStepProps {
-  filteredRaces: Race[];
-  raceSearch: string;
-  setRaceSearch: (v: string) => void;
-  selectedRace: Race | null;
-  setSelectedRace: (r: Race | null) => void;
-  raceChoiceReqs: RaceChoiceReq[];
-  raceChoiceSelections: Record<string, string[]>;
-  handleRaceChoice: (key: string, value: string, count: number) => void;
-  raceChoicesComplete: boolean;
-  /** How many feats the race grants, such as a Variant Human's, which the character takes on its sheet (D159) */
-  raceFeats: number;
-  bonusAssignments: Array<{ bonus: number; ability: string | null }>;
-  handleBonusAssignment: (rowIndex: number, ability: string) => void;
-  isVanillaHuman: boolean;
+  races: Race[];
+  state: WizardState;
+  dispatch: Dispatch<WizardAction>;
 }
 
-export default function RaceStep({
-  filteredRaces, raceSearch, setRaceSearch,
-  selectedRace, setSelectedRace,
-  raceChoiceReqs, raceChoiceSelections, handleRaceChoice, raceChoicesComplete, raceFeats,
-  bonusAssignments, handleBonusAssignment, isVanillaHuman,
-}: RaceStepProps) {
+export default function RaceStep({ races, state, dispatch }: RaceStepProps) {
+  const { raceSearch, selectedRace, raceChoiceSelections, bonusAssignments } = state;
+  const filteredRaces = filterRaces(races, raceSearch);
+  const raceChoiceReqs = choiceReqs(selectedRace);
+  const raceChoicesComplete = choicesComplete(state);
+  // How many feats the race grants, such as a Variant Human's, which the character takes on its sheet (D159)
+  const raceFeats = featCount(selectedRace);
+  const isVanillaHuman = vanillaHuman(selectedRace);
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-[17px] font-semibold text-ink">Choose a Race</h2>
@@ -34,7 +30,7 @@ export default function RaceStep({
         <input
           type="text"
           value={raceSearch}
-          onChange={e => setRaceSearch(e.target.value)}
+          onChange={e => dispatch({ type: 'setRaceSearch', search: e.target.value })}
           placeholder="Search races..."
           className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
         />
@@ -56,7 +52,7 @@ export default function RaceStep({
           return (
             <button
               key={race.id}
-              onClick={() => setSelectedRace(selectedRace?.id === race.id ? null : race)}
+              onClick={() => dispatch({ type: 'selectRace', race: selectedRace?.id === race.id ? null : race })}
               className={`p-4 border text-left transition-colors ${
                 selectedRace?.id === race.id
                   ? 'bg-page-alt border-ink'
@@ -93,7 +89,7 @@ export default function RaceStep({
                   {req.options.map(option => (
                     <button
                       key={option}
-                      onClick={() => handleRaceChoice(req.key, option, req.count)}
+                      onClick={() => dispatch({ type: 'toggleRaceChoice', key: req.key, value: option, count: req.count })}
                       className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
                         (raceChoiceSelections[req.key] ?? []).includes(option)
                           ? 'bg-ink text-card border-ink'
@@ -136,7 +132,7 @@ export default function RaceStep({
                   {ABILITIES.map(ability => (
                     <button
                       key={ability}
-                      onClick={() => handleBonusAssignment(i, ability)}
+                      onClick={() => dispatch({ type: 'assignBonus', row: i, ability })}
                       className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
                         assignment.ability === ability
                           ? 'bg-ink text-card border-ink'

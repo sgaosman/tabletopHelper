@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import RaceStep, { type RaceStepProps } from '../RaceStep';
+import RaceStep from '../RaceStep';
+import { initialWizardState, type WizardState } from '../wizardReducer';
 import { makeMockRace } from '../../../../test/mocks/handlers';
 
 // The DMG's orc: STR +2, CON +1 and INT -2
@@ -11,25 +12,9 @@ const halfElf = makeMockRace('race-half-elf', 'Half-Elf', JSON.stringify([
   { ability: 'CHA', bonus: 2 }, { ability: 'CHOOSE', from: ['STR', 'DEX', 'CON', 'INT', 'WIS'], count: 2, bonus: 1 },
 ]));
 
-function renderStep(overrides: Partial<RaceStepProps> = {}) {
-  const noop = () => {};
-  const props: RaceStepProps = {
-    filteredRaces: [orc, halfElf],
-    raceSearch: '',
-    setRaceSearch: noop,
-    selectedRace: null,
-    setSelectedRace: noop,
-    raceChoiceReqs: [],
-    raceChoiceSelections: {},
-    handleRaceChoice: noop,
-    raceChoicesComplete: true,
-    raceFeats: 0,
-    bonusAssignments: [],
-    handleBonusAssignment: noop,
-    isVanillaHuman: false,
-    ...overrides,
-  };
-  return render(<RaceStep {...props} />);
+function renderStep(overrides: Partial<WizardState> = {}) {
+  const state: WizardState = { ...initialWizardState, ...overrides };
+  return render(<RaceStep races={[orc, halfElf]} state={state} dispatch={() => {}} />);
 }
 
 describe('RaceStep', () => {

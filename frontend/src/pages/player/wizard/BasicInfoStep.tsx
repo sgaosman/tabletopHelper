@@ -1,20 +1,18 @@
 import NumberStepper from '../../../components/common/NumberStepper';
 import { useClassTables } from '../../../queries/reference';
 import { proficiencyBonus } from '../../../utils/classTables';
+import type { Dispatch } from 'react';
 import { ALIGNMENTS } from './types';
+import type { WizardAction, WizardState } from './wizardReducer';
 
 export interface BasicInfoStepProps {
-  name: string;
-  setName: (v: string) => void;
-  alignment: string;
-  setAlignment: (v: string) => void;
-  level: number;
-  setLevel: (v: number) => void;
+  state: WizardState;
+  dispatch: Dispatch<WizardAction>;
 }
 
-export default function BasicInfoStep({
-  name, setName, alignment, setAlignment, level, setLevel,
-}: BasicInfoStepProps) {
+export default function BasicInfoStep({ state, dispatch }: BasicInfoStepProps) {
+  const { name, alignment, level } = state;
+  const setLevel = (v: number) => dispatch({ type: 'setLevel', level: v });
   const { data: tables } = useClassTables();
   return (
     <div className="space-y-6">
@@ -24,7 +22,7 @@ export default function BasicInfoStep({
         <input
           type="text"
           value={name}
-          onChange={e => setName(e.target.value)}
+          onChange={e => dispatch({ type: 'setName', name: e.target.value })}
           maxLength={200}
           autoFocus
           className="w-full max-w-md px-3 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
@@ -37,7 +35,7 @@ export default function BasicInfoStep({
           {ALIGNMENTS.map(a => (
             <button
               key={a}
-              onClick={() => setAlignment(alignment === a ? '' : a)}
+              onClick={() => dispatch({ type: 'setAlignment', alignment: alignment === a ? '' : a })}
               className={`px-3 py-2 font-heading text-[11px] font-semibold tracking-[0.04em] transition-colors border ${
                 alignment === a
                   ? 'bg-ink text-card border-ink'

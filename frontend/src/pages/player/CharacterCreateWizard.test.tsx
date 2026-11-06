@@ -108,3 +108,112 @@ describe('CharacterCreateWizard', () => {
     expect(created?.spellcastingAbility).toBeUndefined();
   });
 });
+
+describe('CharacterCreateWizard drafts', () => {
+  // A draft as the wizard saved it before its state moved into one reducer (R8 G): a level 2 Elf Fighter acolyte
+  // with the standard array, left on the Background step. The races, classes and backgrounds are the mock
+  // handlers', with the acolyte added.
+  const SAVED_DRAFT = '{"name":"Pip","alignment":"Chaotic Good","step":4,"abilityMethod":"standard",'
+    + '"scores":{"strength":10,"dexterity":10,"constitution":10,"intelligence":10,"wisdom":10,"charisma":10},'
+    + '"standardAssignments":{"strength":15,"dexterity":14,"constitution":13,"intelligence":12,"wisdom":10,"charisma":8},'
+    + '"level":2,"raceId":"race-elf","classId":"cls-fighter","backgroundId":"bg-acolyte"}';
+
+  // The request that draft made before R8 G, restored and created straight away
+  const RESTORED_REQUEST = {
+    name: 'Pip', level: 2, raceId: 'race-elf', classId: 'cls-fighter', backgroundId: 'bg-acolyte',
+    alignment: 'Chaotic Good', abilityScoreMethod: 'standard', racialAbilityBonuses: [{ ability: 'DEX', bonus: 2 }],
+    strength: 15, dexterity: 16, constitution: 13, intelligence: 12, wisdom: 10, charisma: 8,
+    savingThrowProficiencies: ['STR', 'CON'], armorProficiencies: ['All Armor', 'Shields'],
+    weaponProficiencies: ['Simple', 'Martial'],
+  };
+
+  let created: Record<string, unknown> | undefined;
+
+  beforeEach(() => {
+    localStorage.clear();
+    setupAuthToken();
+    created = undefined;
+    localStorage.setItem('characterWizardDraft', SAVED_DRAFT);
+  });
+
+  function createHandler() {
+    return http.post('/api/characters', async ({ request }) => {
+      created = await request.json() as Record<string, unknown>;
+      return HttpResponse.json(makeMockCharacter('char-new', 'Pip', 'Fighter', 2));
+    });
+  }
+
+  /** Goes back to the Class step and on again, which the restored class must allow, then creates the character. */
+  async function checkClassAndCreate(user: ReturnType<typeof userEvent.setup>) {
+    expect(await screen.findByText('Choose a Background')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Acolyte/ })).toHaveClass('border-ink');
+    await user.click(screen.getByRole('button', { name: /Previous/ }));
+    expect(screen.getByRole('button', { name: /^Fighter/ })).toHaveClass('border-ink');
+    await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: /Next/ }));
+    await user.click(screen.getByRole('button', { name: /Next/ }));
+    await user.click(screen.getByRole('button', { name: /Create Character/ }));
+    expect(await screen.findByText('Character sheet')).toBeInTheDocument();
+  }
+
+  it('restores a draft saved in the format it has always had, making the same request', async () => {
+    server.use(http.get('/api/reference/backgrounds', () => HttpResponse.json([acolyte])), createHandler());
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(await screen.findByRole('button', { name: 'Restore' }));
+
+    await checkClassAndCreate(user);
+    expect(created).toEqual(RESTORED_REQUEST);
+  });
+
+  it('restores the race, class and background when Restore is pressed before their lists have loaded', async () => {
+    let release = () => {};
+    const loaded = new Promise<void>(resolve => { release = resolve; });
+    server.use(
+      http.get('/api/reference/races', async () => {
+        await loaded;
+        return HttpResponse.json([makeMockRace('race-elf', 'Elf', JSON.stringify([{ ability: 'DEX', bonus: 2 }]))]);
+      }),
+      http.get('/api/reference/backgrounds', async () => {
+        await loaded;
+        return HttpResponse.json([acolyte]);
+      }),
+      createHandler(),
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(await screen.findByRole('button', { name: 'Restore' }));
+    expect(screen.queryByText('You have an unsaved character draft. Restore it?')).not.toBeInTheDocument();
+    release();
+
+    await checkClassAndCreate(user);
+    expect(created).toEqual(RESTORED_REQUEST);
+  });
+
+  it('forgets the draft when it is discarded', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+
+    expect(localStorage.getItem('characterWizardDraft')).toBeNull();
+    expect(screen.getByPlaceholderText('Enter character name')).toHaveValue('');
+  });
+
+  it('saves the draft as the player goes, in the same format', async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.type(screen.getByPlaceholderText('Enter character name'), 'Pip');
+
+    expect(JSON.parse(localStorage.getItem('characterWizardDraft') ?? 'null')).toEqual({
+      name: 'Pip', alignment: '', step: 0, abilityMethod: 'standard',
+      scores: { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 },
+      standardAssignments: { strength: null, dexterity: null, constitution: null, intelligence: null, wisdom: null, charisma: null },
+      level: 1, raceId: null, classId: null, backgroundId: null,
+    });
+  });
+});

@@ -1,33 +1,29 @@
 import { Search } from 'lucide-react';
 import type { Background } from '../../../types/reference';
 import { safeJsonParse } from '../../../utils/dndRules';
-import type { ChoiceReq, ProfEntry } from './types';
+import type { Dispatch } from 'react';
+import type { ProfEntry } from './types';
 import { formatProfEntry, formatProficiencies, hasChooseSet } from './types';
+import type { WizardAction, WizardState } from './wizardReducer';
+import {
+  bgChoiceReqs as choiceReqs, bgChoicesComplete as choicesComplete, bgFeatNames as featNames,
+  bgSkillConflicts as skillConflicts, filteredBackgrounds as filterBackgrounds,
+} from './selectors';
 
 export interface BackgroundStepProps {
-  filteredBackgrounds: Background[];
-  bgSearch: string;
-  setBgSearch: (v: string) => void;
-  selectedBackground: Background | null;
-  setSelectedBackground: (bg: Background | null) => void;
-  bgChoiceReqs: ChoiceReq[];
-  bgProfChoices: Record<string, string[]>;
-  handleBgProfChoice: (key: string, value: string, count: number) => void;
-  bgSetChoices: Record<string, number | null>;
-  handleBgSetChoice: (key: string, index: number) => void;
-  bgChoicesComplete: boolean;
-  bgSkillConflicts: string[];
-  /** The feats the background grants, one of which the character takes on its sheet after creation (D159) */
-  bgFeatNames: string[];
+  backgrounds: Background[];
+  state: WizardState;
+  dispatch: Dispatch<WizardAction>;
 }
 
-export default function BackgroundStep({
-  filteredBackgrounds, bgSearch, setBgSearch,
-  selectedBackground, setSelectedBackground,
-  bgChoiceReqs, bgProfChoices, handleBgProfChoice,
-  bgSetChoices, handleBgSetChoice, bgChoicesComplete,
-  bgSkillConflicts, bgFeatNames,
-}: BackgroundStepProps) {
+export default function BackgroundStep({ backgrounds, state, dispatch }: BackgroundStepProps) {
+  const { bgSearch, selectedBackground, bgProfChoices, bgSetChoices } = state;
+  const filteredBackgrounds = filterBackgrounds(backgrounds, bgSearch);
+  const bgChoiceReqs = choiceReqs(selectedBackground);
+  const bgChoicesComplete = choicesComplete(state);
+  const bgSkillConflicts = skillConflicts(state);
+  // The feats the background grants, one of which the character takes on its sheet after creation (D159)
+  const bgFeatNames = featNames(selectedBackground);
   return (
     <div className="space-y-4">
       <h2 className="font-heading text-[17px] font-semibold text-ink">Choose a Background</h2>
@@ -36,7 +32,7 @@ export default function BackgroundStep({
         <input
           type="text"
           value={bgSearch}
-          onChange={e => setBgSearch(e.target.value)}
+          onChange={e => dispatch({ type: 'setBackgroundSearch', search: e.target.value })}
           placeholder="Search backgrounds..."
           className="w-full pl-9 pr-4 py-2 bg-card border border-rule font-body text-[16px] font-semibold text-ink placeholder-faint focus:border-muted focus:outline-none"
         />
@@ -50,7 +46,7 @@ export default function BackgroundStep({
           return (
             <button
               key={bg.id}
-              onClick={() => setSelectedBackground(selectedBackground?.id === bg.id ? null : bg)}
+              onClick={() => dispatch({ type: 'selectBackground', background: selectedBackground?.id === bg.id ? null : bg })}
               className={`p-4 border text-left transition-colors ${
                 selectedBackground?.id === bg.id
                   ? 'bg-page-alt border-ink'
@@ -88,7 +84,7 @@ export default function BackgroundStep({
                     {req.from.map(option => (
                       <button
                         key={option}
-                        onClick={() => handleBgProfChoice(req.key, option, req.count)}
+                        onClick={() => dispatch({ type: 'toggleBgProfChoice', key: req.key, value: option, count: req.count })}
                         className={`px-3 py-1.5 font-heading text-[11px] font-semibold tracking-[0.02em] transition-colors border ${
                           (bgProfChoices[req.key] ?? []).includes(option)
                             ? 'bg-ink text-card border-ink'
@@ -110,7 +106,7 @@ export default function BackgroundStep({
                     {req.sets.map((set, i) => (
                       <button
                         key={i}
-                        onClick={() => handleBgSetChoice(req.key, i)}
+                        onClick={() => dispatch({ type: 'toggleBgSetChoice', key: req.key, index: i })}
                         className={`px-3 py-2 border font-body text-[13px] font-semibold text-left transition-colors ${
                           bgSetChoices[req.key] === i
                             ? 'bg-page-alt border-ink text-ink'

@@ -1,46 +1,30 @@
-import type { CharacterClassRef, Race, Spell } from '../../../types/reference';
 import { ABILITIES, abilityMod, formatMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
 import { firstLevelSheetChoices } from '../../../utils/pendingChoices';
 import { useClassTables } from '../../../queries/reference';
 import { proficiencyBonus } from '../../../utils/classTables';
-import type { AbilityScores, ClassEntry } from './types';
+import type { WizardState } from './wizardReducer';
+import {
+  bgFeatNames as featNamesOf, finalScores as finalScoresOf, raceFeats as raceFeatsOf,
+  resolvedBgProfs as bgProfsOf, resolvedRaceChoices as raceChoicesOf,
+} from './selectors';
 
 export interface ReviewStepProps {
-  name: string;
-  alignment: string;
-  selectedRace: Race | null;
-  selectedClass: CharacterClassRef | null;
-  classEntries: ClassEntry[];
-  level: number;
-  selectedBackground: { name: string; id: string } | null;
-  finalScores: AbilityScores;
-  selectedClassSkills: string[];
-  resolvedRaceChoices: {
-    languages: string[];
-    skills: string[];
-    tools: string[];
-    weapons: string[];
-    resistances: string[];
-    spellAbility: string | null;
-  };
-  resolvedBgProfs: { skills: string[]; tools: string[]; languages: string[] };
-  /** The feats the race and background grant, which the character takes on its sheet after creation (D159) */
-  raceFeats: number;
-  bgFeatNames: string[];
-  selectedCantrips: Spell[];
-  selectedSpells: Spell[];
+  state: WizardState;
+  /** Why the last create failed, if it did */
   error: string;
 }
 
-export default function ReviewStep({
-  name, alignment, selectedRace, selectedClass, classEntries, level,
-  selectedBackground, finalScores,
-  selectedClassSkills,
-  resolvedRaceChoices, resolvedBgProfs,
-  raceFeats, bgFeatNames,
-  selectedCantrips, selectedSpells,
-  error,
-}: ReviewStepProps) {
+export default function ReviewStep({ state, error }: ReviewStepProps) {
+  const {
+    name, alignment, selectedRace, selectedClass, classEntries, level, selectedBackground,
+    selectedClassSkills, selectedCantrips, selectedSpells,
+  } = state;
+  const finalScores = finalScoresOf(state);
+  const resolvedRaceChoices = raceChoicesOf(state);
+  const resolvedBgProfs = bgProfsOf(state);
+  // The feats the race and background grant, which the character takes on its sheet after creation (D159)
+  const raceFeats = raceFeatsOf(selectedRace);
+  const bgFeatNames = featNamesOf(selectedBackground);
   // The first class's 1st-level choices these steps don't make, such as a Fighter's Fighting Style (D159)
   const firstLevelChoices = firstLevelSheetChoices(classEntries[0]?.cls.name ?? selectedClass?.name);
   const { data: tables } = useClassTables();

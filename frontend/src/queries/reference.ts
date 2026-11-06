@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { keepPreviousData, queryOptions, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
-  getAllConditions, getClassTables, getItemRarities, getItemSources, getItemTypes, getOptionalFeatures, getQuickReference,
-  getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses, getSpellTargeting, getSubclasses, searchItems,
-  searchSpells,
+  getAllConditions, getBackgrounds, getClasses, getClassTables, getItemRarities, getItemSources, getItemTypes,
+  getOptionalFeatures, getQuickReference, getRaces, getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses,
+  getSpellTargeting, getSubclasses, searchItems, searchSpells,
 } from '../api/referenceApi';
 import type { ItemSearchParams, SpellSearchParams } from '../types/reference';
 import { queryKeys } from './keys';
@@ -140,13 +140,56 @@ export function useQuickReference() {
   });
 }
 
+/** Every race, as the creation wizard lists them. */
+export function racesQuery() {
+  return queryOptions({
+    queryKey: queryKeys.reference.races(),
+    queryFn: () => getRaces(),
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+export function useRaces() {
+  return useQuery(racesQuery());
+}
+
+/** Every class, as the creation wizard lists them. */
+export function classesQuery() {
+  return queryOptions({
+    queryKey: queryKeys.reference.classes(),
+    queryFn: getClasses,
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+export function useClasses() {
+  return useQuery(classesQuery());
+}
+
+/** Every background, as the creation wizard lists them. */
+export function backgroundsQuery() {
+  return queryOptions({
+    queryKey: queryKeys.reference.backgrounds(),
+    queryFn: getBackgrounds,
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+export function useBackgrounds() {
+  return useQuery(backgroundsQuery());
+}
+
 /** A class's subclasses, by name. */
-export function useSubclasses(classId: string) {
-  return useQuery({
+export function subclassesQuery(classId: string) {
+  return queryOptions({
     queryKey: queryKeys.reference.subclasses(classId),
     queryFn: () => getSubclasses(classId),
     staleTime: REFERENCE_STALE_TIME,
   });
+}
+
+export function useSubclasses(classId: string) {
+  return useQuery(subclassesQuery(classId));
 }
 
 /** The optional features of one type, such as 'FightingStyle', by name; a style each class has is listed once for each. */

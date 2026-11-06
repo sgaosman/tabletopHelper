@@ -1,23 +1,18 @@
 import { ABILITIES, abilityMod, formatMod, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
-import { STANDARD_ARRAY, type AbilityScores } from './types';
+import type { Dispatch } from 'react';
+import { STANDARD_ARRAY } from './types';
+import type { WizardAction, WizardState } from './wizardReducer';
+import { pointBuyTotal as pointBuyCost, racialBonuses as bonusesOf } from './selectors';
 
 export interface AbilityScoresStepProps {
-  abilityMethod: 'standard' | 'pointbuy' | 'manual';
-  setAbilityMethod: (m: 'standard' | 'pointbuy' | 'manual') => void;
-  scores: AbilityScores;
-  setScores: React.Dispatch<React.SetStateAction<AbilityScores>>;
-  standardAssignments: Record<string, number | null>;
-  setStandardAssignments: (a: Record<string, number | null>) => void;
-  racialBonuses: Record<string, number>;
-  pointBuyTotal: number;
+  state: WizardState;
+  dispatch: Dispatch<WizardAction>;
 }
 
-export default function AbilityScoresStep({
-  abilityMethod, setAbilityMethod,
-  scores, setScores,
-  standardAssignments, setStandardAssignments,
-  racialBonuses, pointBuyTotal,
-}: AbilityScoresStepProps) {
+export default function AbilityScoresStep({ state, dispatch }: AbilityScoresStepProps) {
+  const { abilityMethod, scores, standardAssignments } = state;
+  const racialBonuses = bonusesOf(state);
+  const pointBuyTotal = pointBuyCost(scores);
   return (
     <div className="space-y-6">
       <h2 className="font-heading text-[17px] font-semibold text-ink">Ability Scores</h2>
@@ -26,18 +21,8 @@ export default function AbilityScoresStep({
         {(['standard', 'pointbuy', 'manual'] as const).map(m => (
           <button
             key={m}
-            onClick={() => {
-              // Point buy starts every score at 8 with all 27 points unspent (PHB);
-              // clicking it again while already in point buy keeps your choices
-              if (m === 'pointbuy' && abilityMethod !== 'pointbuy') {
-                setScores(s => {
-                  const fresh = { ...s };
-                  for (const a of ABILITIES) fresh[a] = 8;
-                  return fresh;
-                });
-              }
-              setAbilityMethod(m);
-            }}
+            // Point buy starts every score at 8; clicking it again while already in point buy keeps your choices
+            onClick={() => dispatch({ type: 'setAbilityMethod', method: m })}
             className={`px-4 py-2 font-heading text-[13px] font-semibold tracking-[0.04em] transition-colors border ${
               abilityMethod === m ? 'bg-ink text-card border-ink' : 'bg-card text-muted border-rule hover:border-muted'
             }`}
@@ -50,7 +35,7 @@ export default function AbilityScoresStep({
       {abilityMethod === 'standard' && (
         <div>
           <p className="font-body text-[15px] font-semibold text-muted mb-4">Assign each value to an ability: {STANDARD_ARRAY.join(', ')}</p>
-          <StandardArrayAssigner assignments={standardAssignments} onChange={setStandardAssignments} racialBonuses={racialBonuses} />
+          <StandardArrayAssigner assignments={standardAssignments} onChange={assignments => dispatch({ type: 'setStandardAssignments', assignments })} racialBonuses={racialBonuses} />
         </div>
       )}
 
@@ -66,12 +51,12 @@ export default function AbilityScoresStep({
                 <label className="font-heading text-[11px] font-semibold tracking-[0.1em] uppercase text-faint block mb-2">{ABILITY_LABELS[a]}</label>
                 <div className="flex items-center justify-center gap-3">
                   <button
-                    onClick={() => setScores(s => ({ ...s, [a]: Math.max(8, s[a] - 1) }))}
+                    onClick={() => dispatch({ type: 'setScore', ability: a, value: Math.max(8, scores[a] - 1) })}
                     className="w-8 h-8 bg-page border border-rule text-muted hover:border-muted flex items-center justify-center font-heading text-[16px] font-bold"
                   >-</button>
                   <span className="font-heading text-[17px] font-bold text-ink w-8 text-center">{scores[a]}</span>
                   <button
-                    onClick={() => setScores(s => ({ ...s, [a]: Math.min(15, s[a] + 1) }))}
+                    onClick={() => dispatch({ type: 'setScore', ability: a, value: Math.min(15, scores[a] + 1) })}
                     className="w-8 h-8 bg-page border border-rule text-muted hover:border-muted flex items-center justify-center font-heading text-[16px] font-bold"
                   >+</button>
                 </div>
@@ -97,7 +82,7 @@ export default function AbilityScoresStep({
                 min={1}
                 max={30}
                 value={scores[a]}
-                onChange={e => setScores(s => ({ ...s, [a]: Math.min(30, Math.max(1, parseInt(e.target.value) || 1)) }))}
+                onChange={e => dispatch({ type: 'setScore', ability: a, value: Math.min(30, Math.max(1, parseInt(e.target.value) || 1)) })}
                 className="w-full text-center font-heading text-[17px] font-bold bg-page border border-rule py-2 text-ink focus:border-muted focus:outline-none"
               />
               {racialBonuses[a] && (

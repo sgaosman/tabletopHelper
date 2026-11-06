@@ -1,29 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { useState } from 'react';
+import { useReducer } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AbilityScoresStep from '../AbilityScoresStep';
-import type { AbilityScores } from '../types';
+import { initialWizardState, wizardReducer, type BonusAssignment } from '../wizardReducer';
 
-function Harness({ racialBonuses = {} }: { racialBonuses?: Record<string, number> }) {
-  const [method, setMethod] = useState<'standard' | 'pointbuy' | 'manual'>('standard');
-  const [scores, setScores] = useState<AbilityScores>({
-    strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10,
-  });
-  const [assignments, setAssignments] = useState<Record<string, number | null>>({});
-  return (
-    <AbilityScoresStep
-      abilityMethod={method} setAbilityMethod={setMethod}
-      scores={scores} setScores={setScores}
-      standardAssignments={assignments} setStandardAssignments={setAssignments}
-      racialBonuses={racialBonuses} pointBuyTotal={0}
-    />
-  );
+function Harness({ bonusAssignments = [] }: { bonusAssignments?: BonusAssignment[] }) {
+  const [state, dispatch] = useReducer(wizardReducer, { ...initialWizardState, standardAssignments: {}, bonusAssignments });
+  return <AbilityScoresStep state={state} dispatch={dispatch} />;
 }
 
 describe('AbilityScoresStep racial bonuses', () => {
   it('shows each racial bonus with its own sign, a negative one as -2, in every method', async () => {
-    render(<Harness racialBonuses={{ strength: 2, intelligence: -2 }} />);
+    render(<Harness bonusAssignments={[{ bonus: 2, ability: 'strength' }, { bonus: -2, ability: 'intelligence' }]} />);
 
     // The standard array, then point buy, then scores entered by hand
     for (const next of ['Point Buy', 'Manual', null]) {

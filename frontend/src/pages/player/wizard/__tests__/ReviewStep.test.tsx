@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '../../../../test/test-utils';
-import ReviewStep, { type ReviewStepProps } from '../ReviewStep';
+import ReviewStep from '../ReviewStep';
+import { initialWizardState, type WizardState } from '../wizardReducer';
 import type { CharacterClassRef } from '../../../../types/reference';
 
 function mockClassRef(overrides: Partial<CharacterClassRef> = {}): CharacterClassRef {
@@ -18,21 +19,15 @@ function mockClassRef(overrides: Partial<CharacterClassRef> = {}): CharacterClas
 const fighter = mockClassRef();
 const wizard = mockClassRef({ id: 'cls-wizard', name: 'Wizard', hitDice: 6, primaryAbility: 'INT', subclassLevel: 2 });
 
-function renderStep(overrides: Partial<ReviewStepProps> = {}) {
-  const props: ReviewStepProps = {
-    name: 'Aria', alignment: '', selectedRace: null,
-    selectedClass: fighter, classEntries: [{ cls: fighter, level: 1, subclass: null, subclasses: [] }], level: 1,
-    selectedBackground: null,
-    finalScores: { strength: 15, dexterity: 14, constitution: 13, intelligence: 10, wisdom: 12, charisma: 8 },
-    selectedClassSkills: [],
-    resolvedRaceChoices: { languages: [], skills: [], tools: [], weapons: [], resistances: [], spellAbility: null },
-    resolvedBgProfs: { skills: [], tools: [], languages: [] },
-    raceFeats: 0, bgFeatNames: [],
-    selectedCantrips: [], selectedSpells: [],
-    error: '',
+function renderStep(overrides: Partial<WizardState> = {}) {
+  const state: WizardState = {
+    ...initialWizardState,
+    name: 'Aria', selectedClass: fighter, classEntries: [{ cls: fighter, level: 1, subclass: null, subclasses: [] }], level: 1,
+    abilityMethod: 'manual',
+    scores: { strength: 15, dexterity: 14, constitution: 13, intelligence: 10, wisdom: 12, charisma: 8 },
     ...overrides,
   };
-  return render(<ReviewStep {...props} />);
+  return render(<ReviewStep state={state} error="" />);
 }
 
 describe('ReviewStep', () => {

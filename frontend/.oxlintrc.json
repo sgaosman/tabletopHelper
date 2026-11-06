@@ -10,8 +10,6 @@
   "overrides": [
     {
       "files": [
-        "src/pages/player/CharacterCreateWizard.tsx",
-        "src/pages/player/wizard/*Step.tsx",
         "src/pages/player/sheet/SpellsTab.tsx",
         "src/components/character/FeatPicker.tsx"
       ],

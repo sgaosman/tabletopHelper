@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import ClassStep, { type ClassStepProps } from '../ClassStep';
+import ClassStep from '../ClassStep';
+import { initialWizardState, type WizardState } from '../wizardReducer';
 import type { CharacterClassRef } from '../../../../types/reference';
 
 function mockClassRef(overrides: Partial<CharacterClassRef> = {}): CharacterClassRef {
@@ -33,37 +34,18 @@ function mockClassRef(overrides: Partial<CharacterClassRef> = {}): CharacterClas
 const fighter = mockClassRef();
 const paladin = mockClassRef({ id: 'cls-paladin', name: 'Paladin', primaryAbility: 'STR and CHA' });
 
-function renderStep(overrides: Partial<ClassStepProps> = {}) {
+function renderStep(overrides: Partial<WizardState> = {}) {
   const noop = () => {};
-  const props: ClassStepProps = {
-    classes: [fighter, paladin],
+  const state: WizardState = {
+    ...initialWizardState,
     selectedClass: fighter,
-    onSelectClass: noop,
     classEntries: [{ cls: fighter, level: 1, subclass: null, subclasses: [] }],
     level: 1,
-    multiclassExpanded: false,
-    setMulticlassExpanded: noop,
-    addMulticlass: noop,
-    removeMulticlass: noop,
-    handleClassLevelChange: noop,
-    handleEntrySubclass: noop,
-    finalScores: { strength: 15, dexterity: 14, constitution: 13, intelligence: 10, wisdom: 12, charisma: 8 },
-    classSkillChoices: { from: [], count: 0 },
-    selectedClassSkills: [],
-    setSelectedClassSkills: noop,
-    raceSkills: new Set<string>(),
-    mcSkillChoicesMap: {},
-    mcSkillSelections: {},
-    setMcSkillSelections: noop,
-    resolvedBgProfs: { skills: [], tools: [], languages: [] },
-    resolvedRaceChoices: { languages: [], skills: [], tools: [], weapons: [], resistances: [], spellAbility: null },
-    selectedExpertise: [],
-    setSelectedExpertise: noop,
-    expertiseCount: 0,
-    selectedRace: null,
     ...overrides,
   };
-  return render(<ClassStep {...props} />);
+  return render(
+    <ClassStep classes={[fighter, paladin]} state={state} dispatch={noop} onSelectClass={noop} onAddMulticlass={noop} />,
+  );
 }
 
 describe('ClassStep', () => {

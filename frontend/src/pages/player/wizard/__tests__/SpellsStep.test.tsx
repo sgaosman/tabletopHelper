@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useState } from 'react';
+import { useReducer } from 'react';
 import { http, HttpResponse } from 'msw';
 import { render, screen, waitFor } from '../../../../test/test-utils';
 import userEvent from '@testing-library/user-event';
@@ -7,6 +7,7 @@ import { server } from '../../../../test/mocks/server';
 import { setupAuthToken } from '../../../../test/test-utils';
 import SpellsStep from '../SpellsStep';
 import type { CharacterClassRef, Spell } from '../../../../types/reference';
+import { initialWizardState, wizardReducer } from '../wizardReducer';
 
 const CANTRIPS = ['Fire Bolt', 'Mind Sliver', 'Minor Illusion', 'Prestidigitation'];
 const LEVEL_ONE = ['Magic Missile', 'Shield'];
@@ -25,23 +26,8 @@ const sorcerer = {
 } as CharacterClassRef;
 
 function Harness({ level = 1 }: { level?: number }) {
-  const [selectedCantrips, setSelectedCantrips] = useState<Spell[]>([]);
-  const [selectedSpells, setSelectedSpells] = useState<Spell[]>([]);
-  const [cantripResults, setCantripResults] = useState<Spell[]>([]);
-  const [spellResults, setSpellResults] = useState<Spell[]>([]);
-  const [cantripSearch, setCantripSearch] = useState('');
-  const [spellSearch, setSpellSearch] = useState('');
-  return (
-    <SpellsStep
-      selectedClass={sorcerer} classEntries={[]} level={level}
-      selectedCantrips={selectedCantrips} setSelectedCantrips={setSelectedCantrips}
-      selectedSpells={selectedSpells} setSelectedSpells={setSelectedSpells}
-      cantripResults={cantripResults} setCantripResults={setCantripResults}
-      spellResults={spellResults} setSpellResults={setSpellResults}
-      cantripSearch={cantripSearch} setCantripSearch={setCantripSearch}
-      spellSearch={spellSearch} setSpellSearch={setSpellSearch}
-    />
-  );
+  const [state, dispatch] = useReducer(wizardReducer, { ...initialWizardState, selectedClass: sorcerer, level });
+  return <SpellsStep state={state} dispatch={dispatch} />;
 }
 
 describe('SpellsStep search', () => {
