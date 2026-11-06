@@ -362,6 +362,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | additional_spells | JSONB | `@JsonRawValue` — normalized race spellcasting data |
 | base_race_name | VARCHAR(200) | Set for subraces (e.g. "Elf") |
 | description | TEXT | |
+| effects | JSONB | What the race changes in the rules, from `race-effects.json` (V28, R7, D167): `{"hpPerLevel": 1}` for Hill Dwarf. NULL for most races. Not sent by the API |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 226 races
@@ -407,6 +408,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | always_prepared_spells | JSONB | `@JsonRawValue` |
 | expanded_spell_list | JSONB | `@JsonRawValue` |
 | additional_proficiencies | JSONB | `@JsonRawValue` |
+| effects | JSONB | What the subclass changes in the rules, from `subclass-effects.json` (V28, R7, D167): `{"hpPerClassLevel": 1}` for the Draconic Bloodline. NULL for most. Not sent by the API |
 | created_at | TIMESTAMPTZ | |
 
 **Count:** 124 subclasses
@@ -682,6 +684,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V25 | `V25__content_versions.sql` | The `content_versions` table, one row per content loader (D169) |
 | V26 | `V26__natural_key_indexes.sql` | Deletes the 14 duplicate Fighting Style copies in `optional_features`, keeping the oldest of each, after pointing any copy's ID in `level_history` and `dm_adjustments` at it. Then adds the unique natural-key indexes. The file has no DO blocks (D169) |
 | V27 | `V27__pool_level_tables.sql` | `resource_pool_definitions.level_table` JSONB, NULL until the resource-pools loader fills it (D169) |
+| V28 | `V28__race_and_subclass_effects.sql` | `races.effects` and `subclasses.effects` JSONB, NULL until the race and class loaders fill them (D167) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -783,6 +786,8 @@ Two maintenance jobs, both dry runs unless `--maintenance.apply=true` is passed:
 **Done (2026-11-05, R7 workstream B):** V25 and V26 are applied to the local database, after backups and a `preview-migration` dry run, which found no character to change. V26 deleted the 14 duplicate Fighting Style copies. On the first start all 12 content loaders ran and changed no other row (D169).
 
 **Done (2026-11-06, R7 workstream D):** V27 is applied to the local database, after a backup (`before-r7-v27-20261106T0235Z.sql`) and a `preview-migration` dry run that found no row to change. `preview-content` then found 35 pool rows to change, and the next start loaded them: 4 definitions added and 26 changed, and 4 class mappings added. After another backup (`before-r7-recompute-20261106T0238Z.sql`), `recompute-characters` changed 9 characters' pools, as on the restored copy, and a second dry run found nothing left (D169).
+
+**Done (2026-11-06, R7 workstream E):** V28 is applied to the local database, after a backup (`before-r7-v28-20261106T0316Z.sql`) and a `preview-migration` dry run that found no row to change. The next start changed only Hill Dwarf's and the Draconic Bloodline's effects and Elemental Adept's, and `recompute-characters` found no character to change (D167).
 
 ### R3–R7 — Outline
 

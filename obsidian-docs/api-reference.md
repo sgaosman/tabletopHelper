@@ -720,6 +720,10 @@ Return the full quick reference data from `bookref-quick.json`. Response is a JS
 
 If the bundled file can't be read, it answers 409 with `{"error": "The quick reference can't be read"}` (R7, D155).
 
+### GET /reference/class-tables
+
+The class tables the rules use (R7, D167), from `data/content/class-tables.json`: `{spellSlots: {full, half, artificer, third, pact: number[][]}, proficiencyBonus: number[21], classes: {<name>: {subclassLevel, asiLevels, expertise, fightingStyleLevels, fightingStyles, spellcasting?, spellbook?}}, subclasses: {<name>: {className, fightingStyleLevels, spellcasting?}}}`. Each slot table and column has a row for levels 0 to 20. Needs a login; sent with `Cache-Control: max-age=3600, private`.
+
 ### GET /reference/races
 
 List all races sorted by name. Optional `?source=PHB` filter.

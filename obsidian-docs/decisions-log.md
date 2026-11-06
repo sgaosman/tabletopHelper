@@ -2216,6 +2216,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 
 **Update (2026-11-03, R7 planning):** the feat data carries `repeatable`, true only for Elemental Adept, which replaces the description regex. Condition immunities follow the answer to question F2, recorded on D150.
 
+**Update (2026-11-06, R7 workstream E):** `feat-effects.json` marks Elemental Adept `repeatable`, and `FeatEffectResolver.repeatable` reads that flag from the feat's effects. The regex on the description is gone (D161).
+
 ## D159: Pending Choices
 
 **Date:** 2026-11-01
@@ -2373,6 +2375,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 **Update (2026-11-03, R6 workstream G):** a player character's death now reaches its sheet (D166). When the DM applies an encounter's results, a participant whose Life State is Dead marks its character dead (`player_characters.is_dead`, V24), at 0 HP with no temp HP. One still Dying or Stable is written back alive at 0 HP, keeping any temp HP it had left **(choice)**. As the table says, healing has no effect on the dead. On the sheet, healing, temp HP, damage, rests and level changes answer 409, and a later encounter can't heal a dead sheet, though its slot and pool changes still apply; `CharacterStats` keeps it at 0. Only the DM's revival brings it back, at 1 HP. Which spell did it, and its time limit, stay with the DM, as they do for Set HP / revive in combat. A dead character can't join an encounter, and an encounter can't start with one who died after being added (409). A character whose sheet is at 0 HP but not dead still joins Stable and unconscious, as before. Participants now join with the sheet's temp HP, where they used to start at 0. In `WriteBackIT` three failed death saves made Aria Dead, the End dialog's preview said she would die, and the end left her dead at 0. Her rests, healing, level-up and a new encounter got 409, the player's revival got 403, and the DM's brought her back at 1 HP.
 
 **Update (2026-11-03, R7 planning):** the feat data carries `repeatable`, true only for Elemental Adept, which replaces the description regex. Condition immunities follow the answer to question F2, recorded on D150.
+
+**Update (2026-11-06, R7 workstream E):** a feat is repeatable when its effects say so, as D158's note describes; only Elemental Adept does.
 
 ## D162: Concentration Instances and Condition End Rules
 
@@ -2674,6 +2678,8 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 **Update (2026-11-03, R6 review fixes):** the recompute-characters job and `CharacterStats` now share one rule for current hit points after the maximum changes, `CurrentHitPoints.afterMaximum`, so the job's dry run shows a dead character staying at 0, as the real run does. The job also skips, with a warning, any character whose sheet can't be worked out, instead of stopping.
 
 **Update (2026-11-03, R7 planning):** Tough's `hpPerLevel` comes from the feat data, and Hill Dwarf's and the Draconic Bloodline's from new `effects` columns on races and subclasses. The spell and class tables move to `data/content/class-tables.json`, which `content` loads into `rules` records, and the frontend reads them from `GET /api/reference/class-tables`.
+
+**Update (2026-11-06, R7 workstream E):** the class tables are data. `data/content/class-tables.json` holds the five slot tables, cantrips and spells known (Eldritch Knight and Arcane Trickster included), the spellbook sizes, the Fighting Style lists and the ASI, Expertise, Fighting Style and subclass levels. `content.ClassTablesConfig` builds `rules.character.ClassTables` from it at every start, maintenance starts included, whatever `content_versions` holds, and a broken file stops startup. `CharacterStats`, `PendingChoices`, `LevelUpCalculator`, `SpellSlotCalculator` and `CharacterClassLoader` take it, and `ClassProgression` keeps only the rules worked out from it. Before `rules/SpellSlotTables` and the static tables were deleted, a comparison of 25,914 answers from the old code and the new, every class and level and every two-class slot calculation, found no difference; it became `ClassTablesFileTest`. `GET /api/reference/class-tables` serves the tables and the proficiency bonus, cached for an hour, and the frontend's `useClassTables` hook feeds the creation wizard and `SpellsTab`. `spellConstants.ts` keeps only `spellListClass`. V28 adds `races.effects` and `subclasses.effects`, which `race-effects.json` and `subclass-effects.json` fill: Hill Dwarf `{"hpPerLevel": 1}` and the Draconic Bloodline `{"hpPerClassLevel": 1}`, counted per Sorcerer level. `CharacterStats` adds those and each taken feat's `hpPerLevel`, such as Tough's 2, instead of matching names, so a renamed race with the effect keeps its bonus. A sheet whose subclass ID doesn't exist now answers 409, as a missing class does. Third casters are still picked by subclass name in `SpellSlotCalculator`. On the local database, after a backup (`before-r7-v28-20261106T0316Z.sql`) and a `preview-migration` dry run that found nothing to change, the start loaded only the three effects rows, and `recompute-characters` found no character to change.
 
 ## D168: Typed JSON End-to-End
 
