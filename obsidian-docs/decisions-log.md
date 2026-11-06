@@ -2024,6 +2024,8 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 
 **Update (2026-11-01, R1 planning):** the Hetzner server and account have been closed, and nothing is hosted. Turning on HTTPS, nightly backups with an off-server copy, and checking health on a live deploy move to a Hosting step taken when a new host is chosen. R1 keeps CI, the type-checked production build, the health endpoint itself, non-root containers, Node 24 and the production config changes.
 
+**Update (2026-11-06, R8 workstream B):** Spring Boot is on 3.5.16, with springdoc 2.8.17, Hibernate 6.6.53, Flyway 11.7.2, Testcontainers 1.21.4, Jackson 2.21.4 and Spring Framework 6.2.19, each confirmed in Maven Central. The build compiles with `-Xlint:deprecation,removal`, and the 26 deprecations it found, all `JsonNode.fields()`, are fixed, so the move to Boot 4 starts clean. No property needed renaming. The newer springdoc writes the validation the server already enforces into the spec (`minLength` on `@NotBlank` strings, `minItems` on `@NotEmpty` lists, an email format); the generated types gain one comment. On a restored copy, `json-roundtrip` matched its baseline, a full content load and `recompute-characters` changed nothing, every character and encounter loaded, startup took 4.6 s and the jar shrank by 0.7 MB. The local database takes it at its next start, with V29.
+
 ## D155: Access Policy and Error Handling
 
 **Date:** 2026-11-01
