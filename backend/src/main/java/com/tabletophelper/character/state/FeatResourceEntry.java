@@ -9,7 +9,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * A feat's limited uses, such as Lucky's luck points, as the level history records them in the feat's
  * {@link AppliedFeatEffects} (D168). The sheet keeps the uses themselves in a {@code feat:<feat>} resource pool that
  * CharacterStats builds from this record (D158), so they are spent, reset and taken into encounters as any other
- * pool; the deprecated {@code player_characters.feat_resources} column that held them is no longer mapped.
+ * pool; the deprecated {@code player_characters.feat_resources} column that held them is gone (V29).
  *
  * @param currentUses the uses when the feat was taken, a record only: the pool holds the uses left
  * @param resetOn     the rest that brings them back, "shortRest" or "longRest"

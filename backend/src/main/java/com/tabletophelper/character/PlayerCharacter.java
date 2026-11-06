@@ -134,9 +134,9 @@ public class PlayerCharacter {
     @Builder.Default
     private Integer proficiencyBonus = 2;
 
-    // The JSONB columns map to records (D168). The deprecated hit_dice_total, hit_dice_remaining and hit_dice_map,
-    // which hit_dice replaces, prepared_spells, attuned_items and equipped_items, which nothing read, and
-    // feat_resources, whose uses are now pools (D158), are no longer mapped; R7 drops them.
+    // The JSONB columns map to records (D168). V29 dropped the deprecated hit_dice_total, hit_dice_remaining and
+    // hit_dice_map, which hit_dice replaces, prepared_spells, attuned_items and equipped_items, which nothing read,
+    // and feat_resources, whose uses are now pools (D158).
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "saving_throw_proficiencies", columnDefinition = "jsonb")

@@ -10,7 +10,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 
 /**
  * An entry in a character's inventory, {@code player_characters.equipment} (D168). Equipped and attuned replace
- * the separate {@code equipped_items} and {@code attuned_items} lists, which nothing used. A field an entry doesn't
+ * the separate {@code equipped_items} and {@code attuned_items} lists, which nothing used and V29 dropped. A field an entry doesn't
  * have is left out.
  *
  * @param quantity how many are carried; an entry recorded with none left isn't carried

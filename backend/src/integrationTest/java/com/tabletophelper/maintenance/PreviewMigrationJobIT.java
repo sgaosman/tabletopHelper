@@ -44,7 +44,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * applied against characters in a schema at V20 (D158), whose preview in turn gave way to V22's, applied against
  * characters in a schema at V21 (D158), and V22's preview to V23's, applied against characters in a schema at V22
  * (D159), whose preview in turn gave way to V24's, previewed and applied against encounters and characters in a schema
- * at V23 (D166).
+ * at V23 (D166). V29, which drops columns, is previewed and applied against characters in a schema at V28, the
+ * preview listing each value a row loses.
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
@@ -56,6 +57,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private static final String V22_SCHEMA = "v22_preview";
     private static final String V23_SCHEMA = "v23_preview";
     private static final String V24_SCHEMA = "v24_preview";
+    private static final String V29_SCHEMA = "v29_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -81,6 +83,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V22_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V23_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V24_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V29_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -874,5 +877,79 @@ class PreviewMigrationJobIT extends IntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V24_SCHEMA + ".player_characters "
                 + "SET is_dead = NULL WHERE id = ?", rows.get("Bram")))
                 .hasMessageContaining("is_dead");
+    }
+
+    // ── V29: the deprecated character columns dropped ────────────
+
+    private static final List<String> V29_COLUMNS = List.of("hit_dice_total", "hit_dice_remaining", "hit_dice_map",
+            "feat_resources", "prepared_spells", "attuned_items", "equipped_items");
+
+    /**
+     * Takes a schema of its own to V28 and fills it as R7 workstream F left it: Aria, whose deprecated hit dice columns
+     * still hold what V19 copied into hit_dice, and Bram, whose deprecated columns are all NULL.
+     */
+    private Map<String, UUID> v29Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V29_SCHEMA).locations("classpath:db/migration")
+                .target("28").load().migrate();
+        UUID owner = UUID.randomUUID();
+        UUID race = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V29_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'aria', 'aria@example.com', 'hash')", owner);
+        jdbcTemplate.update("INSERT INTO " + V29_SCHEMA + ".races (id, name) VALUES (?, 'Human')", race);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        for (String name : List.of("Aria", "Bram")) {
+            UUID id = UUID.randomUUID();
+            jdbcTemplate.update("INSERT INTO " + V29_SCHEMA + ".player_characters (id, user_id, race_id, name, "
+                    + "strength, dexterity, constitution, intelligence, wisdom, charisma, hp_max, hp_current, "
+                    + "armour_class) VALUES (?, ?, ?, ?, 10, 10, 10, 10, 10, 10, 8, 8, 10)", id, owner, race, name);
+            rows.put(name, id);
+        }
+        jdbcTemplate.update("UPDATE " + V29_SCHEMA + ".player_characters SET hit_dice_total = '5d6', "
+                + "hit_dice_remaining = '3d6', hit_dice_map = '{\"Wizard\": {\"total\": 5, \"remaining\": 3, "
+                + "\"faces\": 6}}', hit_dice = '{\"Wizard\": {\"total\": 5, \"dieSize\": 6, \"remaining\": 3}}' "
+                + "WHERE id = ?", rows.get("Aria"));
+        return rows;
+    }
+
+    private List<String> v29Columns() {
+        return jdbcTemplate.queryForList("SELECT column_name::text FROM information_schema.columns "
+                + "WHERE table_schema = ? AND table_name = 'player_characters' AND column_name = ANY (?) "
+                + "ORDER BY column_name", String.class, V29_SCHEMA, V29_COLUMNS.toArray(String[]::new));
+    }
+
+    @Test
+    @DisplayName("Previews V29 on a database at V28: each value a character loses is listed, a character with nothing in the columns is unchanged, every row loads, nothing is written")
+    void previewsV29() {
+        Map<String, UUID> rows = v29Rows();
+        DataSource v29 = schemaDataSource(V29_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v29, new JdbcTemplate(v29), entityManagerFactory,
+                objectMapper, "29").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        assertThat(report.examined()).isEqualTo(2);
+        assertThat(report.changes()).singleElement().satisfies(change -> assertThat(change)
+                .contains(rows.get("Aria") + " (Aria)")
+                .contains("hit_dice_total: \"5d6\" → (dropped)")
+                .contains("hit_dice_remaining: \"3d6\" → (dropped)")
+                .contains("hit_dice_map: {\"Wizard\":{\"faces\":6,\"total\":5,\"remaining\":3}} → (dropped)")
+                .doesNotContain("feat_resources")
+                .doesNotContain("hit_dice: "));
+        assertThat(v29Columns()).hasSize(7);
+    }
+
+    @Test
+    @DisplayName("V29 drops the seven deprecated columns and leaves hit_dice as it was")
+    void appliesV29() {
+        Map<String, UUID> rows = v29Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V29_SCHEMA).locations("classpath:db/migration")
+                .target("29").load().migrate();
+
+        assertThat(v29Columns()).isEmpty();
+        assertThat(jdbcTemplate.queryForObject("SELECT hit_dice::text FROM " + V29_SCHEMA
+                + ".player_characters WHERE id = ?", String.class, rows.get("Aria")))
+                .isEqualTo("{\"Wizard\": {\"total\": 5, \"dieSize\": 6, \"remaining\": 3}}");
     }
 }

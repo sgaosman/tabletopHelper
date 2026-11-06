@@ -46,4 +46,15 @@ class TableSnapshotTest {
         // A column the old row lacks shows as nothing before the arrow
         assertEquals(List.of("races Elf|PHB\n      size:  → \"M\""), TableSnapshot.compare(before, after, false));
     }
+
+    @Test
+    @DisplayName("A column dropped with a value in it shows the value the row loses")
+    void droppedColumnsShowTheirValues() {
+        var before = tables("player_characters", Map.of("1", "{\"name\": \"Aria\", \"hit_dice_total\": \"5d6\", "
+                + "\"prepared_spells\": null}"));
+        var after = tables("player_characters", Map.of("1", "{\"name\": \"Aria\"}"));
+
+        assertEquals(List.of("player_characters 1 (Aria)\n      hit_dice_total: \"5d6\" → (dropped)"),
+                TableSnapshot.compare(before, after, true));
+    }
 }

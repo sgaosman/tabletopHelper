@@ -103,7 +103,9 @@ final class TableSnapshot {
         return changes;
     }
 
-    // Each column whose value differs. A column added as NULL, or dropped while NULL, changes nothing in the row.
+    // Each column whose value differs. A column added as NULL, or dropped while NULL, changes nothing in the row; a
+    // column dropped with a value in it shows that value before the arrow and "(dropped)" after it, so a report lists
+    // what each row loses.
     static String changedColumns(JsonNode oldRow, JsonNode newRow) {
         Set<String> columns = new TreeSet<>();
         oldRow.fieldNames().forEachRemaining(columns::add);
@@ -115,7 +117,8 @@ final class TableSnapshot {
             boolean bothAbsent = (oldValue.isMissingNode() || oldValue.isNull())
                     && (newValue.isMissingNode() || newValue.isNull());
             if (!oldValue.equals(newValue) && !bothAbsent) {
-                sb.append("\n      ").append(column).append(": ").append(oldValue).append(" → ").append(newValue);
+                sb.append("\n      ").append(column).append(": ").append(oldValue).append(" → ")
+                        .append(newValue.isMissingNode() ? "(dropped)" : newValue);
             }
         }
         return sb.toString();

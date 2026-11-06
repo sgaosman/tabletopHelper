@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The typed player character JSON columns (D168): each record is written to PostgreSQL in the shape V19 normalises
- * rows to and reads back equal, the deprecated columns are no longer written, and the API takes and returns the
+ * rows to and reads back equal, the deprecated columns are gone (V29), and the API takes and returns the
  * records as JSON rather than JSON inside strings. Since R6 workstream C the level history records hit die results,
  * the amounts improvements applied, Expertise, and the proficiencies and ability increases levels added, and the
  * Derived Stats a request sends are ignored (D167). Since workstream D the sheet changes through intent commands rather
@@ -276,17 +276,10 @@ class CharacterJsonMappingIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("The deprecated hit dice, prepared, attuned, equipped and feat resources columns are no longer written")
-    void deprecatedColumnsAreLeftAlone() {
+    @DisplayName("V29 dropped the deprecated hit dice, prepared, attuned, equipped and feat resources columns, and hit_dice still saves")
+    void deprecatedColumnsAreGone() {
         UUID id = characterRepository.save(character().hitDice(Map.of("Fighter", new HitDicePool(10, 1, 1))).build())
                 .getId();
-        jdbcTemplate.update("""
-                UPDATE player_characters
-                SET hit_dice_map = '{"Fighter": {"total": 1, "remaining": 1, "faces": 10}}',
-                    hit_dice_total = '1d10', hit_dice_remaining = '1d10', prepared_spells = '["Shield"]',
-                    attuned_items = '["Cloak of Protection"]', equipped_items = '["Shield"]',
-                    feat_resources = '[{"featName": "Lucky", "name": "Luck Points", "maxUses": 3, "currentUses": 1}]'
-                WHERE id = ?""", id);
 
         PlayerCharacter character = reload(id);
         character.setHitDice(Map.of("Fighter", new HitDicePool(10, 2, 2)));
@@ -294,15 +287,10 @@ class CharacterJsonMappingIT extends IntegrationTest {
 
         assertThat(column("SELECT hit_dice ->> 'Fighter' FROM player_characters WHERE id = ?", id))
                 .contains("\"total\": 2");
-        assertThat(column("SELECT hit_dice_map::text FROM player_characters WHERE id = ?", id))
-                .isEqualTo("{\"Fighter\": {\"faces\": 10, \"total\": 1, \"remaining\": 1}}");
-        assertThat(column("SELECT hit_dice_total || ' ' || hit_dice_remaining FROM player_characters WHERE id = ?", id))
-                .isEqualTo("1d10 1d10");
-        assertThat(column("SELECT prepared_spells::text || attuned_items::text || equipped_items::text "
-                + "FROM player_characters WHERE id = ?", id))
-                .isEqualTo("[\"Shield\"][\"Cloak of Protection\"][\"Shield\"]");
-        assertThat(column("SELECT feat_resources -> 0 ->> 'currentUses' FROM player_characters WHERE id = ?", id))
-                .isEqualTo("1");
+        assertThat(jdbcTemplate.queryForList("SELECT column_name::text FROM information_schema.columns "
+                + "WHERE table_schema = 'public' AND table_name = 'player_characters' AND column_name IN "
+                + "('hit_dice_total', 'hit_dice_remaining', 'hit_dice_map', 'feat_resources', 'prepared_spells', "
+                + "'attuned_items', 'equipped_items')", String.class)).isEmpty();
     }
 
     @Test
