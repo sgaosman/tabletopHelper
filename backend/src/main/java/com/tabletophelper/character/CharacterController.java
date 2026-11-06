@@ -29,6 +29,7 @@ public class CharacterController {
     private final DmAdjustmentService adjustmentService;
     private final PendingChoiceService choiceService;
     private final WriteBackService writeBackService;
+    private final FeatEligibility featEligibility;
 
     @PostMapping
     public ResponseEntity<CharacterResponse> createCharacter(
@@ -251,6 +252,18 @@ public class CharacterController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         return ResponseEntity.ok(characterService.getEligibleClasses(characterId, userId));
+    }
+
+    /**
+     * Every feat as the character could take it: whether it meets the prerequisite, what it misses, and whether it has
+     * the feat already (D158, D159). For its owner or the DM of its campaign.
+     */
+    @GetMapping("/{characterId}/feat-options")
+    public ResponseEntity<List<FeatOptionResponse>> getFeatOptions(
+            @PathVariable UUID characterId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(featEligibility.options(characterId, userId));
     }
 
     @DeleteMapping("/{characterId}")

@@ -1,8 +1,6 @@
 package com.tabletophelper.character;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
@@ -14,6 +12,9 @@ import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatAbilityIncrease;
+import com.tabletophelper.reference.FeatEffects;
+import com.tabletophelper.reference.FeatSpells;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.rules.Ability;
@@ -33,10 +34,6 @@ public class FeatEffectResolver {
     /** The source of a feat's entry among the character's features, whatever granted the feat. */
     static final String FEAT_SOURCE = "Feat";
 
-    // The feat data's flag for a feat that can be taken more than once
-    private static final String REPEATABLE = "repeatable";
-
-    private final ObjectMapper objectMapper;
     private final SpellRepository spellRepository;
 
     public record AppliedEffects(
@@ -86,69 +83,56 @@ public class FeatEffectResolver {
         List<KnownSpell> spellsAdded = new ArrayList<>();
 
         // Apply ability score increase from feat
-        if (feat.getAbilityScoreIncrease() != null) {
-            abilityIncreases = applyAbilityScoreIncrease(character, feat, choices);
+        List<FeatAbilityIncrease.Entry> increases = FeatAbilityIncrease.readable(feat);
+        if (!increases.isEmpty()) {
+            abilityIncreases = applyAbilityScoreIncrease(character, increases, choices);
         }
 
         // Apply structured effects
-        if (feat.getEffects() != null) {
-            JsonNode effects = readFeatData(feat.getName(), feat.getEffects());
-
-            if (effects.has("resistances")) {
-                resistancesAdded = applyResistances(character, effects.get("resistances"), choices);
-            }
-            if (effects.has("armorProficiencies")) {
-                armorProfsAdded = applyListProficiency(character, effects.get("armorProficiencies"),
-                        "armorProficiencies", this::getArmorProficiencies, this::setArmorProficiencies);
-            }
-            if (effects.has("weaponProficiencies")) {
-                weaponProfsAdded = applyWeaponProficiencies(character, effects.get("weaponProficiencies"), choices);
-            }
-            if (effects.has("toolProficiencies")) {
-                toolProfsAdded = applyToolProficiencies(character, effects.get("toolProficiencies"), choices);
-            }
-            if (effects.has("skillProficiencies")) {
-                skillProfsAdded = applySkillProficiencies(character, effects.get("skillProficiencies"), choices);
-            }
-            if (effects.has("languageProficiencies")) {
-                langProfsAdded = applyLanguageProficiencies(character, effects.get("languageProficiencies"), choices);
-            }
-            if (effects.has("savingThrowProficiencies")) {
-                saveProfsAdded = applySavingThrowProficiencies(character, effects.get("savingThrowProficiencies"), choices);
-            }
-            if (effects.has("skillToolLanguageProficiencies")) {
-                Map<String, List<String>> mixed = applySkillToolLanguageProficiencies(
-                        character, effects.get("skillToolLanguageProficiencies"), choices);
-                skillProfsAdded.addAll(mixed.getOrDefault("skills", List.of()));
-                toolProfsAdded.addAll(mixed.getOrDefault("tools", List.of()));
-            }
-            if (effects.has("expertise")) {
-                expertiseAdded = applyExpertise(character, effects.get("expertise"), choices);
-            }
-            // Speed, initiative and hit points are Derived Stats: the bonuses are recorded, and CharacterStats adds
-            // them (D167)
-            if (effects.has("speedBonus")) {
-                speedBonus = effects.get("speedBonus").asInt(0);
-            }
-            if (effects.has("initiativeBonus")) {
-                initiativeBonus = effects.get("initiativeBonus").asInt(0);
-            }
-            if (effects.has("hpPerLevel")) {
-                hpPerLevel = effects.get("hpPerLevel").asInt(0);
-            }
-            if (effects.has("passivePerceptionBonus")) {
-                passivePerceptionBonus = effects.get("passivePerceptionBonus").asInt(0);
-            }
-            if (effects.has("passiveInvestigationBonus")) {
-                passiveInvestigationBonus = effects.get("passiveInvestigationBonus").asInt(0);
-            }
-            if (effects.has("resource")) {
-                resource = resource(effects.get("resource"), feat.getName());
-            }
-            if (effects.has("optionalFeatureProgression") && choices != null
-                    && choices.getOptionalFeatureIds() != null) {
-                optionalFeaturesAdded = recordOptionalFeatures(choices.getOptionalFeatureIds());
-            }
+        FeatEffects effects = FeatEffects.readable(feat);
+        if (!effects.resistances().isEmpty()) {
+            resistancesAdded = applyResistances(character, effects.resistances(), choices);
+        }
+        if (!effects.armorProficiencies().isEmpty()) {
+            armorProfsAdded = applyListProficiency(character, effects.armorProficiencies(),
+                    this::getArmorProficiencies, this::setArmorProficiencies);
+        }
+        if (!effects.weaponProficiencies().isEmpty()) {
+            weaponProfsAdded = applyWeaponProficiencies(character, effects.weaponProficiencies(), choices);
+        }
+        if (!effects.toolProficiencies().isEmpty()) {
+            toolProfsAdded = applyToolProficiencies(character, effects.toolProficiencies(), choices);
+        }
+        if (!effects.skillProficiencies().isEmpty()) {
+            skillProfsAdded = applySkillProficiencies(character, effects.skillProficiencies(), choices);
+        }
+        if (!effects.languageProficiencies().isEmpty()) {
+            langProfsAdded = applyLanguageProficiencies(character, effects.languageProficiencies(), choices);
+        }
+        if (!effects.savingThrowProficiencies().isEmpty()) {
+            saveProfsAdded = applySavingThrowProficiencies(character, effects.savingThrowProficiencies(), choices);
+        }
+        if (!effects.skillToolLanguageProficiencies().isEmpty()) {
+            Map<String, List<String>> mixed = applySkillToolLanguageProficiencies(character, choices);
+            skillProfsAdded.addAll(mixed.getOrDefault("skills", List.of()));
+            toolProfsAdded.addAll(mixed.getOrDefault("tools", List.of()));
+        }
+        if (!effects.expertise().isEmpty()) {
+            expertiseAdded = applyExpertise(character, effects.expertise(), choices);
+        }
+        // Speed, initiative and hit points are Derived Stats: the bonuses are recorded, and CharacterStats adds
+        // them (D167)
+        speedBonus = orZero(effects.speedBonus());
+        initiativeBonus = orZero(effects.initiativeBonus());
+        hpPerLevel = orZero(effects.hpPerLevel());
+        passivePerceptionBonus = orZero(effects.passivePerceptionBonus());
+        passiveInvestigationBonus = orZero(effects.passiveInvestigationBonus());
+        if (effects.resource() != null) {
+            resource = resource(effects.resource(), feat.getName());
+        }
+        if (!effects.optionalFeatureProgression().isEmpty() && choices != null
+                && choices.getOptionalFeatureIds() != null) {
+            optionalFeaturesAdded = recordOptionalFeatures(choices.getOptionalFeatureIds());
         }
 
         // Apply spell choices
@@ -239,38 +223,28 @@ public class FeatEffectResolver {
         }
     }
 
-    private JsonNode readFeatData(String featName, String json) {
-        try {
-            return objectMapper.readTree(json);
-        } catch (JacksonException e) {
-            throw new ConflictException("The effects of the feat " + featName + " can't be read");
-        }
+    private static int orZero(Integer value) {
+        return value != null ? value : 0;
     }
 
     // --- Ability Score ---
 
     // Each increase the feat gives, by the amount actually applied under the maximum (D167)
-    private Map<String, Integer> applyAbilityScoreIncrease(PlayerCharacter character, Feat feat,
+    private Map<String, Integer> applyAbilityScoreIncrease(PlayerCharacter character,
+                                                            List<FeatAbilityIncrease.Entry> increases,
                                                             ApplyChoicesRequest.AsiChoice choices) {
         Map<String, Integer> applied = new LinkedHashMap<>();
-        JsonNode asiArray = readFeatData(feat.getName(), feat.getAbilityScoreIncrease());
-        if (!asiArray.isArray()) return applied;
-
-        for (JsonNode entry : asiArray) {
-            if (entry.has("choose") && choices != null && choices.getFeatAbility() != null) {
-                String ability = choices.getFeatAbility().toLowerCase();
-                int amount = entry.path("choose").path("amount").asInt(1);
-                applied.put(ability, CharacterUpdates.increaseAbility(character, ability, amount));
-            } else {
-                Iterator<Map.Entry<String, JsonNode>> fields = entry.properties().iterator();
-                while (fields.hasNext()) {
-                    Map.Entry<String, JsonNode> field = fields.next();
-                    if (!"choose".equals(field.getKey())) {
-                        String ability = field.getKey().toLowerCase();
-                        int amount = field.getValue().asInt(0);
-                        applied.put(ability, CharacterUpdates.increaseAbility(character, ability, amount));
-                    }
+        for (FeatAbilityIncrease.Entry entry : increases) {
+            if (entry.choose() != null) {
+                if (choices != null && choices.getFeatAbility() != null) {
+                    String ability = choices.getFeatAbility().toLowerCase();
+                    applied.put(ability, CharacterUpdates.increaseAbility(character, ability, entry.choose().amount()));
                 }
+            } else {
+                entry.fixed().forEach((key, amount) -> {
+                    String ability = key.toLowerCase();
+                    applied.put(ability, CharacterUpdates.increaseAbility(character, ability, amount));
+                });
             }
         }
         return applied;
@@ -278,7 +252,7 @@ public class FeatEffectResolver {
 
     // --- Resistances ---
 
-    private List<String> applyResistances(PlayerCharacter character, JsonNode resistNode,
+    private List<String> applyResistances(PlayerCharacter character, List<JsonNode> resistNode,
                                           ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getDamageResistances());
@@ -306,8 +280,7 @@ public class FeatEffectResolver {
 
     // --- Proficiencies ---
 
-    private List<String> applyListProficiency(PlayerCharacter character, JsonNode node,
-                                               String fieldName,
+    private List<String> applyListProficiency(PlayerCharacter character, List<JsonNode> node,
                                                java.util.function.Function<PlayerCharacter, List<String>> getter,
                                                java.util.function.BiConsumer<PlayerCharacter, List<String>> setter) {
         List<String> added = new ArrayList<>();
@@ -336,7 +309,7 @@ public class FeatEffectResolver {
     private List<String> getArmorProficiencies(PlayerCharacter c) { return c.getArmorProficiencies(); }
     private void setArmorProficiencies(PlayerCharacter c, List<String> v) { c.setArmorProficiencies(v); }
 
-    private List<String> applyWeaponProficiencies(PlayerCharacter character, JsonNode node,
+    private List<String> applyWeaponProficiencies(PlayerCharacter character, List<JsonNode> node,
                                                    ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getWeaponProficiencies());
@@ -370,7 +343,7 @@ public class FeatEffectResolver {
         return added;
     }
 
-    private List<String> applyToolProficiencies(PlayerCharacter character, JsonNode node,
+    private List<String> applyToolProficiencies(PlayerCharacter character, List<JsonNode> node,
                                                  ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getToolProficiencies());
@@ -405,7 +378,7 @@ public class FeatEffectResolver {
         return added;
     }
 
-    private List<String> applySkillProficiencies(PlayerCharacter character, JsonNode node,
+    private List<String> applySkillProficiencies(PlayerCharacter character, List<JsonNode> node,
                                                    ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getSkillProficiencies());
@@ -428,7 +401,7 @@ public class FeatEffectResolver {
         return added;
     }
 
-    private List<String> applyLanguageProficiencies(PlayerCharacter character, JsonNode node,
+    private List<String> applyLanguageProficiencies(PlayerCharacter character, List<JsonNode> node,
                                                       ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getLanguageProficiencies());
@@ -462,7 +435,7 @@ public class FeatEffectResolver {
         return added;
     }
 
-    private List<String> applySavingThrowProficiencies(PlayerCharacter character, JsonNode node,
+    private List<String> applySavingThrowProficiencies(PlayerCharacter character, List<JsonNode> node,
                                                         ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getSavingThrowProficiencies());
@@ -484,7 +457,7 @@ public class FeatEffectResolver {
     }
 
     private Map<String, List<String>> applySkillToolLanguageProficiencies(
-            PlayerCharacter character, JsonNode node, ApplyChoicesRequest.AsiChoice choices) {
+            PlayerCharacter character, ApplyChoicesRequest.AsiChoice choices) {
         Map<String, List<String>> result = new HashMap<>();
         result.put("skills", new ArrayList<>());
         result.put("tools", new ArrayList<>());
@@ -519,7 +492,7 @@ public class FeatEffectResolver {
 
     // --- Expertise ---
 
-    private List<String> applyExpertise(PlayerCharacter character, JsonNode node,
+    private List<String> applyExpertise(PlayerCharacter character, List<JsonNode> node,
                                          ApplyChoicesRequest.AsiChoice choices) {
         List<String> added = new ArrayList<>();
         List<String> current = copy(character.getSkillExpertises());
@@ -546,10 +519,10 @@ public class FeatEffectResolver {
 
     // The feat's limited uses, recorded with its effects; CharacterStats gives the sheet a feat:<feat> pool of them,
     // which levelling down removes with the level (D158)
-    private static FeatResourceEntry resource(JsonNode resourceNode, String featName) {
-        int uses = resourceNode.path("maxUses").asInt(0);
-        return new FeatResourceEntry(featName, resourceNode.path("name").asString(featName), uses, uses,
-                resourceNode.path("resetOn").asString("longRest"));
+    private static FeatResourceEntry resource(FeatEffects.Resource resource, String featName) {
+        int uses = resource.maxUses();
+        return new FeatResourceEntry(featName, resource.name() != null ? resource.name() : featName, uses, uses,
+                resource.resetOn() != null ? resource.resetOn() : "longRest");
     }
 
     // --- Spells ---
@@ -637,7 +610,7 @@ public class FeatEffectResolver {
         List<KnownSpell> added = new ArrayList<>();
 
         String source = "feat:" + feat.getName();
-        Map<String, Integer> fixedSpellUsage = parseFeatSpellUsage(feat.getName(), feat.getGrantsFeatures());
+        Map<String, Integer> fixedSpellUsage = featSpellUsage(feat);
 
         for (UUID spellId : spellIds) {
             Spell spell = spellRepository.findById(spellId)
@@ -655,43 +628,17 @@ public class FeatEffectResolver {
         return added;
     }
 
-    // The uses per long rest of each spell a feat grants by name; feat data that can't be read is a 409 (D155)
-    private Map<String, Integer> parseFeatSpellUsage(String featName, String grantsFeatures) {
+    // The uses per long rest of each spell a feat grants by name, 0 for a known spell; feat data that can't be read
+    // is a 409 (D155)
+    private static Map<String, Integer> featSpellUsage(Feat feat) {
         Map<String, Integer> usage = new HashMap<>();
-        if (grantsFeatures == null) return usage;
-        try {
-            JsonNode arr = objectMapper.readTree(grantsFeatures);
-            if (!arr.isArray()) return usage;
-            for (JsonNode option : arr) {
-                JsonNode daily = option.path("innate").path("_").path("daily");
-                if (daily.isObject()) {
-                    daily.properties().forEach(e -> {
-                        // Keys such as "1" or "1e" (once each): the uses before any "e"
-                        String count = e.getKey().replace("e", "");
-                        if (!count.matches("\\d+")) {
-                            throw new ConflictException("The spells the feat " + featName + " grants can't be read");
-                        }
-                        int uses = Integer.parseInt(count);
-                        for (JsonNode spell : e.getValue()) {
-                            if (spell.isString()) {
-                                usage.put(spell.asString("").toLowerCase(), uses);
-                            }
-                        }
-                    });
-                }
-                JsonNode known = option.path("known").path("_");
-                if (known.isArray()) {
-                    for (JsonNode item : known) {
-                        if (item.isString()) {
-                            usage.put(item.asString("").replace("#c", "").replaceAll("#\\d+$", "")
-                                    .replaceAll("\\|.*$", "").toLowerCase(), 0);
-                        }
-                    }
-                }
-            }
-        } catch (JacksonException e) {
-            log.warn("Failed to parse feat spell usage from grantsFeatures JSON", e);
-            throw new ConflictException("The spells the feat " + featName + " grants can't be read");
+        for (FeatSpells.Option option : FeatSpells.readable(feat)) {
+            option.daily().forEach((uses, spells) -> spells.stream()
+                    .filter(spell -> spell.name() != null)
+                    .forEach(spell -> usage.put(spell.name().toLowerCase(), uses)));
+            option.known().getOrDefault("_", List.of()).stream()
+                    .filter(spell -> spell.name() != null)
+                    .forEach(spell -> usage.put(spell.spellName(), 0));
         }
         return usage;
     }
@@ -752,19 +699,7 @@ public class FeatEffectResolver {
      * @throws ConflictException when the feat's data can't be read (D155)
      */
     public boolean repeatable(Feat feat) {
-        if (feat.getEffects() == null || feat.getEffects().isBlank()) return false;
-        JsonNode flag;
-        try {
-            flag = objectMapper.readTree(feat.getEffects()).path(REPEATABLE);
-        } catch (JacksonException e) {
-            throw new ConflictException("The effects of the feat " + feat.getName() + " can't be read");
-        }
-        if (flag.isMissingNode() || flag.isNull()) return false;
-        if (!flag.isBoolean()) {
-            throw new ConflictException("The effects of the feat " + feat.getName() + " can't be read: repeatable is "
-                    + flag);
-        }
-        return flag.asBoolean(false);
+        return FeatEffects.readable(feat).repeatable();
     }
 
     // --- Helpers ---

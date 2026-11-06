@@ -12,6 +12,9 @@ import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatAbilityIncrease;
+import com.tabletophelper.reference.FeatEffects;
+import com.tabletophelper.reference.FeatSpells;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.shared.ConflictException;
@@ -48,7 +51,7 @@ class FeatEffectResolverTest {
 
     @BeforeEach
     void setUp() {
-        resolver = new FeatEffectResolver(objectMapper, spellRepository);
+        resolver = new FeatEffectResolver(spellRepository);
     }
 
     private PlayerCharacter baseCharacter() {
@@ -92,9 +95,9 @@ class FeatEffectResolverTest {
                 .id(UUID.randomUUID())
                 .name(name)
                 .description(name + " feat description")
-                .abilityScoreIncrease(abilityScoreIncrease)
-                .effects(effects)
-                .grantsFeatures(grantsFeatures)
+                .abilityScoreIncrease(FeatAbilityIncrease.parse(abilityScoreIncrease))
+                .effects(FeatEffects.parse(effects))
+                .grantsFeatures(FeatSpells.parse(grantsFeatures))
                 .build();
     }
 
@@ -338,7 +341,7 @@ class FeatEffectResolverTest {
         UUID featureId = UUID.randomUUID();
 
         Feat feat = buildFeat("Eldritch Adept", null,
-                "{\"optionalFeatureProgression\": true}",
+                "{\"optionalFeatureProgression\": [{\"name\": \"Eldritch Invocations\", \"featureType\": [\"EI\"], \"progression\": {\"*\": 1}}]}",
                 null);
 
         ApplyChoicesRequest.AsiChoice choices = new ApplyChoicesRequest.AsiChoice();
@@ -552,7 +555,7 @@ class FeatEffectResolverTest {
     @Test
     @DisplayName("6.22 A feat whose effects can't be read is a 409, not a feat that does nothing (D155)")
     void unreadableFeatIsConflict() {
-        Feat broken = buildFeat("Broken", null, "{not json", null);
+        Feat broken = buildFeat("Broken", null, "{\"speedBonus\": \"ten\"}", null);
 
         ConflictException e = assertThrows(ConflictException.class,
                 () -> resolver.applyFeat(baseCharacter(), broken, null));

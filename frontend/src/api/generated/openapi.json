@@ -652,6 +652,40 @@
         ]
       }
     },
+    "/api/characters/{characterId}/feat-options": {
+      "get": {
+        "operationId": "getFeatOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeatOptionResponse"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
     "/api/characters/{characterId}/hp": {
       "post": {
         "operationId": "changeHitPoints",
@@ -3854,6 +3888,28 @@
           }
         }
       },
+      "AbilityMinimum": {
+        "type": "object",
+        "properties": {
+          "ability": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "STR",
+              "DEX",
+              "CON",
+              "INT",
+              "WIS",
+              "CHA"
+            ]
+          },
+          "minimum": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
       "AbilityScoreImprovement": {
         "type": "object",
         "properties": {
@@ -6437,8 +6493,35 @@
         "type": "object",
         "properties": {
           "abilityScoreIncrease": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "description": "The feat's ability score increases, each fixed or a choice",
+            "nullable": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "choose": {
+                  "required": [
+                    "amount",
+                    "from"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "from": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "additionalProperties": true,
+              "description": "Fixed increases by ability, such as {\"CON\": 1}, or a choice"
+            }
           },
           "createdAt": {
             "type": "string",
@@ -6450,12 +6533,488 @@
             "nullable": true
           },
           "effects": {
-            "type": "string",
+            "type": "object",
+            "properties": {
+              "armorProficiencies": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "expertise": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "hpPerLevel": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "initiativeBonus": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "languageProficiencies": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "optionalFeatureProgression": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "featureType": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "progression": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer",
+                        "format": "int32"
+                      }
+                    }
+                  }
+                }
+              },
+              "passiveInvestigationBonus": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "passivePerceptionBonus": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "repeatable": {
+                "type": "boolean"
+              },
+              "resistances": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "resource": {
+                "required": [
+                  "maxUses",
+                  "name",
+                  "resetOn"
+                ],
+                "type": "object",
+                "properties": {
+                  "maxUses": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "resetOn": {
+                    "type": "string"
+                  }
+                }
+              },
+              "savingThrowProficiencies": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "skillProficiencies": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "skillToolLanguageProficiencies": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "speedBonus": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "toolProficiencies": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              "weaponProficiencies": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              }
+            },
+            "additionalProperties": true,
+            "description": "The feat's effects: the 5etools lists, whose entries are a string or an object, and the bonuses feat-effects.json adds (D169)",
             "nullable": true
           },
           "grantsFeatures": {
-            "type": "string",
-            "nullable": true
+            "type": "array",
+            "description": "The spells the feat grants, as the 5etools data writes them: one option per spell list",
+            "nullable": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "ability": {
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "choose": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "innate": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "daily": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "array",
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "required": [
+                                  "choose"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "choose": {
+                                    "oneOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "required": [
+                                          "from"
+                                        ],
+                                        "type": "object",
+                                        "properties": {
+                                          "count": {
+                                            "type": "integer",
+                                            "format": "int32"
+                                          },
+                                          "from": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "count": {
+                                    "type": "integer",
+                                    "format": "int32"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "rest": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "array",
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "required": [
+                                  "choose"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "choose": {
+                                    "oneOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "required": [
+                                          "from"
+                                        ],
+                                        "type": "object",
+                                        "properties": {
+                                          "count": {
+                                            "type": "integer",
+                                            "format": "int32"
+                                          },
+                                          "from": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "count": {
+                                    "type": "integer",
+                                    "format": "int32"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "ritual": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "required": [
+                                "choose"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "choose": {
+                                  "oneOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "required": [
+                                        "from"
+                                      ],
+                                      "type": "object",
+                                      "properties": {
+                                        "count": {
+                                          "type": "integer",
+                                          "format": "int32"
+                                        },
+                                        "from": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                "count": {
+                                  "type": "integer",
+                                  "format": "int32"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "will": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "required": [
+                                "choose"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "choose": {
+                                  "oneOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "required": [
+                                        "from"
+                                      ],
+                                      "type": "object",
+                                      "properties": {
+                                        "count": {
+                                          "type": "integer",
+                                          "format": "int32"
+                                        },
+                                        "from": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                "count": {
+                                  "type": "integer",
+                                  "format": "int32"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "known": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "required": [
+                            "choose"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "choose": {
+                              "oneOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "required": [
+                                    "from"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "count": {
+                                      "type": "integer",
+                                      "format": "int32"
+                                    },
+                                    "from": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "count": {
+                              "type": "integer",
+                              "format": "int32"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "id": {
             "type": "string",
@@ -6465,6 +7024,69 @@
             "type": "string"
           },
           "prerequisite": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/PrerequisiteAlternative"
+            }
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "FeatOptionResponse": {
+        "required": [
+          "eligible",
+          "featId",
+          "name",
+          "repeatable",
+          "taken",
+          "unmet"
+        ],
+        "type": "object",
+        "properties": {
+          "eligible": {
+            "type": "boolean"
+          },
+          "featId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prerequisite": {
+            "type": "string",
+            "nullable": true
+          },
+          "repeatable": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "taken": {
+            "type": "boolean"
+          },
+          "unmet": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FeatRequirement": {
+        "type": "object",
+        "properties": {
+          "display": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
             "type": "string",
             "nullable": true
           },
@@ -6982,6 +7604,20 @@
                 "$ref": "#/components/schemas/ProficienciesGained"
               }
             ]
+          }
+        }
+      },
+      "LevelRequirement": {
+        "type": "object",
+        "properties": {
+          "className": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },
@@ -8041,6 +8677,73 @@
           }
         }
       },
+      "PrerequisiteAlternative": {
+        "type": "object",
+        "properties": {
+          "abilities": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AbilityMinimum"
+            }
+          },
+          "backgrounds": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "campaigns": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "feats": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/FeatRequirement"
+            }
+          },
+          "level": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LevelRequirement"
+              }
+            ]
+          },
+          "other": {
+            "type": "string",
+            "nullable": true
+          },
+          "proficiencies": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ProficiencyRequirement"
+            }
+          },
+          "races": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/RaceRequirement"
+            }
+          },
+          "spellcasting": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "spellcastingFeature": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
       "ProficienciesGained": {
         "type": "object",
         "properties": {
@@ -8064,6 +8767,24 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "ProficiencyRequirement": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ARMOR",
+              "WEAPON",
+              "WEAPON_GROUP"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -8136,6 +8857,23 @@
             "nullable": true
           },
           "traits": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RaceRequirement": {
+        "type": "object",
+        "properties": {
+          "display": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "subrace": {
             "type": "string",
             "nullable": true
           }

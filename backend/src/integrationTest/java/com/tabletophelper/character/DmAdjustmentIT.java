@@ -3,6 +3,8 @@ package com.tabletophelper.character;
 import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatAbilityIncrease;
+import com.tabletophelper.reference.FeatEffects;
 import com.tabletophelper.reference.FeatRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -348,7 +350,8 @@ class DmAdjustmentIT extends IntegrationTest {
 
     private UUID feat(String name, String description, String abilityScoreIncrease, String effects) {
         return featRepository.save(Feat.builder().name(name).source("PHB").description(description)
-                .abilityScoreIncrease(abilityScoreIncrease).effects(effects).build()).getId();
+                .abilityScoreIncrease(FeatAbilityIncrease.parse(abilityScoreIncrease)).effects(FeatEffects.parse(effects))
+                .build()).getId();
     }
 
     private static Map<String, Object> stat(String target, int amount, String reason) {

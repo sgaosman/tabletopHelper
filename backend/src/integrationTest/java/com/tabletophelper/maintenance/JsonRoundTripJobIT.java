@@ -5,6 +5,8 @@ import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatEffects;
+import com.tabletophelper.reference.FeatPrerequisite;
 import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
@@ -66,7 +68,8 @@ class JsonRoundTripJobIT extends IntegrationTest {
                         + "\"effects\": [{\"damageDice\": \"1d10\", \"damageType\": \"fire\"}], \"notes\": \"kept\"}"))
                 .build());
         featRepository.save(Feat.builder().name("Grappler").source("PHB").description("You've developed the skills")
-                .prerequisite("[{\"ability\": [\"Strength 13\"]}]").build());
+                .prerequisite(FeatPrerequisite.parse("[{\"abilities\": [{\"ability\": \"STR\", \"minimum\": 13}]}]"))
+                .effects(FeatEffects.parse("{}")).build());
 
         UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
         addParticipant(dm.accessToken(), encounterId,
@@ -89,12 +92,12 @@ class JsonRoundTripJobIT extends IntegrationTest {
         assertThat(report.nextStep()).endsWith(" 0 changed, 0 unreadable.");
         assertThat(report.warnings()).anySatisfy(warning -> assertThat(warning)
                 .startsWith("skipped ")
-                .contains("monsters.speed", "monsters.actions", "spells.components", "spells.classes",
-                        "feats.prerequisite", "feats.effects")
-                .doesNotContain("monsters.action_templates", "spells.effect_template"));
+                .contains("monsters.speed", "monsters.actions", "spells.components", "spells.classes")
+                .doesNotContain("monsters.action_templates", "spells.effect_template", "feats.prerequisite",
+                        "feats.effects", "feats.ability_score_increase", "feats.grants_features"));
         assertThat(report.warnings()).noneMatch(warning -> warning.contains("don't fit the records"));
         // Every typed column of the six tables is checked, the ones this test leaves null included
-        assertThat(report.subject()).isEqualTo("typed JSON values in 31 columns");
+        assertThat(report.subject()).isEqualTo("typed JSON values in 35 columns");
     }
 
     @Test

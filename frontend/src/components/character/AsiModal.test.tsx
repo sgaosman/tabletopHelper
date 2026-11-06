@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCharacter, makeMockPendingChoice } from '../../test/mocks/handlers';
+import type { FeatOptionResponse } from '../../types/character';
 import type { Feat } from '../../types/reference';
 import { queryKeys } from '../../queries/keys';
 import AsiModal from './AsiModal';
@@ -176,6 +177,27 @@ describe('AsiModal', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Skip' }));
 
     expect(onSkip).toHaveBeenCalled();
+  });
+
+  it("offers a feat in place of the improvement only when the server says the character meets its prerequisite (D159)", async () => {
+    server.use(
+      http.get('/api/reference/feats', () => HttpResponse.json([
+        { id: 'feat-grappler', name: 'Grappler', source: 'PHB', prerequisite: [{ abilities: [{ ability: 'STR', minimum: 13 }] }] },
+        { id: 'feat-alert', name: 'Alert', source: 'PHB' },
+      ] satisfies Feat[])),
+      http.get('/api/characters/:id/feat-options', () => HttpResponse.json([
+        { featId: 'feat-grappler', name: 'Grappler', source: 'PHB', eligible: false, unmet: ['Strength 13 (you have 12)'],
+          prerequisite: 'Strength 13', taken: false, repeatable: false },
+        { featId: 'feat-alert', name: 'Alert', source: 'PHB', eligible: true, unmet: [], taken: true, repeatable: false },
+      ] satisfies FeatOptionResponse[])),
+    );
+    render(<AsiModal character={character} choice={asi} onComplete={() => {}} onSkip={() => {}} onClose={() => {}} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Feat' }));
+
+    expect(await screen.findByRole('button', { name: /Grappler/ })).toBeDisabled();
+    expect(screen.getByText('Strength 13 (you have 12)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Alert/ })).toBeDisabled();
+    expect(screen.getByText('Already taken')).toBeInTheDocument();
   });
 
   describe("a race's or background's feat (D159)", () => {

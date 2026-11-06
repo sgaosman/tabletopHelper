@@ -15,6 +15,7 @@ import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatAbilityIncrease;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.shared.ConflictException;
@@ -276,7 +277,7 @@ class CharacterServiceTest {
 
         private final Feat feyTouched = Feat.builder().id(UUID.randomUUID()).name("Fey Touched")
                 .description("Fey magic")
-                .abilityScoreIncrease("[{\"choose\": {\"from\": [\"int\", \"wis\", \"cha\"], \"amount\": 1}}]")
+                .abilityScoreIncrease(FeatAbilityIncrease.parse("[{\"choose\": {\"from\": [\"int\", \"wis\", \"cha\"], \"amount\": 1}}]"))
                 .build();
 
         private PlayerCharacter created(CharacterCreateRequest request) {

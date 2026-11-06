@@ -10,6 +10,7 @@ import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatEffects;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
@@ -92,7 +93,7 @@ class RestServiceTest {
     private PlayerCharacter luckyFighter() {
         PlayerCharacter pc = f.create(f.human, CON_14, f.fighter, 4);
         Feat lucky = Feat.builder().id(UUID.randomUUID()).name("Lucky").description("Luck points")
-                .effects("{\"resource\": {\"name\": \"Luck Points\", \"maxUses\": 3, \"resetOn\": \"longRest\"}}")
+                .effects(FeatEffects.parse("{\"resource\": {\"name\": \"Luck Points\", \"maxUses\": 3, \"resetOn\": \"longRest\"}}"))
                 .build();
         when(f.featRepository.findById(lucky.getId())).thenReturn(Optional.of(lucky));
         f.takeFeat(pc, lucky.getId());

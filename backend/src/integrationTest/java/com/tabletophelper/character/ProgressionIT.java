@@ -8,6 +8,7 @@ import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatEffects;
 import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.ResourcePoolDefinition;
@@ -67,7 +68,7 @@ class ProgressionIT extends IntegrationTest {
                 .multiclassRequirements("[{\"ability\":\"INT\",\"minimum\":13}]")
                 .build()).getId();
         toughId = featRepository.save(Feat.builder().name("Tough").source("PHB").description("Hit points")
-                .effects("{\"hpPerLevel\": 2}").build()).getId();
+                .effects(FeatEffects.parse("{\"hpPerLevel\": 2}")).build()).getId();
         ResourcePoolDefinition surge = poolDefinitionRepository.save(ResourcePoolDefinition.builder()
                 .poolId("class:fighter-action-surge").displayName("Action Surge").sourceType("CLASS")
                 .maxUsesFormula("1").resetOn("shortRest").build());

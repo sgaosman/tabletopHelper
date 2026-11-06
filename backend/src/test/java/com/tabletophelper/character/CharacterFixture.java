@@ -99,11 +99,13 @@ class CharacterFixture {
     final CharacterCommands commands = new CharacterCommands(characterRepository, accessPolicy, liveEncounters,
             characterStats, mapper);
     final InventoryChecks inventoryChecks = new InventoryChecks(itemRepository);
-    final FeatEffectResolver featEffectResolver = new FeatEffectResolver(objectMapper, spellRepository);
+    final FeatEffectResolver featEffectResolver = new FeatEffectResolver(spellRepository);
+    final FeatEligibility featEligibility = new FeatEligibility(characterStats, featRepository,
+            characterRepository, accessPolicy);
     final CharacterSpellService spells = new CharacterSpellService(commands, characterStats, spellRepository,
             objectMapper);
     final PendingChoiceService choices = new PendingChoiceService(commands, characterStats, spells,
-            featEffectResolver, classRepository, subclassRepository, featRepository, optionalFeatureRepository,
+            featEffectResolver, featEligibility, classRepository, subclassRepository, featRepository, optionalFeatureRepository,
             objectMapper, classTables);
     final CharacterService service = new CharacterService(characterRepository, userService, campaignRepository,
             raceRepository, classRepository, subclassRepository, backgroundRepository, mapper, objectMapper,

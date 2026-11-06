@@ -3,6 +3,7 @@ package com.tabletophelper.maintenance;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.DerivedStats;
+import com.tabletophelper.character.FeatEligibility;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -27,8 +28,8 @@ import java.util.function.Function;
  * Hit Die Results, the proficiency bonus, initiative, speed, spell slot and Hit Dice maximums, the main spell DC and
  * attack bonus, and the resource pools, innate uses included (D165). Each character that would change is reported
  * with each stat before and after, and what the sheet already has beyond the rules, such as more cantrips than its
- * class knows, is a warning that changes nothing. A character whose sheet can't be worked out is skipped with a
- * warning. Dry run by default; {@code --maintenance.apply=true} writes.
+ * class knows, is a warning that changes nothing, as is each feat the character has whose prerequisite it wouldn't
+ * meet now, which it keeps (D159). A character whose sheet can't be worked out is skipped with a warning. Dry run by default; {@code --maintenance.apply=true} writes.
  */
 @Component
 @RequiredArgsConstructor
@@ -36,6 +37,7 @@ public class RecomputeCharactersJob implements MaintenanceJob {
 
     private final CharacterRepository characterRepository;
     private final CharacterService characterService;
+    private final FeatEligibility featEligibility;
 
     @Override
     public String name() {
@@ -62,6 +64,8 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 continue;
             }
             derived.warnings().forEach(warning -> warnings.add(who + ": " + warning + "; left unchanged"));
+            featEligibility.heldFeatsUnmet(pc).forEach(feat -> warnings.add(who + ": has the feat " + feat
+                    + ", which it wouldn't qualify for now; kept"));
 
             List<String> diffs = differences(pc, derived);
             if (diffs.isEmpty()) continue;

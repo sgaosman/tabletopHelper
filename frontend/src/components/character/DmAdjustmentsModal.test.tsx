@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { render } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockAdjustment, makeMockCharacter } from '../../test/mocks/handlers';
+import type { FeatOptionResponse } from '../../types/character';
 import type { Feat } from '../../types/reference';
 import DmAdjustmentsModal from './DmAdjustmentsModal';
 
@@ -101,9 +102,18 @@ describe('DmAdjustmentsModal', () => {
 
   it("grants a feat from the feat picker, even one whose prerequisites the character doesn't meet", async () => {
     const lucky = { id: 'feat-lucky', name: 'Lucky', source: 'PHB', description: 'You have inexplicable luck.',
-      effects: '{"resource": {"name": "Luck Points", "maxUses": 3, "resetOn": "longRest"}}' } satisfies Feat;
-    const fortitude = { id: 'feat-fortitude', name: 'Dwarven Fortitude', source: 'XGE', prerequisite: '[{"race": ["Dwarf"]}]' } satisfies Feat;
-    server.use(http.get('/api/reference/feats', () => HttpResponse.json([lucky, fortitude])));
+      effects: { resource: { name: 'Luck Points', maxUses: 3, resetOn: 'longRest' } } } satisfies Feat;
+    const fortitude = { id: 'feat-fortitude', name: 'Dwarven Fortitude', source: 'XGE',
+      prerequisite: [{ races: [{ name: 'dwarf' }] }] } satisfies Feat;
+    server.use(
+      http.get('/api/reference/feats', () => HttpResponse.json([lucky, fortitude])),
+      // The server says what the character doesn't meet (D159)
+      http.get('/api/characters/:id/feat-options', () => HttpResponse.json([
+        { featId: 'feat-lucky', name: 'Lucky', source: 'PHB', eligible: true, unmet: [], taken: false, repeatable: false },
+        { featId: 'feat-fortitude', name: 'Dwarven Fortitude', source: 'XGE', eligible: false,
+          unmet: ['Being a dwarf (you are a Human)'], prerequisite: 'Being a dwarf', taken: false, repeatable: false },
+      ] satisfies FeatOptionResponse[])),
+    );
     const bodies = captureAdd();
     renderDialog();
     const user = userEvent.setup();
@@ -111,7 +121,7 @@ describe('DmAdjustmentsModal', () => {
     await user.click(screen.getByRole('button', { name: 'Feat' }));
     // Aria is human, so an ability score improvement couldn't take it; the DM's grant may
     expect(await screen.findByRole('button', { name: /Dwarven Fortitude/ })).toBeEnabled();
-    expect(screen.getByText('Prerequisite not met: Race: Dwarf')).toBeInTheDocument();
+    expect(screen.getByText('Prerequisite not met: Being a dwarf (you are a Human)')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Lucky/ }));
     await user.type(screen.getByLabelText('Reason'), 'Blessing of Tymora');
     await user.click(screen.getByRole('button', { name: 'Add Adjustment' }));

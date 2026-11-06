@@ -4,6 +4,7 @@ import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatEffects;
 import com.tabletophelper.reference.FeatRepository;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.OptionalFeatureRepository;
@@ -86,10 +87,10 @@ class PendingChoicesIT extends IntegrationTest {
                 .features("[{\"level\":3,\"name\":\"Weapon Bond\",\"description\":\"Bonded weapons\"}]")
                 .build()).getId();
         luckyId = featRepository.save(Feat.builder().name("Lucky").source("PHB").description("Luck points")
-                .effects("{\"resource\": {\"name\": \"Luck Points\", \"maxUses\": 3, \"resetOn\": \"longRest\"}}")
+                .effects(FeatEffects.parse("{\"resource\": {\"name\": \"Luck Points\", \"maxUses\": 3, \"resetOn\": \"longRest\"}}"))
                 .build()).getId();
         alertId = featRepository.save(Feat.builder().name("Alert").source("PHB").description("Always on the lookout")
-                .effects("{\"initiativeBonus\": 5}").build()).getId();
+                .effects(FeatEffects.parse("{\"initiativeBonus\": 5}")).build()).getId();
         for (String[] spell : new String[][]{{"Fire Bolt", "0"}, {"Minor Illusion", "0"}, {"Light", "0"},
                 {"Mage Hand", "0"}, {"Prestidigitation", "0"}, {"Shield", "1"}, {"Magic Missile", "1"},
                 {"Witch Bolt", "1"}, {"Sleep", "1"}, {"Misty Step", "2"}, {"Fireball", "3"}}) {

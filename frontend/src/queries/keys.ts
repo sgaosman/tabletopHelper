@@ -20,6 +20,7 @@ export const queryKeys = {
     mine: () => ['characters'] as const,
     detail: (characterId: string) => ['characters', characterId] as const,
     eligibleClasses: (characterId: string) => ['characters', characterId, 'eligible-classes'] as const,
+    featOptions: (characterId: string) => ['characters', characterId, 'feat-options'] as const,
   },
   encounters: {
     /** Everything cached for one encounter, in both views. */

@@ -75,6 +75,9 @@ export type AbilityIncrease = Schemas['AbilityIncrease'];
 /** A class the character could take its next level in, and whether it meets the multiclass prerequisites. */
 export type EligibleClassResponse = Schemas['EligibleClassResponse'];
 
+/** A feat as the character could take it: whether it meets the prerequisite, what it misses, and whether it has it (D159). */
+export type FeatOptionResponse = Schemas['FeatOptionResponse'];
+
 /** A class, subclass, race, background or feat feature on the sheet. */
 export type Feature = Schemas['Feature'];
 

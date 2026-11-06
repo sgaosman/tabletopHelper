@@ -3,7 +3,7 @@ import { CLASS_TABLES } from './classTables';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type {
-  DmAdjustment, EligibleClassResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse,
+  DmAdjustment, EligibleClassResponse, FeatOptionResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse,
 } from '../../types/character';
 import type {
   AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
@@ -128,6 +128,11 @@ export const characterHandlers = [
       { classId: 'cls-fighter', className: 'Fighter', currentClassLevel: 5, currentClass: true, meetsPrerequisites: true, prerequisiteDescription: 'Current class' },
       { classId: 'cls-wizard', className: 'Wizard', currentClassLevel: 0, currentClass: false, meetsPrerequisites: true, prerequisiteDescription: 'INT 13 required' },
     ] satisfies EligibleClassResponse[]);
+  }),
+
+  // No feat's prerequisite is unmet unless a test says so (D159)
+  http.get(`${BASE}/characters/:id/feat-options`, async () => {
+    return HttpResponse.json([] satisfies FeatOptionResponse[]);
   }),
 
   http.post(`${BASE}/characters/:id/level-up`, async () => {

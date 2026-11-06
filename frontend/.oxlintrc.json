@@ -6,16 +6,5 @@
     "react/exhaustive-deps": "error",
     "no-unused-vars": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  },
-  "overrides": [
-    {
-      "files": [
-        "src/components/character/FeatPicker.tsx"
-      ],
-      "rules": {
-        "react/exhaustive-deps": "warn",
-        "no-unused-vars": "warn"
-      }
-    }
-  ]
+  }
 }

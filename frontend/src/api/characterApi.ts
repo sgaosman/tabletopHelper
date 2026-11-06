@@ -1,6 +1,6 @@
 import api from './axiosConfig';
 import type {
-  PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse,
+  PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse, FeatOptionResponse,
   CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest,
   ShortRestRequest, ShortRestResponse, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
 } from '../types/character';
@@ -99,6 +99,11 @@ export const characterApi = {
 
   getEligibleClasses(id: string) {
     return api.get<EligibleClassResponse[]>(`/characters/${id}/eligible-classes`);
+  },
+
+  /** Every feat as the character could take it, for its owner or its campaign's DM (D159). */
+  getFeatOptions(id: string) {
+    return api.get<FeatOptionResponse[]>(`/characters/${id}/feat-options`);
   },
 
   /** A DM Adjustment, which only the DM of the character's campaign may add (D158). */

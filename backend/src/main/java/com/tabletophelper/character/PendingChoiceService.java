@@ -83,6 +83,7 @@ public class PendingChoiceService {
     private final CharacterStats characterStats;
     private final CharacterSpellService spellService;
     private final FeatEffectResolver featEffectResolver;
+    private final FeatEligibility featEligibility;
     private final CharacterClassRepository classRepository;
     private final SubclassRepository subclassRepository;
     private final FeatRepository featRepository;
@@ -98,7 +99,8 @@ public class PendingChoiceService {
      *
      * @throws ConflictException   for a choice the character doesn't have, or while it is in an Active or Paused
      *                             encounter
-     * @throws ValidationException for an answer that doesn't fit the choice
+     * @throws ValidationException for an answer that doesn't fit the choice, or a feat whose prerequisite the character
+     *                             doesn't meet, naming what it misses (D159); a DM's grant isn't refused so
      */
     @Transactional
     public CharacterResponse apply(UUID characterId, ApplyChoicesRequest request, UUID userId) {
@@ -199,6 +201,7 @@ public class PendingChoiceService {
                 Feat feat = featRepository.findById(asi.getFeatId())
                         .orElseThrow(() -> new ValidationException("Feat not found"));
                 requireNewFeat(character, feat);
+                featEligibility.requireMet(character, feat);
                 FeatEffectResolver.AppliedEffects applied = featEffectResolver.applyFeat(character, feat, asi);
                 CharacterUpdates.recordAsi(character, index, new AbilityScoreImprovement("feat", null, feat.getName(),
                         asi.getFeatId(), null, CharacterUpdates.recordedEffects(applied, feat.getName()), null));
@@ -291,6 +294,7 @@ public class PendingChoiceService {
                     + feat.getName());
         }
         requireNewFeat(character, feat);
+        featEligibility.requireMet(character, feat);
         FeatEffectResolver.AppliedEffects applied = featEffectResolver.applyFeat(character, feat, answer);
         FeatTaken taken = new FeatTaken(feat.getName(), feat.getId(),
                 CharacterUpdates.recordedEffects(applied, feat.getName()));

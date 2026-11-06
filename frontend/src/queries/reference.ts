@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { keepPreviousData, queryOptions, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
-  getAllConditions, getBackgrounds, getClasses, getClassTables, getItemRarities, getItemSources, getItemTypes,
+  getAllConditions, getBackgrounds, getClasses, getClassTables, getFeats, getItemRarities, getItemSources, getItemTypes,
   getOptionalFeatures, getQuickReference, getRaces, getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses,
   getSpellTargeting, getSubclasses, searchItems, searchSpells,
 } from '../api/referenceApi';
-import type { ItemSearchParams, Spell, SpellSearchParams } from '../types/reference';
+import type { ItemSearchParams, OptionalFeature, Spell, SpellSearchParams } from '../types/reference';
 import { queryKeys } from './keys';
 import { REFERENCE_STALE_TIME } from './queryClient';
 
@@ -217,6 +217,36 @@ export function subclassesQuery(classId: string) {
 
 export function useSubclasses(classId: string) {
   return useQuery(subclassesQuery(classId));
+}
+
+/** Every feat, by name, with its prerequisite, ability score increases, effects and spells as typed records. */
+export function featsQuery() {
+  return queryOptions({
+    queryKey: queryKeys.reference.feats(),
+    queryFn: getFeats,
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+export function useFeats() {
+  return useQuery(featsQuery());
+}
+
+// The optional features of every type asked for, in one list
+function allOptionalFeatures(results: UseQueryResult<OptionalFeature[]>[]): OptionalFeature[] {
+  return results.flatMap(result => result.data ?? []);
+}
+
+/** The optional features of several types at once, such as a feat's Eldritch Invocations, each type cached alone. */
+export function useOptionalFeaturesOf(types: string[]) {
+  return useQueries({
+    queries: types.map(type => ({
+      queryKey: queryKeys.reference.optionalFeatures(type),
+      queryFn: () => getOptionalFeatures(type),
+      staleTime: REFERENCE_STALE_TIME,
+    })),
+    combine: allOptionalFeatures,
+  });
 }
 
 /** The optional features of one type, such as 'FightingStyle', by name; a style each class has is listed once for each. */

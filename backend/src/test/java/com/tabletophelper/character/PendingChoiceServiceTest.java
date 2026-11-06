@@ -18,6 +18,9 @@ import com.tabletophelper.character.state.SubclassChosen;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatAbilityIncrease;
+import com.tabletophelper.reference.FeatEffects;
+import com.tabletophelper.reference.FeatPrerequisite;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.Race;
@@ -64,13 +67,13 @@ class PendingChoiceServiceTest {
     private final Map<String, Spell> spells = new HashMap<>();
 
     private final Feat lucky = Feat.builder().id(UUID.randomUUID()).name("Lucky").description("Luck points")
-            .effects("{\"resource\": {\"name\": \"Luck Points\", \"maxUses\": 3, \"resetOn\": \"longRest\"}}").build();
+            .effects(FeatEffects.parse("{\"resource\": {\"name\": \"Luck Points\", \"maxUses\": 3, \"resetOn\": \"longRest\"}}")).build();
     private final Feat alert = Feat.builder().id(UUID.randomUUID()).name("Alert").description("Always on the lookout")
-            .effects("{\"initiativeBonus\": 5}").build();
+            .effects(FeatEffects.parse("{\"initiativeBonus\": 5}")).build();
     private final Feat tough = Feat.builder().id(UUID.randomUUID()).name("Tough").description("Hit points")
-            .effects("{\"hpPerLevel\": 2}").build();
+            .effects(FeatEffects.parse("{\"hpPerLevel\": 2}")).build();
     private final Feat elementalAdept = Feat.builder().id(UUID.randomUUID()).name("Elemental Adept")
-            .description("You can select this feat multiple times.").effects("{\"repeatable\": true}").build();
+            .description("You can select this feat multiple times.").effects(FeatEffects.parse("{\"repeatable\": true}")).build();
 
     private final Race variantHuman = Race.builder().id(UUID.randomUUID()).name("Variant Human")
             .speed("{\"walk\": 30}").raceChoices("{\"feats\": 1, \"skills\": [{\"any\": 1}]}").build();
@@ -152,7 +155,7 @@ class PendingChoiceServiceTest {
     // A feat like Fey Touched: +1 to INT, WIS or CHA, and a spell cast with the ability chosen
     private Feat touchedFeat(String name) {
         Feat feat = Feat.builder().id(UUID.randomUUID()).name(name).description(name + " magic")
-                .abilityScoreIncrease("[{\"choose\": {\"from\": [\"int\", \"wis\", \"cha\"], \"amount\": 1}}]")
+                .abilityScoreIncrease(FeatAbilityIncrease.parse("[{\"choose\": {\"from\": [\"int\", \"wis\", \"cha\"], \"amount\": 1}}]"))
                 .build();
         lenient().when(f.featRepository.findById(feat.getId())).thenReturn(Optional.of(feat));
         return feat;
@@ -372,6 +375,99 @@ class PendingChoiceServiceTest {
             f.choose(pc, f.pending(pc, Type.FEAT), request -> request.setFeat(featAnswer(tough)));
 
             assertThat(pc.getHpMax()).isEqualTo(before + 4);
+        }
+    }
+
+    @Nested
+    @DisplayName("Feat prerequisites (D159)")
+    class FeatPrerequisitesChecked {
+
+        private Feat featNeeding(String name, String prerequisite) {
+            Feat feat = Feat.builder().id(UUID.randomUUID()).name(name).description(name)
+                    .prerequisite(FeatPrerequisite.parse(prerequisite)).effects(FeatEffects.parse("{}")).build();
+            lenient().when(f.featRepository.findById(feat.getId())).thenReturn(Optional.of(feat));
+            return feat;
+        }
+
+        @Test
+        @DisplayName("An ASI's feat whose prerequisite the character doesn't meet is a 400 naming what it misses, changing nothing; one it meets is taken")
+        void asiFeatRefusedUnlessMet() {
+            Feat leader = featNeeding("Inspiring Leader", "[{\"abilities\": [{\"ability\": \"CHA\", \"minimum\": 15}]}]");
+            Feat grappler = featNeeding("Grappler", "[{\"abilities\": [{\"ability\": \"STR\", \"minimum\": 13}]}]");
+            PlayerCharacter pc = create(f.fighter, 4, request -> {});
+
+            assertThatThrownBy(() -> f.takeFeat(pc, leader.getId()))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria doesn't meet the prerequisite of Inspiring Leader: Charisma 15 (you have 13)");
+            assertThat(pc.getLevelHistory().get(3).choices() == null
+                    || pc.getLevelHistory().get(3).choices().asi() == null).isTrue();
+            assertThat(f.pending(pc, Type.ASI)).isNotNull();
+
+            f.takeFeat(pc, grappler.getId());
+            assertThat(pc.getLevelHistory().get(3).choices().asi().featName()).isEqualTo("Grappler");
+        }
+
+        @Test
+        @DisplayName("A race's feat at creation is checked too: a Barbarian with no spells can't take War Caster")
+        void raceFeatRefusedUnlessMet() {
+            Feat warCaster = featNeeding("War Caster", "[{\"spellcasting\": true}]");
+            PlayerCharacter pc = create(f.barbarian, 1, request -> request.setRaceId(variantHuman.getId()));
+
+            assertThatThrownBy(() -> f.choose(pc, f.pending(pc, Type.FEAT),
+                    request -> request.setFeat(featAnswer(warCaster))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria doesn't meet the prerequisite of War Caster: The ability to cast at least one "
+                            + "spell");
+            assertThat(pc.getFeatures()).extracting(Feature::name).doesNotContain("War Caster");
+        }
+
+        @Test
+        @DisplayName("A campaign or a requirement in words never refuses a feat")
+        void campaignAndWordsNotRefused() {
+            Feat scion = featNeeding("Scion of the Outer Planes", "[{\"campaigns\": [\"Planescape\"]}]");
+            Feat mark = featNeeding("Aberrant Dragonmark", "[{\"other\": \"No other dragonmark\"}]");
+            PlayerCharacter pc = create(f.fighter, 8, request -> {});
+
+            f.takeFeat(pc, scion.getId());
+            f.takeFeat(pc, mark.getId());
+            assertThat(pc.getFeatures()).extracting(Feature::name).contains("Scion of the Outer Planes",
+                    "Aberrant Dragonmark");
+        }
+
+        @Test
+        @DisplayName("What the sheet brings: a race's spell counts as casting a spell but not as Spellcasting, and not before it unlocks; a 1st-level Paladin has no Spellcasting yet, a 2nd-level one has")
+        void facts() {
+            PlayerCharacter pc = create(f.fighter, 4, request -> {});
+            assertThat(f.featEligibility.facts(pc).castsSpell()).isFalse();
+            pc.setSpellsKnown(List.of(new KnownSpell(null, "Hellish Rebuke", 1, "race:Tiefling", null, null, null, 1,
+                    5)));
+            assertThat(f.featEligibility.facts(pc).castsSpell()).isFalse();
+            pc.setSpellsKnown(List.of(new KnownSpell(null, "Thaumaturgy", 0, "race:Tiefling", null, null, true, null,
+                    null)));
+            assertThat(f.featEligibility.facts(pc).castsSpell()).isTrue();
+            assertThat(f.featEligibility.facts(pc).spellcastingFeature()).isFalse();
+            assertThat(f.featEligibility.facts(pc).scores().get(com.tabletophelper.rules.Ability.STR)).isEqualTo(16);
+            assertThat(f.featEligibility.facts(pc).classLevels()).isEqualTo(Map.of("Fighter", 4));
+
+            PlayerCharacter paladin = create(f.paladin, 1, request -> {});
+            assertThat(f.featEligibility.facts(paladin).spellcastingFeature()).isFalse();
+            PlayerCharacter paladin2 = create(f.paladin, 2, request -> {});
+            assertThat(f.featEligibility.facts(paladin2).spellcastingFeature()).isTrue();
+            assertThat(f.featEligibility.facts(paladin2).castsSpell()).isTrue();
+        }
+
+        @Test
+        @DisplayName("A feat whose prerequisite the character no longer meets stays, and is listed for the recompute job")
+        void heldFeatsKept() {
+            Feat grappler = featNeeding("Grappler", "[{\"abilities\": [{\"ability\": \"STR\", \"minimum\": 13}]}]");
+            PlayerCharacter pc = create(f.fighter, 4, request -> {});
+            f.takeFeat(pc, grappler.getId());
+
+            pc.setStrength(10);
+
+            assertThat(DmAdjustments.hasFeat(pc, "Grappler")).isTrue();
+            assertThat(f.featEligibility.heldFeatsUnmet(pc))
+                    .containsExactly("Grappler (level 4 Ability Score Improvement): Strength 13 (you have 10)");
         }
     }
 

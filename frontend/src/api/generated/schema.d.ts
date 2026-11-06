@@ -276,6 +276,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{characterId}/feat-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFeatOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{characterId}/hp": {
         parameters: {
             query?: never;
@@ -1650,6 +1666,12 @@ export interface components {
             /** Format: int32 */
             bonus?: number | null;
         };
+        AbilityMinimum: {
+            /** @enum {string|null} */
+            ability?: "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" | null;
+            /** Format: int32 */
+            minimum?: number | null;
+        };
         AbilityScoreImprovement: {
             applied?: components["schemas"]["AbilityBonus"][] | null;
             appliedEffects?: components["schemas"]["AppliedFeatEffects"] | null;
@@ -2347,16 +2369,157 @@ export interface components {
             type: "AFTER_ROUNDS" | "START_OF_TURN" | "END_OF_TURN" | "CONCENTRATION" | "REPEAT_SAVE" | "HP_REGAINED" | "MANUAL";
         };
         Feat: {
-            abilityScoreIncrease?: string | null;
+            /** @description The feat's ability score increases, each fixed or a choice */
+            abilityScoreIncrease?: ({
+                choose?: {
+                    /** Format: int32 */
+                    amount: number;
+                    from: string[];
+                };
+            } & {
+                [key: string]: unknown;
+            })[] | null;
             /** Format: date-time */
             createdAt?: string | null;
             description?: string | null;
-            effects?: string | null;
-            grantsFeatures?: string | null;
+            /** @description The feat's effects: the 5etools lists, whose entries are a string or an object, and the bonuses feat-effects.json adds (D169) */
+            effects?: ({
+                armorProficiencies?: (string | {
+                    [key: string]: unknown;
+                })[];
+                expertise?: (string | {
+                    [key: string]: unknown;
+                })[];
+                /** Format: int32 */
+                hpPerLevel?: number;
+                /** Format: int32 */
+                initiativeBonus?: number;
+                languageProficiencies?: (string | {
+                    [key: string]: unknown;
+                })[];
+                optionalFeatureProgression?: {
+                    featureType?: string[];
+                    name?: string;
+                    progression?: {
+                        [key: string]: number;
+                    };
+                }[];
+                /** Format: int32 */
+                passiveInvestigationBonus?: number;
+                /** Format: int32 */
+                passivePerceptionBonus?: number;
+                repeatable?: boolean;
+                resistances?: (string | {
+                    [key: string]: unknown;
+                })[];
+                resource?: {
+                    /** Format: int32 */
+                    maxUses: number;
+                    name: string;
+                    resetOn: string;
+                };
+                savingThrowProficiencies?: (string | {
+                    [key: string]: unknown;
+                })[];
+                skillProficiencies?: (string | {
+                    [key: string]: unknown;
+                })[];
+                skillToolLanguageProficiencies?: (string | {
+                    [key: string]: unknown;
+                })[];
+                /** Format: int32 */
+                speedBonus?: number;
+                toolProficiencies?: (string | {
+                    [key: string]: unknown;
+                })[];
+                weaponProficiencies?: (string | {
+                    [key: string]: unknown;
+                })[];
+            } & {
+                [key: string]: unknown;
+            }) | null;
+            /** @description The spells the feat grants, as the 5etools data writes them: one option per spell list */
+            grantsFeatures?: {
+                ability?: string | {
+                    choose?: string[];
+                };
+                innate?: {
+                    [key: string]: {
+                        daily?: {
+                            [key: string]: (string | {
+                                choose: string | {
+                                    /** Format: int32 */
+                                    count?: number;
+                                    from: string[];
+                                };
+                                /** Format: int32 */
+                                count?: number;
+                            })[];
+                        };
+                        rest?: {
+                            [key: string]: (string | {
+                                choose: string | {
+                                    /** Format: int32 */
+                                    count?: number;
+                                    from: string[];
+                                };
+                                /** Format: int32 */
+                                count?: number;
+                            })[];
+                        };
+                        ritual?: (string | {
+                            choose: string | {
+                                /** Format: int32 */
+                                count?: number;
+                                from: string[];
+                            };
+                            /** Format: int32 */
+                            count?: number;
+                        })[];
+                        will?: (string | {
+                            choose: string | {
+                                /** Format: int32 */
+                                count?: number;
+                                from: string[];
+                            };
+                            /** Format: int32 */
+                            count?: number;
+                        })[];
+                    };
+                };
+                known?: {
+                    [key: string]: (string | {
+                        choose: string | {
+                            /** Format: int32 */
+                            count?: number;
+                            from: string[];
+                        };
+                        /** Format: int32 */
+                        count?: number;
+                    })[];
+                };
+                name?: string;
+            }[] | null;
             /** Format: uuid */
             id: string;
             name: string;
+            prerequisite?: components["schemas"]["PrerequisiteAlternative"][] | null;
+            source?: string | null;
+        };
+        FeatOptionResponse: {
+            eligible: boolean;
+            /** Format: uuid */
+            featId: string;
+            name: string;
             prerequisite?: string | null;
+            repeatable: boolean;
+            source?: string | null;
+            taken: boolean;
+            unmet: string[];
+        };
+        FeatRequirement: {
+            display?: string | null;
+            name?: string | null;
             source?: string | null;
         };
         FeatResourceEntry: {
@@ -2502,6 +2665,11 @@ export interface components {
             /** Format: int32 */
             hpGained: number;
             proficienciesGained?: components["schemas"]["ProficienciesGained"] | null;
+        };
+        LevelRequirement: {
+            className?: string | null;
+            /** Format: int32 */
+            level?: number | null;
         };
         LevelUpRequest: {
             /** Format: uuid */
@@ -2808,10 +2976,27 @@ export interface components {
             className: string;
             spells: string[];
         };
+        PrerequisiteAlternative: {
+            abilities?: components["schemas"]["AbilityMinimum"][] | null;
+            backgrounds?: string[] | null;
+            campaigns?: string[] | null;
+            feats?: components["schemas"]["FeatRequirement"][] | null;
+            level?: components["schemas"]["LevelRequirement"] | null;
+            other?: string | null;
+            proficiencies?: components["schemas"]["ProficiencyRequirement"][] | null;
+            races?: components["schemas"]["RaceRequirement"][] | null;
+            spellcasting?: boolean | null;
+            spellcastingFeature?: boolean | null;
+        };
         ProficienciesGained: {
             armor?: string[] | null;
             tools?: string[] | null;
             weapons?: string[] | null;
+        };
+        ProficiencyRequirement: {
+            /** @enum {string|null} */
+            kind?: "ARMOR" | "WEAPON" | "WEAPON_GROUP" | null;
+            name?: string | null;
         };
         Race: {
             abilityScoreBonuses?: string | null;
@@ -2833,6 +3018,11 @@ export interface components {
             source: string;
             speed?: string | null;
             traits?: string | null;
+        };
+        RaceRequirement: {
+            display?: string | null;
+            name?: string | null;
+            subrace?: string | null;
         };
         RegisterRequest: {
             displayName?: string | null;
@@ -3551,6 +3741,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EligibleClassResponse"][];
+                };
+            };
+        };
+    };
+    getFeatOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatOptionResponse"][];
                 };
             };
         };

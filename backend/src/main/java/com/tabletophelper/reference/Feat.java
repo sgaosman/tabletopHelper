@@ -1,6 +1,5 @@
 package com.tabletophelper.reference;
 
-import com.fasterxml.jackson.annotation.JsonRawValue;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
@@ -34,28 +33,26 @@ public class Feat {
     @Column(length = 100)
     private String source;
 
-    @JsonRawValue
+    // The four JSON columns are typed as records with the stored JSON kept whole (D168), which the API returns as it
+    // is; OpenApiConfig describes them
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String prerequisite;
+    private FeatPrerequisite prerequisite;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ability_score_increase", columnDefinition = "jsonb")
-    private String abilityScoreIncrease;
+    private FeatAbilityIncrease abilityScoreIncrease;
 
-    @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "grants_features", columnDefinition = "jsonb")
-    private String grantsFeatures;
+    private FeatSpells grantsFeatures;
 
-    @JsonRawValue
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String effects;
+    private FeatEffects effects;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

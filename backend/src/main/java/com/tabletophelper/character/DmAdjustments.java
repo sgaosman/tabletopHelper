@@ -10,6 +10,7 @@ import com.tabletophelper.rules.combat.DamageRules.Defence;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -141,24 +142,35 @@ public final class DmAdjustments {
      */
     public static boolean hasFeat(PlayerCharacter character, String featName) {
         String wanted = featName.trim();
-        boolean listed = CharacterUpdates.orEmpty(character.getFeatures()).stream()
-                .anyMatch(f -> FeatEffectResolver.FEAT_SOURCE.equals(f.source()) && f.name() != null
-                        && f.name().trim().equalsIgnoreCase(wanted));
-        if (listed) return true;
+        return featNames(character).stream().anyMatch(name -> name.equalsIgnoreCase(wanted));
+    }
+
+    /**
+     * The names of every feat the character has, as {@link #hasFeat} counts them: the features feats added, the feats
+     * its levels took, in place of an Ability Score Improvement or from its race or background at creation, and the
+     * DM's grants still active. A feat taken twice is named once.
+     */
+    public static Set<String> featNames(PlayerCharacter character) {
+        Set<String> names = new LinkedHashSet<>();
+        CharacterUpdates.orEmpty(character.getFeatures()).stream()
+                .filter(f -> FeatEffectResolver.FEAT_SOURCE.equals(f.source()) && f.name() != null)
+                .forEach(f -> names.add(f.name().trim()));
         for (LevelHistoryEntry entry : CharacterUpdates.orEmpty(character.getLevelHistory())) {
             if (entry.choices() == null) continue;
             AbilityScoreImprovement asi = entry.choices().asi();
-            if (asi != null && asi.featName() != null && asi.featName().trim().equalsIgnoreCase(wanted)) {
-                return true;
+            if (asi != null && asi.featName() != null) {
+                names.add(asi.featName().trim());
             }
             for (FeatTaken feat : CharacterUpdates.orEmpty(entry.choices().feats())) {
-                if (feat.featName() != null && feat.featName().trim().equalsIgnoreCase(wanted)) {
-                    return true;
+                if (feat.featName() != null) {
+                    names.add(feat.featName().trim());
                 }
             }
         }
-        return active(character).stream()
-                .anyMatch(a -> a.kind() == DmAdjustment.Kind.FEAT && wanted.equalsIgnoreCase(a.target()));
+        active(character).stream()
+                .filter(a -> a.kind() == DmAdjustment.Kind.FEAT && a.target() != null)
+                .forEach(a -> names.add(a.target().trim()));
+        return names;
     }
 
     // Adds a damage type, trimmed, unless it is blank or the list has it in any case

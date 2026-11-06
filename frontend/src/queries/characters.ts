@@ -47,6 +47,17 @@ export function useEligibleClasses(characterId: string) {
 }
 
 /**
+ * Every feat as the character could take it: whether it meets each prerequisite, what it misses, and whether it has
+ * the feat already (D159). Every change to the character makes them stale.
+ */
+export function useFeatOptions(characterId: string) {
+  return useQuery({
+    queryKey: queryKeys.characters.featOptions(characterId),
+    queryFn: async () => (await characterApi.getFeatOptions(characterId)).data,
+  });
+}
+
+/**
  * The characters in a campaign, which only its DM can list. With `refetchInterval` they are fetched again
  * on that interval while the tab is visible.
  */
@@ -298,4 +309,6 @@ async function writeCharacter(queryClient: QueryClient, character: PlayerCharact
   // Its ability scores and class levels decide which classes it may take next. They are fetched again the next
   // time the level-up dialog opens, not while the one that made the change closes.
   void queryClient.invalidateQueries({ queryKey: queryKeys.characters.eligibleClasses(character.id), refetchType: 'none' });
+  // Its scores, feats and levels decide which feats it may take, fetched again when a feat picker next opens
+  void queryClient.invalidateQueries({ queryKey: queryKeys.characters.featOptions(character.id), refetchType: 'none' });
 }

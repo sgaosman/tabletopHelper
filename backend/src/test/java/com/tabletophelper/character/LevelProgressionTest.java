@@ -17,6 +17,7 @@ import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatEffects;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
@@ -674,7 +675,7 @@ class LevelProgressionTest {
         @DisplayName("Tough taken as an ASI adds 2 for every level, and levelling down takes it away with its level")
         void toughForEveryLevel() {
             Feat tough = Feat.builder().id(UUID.randomUUID()).name("Tough").description("Hit points")
-                    .effects("{\"hpPerLevel\": 2}").build();
+                    .effects(FeatEffects.parse("{\"hpPerLevel\": 2}")).build();
             when(f.featRepository.findById(tough.getId())).thenReturn(Optional.of(tough));
             PlayerCharacter pc = fighter(4);
 

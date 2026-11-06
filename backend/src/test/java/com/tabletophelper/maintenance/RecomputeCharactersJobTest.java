@@ -2,6 +2,7 @@ package com.tabletophelper.maintenance;
 
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.CharacterService;
+import com.tabletophelper.character.FeatEligibility;
 import com.tabletophelper.character.DerivedStats;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
@@ -32,12 +33,13 @@ class RecomputeCharactersJobTest {
 
     @Mock CharacterRepository characterRepository;
     @Mock CharacterService characterService;
+    @Mock FeatEligibility featEligibility;
 
     private static final ResourcePoolEntry RAGE = new ResourcePoolEntry("class:barbarian-rage", "Rage", "CLASS", null,
             3, "3", 2, "longRest", null, null, null, null, Map.of());
 
     private RecomputeCharactersJob job() {
-        return new RecomputeCharactersJob(characterRepository, characterService);
+        return new RecomputeCharactersJob(characterRepository, characterService, featEligibility);
     }
 
     // A Barbarian 6 as stored: 65 hit points, +2 initiative, Rage only

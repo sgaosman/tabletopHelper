@@ -8,6 +8,10 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.FeatAbilityIncrease;
+import com.tabletophelper.reference.FeatEffects;
+import com.tabletophelper.reference.FeatPrerequisite;
+import com.tabletophelper.reference.FeatSpells;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellTemplate;
 import jakarta.persistence.Column;
@@ -36,7 +40,7 @@ import java.util.Set;
  * order and whitespace don't count. A value that comes back different, or can't be read at all, is reported by table,
  * row and column with an excerpt of each; a change in which only fields that are null differ, such as a null field
  * the records write and the stored JSON leaves out, is marked as such and still counts. A template kept whole whose parts don't fit its records
- * ({@link MonsterTemplates#unreadable()}, {@link SpellTemplate#unreadable()}) reads back unchanged and is a warning.
+ * ({@link MonsterTemplates#unreadable()}, {@link SpellTemplate#unreadable()}, and the feat columns') reads back unchanged and is a warning.
  * Columns mapped as raw JSON text ({@code @JsonRawValue} Strings) and {@code jsonb} columns no entity maps are skipped
  * and listed. It never writes to the database: it reads in one read-only transaction it rolls back.
  * <p>
@@ -223,6 +227,10 @@ public class JsonRoundTripJob implements MaintenanceJob {
     private static String recordsNotFitting(Object value) {
         if (value instanceof MonsterTemplates templates) return templates.unreadable();
         if (value instanceof SpellTemplate template) return template.unreadable();
+        if (value instanceof FeatPrerequisite prerequisite) return prerequisite.unreadable();
+        if (value instanceof FeatAbilityIncrease increase) return increase.unreadable();
+        if (value instanceof FeatEffects effects) return effects.unreadable();
+        if (value instanceof FeatSpells spells) return spells.unreadable();
         return null;
     }
 
