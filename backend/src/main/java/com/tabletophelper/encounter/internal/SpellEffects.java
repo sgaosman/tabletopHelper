@@ -6,6 +6,7 @@ import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
+import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.RollMode;
 import lombok.RequiredArgsConstructor;
@@ -188,6 +189,14 @@ public class SpellEffects {
             max += scaling.additionalTargetsPerLevel() * (slotLevel - spellLevel);
         }
         return OptionalInt.of(max);
+    }
+
+    /**
+     * What using the spell's effect again costs from its caster's turn (D174): the template's repeatActionType, an
+     * action, a bonus action or nothing; an action when the template doesn't say.
+     */
+    public ActionCost repeatCost(String spellName) {
+        return template(spellName).map(SpellTemplate::repeatActionType).orElse(ActionCost.ACTION);
     }
 
     /** Whether the spell keeps going without concentration, so its caster can use its effect again. */

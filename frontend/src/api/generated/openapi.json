@@ -4392,6 +4392,15 @@
             "format": "int32",
             "nullable": true
           },
+          "cost": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ACTION",
+              "BONUS_ACTION",
+              "REACTION"
+            ]
+          },
           "damageDice": {
             "type": "string",
             "nullable": true
@@ -9297,18 +9306,32 @@
       },
       "SpellOption": {
         "required": [
+          "castingTime",
           "level",
           "name",
           "sources"
         ],
         "type": "object",
         "properties": {
+          "castingTime": {
+            "type": "string",
+            "enum": [
+              "ACTION",
+              "BONUS_ACTION",
+              "REACTION",
+              "LONGER"
+            ]
+          },
           "level": {
             "type": "integer",
             "format": "int32"
           },
           "name": {
             "type": "string"
+          },
+          "reactionTrigger": {
+            "type": "string",
+            "nullable": true
           },
           "sources": {
             "type": "array",

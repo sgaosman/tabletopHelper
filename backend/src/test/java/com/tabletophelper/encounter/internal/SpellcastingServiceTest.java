@@ -918,4 +918,167 @@ class SpellcastingServiceTest {
             assertTrue(f.log.isEmpty());
         }
     }
+
+    @Nested
+    @DisplayName("The action economy (D174)")
+    class Economy {
+
+        private static final String HEALING_WORD = """
+                {"spellName": "Healing Word", "spellLevel": 1, "deliveryMethod": "AUTO_HIT", "effects": [],
+                 "healing": {"healingDice": "1d4+MOD"}}""";
+
+        private static final String SHIELD = """
+                {"spellName": "Shield", "spellLevel": 1, "deliveryMethod": "SELF", "effects": []}""";
+
+        private UUID playerUserId;
+
+        @BeforeEach
+        void player() {
+            playerUserId = f.playerControlling(wizard);
+            f.spell("Fire Bolt", 0, FIRE_BOLT).setCastingTime("1 action");
+            f.spell("Fireball", 3, FIREBALL).setCastingTime("1 action");
+            f.spell("Healing Word", 1, HEALING_WORD).setCastingTime("1 bonus action");
+            f.spell("Shield", 1, SHIELD).setCastingTime(
+                    "1 reaction, which you take when you are hit by an attack or targeted by the magic missile spell");
+            for (String spell : List.of("Fire Bolt", "Fireball", "Healing Word", "Shield")) {
+                f.knows(wizard, spell);
+            }
+        }
+
+        private CastSpellResponse playerCasts(String spell, int slotLevel, List<EncounterParticipant> targets,
+                                              int... rolls) {
+            f.dice.script(rolls);
+            return f.spellcasting.castSpell(f.encounterId(), request(spell, slotLevel, targets), wizard.getId(),
+                    playerUserId);
+        }
+
+        @Test
+        @DisplayName("After a bonus-action spell a player's levelled spell is a 409 before the slot is spent, and a "
+                + "cantrip of 1 action is allowed (PHB p.202)")
+        void bonusActionSpellRule() {
+            playerCasts("Healing Word", 1, List.of(wizard), 2);
+            int entries = f.log.size();
+
+            ConflictException ex = assertThrows(ConflictException.class,
+                    () -> playerCasts("Fireball", 3, List.of(goblin)));
+
+            assertEquals("It cast a spell as a bonus action this turn, so the only other spell it can cast is a "
+                    + "cantrip with a casting time of 1 action", ex.getMessage());
+            assertEquals(3, wizard.getSpellSlotsCurrent().get("3").remaining());
+            assertEquals(entries, f.log.size());
+            assertEquals(20, goblin.getHpCurrent());
+
+            playerCasts("Fire Bolt", 0, List.of(goblin), 15, 6);
+            assertEquals(14, goblin.getHpCurrent());
+            assertTrue(f.descriptions().contains("Wizard casts Healing Word (bonus action)."));
+            assertTrue(wizard.getTurnEconomy().bonusActionUsed());
+            assertEquals(1, wizard.getTurnEconomy().actionsUsed());
+        }
+
+        @Test
+        @DisplayName("A player's reaction spell may be cast on another creature's turn, once until their own turn")
+        void reactionSpellOffTurn() {
+            f.turnOf(goblin);
+
+            playerCasts("Shield", 1, List.of(wizard));
+            ConflictException ex = assertThrows(ConflictException.class,
+                    () -> playerCasts("Shield", 1, List.of(wizard)));
+            ForbiddenException offTurn = assertThrows(ForbiddenException.class,
+                    () -> playerCasts("Fire Bolt", 0, List.of(goblin)));
+
+            assertTrue(wizard.getTurnEconomy().reactionUsed());
+            assertEquals(3, wizard.getSpellSlotsCurrent().get("1").remaining());
+            assertEquals("It has already taken its reaction; it comes back at the start of its turn", ex.getMessage());
+            assertEquals("You can only attack on your turn", offTurn.getMessage());
+            assertTrue(f.descriptions().contains("Wizard casts Shield (reaction)."));
+        }
+
+        @Test
+        @DisplayName("A spell longer than a turn is a 409 for a player, and the DM's is cast and logged as over")
+        void longerCastingTime() {
+            f.spell("Cure Wounds", 1, CURE_WOUNDS).setCastingTime("1 minute");
+            f.knows(wizard, "Cure Wounds");
+
+            ConflictException ex = assertThrows(ConflictException.class,
+                    () -> playerCasts("Cure Wounds", 1, List.of(wizard)));
+            assertEquals("Cure Wounds takes longer than a turn to cast, so it can't be cast in combat",
+                    ex.getMessage());
+            assertEquals(4, wizard.getSpellSlotsCurrent().get("1").remaining());
+
+            f.dice.script(4);
+            f.spellcasting.castSpell(f.encounterId(), request("Cure Wounds", 1, List.of(wizard)), wizard.getId(),
+                    f.dmUserId);
+            assertEquals(3, wizard.getSpellSlotsCurrent().get("1").remaining());
+            assertTrue(f.descriptions().contains("Wizard's Cure Wounds (longer than a turn) is over the action "
+                    + "economy: Cure Wounds takes longer than a turn to cast, so it can't be cast in combat"));
+        }
+
+        @Test
+        @DisplayName("The DM's over-budget cast is spent and logged for a player character, not for a monster")
+        void dmOverBudget() {
+            goblin.setHpMax(200);
+            goblin.setHpCurrent(200);
+            f.dice.script(3, 3, 3, 3, 3, 3, 3, 3, 5);
+            f.spellcasting.castSpell(f.encounterId(), request("Fireball", 3, List.of(goblin)), wizard.getId(),
+                    f.dmUserId);
+            f.dice.script(3, 3, 3, 3, 3, 3, 3, 3, 3, 5);
+            f.spellcasting.castSpell(f.encounterId(), request("Fireball", 4, List.of(goblin)), wizard.getId(),
+                    f.dmUserId);
+
+            assertEquals(1, wizard.getSpellSlotsCurrent().get("4").remaining());
+            assertEquals(2, wizard.getTurnEconomy().actionsUsed());
+            assertTrue(f.descriptions().contains("Wizard's Fireball is over the action economy: it has no action "
+                    + "left this turn"));
+
+            EncounterParticipant mage = f.monster("Mage", 40, 12);
+            mage.getMonster().setActionTemplates(MonsterTemplates.parse("""
+                    {"spellcasting": {"ability": "INT", "attackBonus": 5, "saveDC": 15,
+                     "spellsByLevel": {"0": ["Fire Bolt"]}}}"""));
+            int overEntries = (int) f.descriptions().stream().filter(entry -> entry.contains("over the action"))
+                    .count();
+            for (int i = 0; i < 2; i++) {
+                f.dice.script(15, 2);
+                f.spellcasting.castSpell(f.encounterId(), request("Fire Bolt", 0, List.of(wizard)), mage.getId(),
+                        f.dmUserId);
+            }
+            assertEquals(2, mage.getTurnEconomy().actionsUsed());
+            assertEquals(overEntries, f.descriptions().stream().filter(entry -> entry.contains("over the action"))
+                    .count());
+        }
+
+        @Test
+        @DisplayName("Using an effect again costs what its template says: a bonus action, an action, or nothing")
+        void repeatCosts() {
+            f.spell("Spiritual Weapon", 2, """
+                    {"spellLevel": 2, "deliveryMethod": "SPELL_ATTACK", "spellAttackType": "MELEE",
+                     "repeatEffect": true, "repeatActionType": "BONUS_ACTION", "persistsWithoutConcentration": true,
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "1d8", "damageType": "force"}]}""");
+            wizard.setActiveSpell("Spiritual Weapon");
+            wizard.setActiveSpellSlotLevel(2);
+            RepeatSpellEffectRequest request = new RepeatSpellEffectRequest();
+            request.setTargetIds(List.of(goblin.getId()));
+
+            f.dice.script(15, 4);
+            f.spellcasting.repeatSpellEffect(f.encounterId(), request, wizard.getId(), playerUserId);
+            ConflictException ex = assertThrows(ConflictException.class,
+                    () -> f.spellcasting.repeatSpellEffect(f.encounterId(), request, wizard.getId(), playerUserId));
+
+            assertEquals("It has already taken its bonus action this turn", ex.getMessage());
+            assertEquals(16, goblin.getHpCurrent());
+            assertEquals(0, wizard.getTurnEconomy().actionsUsed());
+            assertTrue(f.descriptions().contains("Wizard uses Spiritual Weapon's effect (bonus action)."));
+
+            f.spell("Spirit Guardians", 3, """
+                    {"spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "WIS", "halfOnSave": true,
+                     "concentration": true, "repeatEffect": true, "repeatActionType": "NONE",
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "3d8", "damageType": "radiant"}]}""");
+            wizard.setConcentration(ConcentrationInstance.start("Spirit Guardians", 3, 1, 100));
+            for (int i = 0; i < 2; i++) {
+                f.dice.script(1, 1, 1, 1);
+                f.spellcasting.repeatSpellEffect(f.encounterId(), request, wizard.getId(), playerUserId);
+            }
+            assertEquals(16 - 6, goblin.getHpCurrent());
+            assertEquals(0, wizard.getTurnEconomy().actionsUsed());
+        }
+    }
 }

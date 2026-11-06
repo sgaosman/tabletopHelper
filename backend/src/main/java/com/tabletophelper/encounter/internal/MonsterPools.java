@@ -57,8 +57,8 @@ public class MonsterPools {
     private final SpellRepository spellRepository;
     private final ObjectMapper objectMapper;
 
-    /** A spell from the stat block, with its name and level from the spells table when the table lists it. */
-    private record Resolved(MonsterSpellbook.Entry entry, UUID id, String name, int level) {
+    /** A spell from the stat block, with its name, level and casting time from the spells table when it lists it. */
+    private record Resolved(MonsterSpellbook.Entry entry, UUID id, String name, int level, String castingTime) {
     }
 
     /** A monster joining an encounter: every pool at full uses, and its spellcasting. */
@@ -110,7 +110,8 @@ public class MonsterPools {
     List<SpellSources.Known> spells(Monster monster) {
         return resolve(MonsterSpellbook.read(templates(monster))).stream()
                 .map(spell -> new SpellSources.Known(spell.name(), spell.level(), SpellSources.MONSTER, false, false,
-                        spell.entry().kind() == MonsterSpellbook.Kind.AT_WILL, uses(spell.entry()), null))
+                        spell.entry().kind() == MonsterSpellbook.Kind.AT_WILL, uses(spell.entry()), null,
+                        spell.castingTime()))
                 .toList();
     }
 
@@ -257,9 +258,9 @@ public class MonsterPools {
             Optional<Spell> spell = spellRepository.findByNameIgnoreCase(entry.lookupName());
             resolved.add(spell
                     .map(found -> new Resolved(entry, found.getId(), found.getName(),
-                            found.getLevel() != null ? found.getLevel() : 0))
+                            found.getLevel() != null ? found.getLevel() : 0, found.getCastingTime()))
                     .orElseGet(() -> new Resolved(entry, null, entry.lookupName(),
-                            entry.listedLevel() != null ? entry.listedLevel() : 0)));
+                            entry.listedLevel() != null ? entry.listedLevel() : 0, null)));
         }
         return resolved;
     }

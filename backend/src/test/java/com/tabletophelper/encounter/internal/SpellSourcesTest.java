@@ -5,6 +5,7 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.dto.SpellOption.SourceOption;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.state.SpellSource;
+import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -41,6 +42,28 @@ class SpellSourcesTest {
     @Nested
     @DisplayName("Options")
     class Options {
+
+        @Test
+        @DisplayName("Each option carries its casting time, an action when the spells table doesn't list it, and a "
+                + "reaction spell's trigger (D174)")
+        void castingTime() {
+            List<SpellOption> options = SpellSources.options(List.of(
+                    new SpellSources.Known("Shield", 1, "class:Wizard", true, false, false, null, null,
+                            "1 reaction, which you take when you are hit by an attack"),
+                    new SpellSources.Known("Misty Step", 2, "class:Wizard", true, false, false, null, null,
+                            "1 bonus action"),
+                    new SpellSources.Known("Identify", 1, "class:Wizard", true, false, false, null, null,
+                            "1 minute"),
+                    classSpell("Homebrew Bolt", 1, "Wizard", true)),
+                    purse(Map.of("1", new SpellSlot(2, 0), "2", new SpellSlot(2, 0))));
+
+            assertEquals(List.of("Homebrew Bolt", "Identify", "Shield", "Misty Step"),
+                    options.stream().map(SpellOption::name).toList());
+            assertEquals(List.of(CastingTime.ACTION, CastingTime.LONGER, CastingTime.REACTION,
+                    CastingTime.BONUS_ACTION), options.stream().map(SpellOption::castingTime).toList());
+            assertEquals("which you take when you are hit by an attack", options.get(2).reactionTrigger());
+            assertNull(options.get(3).reactionTrigger());
+        }
 
         @Test
         @DisplayName("A cantrip costs nothing whatever slots the caster has")
@@ -157,7 +180,8 @@ class SpellSourcesTest {
         void slot() {
             SpellSources.Payment payment = pay("hold person", SpellSource.SLOT, 4);
 
-            assertEquals(new SpellSources.Payment("Hold Person", 2, SpellSource.SLOT, 4, "4", null, "class:Sorcerer"),
+            assertEquals(new SpellSources.Payment("Hold Person", 2, SpellSource.SLOT, 4, "4", null, "class:Sorcerer",
+                    CastingTime.ACTION),
                     payment);
         }
 

@@ -20,7 +20,9 @@ import java.util.Map;
  * Writes each spell's effect template from spell-effect-definitions.json, matching a definition to the spell of its
  * name whatever the case. A later definition of the same spell wins, and a spell the file doesn't name keeps the
  * template it has. Each definition is stored whole, as the {@link SpellTemplate} the column maps to (D168), and one
- * whose parts don't fit those records fails the load naming the spell (D155).
+ * whose parts don't fit those records fails the load naming the spell (D155). So does a definition with a repeat
+ * effect that doesn't say what using it again costs, ACTION, BONUS_ACTION or NONE (D174); an unknown cost is a part
+ * that doesn't fit.
  */
 @Component
 @RequiredArgsConstructor
@@ -82,9 +84,14 @@ public class SpellEffectLoader implements ContentLoader {
                 log.debug("No spell entity found for effect template: {}", spellName);
                 continue;
             }
-            if (SpellTemplate.of(definition).unreadable() != null) {
+            SpellTemplate template = SpellTemplate.of(definition);
+            if (template.unreadable() != null) {
                 throw new IllegalStateException("The effect template of " + spell.getName()
-                        + " doesn't fit the template records: " + SpellTemplate.of(definition).unreadable());
+                        + " doesn't fit the template records: " + template.unreadable());
+            }
+            if (template.repeatEffect() != null && template.repeatActionType() == null) {
+                throw new IllegalStateException("The effect template of " + spell.getName()
+                        + " has a repeat effect but no repeatActionType (ACTION, BONUS_ACTION or NONE)");
             }
             templates.put(spell, definition);
         }

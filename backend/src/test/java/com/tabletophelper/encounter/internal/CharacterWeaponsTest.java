@@ -72,7 +72,8 @@ class CharacterWeaponsTest {
 
         assertEquals(List.of("Longsword", "Dagger", "Greatsword", "Unarmed Strike"), names(held));
         WeaponRules.Weapon dagger = held.get(1).weapon();
-        assertEquals(new WeaponRules.Weapon("Dagger", WeaponRules.Category.SIMPLE, false, true, false, Dice.parse("1d4"),
+        assertEquals(new WeaponRules.Weapon("Dagger", WeaponRules.Category.SIMPLE, false, true, false, true,
+                Dice.parse("1d4"),
                 "piercing"), dagger);
         assertTrue(held.getLast().proficient());
     }

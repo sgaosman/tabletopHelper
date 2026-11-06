@@ -5,6 +5,7 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.dto.SpellOption.SourceOption;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.state.SpellSource;
+import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.shared.ValidationException;
 
 import java.util.ArrayList;
@@ -51,9 +52,16 @@ final class SpellSources {
      * @param atWill         it is cast without a slot or a use
      * @param uses           its own uses between long rests, such as a monster's daily uses; null for none
      * @param unlocksAtLevel the character level it becomes available at; null for none
+     * @param castingTime    its casting time as the spells table has it, such as "1 bonus action"; null when the
+     *                       table doesn't list the spell
      */
     record Known(String name, int level, String origin, boolean prepared, boolean alwaysPrepared, boolean atWill,
-                 Integer uses, Integer unlocksAtLevel) {
+                 Integer uses, Integer unlocksAtLevel, String castingTime) {
+
+        Known(String name, int level, String origin, boolean prepared, boolean alwaysPrepared, boolean atWill,
+              Integer uses, Integer unlocksAtLevel) {
+            this(name, level, origin, prepared, alwaysPrepared, atWill, uses, unlocksAtLevel, null);
+        }
 
         boolean fromMonster() {
             return MONSTER.equals(origin);
@@ -93,9 +101,10 @@ final class SpellSources {
      * @param innatePool the pool that holds the spell's innate uses, full, as a caster without it starts it
      * @param origin     where the spell cast comes from, such as "class:Wizard" or "race:Tiefling": the entry with the
      *                   innate use for INNATE, and otherwise a class's entry when the caster has the spell from one
+     * @param castingTime what casting it costs from a turn (D174)
      */
     record Payment(String spellName, int spellLevel, SpellSource source, int castLevel, String slotKey,
-                   ResourcePoolEntry innatePool, String origin) {
+                   ResourcePoolEntry innatePool, String origin, CastingTime castingTime) {
     }
 
     // ── Options ──────────────────────────────────────────────────
@@ -142,7 +151,32 @@ final class SpellSources {
         if (level == 0 || entries.stream().anyMatch(Known::atWill)) {
             sources.add(new SourceOption(SpellSource.NONE, List.of(level), null, null));
         }
-        return new SpellOption(first.name(), level, sources);
+        return new SpellOption(first.name(), level, castingTime(first), reactionTrigger(first), sources);
+    }
+
+    /**
+     * What casting the spell costs from a turn (D174), from its casting time in the spells table; a spell the table
+     * doesn't list, or whose casting time can't be read, takes an action.
+     */
+    static CastingTime castingTime(Known known) {
+        if (known.castingTime() == null || known.castingTime().isBlank()) {
+            return CastingTime.ACTION;
+        }
+        try {
+            return CastingTime.of(known.castingTime());
+        } catch (IllegalArgumentException e) {
+            return CastingTime.ACTION;
+        }
+    }
+
+    // What a reaction spell is cast in response to, from its casting time: "which you take when ..."
+    private static String reactionTrigger(Known known) {
+        if (castingTime(known) != CastingTime.REACTION) {
+            return null;
+        }
+        int comma = known.castingTime().indexOf(',');
+        String trigger = comma >= 0 ? known.castingTime().substring(comma + 1).trim() : "";
+        return trigger.isEmpty() ? null : trigger;
     }
 
     private static boolean castableNow(Known known, Purse purse) {
@@ -235,6 +269,7 @@ final class SpellSources {
                 ? name + " is a level " + level + " spell, so it needs a spell slot, a pact slot or an innate use"
                 : name + " can't be cast " + with(source)));
         String origin = origin(castable);
+        CastingTime castingTime = option.castingTime();
         return switch (source) {
             case SLOT -> {
                 if (slotLevel < level) {
@@ -244,7 +279,8 @@ final class SpellSources {
                 if (!chosen.levels().contains(slotLevel)) {
                     throw new ValidationException(casterName + " has no level " + slotLevel + " spell slots left");
                 }
-                yield new Payment(name, level, SpellSource.SLOT, slotLevel, String.valueOf(slotLevel), null, origin);
+                yield new Payment(name, level, SpellSource.SLOT, slotLevel, String.valueOf(slotLevel), null, origin,
+                        castingTime);
             }
             case PACT_SLOT -> {
                 if (chosen.levels().isEmpty()) {
@@ -255,7 +291,8 @@ final class SpellSources {
                     throw new ValidationException("Pact slots are level " + pactLevel + ", so a pact slot casts "
                             + name + " at level " + pactLevel);
                 }
-                yield new Payment(name, level, SpellSource.PACT_SLOT, pactLevel, "pact_" + pactLevel, null, origin);
+                yield new Payment(name, level, SpellSource.PACT_SLOT, pactLevel, "pact_" + pactLevel, null, origin,
+                        castingTime);
             }
             case INNATE -> {
                 if (slotLevel != 0 && slotLevel != level) {
@@ -268,7 +305,7 @@ final class SpellSources {
                 Known innate = castable.stream().filter(Known::hasOwnUses).findFirst().orElseThrow();
                 yield new Payment(name, level, SpellSource.INNATE, level, null,
                         innatePool(name, innate.uses(), sourceType(innate.origin()), sourceName(innate.origin())),
-                        innate.origin());
+                        innate.origin(), castingTime);
             }
             case NONE -> {
                 if (slotLevel != 0 && slotLevel != level) {
@@ -276,7 +313,7 @@ final class SpellSources {
                             ? name + " is a cantrip, so it is cast without a slot"
                             : name + " is cast at will, at its own level, " + level);
                 }
-                yield new Payment(name, level, SpellSource.NONE, level, null, null, origin);
+                yield new Payment(name, level, SpellSource.NONE, level, null, null, origin, castingTime);
             }
         };
     }

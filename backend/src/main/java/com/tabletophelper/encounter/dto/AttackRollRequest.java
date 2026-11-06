@@ -44,6 +44,10 @@ public class AttackRollRequest {
     // A Manual Modifier: the attack is a critical hit whatever the roll (D161)
     private Boolean forceCrit;
 
+    // What the attack costs from the attacker's turn (D174): an attack of the Attack action when left out, an off-hand
+    // attack as a bonus action, or an opportunity attack as a reaction, which may be made on another creature's turn
+    private AttackCost cost;
+
     // Whether the attacker is within 5 feet of the target, which makes a hit on an unconscious or paralyzed
     // target a critical hit (D161). There is no map, so leaving it out counts as true, except for a ranged weapon.
     private Boolean within5Ft;

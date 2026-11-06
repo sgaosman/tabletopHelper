@@ -25,9 +25,9 @@ const participants = [wizard, goblin, orc, kobold, legolas];
 
 // What the server says the wizard can cast now: no level 2 slots are left, so Hold Person takes a level 3 one
 const WIZARD_OPTIONS: SpellOption[] = [
-  { name: 'Fire Bolt', level: 0, sources: [{ source: 'NONE', levels: [0] }] },
-  { name: 'Magic Missile', level: 1, sources: [{ source: 'SLOT', levels: [1, 3] }] },
-  { name: 'Hold Person', level: 2, sources: [{ source: 'SLOT', levels: [3] }] },
+  { name: 'Fire Bolt', level: 0, castingTime: 'ACTION', sources: [{ source: 'NONE', levels: [0] }] },
+  { name: 'Magic Missile', level: 1, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [1, 3] }] },
+  { name: 'Hold Person', level: 2, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [3] }] },
 ];
 
 const TARGET_ANYONE: SpellTargetingInfo = {
@@ -162,7 +162,7 @@ describe('SpellCastModal', () => {
   });
 
   it('shows a spell whose sources are all spent, but not as one to pick', async () => {
-    spellOptions([{ name: 'Fireball', level: 3, sources: [{ source: 'SLOT', levels: [] }] }]);
+    spellOptions([{ name: 'Fireball', level: 3, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [] }] }]);
     await renderModal();
 
     expect(await screen.findByRole('button', { name: /Fireball/ })).toBeDisabled();
@@ -170,9 +170,9 @@ describe('SpellCastModal', () => {
 
   it("lists a monster's slot, innate and at-will spells, and casts them through the same endpoint (D165)", async () => {
     const asked = spellOptions([
-      { name: 'Detect Magic', level: 1, sources: [{ source: 'NONE', levels: [1] }] },
-      { name: 'Hold Person', level: 2, sources: [{ source: 'SLOT', levels: [2] }] },
-      { name: 'Misty Step', level: 2, sources: [{ source: 'INNATE', levels: [2], usesLeft: 1, usesMax: 1 }] },
+      { name: 'Detect Magic', level: 1, castingTime: 'ACTION', sources: [{ source: 'NONE', levels: [1] }] },
+      { name: 'Hold Person', level: 2, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [2] }] },
+      { name: 'Misty Step', level: 2, castingTime: 'BONUS_ACTION', sources: [{ source: 'INNATE', levels: [2], usesLeft: 1, usesMax: 1 }] },
     ]);
     targeting({ selfOnly: true });
     const shaman = makeMockParticipant('part-shaman', 'Goblin Shaman', 'MONSTER', {
@@ -206,7 +206,7 @@ describe('SpellCastModal', () => {
   });
 
   it("offers a warlock's pact slot, which casts at its own level", async () => {
-    spellOptions([{ name: 'Hex', level: 1, sources: [{ source: 'PACT_SLOT', levels: [3], usesLeft: 1, usesMax: 2 }] }]);
+    spellOptions([{ name: 'Hex', level: 1, castingTime: 'BONUS_ACTION', sources: [{ source: 'PACT_SLOT', levels: [3], usesLeft: 1, usesMax: 2 }] }]);
     targeting();
     const warlock = makeMockParticipant('part-warlock', 'Hexblade', 'PLAYER', { spellSlotsCurrent: { pact_3: { max: 2, used: 1 } } });
     const requests = castRequests();

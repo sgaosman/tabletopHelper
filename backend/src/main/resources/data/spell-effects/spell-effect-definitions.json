@@ -348,6 +348,7 @@
     "specialMechanics": "Persistent 5-foot cube zone. Creatures save when the spell is cast (if in the space), when moving into the space for the first time on a turn, or when ending their turn there. Ignites unattended flammable objects.",
     "requiresManualResolution": false,
     "manualResolutionReason": "Persistent zone requiring saves on entry and at end of turn for each creature. Requires positional tracking each round.",
+    "repeatActionType": "NONE",
     "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
@@ -4288,6 +4289,7 @@
     "specialMechanics": "Applied on next weapon hit. If restrained, target takes piercing damage at start of each turn. Large+ creatures have advantage on save. STR check (action) to free.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Smite-style spell: triggers on next weapon hit, then requires STR save. Ongoing damage at start of restrained target's turns.",
+    "repeatActionType": "NONE",
     "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "piercing", "usesUpcastScaling": false},
     "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
     "classes": [
@@ -6099,6 +6101,7 @@
     "specialMechanics": "Smite-style: bonus action, triggers on next melee weapon hit. Sets target on fire (1d6 fire per turn, CON save to end). Only initial damage scales with upcasting.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Smite-style delivery on next weapon hit. Ongoing fire damage with per-turn CON saves. Can be manually extinguished.",
+    "repeatActionType": "NONE",
     "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "fire", "usesUpcastScaling": false},
     "patternCategory": "SAVE_DAMAGE",
     "classes": [
@@ -6550,6 +6553,7 @@
     "specialMechanics": "On failed save, creature covered in acid. Takes 2d4 acid at start of each of its turns. An action can scrape/wash acid off. Concentration.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Ongoing damage at start of each affected creature's turn. Can be removed by action (self or ally). Concentration.",
+    "repeatActionType": "NONE",
     "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "2d4", "damageType": "acid", "usesUpcastScaling": true},
     "patternCategory": "SAVE_DAMAGE",
     "classes": [
@@ -6926,6 +6930,7 @@
       "Wizard"
     ],
     "notes": "Concentration. Initial: spell attack for 1d12 lightning. Subsequent turns: action for auto 1d12. Only initial damage upscales. Terrible scaling.",
+    "repeatActionType": "ACTION",
     "repeatEffect": {
       "deliveryMethod": "AUTO_HIT",
       "damageDice": "1d12",
@@ -7847,6 +7852,7 @@
     "specialMechanics": null,
     "requiresManualResolution": false,
     "manualResolutionReason": "Persistent area damage with no save; triggers on entering or starting turn in area",
+    "repeatActionType": "NONE",
     "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
@@ -8284,6 +8290,7 @@
       "Wizard"
     ],
     "notes": "Creatures ending turn within 5ft must save. Half damage on save but no push. Can move 30ft as bonus action. Can create obscuring cloud over loose terrain.",
+    "repeatActionType": "BONUS_ACTION",
     "repeatEffect": true
   },
   {
@@ -8652,6 +8659,7 @@
       "Druid"
     ],
     "notes": "Bonus action to cast. Action to make melee spell attack each turn. Sheds bright light 10ft, dim light 10ft. Upcast scales per 2 levels, not per 1.",
+    "repeatActionType": "ACTION",
     "repeatEffect": true
   },
   {
@@ -8708,6 +8716,7 @@
       "Wizard"
     ],
     "notes": "5ft diameter sphere. Creatures ending turn within 5ft must DEX save. Bonus action: move 30ft + ram (forces save). Ignites flammable objects. Sheds bright light 20ft, dim 20ft.",
+    "repeatActionType": "BONUS_ACTION",
     "repeatEffect": true
   },
   {
@@ -9071,6 +9080,7 @@
       "Druid"
     ],
     "notes": "Targets a metal object, not a creature. Damage is automatic (no save). CON save only to avoid dropping the object. Bonus action each turn to repeat damage. Concentration.",
+    "repeatActionType": "BONUS_ACTION",
     "repeatEffect": true
   },
   {
@@ -9776,6 +9786,7 @@
       "Wizard"
     ],
     "notes": "Initial: STR save or 2d6 bludgeoning + restrained. Crush action: STR save, 2d6 on fail / half on success. Target can break free with STR check (action). Can retarget or move hand as action.",
+    "repeatActionType": "ACTION",
     "repeatEffect": true
   },
   {
@@ -10054,6 +10065,7 @@
       "Druid"
     ],
     "notes": "5ft radius, 40ft high cylinder. Shapechangers save with disadvantage; on fail, revert to original form. Dim light in area. Action to move beam 60ft. Concentration.",
+    "repeatActionType": "ACTION",
     "repeatEffect": true
   },
   {
@@ -10267,6 +10279,7 @@
     "specialMechanics": null,
     "requiresManualResolution": true,
     "manualResolutionReason": "Creates an illusion perceived only by the target. DM adjudicates what the illusion is and how the target interacts with it. 1d6 psychic damage per round if illusion can logically deal damage.",
+    "repeatActionType": "NONE",
     "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "psychic", "usesUpcastScaling": false},
     "patternCategory": "COMPLEX",
     "classes": [
@@ -11153,6 +11166,7 @@
     "specialMechanics": null,
     "requiresManualResolution": false,
     "manualResolutionReason": "Creates a persistent spectral weapon. Melee spell attack on cast (bonus action) and each subsequent turn (bonus action). Moves 20ft as part of bonus action attack. No concentration.",
+    "repeatActionType": "BONUS_ACTION",
     "repeatEffect": true,
     "persistsWithoutConcentration": true,
     "patternCategory": "COMPLEX",
@@ -12046,6 +12060,7 @@
     "specialMechanics": "Bonus action each turn to heal one creature in the 30-foot radius aura for 2d6 HP",
     "requiresManualResolution": true,
     "manualResolutionReason": "Requires bonus action each turn to select a creature in the aura and heal it",
+    "repeatActionType": "BONUS_ACTION",
     "repeatEffect": {"deliveryMethod": "AUTO_HIT", "healingDice": "2d6", "usesUpcastScaling": false},
     "patternCategory": "COMPLEX",
     "classes": [
@@ -12338,6 +12353,7 @@
       "Druid"
     ],
     "notes": "REVIEW: aoeSize is 5 (the bolt's 5ft radius), but the storm cloud is 60ft radius. Each bolt targets a 5ft radius area. Storm condition bonus is situational.",
+    "repeatActionType": "ACTION",
     "repeatEffect": true
   },
   {
@@ -13626,6 +13642,7 @@
     "specialMechanics": "Creature starting turn in area takes 2d6 cold damage (no save). Creature ending turn in area must DEX save or take 2d6 acid damage. Creatures fully within area are blinded (no save). Area is difficult terrain. No light can illuminate the area.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Persistent AOE with two separate damage triggers (start of turn cold, end of turn acid DEX save), automatic blinding in area, difficult terrain, and no-light zone",
+    "repeatActionType": "NONE",
     "repeatEffect": {"deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "halfOnSave": false, "damageDice": "2d6", "damageType": "acid", "usesUpcastScaling": false},
     "patternCategory": "COMPLEX",
     "classes": [
@@ -14403,6 +14420,7 @@
       "Wizard"
     ],
     "notes": "Source: XGE. classesFromMap was empty; classes from general 5e knowledge. Each meteor is a separate 5-foot radius AOE. Upcast adds more meteors, not more damage.",
+    "repeatActionType": "BONUS_ACTION",
     "repeatEffect": true
   },
   {
@@ -15144,6 +15162,7 @@
     "specialMechanics": "Persistent 15-foot emanation centered on caster that moves with caster. Damage occurs when creature enters area for first time on a turn or starts its turn there. Caster can designate creatures to be unaffected. Damage type is radiant (good/neutral caster) or necrotic (evil caster).",
     "requiresManualResolution": false,
     "manualResolutionReason": "Persistent AOE that moves with caster, triggers on creature entry or turn start, requires tracking designated unaffected creatures, damage type depends on caster alignment",
+    "repeatActionType": "NONE",
     "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
@@ -15758,6 +15777,7 @@
       "Wizard"
     ],
     "notes": null,
+    "repeatActionType": "ACTION",
     "repeatEffect": true
   },
   {

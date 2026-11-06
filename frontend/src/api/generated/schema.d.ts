@@ -1790,6 +1790,8 @@ export interface components {
             advantage?: boolean | null;
             /** Format: int32 */
             attackBonus?: number | null;
+            /** @enum {string|null} */
+            cost?: "ACTION" | "BONUS_ACTION" | "REACTION" | null;
             damageDice?: string | null;
             damageType?: string | null;
             /** Format: int32 */
@@ -3146,9 +3148,12 @@ export interface components {
             updatedAt?: string | null;
         };
         SpellOption: {
+            /** @enum {string} */
+            castingTime: "ACTION" | "BONUS_ACTION" | "REACTION" | "LONGER";
             /** Format: int32 */
             level: number;
             name: string;
+            reactionTrigger?: string | null;
             sources: components["schemas"]["SourceOption"][];
         };
         SpellSlot: {

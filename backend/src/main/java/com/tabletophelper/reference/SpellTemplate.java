@@ -8,6 +8,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.JacksonDefaults;
 import org.slf4j.Logger;
@@ -46,6 +47,10 @@ import java.util.Optional;
  * @param effects                      its effects, of which combat rolls the first with damage dice
  * @param healing                      its healing, or null
  * @param repeatEffect                 its effect used again on a later turn, or null when it has none
+ * @param repeatActionType             what using that effect again costs from the caster's turn (D174): ACTION,
+ *                                     BONUS_ACTION, or NONE for an effect that needs neither, such as one that
+ *                                     happens when a creature starts its turn in the area; null when the data
+ *                                     doesn't say. Any other value makes the template unreadable.
  * @param conditionsInflicted          the conditions it gives, by name or with how they end
  * @param json                         the column's JSON as stored; null only for a template built without one
  * @param unreadable                   why the JSON doesn't fit the records, or null; the records are then empty, and
@@ -57,8 +62,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                             String targetType, TargetScaling targetCountUpcastScaling, Boolean persistsWithoutConcentration,
                             Boolean selfOnly, Boolean canTargetSelf, Boolean canTargetAllies,
                             Boolean canTargetEnemies, List<Part> effects, Healing healing,
-                            RepeatEffect repeatEffect, List<ConditionInflicted> conditionsInflicted,
-                            JsonNode json, String unreadable) {
+                            RepeatEffect repeatEffect, ActionCost repeatActionType,
+                            List<ConditionInflicted> conditionsInflicted, JsonNode json, String unreadable) {
 
     private static final Logger log = LoggerFactory.getLogger(SpellTemplate.class);
 
@@ -99,7 +104,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                     read(json, "canTargetSelf", Boolean.class), read(json, "canTargetAllies", Boolean.class),
                     read(json, "canTargetEnemies", Boolean.class), READER.convertValue(json.get("effects"), PARTS),
                     read(json, "healing", Healing.class), RepeatEffect.of(json.get("repeatEffect")),
-                    READER.convertValue(json.get("conditionsInflicted"), CONDITIONS), json, null);
+                    repeatActionType(json.get("repeatActionType")), READER.convertValue(json.get("conditionsInflicted"), CONDITIONS), json, null);
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
         }
@@ -284,7 +289,22 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
 
     private static SpellTemplate empty(JsonNode json, String unreadable) {
         return new SpellTemplate(null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, json, unreadable);
+                null, null, null, null, null, null, null, null, null, json, unreadable);
+    }
+
+    // What using the repeat effect again costs: ACTION, BONUS_ACTION or NONE, and null when the data doesn't say
+    private static ActionCost repeatActionType(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        String value = node.isString() ? node.asString("") : node.toString();
+        return switch (value) {
+            case "ACTION" -> ActionCost.ACTION;
+            case "BONUS_ACTION" -> ActionCost.BONUS_ACTION;
+            case "NONE" -> ActionCost.NONE;
+            default -> throw new IllegalArgumentException("An unknown repeatActionType: " + value
+                    + " (ACTION, BONUS_ACTION or NONE)");
+        };
     }
 
     private static <T> T read(JsonNode node, String key, Class<T> type) {

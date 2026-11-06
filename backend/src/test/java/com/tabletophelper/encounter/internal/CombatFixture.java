@@ -26,6 +26,7 @@ import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
@@ -92,17 +93,18 @@ class CombatFixture {
     final CasterSpells casterSpells = new CasterSpells(monsterPools, resourcePoolService, combatLog, spellRepository,
             subclassRepository, objectMapper);
     final CharacterWeapons characterWeapons = new CharacterWeapons(itemRepository, objectMapper);
+    final ActionEconomyKeeper economy = new ActionEconomyKeeper(combatLog);
 
     final HitPointService hitPoints = new HitPointService(access, effectApplier, encounterRepository, encounterService);
     final ConditionService conditionService =
             new ConditionService(access, effectApplier, encounterRepository, encounterService);
     final AttackService attacks = new AttackService(access, accessPolicy, characterWeapons, resolver, stats,
-            effectApplier, manualModifiers, encounterRepository, encounterService);
+            effectApplier, economy, manualModifiers, encounterRepository, encounterService);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
-            spellEffects, effectApplier, manualModifiers, combatLog, encounterRepository, encounterService,
+            spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
             characterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
-            stats, effectApplier, resourcePoolService, objectMapper, encounterRepository, encounterService);
+            stats, effectApplier, economy, resourcePoolService, objectMapper, encounterRepository, encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatLog, encounterRepository, encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
@@ -203,6 +205,11 @@ class CombatFixture {
     void turnOf(EncounterParticipant participant) {
         encounter.setCurrentTurnParticipantId(participant.getId());
         encounter.setLairTurn(false);
+    }
+
+    /** Starts the participant's next turn's economy afresh, as the start of its turn does (D174). */
+    static void newTurn(EncounterParticipant participant) {
+        participant.setTurnEconomy(TurnEconomy.fresh());
     }
 
     /** Gives the Lair the turn (D163). */

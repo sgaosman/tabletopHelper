@@ -7,10 +7,13 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
+import com.tabletophelper.encounter.dto.AttackCost;
 import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.rules.Dice;
+import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.WeaponRules;
@@ -33,6 +36,11 @@ import java.util.UUID;
  *
  * <p>An attack on an unconscious or paralyzed target has advantage, and a hit from within 5 feet is a critical hit;
  * attacks never hit automatically, and the dead can't be attacked (D161).
+ *
+ * <p>An attack is charged to its attacker's turn economy (D174): by default an attack of the Attack action, which the
+ * first attack opens with the attacker's action; an off-hand attack with a light melee weapon as a bonus action once
+ * the Attack action is taken, without a positive ability modifier to its damage (PHB p.195); or an opportunity attack
+ * as a reaction, which a player may make on another creature's turn.
  */
 @Service
 @RequiredArgsConstructor
@@ -44,6 +52,7 @@ public class AttackService {
     private final Resolver resolver;
     private final CreatureStats stats;
     private final EffectApplier effectApplier;
+    private final ActionEconomyKeeper economy;
     private final ManualModifiers manualModifiers;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
@@ -56,21 +65,30 @@ public class AttackService {
     /**
      * An attack by the actor, or by the DM as no one when actorParticipantId is null. A player attacks only with
      * their own character on its turn (D028), and enters Manual Modifiers only while the campaign allows players
-     * them; the DM always may (D164). Everything is checked before anything rolls.
+     * them; the DM always may (D164). A player's opportunity attack may be made on any turn (D174). Everything is
+     * checked, and the attack charged to the actor's turn economy, before anything rolls.
      */
     @Transactional
     public EncounterResponse rollAttack(UUID encounterId, AttackRollRequest request, UUID actorParticipantId,
                                         UUID userId) {
-        Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
+        AttackCost cost = request.getCost() != null ? request.getCost() : AttackCost.ACTION;
+        Encounter encounter = access.beginForCost(encounterId, actorParticipantId, userId, cost.actionCost());
         EncounterParticipant actor = actorParticipantId != null
                 ? CombatAccess.participant(encounter, actorParticipantId) : null;
-        Prepared attack = request.getWeapon() != null ? weaponAttack(actor, request) : enteredAttack(actor, request);
+        boolean offHand = cost == AttackCost.BONUS_ACTION;
+        Prepared attack = request.getWeapon() != null ? weaponAttack(actor, request, offHand)
+                : enteredAttack(actor, request);
         manualModifiers.require(encounter, userId, attack.modifiers());
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
         CombatAccess.requireNotDead(List.of(target));
+        String costNote = costNote(cost);
+        if (actor != null) {
+            economy.charge(encounter, actor, charge(encounter, actor, cost), userId,
+                    new ActionEconomyKeeper.Command(CombatActionType.ATTACK, attack.subject() + costNote));
+        }
 
         EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
-                CombatActionType.ATTACK, attack.action(), attack.preposition(), "", null);
+                CombatActionType.ATTACK, attack.action() + costNote, attack.preposition(), "", null);
         manualModifiers.log(encounter, CombatActionType.ATTACK, actor, attack.subject(), userId, attack.modifiers());
         effectApplier.apply(encounter, use, attack.effect(),
                 resolver.resolve(attack.effect(), List.of(stats.target(target, attack.effect()))));
@@ -111,9 +129,30 @@ public class AttackService {
                 numbers.damage().toString(), weapon.damageType(), weapon.ranged(), powerAttack);
     }
 
+    // What the attack charges: an attack of the Attack action, opening it when none is going; an off-hand attack;
+    // or an opportunity attack
+    private static Charge charge(Encounter encounter, EncounterParticipant actor, AttackCost cost) {
+        boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, actor.getId());
+        return switch (cost) {
+            case ACTION -> new Charge(ActionCost.ACTION, true, Charge.SpellKind.NONE, ownTurn,
+                    TurnEconomies.attacksPerAction(actor));
+            case BONUS_ACTION -> new Charge(ActionCost.BONUS_ACTION, true, Charge.SpellKind.NONE, ownTurn, 1);
+            case REACTION -> Charge.reactionAttack(ownTurn);
+        };
+    }
+
+    // How the log names an attack's cost when it isn't the attack of the Attack action
+    private static String costNote(AttackCost cost) {
+        return switch (cost) {
+            case ACTION -> "";
+            case BONUS_ACTION -> " (bonus action)";
+            case REACTION -> " (reaction)";
+        };
+    }
+
     // A player character's attack with a weapon they hold: the numbers are the server's, and what is added to them
-    // by hand is a Manual Modifier
-    private Prepared weaponAttack(EncounterParticipant actor, AttackRollRequest request) {
+    // by hand is a Manual Modifier. An off-hand attack needs a light melee weapon (PHB p.195)
+    private Prepared weaponAttack(EncounterParticipant actor, AttackRollRequest request, boolean offHand) {
         if (request.getAttackBonus() != null || request.getDamageDice() != null || request.getDamageType() != null) {
             throw new ValidationException("A weapon attack takes its numbers from the weapon: add a magic bonus as an "
                     + "extra attack bonus or extra damage");
@@ -126,12 +165,17 @@ public class AttackService {
                 .orElseThrow(() -> new ValidationException(actor.getDisplayName() + " has no "
                         + request.getWeapon().trim() + " to attack with"));
         WeaponRules.Weapon weapon = held.weapon();
+        if (offHand && !WeaponRules.offHandWeapon(weapon)) {
+            throw new ValidationException("An off-hand attack needs a light melee weapon, and "
+                    + (weapon == WeaponRules.UNARMED_STRIKE ? "an unarmed strike" : "the " + weapon.name())
+                    + " isn't one");
+        }
         boolean powerAttack = Boolean.TRUE.equals(request.getPowerAttack());
         if (powerAttack && held.powerAttack() == null) {
             throw new ValidationException(powerAttackRefusal(actor, held));
         }
 
-        WeaponRules.Numbers numbers = characterWeapons.numbers(character, held, powerAttack);
+        WeaponRules.Numbers numbers = characterWeapons.numbers(character, held, powerAttack, offHand);
         Dice extraDamage = extraDamage(request);
         String extraType = extraDamage == null ? null
                 : request.getExtraDamageType() != null && !request.getExtraDamageType().isBlank()

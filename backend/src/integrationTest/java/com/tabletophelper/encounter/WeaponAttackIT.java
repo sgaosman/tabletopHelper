@@ -113,6 +113,11 @@ class WeaponAttackIT extends IntegrationTest {
         dice.script(11, 3, 4);
         expect(HttpStatus.OK, attack(Map.of("targetId", ogreId, "weapon", "Greatsword", "powerAttack", true),
                 player.accessToken()));
+        // Aria's next turn, past the ogre's, for an action to attack with again (D174)
+        for (int i = 0; i < 2; i++) {
+            expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/turn/next",
+                    null, dm.accessToken()));
+        }
         // 5 + 5 + 1 = 11 hits; 1d8 + 3 + 1 is 6 + 3 + 1
         dice.script(5, 6);
         expect(HttpStatus.OK, attack(Map.of("targetId", ogreId, "weapon", "Longsword", "extraAttackBonus", 1,

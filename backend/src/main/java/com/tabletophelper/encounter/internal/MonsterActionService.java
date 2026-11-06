@@ -13,6 +13,8 @@ import com.tabletophelper.encounter.dto.MultiattackOption;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
@@ -38,7 +40,9 @@ import java.util.stream.Collectors;
  * be used on its own turn, a recharge action needs its pool recharged, and a lair action happens only on the
  * Lair's turn and can't repeat two rounds running (D136, D163). A multiattack takes a target for each of its
  * attacks, or sends them all at one creature (D165). Each target's result is logged on its own entry, and a failed
- * save by a creature with Legendary Resistance left is offered for undoing (D163).
+ * save by a creature with Legendary Resistance left is offered for undoing (D163). An action from the monster's
+ * actions costs its action, a Multiattack included; legendary and lair actions are outside the action economy
+ * (D174).
  */
 @Service
 @RequiredArgsConstructor
@@ -50,6 +54,7 @@ public class MonsterActionService {
     private final Resolver resolver;
     private final CreatureStats stats;
     private final EffectApplier effectApplier;
+    private final ActionEconomyKeeper economy;
     private final ResourcePoolService resourcePoolService;
     private final ObjectMapper objectMapper;
     private final EncounterRepository encounterRepository;
@@ -95,6 +100,12 @@ public class MonsterActionService {
         String rechargePool = rechargePoolId(action);
         if (rechargePool != null && poolUses(monster, rechargePool) <= 0) {
             throw new ConflictException("Recharge action '" + actionName + "' is not yet recharged");
+        }
+        if (!"LEGENDARY".equals(request.actionSource()) && !"LAIR".equals(request.actionSource())) {
+            economy.charge(encounter, monster,
+                    Charge.of(ActionCost.ACTION, EncounterTurns.isCurrentTurn(encounter, monster.getId())), userId,
+                    new ActionEconomyKeeper.Command(CombatActionType.MONSTER_ACTION,
+                            monster.getDisplayName() + "'s " + actionName));
         }
         if ("LAIR".equals(request.actionSource())) {
             if (actionName.equals(monster.getLastLairActionUsed())) {

@@ -494,4 +494,21 @@ class MonsterActionServiceTest {
                 new MonsterActionRequest(dragon.getId(), "Bite", "ACTION", List.of(fighter.getId()), null, null, null,
                         null), playerUserId));
     }
+
+    @Test
+    @DisplayName("A monster's action, a Multiattack included, costs its action; legendary actions cost none, and the "
+            + "DM's monster over budget isn't logged as over (D174)")
+    void actionEconomy() {
+        f.turnOf(dragon);
+        multiattack(List.of(List.of(fighter), List.of(fighter)), 5, 5);
+        assertEquals(1, dragon.getTurnEconomy().actionsUsed());
+
+        act("Claw", "ACTION", List.of(fighter), 5);
+        assertEquals(2, dragon.getTurnEconomy().actionsUsed());
+        assertTrue(f.descriptions().stream().noneMatch(entry -> entry.contains("over the action economy")));
+
+        f.turnOf(fighter);
+        act("Wing Attack", "LEGENDARY", List.of(fighter), 15);
+        assertEquals(2, dragon.getTurnEconomy().actionsUsed());
+    }
 }

@@ -114,9 +114,14 @@ class CharacterWeapons {
      * adjustments to them (D158).
      */
     WeaponRules.Numbers numbers(PlayerCharacter character, Held held, boolean powerAttack) {
+        return numbers(character, held, powerAttack, false);
+    }
+
+    /** As {@link #numbers(PlayerCharacter, Held, boolean)}, for an off-hand attack when offHand is true. */
+    WeaponRules.Numbers numbers(PlayerCharacter character, Held held, boolean powerAttack, boolean offHand) {
         return WeaponRules.attack(held.weapon(), DmAdjustments.abilityScore(character, Ability.STR),
                 DmAdjustments.abilityScore(character, Ability.DEX), proficiencyBonus(character), held.proficient(),
-                powerAttack);
+                powerAttack, offHand);
     }
 
     /** The feats among the character's whose attacks can take the trade. */
@@ -198,7 +203,7 @@ class CharacterWeapons {
         WeaponRules.Category category = "martial".equalsIgnoreCase(item.getSubtype())
                 ? WeaponRules.Category.MARTIAL : WeaponRules.Category.SIMPLE;
         return Optional.of(new WeaponRules.Weapon(item.getName(), category, "Ranged Weapon".equals(item.getType()),
-                tags.contains("F"), tags.contains("H"), damage.get().getFirst(),
+                tags.contains("F"), tags.contains("H"), tags.contains("L"), damage.get().getFirst(),
                 item.getDamageType() != null ? item.getDamageType().trim().toLowerCase(Locale.ROOT) : null));
     }
 

@@ -19,6 +19,9 @@ import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.SpellSource;
+import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.CastingTime;
+import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -40,6 +43,10 @@ import java.util.UUID;
  * can cast now (D164). A class spell uses that class's save DC and attack bonus, and a race or feat spell the
  * caster's main ones. A spell attack bonus or save DC entered in place of the caster's is a Manual Modifier,
  * which a player may enter only while the campaign allows it.
+ *
+ * <p>A cast costs its casting time from the caster's turn, and a reaction spell may be cast on another creature's
+ * turn; a spell that takes longer than a turn is refused to a player in combat and logged for the DM. Using an
+ * effect again costs what its template says (D174).
  */
 @Service
 @RequiredArgsConstructor
@@ -53,6 +60,7 @@ public class SpellcastingService {
     private final SpellCaster spellCaster;
     private final SpellEffects spellEffects;
     private final EffectApplier effectApplier;
+    private final ActionEconomyKeeper economy;
     private final ManualModifiers manualModifiers;
     private final CombatLogWriter combatLog;
     private final EncounterRepository encounterRepository;
@@ -60,30 +68,43 @@ public class SpellcastingService {
     private final CharacterService characterService;
 
     /**
-     * Casts a spell for a player character or a monster: everything is checked before anything is spent, then
-     * the Spell Source pays, and the spell is cast at the level that source gives.
+     * Casts a spell for a player character or a monster: everything is checked, and the cast charged to the
+     * caster's turn economy, before anything is spent; then the Spell Source pays, and the spell is cast at the
+     * level that source gives. A player casts on their character's turn, except a reaction spell (D174).
      */
     @Transactional
     public CastSpellResponse castSpell(UUID encounterId, CastSpellRequest request, UUID actorParticipantId,
                                        UUID userId) {
-        Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
+        Encounter encounter = access.beginFor(encounterId, actorParticipantId, userId);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));
         SpellSources.Payment payment = casterSpells.payment(caster, request.getSpellName(), request.getSpellSource(),
                 request.getSlotLevel());
+        // A spell longer than a turn would take the caster's action each turn, so the DM's is charged an action
+        ActionCost cost = payment.castingTime().cost().orElse(ActionCost.ACTION);
+        access.requireTurnForCost(encounter, actorParticipantId, userId, cost);
         requireTargetCount(payment, request.getTargetIds().size());
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         SpellNumbers own = numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
 
+        String costNote = costNote(payment.castingTime());
+        Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
+        String tooLong = payment.castingTime() == CastingTime.LONGER
+                ? payment.spellName() + " takes longer than a turn to cast, so it can't be cast in combat" : null;
+        economy.charge(encounter, caster,
+                Charge.spell(cost, kind, EncounterTurns.isCurrentTurn(encounter, caster.getId())), tooLong, userId,
+                new ActionEconomyKeeper.Command(CombatActionType.SPELL_CAST,
+                        caster.getDisplayName() + "'s " + payment.spellName() + costNote));
+
         casterSpells.spend(encounter, caster, payment);
         manualModifiers.log(encounter, CombatActionType.SPELL_CAST, caster,
                 caster.getDisplayName() + "'s " + payment.spellName(), userId, modifiers);
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
-                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage());
+                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote);
 
         if (!result.concentration() && spellEffects.persistsWithoutConcentration(payment.spellName())) {
             caster.setActiveSpell(payment.spellName());
@@ -107,10 +128,14 @@ public class SpellcastingService {
         return casterSpells.options(participant);
     }
 
-    /** Uses the caster's concentration spell's effect again, or else its lasting spell's. */
+    /**
+     * Uses the caster's concentration spell's effect again, or else its lasting spell's, on the caster's turn:
+     * charged as its template says, an action, a bonus action or nothing (D174).
+     */
     @Transactional
     public CastSpellResponse repeatSpellEffect(UUID encounterId, RepeatSpellEffectRequest request,
                                                UUID actorParticipantId, UUID userId) {
+        // Every repeat cost, nothing included, is taken on the caster's turn
         Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
@@ -133,11 +158,17 @@ public class SpellcastingService {
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
 
+        ActionCost cost = spellEffects.repeatCost(spellName);
+        String costNote = cost == ActionCost.BONUS_ACTION ? " (bonus action)" : "";
+        economy.charge(encounter, caster, Charge.of(cost, EncounterTurns.isCurrentTurn(encounter, caster.getId())),
+                userId, new ActionEconomyKeeper.Command(CombatActionType.SPELL_EFFECT_REPEAT,
+                        caster.getDisplayName() + "'s " + spellName + costNote));
+
         manualModifiers.log(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster,
                 caster.getDisplayName() + "'s " + spellName, userId, modifiers);
         SpellCaster.CastResult result = spellCaster.repeat(encounter, caster, spellName, slotLevel, targets,
                 own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
-                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage());
+                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote);
         return response(encounter, result, slotLevel, SpellSource.NONE);
     }
 
@@ -213,6 +244,16 @@ public class SpellcastingService {
                 .targets(result.targets())
                 .manualResolutionReason(result.manualReason())
                 .build();
+    }
+
+    // How the log names a cast's cost when it isn't an action (D174)
+    private static String costNote(CastingTime castingTime) {
+        return switch (castingTime) {
+            case ACTION -> "";
+            case BONUS_ACTION -> " (bonus action)";
+            case REACTION -> " (reaction)";
+            case LONGER -> " (longer than a turn)";
+        };
     }
 
     private void requireTargetCount(SpellSources.Payment payment, int targetCount) {

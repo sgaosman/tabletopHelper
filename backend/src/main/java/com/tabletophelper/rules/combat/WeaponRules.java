@@ -47,10 +47,11 @@ public final class WeaponRules {
      *                 uses the same ability (PHB p.147)
      * @param finesse  attacks with STR or DEX, whichever is higher
      * @param heavy    a heavy weapon, as Great Weapon Master needs
+     * @param light    a light weapon, as two-weapon fighting needs (PHB p.195)
      * @param damage   its damage dice, or a flat amount
      */
-    public record Weapon(String name, Category category, boolean ranged, boolean finesse, boolean heavy, Dice damage,
-                         String damageType) {
+    public record Weapon(String name, Category category, boolean ranged, boolean finesse, boolean heavy,
+                         boolean light, Dice damage, String damageType) {
 
         public Weapon {
             Objects.requireNonNull(name, "name");
@@ -63,7 +64,7 @@ public final class WeaponRules {
      * in bludgeoning damage (PHB p.195).
      */
     public static final Weapon UNARMED_STRIKE =
-            new Weapon("Unarmed Strike", null, false, false, false, new Dice(0, 0, 1), "bludgeoning");
+            new Weapon("Unarmed Strike", null, false, false, false, false, new Dice(0, 0, 1), "bludgeoning");
 
     /**
      * What an attack with a weapon comes to.
@@ -117,6 +118,14 @@ public final class WeaponRules {
     }
 
     /**
+     * Whether the weapon can make an off-hand attack, the bonus action two-weapon fighting gives after the Attack
+     * action: a light melee weapon (PHB p.195).
+     */
+    public static boolean offHandWeapon(Weapon weapon) {
+        return weapon.light() && !weapon.ranged();
+    }
+
+    /**
      * An attack with the weapon.
      *
      * @param strength    the attacker's STR score
@@ -127,6 +136,16 @@ public final class WeaponRules {
      */
     public static Numbers attack(Weapon weapon, int strength, int dexterity, int proficiencyBonus, boolean proficient,
                                  boolean powerAttack) {
+        return attack(weapon, strength, dexterity, proficiencyBonus, proficient, powerAttack, false);
+    }
+
+    /**
+     * As {@link #attack(Weapon, int, int, int, boolean, boolean)}, and for an off-hand attack (two-weapon fighting,
+     * PHB p.195) the damage adds the ability modifier only when it is negative. Fighting styles that change this
+     * aren't modelled; the DM adds them as a Manual Modifier.
+     */
+    public static Numbers attack(Weapon weapon, int strength, int dexterity, int proficiencyBonus, boolean proficient,
+                                 boolean powerAttack, boolean offHand) {
         if (powerAttack && powerAttackFor(weapon).isEmpty()) {
             throw new IllegalArgumentException(weapon.name() + " allows neither Great Weapon Master nor Sharpshooter");
         }
@@ -136,7 +155,8 @@ public final class WeaponRules {
                 - (powerAttack ? POWER_ATTACK_PENALTY : 0);
         Dice dice = weapon.damage();
         Dice damage = new Dice(dice.count(), dice.sides(),
-                dice.modifier() + abilityModifier + (powerAttack ? POWER_ATTACK_DAMAGE : 0));
+                dice.modifier() + (offHand ? Math.min(0, abilityModifier) : abilityModifier)
+                        + (powerAttack ? POWER_ATTACK_DAMAGE : 0));
         return new Numbers(ability, attackBonus, damage);
     }
 }

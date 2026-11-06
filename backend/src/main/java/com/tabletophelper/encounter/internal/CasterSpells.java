@@ -46,8 +46,9 @@ class CasterSpells {
     private final SubclassRepository subclassRepository;
     private final ObjectMapper objectMapper;
 
-    // A spell's name and level, from the spells table when it lists the spell
-    private record Resolved(String name, int level) {
+    // A spell's name, level and casting time, from the spells table when it lists the spell; the casting time is
+    // null when it doesn't
+    private record Resolved(String name, int level, String castingTime) {
     }
 
     // A subclass the character has, with its class and that class's level
@@ -149,7 +150,8 @@ class CasterSpells {
             spells.add(new SpellSources.Known(resolved.name(), resolved.level(),
                     spell.source() != null && !spell.source().isBlank() ? spell.source() : classOrigin,
                     Boolean.TRUE.equals(spell.prepared()), Boolean.TRUE.equals(spell.alwaysPrepared()),
-                    Boolean.TRUE.equals(spell.atWill()), spell.usesPerLongRest(), spell.unlocksAtLevel()));
+                    Boolean.TRUE.equals(spell.atWill()), spell.usesPerLongRest(), spell.unlocksAtLevel(),
+                    resolved.castingTime()));
         }
         if (character != null) {
             spells.addAll(subclassSpells(character));
@@ -189,7 +191,7 @@ class CasterSpells {
                     if (name.isString() && !name.asString("").isBlank()) {
                         Resolved resolved = resolve(name.asString(""), null);
                         spells.add(new SpellSources.Known(resolved.name(), resolved.level(), origin, false, true,
-                                false, null, null));
+                                false, null, null, resolved.castingTime()));
                     }
                 }
             });
@@ -199,7 +201,8 @@ class CasterSpells {
 
     private Resolved resolve(String name, Integer recordedLevel) {
         return spellRepository.findByNameIgnoreCase(name.trim())
-                .map(spell -> new Resolved(spell.getName(), spell.getLevel() != null ? spell.getLevel() : 0))
-                .orElseGet(() -> new Resolved(name.trim(), recordedLevel != null ? recordedLevel : 0));
+                .map(spell -> new Resolved(spell.getName(), spell.getLevel() != null ? spell.getLevel() : 0,
+                        spell.getCastingTime()))
+                .orElseGet(() -> new Resolved(name.trim(), recordedLevel != null ? recordedLevel : 0, null));
     }
 }

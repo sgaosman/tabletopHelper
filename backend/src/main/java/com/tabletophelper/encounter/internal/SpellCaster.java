@@ -48,22 +48,23 @@ public class SpellCaster {
     /**
      * Casts the spell with a slot of slotLevel, or 0 for none, at the targets, which have passed the access
      * checks. A spell on its caster reaches only the caster. castingAbility is the ability it is cast with, null
-     * when unknown (D164).
+     * when unknown (D164). costNote names what the cast cost from the turn where it isn't an action, such as
+     * " (bonus action)", and is blank otherwise (D174).
      */
     public CastResult cast(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                            List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
-                           Boolean advantage) {
+                           Boolean advantage, String costNote) {
         SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, castingAbility, attackBonus,
                 saveDc, advantage);
         String lead = caster.getDisplayName() + " casts " + spellName
-                + (slotLevel > 0 && slotLevel > plan.spellLevel() ? " at level " + slotLevel : "");
+                + (slotLevel > 0 && slotLevel > plan.spellLevel() ? " at level " + slotLevel : "") + costNote;
 
         if (!plan.automated()) {
             ConcentrationInstance instance = plan.concentration()
                     ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel, plan.durationRounds())
                     : null;
             String summary = lead + " — " + plan.manualReason();
-            effectApplier.summary(encounter, use(caster, spellName, instance), summary);
+            effectApplier.summary(encounter, use(caster, spellName, costNote, instance), summary);
             return new CastResult(spellName, plan.spellLevel(), plan.concentration(), plan.manualReason(), summary,
                     List.of());
         }
@@ -78,7 +79,7 @@ public class SpellCaster {
         ConcentrationInstance instance = plan.concentration()
                 ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel, plan.durationRounds())
                 : null;
-        EffectApplier.Use use = use(caster, spellName, instance);
+        EffectApplier.Use use = use(caster, spellName, costNote, instance);
         effectApplier.summary(encounter, use, lead + ".");
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, effect,
                 resolver.resolve(effect, stats.targets(reached, effect)));
@@ -88,18 +89,18 @@ public class SpellCaster {
 
     /**
      * Uses a concentration or lasting spell's effect again on a later turn (D162), linking any conditions to
-     * the caster's Concentration Instance for that spell.
+     * the caster's Concentration Instance for that spell. costNote is as for {@link #cast}.
      */
     public CastResult repeat(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                              List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
-                             Boolean advantage) {
+                             Boolean advantage, String costNote) {
         SpellEffects.SpellPlan plan = spellEffects.forRepeat(spellName, slotLevel, caster, castingAbility, attackBonus,
                 saveDc, advantage);
         ConcentrationInstance instance = caster.getConcentration() != null
                 && caster.getConcentration().spell().equalsIgnoreCase(spellName) ? caster.getConcentration() : null;
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(),
-                CombatActionType.SPELL_EFFECT_REPEAT, "uses " + spellName, "on", spellName, instance);
-        String lead = caster.getDisplayName() + " uses " + spellName + "'s effect";
+                CombatActionType.SPELL_EFFECT_REPEAT, "uses " + spellName + costNote, "on", spellName, instance);
+        String lead = caster.getDisplayName() + " uses " + spellName + "'s effect" + costNote;
 
         if (!plan.automated()) {
             String summary = lead + " — " + plan.manualReason();
@@ -153,9 +154,10 @@ public class SpellCaster {
         };
     }
 
-    private static EffectApplier.Use use(EncounterParticipant caster, String spellName, ConcentrationInstance instance) {
+    private static EffectApplier.Use use(EncounterParticipant caster, String spellName, String costNote,
+                                         ConcentrationInstance instance) {
         return new EffectApplier.Use(caster, caster.getDisplayName(), CombatActionType.SPELL_CAST,
-                "casts " + spellName, "at", spellName, instance);
+                "casts " + spellName + costNote, "at", spellName, instance);
     }
 
     private static String summary(String lead, List<EffectApplier.Applied> applied) {

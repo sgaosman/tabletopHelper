@@ -2,7 +2,9 @@ package com.tabletophelper.encounter.internal;
 
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Dice;
+import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.RollMode;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,8 +13,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -319,6 +327,72 @@ class SpellEffectsTest {
     @Nested
     @DisplayName("Repeat effects and limits")
     class RepeatAndLimits {
+
+        @Test
+        @DisplayName("Using an effect again costs the template's repeatActionType, and an action when it doesn't say "
+                + "(D174)")
+        void repeatCost() {
+            f.spell("Spiritual Weapon", 2, """
+                    {"spellLevel": 2, "repeatEffect": true, "repeatActionType": "BONUS_ACTION"}""");
+            f.spell("Spirit Guardians", 3, """
+                    {"spellLevel": 3, "repeatEffect": true, "repeatActionType": "NONE"}""");
+            f.spell("Witch Bolt", 1, """
+                    {"spellLevel": 1, "repeatEffect": true, "repeatActionType": "ACTION"}""");
+            f.spell("Old Moonbeam", 2, """
+                    {"spellLevel": 2, "repeatEffect": true}""");
+            when(f.spellRepository.findByNameIgnoreCase("Unknown Spell")).thenReturn(Optional.empty());
+
+            assertEquals(ActionCost.BONUS_ACTION, f.spellEffects.repeatCost("Spiritual Weapon"));
+            assertEquals(ActionCost.NONE, f.spellEffects.repeatCost("Spirit Guardians"));
+            assertEquals(ActionCost.ACTION, f.spellEffects.repeatCost("Witch Bolt"));
+            assertEquals(ActionCost.ACTION, f.spellEffects.repeatCost("Old Moonbeam"));
+            assertEquals(ActionCost.ACTION, f.spellEffects.repeatCost("Unknown Spell"));
+        }
+
+        @Test
+        @DisplayName("A repeatActionType other than ACTION, BONUS_ACTION or NONE makes the template unreadable")
+        void unknownRepeatCost() {
+            assertNotNull(SpellTemplate.parse("""
+                    {"repeatEffect": true, "repeatActionType": "REACTION"}""").unreadable());
+            assertNotNull(SpellTemplate.parse("""
+                    {"repeatEffect": true, "repeatActionType": "bonus action"}""").unreadable());
+            assertNull(SpellTemplate.parse("""
+                    {"repeatEffect": true, "repeatActionType": "NONE"}""").unreadable());
+        }
+
+        @Test
+        @DisplayName("The bundled data's 20 repeat effects each say what using them again costs, as the spells' text "
+                + "does")
+        void bundledRepeatCosts() throws IOException {
+            Map<String, ActionCost> costs = new LinkedHashMap<>();
+            try (InputStream in = getClass().getResourceAsStream(
+                    "/data/spell-effects/spell-effect-definitions.json")) {
+                assertNotNull(in, "the spell effect templates are on the classpath");
+                for (JsonNode definition : JsonMapper.builder().build().readTree(in)) {
+                    SpellTemplate template = SpellTemplate.of(definition);
+                    assertNull(template.unreadable(), definition.path("spellName").asString());
+                    if (template.repeatEffect() != null) {
+                        costs.put(definition.path("spellName").asString(), template.repeatActionType());
+                    }
+                }
+            }
+
+            Map<String, ActionCost> expected = new LinkedHashMap<>();
+            for (String spell : List.of("Witch Bolt", "Call Lightning", "Moonbeam", "Vampiric Touch", "Flame Blade",
+                    "Maximilian's Earthen Grasp")) {
+                expected.put(spell, ActionCost.ACTION);
+            }
+            for (String spell : List.of("Spiritual Weapon", "Flaming Sphere", "Heat Metal", "Melf's Minute Meteors",
+                    "Dust Devil", "Aura of Vitality")) {
+                expected.put(spell, ActionCost.BONUS_ACTION);
+            }
+            for (String spell : List.of("Searing Smite", "Ensnaring Strike", "Tasha's Caustic Brew",
+                    "Cloud of Daggers", "Spirit Guardians", "Hunger of Hadar", "Create Bonfire", "Phantasmal Force")) {
+                expected.put(spell, ActionCost.NONE);
+            }
+            assertEquals(20, costs.size());
+            assertEquals(expected, Map.copyOf(costs));
+        }
 
         @Test
         @DisplayName("repeatEffect true repeats the spell's own effect, upcast")

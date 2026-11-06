@@ -5,6 +5,7 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterCommands;
 import com.tabletophelper.encounter.EncounterLifecycle;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
@@ -51,6 +52,32 @@ public class CombatAccess {
                 EncounterTurns.isCurrentTurn(encounter, participantId), userId);
         EncounterLifecycle.requireActive(encounter);
         return encounter;
+    }
+
+    /**
+     * As {@link #beginOnTurnFor}, except that a command costing a reaction or nothing from the turn may be given on
+     * any turn, as a player's reaction may (D174).
+     */
+    public Encounter beginForCost(UUID encounterId, UUID participantId, UUID userId, ActionCost cost) {
+        return offTurnAllowed(cost)
+                ? beginFor(encounterId, participantId, userId)
+                : beginOnTurnFor(encounterId, participantId, userId);
+    }
+
+    /**
+     * For a command whose cost is known only once the encounter is read, such as a spell's casting time, begun with
+     * {@link #beginFor}: a player gives it only on the participant's turn, unless it costs a reaction or nothing
+     * from the turn (D174).
+     */
+    public void requireTurnForCost(Encounter encounter, UUID participantId, UUID userId, ActionCost cost) {
+        if (!offTurnAllowed(cost)) {
+            accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId),
+                    EncounterTurns.isCurrentTurn(encounter, participantId), userId);
+        }
+    }
+
+    private static boolean offTurnAllowed(ActionCost cost) {
+        return cost == ActionCost.REACTION || cost == ActionCost.FREE;
     }
 
     public static boolean isDm(Encounter encounter, UUID userId) {

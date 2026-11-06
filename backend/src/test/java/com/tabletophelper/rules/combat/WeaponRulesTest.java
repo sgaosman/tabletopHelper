@@ -24,19 +24,19 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class WeaponRulesTest {
 
-    private static final Weapon LONGSWORD = new Weapon("Longsword", Category.MARTIAL, false, false, false,
+    private static final Weapon LONGSWORD = new Weapon("Longsword", Category.MARTIAL, false, false, false, false,
             Dice.parse("1d8"), "slashing");
-    private static final Weapon RAPIER = new Weapon("Rapier", Category.MARTIAL, false, true, false,
+    private static final Weapon RAPIER = new Weapon("Rapier", Category.MARTIAL, false, true, false, false,
             Dice.parse("1d8"), "piercing");
-    private static final Weapon GREATSWORD = new Weapon("Greatsword", Category.MARTIAL, false, false, true,
+    private static final Weapon GREATSWORD = new Weapon("Greatsword", Category.MARTIAL, false, false, true, false,
             Dice.parse("2d6"), "slashing");
-    private static final Weapon LONGBOW = new Weapon("Longbow", Category.MARTIAL, true, false, true,
+    private static final Weapon LONGBOW = new Weapon("Longbow", Category.MARTIAL, true, false, true, false,
             Dice.parse("1d8"), "piercing");
-    private static final Weapon DART = new Weapon("Dart", Category.SIMPLE, true, true, false,
+    private static final Weapon DART = new Weapon("Dart", Category.SIMPLE, true, true, false, false,
             Dice.parse("1d4"), "piercing");
-    private static final Weapon JAVELIN = new Weapon("Javelin", Category.SIMPLE, false, false, false,
+    private static final Weapon JAVELIN = new Weapon("Javelin", Category.SIMPLE, false, false, false, false,
             Dice.parse("1d6"), "piercing");
-    private static final Weapon BLOWGUN = new Weapon("Blowgun", Category.MARTIAL, true, false, false,
+    private static final Weapon BLOWGUN = new Weapon("Blowgun", Category.MARTIAL, true, false, false, false,
             Dice.parse("1"), "piercing");
 
     @Test
@@ -141,5 +141,25 @@ class WeaponRulesTest {
         assertEquals(new Dice(0, 0, 13), WeaponRules.attack(BLOWGUN, 10, 14, 2, true, true).damage());
         assertEquals(Dice.parse("2d6+14").doubled(), Dice.parse("4d6+14"));
         assertThrows(IllegalArgumentException.class, () -> WeaponRules.attack(LONGSWORD, 16, 10, 2, true, true));
+    }
+
+    @Test
+    @DisplayName("An off-hand attack needs a light melee weapon and adds the ability modifier to its damage only when negative")
+    void offHandAttack() {
+        Weapon shortsword = new Weapon("Shortsword", Category.MARTIAL, false, true, false, true, Dice.parse("1d6"),
+                "piercing");
+        Weapon handCrossbow = new Weapon("Hand Crossbow", Category.MARTIAL, true, false, false, true,
+                Dice.parse("1d6"), "piercing");
+        assertTrue(WeaponRules.offHandWeapon(shortsword));
+        assertFalse(WeaponRules.offHandWeapon(LONGSWORD));
+        assertFalse(WeaponRules.offHandWeapon(handCrossbow));
+        assertFalse(WeaponRules.offHandWeapon(WeaponRules.UNARMED_STRIKE));
+
+        assertEquals(new Numbers(Ability.DEX, 6, Dice.parse("1d6")),
+                WeaponRules.attack(shortsword, 10, 16, 3, true, false, true));
+        assertEquals(new Numbers(Ability.DEX, 1, Dice.parse("1d6-1")),
+                WeaponRules.attack(shortsword, 6, 8, 2, true, false, true));
+        assertEquals(new Numbers(Ability.DEX, 6, Dice.parse("1d6+3")),
+                WeaponRules.attack(shortsword, 10, 16, 3, true, false, false));
     }
 }

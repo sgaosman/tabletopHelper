@@ -3,6 +3,7 @@ package com.tabletophelper.encounter.internal;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.dto.AttackCost;
 import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.rules.Ability;
@@ -422,6 +423,8 @@ class AttackServiceTest {
 
             // 12 + 5 + 1 = 18 against AC 18; 4 + 3 + 1
             attack(request, 12, 4);
+            // The second attack on a later turn, so it has an action to take (D174)
+            CombatFixture.newTurn(rogue);
             // 15 + 5 hits; 4 + 3 slashing and 2 + 2 fire
             attack(flameTongue, 15, 4, 2, 2);
 
@@ -563,5 +566,135 @@ class AttackServiceTest {
         assertDoesNotThrow(() -> f.attacks.rollAttack(f.encounterId(), request(goblin, 5, "1d6"), rogue.getId(),
                 playerUserId));
         assertEquals(4, goblin.getHpCurrent());
+    }
+
+    @Nested
+    @DisplayName("The action economy (D174)")
+    class Economy {
+
+        private AttackRollRequest costing(AttackRollRequest request, AttackCost cost) {
+            request.setCost(cost);
+            return request;
+        }
+
+        @Test
+        @DisplayName("A player's second attack without Extra Attack is a 409 before anything rolls or is logged")
+        void playerOverBudgetRefused() {
+            UUID playerUserId = f.playerControlling(rogue);
+            EncounterParticipant goblin = f.monster("Goblin", 20, 15);
+            f.dice.script(15, 3);
+            f.attacks.rollAttack(f.encounterId(), request(goblin, 5, "1d6"), rogue.getId(), playerUserId);
+            int entries = f.log.size();
+
+            // No dice are scripted, so any roll would fail the test
+            ConflictException ex = assertThrows(ConflictException.class, () -> f.attacks.rollAttack(f.encounterId(),
+                    request(goblin, 5, "1d6"), rogue.getId(), playerUserId));
+
+            assertEquals("It has no attacks left in its Attack action and no action left this turn", ex.getMessage());
+            assertEquals(17, goblin.getHpCurrent());
+            assertEquals(entries, f.log.size());
+            assertEquals(1, rogue.getTurnEconomy().actionsUsed());
+        }
+
+        @Test
+        @DisplayName("With Extra Attack the first attack opens the Attack action and the second uses it")
+        void extraAttack() {
+            rogue.getCharacter().setFeatures(List.of(new Feature("Extra Attack", null, null)));
+            UUID playerUserId = f.playerControlling(rogue);
+            EncounterParticipant goblin = f.monster("Goblin", 20, 15);
+
+            f.dice.script(15, 3);
+            f.attacks.rollAttack(f.encounterId(), request(goblin, 5, "1d6"), rogue.getId(), playerUserId);
+            assertEquals(1, rogue.getTurnEconomy().attacksLeft());
+            f.dice.script(15, 3);
+            f.attacks.rollAttack(f.encounterId(), request(goblin, 5, "1d6"), rogue.getId(), playerUserId);
+
+            assertEquals(0, rogue.getTurnEconomy().attacksLeft());
+            assertEquals(1, rogue.getTurnEconomy().actionsUsed());
+            assertThrows(ConflictException.class, () -> f.attacks.rollAttack(f.encounterId(),
+                    request(goblin, 5, "1d6"), rogue.getId(), playerUserId));
+        }
+
+        @Test
+        @DisplayName("The DM's attack over budget still rolls, and the log says the player character went over")
+        void dmOverBudgetLoggedForAPlayerCharacter() {
+            EncounterParticipant goblin = f.monster("Goblin", 20, 15);
+            attack(request(goblin, 5, "1d6"), 15, 3);
+
+            attack(request(goblin, 5, "1d6"), 15, 4);
+
+            assertEquals(20 - 3 - 4, goblin.getHpCurrent());
+            assertTrue(f.descriptions().contains("Rogue's attack is over the action economy: it has no attacks left "
+                    + "in its Attack action and no action left this turn"));
+            assertEquals(2, rogue.getTurnEconomy().actionsUsed());
+        }
+
+        @Test
+        @DisplayName("The DM's monster over budget is tracked but not logged as over")
+        void dmOverBudgetNotLoggedForAMonster() {
+            EncounterParticipant goblin = f.monster("Goblin", 20, 15);
+            f.turnOf(goblin);
+            for (int i = 0; i < 2; i++) {
+                f.dice.script(15, 3);
+                f.attacks.rollAttack(f.encounterId(), request(rogue, 5, "1d6"), goblin.getId(), f.dmUserId);
+            }
+
+            assertEquals(30 - 6, rogue.getHpCurrent());
+            assertEquals(2, goblin.getTurnEconomy().actionsUsed());
+            assertTrue(f.descriptions().stream().noneMatch(entry -> entry.contains("over the action economy")));
+        }
+
+        @Test
+        @DisplayName("An off-hand attack needs the Attack action and a light melee weapon, and adds no positive ability "
+                + "modifier to its damage")
+        void offHandAttack() {
+            rogue.getCharacter().setDexterity(16);
+            CombatFixture.carries(rogue, List.of("simple", "martial"), "Dagger", "Longsword");
+            UUID playerUserId = f.playerControlling(rogue);
+            EncounterParticipant goblin = f.monster("Goblin", 30, 10);
+
+            ConflictException first = assertThrows(ConflictException.class, () -> f.attacks.rollAttack(
+                    f.encounterId(), costing(weaponRequest(goblin, "Dagger"), AttackCost.BONUS_ACTION), rogue.getId(),
+                    playerUserId));
+            assertEquals("An off-hand attack needs the Attack action first this turn", first.getMessage());
+
+            f.dice.script(15, 4);
+            f.attacks.rollAttack(f.encounterId(), weaponRequest(goblin, "Dagger"), rogue.getId(), playerUserId);
+            ValidationException heavy = assertThrows(ValidationException.class, () -> f.attacks.rollAttack(
+                    f.encounterId(), costing(weaponRequest(goblin, "Longsword"), AttackCost.BONUS_ACTION),
+                    rogue.getId(), playerUserId));
+            assertEquals("An off-hand attack needs a light melee weapon, and the Longsword isn't one",
+                    heavy.getMessage());
+
+            // 4 + 3 for the Attack action's dagger, then 4 alone for the off-hand dagger
+            f.dice.script(15, 4);
+            f.attacks.rollAttack(f.encounterId(), costing(weaponRequest(goblin, "Dagger"), AttackCost.BONUS_ACTION),
+                    rogue.getId(), playerUserId);
+
+            assertEquals(30 - 7 - 4, goblin.getHpCurrent());
+            assertTrue(f.entriesAbout(goblin).getLast().getDescription()
+                    .startsWith("Rogue uses Dagger (bonus action) on Goblin: d20(15) + 5 = 20"));
+            assertTrue(rogue.getTurnEconomy().bonusActionUsed());
+        }
+
+        @Test
+        @DisplayName("A player's opportunity attack is a reaction on another creature's turn, once until their own turn")
+        void opportunityAttack() {
+            EncounterParticipant goblin = f.monster("Goblin", 20, 15);
+            f.turnOf(goblin);
+            UUID playerUserId = f.playerControlling(rogue);
+
+            f.dice.script(15, 3);
+            f.attacks.rollAttack(f.encounterId(), costing(request(goblin, 5, "1d6"), AttackCost.REACTION),
+                    rogue.getId(), playerUserId);
+            ConflictException ex = assertThrows(ConflictException.class, () -> f.attacks.rollAttack(f.encounterId(),
+                    costing(request(goblin, 5, "1d6"), AttackCost.REACTION), rogue.getId(), playerUserId));
+
+            assertEquals(17, goblin.getHpCurrent());
+            assertEquals("Rogue attacks (reaction) Goblin: d20(15) + 5 = 20 vs AC 15 — hit, 3 damage.",
+                    entryAbout(goblin));
+            assertEquals("It has already taken its reaction; it comes back at the start of its turn", ex.getMessage());
+            assertEquals(0, rogue.getTurnEconomy().actionsUsed());
+        }
     }
 }

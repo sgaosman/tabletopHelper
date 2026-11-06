@@ -222,6 +222,8 @@ class EffectApplierTest {
         request.setTargetIds(Arrays.stream(targets).map(EncounterParticipant::getId).toList());
         if (path == Path.SPELL) {
             f.knows(wizard, "Test Spell");
+            // On the Wizard's own turn, so the DM's cast isn't over the action economy (D174)
+            f.turnOf(wizard);
             f.spellcasting.castSpell(f.encounterId(), request, wizard.getId(), f.dmUserId);
         } else {
             f.spellcasting.castSpell(f.encounterId(), request, mage.getId(), f.dmUserId);
