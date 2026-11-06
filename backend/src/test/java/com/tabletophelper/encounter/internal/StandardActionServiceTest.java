@@ -211,10 +211,16 @@ class StandardActionServiceTest {
         }
 
         @Test
-        @DisplayName("A player acts only on their participant's turn, and only for their own")
+        @DisplayName("A player acts only on their participant's turn, with its own wording rather than an attack's, and "
+                + "only for their own")
         void access() {
-            assertThrows(ForbiddenException.class, () -> act(fighter, Action.DASH, player));
-            assertThrows(ForbiddenException.class, () -> act(goblin, Action.DASH, player));
+            ForbiddenException offTurn = assertThrows(ForbiddenException.class,
+                    () -> act(fighter, Action.DASH, player));
+            ForbiddenException notTheirs = assertThrows(ForbiddenException.class,
+                    () -> act(goblin, Action.DASH, player));
+
+            assertEquals("You can only take that action on your turn", offTurn.getMessage());
+            assertEquals("You do not have permission to perform this action", notTheirs.getMessage());
             assertTrue(f.log.isEmpty());
         }
     }
@@ -449,9 +455,12 @@ class StandardActionServiceTest {
         }
 
         @Test
-        @DisplayName("A player interacts only on their participant's turn")
+        @DisplayName("A player interacts only on their participant's turn, refused with the action wording")
         void offTurn() {
-            assertThrows(ForbiddenException.class, () -> interact(fighter, "draws a sword", player));
+            ForbiddenException refused = assertThrows(ForbiddenException.class,
+                    () -> interact(fighter, "draws a sword", player));
+
+            assertEquals("You can only take that action on your turn", refused.getMessage());
         }
     }
 

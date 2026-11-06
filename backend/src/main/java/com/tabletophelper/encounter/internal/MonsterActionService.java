@@ -41,8 +41,14 @@ import java.util.stream.Collectors;
  * Lair's turn and can't repeat two rounds running (D136, D163). A multiattack takes a target for each of its
  * attacks, or sends them all at one creature (D165). Each target's result is logged on its own entry, and a failed
  * save by a creature with Legendary Resistance left is offered for undoing (D163). An action from the monster's
- * actions costs its action, a Multiattack included; legendary and lair actions are outside the action economy
- * (D174).
+ * actions costs its action, a Multiattack included; a bonus action costs its bonus action, and a reaction its
+ * reaction, which may be taken on any creature's turn, the Lair's included (D138, D174). Legendary and lair actions
+ * are outside the action economy. The DM is never refused for the economy, and a monster going over it isn't logged.
+ * <p>
+ * Bonus actions and reactions resolve as actions do: those with effects the server can read automatically, the rest
+ * logged for the DM (D137). Nothing prompts for a reaction, so one that changes a result already resolved, such as
+ * Parry raising AC against a hit or Uncanny Dodge halving its damage, is logged with its data's note, and the DM
+ * adjusts the result by hand.
  */
 @Service
 @RequiredArgsConstructor
@@ -101,11 +107,13 @@ public class MonsterActionService {
         if (rechargePool != null && poolUses(monster, rechargePool) <= 0) {
             throw new ConflictException("Recharge action '" + actionName + "' is not yet recharged");
         }
-        if (!"LEGENDARY".equals(request.actionSource()) && !"LAIR".equals(request.actionSource())) {
+        ActionCost cost = costOf(request.actionSource());
+        String costNote = costNote(cost);
+        if (cost != null) {
             economy.charge(encounter, monster,
-                    Charge.of(ActionCost.ACTION, EncounterTurns.isCurrentTurn(encounter, monster.getId())), userId,
+                    Charge.of(cost, EncounterTurns.isCurrentTurn(encounter, monster.getId())), userId,
                     new ActionEconomyKeeper.Command(CombatActionType.MONSTER_ACTION,
-                            monster.getDisplayName() + "'s " + actionName));
+                            monster.getDisplayName() + "'s " + actionName + costNote));
         }
         if ("LAIR".equals(request.actionSource())) {
             if (actionName.equals(monster.getLastLairActionUsed())) {
@@ -124,13 +132,13 @@ public class MonsterActionService {
         };
 
         // The entry for the action as a whole names no target, so it can't name a hidden one (D157)
-        String lead = monster.getDisplayName() + " uses " + actionName;
+        String lead = monster.getDisplayName() + " uses " + actionName + costNote;
         String notes = String.join(" ", plan.notes());
         String description = plan.automated()
                 ? lead + "." + (notes.isEmpty() ? "" : " " + notes)
                 : lead + " — " + plan.manualReason();
         effectApplier.summary(encounter, new EffectApplier.Use(monster, monster.getDisplayName(), logType,
-                "uses " + actionName, "on", monster.getDisplayName(), null), description);
+                "uses " + actionName + costNote, "on", monster.getDisplayName(), null), description);
 
         List<EffectApplier.Applied> applied = new ArrayList<>();
         if (plan.automated()) {
@@ -147,7 +155,7 @@ public class MonsterActionService {
                 }
                 String label = step.label().equals(actionName) ? actionName : actionName + " (" + step.label() + ")";
                 EffectApplier.Use use = new EffectApplier.Use(monster, monster.getDisplayName(), logType,
-                        "uses " + label, "on", monster.getDisplayName(), null);
+                        "uses " + label + costNote, "on", monster.getDisplayName(), null);
                 applied.addAll(effectApplier.apply(encounter, use, step.effect(),
                         resolver.resolve(step.effect(), stats.targets(stepTargets, step.effect()))));
             }
@@ -256,9 +264,32 @@ public class MonsterActionService {
     }
 
     /**
+     * What an action of this source costs from the monster's turn (D174): an action from its actions, its bonus action
+     * from its bonus actions, and its reaction from its reactions; null for legendary and lair actions, which are
+     * outside the economy (D163).
+     */
+    private static ActionCost costOf(String source) {
+        return switch (source != null ? source : "") {
+            case "LEGENDARY", "LAIR" -> null;
+            case "BONUS" -> ActionCost.BONUS_ACTION;
+            case "REACTION" -> ActionCost.REACTION;
+            default -> ActionCost.ACTION;
+        };
+    }
+
+    // How the log names a cost other than an action, as attacks and spells do (D174)
+    private static String costNote(ActionCost cost) {
+        if (cost == ActionCost.BONUS_ACTION) {
+            return " (bonus action)";
+        }
+        return cost == ActionCost.REACTION ? " (reaction)" : "";
+    }
+
+    /**
      * When the action may be used (D163), refused with a 409: a legendary action on any turn but its monster's
      * own, the Lair's included, and a lair action only on the Lair's turn, by a living monster fighting in its
-     * lair.
+     * lair. Bonus actions and reactions have no timing of their own here: the economy decides, and the DM goes over
+     * it rather than being refused (D174).
      */
     private static void requireTiming(Encounter encounter, EncounterParticipant monster, String source) {
         if ("LEGENDARY".equals(source) && EncounterTurns.isCurrentTurn(encounter, monster.getId())) {

@@ -56,6 +56,15 @@ class MonsterActionServiceTest {
                  "legendaryActions": [
                    {"name": "Wing Attack", "cost": 2, "deliveryMethod": "SAVING_THROW", "saveDC": 15,
                     "saveAbility": "DEX", "effects": [{"effectType": "CONDITION", "condition": "prone"}]}],
+                 "bonusActions": [
+                   {"name": "Tail Flick", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 10,
+                    "effects": [{"effectType": "DAMAGE", "damageDice": "5", "damageType": "bludgeoning"}]}],
+                 "reactions": [
+                   {"name": "Fiery Rebuke", "deliveryMethod": "SAVING_THROW", "saveDC": 15, "saveAbility": "DEX",
+                    "effects": [{"effectType": "DAMAGE", "damageDice": "10", "damageType": "fire"}]},
+                   {"name": "Parry", "automatable": false,
+                    "description": "The dragon adds 3 to its AC against one melee attack that would hit it.",
+                    "dmNote": "+3 AC against one melee hit: if it now misses, the DM restores its damage by hand."}],
                  "lairActions": [
                    {"name": "Tremor", "deliveryMethod": "SAVING_THROW", "saveDC": 15, "saveAbility": "DEX",
                     "effects": [{"effectType": "CONDITION", "condition": "prone"}]}]}"""));
@@ -510,5 +519,76 @@ class MonsterActionServiceTest {
         f.turnOf(fighter);
         act("Wing Attack", "LEGENDARY", List.of(fighter), 15);
         assertEquals(2, dragon.getTurnEconomy().actionsUsed());
+    }
+
+    @Test
+    @DisplayName("A bonus action resolves like an action and costs the monster's bonus action on its turn, not its "
+            + "action; a second goes over without being refused or logged as over (D138, D174)")
+    void bonusAction() {
+        f.turnOf(dragon);
+
+        // 15 + 10 hits AC 18 for a flat 5
+        act("Tail Flick", "BONUS", List.of(fighter), 15);
+        act("Tail Flick", "BONUS", List.of(fighter), 15);
+
+        assertTrue(dragon.getTurnEconomy().bonusActionUsed());
+        assertEquals(0, dragon.getTurnEconomy().actionsUsed());
+        assertEquals(30, fighter.getHpCurrent());
+        assertEquals("Young Dragon uses Tail Flick (bonus action).", f.descriptions().getFirst());
+        assertTrue(f.descriptions().get(1).startsWith("Young Dragon uses Tail Flick (bonus action) on Fighter: "));
+        assertTrue(f.descriptions().stream().noneMatch(entry -> entry.contains("over the action economy")));
+        assertTrue(f.log.stream().allMatch(entry -> entry.getActionType() == CombatActionType.MONSTER_ACTION));
+    }
+
+    @Test
+    @DisplayName("A reaction is taken on another creature's turn and the Lair's, and costs the monster's reaction; "
+            + "the DM's second isn't refused or logged as over (D138, D174)")
+    void reactionOffTurn() {
+        f.turnOf(fighter);
+
+        // The fighter rolls 5 + its DEX save against DC 15 and fails, taking a flat 10 fire
+        act("Fiery Rebuke", "REACTION", List.of(fighter), 5);
+
+        assertTrue(dragon.getTurnEconomy().reactionUsed());
+        assertEquals(0, dragon.getTurnEconomy().actionsUsed());
+        assertFalse(dragon.getTurnEconomy().bonusActionUsed());
+        assertEquals(30, fighter.getHpCurrent());
+        assertEquals("Young Dragon uses Fiery Rebuke (reaction).", f.descriptions().getFirst());
+
+        f.lairTurn();
+        act("Parry", "REACTION", List.of());
+
+        assertTrue(dragon.getTurnEconomy().reactionUsed());
+        assertTrue(f.descriptions().stream().noneMatch(entry -> entry.contains("over the action economy")));
+    }
+
+    @Test
+    @DisplayName("A reaction that changes a hit already resolved, such as Parry, is logged with its note for the DM, "
+            + "and changes nothing (Q4)")
+    void parryIsLoggedWithItsNote() {
+        f.turnOf(fighter);
+
+        MonsterActionResponse response = act("Parry", "REACTION", List.of());
+
+        assertFalse(response.resolved());
+        assertTrue(response.requiresManualResolution());
+        assertEquals(List.of("Young Dragon uses Parry (reaction) — +3 AC against one melee hit: if it now misses, the DM "
+                + "restores its damage by hand."), f.descriptions());
+        assertEquals(40, fighter.getHpCurrent());
+        assertTrue(dragon.getTurnEconomy().reactionUsed());
+    }
+
+    @Test
+    @DisplayName("A bonus action or reaction is found only in its own list")
+    void sourcesFindTheirOwnLists() {
+        ValidationException biteAsBonus = assertThrows(ValidationException.class,
+                () -> act("Bite", "BONUS", List.of(fighter)));
+        ValidationException parryAsAction = assertThrows(ValidationException.class,
+                () -> act("Parry", "ACTION", List.of()));
+
+        assertEquals("Action 'Bite' not found in monster's action templates (source: BONUS)", biteAsBonus.getMessage());
+        assertEquals("Action 'Parry' not found in monster's action templates (source: ACTION)",
+                parryAsAction.getMessage());
+        assertTrue(f.log.isEmpty());
     }
 }

@@ -8066,6 +8066,8 @@
             "type": "string",
             "enum": [
               "ACTION",
+              "BONUS",
+              "REACTION",
               "LEGENDARY",
               "LAIR"
             ]

@@ -132,6 +132,22 @@ public class MonsterTemplatesTest {
     }
 
     @Test
+    @DisplayName("BONUS finds the bonus actions and REACTION the reactions, and neither finds an action (D138)")
+    void bonusActionsAndReactions() {
+        MonsterTemplates captain = parse("""
+                {"actions": [{"name": "Scimitar"}],
+                 "bonusActions": [{"name": "Nimble Escape"}],
+                 "reactions": [{"name": "Parry", "automatable": false, "dmNote": "Restore the damage by hand."}]}""");
+
+        assertEquals(List.of(captain.bonusActions().getFirst()), captain.list("BONUS"));
+        assertEquals(List.of(captain.reactions().getFirst()), captain.list("REACTION"));
+        assertEquals("Restore the damage by hand.", captain.find("REACTION", "Parry").orElseThrow().dmNote());
+        assertTrue(captain.find("BONUS", "Scimitar").isEmpty());
+        assertTrue(captain.find("ACTION", "Parry").isEmpty());
+        assertTrue(captain.find("REACTION", "Nimble Escape").isEmpty());
+    }
+
+    @Test
     @DisplayName("Actions are found by source and exact name; a multiattack's components in any case and in any list")
     void lookups() {
         MonsterTemplates dragon = parse(ADULT_RED_DRAGON);

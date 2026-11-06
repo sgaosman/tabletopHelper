@@ -154,11 +154,16 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         return templates;
     }
 
-    /** The list an action of this source is in: LEGENDARY and LAIR name theirs, and anything else the actions. */
+    /**
+     * The list an action of this source is in: LEGENDARY, LAIR, BONUS (the bonus actions) and REACTION (the reactions)
+     * name theirs, and anything else the actions.
+     */
     public List<Action> list(String source) {
         return switch (source != null ? source : "") {
             case "LEGENDARY" -> legendaryActions;
             case "LAIR" -> lairActions;
+            case "BONUS" -> bonusActions;
+            case "REACTION" -> reactions;
             default -> actions;
         };
     }
@@ -186,7 +191,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     }
 
     /**
-     * One action, legendary action, lair action or trait.
+     * One action, legendary action, lair action, bonus action, reaction or trait.
      *
      * @param automatable             false when the data leaves the action to the DM
      * @param deliveryMethod          ATTACK_ROLL, SAVING_THROW, AUTO_HIT or AUTO_DAMAGE, any other being the DM's;

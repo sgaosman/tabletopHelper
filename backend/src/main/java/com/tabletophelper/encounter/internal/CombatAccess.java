@@ -24,6 +24,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CombatAccess {
 
+    /** Why a player's command other than an attack or a spell is refused off the participant's turn. */
+    public static final String OFF_TURN_ACTION = "You can only take that action on your turn";
+
     private final EncounterCommands encounterCommands;
     private final AccessPolicy accessPolicy;
 
@@ -55,6 +58,18 @@ public class CombatAccess {
     }
 
     /**
+     * As {@link #beginOnTurnFor}, for a command that is neither an attack nor a spell, such as a standard action or
+     * an object interaction: a player's off the participant's turn is refused with {@link #OFF_TURN_ACTION}.
+     */
+    public Encounter beginOnTurnForAction(UUID encounterId, UUID participantId, UUID userId) {
+        Encounter encounter = encounterCommands.beginAsMember(encounterId, userId);
+        accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId),
+                EncounterTurns.isCurrentTurn(encounter, participantId), OFF_TURN_ACTION, userId);
+        EncounterLifecycle.requireActive(encounter);
+        return encounter;
+    }
+
+    /**
      * As {@link #beginOnTurnFor}, except that a command costing a reaction or nothing from the turn may be given on
      * any turn, as a player's reaction may (D174).
      */
@@ -73,6 +88,17 @@ public class CombatAccess {
         if (!offTurnAllowed(cost)) {
             accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId),
                     EncounterTurns.isCurrentTurn(encounter, participantId), userId);
+        }
+    }
+
+    /**
+     * As {@link #requireTurnForCost}, for a command that is neither an attack nor a spell, such as a pool's use: a
+     * player's off the participant's turn is refused with {@link #OFF_TURN_ACTION}.
+     */
+    public void requireTurnForActionCost(Encounter encounter, UUID participantId, UUID userId, ActionCost cost) {
+        if (!offTurnAllowed(cost)) {
+            accessPolicy.requireControls(campaignId(encounter), controllerOf(encounter, participantId),
+                    EncounterTurns.isCurrentTurn(encounter, participantId), OFF_TURN_ACTION, userId);
         }
     }
 

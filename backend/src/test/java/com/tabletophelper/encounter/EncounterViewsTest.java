@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -384,7 +385,7 @@ class EncounterViewsTest {
                     entry("Round 2 begins", null, null));
 
             assertEquals(List.of("Gimli attacks Goblin", "Round 2 begins"),
-                    descriptions(EncounterViews.playerLog(log, hidden)));
+                    descriptions(EncounterViews.playerLog(log, hidden, Set.of())));
         }
 
         @Test
@@ -395,7 +396,7 @@ class EncounterViewsTest {
                     .lrTargetId(bugbearId)
                     .build());
 
-            assertTrue(EncounterViews.playerLog(log, hidden).isEmpty());
+            assertTrue(EncounterViews.playerLog(log, hidden, Set.of()).isEmpty());
         }
 
         @Test
@@ -409,7 +410,7 @@ class EncounterViewsTest {
                     .lrResolved(false)
                     .build());
 
-            var playerEntry = EncounterViews.playerLog(log, hidden).getFirst();
+            var playerEntry = EncounterViews.playerLog(log, hidden, Set.of()).getFirst();
 
             assertNull(playerEntry.getLegendaryResistanceEligible());
             assertNull(playerEntry.getLrTargetId());
@@ -427,7 +428,7 @@ class EncounterViewsTest {
                     entry("DM deals 4 damage to Gimli", null, gimliId).toBuilder().turnParticipantName("Bugbear").build(),
                     entry("Gimli attacks Goblin", gimliId, goblinId));
 
-            var playerLog = EncounterViews.playerLog(log, hidden);
+            var playerLog = EncounterViews.playerLog(log, hidden, Set.of());
 
             assertEquals(2, playerLog.size());
             assertNull(playerLog.get(0).getTurnParticipantName());
@@ -435,11 +436,40 @@ class EncounterViewsTest {
         }
 
         @Test
+        @DisplayName("Keeps the DM's edit of a monster's turn economy without its changes, and a character's whole")
+        void reducesAMonstersTurnEconomyEdit() {
+            var log = List.of(
+                    entry("The DM sets Goblin's turn economy: reaction used no → yes", null, goblinId).toBuilder()
+                            .actionType("TURN_ECONOMY_SET").targetName("Goblin").build(),
+                    entry("The DM sets Gimli's turn economy: actions 1 → 2", null, gimliId).toBuilder()
+                            .actionType("TURN_ECONOMY_SET").targetName("Gimli").build(),
+                    entry("Gimli attacks Goblin", gimliId, goblinId).toBuilder().targetName("Goblin").build());
+
+            var playerLog = EncounterViews.playerLog(log, hidden, Set.of(goblinId, bugbearId));
+
+            assertEquals(List.of("The DM adjusts Goblin's turn.", "The DM sets Gimli's turn economy: actions 1 → 2",
+                    "Gimli attacks Goblin"), descriptions(playerLog));
+            assertEquals("The DM sets Goblin's turn economy: reaction used no → yes", log.getFirst().getDescription());
+        }
+
+        @Test
         @DisplayName("With nothing hidden, every entry stays")
         void nothingHidden() {
             var log = List.of(entry("Gimli attacks Goblin", gimliId, goblinId), entry("Round 2 begins", null, null));
 
-            assertEquals(2, EncounterViews.playerLog(log, Map.of()).size());
+            assertEquals(2, EncounterViews.playerLog(log, Map.of(), Set.of()).size());
+        }
+    }
+
+    @Nested
+    @DisplayName("monsters")
+    class Monsters {
+
+        @Test
+        @DisplayName("Lists every monster, hidden or not, and no character")
+        void listsTheMonsters() {
+            assertEquals(Set.of(goblinId, bugbearId),
+                    EncounterViews.monsters(encounter(false, gimli(), goblin(7), bugbear(false))));
         }
     }
 

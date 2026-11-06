@@ -83,7 +83,7 @@ public class StandardActionService {
     public EncounterResponse standardAction(UUID encounterId, StandardActionRequest request, UUID userId) {
         Action action = request.action();
         ActionCost cost = (request.cost() != null ? request.cost() : StandardActionCost.ACTION).actionCost();
-        Encounter encounter = access.beginOnTurnFor(encounterId, request.participantId(), userId);
+        Encounter encounter = access.beginOnTurnForAction(encounterId, request.participantId(), userId);
         EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
         EncounterParticipant target = target(encounter, request, userId);
         String note = request.note() != null && !request.note().isBlank() ? request.note().trim() : null;
@@ -139,7 +139,7 @@ public class StandardActionService {
      */
     @Transactional
     public EncounterResponse objectInteraction(UUID encounterId, ObjectInteractionRequest request, UUID userId) {
-        Encounter encounter = access.beginOnTurnFor(encounterId, request.participantId(), userId);
+        Encounter encounter = access.beginOnTurnForAction(encounterId, request.participantId(), userId);
         EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, participant.getId());
         String overReason = ActionEconomy.objectInteractionCheck(budget(participant)).orElse(null);

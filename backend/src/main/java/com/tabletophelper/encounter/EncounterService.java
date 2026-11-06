@@ -612,7 +612,8 @@ public class EncounterService {
 
     /**
      * The encounter's combat log as the user may read it: all of it for the DM, and for players without the
-     * entries about hidden participants or the Legendary Resistance fields (D157).
+     * entries about hidden participants, the Legendary Resistance fields, or the changes in the DM's edits of
+     * monsters' turn economies (D157, D174).
      */
     @Transactional(readOnly = true)
     public List<CombatLogResponse> getCombatLog(UUID encounterId, UUID userId) {
@@ -626,6 +627,10 @@ public class EncounterService {
         Map<UUID, String> hiddenParticipants = encounter.getParticipants().stream()
                 .filter(p -> Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
                 .collect(Collectors.toMap(EncounterParticipant::getId, EncounterParticipant::getDisplayName));
-        return EncounterViews.playerLog(entries, hiddenParticipants);
+        Set<UUID> monsters = encounter.getParticipants().stream()
+                .filter(p -> p.getParticipantType() == ParticipantType.MONSTER)
+                .map(EncounterParticipant::getId)
+                .collect(Collectors.toSet());
+        return EncounterViews.playerLog(entries, hiddenParticipants, monsters);
     }
 }

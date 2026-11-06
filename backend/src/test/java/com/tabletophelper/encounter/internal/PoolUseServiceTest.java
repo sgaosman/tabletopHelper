@@ -117,8 +117,9 @@ class PoolUseServiceTest {
         void bonusActionOffTurn() {
             f.turnOf(goblin);
 
-            assertThrows(ForbiddenException.class, () -> use(vex, SECOND_WIND, player));
+            ForbiddenException action = assertThrows(ForbiddenException.class, () -> use(vex, SECOND_WIND, player));
             assertThrows(ForbiddenException.class, () -> use(vex, KNACK, player));
+            assertEquals("You can only take that action on your turn", action.getMessage());
             assertEquals(1, usesOf(vex, SECOND_WIND));
             assertTrue(f.entries(CombatActionType.POOL_USE).isEmpty());
         }

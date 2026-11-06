@@ -92,16 +92,22 @@ public final class EncounterViews {
     /**
      * The combat log as players read it: entries whose actor, target or Legendary Resistance target
      * is hidden are left out, and no entry keeps the Legendary Resistance fields. An entry logged
-     * during a hidden participant's turn keeps its place without that participant's name.
+     * during a hidden participant's turn keeps its place without that participant's name. The DM's edit of a
+     * monster's turn economy keeps its place as "The DM adjusts Goblin's turn.", without the changes, since players
+     * don't see monsters' budgets (D157, D174).
      *
      * @param hiddenParticipants each hidden participant's ID, mapped to its display name
+     * @param monsters           each monster's ID
      */
-    public static List<CombatLogResponse> playerLog(List<CombatLogResponse> log, Map<UUID, String> hiddenParticipants) {
+    public static List<CombatLogResponse> playerLog(List<CombatLogResponse> log, Map<UUID, String> hiddenParticipants,
+                                                    Set<UUID> monsters) {
         return log.stream()
                 .filter(entry -> !isHidden(entry.getActorId(), hiddenParticipants)
                         && !isHidden(entry.getTargetId(), hiddenParticipants)
                         && !isHidden(entry.getLrTargetId(), hiddenParticipants))
                 .map(entry -> entry.toBuilder()
+                        .description(monsterEconomyEdit(entry, monsters)
+                                ? "The DM adjusts " + entry.getTargetName() + "'s turn." : entry.getDescription())
                         .turnParticipantName(namesHiddenParticipant(entry.getTurnParticipantName(), hiddenParticipants)
                                 ? null : entry.getTurnParticipantName())
                         .legendaryResistanceEligible(null)
@@ -115,11 +121,25 @@ public final class EncounterViews {
                 .toList();
     }
 
+    /** Each monster's ID, as {@link #playerLog} takes them. */
+    public static Set<UUID> monsters(EncounterResponse dmView) {
+        return dmView.getParticipants().stream()
+                .filter(p -> ParticipantType.MONSTER.name().equals(p.getParticipantType()))
+                .map(ParticipantResponse::getId)
+                .collect(Collectors.toSet());
+    }
+
     /** Each participant the DM View marks hidden, mapped to its display name, as {@link #playerLog} takes them. */
     public static Map<UUID, String> hiddenParticipants(EncounterResponse dmView) {
         return dmView.getParticipants().stream()
                 .filter(p -> Boolean.FALSE.equals(p.getIsVisibleToPlayers()))
                 .collect(Collectors.toMap(ParticipantResponse::getId, ParticipantResponse::getDisplayName));
+    }
+
+    // The DM's edit of a monster's turn economy, whose changes would show players the budget the Player View hides
+    private static boolean monsterEconomyEdit(CombatLogResponse entry, Set<UUID> monsters) {
+        return CombatActionType.TURN_ECONOMY_SET.name().equals(entry.getActionType())
+                && entry.getTargetId() != null && monsters.contains(entry.getTargetId());
     }
 
     private static boolean isHidden(UUID participantId, Map<UUID, String> hiddenParticipants) {

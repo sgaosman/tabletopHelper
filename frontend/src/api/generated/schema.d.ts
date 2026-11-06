@@ -2818,7 +2818,7 @@ export interface components {
         MonsterActionRequest: {
             actionName: string;
             /** @enum {string} */
-            actionSource: "ACTION" | "LEGENDARY" | "LAIR";
+            actionSource: "ACTION" | "BONUS" | "REACTION" | "LEGENDARY" | "LAIR";
             advantage?: boolean | null;
             componentTargetIds?: string[][] | null;
             /** Format: uuid */

@@ -16,7 +16,9 @@ import org.springframework.core.io.ClassPathResource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,6 +61,78 @@ class MonsterActionDataTest {
             }
         }
         assertEquals(List.of(), unreadable);
+    }
+
+    @Test
+    @DisplayName("Every bonus action and reaction is found under its source and plans: 60 of the 235 bonus actions "
+            + "and 84 of the 339 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
+    void bonusActionsAndReactions() {
+        List<String> missing = new ArrayList<>();
+        Map<String, int[]> counts = new LinkedHashMap<>(Map.of("BONUS", new int[2], "REACTION", new int[2]));
+        for (JsonNode definition : definitions) {
+            MonsterTemplates templates = MonsterTemplates.of(definition);
+            for (String source : counts.keySet()) {
+                for (MonsterTemplates.Action action : templates.list(source)) {
+                    if (templates.find(source, action.name()).isEmpty()) {
+                        missing.add(name(definition) + " " + source + " " + action.name());
+                    }
+                    MonsterEffects.MonsterAction plan = monsterEffects.plan(action, templates,
+                            List.of(UUID.randomUUID()), MonsterEffects.Overrides.NONE);
+                    counts.get(source)[plan.automated() ? 0 : 1]++;
+                }
+            }
+        }
+
+        assertEquals(List.of(), missing);
+        assertArrayEquals(new int[]{60, 175}, counts.get("BONUS"));
+        assertArrayEquals(new int[]{84, 255}, counts.get("REACTION"));
+    }
+
+    @Test
+    @DisplayName("A reaction that changes a hit or its damage after it is resolved, such as each of the 43 Parries and "
+            + "18 Uncanny Dodges, is the DM's: it logs its stat block and what to adjust by hand (Q4)")
+    void reactionsThatChangeAResolvedHit() {
+        int parries = 0;
+        int uncannyDodges = 0;
+        for (JsonNode definition : definitions) {
+            MonsterTemplates templates = MonsterTemplates.of(definition);
+            for (MonsterTemplates.Action reaction : templates.reactions()) {
+                boolean parry = "Parry".equals(reaction.name());
+                boolean uncannyDodge = "Uncanny Dodge".equals(reaction.name());
+                if (!parry && !uncannyDodge) {
+                    continue;
+                }
+                MonsterEffects.MonsterAction plan = monsterEffects.plan(reaction, templates,
+                        List.of(UUID.randomUUID()), MonsterEffects.Overrides.NONE);
+                String what = name(definition) + " " + reaction.name();
+                assertFalse(plan.automated(), what);
+                assertEquals(reaction.dmNote(), plan.manualReason(), what);
+                assertTrue(plan.manualReason().endsWith(parry
+                        ? "if the higher AC makes it miss, the DM restores its damage and removes anything else the "
+                        + "hit did, by hand."
+                        : "the DM restores the part this reaction prevents, by hand."), what);
+                parries += parry ? 1 : 0;
+                uncannyDodges += uncannyDodge ? 1 : 0;
+            }
+        }
+        assertEquals(43, parries);
+        assertEquals(18, uncannyDodges);
+    }
+
+    @ParameterizedTest(name = "{0} ({1}) {2}")
+    @CsvSource({"Autumn Eladrin, MPMM, Foster Peace", "Zuggtmoy, MPMM, Protective Thrall",
+            "Kas the Betrayer, VEoR, Parrying Riposte", "Nilbog, VGM, Reversal of Fortune"})
+    @DisplayName("A reaction whose effects misread its text, charming the attacker or dealing damage with no attack, is "
+            + "the DM's, with a note")
+    void misreadReactionsAreTheDms(String monster, String source, String name) {
+        MonsterTemplates templates = MonsterTemplates.of(definition(monster, source));
+        MonsterTemplates.Action reaction = templates.find("REACTION", name).orElseThrow();
+
+        MonsterEffects.MonsterAction plan = monsterEffects.plan(reaction, templates, List.of(UUID.randomUUID()),
+                MonsterEffects.Overrides.NONE);
+
+        assertEquals(List.of(), plan.steps());
+        assertTrue(plan.manualReason().contains("by hand"), plan::manualReason);
     }
 
     @Test

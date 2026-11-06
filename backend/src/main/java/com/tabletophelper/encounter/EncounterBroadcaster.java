@@ -91,6 +91,7 @@ public class EncounterBroadcaster {
         List<CombatLogResponse> dmLog = combatLogReader.dmLog(encounterId);
         messagingTemplate.convertAndSend(dmLogDestination(encounterId), dmLog);
         messagingTemplate.convertAndSend(logDestination(encounterId),
-                EncounterViews.playerLog(dmLog, EncounterViews.hiddenParticipants(dmView)));
+                EncounterViews.playerLog(dmLog, EncounterViews.hiddenParticipants(dmView),
+                        EncounterViews.monsters(dmView)));
     }
 }

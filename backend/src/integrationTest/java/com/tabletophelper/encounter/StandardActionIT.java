@@ -122,8 +122,13 @@ class StandardActionIT extends IntegrationTest {
 
         assertThat(standardAction(vexId, "DASH", null, other.accessToken()).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(standardAction(wrenId, "DASH", null, player.accessToken()).getStatusCode())
-                .isEqualTo(HttpStatus.FORBIDDEN);
+        ResponseEntity<String> offTurn = standardAction(wrenId, "DASH", null, player.accessToken());
+        assertThat(offTurn.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(json(offTurn).get("error").asString()).isEqualTo("You can only take that action on your turn");
+        ResponseEntity<String> offTurnInteraction = interact(wrenId, "draws a dagger", player.accessToken());
+        assertThat(offTurnInteraction.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(json(offTurnInteraction).get("error").asString())
+                .isEqualTo("You can only take that action on your turn");
         assertThat(standardAction(goblinId, "DASH", null, player.accessToken()).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
 
@@ -195,6 +200,18 @@ class StandardActionIT extends IntegrationTest {
         assertThat(descriptions(logEntries("TURN_ECONOMY_SET")))
                 .containsExactly("The DM sets Vex's turn economy: actions 1 → 2");
 
+        // Players see a monster's budget edit happen, but not what changed, as they don't see its budget (D157)
+        economy.put("actions", 1);
+        economy.put("reactionUsed", true);
+        expect(HttpStatus.OK, exchange(HttpMethod.PUT, path("turn-economy"),
+                Map.of("participantId", goblinId, "turnEconomy", economy), dm.accessToken()));
+        assertThat(descriptions(logEntries("TURN_ECONOMY_SET"))).containsExactly(
+                "The DM sets Vex's turn economy: actions 1 → 2",
+                "The DM sets Goblin's turn economy: reaction used no → yes");
+        assertThat(descriptions(logEntries("TURN_ECONOMY_SET", player.accessToken()))).containsExactly(
+                "The DM sets Vex's turn economy: actions 1 → 2",
+                "The DM adjusts Goblin's turn.");
+
         economy.put("actions", -1);
         assertThat(exchange(HttpMethod.PUT, path("turn-economy"), body, dm.accessToken()).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
@@ -236,7 +253,12 @@ class StandardActionIT extends IntegrationTest {
     }
 
     private List<JsonNode> logEntries(String actionType) {
-        JsonNode log = expect(HttpStatus.OK, exchange(HttpMethod.GET, path("log"), null, dm.accessToken()));
+        return logEntries(actionType, dm.accessToken());
+    }
+
+    // The log as the token's user reads it: whole for the DM, the Player View's for a player (D157)
+    private List<JsonNode> logEntries(String actionType, String token) {
+        JsonNode log = expect(HttpStatus.OK, exchange(HttpMethod.GET, path("log"), null, token));
         List<JsonNode> entries = new ArrayList<>();
         log.forEach(entry -> {
             if (entry.get("actionType").asString().equals(actionType)) {

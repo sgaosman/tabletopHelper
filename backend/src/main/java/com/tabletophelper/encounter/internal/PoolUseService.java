@@ -62,7 +62,8 @@ public class PoolUseService {
         ActionCost cost = costOf(pool);
         boolean grantsAction = grantsAction(pool);
         // Action Surge is used on the participant's own turn, though it costs nothing from it
-        access.requireTurnForCost(encounter, participant.getId(), userId, grantsAction ? ActionCost.ACTION : cost);
+        access.requireTurnForActionCost(encounter, participant.getId(), userId,
+                grantsAction ? ActionCost.ACTION : cost);
         if (grantsAction && uses != 1) {
             throw new ValidationException(pool.displayName() + " can be used only once at a time");
         }

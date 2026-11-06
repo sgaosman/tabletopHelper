@@ -961,7 +961,8 @@
         "actionType": "REACTION",
         "recharge": "4-6",
         "description": "When the abjurer or a creature it can see within 30 feet of it takes damage, the abjurer magically creates a protective barrier around itself or the other creature. The barrier reduces the damage to the protected creature by 26 (4d10 + 4), to a minimum of 0, and then vanishes.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "When the abjurer or a creature it can see within 30 feet of it takes damage, the abjurer magically creates a protective barrier around itself or the other creature. The barrier reduces the damage to the protected creature by 26 (4d10 + 4), to a minimum of 0, and then vanishes. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -6489,7 +6490,8 @@
         "name": "Time Slip",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The dragon halves the damage it takes from an attack made against it, provided it can see the attacker. The dragon can then immediately teleport, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see."
+        "description": "The dragon halves the damage it takes from an attack made against it, provided it can see the attacker. The dragon can then immediately teleport, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see.",
+        "dmNote": "The dragon halves the damage it takes from an attack made against it, provided it can see the attacker. The dragon can then immediately teleport, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -7068,7 +7070,8 @@
         "saveDC": 16,
         "halfOnSave": false,
         "saveAbility": "DEX",
-        "automatable": true
+        "automatable": true,
+        "dmNote": "The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -7605,7 +7608,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Agdon halves the damage that he takes from an attack that hits him. He must be able to see the attacker."
+        "description": "Agdon halves the damage that he takes from an attack that hits him. He must be able to see the attacker.",
+        "dmNote": "Agdon halves the damage that he takes from an attack that hits him. He must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -9108,7 +9112,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Alyxian adds 3 to his AC against one attack roll that would hit him. To do so, Alyxian must see the attacker and be wielding a melee weapon."
+        "description": "Alyxian adds 3 to his AC against one attack roll that would hit him. To do so, Alyxian must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Alyxian adds 3 to his AC against one attack roll that would hit him. To do so, Alyxian must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -9542,7 +9547,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Alyxian adds 3 to his AC against one attack roll that would hit him. To do so, Alyxian must see the attacker and be wielding a melee weapon."
+        "description": "Alyxian adds 3 to his AC against one attack roll that would hit him. To do so, Alyxian must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Alyxian adds 3 to his AC against one attack roll that would hit him. To do so, Alyxian must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -9972,7 +9978,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the assassin can see hits the assassin with an attack, the assassin halves the attack's damage against it."
+        "description": "When an attacker the assassin can see hits the assassin with an attack, the assassin halves the attack's damage against it.",
+        "dmNote": "When an attacker the assassin can see hits the assassin with an attack, the assassin halves the attack's damage against it. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -10501,7 +10508,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Amidor adds 2 to its AC against one melee attack that would hit it. To do so, Amidor must see the attacker and be wielding a melee weapon."
+        "description": "Amidor adds 2 to its AC against one melee attack that would hit it. To do so, Amidor must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Amidor adds 2 to its AC against one melee attack that would hit it. To do so, Amidor must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -15171,7 +15179,8 @@
         "name": "Time Slip",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The dragon halves the damage it takes from an attack made against it, provided it can see the attacker. The dragon can then immediately teleport, along with any equipment it is wearing or carrying, up to 60 feet to an unoccupied space it can see."
+        "description": "The dragon halves the damage it takes from an attack made against it, provided it can see the attacker. The dragon can then immediately teleport, along with any equipment it is wearing or carrying, up to 60 feet to an unoccupied space it can see.",
+        "dmNote": "The dragon halves the damage it takes from an attack made against it, provided it can see the attacker. The dragon can then immediately teleport, along with any equipment it is wearing or carrying, up to 60 feet to an unoccupied space it can see. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -15717,7 +15726,8 @@
         "name": "Parry (Duelist Only)",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The android adds 3 to its AC against one melee attack roll that would hit it. To do so, the android must see the attacker."
+        "description": "The android adds 3 to its AC against one melee attack roll that would hit it. To do so, the android must see the attacker.",
+        "dmNote": "The android adds 3 to its AC against one melee attack roll that would hit it. To do so, the android must see the attacker. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -17651,7 +17661,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The archon adds 5 to its AC against one melee attack that would hit it, provided it can see the attacker."
+        "description": "The archon adds 5 to its AC against one melee attack that would hit it, provided it can see the attacker.",
+        "dmNote": "The archon adds 5 to its AC against one melee attack that would hit it, provided it can see the attacker. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -18103,7 +18114,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Aribeth adds 4 to her AC against one melee attack that would hit her. To do so, Aribeth must see the attacker and be wielding a melee weapon."
+        "description": "Aribeth adds 4 to her AC against one melee attack that would hit her. To do so, Aribeth must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Aribeth adds 4 to her AC against one melee attack that would hit her. To do so, Aribeth must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -21036,13 +21048,15 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Aurelia adds 7 to her AC against one melee attack that would hit her. To do so, Aurelia must see the attacker and be wielding a melee weapon."
+        "description": "Aurelia adds 7 to her AC against one melee attack that would hit her. To do so, Aurelia must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Aurelia adds 7 to her AC against one melee attack that would hit her. To do so, Aurelia must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       },
       {
         "name": "Unyielding",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When Aurelia is subjected to an effect that would move her, knock her prone, or both, she can use her reaction to be neither moved nor knocked prone."
+        "description": "When Aurelia is subjected to an effect that would move her, knock her prone, or both, she can use her reaction to be neither moved nor knocked prone.",
+        "dmNote": "When Aurelia is subjected to an effect that would move her, knock her prone, or both, she can use her reaction to be neither moved nor knocked prone. The effect was already applied: the DM undoes the movement or the prone condition by hand."
       }
     ],
     "legendaryActions": [
@@ -22165,7 +22179,9 @@
             "effectType": "CONDITION",
             "condition": "charmed"
           }
-        ]
+        ],
+        "dmNote": "If a creature charmed by the eladrin hits with an attack roll while within 60 feet of the eladrin, the eladrin magically causes the attack to miss, provided the eladrin can see the attacker. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand.",
+        "automatable": false
       }
     ],
     "spellcasting": {
@@ -22260,7 +22276,8 @@
         "name": "Foster Peace",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "If a creature charmed by the eladrin hits with an attack roll while within 60 feet of the eladrin, the eladrin magically causes the attack to miss, provided the eladrin can see the attacker."
+        "description": "If a creature charmed by the eladrin hits with an attack roll while within 60 feet of the eladrin, the eladrin magically causes the attack to miss, provided the eladrin can see the attacker.",
+        "dmNote": "If a creature charmed by the eladrin hits with an attack roll while within 60 feet of the eladrin, the eladrin magically causes the attack to miss, provided the eladrin can see the attacker. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ],
     "spellcasting": {
@@ -24326,7 +24343,8 @@
         "name": "Afflict Despair",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature that the baernaloth can see within 60 feet of itself hits with an attack roll or succeeds on a saving throw, the baernaloth forces the creature to reroll the d20 and use the new result."
+        "description": "When a creature that the baernaloth can see within 60 feet of itself hits with an attack roll or succeeds on a saving throw, the baernaloth forces the creature to reroll the d20 and use the new result.",
+        "dmNote": "When a creature that the baernaloth can see within 60 feet of itself hits with an attack roll or succeeds on a saving throw, the baernaloth forces the creature to reroll the d20 and use the new result. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       },
       {
         "name": "Inescapable Pain",
@@ -24695,7 +24713,8 @@
         "name": "Deflect Missile",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a ranged weapon attack, Bak Mei deflects the missile. The damage he takes from the attack is reduced by 1d10 + 12. If the damage is reduced to 0, Bak Mei catches the missile if it's small enough to hold in one hand and Bak Mei has a hand free."
+        "description": "In response to being hit by a ranged weapon attack, Bak Mei deflects the missile. The damage he takes from the attack is reduced by 1d10 + 12. If the damage is reduced to 0, Bak Mei catches the missile if it's small enough to hold in one hand and Bak Mei has a hand free.",
+        "dmNote": "In response to being hit by a ranged weapon attack, Bak Mei deflects the missile. The damage he takes from the attack is reduced by 1d10 + 12. If the damage is reduced to 0, Bak Mei catches the missile if it's small enough to hold in one hand and Bak Mei has a hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -25377,7 +25396,8 @@
         "actionType": "REACTION",
         "description": "The captain adds 2 to its AC against one melee attack that would hit it. To do so, the captain must see the attacker and be wielding a melee weapon.",
         "acBonus": 2,
-        "automatable": true
+        "automatable": false,
+        "dmNote": "The captain adds 2 to its AC against one melee attack that would hit it. To do so, the captain must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -29916,7 +29936,8 @@
         "name": "Unyielding",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the guard is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone."
+        "description": "When the guard is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone.",
+        "dmNote": "When the guard is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone. The effect was already applied: the DM undoes the movement or the prone condition by hand."
       }
     ]
   },
@@ -29957,7 +29978,8 @@
         "name": "Unyielding",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the priest is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone."
+        "description": "When the priest is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone.",
+        "dmNote": "When the priest is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone. The effect was already applied: the DM undoes the movement or the prone condition by hand."
       }
     ],
     "spellcasting": {
@@ -30529,7 +30551,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The Black Viper halves the damage that she takes from an attack that hits her. She must be able to see the attacker."
+        "description": "The Black Viper halves the damage that she takes from an attack that hits her. She must be able to see the attacker.",
+        "dmNote": "The Black Viper halves the damage that she takes from an attack that hits her. She must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -30816,7 +30839,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The lieutenant adds 3 to its AC against one melee attack that would hit it. To do so, the lieutenant must see the attacker and be wielding a melee weapon."
+        "description": "The lieutenant adds 3 to its AC against one melee attack that would hit it. To do so, the lieutenant must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The lieutenant adds 3 to its AC against one melee attack that would hit it. To do so, the lieutenant must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -31401,7 +31425,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The vampire adds 3 to its AC against one melee attack that would hit it. To do so, the vampire must see the attacker and be wielding a melee weapon."
+        "description": "The vampire adds 3 to its AC against one melee attack that would hit it. To do so, the vampire must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The vampire adds 3 to its AC against one melee attack that would hit it. To do so, the vampire must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -34627,7 +34652,8 @@
         "name": "Psionic Shield (3/Day)",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the braxat would be hit by an attack roll or a magic missile spell that originates from a source the braxat can see, the braxat can create an invisible barrier of magical force around itself that lasts until the start of its next turn. This barrier gives the braxat a +5 bonus to AC, including against the triggering attack, and prevents magic missile spells from damaging it."
+        "description": "When the braxat would be hit by an attack roll or a magic missile spell that originates from a source the braxat can see, the braxat can create an invisible barrier of magical force around itself that lasts until the start of its next turn. This barrier gives the braxat a +5 bonus to AC, including against the triggering attack, and prevents magic missile spells from damaging it.",
+        "dmNote": "When the braxat would be hit by an attack roll or a magic missile spell that originates from a source the braxat can see, the braxat can create an invisible barrier of magical force around itself that lasts until the start of its next turn. This barrier gives the braxat a +5 bonus to AC, including against the triggering attack, and prevents magic missile spells from damaging it. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -36949,7 +36975,8 @@
         "name": "Unyielding",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the burrowshark is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone."
+        "description": "When the burrowshark is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone.",
+        "dmNote": "When the burrowshark is subjected to an effect that would move it, knock it prone, or both, it can use its reaction to be neither moved nor knocked prone. The effect was already applied: the DM undoes the movement or the prone condition by hand."
       }
     ]
   },
@@ -38886,7 +38913,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The champion adds 2 to its AC against one melee attack that would hit it. To do so, the champion must see the attacker and be wielding a melee weapon."
+        "description": "The champion adds 2 to its AC against one melee attack that would hit it. To do so, the champion must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The champion adds 2 to its AC against one melee attack that would hit it. To do so, the champion must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -40513,7 +40541,8 @@
         "name": "Absorb Blow",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit with an attack roll, the spider's carapace absorbs some of the blow, reducing the damage it takes by 11 (2d10)."
+        "description": "In response to being hit with an attack roll, the spider's carapace absorbs some of the blow, reducing the damage it takes by 11 (2d10).",
+        "dmNote": "In response to being hit with an attack roll, the spider's carapace absorbs some of the blow, reducing the damage it takes by 11 (2d10). The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -40715,7 +40744,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The gladiator adds 3 to its AC against one melee attack that would hit it. To do so, the gladiator must see the attacker and be wielding a melee weapon."
+        "description": "The gladiator adds 3 to its AC against one melee attack that would hit it. To do so, the gladiator must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The gladiator adds 3 to its AC against one melee attack that would hit it. To do so, the gladiator must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -41494,7 +41524,8 @@
         "name": "Intercept Attack",
         "actionType": "REACTION",
         "description": "In response to another creature within 5 feet of it being hit by an attack roll, the clockwork gives that creature a +5 bonus to its AC against that attack, potentially causing a miss. To use this ability, the clockwork must be able to see the creature and the attacker.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "In response to another creature within 5 feet of it being hit by an attack roll, the clockwork gives that creature a +5 bonus to its AC against that attack, potentially causing a miss. To use this ability, the clockwork must be able to see the creature and the attacker. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -46477,7 +46508,8 @@
         "uses": 1,
         "rechargeType": "LONG_REST",
         "automatable": false,
-        "description": "When Darien takes damage, she can entomb herself in ice, which melts away at the end of her next turn. She gains 150 temporary hit points, which take as much of the triggering damage as possible. Immediately after she takes the damage, she gains vulnerability to fire damage, her speed is reduced to 0, and she is incapacitated. These effects, including any remaining temporary hit points, all end when the ice melts."
+        "description": "When Darien takes damage, she can entomb herself in ice, which melts away at the end of her next turn. She gains 150 temporary hit points, which take as much of the triggering damage as possible. Immediately after she takes the damage, she gains vulnerability to fire damage, her speed is reduced to 0, and she is incapacitated. These effects, including any remaining temporary hit points, all end when the ice melts.",
+        "dmNote": "When Darien takes damage, she can entomb herself in ice, which melts away at the end of her next turn. She gains 150 temporary hit points, which take as much of the triggering damage as possible. Immediately after she takes the damage, she gains vulnerability to fire damage, her speed is reduced to 0, and she is incapacitated. These effects, including any remaining temporary hit points, all end when the ice melts. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -46589,7 +46621,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the knight can see hits it with an attack, the knight can halve the damage against it."
+        "description": "When an attacker the knight can see hits it with an attack, the knight can halve the damage against it.",
+        "dmNote": "When an attacker the knight can see hits it with an attack, the knight can halve the damage against it. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ]
   },
@@ -47633,7 +47666,8 @@
         "actionType": "REACTION",
         "usesPerDay": 3,
         "automatable": false,
-        "description": "The death's head reduces the damage it takes from an attack to 0."
+        "description": "The death's head reduces the damage it takes from an attack to 0.",
+        "dmNote": "The death's head reduces the damage it takes from an attack to 0. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -48417,7 +48451,8 @@
         "saveAbility": "WIS",
         "saveDC": 17,
         "automatable": false,
-        "description": "When a creature within 5 feet of the deathwolf makes an attack roll against it, the deathwolf forces the creature to succeed on a 17 Wisdom saving throw or have disadvantage on that roll. After the attack hits or misses, the deathwolf makes one Claw attack against the creature."
+        "description": "When a creature within 5 feet of the deathwolf makes an attack roll against it, the deathwolf forces the creature to succeed on a 17 Wisdom saving throw or have disadvantage on that roll. After the attack hits or misses, the deathwolf makes one Claw attack against the creature.",
+        "dmNote": "When a creature within 5 feet of the deathwolf makes an attack roll against it, the deathwolf forces the creature to succeed on a 17 Wisdom saving throw or have disadvantage on that roll. After the attack hits or misses, the deathwolf makes one Claw attack against the creature. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       },
       {
         "name": "Phase Step",
@@ -49272,7 +49307,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Horgar adds 2 to its AC against one melee attack that would hit him. To do so, Horgar must see the attacker and be wielding a melee weapon."
+        "description": "Horgar adds 2 to its AC against one melee attack that would hit him. To do so, Horgar must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Horgar adds 2 to its AC against one melee attack that would hit him. To do so, Horgar must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -52067,7 +52103,8 @@
         "actionType": "REACTION",
         "usesPerDay": 3,
         "description": "When the diviner or a creature it can see makes an attack roll, a saving throw, or an ability check, the diviner rolls a d20 and chooses whether to use that roll in place of the d20 rolled for the attack roll, saving throw, or ability check. ",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "When the diviner or a creature it can see makes an attack roll, a saving throw, or an ability check, the diviner rolls a d20 and chooses whether to use that roll in place of the d20 rolled for the attack roll, saving throw, or ability check. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -53347,7 +53384,8 @@
         "name": "Magic Shield (3/Day)",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the draconian is hit by an attack roll, it can create an invisible barrier of magical force around itself, granting it a +5 bonus to its AC against that attack and potentially causing the attack to miss."
+        "description": "When the draconian is hit by an attack roll, it can create an invisible barrier of magical force around itself, granting it a +5 bonus to its AC against that attack and potentially causing the attack to miss.",
+        "dmNote": "When the draconian is hit by an attack roll, it can create an invisible barrier of magical force around itself, granting it a +5 bonus to its AC against that attack and potentially causing the attack to miss. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -55559,7 +55597,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Drelnza adds 5 to her AC against one melee attack that would hit her. To do so, she must see the attacker and be wielding a melee weapon."
+        "description": "Drelnza adds 5 to her AC against one melee attack that would hit her. To do so, she must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Drelnza adds 5 to her AC against one melee attack that would hit her. To do so, she must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -55813,7 +55852,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Droki adds 3 to his AC against one melee attack that would hit him. To do so, Droki must see the attacker and be wielding a melee weapon."
+        "description": "Droki adds 3 to his AC against one melee attack that would hit him. To do so, Droki must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Droki adds 3 to his AC against one melee attack that would hit him. To do so, Droki must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -55949,7 +55989,8 @@
             "description": "+3 AC against one melee attack"
           }
         ],
-        "automatable": true
+        "automatable": false,
+        "dmNote": "The drow adds 3 to its AC against one melee attack that would hit it. To do so, the drow must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -56173,7 +56214,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "description": "The drow adds 3 to its AC against one melee attack roll that would hit it. To do so, the drow must see the attacker and be wielding a melee weapon.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "The drow adds 3 to its AC against one melee attack roll that would hit it. To do so, the drow must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -56293,7 +56335,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The drow adds 3 to his AC against one melee attack that would hit him. To do so, the drow must see the attacker and be wielding a melee weapon."
+        "description": "The drow adds 3 to his AC against one melee attack that would hit him. To do so, the drow must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The drow adds 3 to his AC against one melee attack that would hit him. To do so, the drow must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -57054,7 +57097,8 @@
         "name": "Dexterous Target",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The drowned ascetic adds 3 to its AC against one ranged attack that would hit it. To do so, the drowned ascetic must see the attacker."
+        "description": "The drowned ascetic adds 3 to its AC against one ranged attack that would hit it. To do so, the drowned ascetic must see the attacker.",
+        "dmNote": "The drowned ascetic adds 3 to its AC against one ranged attack that would hit it. To do so, the drowned ascetic must see the attacker. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -61261,7 +61305,8 @@
         "actionType": "REACTION",
         "usesPerDay": 3,
         "automatable": false,
-        "description": "When a creature Edgin can see within 60 feet of himself fails an ability check, an attack roll, or a saving throw, Edgin grants the creature magical encouragement. The creature can roll a d8 and add the number rolled to the total, potentially turning the failure into a success."
+        "description": "When a creature Edgin can see within 60 feet of himself fails an ability check, an attack roll, or a saving throw, Edgin grants the creature magical encouragement. The creature can roll a d8 and add the number rolled to the total, potentially turning the failure into a success.",
+        "dmNote": "When a creature Edgin can see within 60 feet of himself fails an ability check, an attack roll, or a saving throw, Edgin grants the creature magical encouragement. The creature can roll a d8 and add the number rolled to the total, potentially turning the failure into a success. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -63929,7 +63974,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the infiltrator can see hits the infiltrator with an attack, the infiltrator halves the attack's damage against it."
+        "description": "When an attacker the infiltrator can see hits the infiltrator with an attack, the infiltrator halves the attack's damage against it.",
+        "dmNote": "When an attacker the infiltrator can see hits the infiltrator with an attack, the infiltrator halves the attack's damage against it. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -64502,7 +64548,8 @@
         "actionType": "REACTION",
         "usesPerDay": 2,
         "automatable": false,
-        "description": "As a reaction to taking damage, the Eriflamme can split into fire elementals and reduce the damage to 0. The Eriflamme can form up to 10 fire elemental, splitting its remaining hit points between them. The fire elementals appear in spaces adjacent to or within the Eriflamme's old location, and all act on the Eriflamme's initiative. They gain a +5 bonus to attack rolls and have the Eriflamme's Reform action."
+        "description": "As a reaction to taking damage, the Eriflamme can split into fire elementals and reduce the damage to 0. The Eriflamme can form up to 10 fire elemental, splitting its remaining hit points between them. The fire elementals appear in spaces adjacent to or within the Eriflamme's old location, and all act on the Eriflamme's initiative. They gain a +5 bonus to attack rolls and have the Eriflamme's Reform action.",
+        "dmNote": "As a reaction to taking damage, the Eriflamme can split into fire elementals and reduce the damage to 0. The Eriflamme can form up to 10 fire elemental, splitting its remaining hit points between them. The fire elementals appear in spaces adjacent to or within the Eriflamme's old location, and all act on the Eriflamme's initiative. They gain a +5 bonus to attack rolls and have the Eriflamme's Reform action. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -66138,7 +66185,8 @@
         "name": "Tricksy Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Immediately after taking damage, the faerie reduces the damage taken by 2 (1d4)."
+        "description": "Immediately after taking damage, the faerie reduces the damage taken by 2 (1d4).",
+        "dmNote": "Immediately after taking damage, the faerie reduces the damage taken by 2 (1d4). The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -66956,7 +67004,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Faerl adds 2 to his AC against one melee attack that would hit it. To do so, he must see the attacker and be wielding a melee weapon."
+        "description": "Faerl adds 2 to his AC against one melee attack that would hit it. To do so, he must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Faerl adds 2 to his AC against one melee attack that would hit it. To do so, he must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -69751,7 +69800,8 @@
         "actionType": "REACTION",
         "recharge": "SHORT_REST",
         "automatable": false,
-        "description": "When the firefist or one creature it can see within 30 feet of it makes an attack roll, the firefist grants a +10 bonus to that roll."
+        "description": "When the firefist or one creature it can see within 30 feet of it makes an attack roll, the firefist grants a +10 bonus to that roll.",
+        "dmNote": "When the firefist or one creature it can see within 30 feet of it makes an attack roll, the firefist grants a +10 bonus to that roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -70087,7 +70137,8 @@
         "actionType": "REACTION",
         "usesPerDay": 2,
         "automatable": false,
-        "description": "When the student fails a saving throw, it can reroll the d20. It must use the new roll."
+        "description": "When the student fails a saving throw, it can reroll the d20. It must use the new roll.",
+        "dmNote": "When the student fails a saving throw, it can reroll the d20. It must use the new roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -72137,7 +72188,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Forge halves the damage he takes from an attack that hits him. He must be able to see the attacker."
+        "description": "Forge halves the damage he takes from an attack that hits him. He must be able to see the attacker.",
+        "dmNote": "Forge halves the damage he takes from an attack that hits him. He must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -72561,7 +72613,8 @@
         "actionType": "REACTION",
         "usesPerDay": 3,
         "automatable": false,
-        "description": "When the law bender or a creature it can see makes an attack roll, a saving throw, or an ability check, the law bender can cause the roll to be made with advantage or disadvantage."
+        "description": "When the law bender or a creature it can see makes an attack roll, a saving throw, or an ability check, the law bender can cause the roll to be made with advantage or disadvantage.",
+        "dmNote": "When the law bender or a creature it can see makes an attack roll, a saving throw, or an ability check, the law bender can cause the roll to be made with advantage or disadvantage. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -73572,7 +73625,8 @@
             "damageDice": "3d8",
             "damageType": "cold"
           }
-        ]
+        ],
+        "dmNote": "The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -74038,7 +74092,8 @@
         "name": "Blizzard Escape",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Immediately after a creature the frostmourn can see hits it with an attack roll, the frostmourn momentarily dissolves into a blizzard, reducing the damage to itself by half. The frostmourn can then magically teleport to an unoccupied space it can see within 30 feet of itself."
+        "description": "Immediately after a creature the frostmourn can see hits it with an attack roll, the frostmourn momentarily dissolves into a blizzard, reducing the damage to itself by half. The frostmourn can then magically teleport to an unoccupied space it can see within 30 feet of itself.",
+        "dmNote": "Immediately after a creature the frostmourn can see hits it with an attack roll, the frostmourn momentarily dissolves into a blizzard, reducing the damage to itself by half. The frostmourn can then magically teleport to an unoccupied space it can see within 30 feet of itself. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ]
   },
@@ -76560,7 +76615,8 @@
         "name": "Protective Link",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When another creature the gem stalker can see within 30 feet of it is about to take damage, the gem stalker reduces that damage by 10 (3d6). The gem stalker then takes damage equal to that amount."
+        "description": "When another creature the gem stalker can see within 30 feet of it is about to take damage, the gem stalker reduces that damage by 10 (3d6). The gem stalker then takes damage equal to that amount.",
+        "dmNote": "When another creature the gem stalker can see within 30 feet of it is about to take damage, the gem stalker reduces that damage by 10 (3d6). The gem stalker then takes damage equal to that amount. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -78022,7 +78078,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The dragonfly halves the damage it takes from an attack made against it, provided it can see the attacker."
+        "description": "The dragonfly halves the damage it takes from an attack made against it, provided it can see the attacker.",
+        "dmNote": "The dragonfly halves the damage it takes from an attack made against it, provided it can see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -81826,7 +81883,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "description": "The githyanki adds 5 to its AC against one melee attack that would hit it. To do so, the githyanki must see the attacker and be wielding a melee weapon.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "The githyanki adds 5 to its AC against one melee attack that would hit it. To do so, the githyanki must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -81922,7 +81980,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The githyanki adds 5 to its AC against one melee attack that would hit it. To do so, the githyanki must see the attacker and be wielding a melee weapon."
+        "description": "The githyanki adds 5 to its AC against one melee attack that would hit it. To do so, the githyanki must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The githyanki adds 5 to its AC against one melee attack that would hit it. To do so, the githyanki must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -82588,7 +82647,8 @@
         "actionType": "REACTION",
         "usesPerDay": 3,
         "automatable": false,
-        "description": "When the githzerai or a creature it can see makes an attack roll, a saving throw, or an ability check, the githzerai can cause the roll to be made with advantage or disadvantage."
+        "description": "When the githzerai or a creature it can see makes an attack roll, a saving throw, or an ability check, the githzerai can cause the roll to be made with advantage or disadvantage.",
+        "dmNote": "When the githzerai or a creature it can see makes an attack roll, a saving throw, or an ability check, the githzerai can cause the roll to be made with advantage or disadvantage. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -83063,7 +83123,8 @@
             "description": "+3 AC against one melee attack"
           }
         ],
-        "automatable": true
+        "automatable": false,
+        "dmNote": "The gladiator adds 3 to its AC against one melee attack that would hit it. To do so, the gladiator must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -84803,7 +84864,8 @@
         "name": "Redirect Attack",
         "actionType": "REACTION",
         "description": "When a creature the goblin can see targets it with an attack, the goblin chooses another goblin within 5 feet of it. The two goblins swap places, and the chosen goblin becomes the target instead.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "When a creature the goblin can see targets it with an attack, the goblin chooses another goblin within 5 feet of it. The two goblins swap places, and the chosen goblin becomes the target instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ]
   },
@@ -84977,7 +85039,8 @@
         "name": "Psionic Shield",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the goblin or one of its allies within 15 feet of it is hit by an attack roll, the goblin conjures a shield of force. The target of the attack gains a +3 bonus to its AC against the triggering attack roll, potentially causing it to miss."
+        "description": "When the goblin or one of its allies within 15 feet of it is hit by an attack roll, the goblin conjures a shield of force. The target of the attack gains a +3 bonus to its AC against the triggering attack roll, potentially causing it to miss.",
+        "dmNote": "When the goblin or one of its allies within 15 feet of it is hit by an attack roll, the goblin conjures a shield of force. The target of the attack gains a +3 bonus to its AC against the triggering attack roll, potentially causing it to miss. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -85628,7 +85691,8 @@
         "actionType": "REACTION",
         "recharge": "SHORT_REST",
         "automatable": false,
-        "description": "When the goliath takes damage, it reduces the damage taken by 9 (1d12 + 3)."
+        "description": "When the goliath takes damage, it reduces the damage taken by 9 (1d12 + 3).",
+        "dmNote": "When the goliath takes damage, it reduces the damage taken by 9 (1d12 + 3). The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -85713,7 +85777,8 @@
         "actionType": "REACTION",
         "recharge": "SHORT_REST",
         "automatable": false,
-        "description": "When the werebear takes damage, it reduces the damage taken by 10 (1d12 + 4)."
+        "description": "When the werebear takes damage, it reduces the damage taken by 10 (1d12 + 4).",
+        "dmNote": "When the werebear takes damage, it reduces the damage taken by 10 (1d12 + 4). The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -89874,7 +89939,8 @@
         "name": "Protection",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the giant can see makes an attack roll against a creature within 10 feet of the giant, the giant can impose disadvantage on the attack roll."
+        "description": "When an attacker the giant can see makes an attack roll against a creature within 10 feet of the giant, the giant can impose disadvantage on the attack roll.",
+        "dmNote": "When an attacker the giant can see makes an attack roll against a creature within 10 feet of the giant, the giant can impose disadvantage on the attack roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "traits": [
@@ -90647,7 +90713,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The hadozee halves the damage that it takes from an attack that hits it, provided it can see the attacker."
+        "description": "The hadozee halves the damage that it takes from an attack that hits it, provided it can see the attacker.",
+        "dmNote": "The hadozee halves the damage that it takes from an attack that hits it, provided it can see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -91271,7 +91338,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Hamish adds 2 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon or a shield."
+        "description": "Hamish adds 2 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon or a shield.",
+        "dmNote": "Hamish adds 2 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon or a shield. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -92353,7 +92421,8 @@
         "name": "Parry and Counter",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Hellenrae adds 3 to her AC against one melee or ranged weapon attack that would hit her. To do so, she must be able to sense the attacker with her blindsight. If the attack misses, Hellenrae can make one melee attack against the attacker if it is within her reach."
+        "description": "Hellenrae adds 3 to her AC against one melee or ranged weapon attack that would hit her. To do so, she must be able to sense the attacker with her blindsight. If the attack misses, Hellenrae can make one melee attack against the attacker if it is within her reach.",
+        "dmNote": "Hellenrae adds 3 to her AC against one melee or ranged weapon attack that would hit her. To do so, she must be able to sense the attacker with her blindsight. If the attack misses, Hellenrae can make one melee attack against the attacker if it is within her reach. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -93864,7 +93933,8 @@
         "name": "Deflect Missile",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a ranged weapon attack, Hlam deflects the missile. The damage he takes from the attack is reduced by 1d10 + 27. If the damage is reduced to 0, Hlam catches the missile if it's small enough to hold in one hand and he has a hand free."
+        "description": "In response to being hit by a ranged weapon attack, Hlam deflects the missile. The damage he takes from the attack is reduced by 1d10 + 27. If the damage is reduced to 0, Hlam catches the missile if it's small enough to hold in one hand and he has a hand free.",
+        "dmNote": "In response to being hit by a ranged weapon attack, Hlam deflects the missile. The damage he takes from the attack is reduced by 1d10 + 27. If the damage is reduced to 0, Hlam catches the missile if it's small enough to hold in one hand and he has a hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       },
       {
         "name": "Slow Fall",
@@ -94578,7 +94648,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "description": "The hobgoblin adds 3 to its AC against one melee attack that would hit it. To do so, the hobgoblin must see the attacker and be wielding a melee weapon.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "The hobgoblin adds 3 to its AC against one melee attack that would hit it. To do so, the hobgoblin must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -96172,7 +96243,8 @@
         "name": "Deflect Missiles",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the hurricane is hit by a ranged weapon attack, it reduces the damage from the attack by 1d10 + 9. If the damage is reduced to 0, the hurricane can catch the missile if it is small enough to hold in one hand and the hurricane has at least one hand free."
+        "description": "When the hurricane is hit by a ranged weapon attack, it reduces the damage from the attack by 1d10 + 9. If the damage is reduced to 0, the hurricane can catch the missile if it is small enough to hold in one hand and the hurricane has at least one hand free.",
+        "dmNote": "When the hurricane is hit by a ranged weapon attack, it reduces the damage from the attack by 1d10 + 9. If the damage is reduced to 0, the hurricane can catch the missile if it is small enough to hold in one hand and the hurricane has at least one hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -99108,7 +99180,8 @@
         "actionType": "REACTION",
         "usesPerDay": 1,
         "automatable": false,
-        "description": "When hit by an attack roll, the initiate can force the attacker to reroll it and use the new roll, possibly causing the attack to miss."
+        "description": "When hit by an attack roll, the initiate can force the attacker to reroll it and use the new roll, possibly causing the attack to miss.",
+        "dmNote": "When hit by an attack roll, the initiate can force the attacker to reroll it and use the new roll, possibly causing the attack to miss. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -99442,7 +99515,8 @@
         "name": "Telekinetic Deflection",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by an attack roll, the inquisitor increases its AC by 4 against the attack. If this causes the attack to miss, the attacker is hit by the attack instead."
+        "description": "In response to being hit by an attack roll, the inquisitor increases its AC by 4 against the attack. If this causes the attack to miss, the attacker is hit by the attack instead.",
+        "dmNote": "In response to being hit by an attack roll, the inquisitor increases its AC by 4 against the attack. If this causes the attack to miss, the attacker is hit by the attack instead. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -101640,7 +101714,8 @@
         "name": "Deflect Missile",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a ranged weapon attack, Jade Tigress deflects the missile. The damage she takes from the attack is reduced by 1d10 + 9. If the damage is reduced to 0, Jade Tigress catches the missile if it's small enough to hold in one hand and Jade Tigress has a hand free."
+        "description": "In response to being hit by a ranged weapon attack, Jade Tigress deflects the missile. The damage she takes from the attack is reduced by 1d10 + 9. If the damage is reduced to 0, Jade Tigress catches the missile if it's small enough to hold in one hand and Jade Tigress has a hand free.",
+        "dmNote": "In response to being hit by a ranged weapon attack, Jade Tigress deflects the missile. The damage she takes from the attack is reduced by 1d10 + 9. If the damage is reduced to 0, Jade Tigress catches the missile if it's small enough to hold in one hand and Jade Tigress has a hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -104431,7 +104506,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The soldier adds 3 to its AC against one melee attack that would hit it. To do so, the soldier must see the attacker and be wielding a melee weapon."
+        "description": "The soldier adds 3 to its AC against one melee attack that would hit it. To do so, the soldier must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The soldier adds 3 to its AC against one melee attack that would hit it. To do so, the soldier must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -104517,7 +104593,9 @@
             "damageDice": "2d8",
             "damageType": "slashing"
           }
-        ]
+        ],
+        "dmNote": "Kas adds 3 to his AC against one melee attack roll that would hit him. He then makes one Vengeful Sword attack against the attacker if it is within his reach. On a hit, the target takes an additional 9 (2d8) slashing damage. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand.",
+        "automatable": false
       }
     ],
     "traits": [
@@ -104811,7 +104889,8 @@
         "uses": 3,
         "usesRecharge": "LONG_REST",
         "automatable": false,
-        "description": "When he is hit by an attack, Kelek protects himself with an invisible barrier of magical force. Until the end of his next turn, he gains a +5 bonus to AC, including against the triggering attack."
+        "description": "When he is hit by an attack, Kelek protects himself with an invisible barrier of magical force. Until the end of his next turn, he gains a +5 bonus to AC, including against the triggering attack.",
+        "dmNote": "When he is hit by an attack, Kelek protects himself with an invisible barrier of magical force. Until the end of his next turn, he gains a +5 bonus to AC, including against the triggering attack. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -106451,7 +106530,8 @@
             "description": "+2 AC against one melee attack"
           }
         ],
-        "automatable": true
+        "automatable": false,
+        "dmNote": "The knight adds 2 to its AC against one melee attack that would hit it. To do so, the knight must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -107571,7 +107651,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The kolyarut adds 6 to its AC against one attack roll that would hit it. To do so, the kolyarut must see the attacker and be wielding a melee weapon."
+        "description": "The kolyarut adds 6 to its AC against one attack roll that would hit it. To do so, the kolyarut must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The kolyarut adds 6 to its AC against one attack roll that would hit it. To do so, the kolyarut must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -108508,7 +108589,8 @@
         "name": "Redirect Attack",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature Krenko can see targets him with an attack, Krenko chooses another goblin within 5 feet of him. The two goblins swap places, and the chosen goblin becomes the target instead."
+        "description": "When a creature Krenko can see targets him with an attack, Krenko chooses another goblin within 5 feet of him. The two goblins swap places, and the chosen goblin becomes the target instead.",
+        "dmNote": "When a creature Krenko can see targets him with an attack, Krenko chooses another goblin within 5 feet of him. The two goblins swap places, and the chosen goblin becomes the target instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ],
     "traits": [
@@ -110794,7 +110876,8 @@
         "name": "Astonishing Luck",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the leprechaun fails an ability check, an attack roll, or a saving throw, it can roll a new d20 and choose which roll to use, potentially turning the failure into a success."
+        "description": "When the leprechaun fails an ability check, an attack roll, or a saving throw, it can roll a new d20 and choose which roll to use, potentially turning the failure into a success.",
+        "dmNote": "When the leprechaun fails an ability check, an attack roll, or a saving throw, it can roll a new d20 and choose which roll to use, potentially turning the failure into a success. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -113747,7 +113830,8 @@
         "name": "Shield Block",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "If an ally within 5 feet of the scaleshield is hit by an attack, the scaleshield can reduce that attack's damage by half."
+        "description": "If an ally within 5 feet of the scaleshield is hit by an attack, the scaleshield can reduce that attack's damage by half.",
+        "dmNote": "If an ally within 5 feet of the scaleshield is hit by an attack, the scaleshield can reduce that attack's damage by half. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -114639,7 +114723,8 @@
         "actionType": "REACTION",
         "usesPerDay": 2,
         "automatable": false,
-        "description": "When another creature within 60 feet of the apprentice misses a target with an attack roll, the apprentice magically enables the attacker to reroll the attack roll. It must use the new roll."
+        "description": "When another creature within 60 feet of the apprentice misses a target with an attack roll, the apprentice magically enables the attacker to reroll the attack roll. It must use the new roll.",
+        "dmNote": "When another creature within 60 feet of the apprentice misses a target with an attack roll, the apprentice magically enables the attacker to reroll the attack roll. It must use the new roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -114719,7 +114804,8 @@
         "actionType": "REACTION",
         "usesPerDay": 2,
         "automatable": false,
-        "description": "When another creature within 60 feet of the pledgemage misses a target with an attack roll, the pledgemage magically enables the attacker to reroll the attack roll. It must use the new roll."
+        "description": "When another creature within 60 feet of the pledgemage misses a target with an attack roll, the pledgemage magically enables the attacker to reroll the attack roll. It must use the new roll.",
+        "dmNote": "When another creature within 60 feet of the pledgemage misses a target with an attack roll, the pledgemage magically enables the attacker to reroll the attack roll. It must use the new roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -115862,7 +115948,8 @@
         "saveDC": 14,
         "halfOnSave": false,
         "description": "When the hunter takes damage from a spell, it takes only half the triggering damage (rounded down). If the creature that cast the spell is within 60 feet of the hunter, that creature must succeed on a 14 Dexterity saving throw or take the other half of the damage.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
+        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with .",
+        "dmNote": "The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -116258,7 +116345,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The noble adds 2 to its AC against one melee attack that would hit it. To do so, the noble must see the attacker and be wielding a melee weapon."
+        "description": "The noble adds 2 to its AC against one melee attack that would hit it. To do so, the noble must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The noble adds 2 to its AC against one melee attack that would hit it. To do so, the noble must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -117722,7 +117810,8 @@
         "name": "Deflect Missile",
         "actionType": "REACTION",
         "description": "In response to being hit by a ranged weapon attack, the adept deflects the missile. The damage it takes from the attack is reduced by 1d10 + 3. If the damage is reduced to 0, the adept catches the missile if it's small enough to hold in one hand and the adept has a hand free.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "In response to being hit by a ranged weapon attack, the adept deflects the missile. The damage it takes from the attack is reduced by 1d10 + 3. If the damage is reduced to 0, the adept catches the missile if it's small enough to hold in one hand and the adept has a hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -117799,7 +117888,8 @@
         "name": "Deflect Missile",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a ranged weapon attack, the adept deflects the missile. The damage it takes from the attack is reduced by 1d10 + 3. If the damage is reduced to 0, the adept catches the missile if it's small enough to hold in one hand and the adept has a hand free."
+        "description": "In response to being hit by a ranged weapon attack, the adept deflects the missile. The damage it takes from the attack is reduced by 1d10 + 3. If the damage is reduced to 0, the adept catches the missile if it's small enough to hold in one hand and the adept has a hand free.",
+        "dmNote": "In response to being hit by a ranged weapon attack, the adept deflects the missile. The damage it takes from the attack is reduced by 1d10 + 3. If the damage is reduced to 0, the adept catches the missile if it's small enough to hold in one hand and the adept has a hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -118228,7 +118318,8 @@
           }
         ],
         "automatable": false,
-        "description": "When the sage is hit by an attack or targeted by a magic missile spell, it calls forth an invisible barrier of magical force that protects it. Until the start of its next turn, the sage has a +5 bonus to AC, including against the triggering attack, and it takes no damage from magic missile."
+        "description": "When the sage is hit by an attack or targeted by a magic missile spell, it calls forth an invisible barrier of magical force that protects it. Until the start of its next turn, the sage has a +5 bonus to AC, including against the triggering attack, and it takes no damage from magic missile.",
+        "dmNote": "When the sage is hit by an attack or targeted by a magic missile spell, it calls forth an invisible barrier of magical force that protects it. Until the start of its next turn, the sage has a +5 bonus to AC, including against the triggering attack, and it takes no damage from magic missile. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -118344,7 +118435,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "description": "The thief halves the damage that it takes from an attack that hits it. The thief must be able to see the attacker.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "The thief halves the damage that it takes from an attack that hits it. The thief must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -118408,7 +118500,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The thief halves the damage that it takes from an attack that hits it. The thief must be able to see the attacker."
+        "description": "The thief halves the damage that it takes from an attack that hits it. The thief must be able to see the attacker.",
+        "dmNote": "The thief halves the damage that it takes from an attack that hits it. The thief must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -120603,7 +120696,8 @@
         "name": "Loyal Bodyguard",
         "actionType": "REACTION",
         "description": "When another Fiend within 5 feet of the merregon is hit by an attack roll, the merregon causes itself to be hit instead.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "When another Fiend within 5 feet of the merregon is hit by an attack roll, the merregon causes itself to be hit instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ],
     "traits": [
@@ -120674,7 +120768,8 @@
         "name": "Loyal Bodyguard",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When another fiend within 5 feet of the merregon is hit by an attack, the merregon causes itself to be hit instead."
+        "description": "When another fiend within 5 feet of the merregon is hit by an attack, the merregon causes itself to be hit instead.",
+        "dmNote": "When another fiend within 5 feet of the merregon is hit by an attack, the merregon causes itself to be hit instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ],
     "traits": [
@@ -122093,7 +122188,8 @@
         "name": "Warp Reality",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When hit by an attack roll, the mind flayer gains a +4 bonus to its AC against that attack roll, potentially causing it to miss. Then the mind flayer, along with any equipment it is wearing or carrying, magically teleports up to 60 feet to an unoccupied space it can see."
+        "description": "When hit by an attack roll, the mind flayer gains a +4 bonus to its AC against that attack roll, potentially causing it to miss. Then the mind flayer, along with any equipment it is wearing or carrying, magically teleports up to 60 feet to an unoccupied space it can see.",
+        "dmNote": "When hit by an attack roll, the mind flayer gains a +4 bonus to its AC against that attack roll, potentially causing it to miss. Then the mind flayer, along with any equipment it is wearing or carrying, magically teleports up to 60 feet to an unoccupied space it can see. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -123279,7 +123375,8 @@
         "name": "Run, Boo, Run",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "If Boo takes damage, Minsc can choose to take the damage instead."
+        "description": "If Boo takes damage, Minsc can choose to take the damage instead.",
+        "dmNote": "If Boo takes damage, Minsc can choose to take the damage instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ]
   },
@@ -123488,7 +123585,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Mirt adds 2 to his AC against one melee attack that would hit him. To do so, Mirt must see the attacker and be wielding a melee weapon."
+        "description": "Mirt adds 2 to his AC against one melee attack that would hit him. To do so, Mirt must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Mirt adds 2 to his AC against one melee attack that would hit him. To do so, Mirt must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -124036,7 +124134,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Molliver halves the damage they take from an attack made against them, provided they can see the attacker."
+        "description": "Molliver halves the damage they take from an attack made against them, provided they can see the attacker.",
+        "dmNote": "Molliver halves the damage they take from an attack made against them, provided they can see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -125478,7 +125577,8 @@
         "name": "Spell Reflection",
         "actionType": "REACTION",
         "description": "If the morkoth makes a successful saving throw against a spell or a spell attack misses it, the morkoth can choose another creature (including the spellcaster) it can see within 120 feet of it. The spell targets the chosen creature instead of the morkoth. If the spell forced a saving throw, the chosen creature makes its own save. If the spell was an attack, the attack roll is rerolled against the chosen creature.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "If the morkoth makes a successful saving throw against a spell or a spell attack misses it, the morkoth can choose another creature (including the spellcaster) it can see within 120 feet of it. The spell targets the chosen creature instead of the morkoth. If the spell forced a saving throw, the chosen creature makes its own save. If the spell was an attack, the attack roll is rerolled against the chosen creature. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ],
     "spellcasting": {
@@ -125625,7 +125725,8 @@
         "name": "Spell Reflection",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "If the morkoth makes a successful saving throw against a spell, or a spell attack misses it, the morkoth can choose another creature (including the spellcaster) it can see within 120 feet of it. The spell targets the chosen creature instead of the morkoth. If the spell forced a saving throw, the chosen creature makes its own save. If the spell was an attack, the attack roll is rerolled against the chosen creature."
+        "description": "If the morkoth makes a successful saving throw against a spell, or a spell attack misses it, the morkoth can choose another creature (including the spellcaster) it can see within 120 feet of it. The spell targets the chosen creature instead of the morkoth. If the spell forced a saving throw, the chosen creature makes its own save. If the spell was an attack, the attack roll is rerolled against the chosen creature.",
+        "dmNote": "If the morkoth makes a successful saving throw against a spell, or a spell attack misses it, the morkoth can choose another creature (including the spellcaster) it can see within 120 feet of it. The spell targets the chosen creature instead of the morkoth. If the spell forced a saving throw, the chosen creature makes its own save. If the spell was an attack, the attack roll is rerolled against the chosen creature. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ],
     "spellcasting": {
@@ -128159,7 +128260,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Nauk adds 4 to his AC against one melee attack that would hit him. To do so, Nauk must see the attacker and be wielding a melee weapon."
+        "description": "Nauk adds 4 to his AC against one melee attack that would hit him. To do so, Nauk must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Nauk adds 4 to his AC against one melee attack that would hit him. To do so, Nauk must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -130923,7 +131025,8 @@
         "name": "Reversal of Fortune",
         "actionType": "REACTION",
         "description": "In response to another creature dealing damage to the nilbog, the nilbog reduces the damage to 0 and regains 3 (1d6) hit points.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "In response to another creature dealing damage to the nilbog, the nilbog reduces the damage to 0 and regains 3 (1d6) hit points. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -130993,7 +131096,9 @@
             "effectType": "HEAL",
             "healingDice": "1d6"
           }
-        ]
+        ],
+        "dmNote": "In response to another creature dealing damage to the nilbog, the nilbog reduces the damage to 0 and regains 1d6 hit points. The damage was already applied in full: the DM restores the part this reaction prevents, by hand.",
+        "automatable": false
       }
     ],
     "spellcasting": {
@@ -131088,7 +131193,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The nimblewright adds 2 to its AC against one melee attack that would hit it. To do so, the nimblewright must see the attacker and be wielding a melee weapon."
+        "description": "The nimblewright adds 2 to its AC against one melee attack that would hit it. To do so, the nimblewright must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The nimblewright adds 2 to its AC against one melee attack that would hit it. To do so, the nimblewright must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -131157,7 +131263,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Nine-Fingers halves the damage that she takes from an attack that hits her. She must be able to see the attacker."
+        "description": "Nine-Fingers halves the damage that she takes from an attack that hits her. She must be able to see the attacker.",
+        "dmNote": "Nine-Fingers halves the damage that she takes from an attack that hits her. She must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -131656,7 +131763,8 @@
         "actionType": "REACTION",
         "description": "The noble adds 2 to its AC against one melee attack that would hit it. To do so, the noble must see the attacker and be wielding a melee weapon.",
         "acBonus": 2,
-        "automatable": true
+        "automatable": false,
+        "dmNote": "The noble adds 2 to its AC against one melee attack that would hit it. To do so, the noble must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -133237,7 +133345,8 @@
         "name": "Reversal of Fortune",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to another creature dealing damage to Oddlewin, Oddlewin reduces the damage to 0 and regains 9 (2d8) hit points."
+        "description": "In response to another creature dealing damage to Oddlewin, Oddlewin reduces the damage to 0 and regains 9 (2d8) hit points.",
+        "dmNote": "In response to another creature dealing damage to Oddlewin, Oddlewin reduces the damage to 0 and regains 9 (2d8) hit points. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -134857,7 +134966,8 @@
         "uses": 3,
         "rechargeType": "LONG_REST",
         "automatable": false,
-        "description": "When the oracle or a creature it can see makes an attack roll, a saving throw, or an ability check, the oracle can cause the roll to be made with advantage or disadvantage."
+        "description": "When the oracle or a creature it can see makes an attack roll, a saving throw, or an ability check, the oracle can cause the roll to be made with advantage or disadvantage.",
+        "dmNote": "When the oracle or a creature it can see makes an attack roll, a saving throw, or an ability check, the oracle can cause the roll to be made with advantage or disadvantage. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -136721,7 +136831,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the corrupter can see hits the corrupter with an attack, the corrupter halves the attack's damage against it."
+        "description": "When an attacker the corrupter can see hits the corrupter with an attack, the corrupter halves the attack's damage against it.",
+        "dmNote": "When an attacker the corrupter can see hits the corrupter with an attack, the corrupter halves the attack's damage against it. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -139054,7 +139165,8 @@
         "actionType": "REACTION",
         "usesPerDay": 2,
         "automatable": false,
-        "description": "Whenever a friendly creature within 30 feet of the captain that can hear it misses with an attack, the captain can yell perilous threats to allow that creature to reroll the attack roll."
+        "description": "Whenever a friendly creature within 30 feet of the captain that can hear it misses with an attack, the captain can yell perilous threats to allow that creature to reroll the attack roll.",
+        "dmNote": "Whenever a friendly creature within 30 feet of the captain that can hear it misses with an attack, the captain can yell perilous threats to allow that creature to reroll the attack roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "traits": [
@@ -139386,7 +139498,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The plasmoid halves the damage that it takes from an attack that hits it. The plasmoid must be able to see the attacker."
+        "description": "The plasmoid halves the damage that it takes from an attack that hits it. The plasmoid must be able to see the attacker.",
+        "dmNote": "The plasmoid halves the damage that it takes from an attack that hits it. The plasmoid must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -140044,7 +140157,8 @@
         "name": "Precognitive Insight (3/Day)",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When the mage or a creature it can see makes an attack roll, a saving throw, or an ability check, the mage can cause the roll to be made with advantage or disadvantage."
+        "description": "When the mage or a creature it can see makes an attack roll, a saving throw, or an ability check, the mage can cause the roll to be made with advantage or disadvantage.",
+        "dmNote": "When the mage or a creature it can see makes an attack roll, a saving throw, or an ability check, the mage can cause the roll to be made with advantage or disadvantage. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -141742,7 +141856,8 @@
         "actionType": "REACTION",
         "usesPerDay": 2,
         "automatable": false,
-        "description": "When the professor is hit by an attack roll, it can increase its AC by 3 against that attack, potentially causing it to miss. The professor can then teleport, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see."
+        "description": "When the professor is hit by an attack roll, it can increase its AC by 3 against that attack, potentially causing it to miss. The professor can then teleport, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see.",
+        "dmNote": "When the professor is hit by an attack roll, it can increase its AC by 3 against that attack, potentially causing it to miss. The professor can then teleport, along with any equipment it is wearing or carrying, up to 30 feet to an unoccupied space it can see. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -143318,7 +143433,8 @@
         "name": "Illusory Self (Recharges on a Short or Long Rest)",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature Rath can see makes an attack roll against him, he can interpose an illusory duplicate between the attacker and him. The attack automatically misses Rath, then the illusion dissipates."
+        "description": "When a creature Rath can see makes an attack roll against him, he can interpose an illusory duplicate between the attacker and him. The attack automatically misses Rath, then the illusion dissipates.",
+        "dmNote": "When a creature Rath can see makes an attack roll against him, he can interpose an illusory duplicate between the attacker and him. The attack automatically misses Rath, then the illusion dissipates. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ],
     "spellcasting": {
@@ -145111,7 +145227,8 @@
           }
         ],
         "description": "When the relic sloth is subjected to an effect that would move it out of its current space or knock it prone, it is neither moved nor knocked prone.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "When the relic sloth is subjected to an effect that would move it out of its current space or knock it prone, it is neither moved nor knocked prone. The effect was already applied: the DM undoes the movement or the prone condition by hand."
       }
     ]
   },
@@ -145860,7 +145977,8 @@
         "name": "Shuffle Destiny",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature the riffler can see within 30 feet of itself makes an ability check, an attack roll, or a saving throw, the riffler can magically force that creature to roll a d6 and either add the number rolled to the total or subtract it from the total (riffler's choice), potentially changing the outcome."
+        "description": "When a creature the riffler can see within 30 feet of itself makes an ability check, an attack roll, or a saving throw, the riffler can magically force that creature to roll a d6 and either add the number rolled to the total or subtract it from the total (riffler's choice), potentially changing the outcome.",
+        "dmNote": "When a creature the riffler can see within 30 feet of itself makes an ability check, an attack roll, or a saving throw, the riffler can magically force that creature to roll a d6 and either add the number rolled to the total or subtract it from the total (riffler's choice), potentially changing the outcome. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "traits": [
@@ -146633,7 +146751,8 @@
         "name": "Deflect Missiles",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a ranged weapon attack, Rosie deflects the missile. The damage she takes from the attack is reduced by 1d10 + 9. If the damage is reduced to 0, she catches the missile if it's small enough to hold in one hand and she has a hand free."
+        "description": "In response to being hit by a ranged weapon attack, Rosie deflects the missile. The damage she takes from the attack is reduced by 1d10 + 9. If the damage is reduced to 0, she catches the missile if it's small enough to hold in one hand and she has a hand free.",
+        "dmNote": "In response to being hit by a ranged weapon attack, Rosie deflects the missile. The damage she takes from the attack is reduced by 1d10 + 9. If the damage is reduced to 0, she catches the missile if it's small enough to hold in one hand and she has a hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -147553,7 +147672,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The monk adds 2 to its AC against one melee or ranged weapon attack that would hit it. To do so, the monk must see the attacker."
+        "description": "The monk adds 2 to its AC against one melee or ranged weapon attack that would hit it. To do so, the monk must see the attacker.",
+        "dmNote": "The monk adds 2 to its AC against one melee or ranged weapon attack that would hit it. To do so, the monk must see the attacker. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -147628,7 +147748,8 @@
         "name": "Arcane Shield",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Saemon conjures a swirling yellow barrier and until the start of his next turn he adds +5 to his AC, including against the triggering attack, and he takes no damage from magic missile."
+        "description": "Saemon conjures a swirling yellow barrier and until the start of his next turn he adds +5 to his AC, including against the triggering attack, and he takes no damage from magic missile.",
+        "dmNote": "Saemon conjures a swirling yellow barrier and until the start of his next turn he adds +5 to his AC, including against the triggering attack, and he takes no damage from magic missile. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -147694,7 +147815,8 @@
           }
         ],
         "automatable": false,
-        "description": "When the sage is hit by an attack or targeted by a magic missile spell, it calls forth an invisible barrier of magical force that protects it. Until the start of its next turn, the sage has a +5 bonus to AC, including against the triggering attack, and it takes no damage from magic missile."
+        "description": "When the sage is hit by an attack or targeted by a magic missile spell, it calls forth an invisible barrier of magical force that protects it. Until the start of its next turn, the sage has a +5 bonus to AC, including against the triggering attack, and it takes no damage from magic missile.",
+        "dmNote": "When the sage is hit by an attack or targeted by a magic missile spell, it calls forth an invisible barrier of magical force that protects it. Until the start of its next turn, the sage has a +5 bonus to AC, including against the triggering attack, and it takes no damage from magic missile. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -150056,7 +150178,8 @@
         "name": "Glyph of Shielding",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The agent adds 2 to its AC against one attack that would hit it. To do so, the agent must be able to see the attacker and have a free hand."
+        "description": "The agent adds 2 to its AC against one attack that would hit it. To do so, the agent must be able to see the attacker and have a free hand.",
+        "dmNote": "The agent adds 2 to its AC against one attack that would hit it. To do so, the agent must be able to see the attacker and have a free hand. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -152357,7 +152480,8 @@
         "name": "Self-Sacrifice",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature within 5 feet of the thrull is hit by an attack, the thrull swaps places with that creature and is hit instead."
+        "description": "When a creature within 5 feet of the thrull is hit by an attack, the thrull swaps places with that creature and is hit instead.",
+        "dmNote": "When a creature within 5 feet of the thrull is hit by an attack, the thrull swaps places with that creature and is hit instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ]
   },
@@ -154989,7 +155113,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker hits Sildar with a melee attack and Sildar can see the attacker, he can roll 1d6 and add the number rolled to his AC against the triggering attack, provided that he's wielding a melee weapon."
+        "description": "When an attacker hits Sildar with a melee attack and Sildar can see the attacker, he can roll 1d6 and add the number rolled to his AC against the triggering attack, provided that he's wielding a melee weapon.",
+        "dmNote": "When an attacker hits Sildar with a melee attack and Sildar can see the attacker, he can roll 1d6 and add the number rolled to his AC against the triggering attack, provided that he's wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -155050,7 +155175,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker Sildar can see would hit him with a melee attack, he can roll a d6 and add the number rolled to his AC against the triggering attack, provided he's wielding a melee weapon."
+        "description": "When an attacker Sildar can see would hit him with a melee attack, he can roll a d6 and add the number rolled to his AC against the triggering attack, provided he's wielding a melee weapon.",
+        "dmNote": "When an attacker Sildar can see would hit him with a melee attack, he can roll a d6 and add the number rolled to his AC against the triggering attack, provided he's wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -155373,7 +155499,8 @@
         "name": "Rousing Verse",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature the apprentice can see within 30 feet of it fails a saving throw, the apprentice magically weaves together stirring prose, allowing the creature to reroll the saving throw and use the higher result."
+        "description": "When a creature the apprentice can see within 30 feet of it fails a saving throw, the apprentice magically weaves together stirring prose, allowing the creature to reroll the saving throw and use the higher result.",
+        "dmNote": "When a creature the apprentice can see within 30 feet of it fails a saving throw, the apprentice magically weaves together stirring prose, allowing the creature to reroll the saving throw and use the higher result. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -155428,7 +155555,8 @@
         "name": "Rousing Verse",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature the pledgemage can see within 30 feet of it fails a saving throw, the pledgemage magically weaves together stirring prose, allowing the creature to reroll the saving throw and use the higher result."
+        "description": "When a creature the pledgemage can see within 30 feet of it fails a saving throw, the pledgemage magically weaves together stirring prose, allowing the creature to reroll the saving throw and use the higher result.",
+        "dmNote": "When a creature the pledgemage can see within 30 feet of it fails a saving throw, the pledgemage magically weaves together stirring prose, allowing the creature to reroll the saving throw and use the higher result. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -155840,7 +155968,8 @@
         "name": "Protection",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature Sir Braford can see attacks a target other than him that is within 5 feet of him, he can use a reaction to use his shield to impose disadvantage on the attack roll."
+        "description": "When a creature Sir Braford can see attacks a target other than him that is within 5 feet of him, he can use a reaction to use his shield to impose disadvantage on the attack roll.",
+        "dmNote": "When a creature Sir Braford can see attacks a target other than him that is within 5 feet of him, he can use a reaction to use his shield to impose disadvantage on the attack roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ]
   },
@@ -155888,7 +156017,8 @@
         "name": "Protect Ally",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature Jared can see attacks a target other than Jared that is within 5 feet of him, Jared imposes disadvantage on the attack roll."
+        "description": "When a creature Jared can see attacks a target other than Jared that is within 5 feet of him, Jared imposes disadvantage on the attack roll.",
+        "dmNote": "When a creature Jared can see attacks a target other than Jared that is within 5 feet of him, Jared imposes disadvantage on the attack roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ]
   },
@@ -156066,7 +156196,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Sir Ursas adds 3 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon."
+        "description": "Sir Ursas adds 3 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Sir Ursas adds 3 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -156952,7 +157083,8 @@
         "actionType": "REACTION",
         "recharge": "SHORT_REST",
         "automatable": false,
-        "description": "When Sken takes damage, she can use her reaction to reduce the damage taken by 8 (1d12 + 2)."
+        "description": "When Sken takes damage, she can use her reaction to reduce the damage taken by 8 (1d12 + 2).",
+        "dmNote": "When Sken takes damage, she can use her reaction to reduce the damage taken by 8 (1d12 + 2). The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -157039,7 +157171,8 @@
         "name": "Good Parent",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The skitterwidget imposes disadvantage on one attack roll made against a kiddywidget it can see within 5 feet of it."
+        "description": "The skitterwidget imposes disadvantage on one attack roll made against a kiddywidget it can see within 5 feet of it.",
+        "dmNote": "The skitterwidget imposes disadvantage on one attack roll made against a kiddywidget it can see within 5 feet of it. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "traits": [
@@ -160074,7 +160207,8 @@
         "actionType": "REACTION",
         "deliveryMethod": "NONE",
         "automatable": false,
-        "description": "If the spectator makes a successful saving throw against a spell, or a spell attack misses it, the spectator can choose another creature (including the spellcaster) it can see within 30 feet of it. The spell targets the chosen creature instead of the spectator. If the spell forced a saving throw, th"
+        "description": "If the spectator makes a successful saving throw against a spell, or a spell attack misses it, the spectator can choose another creature (including the spellcaster) it can see within 30 feet of it. The spell targets the chosen creature instead of the spectator. If the spell forced a saving throw, th",
+        "dmNote": "If the spectator makes a successful saving throw against a spell, or a spell attack misses it, the spectator can choose another creature (including the spellcaster) it can see within 30 feet of it. The spell targets the chosen creature instead of the spectator. If the spell forced a saving throw, th. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ]
   },
@@ -161548,7 +161682,8 @@
         "name": "Amoeba",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When damaged, Ssendam uses her reaction to activate Change Shape to transform into her golden amoeba form. Doing this reduces the damage to 0."
+        "description": "When damaged, Ssendam uses her reaction to activate Change Shape to transform into her golden amoeba form. Doing this reduces the damage to 0.",
+        "dmNote": "When damaged, Ssendam uses her reaction to activate Change Shape to transform into her golden amoeba form. Doing this reduces the damage to 0. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -162733,7 +162868,8 @@
         "name": "Deflect Missile",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a ranged weapon attack, Steel Crane deflects the missile. The damage he takes from the attack is reduced by 1d10 + 10. If the damage is reduced to 0, Steel Crane catches the missile if it's small enough to hold in one hand and Steel Crane has a hand free."
+        "description": "In response to being hit by a ranged weapon attack, Steel Crane deflects the missile. The damage he takes from the attack is reduced by 1d10 + 10. If the damage is reduced to 0, Steel Crane catches the missile if it's small enough to hold in one hand and Steel Crane has a hand free.",
+        "dmNote": "In response to being hit by a ranged weapon attack, Steel Crane deflects the missile. The damage he takes from the attack is reduced by 1d10 + 10. If the damage is reduced to 0, Steel Crane catches the missile if it's small enough to hold in one hand and Steel Crane has a hand free. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       },
       {
         "name": "Slow Descent (3/Day)",
@@ -163086,7 +163222,8 @@
         "name": "Intercept Attack",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to another creature within 5 feet of it being hit by an attack roll, the stone defender gives that creature a +5 bonus to its AC against that attack, potentially causing a miss. To use this ability, the stone defender must be able to see the creature and the attacker."
+        "description": "In response to another creature within 5 feet of it being hit by an attack roll, the stone defender gives that creature a +5 bonus to its AC against that attack, potentially causing a miss. To use this ability, the stone defender must be able to see the creature and the attacker.",
+        "dmNote": "In response to another creature within 5 feet of it being hit by an attack roll, the stone defender gives that creature a +5 bonus to its AC against that attack, potentially causing a miss. To use this ability, the stone defender must be able to see the creature and the attacker. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -163484,7 +163621,8 @@
         "name": "Unyielding",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to failing a saving throw to avoid being moved, having the prone condition, or both, the giant succeeds instead."
+        "description": "In response to failing a saving throw to avoid being moved, having the prone condition, or both, the giant succeeds instead.",
+        "dmNote": "In response to failing a saving throw to avoid being moved, having the prone condition, or both, the giant succeeds instead. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ]
   },
@@ -163549,7 +163687,9 @@
         "name": "Rock Catching",
         "actionType": "REACTION",
         "saveDC": 10,
-        "saveAbility": "DEX"
+        "saveAbility": "DEX",
+        "dmNote": "If a rock or similar object is hurled at the giant, the giant can, with a successful DC 10 Dexterity saving throw, catch the missile and take no bludgeoning damage from it. The damage was already applied in full: the DM restores the part this reaction prevents, by hand.",
+        "automatable": false
       }
     ],
     "traits": [
@@ -164927,7 +165067,8 @@
         "name": "Protect Another",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature Strongheart can see attacks another creature that is within 5 feet of him, Strongheart can use his reaction to impose disadvantage on the attack roll, provided he is carrying a shield."
+        "description": "When a creature Strongheart can see attacks another creature that is within 5 feet of him, Strongheart can use his reaction to impose disadvantage on the attack roll, provided he is carrying a shield.",
+        "dmNote": "When a creature Strongheart can see attacks another creature that is within 5 feet of him, Strongheart can use his reaction to impose disadvantage on the attack roll, provided he is carrying a shield. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -165630,7 +165771,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "description": "The eladrin adds 3 to its AC against one melee attack that would hit it. To do so, the eladrin must see the attacker and be wielding a melee weapon.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "The eladrin adds 3 to its AC against one melee attack that would hit it. To do so, the eladrin must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -165715,7 +165857,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The eladrin adds 3 to its AC against one melee attack that would hit it. To do so, the eladrin must see the attacker and be wielding a melee weapon."
+        "description": "The eladrin adds 3 to its AC against one melee attack that would hit it. To do so, the eladrin must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The eladrin adds 3 to its AC against one melee attack that would hit it. To do so, the eladrin must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -169480,7 +169623,8 @@
             "effectType": "CONDITION",
             "condition": "incapacitated"
           }
-        ]
+        ],
+        "dmNote": "The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       },
       {
         "name": "Lightning Call",
@@ -169750,7 +169894,8 @@
         "saveAbility": "DEX",
         "saveDC": 10,
         "automatable": false,
-        "description": "If a rock or similar object is hurled at the giant, the giant can, with a successful 10 Dexterity saving throw, catch the missile and take no bludgeoning damage from it."
+        "description": "If a rock or similar object is hurled at the giant, the giant can, with a successful 10 Dexterity saving throw, catch the missile and take no bludgeoning damage from it.",
+        "dmNote": "If a rock or similar object is hurled at the giant, the giant can, with a successful 10 Dexterity saving throw, catch the missile and take no bludgeoning damage from it. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "spellcasting": {
@@ -171660,7 +171805,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The thri-kreen adds 3 to its AC against one melee attack that would hit it. To do so, the thri-kreen must see the attacker and be wielding a melee weapon."
+        "description": "The thri-kreen adds 3 to its AC against one melee attack that would hit it. To do so, the thri-kreen must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The thri-kreen adds 3 to its AC against one melee attack that would hit it. To do so, the thri-kreen must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -171736,7 +171882,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The thri-kreen adds 2 to its AC against one melee attack that would hit it. To do so, the thri-kreen must see the attacker and be wielding a melee weapon."
+        "description": "The thri-kreen adds 2 to its AC against one melee attack that would hit it. To do so, the thri-kreen must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The thri-kreen adds 2 to its AC against one melee attack that would hit it. To do so, the thri-kreen must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -172072,7 +172219,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Thurl adds 2 to his AC against one melee attack that would hit him. To do so, Thurl must see the attacker and be wielding a melee weapon."
+        "description": "Thurl adds 2 to his AC against one melee attack that would hit him. To do so, Thurl must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Thurl adds 2 to his AC against one melee attack that would hit him. To do so, Thurl must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -174760,7 +174908,8 @@
         "name": "Deflect Missile",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a ranged weapon attack, the tower hand deflects the missile. The damage it takes from the attack is reduced by 7 (1d10 + 2)."
+        "description": "In response to being hit by a ranged weapon attack, the tower hand deflects the missile. The damage it takes from the attack is reduced by 7 (1d10 + 2).",
+        "dmNote": "In response to being hit by a ranged weapon attack, the tower hand deflects the missile. The damage it takes from the attack is reduced by 7 (1d10 + 2). The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -174979,7 +175128,8 @@
         "name": "Deflect Attack",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by an attack roll, the conduit partially deflects the blow. The damage the conduit takes from the attack is reduced by 1d10."
+        "description": "In response to being hit by an attack roll, the conduit partially deflects the blow. The damage the conduit takes from the attack is reduced by 1d10.",
+        "dmNote": "In response to being hit by an attack roll, the conduit partially deflects the blow. The damage the conduit takes from the attack is reduced by 1d10. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       },
       {
         "name": "Don't Be There",
@@ -175040,7 +175190,8 @@
         "name": "Deflect Blow",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "In response to being hit by a melee attack roll, the instinct partially deflects the blow. The damage the instinct takes from the attack is reduced by 1d6."
+        "description": "In response to being hit by a melee attack roll, the instinct partially deflects the blow. The damage the instinct takes from the attack is reduced by 1d6.",
+        "dmNote": "In response to being hit by a melee attack roll, the instinct partially deflects the blow. The damage the instinct takes from the attack is reduced by 1d6. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -179553,7 +179704,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The captain halves the damage that it takes from an attack that hits it. The captain must be able to see the attacker."
+        "description": "The captain halves the damage that it takes from an attack that hits it. The captain must be able to see the attacker.",
+        "dmNote": "The captain halves the damage that it takes from an attack that hits it. The captain must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -181289,7 +181441,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Varnyr adds 2 to their AC against one melee attack that would hit it. To do so, Varnyr must see the attacker and be wielding a melee weapon."
+        "description": "Varnyr adds 2 to their AC against one melee attack that would hit it. To do so, Varnyr must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Varnyr adds 2 to their AC against one melee attack that would hit it. To do so, Varnyr must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "traits": [
@@ -182237,7 +182390,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the veiled presence can see hits the veiled presence with an attack, the veiled presence halves the attack's damage against it."
+        "description": "When an attacker the veiled presence can see hits the veiled presence with an attack, the veiled presence halves the attack's damage against it.",
+        "dmNote": "When an attacker the veiled presence can see hits the veiled presence with an attack, the veiled presence halves the attack's damage against it. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -183130,7 +183284,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Verin adds 3 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon."
+        "description": "Verin adds 3 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon.",
+        "dmNote": "Verin adds 3 to his AC against one melee attack that would hit him. To do so, he must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ],
     "spellcasting": {
@@ -183509,7 +183664,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Viari halves the damage that he takes from an attack that hits him. He must be able to see the attacker."
+        "description": "Viari halves the damage that he takes from an attack that hits him. He must be able to see the attacker.",
+        "dmNote": "Viari halves the damage that he takes from an attack that hits him. He must be able to see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -184609,7 +184765,8 @@
         "actionType": "REACTION",
         "recharge": "SHORT_REST",
         "automatable": false,
-        "description": "The priest grants a +10 bonus to an attack roll made by itself or another creature within 30 feet of it. The priest can make this choice after the roll is made but before it hits or misses."
+        "description": "The priest grants a +10 bonus to an attack roll made by itself or another creature within 30 feet of it. The priest can make this choice after the roll is made but before it hits or misses.",
+        "dmNote": "The priest grants a +10 bonus to an attack roll made by itself or another creature within 30 feet of it. The priest can make this choice after the roll is made but before it hits or misses. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ],
     "spellcasting": {
@@ -185032,7 +185189,8 @@
         "name": "Protection",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the warforged can see makes an attack roll against a creature within 5 feet of the warforged, the warforged can impose disadvantage on the attack roll."
+        "description": "When an attacker the warforged can see makes an attack roll against a creature within 5 feet of the warforged, the warforged can impose disadvantage on the attack roll.",
+        "dmNote": "When an attacker the warforged can see makes an attack roll against a creature within 5 feet of the warforged, the warforged can impose disadvantage on the attack roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ]
   },
@@ -185180,7 +185338,8 @@
         "name": "Protection",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When an attacker the warforged can see makes an attack roll against a creature within 5 feet of the warforged, the warforged can impose disadvantage on the attack roll."
+        "description": "When an attacker the warforged can see makes an attack roll against a creature within 5 feet of the warforged, the warforged can impose disadvantage on the attack roll.",
+        "dmNote": "When an attacker the warforged can see makes an attack roll against a creature within 5 feet of the warforged, the warforged can impose disadvantage on the attack roll. The roll was already resolved: if the changed roll changes the result, the DM adjusts the outcome by hand."
       }
     ]
   },
@@ -185993,7 +186152,8 @@
         "name": "Parry",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "The warrior adds 2 to its AC against one melee attack that would hit it. To do so, the warrior must see the attacker and be wielding a melee weapon."
+        "description": "The warrior adds 2 to its AC against one melee attack that would hit it. To do so, the warrior must see the attacker and be wielding a melee weapon.",
+        "dmNote": "The warrior adds 2 to its AC against one melee attack that would hit it. To do so, the warrior must see the attacker and be wielding a melee weapon. The attack was already resolved as a hit: if the higher AC makes it miss, the DM restores its damage and removes anything else the hit did, by hand."
       }
     ]
   },
@@ -188413,7 +188573,8 @@
         "name": "Self-Sacrifice",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "When a creature within 5 feet of the thrull is hit by an attack, the thrull swaps places with that creature and is hit instead."
+        "description": "When a creature within 5 feet of the thrull is hit by an attack, the thrull swaps places with that creature and is hit instead.",
+        "dmNote": "When a creature within 5 feet of the thrull is hit by an attack, the thrull swaps places with that creature and is hit instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand."
       }
     ]
   },
@@ -196726,7 +196887,8 @@
         "name": "Uncanny Dodge",
         "actionType": "REACTION",
         "automatable": false,
-        "description": "Zarak halves the damage he takes from an attack made against him, provided he can see the attacker."
+        "description": "Zarak halves the damage he takes from an attack made against him, provided he can see the attacker.",
+        "dmNote": "Zarak halves the damage he takes from an attack made against him, provided he can see the attacker. The damage was already applied in full: the DM restores the part this reaction prevents, by hand."
       }
     ],
     "traits": [
@@ -199295,7 +199457,9 @@
             "effectType": "CONDITION",
             "condition": "charmed"
           }
-        ]
+        ],
+        "dmNote": "When Zuggtmoy is hit by an attack roll, one creature within 10 feet of her that is charmed by her is hit by the attack instead. The attack or spell was already resolved against the original target: the DM undoes it there and applies it to any new target, by hand.",
+        "automatable": false
       }
     ],
     "spellcasting": {

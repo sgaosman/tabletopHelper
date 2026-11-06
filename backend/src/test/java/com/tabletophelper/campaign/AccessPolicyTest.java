@@ -257,6 +257,16 @@ class AccessPolicyTest {
         }
 
         @Test
+        @DisplayName("On-turn actions: a command other than an attack or spell is refused out of turn with its own "
+                + "message, and the DM never is")
+        void playerOutOfTurnWithItsOwnMessage() {
+            assertForbidden("You can only take that action on your turn", () -> accessPolicy.requireControls(
+                    campaignId, playerId, false, "You can only take that action on your turn", playerId));
+            assertDoesNotThrow(() -> accessPolicy.requireControls(campaignId, playerId, false,
+                    "You can only take that action on your turn", dmId));
+        }
+
+        @Test
         @DisplayName("On-turn actions: a player may not act for someone else even on that participant's turn")
         void playerCannotControlOthersOnTurn() {
             assertForbidden("You do not have permission to perform this action",

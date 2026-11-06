@@ -98,6 +98,15 @@ public class AccessPolicy {
 
     /** As above, and a player may attack or cast only while it is that participant's turn (D028). */
     public void requireControls(UUID campaignId, UUID controllerId, boolean isTheirTurn, UUID userId) {
+        requireControls(campaignId, controllerId, isTheirTurn, "You can only attack on your turn", userId);
+    }
+
+    /**
+     * As above, for a command other than an attack or a spell, refused off the participant's turn with its own
+     * message, such as "You can only take that action on your turn".
+     */
+    public void requireControls(UUID campaignId, UUID controllerId, boolean isTheirTurn, String offTurnMessage,
+                                UUID userId) {
         if (isDm(campaignId, userId)) {
             return;
         }
@@ -105,7 +114,7 @@ public class AccessPolicy {
             throw new ForbiddenException("You do not have permission to perform this action");
         }
         if (!isTheirTurn) {
-            throw new ForbiddenException("You can only attack on your turn");
+            throw new ForbiddenException(offTurnMessage);
         }
     }
 
