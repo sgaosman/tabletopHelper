@@ -1474,6 +1474,8 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Update (2026-11-03, R6 workstream G):** the sync-back in the pool lifecycle above is gone. `ResourcePoolService.syncBackToCharacter`, which copied each participant pool's `currentUses` over the sheet's pool with the same `poolId` at COMPLETED, went in R6 workstream G with `copyToParticipant`, and D166's Write-back replaces them. A player participant copies the sheet's pools through `character/CombatSnapshot` when it is added and again when the encounter starts. When the DM completes the encounter with its results applied, each pool's change in uses since the participant joined is applied to the sheet's pool as it then stands, kept between 0 and its maximum, beside the HP and slot changes, so pools spent in two encounters at once add up. If the DM declines, no pool changes. Removing a player character from an Active encounter applies its changes at once. Monsters' pools are still never written back, and of two participant pools with one ID the first still counts. In `WriteBackIT` an innate Hellish Rebuke cast only in combat came off the sheet's `innate:hellish-rebuke` pool at the end, and nothing came off when the DM declined.
 
+**Update (2026-11-06, M13):** the storage is amended by D174. V30 replaces the three per-turn flags V8 added to `encounter_participants` (`action_used`, `bonus_action_used`, `reaction_used`), which nothing ever set, with one typed `turn_economy` record (D168). A pool's `spendActionType` is now read, by the encounter's use-pool command only: it decides what using the pool costs from the participant's turn budget, and the loader rejects an unknown value. `monster:legendary-resistance` became FREE and Action Surge gained `metadata.grantsAction` (D163, D174).
+
 ## D126: Frontend Test Infrastructure & Expanded Coverage
 
 **Date:** 2026-07-26
@@ -1563,6 +1565,8 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 **Update (2026-11-06, R7 workstream D):** psionic dice recover through a pool of their own, as question D2 chose. Psi Warriors and Soulknives gain a Psionic Recovery pool from level 3, with one use that resets on a short rest. Spending it as a bonus action gives back one expended Psionic Energy die, and answers 409 when none is expended (TCE). The dice pools' `resetAmount` of 1 is removed: it never worked, since a short rest leaves a long-rest pool alone and a long rest ignores `resetAmount`. The recovery works on the character sheet; an encounter participant has no way to spend a pool yet.
 
 **Update (2026-11-06, R8 workstream I):** Psionic Recovery works in encounters too. `ResourcePoolService.spend` holds the one rule, regaining a die of the pool it names and answering 409 when none is expended, and both the sheet and a participant's spend use it. Write-back adds the participant's change since joining, so a die regained in the fight reaches the sheet. No encounter endpoint lets a player spend a pool yet, so it can't be used at the table until one is added.
+
+**Update (2026-11-06, M13):** that open item is closed (D174). `POST /api/encounters/{id}/combat/use-pool` lets a player use their own pools and the DM any participant's, charging the pool's `spendActionType` (D125), and the session pages' pool menus (ResourcePoolDisplay's encounter mode and the reaction menu) call it, so Psionic Recovery can be used in an encounter as a bonus action. A regained die still reaches the sheet through Write-back at the end (D166).
 
 ## D128: Known Issue — Missing Second ASI Prompt on Multi-Level Character Creation
 
@@ -1674,6 +1678,8 @@ The existing `resetFeatResources()` in `CharacterService` was already correct (l
 **Decision:** Although the `monster-action-definitions.json` contains reactions (311 monsters) and bonusActions (192 monsters) data, these are not displayed or usable in M12. M13 (Enhanced Action Economy) will implement reactions and bonus actions for both monsters and players together.
 
 **Related:** D033
+
+**Update (2026-11-06, M13):** monsters' bonus actions and reactions are now shown and usable (D174). The DM uses them through the BONUS and REACTION sources of a monster action, from the monster panel's Bonus actions and Reactions tabs; a bonus action costs the monster's bonus action and a reaction its reaction, on any turn. Of 235 bonus actions 60 resolve automatically, and of 339 reactions 84; 159 reactions on 158 monsters that change a result already rolled (Parry, Uncanny Dodge, Portent and the like) carry a `dmNote` for the DM to apply by hand, and ten became manual (D137, D165). Players' reactions, such as opportunity attacks and reaction-time spells, are usable off-turn through the reaction menu; nothing prompts for a reaction automatically.
 
 ## D139: Monster Action Data Seeding — action_templates Column on Monster Entity
 
@@ -1827,7 +1833,7 @@ Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and
 ## D150: Refactor Phase Before M13 — Phases R1–R8
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R1–R8); the local database takes V29 and R8 at its next start; then M13
+**Status:** Accepted — implemented (R1–R8, on the local database since 2026-11-06); M13 implemented, the local database takes V30 at its next start
 
 **Decision:** Feature milestones (M13 onward) are paused until the refactor phase is complete. The phase runs in eight steps. Each step leaves the app deployable, with CI green and the project docs updated.
 
@@ -1884,6 +1890,8 @@ M13 (action economy) changes the same combat code. Building it first would multi
 **Update (2026-11-06, R8 implemented):** R7 and R8 are implemented, each workstream one local commit followed by its docs, none of them pushed yet. **R7:** A, baselines (5188de4); B, content loaders and hashes (4891233, D151, D169); C, the loaders' catches (5765a03, D155); D, pool level tables and the expression parser (f52ae7b, D127, D172); E, character rules from data (cc73798, D158, D161, D167); F, monster data and condition immunities (e03896e, D161, D165, D168); G, dropping the deprecated columns and the unused data (d8978ba, D168); H, the creation spellcasting ability (b77e088, D159). **R8:** A, baselines and the `json-roundtrip` job (0dbb306, D168, D172); B, Spring Boot 3.5 (cd1e78d, D154); C, Spring Boot 4.1 and Jackson 3 (64bf3bc, D154); D, shared encounter components (d2ea839, D171); E, one spell pop-up flow (b24dc13, D164, D171); F, one spell picker (6589ed7, D171); G, the wizard reducer (a1152e4, D171); H, feat prerequisites on the server (578aa28, D158, D159, D168); I, small items (91a0d46, D127, D159, D165, D166, D167); J, these docs. R8 ends with 1,936 backend unit tests, 220 integration tests, 766 frontend tests, and lint at 0 warnings. **The local database has not yet taken V29 or R8:** the backend has not started on Spring Boot 4 since, so its next start applies V29 and R8's content changes (the feats' prerequisites in their new shape, and 25 monsters' templates). Before that start, back up the database; after it, run `json-roundtrip`, a `recompute-characters` dry run and the load check (D169, D172). **Still open:** pushing R7 and R8 to GitHub; an encounter endpoint for a player to spend a pool, so Psionic Recovery can be used in combat (D127); the 331 text-only monster saves, reported but not applied (D165); a background's starting equipment; and the items the R8 plan left for later: class starting equipment and gold, typing the other reference string columns, D162's end rules from data, multiattack alternatives and additional spellcasting, invocations, pact boons, Metamagic and maneuvers, Magical Secrets, swap-only levels, the Eldritch Knight's and Arcane Trickster's school limits, tool Expertise and multiclass skill picks, the spend and recover pool lists (D151), removing a participant while Paused, `results_applied` on the DM page and a log entry for applied results (D166), and replacing SockJS if it is deprecated. M13 (action economy) follows once the local database has taken V29 and R8; HTTPS and automated backups wait for the Hosting step (D154).
 
 **Update (2026-11-06, R7 and R8 on the local database):** the local database now runs R7 and R8. After a backup (`before-r8-start-20261106T1738Z.sql`), the first start on Spring Boot 4.1 applied V29 (D168) and loaded R8's content changes. On the real data `json-roundtrip` matched its baseline of 11 null-only changes with nothing unreadable, `recompute-characters` found no character to change, and all 13 characters and 15 encounters loaded, as on the restored copies. The status lines that say the local database takes V29 and R8 at its next start are now past; what remains open is listed in the R8 note above.
+
+**Update (2026-11-06, M13):** M13, the action economy (D174), is implemented as local commits, each workstream followed by its docs, none pushed yet: A, the turn economy state and rules with V30 (5bdfd3e); B, commands charge the turn budget (173b1c4); C, pools spent in encounters (382acad, D125, D127); D, standard actions, object interaction and the DM's budget edit (85137ab, D162); E, monster bonus actions and reactions (947cb52, D138, D157); F, the turn budget on screen and costs in the combat flows (976d49b, D171); G, the action, reaction and pool menus (01ff1f3, D171); H, these docs. M13 ends with 2,096 backend unit tests, 235 integration tests, 851 frontend tests, and lint at 0 warnings. **The local database has not yet taken V30:** the backend now running maps the columns V30 drops, so V30 and M13's content changes (`repeatActionType` on the 20 repeat templates, the Legendary Resistance and Action Surge pool definitions, and 158 monsters' reaction notes) wait for its next restart on the new code; back up the database first, then run `json-roundtrip` and the load check (D169, D172). **Still open:** pushing M13; the items D174's notes leave open, after workstream E settled two of D's (the off-turn refusal's wording and a monster budget edit in the players' log): Hide ignoring armour's Stealth disadvantage, monster reactions logged as monster actions rather than `REACTION_TAKEN`, bonus-action uses that recover on a rest not enforced, a monster's pool use showing its uses left to players, and Enduring Response and Pacification dealing damage at once; and the plan's out-of-scope items, listed on the roadmap.
 
 ## D151: Modular Monolith — Microservices Rejected
 
@@ -2492,6 +2500,8 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 
 **Update (2026-11-03, R5 follow-ups):** a failed save against a hit's condition also offers Legendary Resistance; using it removes only the conditions that save guarded, and the hit's damage stays. It isn't offered when the hit killed the target. The tie arrows are a shared component, also shown in the encounter builder while Preparing or Active.
 
+**Update (2026-11-06, M13):** the turn budget of D174 leaves these rules alone. Legendary actions keep their own count, and lair actions and Legendary Resistance cost nothing from a monster's turn budget (Legendary Resistance's pool is now FREE, D125). A creature's budget is reset only at the start of its own turn, so moving the turn marker back with Previous doesn't restore the budget it had; the DM corrects it with the turn-economy edit until M14's undo.
+
 ## D164: Attacks and Spells Calculated and Validated by the Server
 
 **Date:** 2026-11-01
@@ -2983,7 +2993,7 @@ The full list is settled during R2 planning.
 ## D174: Action Economy
 
 **Date:** 2026-11-06
-**Status:** Accepted — planned (M13)
+**Status:** Accepted — implemented (M13); the local database takes V30 and M13's content changes at the backend's next restart
 
 **Decision:**
 - **Tracked per turn for every participant** (PHB p.189–193, 2014): actions (one, plus one per Action Surge), attacks left in the current Attack action (Extra Attack, p.72), the bonus action, the reaction (back at the start of the creature's own turn, p.190), the free object interaction (p.190), and the bonus-action-spell rule (p.202). Incapacitated creatures take no actions or reactions (p.290).

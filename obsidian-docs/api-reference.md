@@ -682,6 +682,8 @@ Returns targeting constraints for a spell at a given cast/upcast level. Used by 
 
 `maxTargets` is -1 for unlimited (AOE spells). Upcast scaling is applied automatically based on `targetCountUpcastScaling` in the spell effect template.
 
+The response also has `hasRepeatEffect` and, since M13 (D174), `repeatActionType`: what repeating the spell's effect costs from the caster's turn, `ACTION`, `BONUS_ACTION` or `NONE`, or `null` for a spell without a repeat effect. The repeat pop-up shows it.
+
 An unknown spell, or one without an effect template, answers 404. A spell whose stored template can't be read answers 409 (R7, D155).
 
 ## Items
@@ -1061,7 +1063,7 @@ Look up an encounter by session code. Used by players to join a live encounter. 
 }
 ```
 
-The sample is abbreviated: it lists one participant (so `monstersInLair` names a monster that isn't shown) and leaves out the spellcasting fields, `resourcePoolsCurrent` and the action, bonus action and reaction flags, which the spec lists.
+The sample is abbreviated: it lists one participant (so `monstersInLair` names a monster that isn't shown) and leaves out the spellcasting fields, `resourcePoolsCurrent` and the turn economy fields (`turnEconomy`, `attacksPerAction`, `speed`), which the spec lists.
 
 `healthStatus` is set only in the Player View, on a monster whose HP it hides: `UNHARMED`, `INJURED`, `BLOODIED` or `DOWN`, with `hpCurrent`, `hpMax` and `hpTemp` then `null`. The Player View also sets a monster's `monsterId`, `notes`, `spellsKnown`, `spellSlotsCurrent`, `spellAttackBonus`, `spellSaveDc`, `spellcastingAbility`, `resourcePoolsCurrent` and `hasLairActions` to `null`, and leaves out participants hidden from players (D157). It narrows `turnOrder` as well, as [[websocket-protocol#Player View (D157)]] describes.
 
@@ -1077,11 +1079,20 @@ What R5 changed in the payload (D161–D163, D168):
 - `allowPlayerManualModifiers` repeats the campaign's setting, so the session pages know whether to offer players Manual Modifier fields (D164).
 - `characterClass` (R5 follow-ups, D171) is a player character's class as its sheet names it, such as `"Fighter"`, or `"Fighter / Wizard"` for a multiclass character, and `null` on a monster. The server reads it from the sheet each time it builds the state, so no request sets it and a participant keeps no copy. Both views carry it, and the session pages and the encounter builder use it to colour a player character's row.
 
+What M13 added to each participant (D174), in place of the `actionUsed`, `bonusActionUsed` and `reactionUsed` flags, which V30 dropped:
+
+- `turnEconomy` is what the participant has spent of its turn: `{actions, actionsUsed, attackActionTaken, attacksLeft, bonusActionUsed, reactionUsed, objectInteractionUsed, bonusActionSpellCast, otherSpellCast, dashed, disengaged}`, plus `actionSurgeUsed`, written only when `true`. `actions` is 1, plus 1 for each Action Surge; `attacksLeft` counts the attacks left in an Attack action already taken. It is reset at the start of the participant's own turn.
+- `attacksPerAction` is how many attacks one Attack action gives it (Extra Attack: 2, 3 or 4).
+- `speed` is an object of its speeds in feet by kind (`walk`, `fly`, `swim`, `climb`, `burrow`), walking first, and empty when unknown. Movement is advisory: no feet are counted.
+- The Player View sets a monster's `turnEconomy` and `attacksPerAction` to `null` (D157); `speed` stays.
+
 ## Combat
 
 All combat endpoints are under `/api/encounters/{encounterId}/combat`. A combat command needs an ACTIVE encounter: PREPARING, PAUSED and COMPLETED each answer 409 with their own message (R5, D166). The four reads, `log`, `spell-options`, `attack-options` and `multiattack-options`, work in any status. Each command starts the same way (`CombatAccess`, D160): access by campaign, then the encounter's row lock, then who the user may act for, then the status check. The DM may act for any participant; a player may act only for a participant they control (403 otherwise, D028, D155), and may attack or cast spells only on that participant's turn (403 "You can only attack on your turn"). Damage, healing, Set HP, restoring spell slots, monster actions, Legendary Resistance, lair status and turn changes are DM only (403 for a player, D161). A participant named in the body or query string that isn't in the encounter is a 400, and so is one hidden from the player who names it as a target (D157). An attack, spell or monster action aimed at a dead creature answers 409 ("X is dead"); only Set HP brings the dead back (D161). A player's Manual Modifier answers 403 when the campaign has turned them off (D164).
 
 After every mutation commits, the server publishes the DM View and the Player View, and the response, including `encounterState` in spell results, is the caller's view (D157).
+
+**Turn economy (M13, D174):** each command that costs something from a creature's turn is charged to its `turnEconomy` after the command's other checks and before anything is rolled or spent: an attack, a spell, a repeated spell effect, a monster's action, bonus action or reaction, a pool's use, a standard action and an object interaction. A player's command the turn can't pay for answers `409` with the reason, such as "It has already taken its bonus action this turn", and so does any command except a free one by an incapacitated creature. The DM is never refused: the command applies, and for a creature other than a monster the log says it went "over the action economy". A command costing a reaction or nothing may be given on another creature's turn, so a player can take an opportunity attack or a reaction-time spell off-turn; anything else off-turn stays a `403`. Legendary actions, lair actions and Legendary Resistance cost nothing from the budget (D163), and damage, healing, conditions, slots, saves and turn changes aren't charged.
 
 ### POST /encounters/{id}/combat/attack
 
@@ -1133,6 +1144,7 @@ Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice a
 - `advantage`: `true` = advantage (roll 2d20, take higher), `false` = disadvantage (take lower), `null` = normal
 - `forceCrit`: `true` = treat as critical hit regardless of roll (doubles damage dice, overrides nat 1). A Manual Modifier (R5, D164): the DM may always force one, and a player only while the campaign allows Manual Modifiers (403 otherwise). Each use is logged, for example "Manual Modifier (player): Rogue's attack is a critical hit."
 - `within5Ft`: whether the attacker is within 5 feet of the target, which decides whether a hit on an unconscious or paralyzed target is a critical hit. Defaults to `true` when left out, since there is no map (R5, D161), except for a ranged weapon, which defaults to `false`.
+- `cost` (M13, D174): what the attack costs from the attacker's turn. `ACTION` when left out: the first attack opens the Attack action with the attacker's action, and later ones use the attacks left in it (`attacksPerAction`). `BONUS_ACTION` is an off-hand attack (PHB p.195): it needs the Attack action this turn and a light melee weapon, and adds the ability modifier to damage only when it is negative. `REACTION` is an opportunity attack, which may be made on another creature's turn. The log names a cost other than `ACTION`, such as "(bonus action)".
 
 **Query params:** `actorId` — the attacking participant. A player must send their own character's (403 without it, or when it isn't that participant's turn), and a weapon attack needs a player character's. The DM may leave it out for an attack entered by hand, which the log then credits to the DM.
 
@@ -1140,8 +1152,10 @@ Roll an attack (d20 + modifier vs AC). On hit, automatically rolls damage dice a
 
 **Errors:**
 - `400` — an invalid dice expression, or a target that isn't in the encounter or is hidden from the player. A weapon attack adds: an attacker that isn't a player character, a weapon the character doesn't hold, a `powerAttack` that the weapon, the feat or proficiency doesn't allow (the message says which), and `extraDamageType` without `extraDamageDice`. A request that mixes the two kinds is a 400 too: a `weapon` with `attackBonus`, `damageDice` or `damageType`, or numbers entered by hand with `powerAttack` or an `extra…` field, or without both numbers.
-- `403` — a player attacking for a participant they don't control or outside its turn, or entering a Manual Modifier the campaign doesn't allow
+- `403` — a player attacking for a participant they don't control or outside its turn (except an opportunity attack), or entering a Manual Modifier the campaign doesn't allow
 - `409` — the target is dead, or the encounter isn't ACTIVE
+- `409` — a player's attack the turn can't pay for, such as a third attack with Extra Attack and no action left, an off-hand attack without the Attack action, or a second reaction (M13, D174)
+- `400` — an off-hand attack (`cost: BONUS_ACTION`) without a light melee weapon (M13, D174)
 
 ### GET /encounters/{id}/combat/attack-options
 
@@ -1417,6 +1431,9 @@ A player may cast only what `GET /combat/spell-options` lists for their characte
 - `400` — The caster can't cast the spell now or can't pay for it: it isn't one of their spells, it isn't prepared, a race spell isn't unlocked yet, no slot of that level or higher, pact slot or innate use is left, or `slotLevel` doesn't suit the `spellSource`. Also more targets than the spell allows at that level, and a target that isn't in the encounter or is hidden from a player. A missing slot is a 400 since R5 (it was a 409), because the cast is checked before anything is spent.
 - `403` — A player casting for a participant they don't control or outside its turn, or entering a Manual Modifier the campaign doesn't allow
 - `409` — The caster is silenced and the spell has a verbal component, a target is dead, or the encounter isn't ACTIVE
+- `409` — A player's spell the turn can't pay for, one that breaks the bonus-action-spell rule (PHB p.202), or one that takes longer than a turn to cast (M13, D174)
+
+**Cost (M13, D174):** a spell costs its casting time, as `spell-options` gives it: an action, a bonus action, or a reaction, which may be cast on another creature's turn. A player who casts a spell as a bonus action can cast only a cantrip with a casting time of 1 action that turn, and the other way round (PHB p.202). A spell longer than a turn is refused to a player; the DM's is charged an action and logged.
 
 A spell with no stored effect template, one the template leaves to the DM, and one whose dice can't be rolled are not errors: what pays for the cast is spent and the response has `autoResolved: false` with a `manualResolutionReason`. A concentration spell still starts the caster's concentration.
 
@@ -1442,6 +1459,7 @@ List what a participant can cast now, and what can pay for each spell, so the sp
 
 - `sources` lists what can pay, in the order `SLOT`, `PACT_SLOT`, `INNATE`, `NONE`. `levels` are the levels the spell can be cast at with that source now, lowest first; it is empty when the source is spent, and a spell whose sources are all spent is still listed.
 - `usesLeft` and `usesMax` count the pact slots or innate uses; they are `null` for `SLOT` and `NONE`.
+- `castingTime` (M13, D174) is what casting the spell costs from a turn: `ACTION`, `BONUS_ACTION`, `REACTION`, or `LONGER` for a spell that takes more than a turn. `reactionTrigger`, for a reaction spell, is what it is cast in response to, as its casting time words it; `null` otherwise.
 - A player character's list holds the spells it can cast now: prepared or always-prepared spells, and race and feat spells once unlocked. A monster's holds its slot, innate (uses left) and at-will spells. Spells are sorted by level, then name.
 
 **Errors:**
@@ -1477,6 +1495,7 @@ Repeat the damaging effect of a concentration spell without consuming a spell sl
 - Damage resistances/immunities/vulnerabilities applied to targets
 - A player character's class spell repeats with that class's save DC and attack bonus, and a race or feat spell with the main numbers, as in cast-spell (R6 workstream C, D164)
 - Logged as `SPELL_EFFECT_REPEAT` action type
+- Costs the template's `repeatActionType` from the caster's turn (M13, D174): an action for Witch Bolt, Call Lightning, Moonbeam, Vampiric Touch, Flame Blade and Maximilian's Earthen Grasp; a bonus action for Spiritual Weapon, Flaming Sphere, Heat Metal, Melf's Minute Meteors, Dust Devil and Aura of Vitality; nothing for the other eight. Repeating still needs the caster's turn for a player, so triggered damage on another creature's turn, such as Spirit Guardians', is the DM's to apply. A player's repeat the turn can't pay for answers `409`.
 
 **Errors:**
 - `403` — A player repeating the effect outside the caster's turn, or entering a Manual Modifier the campaign doesn't allow
@@ -1497,7 +1516,107 @@ Advance to the next turn (DM only): the current turn ends and the next one start
 
 ### POST /encounters/{id}/combat/turn/previous
 
-Go back to the previous turn (DM only). It only moves the turn marker, past any dead monster's turn, and decrements the round number when it passes the start of the order (never below round 1). Nothing the turn change did is undone, and no turn effects run. Answers 409 when nobody can take a turn.
+Go back to the previous turn (DM only). It only moves the turn marker, past any dead monster's turn, and decrements the round number when it passes the start of the order (never below round 1). Nothing the turn change did is undone, and no turn effects run. Answers 409 when nobody can take a turn. Since M13 that includes the turn economy: going back doesn't restore a creature's budget, which the DM can set with `PUT /combat/turn-economy` (D163, D174).
+
+### POST /encounters/{id}/combat/use-pool
+
+Use a participant's resource pool at the table (M13, D125, D174). The DM may use any participant's pool, a player only their own participant's (403 otherwise, D028).
+
+**Request:**
+```json
+{
+  "participantId": "uuid",
+  "poolId": "subclass:psi-warrior-psionic-recovery",
+  "uses": 1
+}
+```
+
+- `poolId` — the pool as the participant's `resourcePoolsCurrent` names it.
+- `uses` — 1 to 20; 1 when left out.
+
+It costs the pool's `spendActionType`: `ACTION`, `BONUS_ACTION` or `REPLACE_ATTACK` (one attack of the Attack action) on the participant's own turn, and `REACTION` or `FREE` on any turn. The pool's own refusals come first, before anything is charged: no uses left, or for Psionic Recovery no Psionic Energy die to regain. An unlimited pool is never refused. A pool marked `metadata.grantsAction`, Action Surge, adds an action on the participant's own turn, once per turn (PHB p.72), recorded as `actionSurgeUsed`. Each use is logged as `POOL_USE`, such as "Vex uses Psionic Recovery (bonus action) and regains a use of Psionic Energy Dice (4/4)". A die regained this way reaches the sheet through Write-back (D166).
+
+**Response (200):** Full encounter object.
+
+**Errors:**
+- `400` — a pool the participant hasn't, more than one use of Action Surge at once, or a participant that isn't in the encounter
+- `403` — a player using another participant's pool, or one that costs an action or bonus action off the participant's turn ("You can only take that action on your turn")
+- `409` — the pool hasn't the uses; the pool it recovers has none to regain; a player's use the turn can't pay for, or a second Action Surge in a turn; or the encounter isn't ACTIVE
+
+### POST /encounters/{id}/combat/standard-action
+
+Take one of the standard actions of PHB p.192–193 other than Attack and Cast a Spell (M13, D174). The DM may act for any participant, a player only for their own and only on its turn (403 "You can only take that action on your turn").
+
+**Request:**
+```json
+{
+  "participantId": "uuid",
+  "action": "HELP",
+  "cost": "ACTION",
+  "targetId": "uuid",
+  "note": null
+}
+```
+
+- `action` — `DASH`, `DISENGAGE`, `DODGE`, `HELP`, `HIDE`, `READY`, `SEARCH` or `USE_OBJECT`.
+- `cost` — `ACTION` when left out, or `BONUS_ACTION` where a feature grants it: Cunning Action (Dash, Disengage, Hide) or Nimble Escape (Disengage, Hide), read from the sheet's features or the monster's traits.
+- `targetId` — the creature Help helps; only Help takes one, and it must.
+- `note` — what the log adds, up to 500 characters: Ready's trigger, which it must have, or the object of Use an Object.
+
+Dash and Disengage set the budget's `dashed` and `disengaged` (advisory, since there is no map). Dodge adds a `dodging` entry to the creature's conditions, ending at the start of its next turn (D162); while it isn't incapacitated, grappled or restrained, attacks against it have disadvantage and its DEX saves advantage. Help names its creature in the log; Hide rolls d20 plus Stealth and logs the total for the DM to judge; Ready logs its trigger, and the response later is a reaction; Search and Use an Object are logged. Logged as `STANDARD_ACTION`.
+
+**Response (200):** Full encounter object.
+
+**Errors:**
+- `400` — Help without a creature, a creature named by another action, Ready without a `note`, or a participant that isn't in the encounter
+- `403` — a player acting for another participant or off its turn
+- `409` — a player's action the turn can't pay for, or a bonus action nothing grants them; or the encounter isn't ACTIVE
+
+### POST /encounters/{id}/combat/object-interaction
+
+Take an object interaction, such as drawing a sword or opening a door (M13, D174, PHB p.190). Access as for `standard-action`.
+
+**Request:**
+```json
+{
+  "participantId": "uuid",
+  "description": "draws a longsword"
+}
+```
+
+`description` (required, up to 500 characters) is what the log says. The first object interaction each turn is free; a player's second answers `409`, since it needs the Use an Object action, while the DM's goes through as an overspend. Logged as `OBJECT_INTERACTION`.
+
+**Response (200):** Full encounter object.
+
+**Errors:**
+- `400` — a blank `description`, or a participant that isn't in the encounter
+- `403` — a player acting for another participant or off its turn
+- `409` — a player's second interaction in a turn, or the encounter isn't ACTIVE
+
+### PUT /encounters/{id}/combat/turn-economy
+
+Set a participant's turn economy (DM only, M13, D174), for what the app doesn't model, such as Haste's extra action, Slow, surprise or a correction. It replaces the whole record until the start of the participant's next turn.
+
+**Request:**
+```json
+{
+  "participantId": "uuid",
+  "turnEconomy": {
+    "actions": 2, "actionsUsed": 0, "attackActionTaken": false, "attacksLeft": 0,
+    "bonusActionUsed": false, "reactionUsed": false, "objectInteractionUsed": false,
+    "bonusActionSpellCast": false, "otherSpellCast": false, "dashed": false, "disengaged": false
+  }
+}
+```
+
+The change is logged as `TURN_ECONOMY_SET`, naming each part that changed, such as "The DM sets Aria's turn economy: actions 1 → 2". On a monster the Player View's log shows only "The DM adjusts <monster>'s turn." (D157).
+
+**Response (200):** Full encounter object.
+
+**Errors:**
+- `400` — `actions`, `actionsUsed` or `attacksLeft` below 0 or above 10, or a participant that isn't in the encounter
+- `403` — the user isn't the campaign's DM
+- `409` — the encounter isn't ACTIVE
 
 ### POST /encounters/{id}/combat/lair-status
 
@@ -1539,10 +1658,12 @@ Use Legendary Resistance on a failed save (DM only, D145, D163). The creature su
 
 ### POST /encounters/{id}/combat/monster-action
 
-Use a monster's action, legendary action or lair action (DM only). `actionSource` is `ACTION`, `LEGENDARY` or `LAIR`, and the spec has the request and response shapes. Monsters cast spells through `cast-spell`, not here. R5 (D136, D163) added these refusals:
+Use a monster's action, bonus action, reaction, legendary action or lair action (DM only). `actionSource` is `ACTION`, `BONUS`, `REACTION`, `LEGENDARY` or `LAIR`, and the spec has the request and response shapes. Monsters cast spells through `cast-spell`, not here. R5 (D136, D163) added these refusals:
 
 - `409` — a legendary action on the monster's own turn, or without enough legendary actions left; a lair action off the Lair's turn, by a monster that isn't fighting in its lair or is dead, or the same lair action two rounds running; a Recharge action that hasn't recharged; a dead target.
 - `400` — a monster participant or an action that doesn't exist, a target that isn't in the encounter, or a monster without action templates.
+
+**Bonus actions and reactions (M13, D138, D174):** `BONUS` uses one of the monster's `bonusActions` and costs its bonus action; `REACTION` uses one of its `reactions` and costs its reaction, on any turn, the Lair's included. An `ACTION`, Multiattack included, costs one action. Legendary and lair actions cost nothing from the budget. The DM is never refused, and a monster's overspend is recorded in its `turnEconomy` without a log entry. A reaction that changes a result already rolled, such as Parry or Uncanny Dodge, isn't applied to that result: the response leaves it to the DM with the template's `dmNote`.
 
 **Multiattack (R5 workstream G, D165):** each of a multiattack's attacks can take a target of its own. Read the attacks from `multiattack-options`, then send `componentTargetIds`: one list of participant IDs for each attack, in the order that option lists them, with `targetParticipantIds` empty. An empty list skips that attack. A creature named twice for one attack counts once, and an attack the DM resolves by hand (`automated: false`) takes no targets, whatever is sent for it. Each attack resolves and is logged on its own, and a later attack skips a target an earlier one killed. `targetResults` has one entry for each attack and target, so a creature attacked twice appears twice.
 

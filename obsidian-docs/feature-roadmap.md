@@ -4,6 +4,8 @@
 
 > **Note (2026-11-06, R8):** the refactor phase (R1–R8, [[decisions-log#D150]]) is implemented, each step committed locally and not yet pushed. The local database takes V29 and R8's content changes at its next start, followed by the `json-roundtrip`, `recompute-characters` dry run and load checks. Feature milestones resume with M13 after that. HTTPS and automated backups wait for the Hosting step (D154).
 
+> **Note (2026-11-06, M13):** the local database has since taken V29 and R8, and R7 and R8 are pushed. M13 (action economy, [[decisions-log#D174]]) is implemented as local commits, not yet pushed; the local database takes V30 and M13's content changes at the backend's next restart.
+
 ## Milestone Status
 
 | # | Milestone | Status | Notes |
@@ -22,7 +24,7 @@
 | 24 | UI Redesign: Tourmaline Theme | Complete | Light mode, square corners, Cinzel + Cormorant Garamond fonts, tourmaline gradient nav accent, class-colored accents, warm parchment surfaces |
 | 12 | Monster Actions, Legendary Actions & Resistance | Complete | All CRs, lair actions, structured action data, DM action panel, legendary action pool, combat-log-based legendary resistance undo, recharge logging, lair action cards |
 | 12.5 | CR 11-15 Monster Data Expansion | Eliminated — merged into M12 (D129) | Extend structured monster actions from CR 10 to CR 15, required for M6 release trigger |
-| 13 | Enhanced Action Economy | Not started | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, item use, bonus-action-spell rule |
+| 13 | Enhanced Action Economy | Implemented (2026-11-06) | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, bonus-action-spell rule, pools in encounters (D174); 2,096 backend unit, 235 integration and 851 frontend tests. Item use moved out; the local database takes V30 at its next restart |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
@@ -35,7 +37,7 @@
 | 23 | Architecture Review 2 Action Plan | Complete | IDOR fix, long rest resource reset, unconscious auto-crit, ErrorBoundary, CombatService dedup, CharacterSheetPage split, HikariCP, @EntityGraph, Flyway, ARIA, FeatPicker extraction |
 | 24.5 | Generic Resource Pool System | Complete | Unified resource schema for Ki, Sorcery Points, Channel Divinity, legendary actions, breath weapons, etc. |
 | 25 | Comprehensive Testing Suite | Complete | 529 tests (276 backend + 253 frontend) — expanded from 330 with MSW infrastructure, component tests (14 files), integration tests (3 files), and backend additions (MonsterService, spell targeting) |
-| R1–R8 | Refactor Phase (D150) | Implemented (2026-11-06) | Server-authoritative rules, modular monolith, typed JSON, content as data, Spring Boot 4.1; 1,936 backend unit, 220 integration and 766 frontend tests. The local database takes V29 and R8 at its next start; M13 follows |
+| R1–R8 | Refactor Phase (D150) | Implemented (2026-11-06) | Server-authoritative rules, modular monolith, typed JSON, content as data, Spring Boot 4.1; 1,936 backend unit, 220 integration and 766 frontend tests. On the local database since 2026-11-06 (V29); M13 followed |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 
@@ -474,36 +476,43 @@ Phase 3 — Multiclass at creation:
 
 **Goal:** Full D&D 5e action economy tracking with reactions, bonus actions, and non-attack actions.
 
+**Status (2026-11-06):** implemented as workstreams A–G, local commits not yet pushed ([[decisions-log#D174]]). The local database takes V30 and M13's content changes at the backend's next restart. The plan of record replaced some tasks below; the notes say how.
+
 **Backend tasks:**
-- [ ] Action economy tracking per turn: action used, bonus action used, reaction used (reset on turn start)
-- [ ] Reaction system: `POST /api/encounters/{id}/combat/reaction` — usable on any turn, consumes reaction
+- [x] Action economy tracking per turn: action used, bonus action used, reaction used (reset on turn start) — one `turn_economy` record (V30) with actions, attacks left in the Attack action, bonus action, reaction, object interaction and the bonus-action-spell flags; enforced for players with a 409, the DM never refused
+- [x] Reaction system: `POST /api/encounters/{id}/combat/reaction` — usable on any turn, consumes reaction — built as a reaction cost on the existing commands rather than a separate endpoint: an attack's `cost: REACTION`, a spell's reaction casting time, a reaction pool, and a monster's `REACTION` source, each allowed off-turn
   - Opportunity attacks
-  - Shield (reaction spell)
-  - Counterspell (reaction spell with ability check for higher level)
+  - Shield (reaction spell) — cast and logged; raising AC against a hit already rolled is left to the DM
+  - Counterspell (reaction spell with ability check for higher level) — cast as a reaction; its ability check is out of scope
   - Other reaction spells
-- [ ] Bonus action tracking: enforce one per turn
-- [ ] Bonus-action-spell rule (PHB 202): if a bonus action spell is cast, any other spell cast that turn must be a cantrip with casting time of 1 action
-- [ ] Standard non-attack actions: Dodge, Help, Hide, Dash — log to combat log, apply relevant effects
+- [x] Bonus action tracking: enforce one per turn
+- [x] Bonus-action-spell rule (PHB 202): if a bonus action spell is cast, any other spell cast that turn must be a cantrip with casting time of 1 action
+- [x] Standard non-attack actions: Dodge, Help, Hide, Dash — log to combat log, apply relevant effects — `POST /combat/standard-action`, with Disengage, Ready, Search and Use an Object as well; Help and Hide are logged for the DM to apply
   - Dodge: advantage on DEX saves, attacks against you have disadvantage (track as a condition-like state, expires at start of next turn)
   - Help: grant advantage on next attack or ability check against a target
   - Hide: contested Stealth check (log result, DM adjudicates)
   - Dash: double movement (informational log entry)
-- [ ] Item use in combat:
+- [ ] Item use in combat: — moved out of M13 (see below); Use an Object is logged as a standard action
   - `POST /api/encounters/{id}/combat/use-item` endpoint
   - Charge tracking and deduction
   - Attunement check (if item requires attunement, verify character is attuned)
   - Effect resolution through the same effect engine
   - Consumable items: removed from inventory on use
-- [ ] Free object interaction: freetext logging for minor actions (drawing a weapon, opening a door)
+- [x] Free object interaction: freetext logging for minor actions (drawing a weapon, opening a door) — `POST /combat/object-interaction`, the first each turn free
+- [x] Pools spent in encounters — `POST /combat/use-pool`, costing the pool's `spendActionType`, with Action Surge adding an action (closes D127's open item)
+- [x] Monster bonus actions and reactions (D138) — `BONUS` and `REACTION` monster action sources
+- [x] DM's turn economy edit — `PUT /combat/turn-economy`, for Haste, Slow, surprise or a correction
 
 **Frontend tasks:**
-- [ ] Reaction prompt: when an event triggers a possible reaction (e.g., creature leaves reach), inline combat log prompt with available reactions
-- [ ] Reaction counter display per participant
-- [ ] Bonus action modal: show available bonus actions (bonus action spells, class abilities like Cunning Action)
-- [ ] Standard action buttons: Dodge, Help, Hide, Dash in a burger menu
-- [ ] Item use modal: list equipped/attuned items with charges, select item → resolve effect
-- [ ] Free object interaction: freetext input logged to combat log
-- [ ] Action economy indicators: visual display of action/bonus action/reaction availability per turn
+- [ ] Reaction prompt: when an event triggers a possible reaction (e.g., creature leaves reach), inline combat log prompt with available reactions — moved out of M13 (see below); `ReactionMenu` lets a player or the DM take a reaction by hand instead
+- [x] Reaction counter display per participant — `TurnEconomyBar`
+- [x] Bonus action modal: show available bonus actions (bonus action spells, class abilities like Cunning Action) — the spell flow's casting-time badges, `StandardActionMenu`'s bonus-action versions and the pool menus
+- [x] Standard action buttons: Dodge, Help, Hide, Dash in a burger menu — `StandardActionMenu`
+- [ ] Item use modal: list equipped/attuned items with charges, select item → resolve effect — moved out of M13 (see below)
+- [x] Free object interaction: freetext input logged to combat log — `ObjectInteractionBox`
+- [x] Action economy indicators: visual display of action/bonus action/reaction availability per turn — `TurnEconomyBar` on the DM's rows and the player's "This Turn" card, with greyed options and reasons
+
+**Out of scope / later:** item use with charges and attunement; automatic reaction prompts and reactions such as Shield or Parry rewriting a hit already rolled; a movement counter or grid; surprise; Haste and Slow automation (the DM's budget edit covers them); spells longer than a turn in combat; Martial Arts, Flurry of Blows, Thirsting Blade and fighting styles (M17); Quickened Spell (M18); Counterspell's ability check; Ready triggers beyond a logged reaction; restoring the budget on undo (M14); companions' bonus-action attacks (M15).
 
 ## Milestone 14: Undo System
 
