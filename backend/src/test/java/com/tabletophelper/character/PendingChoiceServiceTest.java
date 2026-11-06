@@ -149,6 +149,26 @@ class PendingChoiceServiceTest {
         return pc.getSpellsKnown().stream().filter(s -> source.equals(s.source())).map(KnownSpell::name).toList();
     }
 
+    // A feat like Fey Touched: +1 to INT, WIS or CHA, and a spell cast with the ability chosen
+    private Feat touchedFeat(String name) {
+        Feat feat = Feat.builder().id(UUID.randomUUID()).name(name).description(name + " magic")
+                .abilityScoreIncrease("[{\"choose\": {\"from\": [\"int\", \"wis\", \"cha\"], \"amount\": 1}}]")
+                .build();
+        lenient().when(f.featRepository.findById(feat.getId())).thenReturn(Optional.of(feat));
+        return feat;
+    }
+
+    // The feat with the ability chosen and Misty Step
+    private ApplyChoicesRequest.AsiChoice touchedAnswer(Feat feat, String ability) {
+        UUID mistyStep = UUID.randomUUID();
+        lenient().when(f.spellRepository.findById(mistyStep)).thenReturn(Optional.of(
+                Spell.builder().id(mistyStep).name("Misty Step").level(2).build()));
+        ApplyChoicesRequest.AsiChoice answer = featAnswer(feat);
+        answer.setFeatAbility(ability);
+        answer.setSpellIds(List.of(mistyStep));
+        return answer;
+    }
+
     private ApplyChoicesRequest.AsiChoice featAnswer(Feat feat) {
         ApplyChoicesRequest.AsiChoice answer = new ApplyChoicesRequest.AsiChoice();
         answer.setType("feat");
@@ -314,6 +334,33 @@ class PendingChoiceServiceTest {
             f.choose(adept, f.pending(adept, Type.FEAT), request -> request.setFeat(featAnswer(elementalAdept)));
             f.takeFeat(adept, elementalAdept.getId());
             assertThat(adept.getFeatures()).filteredOn(feature -> "Elemental Adept".equals(feature.name())).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("A race's feat that chooses a spellcasting ability sets it, and undoing the feat that set it hands it to the race's feat")
+        void raceFeatSpellcastingAbility() {
+            Feat feyTouched = touchedFeat("Fey Touched");
+            Feat shadowTouched = touchedFeat("Shadow Touched");
+
+            PlayerCharacter pc = create(f.barbarian, 1, request -> request.setRaceId(variantHuman.getId()));
+            f.choose(pc, f.pending(pc, Type.FEAT), request -> request.setFeat(touchedAnswer(feyTouched, "WIS")));
+
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("WIS");
+            assertThat(pc.getLevelHistory().getFirst().choices().feats().getFirst().appliedEffects()
+                    .setsSpellcastingAbility()).isTrue();
+
+            // The 4th level's feat is chosen first and sets WIS; the race's, made after, chooses CHA without setting it
+            PlayerCharacter later = create(f.barbarian, 4, request -> request.setRaceId(variantHuman.getId()));
+            f.choose(later, f.pending(later, Type.ASI), request -> request.setAsi(touchedAnswer(feyTouched, "WIS")));
+            f.choose(later, f.pending(later, Type.FEAT),
+                    request -> request.setFeat(touchedAnswer(shadowTouched, "CHA")));
+            assertThat(later.getSpellcastingAbility()).isEqualTo("WIS");
+
+            f.levelDown(later);
+
+            assertThat(later.getSpellcastingAbility()).isEqualTo("CHA");
+            assertThat(later.getLevelHistory().getFirst().choices().feats().getFirst().appliedEffects()
+                    .setsSpellcastingAbility()).isTrue();
         }
 
         @Test

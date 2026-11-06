@@ -33,6 +33,7 @@ import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.shared.ConflictException;
@@ -345,6 +346,12 @@ public class PendingChoiceService {
         }
         CharacterUpdates.recordChoices(character, index, c -> c.withSubclass(
                 new SubclassChosen(classId, subclass.getId(), subclass.getName())));
+        // An Eldritch Knight or Arcane Trickster stores its Intelligence when the character has no spellcasting
+        // ability yet, so a feat taken later that chooses another doesn't replace it (D159)
+        if (isBlank(character.getSpellcastingAbility())
+                && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(subclass.getName())) {
+            storeClassSpellcastingAbility(character);
+        }
 
         int subclassLevel = subclassLevel(characterClass);
         int classLevel = MulticlassValidator.classLevels(character.getMulticlassEntries()).getOrDefault(classId, 0);
@@ -546,6 +553,47 @@ public class PendingChoiceService {
                 character.setSubclass(null);
             }
         }
+    }
+
+    // ── The class's spellcasting ability ─────────────────────────
+
+    /**
+     * Stores the spellcasting ability of the character's first casting class (D159), and records it on the level that
+     * gives the class its spellcasting: the class's 1st level, or for an Eldritch Knight or Arcane Trickster the
+     * subclass's level, so levelling down past that level works it out again. Creation calls this when the race
+     * chose no ability, and choosing an Eldritch Knight or Arcane Trickster when the character has none. Stores
+     * nothing for a character whose classes don't cast.
+     *
+     * @return whether it stored one
+     */
+    boolean storeClassSpellcastingAbility(PlayerCharacter character) {
+        String ability = characterStats.classSpellcastingAbility(character);
+        if (ability == null) return false;
+        character.setSpellcastingAbility(ability);
+        ClassEntry entry = characterStats.classSpellcastingEntry(character);
+        CharacterClass characterClass = characterClass(entry.classId(), entry.className());
+        int givingLevel = Boolean.TRUE.equals(characterClass.getIsSpellcaster()) ? 1 : subclassLevel(characterClass);
+        int index = historyIndexOf(character, entry.classId(), entry.className(), givingLevel);
+        if (index >= 0) {
+            CharacterUpdates.recordChoices(character, index, c -> c.withSetsSpellcastingAbility(true));
+        }
+        return true;
+    }
+
+    /**
+     * Works the spellcasting ability out again once levelling down has removed the level that stored its class's,
+     * after the class entries have lost that level (D159): another casting class's, recorded on its level, or else
+     * the first feat's still applied that chose one, or none.
+     */
+    void classSpellcastingAbilityRemoved(PlayerCharacter character) {
+        character.setSpellcastingAbility(null);
+        if (!storeClassSpellcastingAbility(character)) {
+            featEffectResolver.handOnSpellcastingAbility(character);
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     // ── The backfill ─────────────────────────────────────────────

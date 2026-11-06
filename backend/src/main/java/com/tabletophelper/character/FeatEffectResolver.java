@@ -613,6 +613,15 @@ public class FeatEffectResolver {
         character.setSpellcastingAbility(null);
     }
 
+    /**
+     * Gives the spellcasting ability, which something other than a feat set and has just been taken away, such as an
+     * Eldritch Knight subclass, to the first feat still applied that chose one, as reversing a feat that set it does;
+     * with none, clears it (D159).
+     */
+    void handOnSpellcastingAbility(PlayerCharacter character) {
+        passOnSpellcastingAbility(character, null);
+    }
+
     // Whether a feat still applied, other than the one being reversed, chose a race and feat spellcasting ability
     private static boolean takesOver(AppliedFeatEffects effects, AppliedFeatEffects reversed) {
         return effects != null && effects != reversed && Ability.parse(effects.spellcastingAbility()).isPresent();

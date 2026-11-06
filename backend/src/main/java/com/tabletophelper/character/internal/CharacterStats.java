@@ -170,6 +170,34 @@ public class CharacterStats {
         return mainAbility(character, spellcasting(character));
     }
 
+    /**
+     * The spellcasting ability of the first of the character's classes that casts, in the order taken: its own, or
+     * Intelligence for an Eldritch Knight or Arcane Trickster from 3rd level. The stored spellcasting ability plays no
+     * part. Null when none of its classes casts.
+     *
+     * @throws ConflictException when a class the character has can't be found, or its ability can't be read
+     */
+    public String classSpellcastingAbility(PlayerCharacter character) {
+        ClassLevel c = firstCaster(character);
+        if (c == null) return null;
+        String abilityName = castingAbility(c);
+        return Ability.parse(abilityName).map(Ability::name).orElseThrow(() -> new ConflictException(
+                "The spellcasting ability of the class " + c.name() + " can't be read: " + abilityName));
+    }
+
+    /**
+     * The class entry whose ability {@link #classSpellcastingAbility} gives: the first of the character's classes that
+     * casts; null when none does.
+     */
+    public ClassEntry classSpellcastingEntry(PlayerCharacter character) {
+        ClassLevel c = firstCaster(character);
+        return c != null ? c.entry() : null;
+    }
+
+    private ClassLevel firstCaster(PlayerCharacter character) {
+        return classes(character).stream().filter(c -> castingAbility(c) != null).findFirst().orElse(null);
+    }
+
     /** The highest each ability score can be increased to. */
     public AbilityScoreMaximums abilityScoreMaximums(PlayerCharacter character) {
         return abilityScoreMaximums(classes(character));

@@ -1,17 +1,22 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.campaign.Campaign;
+import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterCreateRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.LevelHistoryEntry;
+import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.character.state.SubclassChosen;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.CharacterClass;
+import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.Spell;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
@@ -262,6 +267,144 @@ class CharacterServiceTest {
             assertThat(response.getSpellSaveDc()).isEqualTo(12);
             assertThat(response.getSpellAttackBonus()).isEqualTo(4);
             assertThat(response.getSpellcasting()).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("The stored spellcasting ability (D159)")
+    class StoredSpellcastingAbility {
+
+        private final Feat feyTouched = Feat.builder().id(UUID.randomUUID()).name("Fey Touched")
+                .description("Fey magic")
+                .abilityScoreIncrease("[{\"choose\": {\"from\": [\"int\", \"wis\", \"cha\"], \"amount\": 1}}]")
+                .build();
+
+        private PlayerCharacter created(CharacterCreateRequest request) {
+            return f.stored(create(request).getId());
+        }
+
+        // Fey Touched taken for the latest level that owes an Ability Score Improvement, choosing the ability
+        private void takeFeyTouched(PlayerCharacter pc, String ability) {
+            UUID mistyStep = UUID.randomUUID();
+            when(f.spellRepository.findById(mistyStep)).thenReturn(Optional.of(
+                    Spell.builder().id(mistyStep).name("Misty Step").level(2).build()));
+            when(f.featRepository.findById(feyTouched.getId())).thenReturn(Optional.of(feyTouched));
+            ApplyChoicesRequest.AsiChoice asi = new ApplyChoicesRequest.AsiChoice();
+            asi.setType("feat");
+            asi.setFeatId(feyTouched.getId());
+            asi.setFeatAbility(ability);
+            asi.setSpellIds(List.of(mistyStep));
+            f.choose(pc, f.pending(pc, PendingChoice.Type.ASI), request -> request.setAsi(asi));
+        }
+
+        @Test
+        @DisplayName("A Wizard stores INT, recorded on its 1st level, a Cleric WIS, and a Fighter none")
+        void eachClasssOwn() {
+            PlayerCharacter wizard = created(request("Pip", f.wizard, f.human));
+            assertThat(wizard.getSpellcastingAbility()).isEqualTo("INT");
+            assertThat(wizard.getLevelHistory().getFirst().choices().setsSpellcastingAbility()).isTrue();
+            assertThat(created(request("Hild", f.cleric, f.human)).getSpellcastingAbility()).isEqualTo("WIS");
+            assertThat(created(request("Bram", f.fighter, f.human)).getSpellcastingAbility()).isNull();
+        }
+
+        @Test
+        @DisplayName("A Fighter 3 / Wizard 1 stores the Wizard's INT, which levelling down out of the Wizard clears")
+        void dipsAbilityGoesWithIt() {
+            CharacterCreateRequest req = request("Kel", f.fighter, f.human);
+            req.setLevel(4);
+            req.setIntelligence(13);
+            req.setMulticlassClassEntries(List.of(new ClassEntry(f.fighter.getId(), null, null, null, 3),
+                    new ClassEntry(f.wizard.getId(), null, null, null, 1)));
+            PlayerCharacter pc = created(req);
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
+
+            f.levelDown(pc);
+
+            assertThat(pc.getSpellcastingAbility()).isNull();
+            assertThat(pc.getSpellSaveDc()).isNull();
+        }
+
+        @Test
+        @DisplayName("An Eldritch Knight 3 created with its subclass stores INT, which levelling down past the subclass clears")
+        void eldritchKnightAtCreation() {
+            CharacterCreateRequest req = request("Kel", f.fighter, f.human);
+            req.setLevel(3);
+            req.setSubclassId(f.eldritchKnight.getId());
+
+            PlayerCharacter pc = created(req);
+
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
+            assertThat(pc.getLevelHistory().get(2).choices().setsSpellcastingAbility()).isTrue();
+            f.levelDown(pc);
+            assertThat(pc.getSpellcastingAbility()).isNull();
+        }
+
+        @Test
+        @DisplayName("A Fighter 3 stores none until its Eldritch Knight subclass is chosen, which stores INT")
+        void eldritchKnightChosenLater() {
+            CharacterCreateRequest req = request("Kel", f.fighter, f.human);
+            req.setLevel(3);
+            PlayerCharacter pc = created(req);
+            assertThat(pc.getSpellcastingAbility()).isNull();
+
+            f.choose(pc, f.pending(pc, PendingChoice.Type.SUBCLASS),
+                    request -> request.setSubclassId(f.eldritchKnight.getId()));
+
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
+            assertThat(pc.getLevelHistory().get(2).choices().subclass())
+                    .isEqualTo(new SubclassChosen(f.fighter.getId(), f.eldritchKnight.getId(), "Eldritch Knight"));
+            assertThat(pc.getLevelHistory().get(2).choices().setsSpellcastingAbility()).isTrue();
+        }
+
+        @Test
+        @DisplayName("A Champion stores none, and no level records storing one")
+        void championStoresNone() {
+            CharacterCreateRequest req = request("Bram", f.fighter, f.human);
+            req.setLevel(3);
+            req.setSubclassId(f.champion.getId());
+
+            PlayerCharacter pc = created(req);
+
+            assertThat(pc.getSpellcastingAbility()).isNull();
+            assertThat(pc.getLevelHistory().get(2).choices().setsSpellcastingAbility()).isNull();
+        }
+
+        @Test
+        @DisplayName("The race's chosen ability wins over the class's, and an Eldritch Knight chosen later doesn't replace it")
+        void raceChoiceWins() {
+            CharacterCreateRequest wizard = request("Fae", f.wizard, f.human);
+            wizard.setSpellcastingAbility("Charisma");
+            assertThat(created(wizard).getSpellcastingAbility()).isEqualTo("CHA");
+
+            CharacterCreateRequest fighter = request("Fae", f.fighter, f.human);
+            fighter.setLevel(3);
+            fighter.setSpellcastingAbility("WIS");
+            PlayerCharacter pc = created(fighter);
+            f.choose(pc, f.pending(pc, PendingChoice.Type.SUBCLASS),
+                    request -> request.setSubclassId(f.eldritchKnight.getId()));
+
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("WIS");
+            assertThat(pc.getLevelHistory().get(2).choices().setsSpellcastingAbility()).isNull();
+            f.levelDown(pc);
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("WIS");
+        }
+
+        @Test
+        @DisplayName("A later feat choosing WIS leaves an Eldritch Knight's INT, before and after levelling down past it")
+        void laterFeatLeavesTheClasssAbility() {
+            CharacterCreateRequest req = request("Kel", f.fighter, f.human);
+            req.setLevel(4);
+            req.setSubclassId(f.eldritchKnight.getId());
+            PlayerCharacter pc = created(req);
+
+            takeFeyTouched(pc, "WIS");
+
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
+            assertThat(pc.getLevelHistory().get(3).choices().asi().appliedEffects().setsSpellcastingAbility())
+                    .isFalse();
+            assertThat(f.characterStats.mainSpellcastingAbility(pc)).isEqualTo("INT");
+            f.levelDown(pc);
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
         }
     }
 

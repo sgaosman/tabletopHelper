@@ -73,7 +73,7 @@ describe('CharacterCreateWizard', () => {
     expect(created).toMatchObject({ raceId: 'race-fairy', classId: 'cls-fighter', spellcastingAbility: 'WIS' });
   });
 
-  it("sends the class's spellcasting ability when the race has no choice of it", async () => {
+  it("sends no spellcasting ability when the race has no choice of it, leaving the class's to the server", async () => {
     let created: Record<string, unknown> | undefined;
     server.use(
       http.get('/api/reference/races', () => HttpResponse.json([human])),
@@ -104,6 +104,7 @@ describe('CharacterCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: /Create Character/ }));
 
     expect(await screen.findByText('Character sheet')).toBeInTheDocument();
-    expect(created).toMatchObject({ raceId: 'race-human', classId: 'cls-wizard', spellcastingAbility: 'INT' });
+    expect(created).toMatchObject({ raceId: 'race-human', classId: 'cls-wizard' });
+    expect(created?.spellcastingAbility).toBeUndefined();
   });
 });

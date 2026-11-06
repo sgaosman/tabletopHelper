@@ -19,6 +19,10 @@ import java.util.List;
  *                      a known caster replaced
  * @param feats         the feats taken at this level outside an Ability Score Improvement: a race's or background's,
  *                      at creation
+ * @param setsSpellcastingAbility true when this level's class stored the character's spellcasting ability (D159): the
+ *                      first casting class's, at creation with no race choice, recorded on the class's 1st level, or an
+ *                      Eldritch Knight's or Arcane Trickster's Intelligence, recorded on the subclass's level. Levelling
+ *                      down past the level works the ability out again. Null otherwise
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -29,37 +33,55 @@ public record LevelChoices(
         String fightingStyle,
         List<String> cantrips,
         SpellsLearned spells,
-        List<FeatTaken> feats
+        List<FeatTaken> feats,
+        Boolean setsSpellcastingAbility
 ) {
 
     /** No choices, as each level starts. */
-    public static final LevelChoices NONE = new LevelChoices(null, null, null, null, null, null, null);
+    public static final LevelChoices NONE = new LevelChoices(null, null, null, null, null, null, null, null);
+
+    /** Choices that store no spellcasting ability. */
+    public LevelChoices(AbilityScoreImprovement asi, List<String> expertise, SubclassChosen subclass,
+                        String fightingStyle, List<String> cantrips, SpellsLearned spells, List<FeatTaken> feats) {
+        this(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, null);
+    }
 
     public LevelChoices withAsi(AbilityScoreImprovement newAsi) {
-        return new LevelChoices(newAsi, expertise, subclass, fightingStyle, cantrips, spells, feats);
+        return new LevelChoices(newAsi, expertise, subclass, fightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility);
     }
 
     public LevelChoices withExpertise(List<String> newExpertise) {
-        return new LevelChoices(asi, newExpertise, subclass, fightingStyle, cantrips, spells, feats);
+        return new LevelChoices(asi, newExpertise, subclass, fightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility);
     }
 
     public LevelChoices withSubclass(SubclassChosen newSubclass) {
-        return new LevelChoices(asi, expertise, newSubclass, fightingStyle, cantrips, spells, feats);
+        return new LevelChoices(asi, expertise, newSubclass, fightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility);
     }
 
     public LevelChoices withFightingStyle(String newFightingStyle) {
-        return new LevelChoices(asi, expertise, subclass, newFightingStyle, cantrips, spells, feats);
+        return new LevelChoices(asi, expertise, subclass, newFightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility);
     }
 
     public LevelChoices withCantrips(List<String> newCantrips) {
-        return new LevelChoices(asi, expertise, subclass, fightingStyle, newCantrips, spells, feats);
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, newCantrips, spells, feats,
+                setsSpellcastingAbility);
     }
 
     public LevelChoices withSpells(SpellsLearned newSpells) {
-        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, newSpells, feats);
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, newSpells, feats,
+                setsSpellcastingAbility);
     }
 
     public LevelChoices withFeats(List<FeatTaken> newFeats) {
-        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, newFeats);
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, newFeats,
+                setsSpellcastingAbility);
+    }
+
+    public LevelChoices withSetsSpellcastingAbility(Boolean sets) {
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, sets);
     }
 }

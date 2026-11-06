@@ -2481,6 +2481,7 @@ export interface components {
             expertise?: string[] | null;
             feats?: components["schemas"]["FeatTaken"][] | null;
             fightingStyle?: string | null;
+            setsSpellcastingAbility?: boolean | null;
             spells?: components["schemas"]["SpellsLearned"] | null;
             subclass?: components["schemas"]["SubclassChosen"] | null;
         };

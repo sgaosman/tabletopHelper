@@ -233,12 +233,17 @@ public class CharacterService {
 
         recordCreationHpGains(character);
         pendingChoices.owedAtCreation(character, request);
+        // The race's choice, or else the first casting class's, so a feat taken later that chooses its own ability
+        // doesn't replace the class's (D159)
+        if (character.getSpellcastingAbility() == null) {
+            pendingChoices.storeClassSpellcastingAbility(character);
+        }
         characterStats.apply(character);
         character = characterRepository.save(character);
         return characterMapper.toResponse(character);
     }
 
-    // The ability race and feat spells use, abbreviated; null for none
+    // The ability the race lets the player choose for its spells, abbreviated; null for none
     private static String chosenSpellcastingAbility(String ability) {
         if (ability == null || ability.isBlank()) return null;
         return CharacterUpdates.ability(ability).name();
@@ -433,6 +438,9 @@ public class CharacterService {
                 classLevels.put(classId, newClassLevel);
             }
             CharacterUpdates.rebuildClassEntries(character, classLevels);
+        }
+        if (lastEntry.choices() != null && Boolean.TRUE.equals(lastEntry.choices().setsSpellcastingAbility())) {
+            pendingChoices.classSpellcastingAbilityRemoved(character);
         }
 
         character.setLevel(character.getLevel() - 1);

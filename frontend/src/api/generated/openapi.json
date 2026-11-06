@@ -6887,6 +6887,10 @@
             "type": "string",
             "nullable": true
           },
+          "setsSpellcastingAbility": {
+            "type": "boolean",
+            "nullable": true
+          },
           "spells": {
             "nullable": true,
             "allOf": [
