@@ -175,6 +175,47 @@ describe('RepeatEffectModal', () => {
     expect(screen.queryByLabelText('Spell Save DC')).not.toBeInTheDocument();
   });
 
+  it('goes straight to confirm when the spell takes no targets, as a cast does', async () => {
+    targeting({ canTargetSelf: false, canTargetAllies: false, canTargetEnemies: false });
+    await renderModal();
+
+    expect(await screen.findByText('Targeting: None')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Repeat Effect' })).toBeEnabled();
+    // Nothing comes before confirm here, so there is no going back
+    expect(screen.queryByRole('button', { name: /Back/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the result as a cast does, with the slot level and the Manual Modifiers note', async () => {
+    targeting();
+    server.use(
+      http.post('/api/encounters/:id/combat/repeat-spell-effect', () =>
+        HttpResponse.json(makeMockCastSpellResponse({ spellName: 'Hold Person', slotLevelUsed: 2, resultSummary: 'Orc fails.' })),
+      ),
+    );
+    const { user } = await renderModal({ allowManualModifiers: true });
+
+    await user.click(await screen.findByRole('button', { name: /Orc/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText(/noted in the combat log/)).toBeInTheDocument();
+    expect(screen.queryByText(/Will drop concentration/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Repeat Effect' }));
+
+    expect(await screen.findByText('Orc fails.')).toBeInTheDocument();
+    expect(screen.getByText('at level 2')).toBeInTheDocument();
+  });
+
+  it('shows the generic message when the server fails unexpectedly', async () => {
+    targeting();
+    server.use(http.post('/api/encounters/:id/combat/repeat-spell-effect', () => new HttpResponse(null, { status: 500 })));
+    const { user } = await renderModal();
+
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Repeat Effect' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong. Please try again.');
+  });
+
   it('shows the server error when the repeat fails, and lets you try again', async () => {
     targeting();
     server.use(
