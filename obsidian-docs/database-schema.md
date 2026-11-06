@@ -552,6 +552,7 @@ Since R7 workstream B, `ResourcePoolLoader` loads them from `data/content/resour
 | description | TEXT | | Human-readable rules explanation |
 | icon | VARCHAR(30) | | lucide-react icon name |
 | metadata | JSONB | | Extra properties (hitDie faces, breath shape, etc.) |
+| level_table | JSONB | | What changes with a class's level (V27, R7, D169): `{levelOf, rows: [{level, maxUses, resetOn, die, unlimited}]}`. `levelOf` names the class whose level picks the row, and a row applies from its level until the next one; a field it leaves out keeps the definition's own. NULL for a pool that never changes. |
 | created_at | TIMESTAMPTZ | | |
 
 ### class_feature_pools
@@ -680,6 +681,7 @@ These foreign keys stay unindexed because no query filters on them: `campaigns.d
 | V24 | `V24__write_back.sql` | `encounter_participants.joined_with` JSONB, a `character.state.CombatTotals`, filled from their sheets for the player participants of Active and Paused encounters: hit points kept between 0 and the maximum, temporary hit points at least 0, each slot's used count between 0 and its maximum, and the first of two pools with one ID. `encounters.results_applied` BOOLEAN, NULL until an encounter completes. `player_characters.is_dead` BOOLEAN NOT NULL DEFAULT FALSE. The file has no DO blocks (D166, D168) |
 | V25 | `V25__content_versions.sql` | The `content_versions` table, one row per content loader (D169) |
 | V26 | `V26__natural_key_indexes.sql` | Deletes the 14 duplicate Fighting Style copies in `optional_features`, keeping the oldest of each, after pointing any copy's ID in `level_history` and `dm_adjustments` at it. Then adds the unique natural-key indexes. The file has no DO blocks (D169) |
+| V27 | `V27__pool_level_tables.sql` | `resource_pool_definitions.level_table` JSONB, NULL until the resource-pools loader fills it (D169) |
 
 V4 and V6 force a re-seed by clearing data. D169 replaces that pattern with hash-based re-seeding.
 
@@ -779,6 +781,8 @@ Two maintenance jobs, both dry runs unless `--maintenance.apply=true` is passed:
 **R6 is complete (2026-11-03):** V19 to V24 and both maintenance jobs are applied to the local database. What R7 changes is in the outline below.
 
 **Done (2026-11-05, R7 workstream B):** V25 and V26 are applied to the local database, after backups and a `preview-migration` dry run, which found no character to change. V26 deleted the 14 duplicate Fighting Style copies. On the first start all 12 content loaders ran and changed no other row (D169).
+
+**Done (2026-11-06, R7 workstream D):** V27 is applied to the local database, after a backup (`before-r7-v27-20261106T0235Z.sql`) and a `preview-migration` dry run that found no row to change. `preview-content` then found 35 pool rows to change, and the next start loaded them: 4 definitions added and 26 changed, and 4 class mappings added. After another backup (`before-r7-recompute-20261106T0238Z.sql`), `recompute-characters` changed 9 characters' pools, as on the restored copy, and a second dry run found nothing left (D169).
 
 ### R3–R7 — Outline
 
