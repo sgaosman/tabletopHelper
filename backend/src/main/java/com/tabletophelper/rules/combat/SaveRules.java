@@ -20,4 +20,12 @@ public final class SaveRules {
                 || Conditions.has(conditions, Conditions.STUNNED)
                 || Conditions.has(conditions, Conditions.PETRIFIED);
     }
+
+    /**
+     * How the creature rolls this saving throw: Dexterity saves with advantage while it takes the Dodge action
+     * (PHB p.192, {@link StandardActions#dodging}), and anything else normally.
+     */
+    public static RollMode rollMode(Ability ability, Collection<String> conditions) {
+        return ability == Ability.DEX && StandardActions.dodging(conditions) ? RollMode.ADVANTAGE : RollMode.NORMAL;
+    }
 }

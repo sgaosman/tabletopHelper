@@ -11,6 +11,8 @@ final class Conditions {
     static final String STUNNED = "stunned";
     static final String PETRIFIED = "petrified";
     static final String INCAPACITATED = "incapacitated";
+    static final String GRAPPLED = "grappled";
+    static final String RESTRAINED = "restrained";
 
     // The conditions that include being incapacitated (PHB appendix A)
     static final List<String> INCAPACITATING = List.of(INCAPACITATED, PARALYZED, PETRIFIED, STUNNED, UNCONSCIOUS);

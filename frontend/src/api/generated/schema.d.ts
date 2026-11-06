@@ -804,6 +804,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/object-interaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["objectInteraction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/repeat-save": {
         parameters: {
             query?: never;
@@ -878,6 +894,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["useSpellSlot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/standard-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["standardAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/turn-economy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setTurnEconomy"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2181,7 +2229,7 @@ export interface components {
         };
         CombatLogResponse: {
             /** @enum {string} */
-            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE";
+            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE" | "STANDARD_ACTION" | "OBJECT_INTERACTION" | "TURN_ECONOMY_SET";
             /** Format: uuid */
             actorId?: string | null;
             actorName?: string | null;
@@ -2803,6 +2851,11 @@ export interface components {
             manualReason?: string | null;
             name: string;
         };
+        ObjectInteractionRequest: {
+            description: string;
+            /** Format: uuid */
+            participantId: string;
+        };
         OptionalFeature: {
             /** Format: date-time */
             createdAt?: string | null;
@@ -3219,6 +3272,17 @@ export interface components {
             replaced?: components["schemas"]["KnownSpell"] | null;
             replacement?: string | null;
         };
+        StandardActionRequest: {
+            /** @enum {string} */
+            action: "DASH" | "DISENGAGE" | "DODGE" | "HELP" | "HIDE" | "READY" | "SEARCH" | "USE_OBJECT";
+            /** @enum {string|null} */
+            cost?: "ACTION" | "BONUS_ACTION" | null;
+            note?: string | null;
+            /** Format: uuid */
+            participantId: string;
+            /** Format: uuid */
+            targetId?: string | null;
+        };
         Subclass: {
             additionalProficiencies?: string | null;
             alwaysPreparedSpells?: string | null;
@@ -3298,6 +3362,11 @@ export interface components {
             objectInteractionUsed: boolean;
             otherSpellCast: boolean;
             reactionUsed: boolean;
+        };
+        TurnEconomyRequest: {
+            /** Format: uuid */
+            participantId: string;
+            turnEconomy: components["schemas"]["TurnEconomy"];
         };
         TurnResponse: {
             current: boolean;
@@ -4663,6 +4732,32 @@ export interface operations {
             };
         };
     };
+    objectInteraction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObjectInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
     rollRepeatSave: {
         parameters: {
             query?: never;
@@ -4779,6 +4874,58 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SpellSlotRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    standardAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StandardActionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    setTurnEconomy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TurnEconomyRequest"];
             };
         };
         responses: {

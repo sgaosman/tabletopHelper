@@ -25,6 +25,18 @@ export type RepeatSpellEffectRequest = Schemas['RepeatSpellEffectRequest'];
 export type UsePoolRequest = Schemas['UsePoolRequest'];
 
 /**
+ * Dash, Disengage, Dodge, Help, Hide, Ready, Search or Use an Object on the participant's turn, costing an action, or a
+ * bonus action where Cunning Action or Nimble Escape grants it (D174).
+ */
+export type StandardActionRequest = Schemas['StandardActionRequest'];
+
+/** An object interaction on the participant's turn: the first each turn is free (D174). */
+export type ObjectInteractionRequest = Schemas['ObjectInteractionRequest'];
+
+/** The DM's edit of a participant's whole turn economy (D174). */
+export type TurnEconomyRequest = Schemas['TurnEconomyRequest'];
+
+/**
  * A combat log entry. The players' log leaves out entries about participants the DM hides, and its
  * entries have no Legendary Resistance fields (D157).
  */

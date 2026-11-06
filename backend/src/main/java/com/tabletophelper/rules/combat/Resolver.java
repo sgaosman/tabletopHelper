@@ -54,7 +54,7 @@ public final class Resolver {
      *                      when nothing was rolled
      * @param d20           the d20 that counts, or null when none was rolled
      * @param total         that d20 plus the attack bonus or save modifier, or null when none was rolled
-     * @param rollMode      how an attack was rolled once the target's conditions count; NORMAL otherwise
+     * @param rollMode      how the attack or save was rolled once the target's conditions count; NORMAL otherwise
      * @param autoFailed    the target failed the Effect's save without rolling
      * @param damage        the damage it takes by type, before its own defences: after a successful save, half
      *                      of it or none
@@ -81,8 +81,22 @@ public final class Resolver {
 
     /**
      * A saving throw. d20 and total are null when it failed automatically.
+     *
+     * @param d20s     every d20 rolled: two with advantage, none when it failed automatically
+     * @param rollMode how it was rolled ({@link SaveRules#rollMode})
      */
-    public record SaveRoll(Integer d20, Integer total, boolean success, boolean autoFailed) {
+    public record SaveRoll(Integer d20, Integer total, boolean success, boolean autoFailed, List<Integer> d20s,
+                           RollMode rollMode) {
+
+        public SaveRoll {
+            d20s = List.copyOf(d20s);
+            Objects.requireNonNull(rollMode, "rollMode");
+        }
+
+        /** A save rolled once, or failed automatically when d20 is null. */
+        public SaveRoll(Integer d20, Integer total, boolean success, boolean autoFailed) {
+            this(d20, total, success, autoFailed, d20 != null ? List.of(d20) : List.of(), RollMode.NORMAL);
+        }
     }
 
     /** Each target's outcome, in the order the targets are given. */
@@ -109,16 +123,24 @@ public final class Resolver {
 
     /**
      * A saving throw outside an Effect, such as a concentration check. It fails automatically when the
-     * conditions say so (D161); otherwise the d20 plus the modifier must reach the DC. A natural 1 or 20 means
-     * nothing special on a save.
+     * conditions say so (D161); otherwise the d20 plus the modifier must reach the DC, rolled twice keeping the
+     * higher when the conditions give advantage, as the Dodge action does on Dexterity saves. A natural 1 or 20
+     * means nothing special on a save.
      */
     public SaveRoll savingThrow(Ability ability, int modifier, int dc, Collection<String> conditions) {
         if (SaveRules.autoFails(ability, conditions)) {
             return new SaveRoll(null, null, false, true);
         }
-        int d20 = rng.roll(20);
+        RollMode mode = SaveRules.rollMode(ability, conditions);
+        if (mode == RollMode.NORMAL) {
+            int d20 = rng.roll(20);
+            int total = d20 + modifier;
+            return new SaveRoll(d20, total, total >= dc, false);
+        }
+        List<Integer> d20s = List.of(rng.roll(20), rng.roll(20));
+        int d20 = mode == RollMode.ADVANTAGE ? Math.max(d20s.get(0), d20s.get(1)) : Math.min(d20s.get(0), d20s.get(1));
         int total = d20 + modifier;
-        return new SaveRoll(d20, total, total >= dc, false);
+        return new SaveRoll(d20, total, total >= dc, false, d20s, mode);
     }
 
     /** One d20, such as a death saving throw. */
@@ -163,14 +185,13 @@ public final class Resolver {
 
     private TargetOutcome save(Effect effect, Effect.Save save, Target target, List<Damage> damage, int healing) {
         SaveRoll roll = savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions());
-        List<Integer> d20s = roll.d20() != null ? List.of(roll.d20()) : List.of();
         List<Damage> onSuccess = save.halfDamageOnSuccess() ? halved(damage) : List.of();
         if (roll.success()) {
-            return new TargetOutcome(target.id(), Outcome.SAVE_SUCCESS, d20s, roll.d20(), roll.total(),
-                    RollMode.NORMAL, false, onSuccess, List.of(), healing, List.of(), null);
+            return new TargetOutcome(target.id(), Outcome.SAVE_SUCCESS, roll.d20s(), roll.d20(), roll.total(),
+                    roll.rollMode(), false, onSuccess, List.of(), healing, List.of(), null);
         }
-        return new TargetOutcome(target.id(), Outcome.SAVE_FAIL, d20s, roll.d20(), roll.total(),
-                RollMode.NORMAL, roll.autoFailed(), damage, onSuccess, healing, effect.conditions(), null);
+        return new TargetOutcome(target.id(), Outcome.SAVE_FAIL, roll.d20s(), roll.d20(), roll.total(),
+                roll.rollMode(), roll.autoFailed(), damage, onSuccess, healing, effect.conditions(), null);
     }
 
     private List<TargetOutcome> automatic(Effect effect, List<Target> targets) {

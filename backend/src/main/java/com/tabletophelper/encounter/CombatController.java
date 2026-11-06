@@ -8,6 +8,8 @@ import com.tabletophelper.encounter.internal.LegendaryResistanceService;
 import com.tabletophelper.encounter.internal.MonsterActionService;
 import com.tabletophelper.encounter.internal.PoolUseService;
 import com.tabletophelper.encounter.internal.SpellcastingService;
+import com.tabletophelper.encounter.internal.StandardActionService;
+import com.tabletophelper.encounter.internal.TurnEconomyEditService;
 import com.tabletophelper.encounter.internal.TurnService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -31,6 +33,8 @@ public class CombatController {
     private final MonsterActionService monsterActionService;
     private final LegendaryResistanceService legendaryResistanceService;
     private final PoolUseService poolUseService;
+    private final StandardActionService standardActionService;
+    private final TurnEconomyEditService turnEconomyEditService;
     private final ConditionService conditionService;
     private final HitPointService hitPointService;
     private final EncounterService encounterService;
@@ -258,6 +262,40 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = poolUseService.usePool(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // Dash, Disengage, Dodge, Help, Hide, Ready, Search or Use an Object on the participant's turn: the DM for
+    // anyone, a player for their own participant (D028, D174)
+    @PostMapping("/standard-action")
+    public ResponseEntity<EncounterResponse> standardAction(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody StandardActionRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = standardActionService.standardAction(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // An object interaction on the participant's turn, the first each turn free (D174)
+    @PostMapping("/object-interaction")
+    public ResponseEntity<EncounterResponse> objectInteraction(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody ObjectInteractionRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = standardActionService.objectInteraction(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The DM's alone: sets any part of a participant's turn economy (D174)
+    @PutMapping("/turn-economy")
+    public ResponseEntity<EncounterResponse> setTurnEconomy(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody TurnEconomyRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = turnEconomyEditService.setTurnEconomy(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

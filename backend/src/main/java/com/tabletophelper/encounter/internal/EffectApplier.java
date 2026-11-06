@@ -380,7 +380,7 @@ public class EffectApplier {
         if (roll.autoFailed()) {
             description.append(" vs DC ").append(save.dc()).append(" — fails automatically");
         } else {
-            description.append(": d20(").append(roll.d20()).append(')').append(signed(modifier)).append(" = ")
+            description.append(": ").append(saveDice(roll)).append(signed(modifier)).append(" = ")
                     .append(roll.total()).append(" vs DC ").append(save.dc())
                     .append(roll.success() ? " — succeeds" : " — fails");
         }
@@ -840,10 +840,19 @@ public class EffectApplier {
         if (roll.autoFailed()) {
             return ability + " vs DC " + save.dc() + " fails automatically";
         }
-        String rolled = ability + " d20(" + roll.d20() + ")" + signed(roll.total() - roll.d20()) + " = "
+        String rolled = ability + " " + saveDice(roll) + signed(roll.total() - roll.d20()) + " = "
                 + roll.total() + " vs DC " + save.dc();
         return roll.success() ? rolled + " succeeds against " + String.join(", ", save.conditions())
                 : rolled + " fails";
+    }
+
+    // A save's dice as rolls() writes an attack's, such as a dodging creature's Dexterity save with advantage
+    private static String saveDice(Resolver.SaveRoll roll) {
+        if (roll.d20s().size() < 2) {
+            return "d20(" + roll.d20() + ")";
+        }
+        return "2d20(" + roll.d20s().get(0) + ", " + roll.d20s().get(1) + ") with "
+                + roll.rollMode().name().toLowerCase() + " → " + roll.d20();
     }
 
     // "d20(14)", or both dice with advantage or disadvantage and the one that counts

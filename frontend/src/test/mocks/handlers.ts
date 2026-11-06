@@ -327,6 +327,9 @@ export const combatHandlers = [
   }),
   http.post(`${BASE}/encounters/:id/combat/legendary-resistance`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/use-pool`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/standard-action`, async () => HttpResponse.json(makeMockEncounter())),
+  http.post(`${BASE}/encounters/:id/combat/object-interaction`, async () => HttpResponse.json(makeMockEncounter())),
+  http.put(`${BASE}/encounters/:id/combat/turn-economy`, async () => HttpResponse.json(makeMockEncounter())),
   http.get(`${BASE}/encounters/:id/participants/:participantId/actions`, async () => {
     return HttpResponse.json({
       actions: [{

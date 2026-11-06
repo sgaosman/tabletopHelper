@@ -11,7 +11,10 @@ import type {
   MonsterActionResponse,
   MonsterActionTemplate,
   MultiattackOption,
+  ObjectInteractionRequest,
   SpellOption,
+  StandardActionRequest,
+  TurnEconomyRequest,
   UsePoolRequest,
 } from '../types/combat';
 
@@ -120,6 +123,23 @@ export const combatApi = {
   // turn (D174)
   usePool(encounterId: string, request: UsePoolRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/use-pool`, request);
+  },
+
+  // Dash, Disengage, Dodge, Help, Hide, Ready, Search or Use an Object on the participant's turn: an action, or a
+  // bonus action with Cunning Action or Nimble Escape; a player's request over budget is a 409 (D174)
+  standardAction(encounterId: string, request: StandardActionRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/standard-action`, request);
+  },
+
+  // An object interaction on the participant's turn: the first each turn is free, and a player's second is a 409
+  // (D174)
+  objectInteraction(encounterId: string, request: ObjectInteractionRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/object-interaction`, request);
+  },
+
+  // The DM's alone: replaces a participant's turn economy, such as for Haste or Slow (D174)
+  setTurnEconomy(encounterId: string, request: TurnEconomyRequest) {
+    return api.put<Encounter>(`/encounters/${encounterId}/combat/turn-economy`, request);
   },
 
   useLegendaryResistance(encounterId: string, combatLogId: string) {

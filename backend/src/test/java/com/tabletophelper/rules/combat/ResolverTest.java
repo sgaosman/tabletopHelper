@@ -290,6 +290,27 @@ class ResolverTest {
             assertEquals(10, success.total());
             assertFalse(failure.success());
         }
+
+        @Test
+        @DisplayName("A dodging creature rolls DEX saves with advantage, keeping the higher d20 (PHB p.192)")
+        void dodgingDexSave() {
+            var outcome = new Resolver(Rng.scripted(6, 3, 14)).resolve(
+                    save(Ability.DEX, 15, true, List.of(), part("1d6", "fire")),
+                    List.of(target(GOBLIN, 12, 2, "dodging"))).getFirst();
+
+            assertEquals(List.of(3, 14), outcome.d20s());
+            assertEquals(14, outcome.d20());
+            assertEquals(RollMode.ADVANTAGE, outcome.rollMode());
+            assertEquals(Outcome.SAVE_SUCCESS, outcome.outcome());
+        }
+
+        @Test
+        @DisplayName("A dodging creature's other saves are rolled once")
+        void dodgingOtherSave() {
+            var roll = new Resolver(Rng.scripted(9)).savingThrow(Ability.WIS, 0, 10, List.of("dodging"));
+
+            assertEquals(new Resolver.SaveRoll(9, 9, false, false), roll);
+        }
     }
 
     @Nested

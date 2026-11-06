@@ -106,6 +106,37 @@ public class CreatureStats {
     }
 
     /**
+     * The participant's modifier for an ability check with a skill, such as Dexterity (Stealth), 0 for a participant
+     * with neither sheet nor stat block. A player character adds its proficiency bonus when proficient in the skill,
+     * twice with expertise, as its sheet shows it; a monster uses its stat block's skill bonus when it lists one,
+     * and its ability modifier otherwise.
+     *
+     * @param skill the skill as the sheet and stat block name it, such as "Stealth"
+     */
+    public int skillModifier(EncounterParticipant participant, String skill, Ability ability) {
+        int modifier = Ability.modifier(abilityScore(participant, ability));
+        if (participant.getCharacter() != null) {
+            PlayerCharacter character = participant.getCharacter();
+            int proficiency = character.getProficiencyBonus() != null ? character.getProficiencyBonus() : 2;
+            if (names(character.getSkillExpertises(), skill)) {
+                return modifier + 2 * proficiency;
+            }
+            return names(character.getSkillProficiencies(), skill) ? modifier + proficiency : modifier;
+        }
+        if (participant.getMonster() != null) {
+            Monster monster = participant.getMonster();
+            JsonNode skills = StoredJson.read(objectMapper, monster.getSkills(), monster.getName() + "'s skills");
+            Integer listed = bonus(skills.path(skill.toLowerCase()));
+            return listed != null ? listed : modifier;
+        }
+        return 0;
+    }
+
+    private static boolean names(List<String> list, String name) {
+        return list != null && list.stream().anyMatch(entry -> entry != null && entry.trim().equalsIgnoreCase(name));
+    }
+
+    /**
      * The participant's defences against a damage type; none for untyped damage. A monster's come from its
      * stat block, where only plain damage type names count: a conditional entry, such as resistance to
      * nonmagical attacks, is the DM's call. A player character's come from its sheet, read live: the

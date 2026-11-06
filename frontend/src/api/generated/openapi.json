@@ -2026,6 +2026,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/object-interaction": {
+      "post": {
+        "operationId": "objectInteraction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectInteractionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/repeat-save": {
       "post": {
         "operationId": "rollRepeatSave",
@@ -2220,6 +2261,88 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SpellSlotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/standard-action": {
+      "post": {
+        "operationId": "standardAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StandardActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/turn-economy": {
+      "put": {
+        "operationId": "setTurnEconomy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TurnEconomyRequest"
               }
             }
           },
@@ -5850,7 +5973,10 @@
               "RECHARGE_FAILURE",
               "HP_SET",
               "REPEAT_SAVE",
-              "POOL_USE"
+              "POOL_USE",
+              "STANDARD_ACTION",
+              "OBJECT_INTERACTION",
+              "TURN_ECONOMY_SET"
             ]
           },
           "actorId": {
@@ -8068,6 +8194,24 @@
           }
         }
       },
+      "ObjectInteractionRequest": {
+        "required": [
+          "description",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "OptionalFeature": {
         "required": [
           "featureType",
@@ -9566,6 +9710,51 @@
           }
         }
       },
+      "StandardActionRequest": {
+        "required": [
+          "action",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "DASH",
+              "DISENGAGE",
+              "DODGE",
+              "HELP",
+              "HIDE",
+              "READY",
+              "SEARCH",
+              "USE_OBJECT"
+            ]
+          },
+          "cost": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ACTION",
+              "BONUS_ACTION"
+            ]
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
       "Subclass": {
         "required": [
           "characterClass",
@@ -9840,6 +10029,22 @@
           },
           "reactionUsed": {
             "type": "boolean"
+          }
+        }
+      },
+      "TurnEconomyRequest": {
+        "required": [
+          "participantId",
+          "turnEconomy"
+        ],
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "turnEconomy": {
+            "$ref": "#/components/schemas/TurnEconomy"
           }
         }
       },

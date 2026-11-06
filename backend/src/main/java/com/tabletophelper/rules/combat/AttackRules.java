@@ -19,8 +19,9 @@ public final class AttackRules {
      * Combines the attack's own sources of advantage and disadvantage with what the target's conditions add. An
      * unconscious or paralyzed target gives advantage, and a hit from within 5 feet is a critical hit. An
      * unconscious creature is also prone, which gives disadvantage from beyond 5 feet, so out there the two
-     * cancel and it is attacked normally (PHB appendix A). The other conditions' effects on attacks, prone on its
-     * own included, come with M13.
+     * cancel and it is attacked normally (PHB appendix A). A target taking the Dodge action gives disadvantage,
+     * the attacker being assumed to see it (PHB p.192, {@link StandardActions#dodging}). The other conditions'
+     * effects on attacks, prone on its own included, are left to the attack's own sources.
      */
     public static Setup setup(Collection<RollMode> sources, Collection<String> targetConditions, boolean withinFiveFeet) {
         boolean unconscious = Conditions.has(targetConditions, Conditions.UNCONSCIOUS);
@@ -29,6 +30,7 @@ public final class AttackRules {
         List<RollMode> all = new ArrayList<>(sources);
         if (downed) all.add(RollMode.ADVANTAGE);
         if (unconscious && !withinFiveFeet) all.add(RollMode.DISADVANTAGE);
+        if (StandardActions.dodging(targetConditions)) all.add(RollMode.DISADVANTAGE);
         return new Setup(RollMode.combine(all), downed && withinFiveFeet);
     }
 

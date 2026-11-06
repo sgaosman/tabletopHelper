@@ -75,8 +75,15 @@ class AttackRulesTest {
               -                 | true        | ADVANTAGE      | ADVANTAGE    | false
               -                 | false       | -              | NORMAL       | false
               poisoned          | true        | DISADVANTAGE   | DISADVANTAGE | false
+            # A dodging target gives disadvantage, unless incapacitated or held at speed 0 (PHB p.192)
+              dodging           | true        | -              | DISADVANTAGE | false
+              Dodging           | false       | ADVANTAGE      | NORMAL       | false
+              dodging stunned   | true        | -              | NORMAL       | false
+              dodging grappled  | true        | -              | NORMAL       | false
+              dodging restrained | true       | -              | NORMAL       | false
+              dodging paralyzed | true        | -              | ADVANTAGE    | true
             """)
-    @DisplayName("Attacks on unconscious and paralyzed targets (PHB appendix A)")
+    @DisplayName("Attacks on unconscious, paralyzed and dodging targets (PHB appendix A, p.192)")
     void downedTargets(String conditions, boolean withinFiveFeet, String sources, RollMode rollMode,
                        boolean hitIsCritical) {
         assertEquals(new AttackRules.Setup(rollMode, hitIsCritical),

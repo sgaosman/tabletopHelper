@@ -109,6 +109,10 @@ class CombatFixture {
             resourcePoolService, combatLogRepository, combatLog, encounterRepository, encounterService);
     final PoolUseService poolUse = new PoolUseService(access, economy, combatLog, encounterRepository,
             encounterService);
+    final StandardActionService standardActions = new StandardActionService(access, economy, resolver, stats,
+            combatLog, objectMapper, encounterRepository, encounterService);
+    final TurnEconomyEditService turnEconomyEdit = new TurnEconomyEditService(access, combatLog, encounterRepository,
+            encounterService);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
     final TurnService turns = new TurnService(access, turnProcessor, encounterRepository, encounterService);
 

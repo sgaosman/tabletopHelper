@@ -174,6 +174,40 @@ public final class ActionEconomy {
                 granted.dashed(), granted.disengaged(), true);
     }
 
+    /** The budget with the Dash action taken this turn, which the encounter shows (PHB p.192). */
+    public static TurnBudget dash(TurnBudget budget) {
+        return new TurnBudget(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(), budget.attacksLeft(),
+                budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
+                budget.bonusActionSpellCast(), budget.otherSpellCast(), true, budget.disengaged(),
+                budget.actionSurgeUsed());
+    }
+
+    /** The budget with the Disengage action taken this turn, which the encounter shows (PHB p.192). */
+    public static TurnBudget disengage(TurnBudget budget) {
+        return new TurnBudget(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(), budget.attacksLeft(),
+                budget.bonusActionUsed(), budget.reactionUsed(), budget.objectInteractionUsed(),
+                budget.bonusActionSpellCast(), budget.otherSpellCast(), budget.dashed(), true,
+                budget.actionSurgeUsed());
+    }
+
+    /**
+     * Why the creature can't interact with an object for free now, or empty when it can: one interaction a turn
+     * comes free with its move or action, and another needs the Use an Object action (PHB p.190).
+     */
+    public static Optional<String> objectInteractionCheck(TurnBudget budget) {
+        return budget.objectInteractionUsed()
+                ? Optional.of("It has already had its free object interaction this turn; another needs the Use an "
+                + "Object action")
+                : Optional.empty();
+    }
+
+    /** The budget with the free object interaction had this turn (PHB p.190). */
+    public static TurnBudget objectInteraction(TurnBudget budget) {
+        return new TurnBudget(budget.actions(), budget.actionsUsed(), budget.attackActionTaken(), budget.attacksLeft(),
+                budget.bonusActionUsed(), budget.reactionUsed(), true, budget.bonusActionSpellCast(),
+                budget.otherSpellCast(), budget.dashed(), budget.disengaged(), budget.actionSurgeUsed());
+    }
+
     /**
      * The attacks one Attack action gives a character (PHB p.72): 2 with Extra Attack, 3 for a Fighter of 11th
      * level and 4 for one of 20th. The data names the features "Extra Attack" (Barbarian, Fighter, Monk, Paladin and

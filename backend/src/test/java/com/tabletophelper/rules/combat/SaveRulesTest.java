@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,6 +40,22 @@ class SaveRulesTest {
     void otherConditionsDontFailSaves() {
         assertFalse(SaveRules.autoFails(Ability.DEX, List.of()));
         assertFalse(SaveRules.autoFails(Ability.DEX, List.of("prone", "poisoned", "restrained", "incapacitated")));
+    }
+
+    @ParameterizedTest(name = "{0} save while {1} → {2}")
+    @CsvSource(delimiter = '|', textBlock = """
+            DEX | dodging            | ADVANTAGE
+            DEX | Dodging prone      | ADVANTAGE
+            STR | dodging            | NORMAL
+            CON | dodging            | NORMAL
+            DEX | -                  | NORMAL
+            DEX | dodging incapacitated | NORMAL
+            DEX | dodging restrained | NORMAL
+            """)
+    @DisplayName("A dodging creature has advantage on DEX saves while it keeps the benefit (PHB p.192)")
+    void dodgingDexSaves(Ability ability, String conditions, RollMode expected) {
+        List<String> names = "-".equals(conditions) ? List.of() : List.of(conditions.split("\\s+"));
+        assertEquals(expected, SaveRules.rollMode(ability, names));
     }
 
     @Test
