@@ -238,7 +238,7 @@ class CharacterMapperTest {
     void toResponseAddsDerivedSpellcasting() {
         PlayerCharacter c = baseCharacter(testUser());
         List<ClassSpellcasting> spellcasting = List.of(
-                new ClassSpellcasting("Wizard", null, 3, "INT", 13, 5, 2, 3, null, 6, false));
+                new ClassSpellcasting("Wizard", null, "Wizard", 3, "INT", 13, 5, 2, 3, null, 6, false));
         AbilityScoreMaximums maximums = new AbilityScoreMaximums(20, 20, 20, 20, 20, 20);
         when(characterStats.spellcasting(c)).thenReturn(spellcasting);
         when(characterStats.mainSpellcastingAbility(c)).thenReturn("INT");

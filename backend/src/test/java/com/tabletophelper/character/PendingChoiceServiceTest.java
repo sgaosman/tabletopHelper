@@ -434,7 +434,7 @@ class PendingChoiceServiceTest {
 
             // The Champion's Additional Fighting Style can't take the same one again
             PendingChoice second = new PendingChoice(UUID.randomUUID(), Type.FIGHTING_STYLE, Source.LEVEL_UP, 1,
-                    f.fighter.getId(), "Fighter", 10, 1, style.options(), null, null);
+                    f.fighter.getId(), "Fighter", 10, 1, style.options(), null, null, null);
             pc.setPendingChoices(List.of(second));
             assertThatThrownBy(() -> f.choose(pc, second, request -> request.setFightingStyle("Archery")))
                     .isInstanceOf(ValidationException.class)
@@ -681,6 +681,8 @@ class PendingChoiceServiceTest {
             PlayerCharacter pc = create(f.fighter, 3, request -> {});
             f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(f.eldritchKnight.getId()));
             PendingChoice spells = f.pending(pc, Type.SPELLS);
+            assertThat(spells.spellList()).isEqualTo("Wizard");
+            assertThat(f.pending(pc, Type.CANTRIPS).spellList()).isEqualTo("Wizard");
 
             assertThatThrownBy(() -> f.choose(pc, spells, request -> request.setSpells(List.of("Shield",
                     "Magic Missile", "Cure Wounds"))))

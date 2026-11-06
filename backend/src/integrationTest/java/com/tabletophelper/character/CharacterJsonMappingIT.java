@@ -121,11 +121,11 @@ class CharacterJsonMappingIT extends IntegrationTest {
         // A choice of each shape: one with options, and a spell choice with its highest level and swap (D159)
         List<PendingChoice> pending = List.of(
                 new PendingChoice(UUID.randomUUID(), PendingChoice.Type.SUBCLASS, PendingChoice.Source.CREATION, 3,
-                        fighterId, "Fighter", 3, 1, List.of("Champion", "Eldritch Knight"), null, null),
+                        fighterId, "Fighter", 3, 1, List.of("Champion", "Eldritch Knight"), null, null, null),
                 new PendingChoice(UUID.randomUUID(), PendingChoice.Type.SPELLS, PendingChoice.Source.LEVEL_UP, 5,
-                        wizardId, "Wizard", 1, 6, null, 1, true),
+                        wizardId, "Wizard", 1, 6, null, 1, true, "Wizard"),
                 new PendingChoice(UUID.randomUUID(), PendingChoice.Type.FEAT, PendingChoice.Source.BACKGROUND, 1,
-                        null, null, null, 1, List.of("Lucky", "Skilled"), null, null));
+                        null, null, null, 1, List.of("Lucky", "Skilled"), null, null, null));
 
         PlayerCharacter saved = characterRepository.save(character()
                 .savingThrowProficiencies(List.of("STR", "CON"))
@@ -221,6 +221,11 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 + "IS NULL)::text FROM player_characters WHERE id = ?", id)).isEqualTo("SUBCLASS true");
         assertThat(column("SELECT pending_choices -> 1 ->> 'swap' FROM player_characters WHERE id = ?", id))
                 .isEqualTo("true");
+        // R8's spell list on a spell choice, left out of the others
+        assertThat(column("SELECT pending_choices -> 1 ->> 'spellList' FROM player_characters WHERE id = ?", id))
+                .isEqualTo("Wizard");
+        assertThat(column("SELECT (pending_choices -> 0 -> 'spellList' IS NULL)::text FROM player_characters "
+                + "WHERE id = ?", id)).isEqualTo("true");
         assertThat(column("SELECT (pending_choices -> 2 -> 'classId' IS NULL)::text FROM player_characters "
                 + "WHERE id = ?", id)).isEqualTo("true");
         assertThat(column("SELECT level_history -> 1 -> 'choices' -> 'subclass' ->> 'subclassName' "

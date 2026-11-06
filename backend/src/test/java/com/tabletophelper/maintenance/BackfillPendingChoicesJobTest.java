@@ -42,7 +42,7 @@ class BackfillPendingChoicesJobTest {
 
     private static PendingChoice missed(Type type, String className, int classLevel, int count) {
         return new PendingChoice(UUID.randomUUID(), type, Source.LEVEL_UP, classLevel, UUID.randomUUID(), className,
-                classLevel, count, null, null, null);
+                classLevel, count, null, null, null, null);
     }
 
     @Test

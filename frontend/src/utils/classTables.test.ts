@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CLASS_TABLES } from '../test/mocks/classTables';
 import {
-  cantripsKnown, highestSpellLevel, isThirdCasterSubclass, proficiencyBonus, spellbookSize, spellsKnown,
+  cantripsKnown, highestSpellLevel, isThirdCasterSubclass, proficiencyBonus, spellbookSize, spellList, spellsKnown,
 } from './classTables';
 
 // The cases that tested spellConstants' tables, now read from the server's class tables (D169) as the mocked
@@ -149,6 +149,16 @@ describe('classTables', () => {
       expect(isThirdCasterSubclass(CLASS_TABLES, 'Fighter', 'Arcane Trickster')).toBe(false);
       expect(isThirdCasterSubclass(CLASS_TABLES, 'Fighter', 'Champion')).toBe(false);
       expect(isThirdCasterSubclass(CLASS_TABLES, 'Fighter', null)).toBe(false);
+    });
+
+    // The spell list each class uses is the server's (R8), in place of spellConstants' spellListClass
+    it("names the wizard's list for an Eldritch Knight or Arcane Trickster, and each class's own otherwise", () => {
+      expect(spellList(CLASS_TABLES, 'Fighter', 'Eldritch Knight')).toBe('Wizard');
+      expect(spellList(CLASS_TABLES, 'Rogue', 'Arcane Trickster')).toBe('Wizard');
+      expect(spellList(CLASS_TABLES, 'Cleric', null)).toBe('Cleric');
+      expect(spellList(CLASS_TABLES, 'Bard', 'College of Lore')).toBe('Bard');
+      expect(spellList(CLASS_TABLES, 'Fighter', 'Champion')).toBe('Fighter');
+      expect(spellList(CLASS_TABLES, 'Fighter', 'Arcane Trickster')).toBe('Fighter');
     });
   });
 });

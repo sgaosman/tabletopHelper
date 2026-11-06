@@ -71,6 +71,27 @@ describe('SpellsStep search', () => {
     expect(await screen.findByRole('button', { name: 'Fire Bolt' })).toBeInTheDocument();
   });
 
+  it("asks once for each picker's levels, from the spell list the server's tables name, and keeps the results", async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (url.pathname === '/api/reference/spells') {
+        asked.push(`${url.searchParams.get('className')} ${url.searchParams.get('level')} ${url.searchParams.get('name') ?? ''}`.trim());
+      }
+    });
+    const view = render(<Harness />);
+    await screen.findByRole('button', { name: 'Fire Bolt' });
+    await screen.findByRole('button', { name: 'Shield' });
+
+    expect(asked.sort()).toEqual(['Sorcerer 0', 'Sorcerer 1']);
+    // Leaving the step and coming back finds them in the cache
+    view.rerender(<div />);
+    view.rerender(<Harness />);
+    expect(await screen.findByRole('button', { name: 'Fire Bolt' })).toBeInTheDocument();
+    expect(asked).toHaveLength(2);
+    server.events.removeAllListeners('request:start');
+  });
+
   it("chooses a level 5 sorcerer's 1st-level spells only: the later levels' come as choices on the sheet (D159)", async () => {
     render(<Harness level={5} />);
 

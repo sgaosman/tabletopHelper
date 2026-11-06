@@ -1,9 +1,12 @@
 package com.tabletophelper.character;
 
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.dto.ClassSpellcasting;
 import com.tabletophelper.character.dto.PreparedSpellsRequest;
 import com.tabletophelper.character.dto.SpellbookRequest;
+import com.tabletophelper.character.internal.CharacterStats;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +27,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Preparing spells and a wizard's spellbook (D158), checked against the spells table's class lists, the highest level
@@ -246,6 +251,53 @@ class CharacterSpellServiceTest {
                     new SpellbookRequest(List.of("Shield")), f.userId))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("Shield isn't in Aria's spellbook");
+        }
+    }
+
+    @Nested
+    @DisplayName("The class's spell list")
+    class SpellList {
+
+        private final CharacterStats stats = mock(CharacterStats.class);
+        private final CharacterSpellService service = new CharacterSpellService(f.commands, stats,
+                f.spellRepository, f.objectMapper);
+
+        private PendingChoice cantrips(int classLevel, String spellList) {
+            return new PendingChoice(UUID.randomUUID(), PendingChoice.Type.CANTRIPS, PendingChoice.Source.LEVEL_UP,
+                    classLevel, f.fighter.getId(), "Fighter", classLevel, 1, null, 0, null, spellList);
+        }
+
+        private PlayerCharacter castingFighter(String spellList) {
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.fighter, 3);
+            when(stats.spellcasting(pc)).thenReturn(List.of(new ClassSpellcasting("Fighter", "Eldritch Knight",
+                    spellList, 3, "INT", 13, 5, 1, 2, 3, null, false)));
+            return pc;
+        }
+
+        @Test
+        @DisplayName("An Eldritch Knight's cantrips come from the wizard's list, as its class tables name it")
+        void eldritchKnightLearnsFromTheWizardsList() {
+            PlayerCharacter pc = castingFighter("Wizard");
+
+            assertThatThrownBy(() -> service.learnCantrips(pc, cantrips(3, "Wizard"), List.of("Sacred Flame")))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Sacred Flame isn't on the Wizard spell list");
+            assertThat(service.learnCantrips(pc, cantrips(3, "Wizard"), List.of("Fire Bolt")))
+                    .containsExactly("Fire Bolt");
+            assertThat(pc.getSpellsKnown()).extracting(KnownSpell::name, KnownSpell::source)
+                    .containsExactly(tuple("Fire Bolt", "class:Fighter"));
+        }
+
+        @Test
+        @DisplayName("The list check reads the list the class tables name, not the subclass's name")
+        void readsTheNamedList() {
+            PlayerCharacter pc = castingFighter("Cleric");
+
+            assertThatThrownBy(() -> service.learnCantrips(pc, cantrips(3, "Cleric"), List.of("Fire Bolt")))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Fire Bolt isn't on the Cleric spell list");
+            assertThat(service.learnCantrips(pc, cantrips(3, "Cleric"), List.of("Sacred Flame")))
+                    .containsExactly("Sacred Flame");
         }
     }
 }

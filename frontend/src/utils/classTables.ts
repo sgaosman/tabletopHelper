@@ -16,6 +16,14 @@ function spellcasting(tables: ClassTables, className: string, subclassName?: str
   return tables.classes[className]?.spellcasting ?? null;
 }
 
+/**
+ * The spell list a class learns and prepares from, as the server's tables name it: the class's own, or the wizard's
+ * for an Eldritch Knight or Arcane Trickster. A class the tables give no Spellcasting uses its own name.
+ */
+export function spellList(tables: ClassTables, className: string, subclassName?: string | null): string {
+  return spellcasting(tables, className, subclassName)?.spellList ?? className;
+}
+
 /** Cantrips known at a class level; 0 for a class without cantrips. */
 export function cantripsKnown(tables: ClassTables, className: string, level: number, subclassName?: string | null) {
   return spellcasting(tables, className, subclassName)?.cantripsKnown[level] ?? 0;

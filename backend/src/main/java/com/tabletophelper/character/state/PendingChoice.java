@@ -29,6 +29,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param swap           for SPELLS, true when the class may also replace one spell it knows with another, as a bard,
  *                       ranger, sorcerer, warlock, Eldritch Knight or Arcane Trickster may on gaining a level in the
  *                       class
+ * @param spellList      for CANTRIPS and SPELLS, the spell list the class learns from, as the spells table names it:
+ *                       the class's own, or "Wizard" for an Eldritch Knight or Arcane Trickster; null on a choice
+ *                       made before R8, where it is the class's own unless the class is one of those two
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -43,7 +46,8 @@ public record PendingChoice(
         @Schema(requiredMode = REQUIRED) int count,
         List<String> options,
         Integer maxSpellLevel,
-        Boolean swap
+        Boolean swap,
+        String spellList
 ) {
 
     /** What is chosen, in the order a level's choices are shown and made: a subclass can bring more. */
@@ -82,6 +86,6 @@ public record PendingChoice(
     /** The same choice with a new count, as when creation made part of it. */
     public PendingChoice withCount(int newCount) {
         return new PendingChoice(id, type, source, characterLevel, classId, className, classLevel, newCount, options,
-                maxSpellLevel, swap);
+                maxSpellLevel, swap, spellList);
     }
 }

@@ -596,7 +596,7 @@ class SpellcastingServiceTest {
             mystic.setSpellSlotsCurrent(Map.of("2", new SpellSlot(2, 0)));
             f.knows(mystic, new KnownSpell(null, "Hold Person", 2, "class:Cleric", true, null, null, null, null));
             when(f.characterService.classSpellcasting(mystic.getCharacter(), "Cleric")).thenReturn(Optional.of(
-                    new ClassSpellcasting("Cleric", null, 3, "WIS", 13, 5, 2, 3, null, 4, false)));
+                    new ClassSpellcasting("Cleric", null, "Cleric", 3, "WIS", 13, 5, 2, 3, null, 4, false)));
 
             f.dice.script(14);
             f.spellcasting.castSpell(f.encounterId(), request("Hold Person", 2, List.of(goblin)), mystic.getId(),
@@ -666,7 +666,7 @@ class SpellcastingServiceTest {
             cleric.setSpellSlotsCurrent(Map.of("1", new SpellSlot(2, 0)));
             f.knows(cleric, new KnownSpell(null, "Cure Wounds", 1, "class:Cleric", true, null, null, null, null));
             when(f.characterService.classSpellcasting(cleric.getCharacter(), "Cleric")).thenReturn(Optional.of(
-                    new ClassSpellcasting("Cleric", null, 1, "WIS", 13, 6, 1, 3, null, 4, false)));
+                    new ClassSpellcasting("Cleric", null, "Cleric", 1, "WIS", 13, 6, 1, 3, null, 4, false)));
             return cleric;
         }
     }

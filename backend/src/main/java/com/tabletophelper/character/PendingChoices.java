@@ -62,35 +62,36 @@ final class PendingChoices {
         }
         String subclass = level.subclassName();
         if (classLevel == level.subclassLevel() && subclass == null && !level.subclassOptions().isEmpty()) {
-            owed.add(choice(Type.SUBCLASS, source, characterLevel, level, 1, level.subclassOptions(), null, null));
+            owed.add(choice(Type.SUBCLASS, source, characterLevel, level, 1, level.subclassOptions()));
         }
         if (ClassProgression.isFightingStyleLevel(tables, className, subclass, classLevel)) {
             owed.add(choice(Type.FIGHTING_STYLE, source, characterLevel, level, 1,
-                    ClassProgression.fightingStyles(tables, className), null, null));
+                    ClassProgression.fightingStyles(tables, className)));
         }
         if (ClassProgression.isAsiLevel(tables, className, classLevel)) {
-            owed.add(choice(Type.ASI, source, characterLevel, level, 1, null, null, null));
+            owed.add(choice(Type.ASI, source, characterLevel, level, 1, null));
         }
         int expertise = ClassProgression.expertiseChoices(tables, className, classLevel);
         if (expertise > 0) {
-            owed.add(choice(Type.EXPERTISE, source, characterLevel, level, expertise, null, null, null));
+            owed.add(choice(Type.EXPERTISE, source, characterLevel, level, expertise, null));
         }
         int cantrips = ClassProgression.cantripsKnown(tables, className, subclass, classLevel)
                 - ClassProgression.cantripsKnown(tables, className, subclass, classLevel - 1);
+        String spellList = ClassProgression.spellList(tables, className, subclass).orElse(className);
         if (cantrips > 0) {
-            owed.add(choice(Type.CANTRIPS, source, characterLevel, level, cantrips, null, 0, null));
+            owed.add(spellChoice(Type.CANTRIPS, source, characterLevel, level, cantrips, 0, null, spellList));
         }
         int highest = ClassProgression.highestSpellLevel(tables, className, subclass, classLevel);
         int spellbook = ClassProgression.spellbookSpells(tables, className, classLevel);
         if (spellbook > 0) {
-            owed.add(choice(Type.SPELLS, source, characterLevel, level, spellbook, null, highest, null));
+            owed.add(spellChoice(Type.SPELLS, source, characterLevel, level, spellbook, highest, null, spellList));
         } else {
             OptionalInt known = ClassProgression.spellsKnown(tables, className, subclass, classLevel);
             int before = ClassProgression.spellsKnown(tables, className, subclass, classLevel - 1).orElse(0);
             int learned = known.orElse(0) - before;
             if (learned > 0) {
-                owed.add(choice(Type.SPELLS, source, characterLevel, level, learned, null, highest,
-                        before > 0 ? Boolean.TRUE : null));
+                owed.add(spellChoice(Type.SPELLS, source, characterLevel, level, learned, highest,
+                        before > 0 ? Boolean.TRUE : null, spellList));
             }
         }
         return owed;
@@ -111,8 +112,14 @@ final class PendingChoices {
     }
 
     private static PendingChoice choice(Type type, Source source, int characterLevel, ClassLevel level, int count,
-                                        List<String> options, Integer maxSpellLevel, Boolean swap) {
+                                        List<String> options) {
         return new PendingChoice(UUID.randomUUID(), type, source, characterLevel, level.classId(), level.className(),
-                level.classLevel(), count, options != null ? List.copyOf(options) : null, maxSpellLevel, swap);
+                level.classLevel(), count, options != null ? List.copyOf(options) : null, null, null, null);
+    }
+
+    private static PendingChoice spellChoice(Type type, Source source, int characterLevel, ClassLevel level, int count,
+                                             int maxSpellLevel, Boolean swap, String spellList) {
+        return new PendingChoice(UUID.randomUUID(), type, source, characterLevel, level.classId(), level.className(),
+                level.classLevel(), count, null, maxSpellLevel, swap, spellList);
     }
 }

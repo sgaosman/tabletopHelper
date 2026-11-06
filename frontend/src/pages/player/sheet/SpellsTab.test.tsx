@@ -28,6 +28,7 @@ function casting(overrides: Partial<ClassSpellcasting>): ClassSpellcasting {
   return {
     className: 'Wizard', classLevel: 3, ability: 'INT', spellSaveDc: 13, spellAttackBonus: 5,
     highestSpellLevel: 2, cantripsKnown: 3, preparedSpells: 6, pactMagic: false,
+    spellList: overrides.className ?? 'Wizard',
     ...overrides,
   };
 }
@@ -82,7 +83,7 @@ describe('SpellsTab', () => {
         { name: 'Fire Bolt', level: 0, source: 'class:Fighter' },
         { name: 'Shield', level: 1, source: 'class:Fighter' },
       ],
-      spellcasting: [casting({ className: 'Fighter', subclassName: 'Eldritch Knight', classLevel: 4,
+      spellcasting: [casting({ className: 'Fighter', subclassName: 'Eldritch Knight', spellList: 'Wizard', classLevel: 4,
         highestSpellLevel: 1, cantripsKnown: 2, spellsKnown: 4, preparedSpells: null })],
     };
 
@@ -187,5 +188,30 @@ describe('SpellsTab', () => {
     expect(box('Fey Touched')).toBeInTheDocument();
     expect(screen.queryByText(/Add Feat Spells/)).not.toBeInTheDocument();
     expect(screen.queryByTitle('Remove feat spells')).not.toBeInTheDocument();
+  });
+
+  it("opens a spell's details in a dialog titled with its name, which Escape closes, giving focus back", async () => {
+    server.use(http.get('/api/reference/spells', () => HttpResponse.json({
+      // The search matches part of a name: the spell of exactly that name is the one shown
+      content: [{ ...spell('s-2', 'Shield of Faith', 1), source: 'XGE' }, spell('s-1', 'Shield', 1)],
+      totalElements: 2, totalPages: 1, number: 0, size: 20,
+    } satisfies PageResponse<Spell>)));
+    const char = {
+      ...makeMockCharacter('char-007', 'Zara', 'Wizard', 3),
+      spellsKnown: [{ name: 'Shield', level: 1, source: 'class:Wizard', prepared: true }],
+      spellcasting: [casting({})],
+    };
+    renderTab(char);
+    const user = userEvent.setup();
+    const opener = screen.getByRole('button', { name: /^Shield/ });
+
+    await user.click(opener);
+
+    const dialog = screen.getByRole('dialog', { name: 'Shield' });
+    expect(await within(dialog).findByText('Source: PHB')).toBeInTheDocument();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
   });
 });

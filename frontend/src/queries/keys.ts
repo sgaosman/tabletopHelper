@@ -54,6 +54,7 @@ export const queryKeys = {
     all: () => ['reference'] as const,
     spells: (params: SpellSearchParams) => ['reference', 'spells', 'list', params] as const,
     spell: (spellId: string) => ['reference', 'spells', 'detail', spellId] as const,
+    spellByName: (name: string) => ['reference', 'spells', 'byName', name] as const,
     spellFilterOptions: (filter: 'schools' | 'sources' | 'classes') => ['reference', 'spells', 'filters', filter] as const,
     spellSubclasses: (className: string) => ['reference', 'spells', 'filters', 'subclasses', className] as const,
     spellTargeting: (spellName: string, slotLevel: number) =>

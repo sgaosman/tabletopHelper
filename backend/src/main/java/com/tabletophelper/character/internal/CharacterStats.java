@@ -447,6 +447,7 @@ public class CharacterStats {
             spellcasting.add(new ClassSpellcasting(
                     c.name(),
                     subclass,
+                    ClassProgression.spellList(classTables, c.name(), subclass).orElse(c.name()),
                     classLevel,
                     ability.name(),
                     8 + proficiencyBonus + modifier + saveDcAdjustment,

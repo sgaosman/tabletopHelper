@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import IconButton from './IconButton';
 
-const WIDTHS = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg' } as const;
+const WIDTHS = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-2xl' } as const;
 
 interface ModalProps {
   /** The heading, which also names the dialog for screen readers */
@@ -17,6 +17,8 @@ interface ModalProps {
   size?: keyof typeof WIDTHS;
   /** Buttons along the bottom, below the part that scrolls */
   footer?: ReactNode;
+  /** The body has no padding of its own, for content laid out with its own */
+  flush?: boolean;
   children: ReactNode;
 }
 
@@ -25,7 +27,7 @@ interface ModalProps {
  * to an autoFocus field or else the close button, and Tab stays inside. Escape or a click on
  * the backdrop closes it, and focus then returns to the element that opened it.
  */
-export default function Modal({ title, subtitle, onClose, dismissible = true, size = 'md', footer, children }: ModalProps) {
+export default function Modal({ title, subtitle, onClose, dismissible = true, size = 'md', footer, flush = false, children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const subtitleId = useId();
@@ -57,7 +59,7 @@ export default function Modal({ title, subtitle, onClose, dismissible = true, si
             <X className="w-5 h-5" />
           </IconButton>
         </div>
-        <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">{children}</div>
+        <div className={`${flush ? '' : 'px-5 py-4 '}overflow-y-auto flex-1 min-h-0`}>{children}</div>
         {footer && <div className="px-5 py-4 border-t border-rule flex justify-end gap-3 shrink-0">{footer}</div>}
       </div>
     </div>

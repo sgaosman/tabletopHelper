@@ -126,6 +126,7 @@
       "asiLevels": [4, 8, 12, 16, 19],
       "spellcasting": {
         "casterType": "artificer",
+        "spellList": "Artificer",
         "cantripsKnown": [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4],
         "preparing": "HALF_LEVEL"
       }
@@ -140,6 +141,7 @@
       "expertise": { "3": 2, "10": 2 },
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Bard",
         "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 15, 16, 18, 19, 19, 20, 22, 22, 22],
         "preparing": "NONE"
@@ -150,6 +152,7 @@
       "asiLevels": [4, 8, 12, 16, 19],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Cleric",
         "cantripsKnown": [0, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
         "preparing": "LEVEL"
       }
@@ -159,6 +162,7 @@
       "asiLevels": [4, 8, 12, 16, 19],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Druid",
         "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "preparing": "LEVEL"
       }
@@ -183,6 +187,7 @@
         "Blind Fighting", "Interception"],
       "spellcasting": {
         "casterType": "half",
+        "spellList": "Paladin",
         "preparing": "HALF_LEVEL"
       }
     },
@@ -194,6 +199,7 @@
         "Druidic Warrior", "Thrown Weapon Fighting"],
       "spellcasting": {
         "casterType": "half",
+        "spellList": "Ranger",
         "spellsKnown": [0, 0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11],
         "preparing": "NONE"
       }
@@ -208,6 +214,7 @@
       "asiLevels": [4, 8, 12, 16, 19],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Sorcerer",
         "cantripsKnown": [0, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
         "spellsKnown": [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15],
         "preparing": "NONE"
@@ -218,6 +225,7 @@
       "asiLevels": [4, 8, 12, 16, 19],
       "spellcasting": {
         "casterType": "pact",
+        "spellList": "Warlock",
         "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
         "preparing": "NONE"
@@ -228,6 +236,7 @@
       "asiLevels": [4, 8, 12, 16, 19],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Wizard",
         "cantripsKnown": [0, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
         "preparing": "LEVEL"
       },
@@ -243,6 +252,7 @@
       "className": "Fighter",
       "spellcasting": {
         "casterType": "third",
+        "spellList": "Wizard",
         "cantripsKnown": [0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
         "spellsKnown": [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
         "preparing": "NONE"
@@ -252,6 +262,7 @@
       "className": "Rogue",
       "spellcasting": {
         "casterType": "third",
+        "spellList": "Wizard",
         "cantripsKnown": [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
         "preparing": "NONE"

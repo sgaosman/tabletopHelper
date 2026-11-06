@@ -53,12 +53,15 @@ public record ClassTablesResponse(
     /**
      * A Spellcasting feature's numbers.
      *
+     * @param spellList     the class whose spell list it learns and prepares from, as the spells table names it:
+     *                      the class's own, or "Wizard" for the Eldritch Knight and Arcane Trickster
      * @param cantripsKnown empty for a class without cantrips
      * @param spellsKnown   empty for a class that prepares its spells
      * @param preparing     NONE, LEVEL (the modifier plus the class level) or HALF_LEVEL (plus half, rounded down)
      */
     public record SpellcastingResponse(
             @Schema(requiredMode = REQUIRED) String casterType,
+            @Schema(requiredMode = REQUIRED) String spellList,
             @Schema(requiredMode = REQUIRED) List<Integer> cantripsKnown,
             @Schema(requiredMode = REQUIRED) List<Integer> spellsKnown,
             @Schema(requiredMode = REQUIRED) String preparing) {}
@@ -91,6 +94,6 @@ public record ClassTablesResponse(
 
     private static SpellcastingResponse spellcasting(ClassTables.Spellcasting spellcasting) {
         return spellcasting == null ? null : new SpellcastingResponse(spellcasting.casterType(),
-                spellcasting.cantripsKnown(), spellcasting.spellsKnown(), spellcasting.preparing().name());
+                spellcasting.spellList(), spellcasting.cantripsKnown(), spellcasting.spellsKnown(), spellcasting.preparing().name());
     }
 }

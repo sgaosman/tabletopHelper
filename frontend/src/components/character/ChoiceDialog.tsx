@@ -1,5 +1,4 @@
 import type { PendingChoice, PlayerCharacter } from '../../types/character';
-import { spellListClass } from '../../utils/spellConstants';
 import AsiModal from './AsiModal';
 import ExpertiseModal from './ExpertiseModal';
 import FightingStyleModal from './FightingStyleModal';
@@ -19,8 +18,9 @@ interface Props {
 
 /**
  * The dialog that makes one Pending Choice (D159), by its type: an Ability Score Improvement or a feat, a subclass,
- * Expertise, a Fighting Style, or the cantrips and spells a class learns, through the spells dialog until R8's spell
- * picker. Each dialog applies the choice itself, and each can be skipped, leaving the choice on the sheet's banner.
+ * Expertise, a Fighting Style, or the cantrips and spells a class learns, through the spells dialog's SpellPicker,
+ * from the spell list the choice names. Each dialog applies the choice itself, and each can be skipped, leaving the
+ * choice on the sheet's banner.
  */
 export default function ChoiceDialog({ character, choice, onComplete, onSkip, onClose }: Props) {
   switch (choice.type) {
@@ -43,7 +43,6 @@ export default function ChoiceDialog({ character, choice, onComplete, onSkip, on
           type="choice"
           className={className}
           casting={casting}
-          spellListClass={spellListClass(className, casting?.subclassName)}
           currentSpells={(character.spellsKnown ?? []).map(s => ({ ...s, source: s.source || `class:${character.characterClass}` }))}
           choice={choice}
           onComplete={onComplete}

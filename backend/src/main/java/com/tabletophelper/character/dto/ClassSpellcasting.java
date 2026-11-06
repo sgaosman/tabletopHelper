@@ -12,6 +12,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *
  * @param className         the class, as its class entry names it
  * @param subclassName      the class's subclass, which for a fighter or rogue is the one that gives it its spells
+ * @param spellList         the spell list the class learns and prepares from, as the spells table names it: the
+ *                          class's own, or "Wizard" for an Eldritch Knight or Arcane Trickster (PHB p.75, p.98)
  * @param classLevel        the character's level in the class
  * @param ability           the class's spellcasting ability, abbreviated, such as "INT"
  * @param spellSaveDc       8 + the proficiency bonus + the ability's modifier (PHB p.205)
@@ -27,6 +29,7 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 public record ClassSpellcasting(
         @Schema(requiredMode = REQUIRED) String className,
         String subclassName,
+        @Schema(requiredMode = REQUIRED) String spellList,
         @Schema(requiredMode = REQUIRED) int classLevel,
         @Schema(requiredMode = REQUIRED) String ability,
         @Schema(requiredMode = REQUIRED) int spellSaveDc,

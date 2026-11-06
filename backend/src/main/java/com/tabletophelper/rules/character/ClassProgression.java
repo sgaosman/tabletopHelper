@@ -128,6 +128,15 @@ public final class ClassProgression {
                 .map(spellcasting -> highestSlot(tables, spellcasting, classLevel)).orElse(0);
     }
 
+    /**
+     * The spell list a class learns and prepares from, as the spells table names it: the class's own, or the wizard's
+     * for an Eldritch Knight or Arcane Trickster (PHB p.75, p.98). Empty for a class whose tables give it no
+     * Spellcasting.
+     */
+    public static Optional<String> spellList(ClassTables tables, String className, String subclassName) {
+        return spellcasting(tables, className, subclassName).map(Spellcasting::spellList);
+    }
+
     // A subclass's Spellcasting, as an Eldritch Knight's for a fighter, or else the class's own
     private static Optional<Spellcasting> spellcasting(ClassTables tables, String className, String subclassName) {
         Optional<Spellcasting> subclass = tables.subclassTable(className, subclassName)

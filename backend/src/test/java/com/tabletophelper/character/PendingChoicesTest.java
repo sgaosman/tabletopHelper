@@ -202,6 +202,7 @@ class PendingChoicesTest {
             assertThat(spells.count()).isEqualTo(1);
             assertThat(spells.maxSpellLevel()).isEqualTo(3);
             assertThat(spells.options()).isNull();
+            assertThat(spells.spellList()).isEqualTo("Sorcerer");
         });
         PendingChoice subclass = PendingChoices.owedAt(TABLES, 3, level("Fighter", null, 3, 3), Source.LEVEL_UP).getFirst();
         assertThat(subclass.options()).isEqualTo(SUBCLASSES);
@@ -214,6 +215,24 @@ class PendingChoicesTest {
                 .isEqualTo(3);
         assertThat(PendingChoices.owedAt(TABLES, 3, level("Wizard", null, 3, 2), Source.LEVEL_UP).getFirst().maxSpellLevel())
                 .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Cantrip and spell choices name the class's spell list, the wizard's for an Eldritch Knight or Arcane Trickster; other choices name none")
+    void spellListOfAChoice() {
+        List<PendingChoice> knight = PendingChoices.owedAt(TABLES, 3, level("Fighter", "Eldritch Knight", 3, 3),
+                Source.LEVEL_UP);
+        assertThat(knight).filteredOn(c -> c.type() == Type.CANTRIPS || c.type() == Type.SPELLS)
+                .hasSize(2).allSatisfy(c -> assertThat(c.spellList()).isEqualTo("Wizard"));
+        assertThat(PendingChoices.owedAt(TABLES, 3, level("Rogue", "Arcane Trickster", 3, 3), Source.LEVEL_UP))
+                .filteredOn(c -> c.type() == Type.SPELLS)
+                .singleElement().satisfies(c -> assertThat(c.spellList()).isEqualTo("Wizard"));
+        List<PendingChoice> cleric = PendingChoices.owedAt(TABLES, 4, level("Cleric", "Life Domain", 4, 1),
+                Source.LEVEL_UP);
+        assertThat(cleric).filteredOn(c -> c.type() == Type.CANTRIPS)
+                .singleElement().satisfies(c -> assertThat(c.spellList()).isEqualTo("Cleric"));
+        assertThat(cleric).filteredOn(c -> c.type() == Type.ASI)
+                .singleElement().satisfies(c -> assertThat(c.spellList()).isNull());
     }
 
     @Test

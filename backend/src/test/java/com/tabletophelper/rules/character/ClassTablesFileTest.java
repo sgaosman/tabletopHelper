@@ -80,7 +80,7 @@ class ClassTablesFileTest {
     }
 
     @Test
-    @DisplayName("Each class's Cantrips Known and Spells Known columns, how it prepares spells, and the Eldritch Knight's and Arcane Trickster's")
+    @DisplayName("Each class's Cantrips Known and Spells Known columns, how it prepares spells and its own spell list, and the Eldritch Knight's and Arcane Trickster's, on the wizard's list")
     void spellcastingColumns() {
         assertSpellcasting("Artificer", "artificer", column(0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4,
                 4, 4), List.of(), Preparing.HALF_LEVEL);
@@ -105,10 +105,10 @@ class ClassTablesFileTest {
 
         List<Integer> thirdCasterSpells = column(0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13);
         assertThat(TABLES.subclassTable("Fighter", "Eldritch Knight").orElseThrow().spellcasting()).isEqualTo(
-                new Spellcasting("third", column(0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3),
+                new Spellcasting("third", "Wizard", column(0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3),
                         thirdCasterSpells, Preparing.NONE));
         assertThat(TABLES.subclassTable("Rogue", "Arcane Trickster").orElseThrow().spellcasting()).isEqualTo(
-                new Spellcasting("third", column(0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4),
+                new Spellcasting("third", "Wizard", column(0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4),
                         thirdCasterSpells, Preparing.NONE));
         assertThat(TABLES.subclassTable("Fighter", "Arcane Trickster")).isEmpty();
     }
@@ -116,7 +116,7 @@ class ClassTablesFileTest {
     private static void assertSpellcasting(String className, String casterType, List<Integer> cantrips,
                                            List<Integer> spellsKnown, Preparing preparing) {
         assertThat(TABLES.classTable(className).orElseThrow().spellcasting()).as(className)
-                .isEqualTo(new Spellcasting(casterType, cantrips, spellsKnown, preparing));
+                .isEqualTo(new Spellcasting(casterType, className, cantrips, spellsKnown, preparing));
     }
 
     @Test
@@ -153,7 +153,7 @@ class ClassTablesFileTest {
     }
 
     @Test
-    @DisplayName("The file is read strictly: an unknown property or a column of the wrong length fails, naming the file")
+    @DisplayName("The file is read strictly: an unknown property, a column of the wrong length or a Spellcasting without a spell list fails, naming the file")
     void readsStrictly() {
         String good = "{\"spellSlots\": {\"full\": %s, \"half\": %s, \"artificer\": %s, \"third\": %s, \"pact\": %s},"
                 + " \"defaults\": {\"subclassLevel\": 3, \"asiLevels\": [4]}, \"classes\": {%s}}";
@@ -165,8 +165,12 @@ class ClassTablesFileTest {
                 "\"Bard\": {\"subclassLevel\": 3, \"spells\": []}")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining(ClassTablesFile.PATH);
         assertThatThrownBy(() -> read(String.format(good, rows, rows, rows, rows, rows,
-                "\"Bard\": {\"subclassLevel\": 3, \"spellcasting\": {\"casterType\": \"full\", \"cantripsKnown\": [0, 2]}}")))
+                "\"Bard\": {\"subclassLevel\": 3, \"spellcasting\": {\"casterType\": \"full\", \"spellList\": \"Bard\", "
+                + "\"cantripsKnown\": [0, 2]}}")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("cantripsKnown");
+        assertThatThrownBy(() -> read(String.format(good, rows, rows, rows, rows, rows,
+                "\"Bard\": {\"subclassLevel\": 3, \"spellcasting\": {\"casterType\": \"full\"}}")))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("spell list");
         assertThatThrownBy(() -> read(String.format(good, "[[]]", rows, rows, rows, rows, "")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("full slot table");
     }

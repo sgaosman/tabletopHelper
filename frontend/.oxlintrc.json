@@ -10,7 +10,6 @@
   "overrides": [
     {
       "files": [
-        "src/pages/player/sheet/SpellsTab.tsx",
         "src/components/character/FeatPicker.tsx"
       ],
       "rules": {

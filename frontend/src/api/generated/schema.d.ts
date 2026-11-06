@@ -2108,6 +2108,7 @@ export interface components {
             preparedSpells?: number | null;
             /** Format: int32 */
             spellAttackBonus: number;
+            spellList: string;
             /** Format: int32 */
             spellSaveDc: number;
             /** Format: int32 */
@@ -2777,6 +2778,7 @@ export interface components {
             options?: string[] | null;
             /** @enum {string} */
             source: "LEVEL_UP" | "CREATION" | "RACE" | "BACKGROUND";
+            spellList?: string | null;
             swap?: boolean | null;
             /** @enum {string} */
             type: "SUBCLASS" | "FIGHTING_STYLE" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
@@ -2995,6 +2997,7 @@ export interface components {
             cantripsKnown: number[];
             casterType: string;
             preparing: string;
+            spellList: string;
             spellsKnown: number[];
         };
         SpellsLearned: {

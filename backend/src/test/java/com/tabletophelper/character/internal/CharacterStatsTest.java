@@ -354,7 +354,7 @@ class CharacterStatsTest {
         void wizard() {
             ClassSpellcasting wizard5 = stats.derive(character(wizard, 5)).spellcasting().getFirst();
 
-            assertThat(wizard5).isEqualTo(new ClassSpellcasting("Wizard", null, 5, "INT", 14, 6, 3, 4, null, 8, false));
+            assertThat(wizard5).isEqualTo(new ClassSpellcasting("Wizard", null, "Wizard", 5, "INT", 14, 6, 3, 4, null, 8, false));
         }
 
         @Test
@@ -363,8 +363,8 @@ class CharacterStatsTest {
             DerivedStats derived = stats.derive(character(wizard, 3, cleric, 2));
 
             assertThat(derived.spellcasting()).containsExactly(
-                    new ClassSpellcasting("Wizard", null, 3, "INT", 14, 6, 2, 3, null, 6, false),
-                    new ClassSpellcasting("Cleric", null, 2, "WIS", 12, 4, 1, 3, null, 3, false));
+                    new ClassSpellcasting("Wizard", null, "Wizard", 3, "INT", 14, 6, 2, 3, null, 6, false),
+                    new ClassSpellcasting("Cleric", null, "Cleric", 2, "WIS", 12, 4, 1, 3, null, 3, false));
             // Two Spellcasting Classes use the multiclass table: caster level 5
             assertThat(derived.spellSlots()).containsOnlyKeys("1", "2", "3");
         }
@@ -373,9 +373,9 @@ class CharacterStatsTest {
         @DisplayName("A Paladin 1 prepares no spells and has none to learn, and a Warlock's are Pact Magic")
         void paladinAndWarlock() {
             assertThat(stats.derive(character(paladin, 1)).spellcasting()).containsExactly(
-                    new ClassSpellcasting("Paladin", null, 1, "CHA", 9, 1, 0, 0, null, 0, false));
+                    new ClassSpellcasting("Paladin", null, "Paladin", 1, "CHA", 9, 1, 0, 0, null, 0, false));
             assertThat(stats.derive(character(warlock, 2)).spellcasting()).containsExactly(
-                    new ClassSpellcasting("Warlock", null, 2, "CHA", 9, 1, 1, 2, 3, null, true));
+                    new ClassSpellcasting("Warlock", null, "Warlock", 2, "CHA", 9, 1, 1, 2, 3, null, true));
         }
 
         @Test
@@ -388,7 +388,7 @@ class CharacterStatsTest {
             DerivedStats derived = stats.derive(pc);
 
             assertThat(derived.spellcasting()).containsExactly(
-                    new ClassSpellcasting("Fighter", "Eldritch Knight", 3, "INT", 13, 5, 1, 2, 3, null, false));
+                    new ClassSpellcasting("Fighter", "Eldritch Knight", "Wizard", 3, "INT", 13, 5, 1, 2, 3, null, false));
             assertThat(derived.spellSlots()).isEqualTo(Map.of("1", new SpellSlot(2, 0)));
         }
 

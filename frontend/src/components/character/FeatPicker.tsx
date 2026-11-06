@@ -1,12 +1,14 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Check, ChevronDown, ChevronUp, Lock } from 'lucide-react';
-import { getFeats, getOptionalFeatures, searchSpells } from '../../api/referenceApi';
+import { getFeats, getOptionalFeatures } from '../../api/referenceApi';
+import { useSpellsByName } from '../../queries/reference';
 import type { PlayerCharacter, AsiChoice } from '../../types/character';
 import type { Feat, OptionalFeature, Spell } from '../../types/reference';
 import {
   checkFeatPrerequisites, isRepeatableFeat, parseFeatEffects, parseAbilityScoreIncrease,
 } from '../../utils/featPrerequisites';
 import FormattedDescription from '../FormattedDescription';
+import SpellPicker from './SpellPicker';
 import { ALL_SKILLS } from '../../utils/dndRules';
 
 const ABILITIES = [
@@ -22,6 +24,9 @@ const SCHOOL_ABBREV: Record<string, string> = {
   A: 'Abjuration', C: 'Conjuration', D: 'Divination', E: 'Enchantment',
   V: 'Evocation', I: 'Illusion', N: 'Necromancy', T: 'Transmutation',
 };
+
+// Every spell level, for a feat's spell of any level
+const ALL_SPELL_LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 interface SpellFilter {
   level: number;
@@ -57,12 +62,9 @@ export default function FeatPicker({ character, onSelectionChange, ignorePrerequ
   const [optionalFeatures, setOptionalFeatures] = useState<OptionalFeature[]>([]);
   const [selectedOptFeatures, setSelectedOptFeatures] = useState<string[]>([]);
 
-  const [selectedSpellIds, setSelectedSpellIds] = useState<string[]>([]);
-  const [fixedSpellIds, setFixedSpellIds] = useState<string[]>([]);
-  const [spellSearchResults, setSpellSearchResults] = useState<Spell[]>([]);
-  const [spellSearchQuery, setSpellSearchQuery] = useState('');
-  const [spellSearchLoading, setSpellSearchLoading] = useState(false);
-  const [activeSpellSlot, setActiveSpellSlot] = useState<{ type: 'cantrip' | 'spell'; index: number; filter: SpellFilter } | null>(null);
+  // The spell chosen in each of the feat's spell slots, by slot
+  const [chosenSpells, setChosenSpells] = useState<Record<number, Spell>>({});
+  const [activeSpellSlot, setActiveSpellSlot] = useState<number | null>(null);
   const [selectedSpellOption, setSelectedSpellOption] = useState<number>(0);
 
   useEffect(() => {
@@ -179,33 +181,11 @@ export default function FeatPicker({ character, onSelectionChange, ignorePrerequ
     return { fixed, choices };
   }, [selectedFeat?.id, selectedSpellOption]);
 
-  useEffect(() => {
-    if (spellSlots.fixed.length === 0) { setFixedSpellIds([]); return; }
-    const lookups = spellSlots.fixed.map(name =>
-      searchSpells({ name, size: 1 }).then(r => r.content[0]?.id || null)
-    );
-    Promise.all(lookups).then(ids => setFixedSpellIds(ids.filter(Boolean) as string[]));
-  }, [spellSlots.fixed.join(',')]);
-
-  const searchFeatSpells = useCallback(async (query: string, filter: SpellFilter) => {
-    setSpellSearchLoading(true);
-    try {
-      const params: Record<string, string | number> = { size: 50, sort: 'name' };
-      if (query) params.name = query;
-      if (filter.level >= 0) params.level = filter.level;
-      if (filter.classes.length > 0) params.className = filter.classes[0];
-      if (filter.schools.length > 0) params.school = filter.schools.join(',');
-      const result = await searchSpells(params);
-      let spells = result.content;
-      if (filter.fromList) {
-        const nameSet = new Set(filter.fromList.map(n => n.toLowerCase()));
-        spells = spells.filter(s => nameSet.has(s.name.toLowerCase()));
-      }
-      setSpellSearchResults(spells);
-    } finally {
-      setSpellSearchLoading(false);
-    }
-  }, []);
+  // The spells the feat grants outright, looked up by name for their IDs
+  const fixedSpells = useSpellsByName(spellSlots.fixed);
+  const fixedSpellIds = useMemo(
+    () => fixedSpells.filter((spell): spell is Spell => !!spell).map(spell => spell.id), [fixedSpells]);
+  const selectedSpellIds = useMemo(() => Object.values(chosenSpells).map(spell => spell.id), [chosenSpells]);
 
   function resetFeatChoices() {
     setAbilityChoice('');
@@ -217,10 +197,7 @@ export default function FeatPicker({ character, onSelectionChange, ignorePrerequ
     setLanguageChoices([]);
     setWeaponChoices([]);
     setSelectedOptFeatures([]);
-    setSelectedSpellIds([]);
-    setFixedSpellIds([]);
-    setSpellSearchResults([]);
-    setSpellSearchQuery('');
+    setChosenSpells({});
     setActiveSpellSlot(null);
     setSelectedSpellOption(0);
   }
@@ -540,7 +517,7 @@ export default function FeatPicker({ character, onSelectionChange, ignorePrerequ
                 <p className="font-body text-[13px] text-faint mb-1.5">Choose a spell list:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {featSpellOptions.map((opt, i) => (
-                    <button key={i} onClick={() => { setSelectedSpellOption(i); setSelectedSpellIds([]); setActiveSpellSlot(null); }}
+                    <button key={i} onClick={() => { setSelectedSpellOption(i); setChosenSpells({}); setActiveSpellSlot(null); }}
                       className={`px-3 py-1.5 font-body text-[15px] font-semibold transition-colors ${
                         selectedSpellOption === i ? 'bg-ink text-card' : 'bg-page-alt border border-rule text-muted hover:border-muted'
                       }`}>{opt.name}</button>
@@ -561,81 +538,54 @@ export default function FeatPicker({ character, onSelectionChange, ignorePrerequ
             )}
 
             {spellSlots.choices.map((filter, i) => {
-              const selectedSpell = selectedSpellIds[i];
-              const selectedSpellData = spellSearchResults.find(s => s.id === selectedSpell);
-              const isActive = activeSpellSlot?.index === i;
+              const chosen = chosenSpells[i];
+              const isActive = activeSpellSlot === i;
               const levelLabel = filter.level === 0 ? 'cantrip' : filter.level > 0 ? `level ${filter.level} spell` : 'spell';
               const filterDesc = filter.schools.length > 0
                 ? `${filter.schools.join(' or ')} ${levelLabel}`
                 : filter.classes.length > 0
                   ? `${filter.classes.join('/')} ${levelLabel}`
                   : filter.fromList ? `${levelLabel} from list` : levelLabel;
+              // The other slots' spells can't be chosen again here
+              const otherSlots = Object.entries(chosenSpells).filter(([slot]) => Number(slot) !== i).map(([, spell]) => spell.name);
 
               return (
                 <div key={i} className="mb-2">
                   <button
-                    onClick={() => {
-                      if (isActive) { setActiveSpellSlot(null); return; }
-                      setActiveSpellSlot({ type: filter.level === 0 ? 'cantrip' : 'spell', index: i, filter });
-                      setSpellSearchQuery('');
-                      searchFeatSpells('', filter);
-                    }}
+                    onClick={() => setActiveSpellSlot(isActive ? null : i)}
                     className={`w-full text-left px-3 py-2 font-body text-[15px] font-semibold transition-colors border ${
-                      selectedSpell
+                      chosen
                         ? 'border-2 border-ink bg-page-alt text-ink'
                         : 'border-rule bg-page-alt text-ink hover:bg-rule'
                     }`}
                   >
-                    {selectedSpell && selectedSpellData
-                      ? <span className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-ink" /> {selectedSpellData.name}</span>
+                    {chosen
+                      ? <span className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-ink" /> {chosen.name}</span>
                       : <span>Choose a {filterDesc}...</span>
                     }
                   </button>
 
                   {isActive && (
-                    <div className="mt-1 border border-rule bg-card overflow-hidden">
-                      <div className="p-2">
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-faint" />
-                          <input
-                            value={spellSearchQuery}
-                            onChange={e => {
-                              setSpellSearchQuery(e.target.value);
-                              searchFeatSpells(e.target.value, filter);
-                            }}
-                            placeholder={`Search ${filterDesc}...`}
-                            className="w-full bg-page-alt border border-rule pl-8 pr-3 py-1.5 font-body text-[14px] font-semibold text-ink placeholder-faint focus:outline-none focus:border-muted"
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                      <div className="max-h-40 overflow-y-auto">
-                        {spellSearchLoading ? (
-                          <p className="font-body text-[13px] font-semibold text-faint text-center py-3">Searching...</p>
-                        ) : spellSearchResults.length === 0 ? (
-                          <p className="font-body text-[13px] font-semibold text-faint text-center py-3">No spells found</p>
-                        ) : (
-                          spellSearchResults.map(spell => (
-                            <button key={spell.id}
-                              onClick={() => {
-                                const updated = [...selectedSpellIds];
-                                updated[i] = spell.id;
-                                setSelectedSpellIds(updated);
-                                setActiveSpellSlot(null);
-                              }}
-                              className={`w-full text-left px-3 py-1.5 font-body text-[13px] font-semibold hover:bg-page-alt transition-colors ${
-                                selectedSpell === spell.id ? 'bg-page-alt text-ink' : 'text-muted'
-                              }`}
-                            >
-                              <span className="font-heading text-[13px] font-semibold">{spell.name}</span>
-                              <span className="text-faint ml-2">
-                                {spell.level === 0 ? 'Cantrip' : `Level ${spell.level}`}
-                                {spell.school ? ` · ${spell.school}` : ''}
-                              </span>
-                            </button>
-                          ))
-                        )}
-                      </div>
+                    <div className="mt-1 border border-rule bg-card px-2 pt-2">
+                      <SpellPicker
+                        value={chosen ? [chosen.name] : []}
+                        onChange={(next, spell) => {
+                          const updated = { ...chosenSpells };
+                          if (next.length > 0) updated[i] = spell; else delete updated[i];
+                          setChosenSpells(updated);
+                          if (next.length > 0) setActiveSpellSlot(null);
+                        }}
+                        max={1}
+                        filter={{
+                          className: filter.classes[0],
+                          levels: filter.level >= 0 ? [filter.level] : ALL_SPELL_LEVELS,
+                          schools: filter.schools,
+                          names: filter.fromList,
+                        }}
+                        statusOf={spell => otherSlots.some(name => name === spell.name)
+                          ? { status: 'Chosen', disabled: true } : undefined}
+                        placeholder={`Search ${filterDesc}...`}
+                      />
                     </div>
                   )}
                 </div>

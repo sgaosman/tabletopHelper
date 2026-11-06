@@ -40,6 +40,12 @@ class ClassTablesEndpointIT extends IntegrationTest {
         assertThat(body.path("classes").path("Rogue").path("expertise").path("6").asInt()).isEqualTo(2);
         assertThat(body.path("subclasses").path("Eldritch Knight").path("spellcasting").path("casterType").asString())
                 .isEqualTo("third");
+        assertThat(body.path("subclasses").path("Eldritch Knight").path("spellcasting").path("spellList").asString())
+                .isEqualTo("Wizard");
+        assertThat(body.path("subclasses").path("Arcane Trickster").path("spellcasting").path("spellList").asString())
+                .isEqualTo("Wizard");
+        assertThat(body.path("classes").path("Bard").path("spellcasting").path("spellList").asString())
+                .isEqualTo("Bard");
         assertThat(body.path("proficiencyBonus").path(17).asInt()).isEqualTo(6);
         assertThat(body.path("classes")).hasSize(13);
     }

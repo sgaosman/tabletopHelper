@@ -12,11 +12,11 @@ import java.util.Set;
  * The class tables of the 2014 rules (D167, D169), as {@code data/content/class-tables.json} holds them and the content
  * module loads them at every start: the spell slots of each caster type, and for each class its subclass level, its
  * Ability Score Improvement, Expertise and Fighting Style levels, the Fighting Styles it chooses from, its Cantrips
- * Known and Spells Known columns, how it prepares spells and its spellbook. The Eldritch Knight's and Arcane
- * Trickster's spellcasting and the Champion's Additional Fighting Style are their subclasses'. Every column runs by
- * class level from 0, before the character has any levels in the class, to 20, and every slot row lists the slots by
- * spell level from 1st; Pact Magic rows hold the count at the slot's level. Immutable. ClassProgression reads the rules
- * from it.
+ * Known and Spells Known columns, how it prepares spells, the spell list it uses and its spellbook. The Eldritch
+ * Knight's and Arcane Trickster's spellcasting, with the wizard's spell list, and the Champion's Additional Fighting
+ * Style are their subclasses'. Every column runs by class level from 0, before the character has any levels in the
+ * class, to 20, and every slot row lists the slots by spell level from 1st; Pact Magic rows hold the count at the
+ * slot's level. Immutable. ClassProgression reads the rules from it.
  *
  * @param spellSlots the slot table of each caster type: full, half, artificer, third and pact
  * @param defaults   the subclass level and Ability Score Improvement levels of a class the tables don't list
@@ -88,14 +88,19 @@ public record ClassTables(Map<String, List<List<Integer>>> spellSlots, Defaults 
      * A class's or subclass's Spellcasting.
      *
      * @param casterType    the slot table it casts with
+     * @param spellList     the class whose spell list it learns and prepares from, as the spells table names it: the
+     *                      class's own, or "Wizard" for an Eldritch Knight or Arcane Trickster (PHB p.75, p.98)
      * @param cantripsKnown its Cantrips Known column, or empty for none
      * @param spellsKnown   its Spells Known column, or empty for a class that prepares its spells
      */
-    public record Spellcasting(String casterType, List<Integer> cantripsKnown, List<Integer> spellsKnown,
-                               Preparing preparing) {
+    public record Spellcasting(String casterType, String spellList, List<Integer> cantripsKnown,
+                               List<Integer> spellsKnown, Preparing preparing) {
         public Spellcasting {
             if (!CASTER_TYPES.contains(casterType)) {
                 throw new IllegalArgumentException("A caster type is one of " + CASTER_TYPES + ", not " + casterType);
+            }
+            if (spellList == null || spellList.isBlank()) {
+                throw new IllegalArgumentException("A Spellcasting names the spell list it uses");
             }
             cantripsKnown = column(cantripsKnown, "cantripsKnown");
             spellsKnown = column(spellsKnown, "spellsKnown");

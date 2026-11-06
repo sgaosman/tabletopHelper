@@ -5,7 +5,7 @@ import {
   getOptionalFeatures, getQuickReference, getRaces, getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses,
   getSpellTargeting, getSubclasses, searchItems, searchSpells,
 } from '../api/referenceApi';
-import type { ItemSearchParams, SpellSearchParams } from '../types/reference';
+import type { ItemSearchParams, Spell, SpellSearchParams } from '../types/reference';
 import { queryKeys } from './keys';
 import { REFERENCE_STALE_TIME } from './queryClient';
 
@@ -21,6 +21,33 @@ export function useSpellSearch(params: SpellSearchParams, { enabled = true }: { 
     placeholderData: keepPreviousData,
     enabled,
   });
+}
+
+function spellByNameQuery(name: string) {
+  return queryOptions({
+    queryKey: queryKeys.reference.spellByName(name),
+    // The search matches part of a name, so the spell of exactly that name is picked from what it finds
+    queryFn: async (): Promise<Spell | null> => {
+      const page = await searchSpells({ name, size: 20 });
+      const wanted = name.trim().toLowerCase();
+      return page.content.find(s => s.name.toLowerCase() === wanted) ?? page.content[0] ?? null;
+    },
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+/** The spell of a name, such as one on the sheet; null when there is none. With no name nothing is fetched. */
+export function useSpellByName(name: string | null) {
+  return useQuery({ ...spellByNameQuery(name ?? ''), enabled: !!name });
+}
+
+function spellsOf(results: UseQueryResult<Spell | null>[]): (Spell | null | undefined)[] {
+  return results.map(result => result.data);
+}
+
+/** The spells of each of `names`, in order: undefined while one loads, null for a name with no spell. */
+export function useSpellsByName(names: string[]) {
+  return useQueries({ queries: names.map(spellByNameQuery), combine: spellsOf });
 }
 
 const SPELL_FILTER_OPTIONS = {

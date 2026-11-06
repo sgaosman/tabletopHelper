@@ -5551,6 +5551,7 @@
           "highestSpellLevel",
           "pactMagic",
           "spellAttackBonus",
+          "spellList",
           "spellSaveDc"
         ],
         "type": "object",
@@ -5584,6 +5585,9 @@
           "spellAttackBonus": {
             "type": "integer",
             "format": "int32"
+          },
+          "spellList": {
+            "type": "string"
           },
           "spellSaveDc": {
             "type": "integer",
@@ -7927,6 +7931,10 @@
               "BACKGROUND"
             ]
           },
+          "spellList": {
+            "type": "string",
+            "nullable": true
+          },
           "swap": {
             "type": "boolean",
             "nullable": true
@@ -8690,6 +8698,7 @@
           "cantripsKnown",
           "casterType",
           "preparing",
+          "spellList",
           "spellsKnown"
         ],
         "type": "object",
@@ -8705,6 +8714,9 @@
             "type": "string"
           },
           "preparing": {
+            "type": "string"
+          },
+          "spellList": {
             "type": "string"
           },
           "spellsKnown": {

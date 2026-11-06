@@ -1,15 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Lock, X, Undo2 } from 'lucide-react';
-import { searchSpells } from '../../../api/referenceApi';
+import { Lock, Undo2 } from 'lucide-react';
 import { useRestoreSlot, useSetPreparedSpells, useSpendSlot } from '../../../queries/characters';
 import SpellCard from '../../../components/reference/SpellCard';
 import IconButton from '../../../components/ui/IconButton';
+import Modal from '../../../components/ui/Modal';
 import type { PlayerCharacter } from '../../../types/character';
 import type { SpellSlot } from '../../../types/encounter';
-import type { Spell } from '../../../types/reference';
-import { useClassTables } from '../../../queries/reference';
+import { useClassTables, useSpellByName } from '../../../queries/reference';
 import { isThirdCasterSubclass } from '../../../utils/classTables';
-import { spellListClass } from '../../../utils/spellConstants';
 import { formatMod } from '../../../utils/dndRules';
 import type { RunCommand, SpellEntry } from './types';
 import StatCard from './StatCard';
@@ -33,8 +31,9 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
   const restoreSlotCommand = useRestoreSlot();
   const setPrepared = useSetPreparedSpells();
   const { data: tables } = useClassTables();
-  const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
-  const [loadingSpell, setLoadingSpell] = useState(false);
+  // The spell whose details are open, by name
+  const [detailName, setDetailName] = useState<string | null>(null);
+  const detail = useSpellByName(detailName);
   const [manageModal, setManageModal] = useState<{ type: ManageType; className: string } | null>(null);
 
   const subclassAlwaysPreparedGroups = useMemo(() => {
@@ -118,14 +117,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
     void runCommand(restoreSlotCommand.mutateAsync({ characterId: char.id, slot: level }));
   }
 
-  async function viewSpellDetail(spellName: string) {
-    if (!spellName) return;
-    setLoadingSpell(true);
-    try {
-      const res = await searchSpells({ name: spellName, size: 1 });
-      if (res.content.length > 0) setDetailSpell(res.content[0]);
-    } catch { /* ignore */ }
-    setLoadingSpell(false);
+  function viewSpellDetail(spellName: string) {
+    if (spellName) setDetailName(spellName);
   }
 
   // Prepares or unprepares one of a class's spells, with the rest of the class's prepared spells as they are; the
@@ -395,24 +388,17 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
         <p className="font-body text-[15px] text-faint">No spells yet. A class learns its cantrips and spells through the choices its levels bring, and a prepared caster picks its spells with Change Prepared.</p>
       )}
 
-      {/* Spell Detail Modal */}
-      {(detailSpell || loadingSpell) && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => { setDetailSpell(null); setLoadingSpell(false); }}>
-          <div role="dialog" aria-modal="true" aria-label="Spell details" className="max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            {loadingSpell ? (
-              <div className="bg-card border border-rule p-8 text-center">
-                <p className="font-body text-[15px] text-muted">Loading spell...</p>
-              </div>
-            ) : detailSpell ? (
-              <div className="relative">
-                <button onClick={() => setDetailSpell(null)} className="absolute top-2 right-2 z-10 text-faint hover:text-ink">
-                  <X className="w-5 h-5" />
-                </button>
-                <SpellCard spell={detailSpell} />
-              </div>
-            ) : null}
-          </div>
-        </div>
+      {/* The spell's details, titled with its name: focus stays inside, and Escape closes it */}
+      {detailName && (
+        <Modal title={detailName} onClose={() => setDetailName(null)} size="xl" flush>
+          {detail.data ? (
+            <SpellCard spell={detail.data} titled />
+          ) : (
+            <p className="font-body text-[15px] text-muted p-8 text-center">
+              {detail.isPending ? 'Loading spell...' : detail.isError ? 'The spell could not be loaded.' : 'There is no spell of that name.'}
+            </p>
+          )}
+        </Modal>
       )}
 
       {/* Manage Spells Modal */}
@@ -422,8 +408,6 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
           type={manageModal.type}
           className={manageModal.className}
           casting={classCasting.find(c => c.className === manageModal.className)}
-          spellListClass={spellListClass(manageModal.className,
-            classCasting.find(c => c.className === manageModal.className)?.subclassName)}
           currentSpells={taggedSpells}
           runCommand={runCommand}
           onClose={() => setManageModal(null)}

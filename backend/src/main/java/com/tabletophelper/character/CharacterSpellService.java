@@ -15,7 +15,6 @@ import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.SpellsLearned;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
-import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -38,8 +37,8 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  * The spells a player chooses for a class (D158): the spells a prepared caster prepares, a wizard's spellbook, and the
  * cantrips and spells a class learns as its levels' CANTRIPS and SPELLS Pending Choices are made (D159), with a known
  * caster's swap of one spell it knows. Each spell must be on the class's spell list, which reads the spells table's
- * class lists (a subclass's additions appear as "Warlock (The Fiend)", and an Eldritch Knight or Arcane Trickster takes
- * the wizard's), and of a level the class can cast, within the numbers ClassProgression gives the class (D167). Race
+ * class lists (a subclass's additions appear as "Warlock (The Fiend)"), on the list the class tables name for the class
+ * (the wizard's for an Eldritch Knight or Arcane Trickster), and of a level the class can cast, within the numbers ClassProgression gives the class (D167). Race
  * and feat spells are left as they are.
  */
 @Service
@@ -372,15 +371,13 @@ public class CharacterSpellService {
     }
 
     /**
-     * The spell of that name, when it is on the class's list: the class's own, its subclass's additions, or the
-     * wizard's for an Eldritch Knight or Arcane Trickster.
+     * The spell of that name, when it is on the class's list: the list its class tables name (the class's own, or the
+     * wizard's for an Eldritch Knight or Arcane Trickster), or its subclass's additions.
      */
     private Spell classSpell(ClassSpellcasting casting, String name) {
         Spell spell = spellRepository.findByNameIgnoreCase(name.trim())
                 .orElseThrow(() -> new ValidationException("There is no spell called " + name.trim()));
-        boolean thirdCaster = casting.subclassName() != null
-                && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(casting.subclassName());
-        String list = thirdCaster ? WIZARD : casting.className();
+        String list = casting.spellList();
         List<String> lists = classLists(spell);
         boolean onList = lists.contains(list)
                 || (casting.subclassName() != null

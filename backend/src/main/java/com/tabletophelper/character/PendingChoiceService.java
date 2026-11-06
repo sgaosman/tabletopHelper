@@ -659,7 +659,7 @@ public class PendingChoiceService {
 
     private static PendingChoice missedChoice(Type type, LevelHistoryEntry level, int count, List<String> options) {
         return new PendingChoice(UUID.randomUUID(), type, Source.LEVEL_UP, level.characterLevel(), level.classId(),
-                level.className(), level.classLevel(), count, options, null, null);
+                level.className(), level.classLevel(), count, options, null, null, null);
     }
 
     private static boolean isPending(List<PendingChoice> pending, Type type, int characterLevel) {
@@ -747,7 +747,7 @@ public class PendingChoiceService {
         int raceFeats = raceChoices != null ? raceChoices.path("feats").asInt(0) : 0;
         for (int i = 0; i < raceFeats; i++) {
             feats.add(new PendingChoice(UUID.randomUUID(), Type.FEAT, Source.RACE, 1, null, null, null, 1, null,
-                    null, null));
+                    null, null, null));
         }
         Background background = character.getBackgroundRef();
         JsonNode listed = background != null ? readJson(background.getFeats(), "background " + background.getName())
@@ -764,7 +764,7 @@ public class PendingChoiceService {
         }
         if (!offered.isEmpty()) {
             feats.add(new PendingChoice(UUID.randomUUID(), Type.FEAT, Source.BACKGROUND, 1, null, null, null, 1,
-                    offered, null, null));
+                    offered, null, null, null));
         }
         return feats;
     }

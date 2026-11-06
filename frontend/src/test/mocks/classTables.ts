@@ -132,6 +132,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyles": [],
       "spellcasting": {
         "casterType": "artificer",
+        "spellList": "Artificer",
         "cantripsKnown": [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [],
         "preparing": "HALF_LEVEL"
@@ -158,6 +159,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyles": [],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Bard",
         "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 15, 16, 18, 19, 19, 20, 22, 22, 22],
         "preparing": "NONE"
@@ -172,6 +174,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyles": [],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Cleric",
         "cantripsKnown": [0, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
         "spellsKnown": [],
         "preparing": "LEVEL"
@@ -186,6 +189,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyles": [],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Druid",
         "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [],
         "preparing": "LEVEL"
@@ -238,6 +242,7 @@ export const CLASS_TABLES: ClassTables = {
       ],
       "spellcasting": {
         "casterType": "half",
+        "spellList": "Paladin",
         "cantripsKnown": [],
         "spellsKnown": [],
         "preparing": "HALF_LEVEL"
@@ -260,6 +265,7 @@ export const CLASS_TABLES: ClassTables = {
       ],
       "spellcasting": {
         "casterType": "half",
+        "spellList": "Ranger",
         "cantripsKnown": [],
         "spellsKnown": [0, 0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11],
         "preparing": "NONE"
@@ -286,6 +292,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyles": [],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Sorcerer",
         "cantripsKnown": [0, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
         "spellsKnown": [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15],
         "preparing": "NONE"
@@ -300,6 +307,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyles": [],
       "spellcasting": {
         "casterType": "pact",
+        "spellList": "Warlock",
         "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
         "preparing": "NONE"
@@ -314,6 +322,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyles": [],
       "spellcasting": {
         "casterType": "full",
+        "spellList": "Wizard",
         "cantripsKnown": [0, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
         "spellsKnown": [],
         "preparing": "LEVEL"
@@ -330,6 +339,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyleLevels": [],
       "spellcasting": {
         "casterType": "third",
+        "spellList": "Wizard",
         "cantripsKnown": [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
         "spellsKnown": [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
         "preparing": "NONE"
@@ -345,6 +355,7 @@ export const CLASS_TABLES: ClassTables = {
       "fightingStyleLevels": [],
       "spellcasting": {
         "casterType": "third",
+        "spellList": "Wizard",
         "cantripsKnown": [0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
         "spellsKnown": [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
         "preparing": "NONE"

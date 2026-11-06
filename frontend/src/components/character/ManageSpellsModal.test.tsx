@@ -28,6 +28,7 @@ function casting(overrides: Partial<ClassSpellcasting>): ClassSpellcasting {
   return {
     className: 'Sorcerer', classLevel: 3, ability: 'CHA', spellSaveDc: 13, spellAttackBonus: 5,
     highestSpellLevel: 2, cantripsKnown: 4, spellsKnown: 4, preparedSpells: null, pactMagic: false,
+    spellList: overrides.className ?? 'Sorcerer',
     ...overrides,
   };
 }
@@ -35,7 +36,7 @@ function casting(overrides: Partial<ClassSpellcasting>): ClassSpellcasting {
 function renderChoice(char: PlayerCharacter, choice: PendingChoice, onComplete = vi.fn(), onSkip = vi.fn()) {
   const className = choice.className ?? '';
   render(<ManageSpellsModal char={char} type="choice" className={className}
-    casting={char.spellcasting.find(c => c.className === className)} spellListClass={className}
+    casting={char.spellcasting.find(c => c.className === className)}
     currentSpells={char.spellsKnown ?? []} choice={choice} onComplete={onComplete} onSkip={onSkip} onClose={() => {}} />);
   return { onComplete, onSkip };
 }
@@ -170,6 +171,55 @@ describe('ManageSpellsModal for a Pending Choice (D159)', () => {
     expect(onSkip).toHaveBeenCalled();
   });
 
+  it("learns an Eldritch Knight's spells from the wizard's list the choice names", async () => {
+    const searched: string[] = [];
+    server.use(http.get('/api/reference/spells', ({ request }) => {
+      const params = new URL(request.url).searchParams;
+      searched.push(params.get('className') ?? '');
+      const content = LIST.filter(s => s.level === 1);
+      return HttpResponse.json({ content, totalElements: content.length, totalPages: 1, number: 0, size: 50 } satisfies PageResponse<Spell>);
+    }));
+    const knight = {
+      ...makeMockCharacter('char-003', 'Gwen', 'Fighter', 3),
+      spellsKnown: [],
+      spellcasting: [casting({ className: 'Fighter', subclassName: 'Eldritch Knight', spellList: 'Wizard',
+        highestSpellLevel: 1, cantripsKnown: 2, spellsKnown: 3 })],
+    };
+    const choice = makeMockPendingChoice({
+      id: 'choice-knight', type: 'SPELLS', className: 'Fighter', classLevel: 3, characterLevel: 3, count: 3,
+      maxSpellLevel: 1, spellList: 'Wizard',
+    });
+    renderChoice(knight, choice);
+
+    expect(await within(screen.getByRole('dialog', { name: 'Learn Spells' })).findByRole('button', { name: /^Shield/ }))
+      .toBeInTheDocument();
+    expect(searched).toEqual(['Wizard']);
+  });
+
+  it('prepares up to the limit, leaving an always-prepared spell as it is', async () => {
+    const cleric = {
+      ...makeMockCharacter('char-004', 'Aria', 'Cleric', 1),
+      spellsKnown: [
+        { name: 'Magic Missile', level: 1, source: 'class:Cleric', prepared: true },
+        { name: 'Sleep', level: 1, source: 'class:Cleric', alwaysPrepared: true },
+      ],
+      spellcasting: [casting({ className: 'Cleric', spellsKnown: null, preparedSpells: 2, highestSpellLevel: 1 })],
+    };
+    render(<ManageSpellsModal char={cleric} type="prepared" className="Cleric" casting={cleric.spellcasting[0]}
+      currentSpells={cleric.spellsKnown} runCommand={vi.fn()} onClose={() => {}} />);
+    const user = userEvent.setup();
+    const dialog = screen.getByRole('dialog', { name: 'Change Prepared Spells' });
+
+    expect(await within(dialog).findByRole('button', { name: /Sleep.*Always/ })).toBeDisabled();
+    expect(within(dialog).getByText('2/2 prepared')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^Shield/ })).toBeDisabled();
+    await user.click(within(dialog).getByRole('button', { name: /Magic Missile.*Prepared/ }));
+
+    expect(within(dialog).getByText('1/2 prepared')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /Magic Missile.*In list/ })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: /^Shield/ })).toBeEnabled();
+  });
+
   it('closes on Escape', async () => {
     const choice = makeMockPendingChoice({
       id: 'choice-cantrips', type: 'CANTRIPS', className: 'Sorcerer', classLevel: 4, characterLevel: 4, count: 1,
@@ -178,7 +228,7 @@ describe('ManageSpellsModal for a Pending Choice (D159)', () => {
     const onClose = vi.fn();
     const onSkip = vi.fn();
     render(<ManageSpellsModal char={sorcerer} type="choice" className="Sorcerer" casting={sorcerer.spellcasting[0]}
-      spellListClass="Sorcerer" currentSpells={sorcerer.spellsKnown} choice={choice} onComplete={vi.fn()}
+      currentSpells={sorcerer.spellsKnown} choice={choice} onComplete={vi.fn()}
       onSkip={onSkip} onClose={onClose} />);
     const user = userEvent.setup();
     await within(screen.getByRole('dialog', { name: 'Learn Cantrips' })).findByRole('button', { name: /^Light/ });

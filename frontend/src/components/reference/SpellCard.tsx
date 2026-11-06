@@ -6,7 +6,11 @@ const SCHOOL_COLOURS: Record<string, string> = {
   Necromancy: 'var(--color-necro)', Divination: 'var(--color-div)', Transmutation: 'var(--color-trans)', Illusion: 'var(--color-illu)',
 };
 
-export default function SpellCard({ spell }: { spell: Spell }) {
+/**
+ * A spell's card: its level and school, casting numbers, description and lists. Titled, it sits under a heading that
+ * already names the spell, such as a dialog's, so it leaves out its own name and outer border.
+ */
+export default function SpellCard({ spell, titled = false }: { spell: Spell; titled?: boolean }) {
   const s = spell;
   const levelStr = s.level === 0 ? 'Cantrip' : `Level ${s.level}`;
   const schoolStr = s.school || '';
@@ -25,9 +29,12 @@ export default function SpellCard({ spell }: { spell: Spell }) {
   })();
 
   return (
-    <div className="max-w-2xl bg-card border border-rule overflow-hidden" style={{ borderLeftWidth: '3px', borderLeftColor: accent }}>
+    <div
+      className={titled ? 'bg-card' : 'max-w-2xl bg-card border border-rule overflow-hidden'}
+      style={titled ? undefined : { borderLeftWidth: '3px', borderLeftColor: accent }}
+    >
       <div className="px-5 py-3 border-b border-rule">
-        <h2 className="font-heading text-[17px] font-bold" style={{ color: accent }}>{s.name}</h2>
+        {!titled && <h2 className="font-heading text-[17px] font-bold" style={{ color: accent }}>{s.name}</h2>}
         <p className="font-body text-[14px] font-semibold text-muted italic">
           {s.level === 0 ? `${schoolStr} cantrip` : `${levelStr} ${schoolStr.toLowerCase()}`}
           {s.ritual && ' (ritual)'}
