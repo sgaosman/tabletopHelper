@@ -2,6 +2,8 @@
 
 > **Note (2026-11-02, R5):** refactor phase R5 replaced `CombatService`, `SpellResolverEngine`, `MonsterActionResolverEngine` and `MonsterSpellCastService`, which the milestones below name, with the services in `encounter.internal` (`TurnService`, `AttackService`, `SpellcastingService`, `MonsterActionService`, `LegendaryResistanceService`, `ConditionService` and `HitPointService`), where `EffectApplier` makes every change, and the pure rules in `rules.combat` (D160). The milestone text below is history and is left as written. See [[architecture#Combat Layout (R5, D160)]].
 
+> **Note (2026-11-06, R8):** the refactor phase (R1–R8, [[decisions-log#D150]]) is implemented, each step committed locally and not yet pushed. The local database takes V29 and R8's content changes at its next start, followed by the `json-roundtrip`, `recompute-characters` dry run and load checks. Feature milestones resume with M13 after that. HTTPS and automated backups wait for the Hosting step (D154).
+
 ## Milestone Status
 
 | # | Milestone | Status | Notes |
@@ -33,6 +35,7 @@
 | 23 | Architecture Review 2 Action Plan | Complete | IDOR fix, long rest resource reset, unconscious auto-crit, ErrorBoundary, CombatService dedup, CharacterSheetPage split, HikariCP, @EntityGraph, Flyway, ARIA, FeatPicker extraction |
 | 24.5 | Generic Resource Pool System | Complete | Unified resource schema for Ki, Sorcery Points, Channel Divinity, legendary actions, breath weapons, etc. |
 | 25 | Comprehensive Testing Suite | Complete | 529 tests (276 backend + 253 frontend) — expanded from 330 with MSW infrastructure, component tests (14 files), integration tests (3 files), and backend additions (MonsterService, spell targeting) |
+| R1–R8 | Refactor Phase (D150) | Implemented (2026-11-06) | Server-authoritative rules, modular monolith, typed JSON, content as data, Spring Boot 4.1; 1,936 backend unit, 220 integration and 766 frontend tests. The local database takes V29 and R8 at its next start; M13 follows |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
 

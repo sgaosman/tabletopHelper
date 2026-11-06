@@ -55,7 +55,7 @@ TabletopHelper replaces the scattered collection of PDFs, paper notes, and brows
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Java 21, Spring Boot 3, Gradle (Kotlin DSL) |
+| Backend | Java 21, Spring Boot 4.1, Jackson 3, Hibernate 7, Flyway, Gradle 9 (Kotlin DSL) |
 | Frontend | React 19, TypeScript, Vite 8, Tailwind CSS 4 |
 | Database | PostgreSQL 16 (Docker) |
 | Real-time | WebSocket with STOMP over SockJS |

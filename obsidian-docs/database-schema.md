@@ -1,6 +1,6 @@
 # Database Schema
 
-PostgreSQL 16, accessed via Spring Data JPA with Hibernate 6. All IDs are UUIDs. All entities have `created_at` and `updated_at` timestamps. JSON fields use PostgreSQL `jsonb` column type.
+PostgreSQL 16, accessed via Spring Data JPA with Hibernate 7 (7.4 since R8, D154), with the schema managed by Flyway (migrations V1–V29). All IDs are UUIDs. All entities have `created_at` and `updated_at` timestamps. JSON fields use PostgreSQL `jsonb` column type.
 
 ## Entity Relationship Diagram
 
@@ -226,7 +226,7 @@ An array of ResourcePoolEntry objects. Each entry:
 
 ## Reference Tables (Milestone 3 — Seeded from 5e.tools)
 
-These tables are populated automatically on startup by `DataSeeder` if empty. Data comes from the 2014 branch of 5e.tools.
+These tables are populated automatically on startup by the `content` module's loaders (R7, D169), each re-run only when its files' hash changes. Data comes from the 2014 branch of 5e.tools and the project's own `data/content` files.
 
 Because most seeders skip a table that already has rows, data fixes don't reach existing databases. **Planned (R7, D169):** loaders update rows by name and source, never delete and reload, and re-run only when a data file's content hash changes (new `content_versions` table).
 

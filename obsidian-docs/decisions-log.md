@@ -1827,7 +1827,7 @@ Additionally, `RechargeLogEntry` was extended with a `checkExpression` field and
 ## D150: Refactor Phase Before M13 — Phases R1–R8
 
 **Date:** 2026-11-01
-**Status:** Accepted — in progress (R1–R6 done; R7–R8 to come)
+**Status:** Accepted — implemented (R1–R8); the local database takes V29 and R8 at its next start; then M13
 
 **Decision:** Feature milestones (M13 onward) are paused until the refactor phase is complete. The phase runs in eight steps. Each step leaves the app deployable, with CI green and the project docs updated.
 
@@ -1880,6 +1880,8 @@ M13 (action economy) changes the same combat code. Building it first would multi
 **Update (2026-11-06, R7 workstream G):** the unused 5etools data is deleted from the repo, as question G1 chose: `adventure/`, `book/`, `generated/` except `bookref-quick.json`, the fluff, index and foundry files, and the top-level files nothing reads. That is 308 files and 75.8 MB; the jar shrinks by 19.5 MB, not the planned 78, because the JSON compresses well in the jar. `data/5etools/README.md` lists each kept file and the loader that reads it, and git history keeps the rest. A full content load of a restored copy, with every hash cleared, gave the same result before and after the deletion, skip counts included.
 
 **Update (2026-11-06, R8 planning):** R8 runs as workstreams A to J, one local commit each: A baselines, B Spring Boot 3.5, C Spring Boot 4.1 with Jackson 3 (D154), D shared encounter components, E one spell pop-up flow, F one spell picker, G the wizard reducer, H feat prerequisites on the server, I small items left from R7, and J the remaining docs. The plan was drafted while the maintainer was away, with their instruction to go ahead on the recommended answers; those answers are to be confirmed. They include: the DM's version where the two session views differ, the server naming each class's spell list, the wizard's draft format kept, prerequisites enforced on players' feat choices with DM grants allowed through, a background's starting equipment left for later, and none of the text-only saves applied. The workstreams that change no data (A, D, E and G) ran first, while V29 waited for the maintainer; B, C, F, H and I each change what the next start loads or need a start on the local database.
+
+**Update (2026-11-06, R8 implemented):** R7 and R8 are implemented, each workstream one local commit followed by its docs, none of them pushed yet. **R7:** A, baselines (5188de4); B, content loaders and hashes (4891233, D151, D169); C, the loaders' catches (5765a03, D155); D, pool level tables and the expression parser (f52ae7b, D127, D172); E, character rules from data (cc73798, D158, D161, D167); F, monster data and condition immunities (e03896e, D161, D165, D168); G, dropping the deprecated columns and the unused data (d8978ba, D168); H, the creation spellcasting ability (b77e088, D159). **R8:** A, baselines and the `json-roundtrip` job (0dbb306, D168, D172); B, Spring Boot 3.5 (cd1e78d, D154); C, Spring Boot 4.1 and Jackson 3 (64bf3bc, D154); D, shared encounter components (d2ea839, D171); E, one spell pop-up flow (b24dc13, D164, D171); F, one spell picker (6589ed7, D171); G, the wizard reducer (a1152e4, D171); H, feat prerequisites on the server (578aa28, D158, D159, D168); I, small items (91a0d46, D127, D159, D165, D166, D167); J, these docs. R8 ends with 1,936 backend unit tests, 220 integration tests, 766 frontend tests, and lint at 0 warnings. **The local database has not yet taken V29 or R8:** the backend has not started on Spring Boot 4 since, so its next start applies V29 and R8's content changes (the feats' prerequisites in their new shape, and 25 monsters' templates). Before that start, back up the database; after it, run `json-roundtrip`, a `recompute-characters` dry run and the load check (D169, D172). **Still open:** pushing R7 and R8 to GitHub; an encounter endpoint for a player to spend a pool, so Psionic Recovery can be used in combat (D127); the 331 text-only monster saves, reported but not applied (D165); a background's starting equipment; and the items the R8 plan left for later: class starting equipment and gold, typing the other reference string columns, D162's end rules from data, multiattack alternatives and additional spellcasting, invocations, pact boons, Metamagic and maneuvers, Magical Secrets, swap-only levels, the Eldritch Knight's and Arcane Trickster's school limits, tool Expertise and multiclass skill picks, the spend and recover pool lists (D151), removing a participant while Paused, `results_applied` on the DM page and a log entry for applied results (D166), and replacing SockJS if it is deprecated. M13 (action economy) follows once the local database has taken V29 and R8; HTTPS and automated backups wait for the Hosting step (D154).
 
 ## D151: Modular Monolith — Microservices Rejected
 
@@ -1992,7 +1994,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D154: Production and Delivery Baseline — HTTPS, CI, Operations
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R1 parts); HTTPS and backups in the Hosting step; Spring Boot upgrade in R8
+**Status:** Accepted — implemented (R1 parts; Spring Boot 4.1 in R8); HTTPS and backups in the Hosting step
 
 **Decision:**
 - **HTTPS:** a domain name (bought, or a free dynamic-DNS subdomain) points at the server. Caddy provisions certificates automatically, HTTP redirects to HTTPS, and HSTS is enabled.
@@ -2035,7 +2037,7 @@ The frontend's `maxSpellLevel` is already correct, so affected players can curre
 ## D155: Access Policy and Error Handling
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R3; combat code in R5; character and resource pool code in R6); the seeders' catch-and-continue removal in R7
+**Status:** Accepted — implemented (R3; combat code in R5; character and resource pool code in R6; the content loaders' catches in R7)
 
 **Decision:**
 - **One access policy.** An `AccessPolicy` service provides `requireCampaignDm`, `requireCampaignMember`, `requireCharacterOwnerOrDm` and `requireControls(participant)`. Every command and query that touches campaign data calls it first, replacing the ownership checks copied into each service method. It also covers places that have no check today:
@@ -2401,7 +2403,7 @@ D025 called the auto-hit "PHB faithful", but the Unconscious condition grants ad
 ## D162: Concentration Instances and Condition End Rules
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R5); end rules missing from the data come with R7
+**Status:** Accepted — implemented (R5); end rules missing from the data come later (after R8)
 
 **Decision:**
 - **Concentration Instances.** Each casting of a concentration spell creates a Concentration Instance: caster, spell, slot level and the round it started. Conditions and ongoing effects it creates are tied to that instance, and ending the instance removes exactly what it created.
@@ -2710,7 +2712,7 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 ## D168: Typed JSON End-to-End
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (encounter tables R5; character tables and the Write-back columns R6); dropping the unmapped character columns and typing the spell and monster template columns in R7
+**Status:** Accepted — implemented (encounter tables R5; character tables and the Write-back columns R6; the spell and monster template columns typed and the unmapped character columns dropped in R7; feats typed in R8); the local database takes V29 at its next start; the other reference string columns later
 
 **Decision:**
 - Every JSONB column maps to typed Java records through Hibernate's JSON support (`@JdbcTypeCode(SqlTypes.JSON)`). The API returns structured JSON rather than JSON inside strings, and the frontend never calls `JSON.parse` on API fields.
@@ -2759,7 +2761,7 @@ Deriving whatever can be derived removes the reversal arithmetic where these bug
 ## D169: Game Content as Data Files with Idempotent Seeding
 
 **Date:** 2026-11-01
-**Status:** Accepted — feat reseeding fix implemented (R1); the rest planned (R7)
+**Status:** Accepted — implemented (feat reseeding fix R1; the content module, loaders and hashes, class tables and expression parser R7; R8's content changes); the local database loads R8's content at its next start
 
 **Decision:**
 - **Data files.** Game data we write ourselves lives in JSON files under `backend/src/main/resources/data/`, and the seeders become generic loaders. That covers:
@@ -2845,7 +2847,7 @@ The full list is settled during R2 planning.
 ## D171: Frontend Architecture — Query Cache, Generated Types, Shared Components
 
 **Date:** 2026-11-01
-**Status:** Accepted — foundations implemented (R4); consolidation in R8
+**Status:** Accepted — implemented (foundations R4; consolidation R8: shared encounter components, one spell flow, one spell picker, the wizard reducer, feats typed once)
 
 **Decision:**
 - **Server data:** TanStack Query.
@@ -2901,7 +2903,7 @@ The full list is settled during R2 planning.
 ## D172: Testing Strategy — Three Tiers and Golden Rules Tables
 
 **Date:** 2026-11-01
-**Status:** Accepted — implemented (R2 tiers); extended in every phase
+**Status:** Accepted — implemented (R2 tiers; extended in every phase through R8, with the pool sizes golden table in R7 and the `json-roundtrip` check in R8)
 
 **Decision:**
 - **Unit tier:** the `rules` module and services, with plain JUnit and Mockito, as today.
