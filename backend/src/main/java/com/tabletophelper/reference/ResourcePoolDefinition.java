@@ -57,6 +57,11 @@ public class ResourcePoolDefinition {
     @Column(columnDefinition = "jsonb")
     private String metadata;
 
+    /** What changes with the level of one class, such as Rage's uses, or null (V27, D169). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "level_table", columnDefinition = "jsonb")
+    private PoolLevelTable levelTable;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;

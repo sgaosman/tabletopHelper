@@ -27,49 +27,79 @@ export default function ResourcePoolDisplay({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {filtered.map((entry) => (
-        <div
-          key={entry.poolId}
-          className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm
-            ${entry.currentUses === 0
-              ? 'bg-rule-light text-muted'
-              : 'bg-page-alt text-ink'
-            }`}
-          title={`${entry.displayName} — ${entry.sourceName || entry.sourceType} — resets on ${entry.resetOn}${entry.resetCheck ? ` (recharge ${entry.resetCheck})` : ''}`}
-        >
-          {/* Icon placeholder — mapped from lucide-react icon name */}
-          <span className="text-xs opacity-60">{iconChar(entry.icon)}</span>
+      {filtered.map((entry) => {
+        const unlimited = isUnlimited(entry);
+        const die = poolDie(entry);
+        const empty = !unlimited && entry.currentUses === 0;
+        return (
+          <div
+            key={entry.poolId}
+            className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-sm
+              ${empty
+                ? 'bg-rule-light text-muted'
+                : 'bg-page-alt text-ink'
+              }`}
+            title={`${entry.displayName} — ${entry.sourceName || entry.sourceType} — resets on ${entry.resetOn}${entry.resetCheck ? ` (recharge ${entry.resetCheck})` : ''}`}
+          >
+            {/* Icon placeholder — mapped from lucide-react icon name */}
+            <span className="text-xs opacity-60">{iconChar(entry.icon)}</span>
 
-          <span className="font-semibold">{entry.displayName}</span>
+            <span className="font-semibold">{entry.displayName}</span>
 
-          <span className={`tabular-nums ${entry.currentUses === 0 ? 'text-debuff' : ''}`}>
-            {entry.currentUses}/{entry.maxUses}
-          </span>
+            {die && <span className="text-xs text-muted">{die}</span>}
 
-          {editable && (
-            <>
-              <IconButton
-                label={`Spend one ${entry.displayName} use`}
-                className="ml-1 rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
-                disabled={entry.currentUses <= 0}
-                onClick={() => onSpend?.(entry.poolId)}
-              >
-                −
-              </IconButton>
-              <IconButton
-                label={`Recover one ${entry.displayName} use`}
-                className="rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
-                disabled={entry.currentUses >= entry.maxUses}
-                onClick={() => onRecover?.(entry.poolId)}
-              >
-                +
-              </IconButton>
-            </>
-          )}
-        </div>
-      ))}
+            {unlimited ? (
+              <span>Unlimited</span>
+            ) : (
+              <span className={`tabular-nums ${empty ? 'text-debuff' : ''}`}>
+                {entry.currentUses}/{entry.maxUses}
+              </span>
+            )}
+
+            {editable && (
+              <>
+                <IconButton
+                  label={`Spend one ${entry.displayName} use`}
+                  className="ml-1 rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
+                  disabled={empty}
+                  onClick={() => onSpend?.(entry.poolId)}
+                >
+                  −
+                </IconButton>
+                {!unlimited && (
+                  <IconButton
+                    label={`Recover one ${entry.displayName} use`}
+                    className="rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
+                    disabled={entry.currentUses >= entry.maxUses}
+                    onClick={() => onRecover?.(entry.poolId)}
+                  >
+                    +
+                  </IconButton>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+/** The pool's metadata as the server writes it (D169): its die, whether it is unlimited, the pool it recovers. */
+function metadataOf(entry: ResourcePoolEntry): Record<string, unknown> {
+  const metadata: unknown = entry.metadata;
+  return metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>) : {};
+}
+
+/** A pool with no limit, such as Rage at Barbarian 20: shown as Unlimited, and its spending never refused. */
+function isUnlimited(entry: ResourcePoolEntry): boolean {
+  return metadataOf(entry).unlimited === true;
+}
+
+/** The pool's die at the character's level, such as "d8", or null. */
+function poolDie(entry: ResourcePoolEntry): string | null {
+  const die = metadataOf(entry).die;
+  return typeof die === 'string' ? die : null;
 }
 
 /** Quick icon map for common lucide-react icon names → single-char fallback. */

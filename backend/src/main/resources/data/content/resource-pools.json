@@ -33,8 +33,21 @@
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "ACTION",
-      "description": "Channel Divinity grants a domain-specific effect. Regains all uses on a short or long rest.",
-      "icon": "sun"
+      "description": "Channel Divinity grants a domain-specific effect: once between rests, twice from 6th level and three times from 18th. Regains all uses on a short or long rest.",
+      "icon": "sun",
+      "levelTable": {
+        "levelOf": "Cleric",
+        "rows": [
+          {
+            "level": 6,
+            "maxUses": "2"
+          },
+          {
+            "level": 18,
+            "maxUses": "3"
+          }
+        ]
+      }
     },
     {
       "poolId": "class:paladin-channel-divinity",
@@ -49,6 +62,30 @@
       "icon": "sun"
     },
     {
+      "poolId": "class:paladin-lay-on-hands",
+      "displayName": "Lay on Hands",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "5*paladinLevel",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "A pool of healing equal to 5 x your paladin level. Touch a creature to restore hit points from it, or spend 5 points to cure one disease or neutralize one poison. No effect on undead and constructs.",
+      "icon": "heart"
+    },
+    {
+      "poolId": "class:paladin-divine-sense",
+      "displayName": "Divine Sense",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "max(0, 1+charismaModifier)",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "ACTION",
+      "description": "Until the end of your next turn, know the location of any celestial, fiend, or undead within 60 feet not behind total cover, and any consecrated or desecrated place or object. 1 + your Charisma modifier uses.",
+      "icon": "sun"
+    },
+    {
       "poolId": "class:druid-wild-shape",
       "displayName": "Wild Shape",
       "sourceType": "CLASS",
@@ -57,8 +94,17 @@
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "ACTION",
-      "description": "Transform into a beast you have seen before. Regains uses on a short or long rest.",
-      "icon": "paw-print"
+      "description": "Transform into a beast you have seen before. Regains uses on a short or long rest. Archdruid (20th level): an unlimited number of times.",
+      "icon": "paw-print",
+      "levelTable": {
+        "levelOf": "Druid",
+        "rows": [
+          {
+            "level": 20,
+            "unlimited": true
+          }
+        ]
+      }
     },
     {
       "poolId": "class:fighter-second-wind",
@@ -82,19 +128,51 @@
       "resetCheck": null,
       "spendActionType": "FREE",
       "description": "Take one additional action on your turn. Starting at 17th level, you can use it twice before a rest.",
-      "icon": "zap"
+      "icon": "zap",
+      "levelTable": {
+        "levelOf": "Fighter",
+        "rows": [
+          {
+            "level": 17,
+            "maxUses": "2"
+          }
+        ]
+      }
     },
     {
       "poolId": "class:bard-bardic-inspiration",
       "displayName": "Bardic Inspiration",
       "sourceType": "CLASS",
-      "maxUsesFormula": "charismaModifier",
+      "maxUsesFormula": "max(1, charismaModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "BONUS_ACTION",
       "description": "Inspire an ally with a die (d6 at levels 1-4, d8 at 5-9, d10 at 10-14, d12 at 15+). Regains on short rest starting at 5th level.",
-      "icon": "music"
+      "icon": "music",
+      "metadata": {
+        "die": "d6"
+      },
+      "levelTable": {
+        "levelOf": "Bard",
+        "rows": [
+          {
+            "level": 5,
+            "resetOn": "shortRest",
+            "die": "d8"
+          },
+          {
+            "level": 10,
+            "resetOn": "shortRest",
+            "die": "d10"
+          },
+          {
+            "level": 15,
+            "resetOn": "shortRest",
+            "die": "d12"
+          }
+        ]
+      }
     },
     {
       "poolId": "class:barbarian-rage",
@@ -105,20 +183,73 @@
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "BONUS_ACTION",
-      "description": "Enter a rage for 1 minute. Advantage on STR checks/saves, bonus melee damage, resistance to bludgeoning/piercing/slashing.",
-      "icon": "flame"
+      "description": "Enter a rage for 1 minute. Advantage on STR checks/saves, bonus melee damage, resistance to bludgeoning/piercing/slashing. 2 rages at 1st level, 3 at 3rd, 4 at 6th, 5 at 12th, 6 at 17th, unlimited at 20th.",
+      "icon": "flame",
+      "levelTable": {
+        "levelOf": "Barbarian",
+        "rows": [
+          {
+            "level": 3,
+            "maxUses": "3"
+          },
+          {
+            "level": 6,
+            "maxUses": "4"
+          },
+          {
+            "level": 12,
+            "maxUses": "5"
+          },
+          {
+            "level": 17,
+            "maxUses": "6"
+          },
+          {
+            "level": 20,
+            "maxUses": "6",
+            "unlimited": true
+          }
+        ]
+      }
     },
     {
       "poolId": "subclass:battle-master-superiority-dice",
       "displayName": "Superiority Dice",
       "sourceType": "CLASS",
-      "maxUsesFormula": "3+ceil(fighterLevel+1/7)",
+      "maxUsesFormula": "4",
       "resetOn": "shortRest",
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "FREE",
-      "description": "d8 superiority dice that fuel combat manoeuvres. 4 dice at L3, 5 at L7, 6 at L15. Regain all on a short or long rest.",
-      "icon": "zap"
+      "description": "Superiority dice that fuel combat maneuvers: four d8s at 3rd level, five at 7th, six at 15th; d10s from 10th level and d12s from 18th. Regain all on a short or long rest.",
+      "icon": "zap",
+      "metadata": {
+        "die": "d8"
+      },
+      "levelTable": {
+        "levelOf": "Fighter",
+        "rows": [
+          {
+            "level": 7,
+            "maxUses": "5"
+          },
+          {
+            "level": 10,
+            "maxUses": "5",
+            "die": "d10"
+          },
+          {
+            "level": 15,
+            "maxUses": "6",
+            "die": "d10"
+          },
+          {
+            "level": 18,
+            "maxUses": "6",
+            "die": "d12"
+          }
+        ]
+      }
     },
     {
       "poolId": "subclass:arcane-archer-arcane-shot",
@@ -138,11 +269,46 @@
       "sourceType": "CLASS",
       "maxUsesFormula": "2*proficiencyBonus",
       "resetOn": "longRest",
-      "resetAmount": "1",
+      "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "FREE",
-      "description": "Psionic power dice. Regain all on a long rest, or 1 die on a short rest.",
-      "icon": "zap"
+      "description": "Psionic Energy dice (d6, d8 at 5th level, d10 at 11th, d12 at 17th) that fuel psionic powers. Regain all on a long rest; Psionic Recovery regains one as a bonus action.",
+      "icon": "zap",
+      "metadata": {
+        "die": "d6"
+      },
+      "levelTable": {
+        "levelOf": "Fighter",
+        "rows": [
+          {
+            "level": 5,
+            "die": "d8"
+          },
+          {
+            "level": 11,
+            "die": "d10"
+          },
+          {
+            "level": 17,
+            "die": "d12"
+          }
+        ]
+      }
+    },
+    {
+      "poolId": "subclass:psi-warrior-psionic-recovery",
+      "displayName": "Psionic Recovery",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, regain one expended Psionic Energy die; once, then a short or long rest.",
+      "icon": "zap",
+      "metadata": {
+        "recovers": "subclass:psi-warrior-psionic-energy"
+      }
     },
     {
       "poolId": "subclass:samurai-fighting-spirit",
@@ -172,7 +338,7 @@
       "poolId": "subclass:echo-knight-unleash-incarnation",
       "displayName": "Unleash Incarnation",
       "sourceType": "CLASS",
-      "maxUsesFormula": "constitutionModifier",
+      "maxUsesFormula": "max(1, constitutionModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -184,7 +350,7 @@
       "poolId": "subclass:cavalier-unwavering-mark",
       "displayName": "Unwavering Mark",
       "sourceType": "CLASS",
-      "maxUsesFormula": "strengthModifier",
+      "maxUsesFormula": "max(1, strengthModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -196,7 +362,7 @@
       "poolId": "subclass:cavalier-warding-maneuver",
       "displayName": "Warding Maneuver",
       "sourceType": "CLASS",
-      "maxUsesFormula": "constitutionModifier",
+      "maxUsesFormula": "max(1, constitutionModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -268,7 +434,7 @@
       "poolId": "subclass:light-warding-flare",
       "displayName": "Warding Flare",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -280,7 +446,7 @@
       "poolId": "subclass:tempest-wrath-of-the-storm",
       "displayName": "Wrath of the Storm",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -292,7 +458,7 @@
       "poolId": "subclass:war-war-priest",
       "displayName": "War Priest",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -304,7 +470,7 @@
       "poolId": "subclass:grave-eyes-of-the-grave",
       "displayName": "Eyes of the Grave",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -316,7 +482,7 @@
       "poolId": "subclass:grave-sentinel-at-deaths-door",
       "displayName": "Sentinel at Death's Door",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -340,12 +506,12 @@
       "poolId": "subclass:twilight-eyes-of-night",
       "displayName": "Eyes of Night",
       "sourceType": "CLASS",
-      "maxUsesFormula": "proficiencyBonus",
+      "maxUsesFormula": "1",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "ACTION",
-      "description": "Grant darkvision out to 300 feet to up to PB willing creatures for 1 hour.",
+      "description": "Share your darkvision out to 300 feet with up to your Wisdom modifier (minimum one) willing creatures for 1 hour; once, then a long rest (or expend a spell slot to share it again).",
       "icon": "moon"
     },
     {
@@ -376,7 +542,7 @@
       "poolId": "subclass:order-embodiment-of-the-law",
       "displayName": "Embodiment of the Law",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -412,7 +578,7 @@
       "poolId": "subclass:dreams-hidden-paths",
       "displayName": "Hidden Paths",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -448,7 +614,7 @@
       "poolId": "subclass:stars-cosmic-omen",
       "displayName": "Cosmic Omen",
       "sourceType": "CLASS",
-      "maxUsesFormula": "1",
+      "maxUsesFormula": "proficiencyBonus",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -460,7 +626,7 @@
       "poolId": "subclass:spores-fungal-infestation",
       "displayName": "Fungal Infestation",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -544,7 +710,7 @@
       "poolId": "subclass:monster-slayer-hunters-sense",
       "displayName": "Hunter's Sense",
       "sourceType": "CLASS",
-      "maxUsesFormula": "wisdomModifier",
+      "maxUsesFormula": "max(1, wisdomModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -558,11 +724,46 @@
       "sourceType": "CLASS",
       "maxUsesFormula": "2*proficiencyBonus",
       "resetOn": "longRest",
-      "resetAmount": "1",
+      "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "FREE",
-      "description": "Psionic Energy dice (d6) used for Psionic talents. Regain all on a long rest, or 1 die on a short rest.",
-      "icon": "sparkles"
+      "description": "Psionic Energy dice (d6, d8 at 5th level, d10 at 11th, d12 at 17th) used for psionic powers. Regain all on a long rest; Psionic Recovery regains one as a bonus action.",
+      "icon": "sparkles",
+      "metadata": {
+        "die": "d6"
+      },
+      "levelTable": {
+        "levelOf": "Rogue",
+        "rows": [
+          {
+            "level": 5,
+            "die": "d8"
+          },
+          {
+            "level": 11,
+            "die": "d10"
+          },
+          {
+            "level": 17,
+            "die": "d12"
+          }
+        ]
+      }
+    },
+    {
+      "poolId": "subclass:soulknife-psionic-recovery",
+      "displayName": "Psionic Recovery",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "shortRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "BONUS_ACTION",
+      "description": "As a bonus action, regain one expended Psionic Energy die; once, then a short or long rest.",
+      "icon": "sparkles",
+      "metadata": {
+        "recovers": "subclass:soulknife-psionic-power-dice"
+      }
     },
     {
       "poolId": "subclass:phantom-wails-from-the-grave",
@@ -765,8 +966,17 @@
       "resetAmount": null,
       "resetCheck": null,
       "spendActionType": "FREE",
-      "description": "Roll 2d20 at the end of each long rest. Replace any attack roll, saving throw, or ability check with one of these rolls before the outcome is determined.",
-      "icon": "sun"
+      "description": "Roll 2d20 at the end of each long rest (3d20 from 14th level, Greater Portent). Replace any attack roll, saving throw, or ability check with one of these rolls before the outcome is determined.",
+      "icon": "sun",
+      "levelTable": {
+        "levelOf": "Wizard",
+        "rows": [
+          {
+            "level": 14,
+            "maxUses": "3"
+          }
+        ]
+      }
     },
     {
       "poolId": "subclass:bladesinger-bladesong",
@@ -796,7 +1006,7 @@
       "poolId": "subclass:chronurgy-momentary-stasis",
       "displayName": "Momentary Stasis",
       "sourceType": "CLASS",
-      "maxUsesFormula": "intelligenceModifier",
+      "maxUsesFormula": "max(1, intelligenceModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -808,7 +1018,7 @@
       "poolId": "subclass:graviturgy-violent-attraction",
       "displayName": "Violent Attraction",
       "sourceType": "CLASS",
-      "maxUsesFormula": "intelligenceModifier",
+      "maxUsesFormula": "max(1, intelligenceModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -820,7 +1030,7 @@
       "poolId": "subclass:war-magic-power-surge",
       "displayName": "Power Surge",
       "sourceType": "CLASS",
-      "maxUsesFormula": "intelligenceModifier",
+      "maxUsesFormula": "max(1, intelligenceModifier)",
       "resetOn": "longRest",
       "resetAmount": null,
       "resetCheck": null,
@@ -915,6 +1125,18 @@
       "poolId": "class:paladin-channel-divinity"
     },
     {
+      "class": "Paladin",
+      "classSource": "PHB",
+      "minLevel": 1,
+      "poolId": "class:paladin-lay-on-hands"
+    },
+    {
+      "class": "Paladin",
+      "classSource": "PHB",
+      "minLevel": 1,
+      "poolId": "class:paladin-divine-sense"
+    },
+    {
       "class": "Druid",
       "classSource": "PHB",
       "minLevel": 2,
@@ -967,6 +1189,14 @@
       "subclassSource": "TCE",
       "minLevel": 3,
       "poolId": "subclass:psi-warrior-psionic-energy"
+    },
+    {
+      "class": "Fighter",
+      "classSource": "PHB",
+      "subclass": "Psi Warrior",
+      "subclassSource": "TCE",
+      "minLevel": 3,
+      "poolId": "subclass:psi-warrior-psionic-recovery"
     },
     {
       "class": "Fighter",
@@ -1247,6 +1477,14 @@
       "subclassSource": "TCE",
       "minLevel": 3,
       "poolId": "subclass:soulknife-psionic-power-dice"
+    },
+    {
+      "class": "Rogue",
+      "classSource": "PHB",
+      "subclass": "Soulknife",
+      "subclassSource": "TCE",
+      "minLevel": 3,
+      "poolId": "subclass:soulknife-psionic-recovery"
     },
     {
       "class": "Rogue",

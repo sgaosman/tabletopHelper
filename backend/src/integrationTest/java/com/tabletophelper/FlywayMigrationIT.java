@@ -44,13 +44,21 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V26 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V27 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27");
+    }
+
+    @Test
+    @DisplayName("V27 adds resource_pool_definitions.level_table, a nullable JSONB column")
+    void levelTableColumn() {
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                + "WHERE table_name = 'resource_pool_definitions' AND column_name = 'level_table'"))
+                .isEqualTo(Map.of("data_type", "jsonb", "is_nullable", "YES"));
     }
 
     @Test

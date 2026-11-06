@@ -17,6 +17,17 @@ const breath = makeMockResourcePool('monster:recharge:fire-breath', 'Fire Breath
 
 const pools = (...entries: ResourcePoolEntry[]) => entries;
 
+// The metadata the server writes: the generated type reads it as an empty record
+const metadata = (value: Record<string, unknown>) => value as unknown as ResourcePoolEntry['metadata'];
+
+const inspiration = makeMockResourcePool('class:bard-bardic-inspiration', 'Bardic Inspiration', {
+  sourceName: 'Bard', currentUses: 1, resetOn: 'shortRest', icon: 'music', metadata: metadata({ die: 'd8' }),
+});
+const primalRage = makeMockResourcePool('class:barbarian-rage', 'Rage', {
+  sourceName: 'Barbarian', maxUses: 6, currentUses: 6, icon: 'flame',
+  metadata: metadata({ unlimited: true }),
+});
+
 describe('ResourcePoolDisplay', () => {
   it.each([
     ['missing', undefined],
@@ -80,5 +91,33 @@ describe('ResourcePoolDisplay', () => {
     expect(screen.getByTitle('Recover one Luck Points use')).toBeEnabled();
     expect(screen.getByTitle('Spend one Fire Breath use')).toBeEnabled();
     expect(screen.getByTitle('Recover one Fire Breath use')).toBeDisabled();
+  });
+
+  it("shows a pool's die beside its name", () => {
+    render(<ResourcePoolDisplay pools={pools(inspiration, rage)} />);
+
+    expect(screen.getByText('Bardic Inspiration').parentElement).toHaveTextContent('🎵Bardic Inspirationd81/3');
+    expect(screen.getByText('d8')).toBeInTheDocument();
+    expect(screen.getByText('Rage').parentElement).toHaveTextContent('🔥Rage2/3');
+  });
+
+  it('shows an unlimited pool as Unlimited, with no counter', () => {
+    render(<ResourcePoolDisplay pools={pools(primalRage)} />);
+
+    expect(screen.getByText('Rage').parentElement).toHaveTextContent('🔥RageUnlimited');
+    expect(screen.queryByText('6/6')).not.toBeInTheDocument();
+  });
+
+  it('never disables spending an unlimited pool, even at no uses, and offers no recovery', async () => {
+    const onSpend = vi.fn();
+    const user = userEvent.setup();
+    const spent = { ...primalRage, currentUses: 0 };
+    render(<ResourcePoolDisplay pools={pools(spent)} editable onSpend={onSpend} onRecover={vi.fn()} />);
+
+    const spend = screen.getByTitle('Spend one Rage use');
+    expect(spend).toBeEnabled();
+    expect(screen.queryByTitle('Recover one Rage use')).not.toBeInTheDocument();
+    await user.click(spend);
+    expect(onSpend).toHaveBeenCalledWith('class:barbarian-rage');
   });
 });

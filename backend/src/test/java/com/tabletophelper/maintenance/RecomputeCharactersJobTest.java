@@ -71,7 +71,7 @@ class RecomputeCharactersJobTest {
         assertThat(report.changes()).singleElement().asString()
                 .startsWith("TestBarb (" + wild.getId() + ", level 6 Barbarian, deleted)")
                 .contains("initiative: +2 → +3")
-                .contains("pool innate:faerie-fire: none → 1/1")
+                .contains("pool innate:faerie-fire: none → 1/1 longRest")
                 .doesNotContain("hit points");
         assertThat(report.render()).contains("Examined 2 characters; 1 would change.");
         verify(characterService, never()).recalculate(any());

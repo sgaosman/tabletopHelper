@@ -121,7 +121,7 @@ public class RecomputeCharactersJob implements MaintenanceJob {
         }
     }
 
-    // Pools by ID: one added, one removed, or one whose maximum or uses change
+    // Pools by ID: one added, one removed, or one whose maximum, uses, rest, die or limit change (D169)
     private static void comparePools(List<String> diffs, List<ResourcePoolEntry> before, List<ResourcePoolEntry> after) {
         Map<String, String> old = pools(before);
         Map<String, String> now = pools(after);
@@ -139,7 +139,9 @@ public class RecomputeCharactersJob implements MaintenanceJob {
     private static Map<String, String> pools(List<ResourcePoolEntry> pools) {
         Map<String, String> byId = new LinkedHashMap<>();
         for (ResourcePoolEntry pool : pools != null ? pools : List.<ResourcePoolEntry>of()) {
-            byId.putIfAbsent(pool.poolId(), pool.currentUses() + "/" + pool.maxUses());
+            Object die = pool.metadata() instanceof Map<?, ?> metadata ? metadata.get("die") : null;
+            byId.putIfAbsent(pool.poolId(), pool.currentUses() + "/" + pool.maxUses()
+                    + (pool.unlimited() ? " unlimited" : "") + " " + pool.resetOn() + (die != null ? " " + die : ""));
         }
         return byId;
     }

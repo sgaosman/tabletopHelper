@@ -1,5 +1,6 @@
 package com.tabletophelper.character.state;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -28,7 +29,10 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param resetCheck       probabilistic recharge expression, e.g. "1d6>=5"
  * @param spendActionType  ACTION, BONUS_ACTION, REACTION, FREE, REPLACE_ATTACK
  * @param icon             lucide-react icon name
- * @param metadata         extra JSONB data (hitDie faces, breath shape, etc.)
+ * @param metadata         extra JSONB data: {@code die}, the pool's die from its level table, such as "d8";
+ *                         {@code unlimited}, true for a pool with no limit, such as Rage at Barbarian 20, whose
+ *                         spending is never refused; {@code recovers}, the pool a use of this one gives a use back
+ *                         to, such as a psionic recovery's Psionic Energy dice (D169)
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ResourcePoolEntry(
@@ -53,6 +57,18 @@ public record ResourcePoolEntry(
                 maxUses, maxUsesFormula, newCurrentUses,
                 resetOn, resetAmount, resetCheck,
                 spendActionType, icon, metadata);
+    }
+
+    /** Whether the pool has no limit, such as Rage at Barbarian 20: spending it is never refused (D169). */
+    @JsonIgnore
+    public boolean unlimited() {
+        return metadata instanceof Map<?, ?> map && Boolean.TRUE.equals(map.get("unlimited"));
+    }
+
+    /** The pool a use of this one gives a use back to, such as the Psionic Energy dice, or null (D169). */
+    @JsonIgnore
+    public String recovers() {
+        return metadata instanceof Map<?, ?> map && map.get("recovers") instanceof String poolId ? poolId : null;
     }
 
     /**

@@ -13,7 +13,7 @@ import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.rules.Ability;
-import com.tabletophelper.rules.ExpressionEvaluator;
+import com.tabletophelper.rules.Expression;
 import com.tabletophelper.rules.ProficiencyBonus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -209,8 +209,8 @@ public class MonsterPools {
     }
 
     private ResourcePoolEntry fromDefinition(ResourcePoolDefinition definition, Monster monster) {
-        int maxUses = definition.getMaxUsesFormula() != null && !definition.getMaxUsesFormula().isBlank()
-                ? ExpressionEvaluator.evaluate(definition.getMaxUsesFormula(), formulaContext(monster)) : 1;
+        // The loader refuses a definition without a formula, so a blank one is an error here, not 1 (D169)
+        int maxUses = Expression.evaluate(definition.getMaxUsesFormula(), formulaContext(monster));
         Object metadata = definition.getMetadata() != null
                 ? objectMapper.convertValue(StoredJson.read(objectMapper, definition.getMetadata(),
                         "The " + definition.getPoolId() + " pool's metadata"), Object.class)

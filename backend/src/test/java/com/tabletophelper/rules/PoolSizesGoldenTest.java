@@ -34,7 +34,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,9 +58,9 @@ import static org.mockito.Mockito.when;
  * {@code page} in the bundled 5etools class data, whose text was read for it; for the PHB's own class features
  * (not its subclasses') that field gives the page the class's chapter begins on.
  * <p>
- * {@link #KNOWN_WRONG} lists the cases today's definitions get wrong, with the value they give today. Each is
- * asserted to be still wrong, with that value, so the suite passes and a case that changes fails until the list
- * does; R7 workstream D corrects the definitions and empties it.
+ * An unlimited pool, Rage at Barbarian 20 and Wild Shape at Druid 20, is one whose entry says so ({@code
+ * metadata.unlimited}). R7 workstream D corrected the definitions and added level tables (D169), so every case
+ * matches the book; the dice and rests that change with level are checked too.
  */
 class PoolSizesGoldenTest {
 
@@ -123,6 +122,10 @@ class PoolSizesGoldenTest {
                     "PHB p.56, Channel Divinity: once between rests from 2nd, twice from 6th, three times from 18th"),
             base("class:paladin-channel-divinity", "Paladin", 3, flat(1),
                     "PHB p.82, Channel Divinity: once, then a short or long rest; the paladin never gains more uses"),
+            base("class:paladin-lay-on-hands", "Paladin", 1, (level, modifier) -> 5 * level,
+                    "PHB p.82, Lay on Hands: a pool of hit points equal to the paladin level x 5"),
+            base("class:paladin-divine-sense", "Paladin", 1, (level, modifier) -> Math.max(0, 1 + modifier),
+                    "PHB p.82, Divine Sense: a number of times equal to 1 + the Charisma modifier"),
             base("class:druid-wild-shape", "Druid", 2, (level, modifier) -> level == 20 ? UNLIMITED : 2,
                     "PHB p.64, Wild Shape: twice between rests from 2nd; Archdruid (20th): an unlimited number of times"),
             base("class:fighter-second-wind", "Fighter", 1, flat(1),
@@ -142,6 +145,8 @@ class PoolSizesGoldenTest {
                     "XGE p.28, Arcane Shot: two uses, regained on a short or long rest"),
             sub("subclass:psi-warrior-psionic-energy", "Fighter", "Psi Warrior", 3, TWICE_PB,
                     "TCE p.42, Psionic Power: Psionic Energy dice equal to twice the proficiency bonus"),
+            sub("subclass:psi-warrior-psionic-recovery", "Fighter", "Psi Warrior", 3, flat(1),
+                    "TCE p.42, Psionic Power: regain one expended die as a bonus action, then not again until a short or long rest"),
             sub("subclass:samurai-fighting-spirit", "Fighter", "Samurai", 3, flat(3),
                     "XGE p.31, Fighting Spirit: three times, regained on a long rest"),
             sub("subclass:rune-knight-giants-might", "Fighter", "Rune Knight", 3, PB,
@@ -226,6 +231,8 @@ class PoolSizesGoldenTest {
             // ── Rogue ──
             sub("subclass:soulknife-psionic-power-dice", "Rogue", "Soulknife", 3, TWICE_PB,
                     "TCE p.63, Psionic Power: Psionic Energy dice equal to twice the proficiency bonus"),
+            sub("subclass:soulknife-psionic-recovery", "Rogue", "Soulknife", 3, flat(1),
+                    "TCE p.63, Psionic Power: regain one expended die as a bonus action, then not again until a short or long rest"),
             sub("subclass:phantom-wails-from-the-grave", "Rogue", "Phantom", 3, PB,
                     "TCE p.62, Wails from the Grave: a number of times equal to the proficiency bonus"),
             sub("subclass:phantom-tokens-of-the-departed", "Rogue", "Phantom", 9, PB,
@@ -292,54 +299,6 @@ class PoolSizesGoldenTest {
             // MM p.11, Recharge X-Y: one use, recharged on the d6 at the start of each of the monster's turns
             "monster:breath-weapon-5-6", 1,
             "monster:breath-weapon-6", 1);
-
-    /** Cases today's definitions get wrong: the pool, the class levels and modifiers, and what it gives today. */
-    private record Wrong(String poolId, int fromLevel, int toLevel, Set<Integer> modifiers, Size today) {
-        boolean covers(String pool, int level, int modifier) {
-            return poolId.equals(pool) && level >= fromLevel && level <= toLevel && modifiers.contains(modifier);
-        }
-    }
-
-    private static final Set<Integer> EVERY_MODIFIER = Set.of(-1, 0, 3);
-    // A pool sized by an ability modifier with no minimum: -1 and 0 give -1 and 0 uses today
-    private static final Set<Integer> MODIFIERS_BELOW_ONE = Set.of(-1, 0);
-    private static final Size RAW_MODIFIER = (level, modifier) -> modifier;
-
-    private static final List<Wrong> KNOWN_WRONG = List.of(
-            // A flat 1: no second use at 6th or third at 18th
-            new Wrong("class:cleric-channel-divinity", 6, 20, EVERY_MODIFIER, flat(1)),
-            // A flat 2: not unlimited at 20th
-            new Wrong("class:druid-wild-shape", 20, 20, EVERY_MODIFIER, flat(2)),
-            // A flat 1: no second use at 17th
-            new Wrong("class:fighter-action-surge", 17, 20, EVERY_MODIFIER, flat(1)),
-            // The raw Charisma modifier, with no minimum of once
-            new Wrong("class:bard-bardic-inspiration", 1, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            // A flat 2, whatever the level
-            new Wrong("class:barbarian-rage", 3, 20, EVERY_MODIFIER, flat(2)),
-            // 3+ceil(fighterLevel+1/7), read left to right, gives 6 at 14th: the 6th die comes at 15th
-            new Wrong("subclass:battle-master-superiority-dice", 14, 14, EVERY_MODIFIER, flat(6)),
-            // The proficiency bonus rather than once
-            new Wrong("subclass:twilight-eyes-of-night", 1, 20, EVERY_MODIFIER, PB),
-            // A flat 1 rather than the proficiency bonus
-            new Wrong("subclass:stars-cosmic-omen", 6, 20, EVERY_MODIFIER, flat(1)),
-            // A flat 2: no third die at 14th
-            new Wrong("subclass:divination-portent", 14, 20, EVERY_MODIFIER, flat(2)),
-            // The raw ability modifier, with no minimum of once
-            new Wrong("subclass:echo-knight-unleash-incarnation", 3, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:cavalier-unwavering-mark", 3, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:cavalier-warding-maneuver", 7, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:light-warding-flare", 1, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:tempest-wrath-of-the-storm", 1, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:war-war-priest", 1, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:grave-eyes-of-the-grave", 1, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:grave-sentinel-at-deaths-door", 6, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:order-embodiment-of-the-law", 6, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:dreams-hidden-paths", 10, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:spores-fungal-infestation", 6, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:monster-slayer-hunters-sense", 3, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:chronurgy-momentary-stasis", 6, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:graviturgy-violent-attraction", 10, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER),
-            new Wrong("subclass:war-magic-power-surge", 6, 20, MODIFIERS_BELOW_ONE, RAW_MODIFIER));
 
     // ── What the loader writes ───────────────────────────────────
 
@@ -421,6 +380,12 @@ class PoolSizesGoldenTest {
     // The pool's maximum uses for a single-class character at the level, with every ability score giving the
     // modifier, or null when it doesn't have the pool
     private static Integer sizeOf(Book book, int level, int modifier) {
+        ResourcePoolEntry pool = entryOf(book, level, modifier);
+        return pool == null ? null : pool.unlimited() ? UNLIMITED : pool.maxUses();
+    }
+
+    // The pool a single-class character at the level has, with every ability score giving the modifier, or null
+    private static ResourcePoolEntry entryOf(Book book, int level, int modifier) {
         int score = 10 + 2 * modifier;
         CharacterClass characterClass = CLASSES.get(book.className());
         Subclass subclass = book.subclassName() != null ? SUBCLASSES.get(book.subclassName()) : null;
@@ -432,7 +397,6 @@ class PoolSizesGoldenTest {
                 .build();
         return service.reconciledPools(character, service.buildCharacterContext(character)).stream()
                 .filter(pool -> pool.poolId().equals(book.poolId()))
-                .map(ResourcePoolEntry::maxUses)
                 .findFirst()
                 .orElse(null);
     }
@@ -453,39 +417,87 @@ class PoolSizesGoldenTest {
         assertEquals(CLASS_POOLS.size(), MAPPINGS.size(), "each class pool has one class mapping");
     }
 
-    @Test
-    @DisplayName("Each known-wrong case names a pool typed out here")
-    void knownWrongNamesTypedPools() {
-        Set<String> typed = CLASS_POOLS.stream().map(Book::poolId).collect(Collectors.toSet());
-        KNOWN_WRONG.forEach(wrong -> assertTrue(typed.contains(wrong.poolId()), wrong.poolId()));
-    }
-
     @ParameterizedTest(name = "{0}")
     @MethodSource("classPools")
-    @DisplayName("A class pool has the book's maximum uses at every class level from the one that grants it, and none before; the known-wrong cases still give today's value")
+    @DisplayName("A class pool has the book's maximum uses at every class level from the one that grants it, and none before")
     void classPoolSizes(Book book) {
         List<String> failures = new ArrayList<>();
         for (int level = 1; level <= 20; level++) {
             for (int modifier : MODIFIERS) {
                 Integer actual = sizeOf(book, level, modifier);
                 Integer expected = level >= book.fromLevel() ? book.size().at(level, modifier) : null;
-                String at = "level " + level + ", modifier " + modifier + ": ";
-                Wrong wrong = knownWrong(book.poolId(), level, modifier);
-                if (wrong == null) {
-                    if (!Objects.equals(expected, actual)) {
-                        failures.add(at + "the book gives " + show(expected) + ", today " + show(actual));
-                    }
-                } else {
-                    int today = wrong.today().at(level, modifier);
-                    if (Objects.equals(expected, actual)) {
-                        failures.add(at + "now gives the book's " + show(expected) + "; take it out of KNOWN_WRONG");
-                    } else if (!Objects.equals(today, actual)) {
-                        failures.add(at + "KNOWN_WRONG expects " + show(today) + " today, but it gives " + show(actual));
-                    }
+                if (!Objects.equals(expected, actual)) {
+                    failures.add("level " + level + ", modifier " + modifier + ": the book gives " + show(expected)
+                            + ", the pool " + show(actual));
                 }
             }
         }
         assertTrue(failures.isEmpty(), book.poolId() + " (" + book.source() + "):\n" + String.join("\n", failures));
+    }
+
+    /** A pool's die or rest at a class level, as the book gives it. */
+    private record Changing(String poolId, String className, String subclassName, int fromLevel,
+                            java.util.function.IntFunction<String> die, java.util.function.IntFunction<String> resetOn,
+                            String source) {
+        Book book() {
+            return new Book(poolId, className, subclassName, fromLevel, flat(0), source);
+        }
+    }
+
+    private static String bySize(int level, int... thresholds) {
+        String[] dice = {"d6", "d8", "d10", "d12"};
+        int step = 0;
+        for (int threshold : thresholds) {
+            if (level >= threshold) step++;
+        }
+        return dice[step];
+    }
+
+    private static final List<Changing> CHANGING = List.of(
+            new Changing("class:bard-bardic-inspiration", "Bard", null, 1, level -> bySize(level, 5, 10, 15),
+                    level -> level >= 5 ? "shortRest" : "longRest",
+                    "PHB p.51, Bardic Inspiration: a d6, d8 at 5th, d10 at 10th, d12 at 15th; Font of Inspiration (5th): regained on a short or long rest"),
+            new Changing("subclass:battle-master-superiority-dice", "Fighter", "Battle Master", 3,
+                    level -> level >= 18 ? "d12" : level >= 10 ? "d10" : "d8", level -> "shortRest",
+                    "PHB p.73, Combat Superiority: d8s; Improved Combat Superiority: d10s at 10th, d12s at 18th"),
+            new Changing("subclass:psi-warrior-psionic-energy", "Fighter", "Psi Warrior", 3,
+                    level -> bySize(level, 5, 11, 17), level -> "longRest",
+                    "TCE p.42, Psionic Power: d6, d8 at 5th, d10 at 11th, d12 at 17th; all regained on a long rest"),
+            new Changing("subclass:soulknife-psionic-power-dice", "Rogue", "Soulknife", 3,
+                    level -> bySize(level, 5, 11, 17), level -> "longRest",
+                    "TCE p.63, Psionic Power: d6, d8 at 5th, d10 at 11th, d12 at 17th; all regained on a long rest"));
+
+    static Stream<Changing> changingPools() {
+        return CHANGING.stream();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("changingPools")
+    @DisplayName("A pool whose die or rest changes with level has the book's die and rest at every level that has the pool")
+    void diceAndRests(Changing changing) {
+        List<String> failures = new ArrayList<>();
+        for (int level = changing.fromLevel(); level <= 20; level++) {
+            ResourcePoolEntry pool = entryOf(changing.book(), level, 0);
+            String die = pool != null && pool.metadata() instanceof Map<?, ?> m ? String.valueOf(m.get("die")) : null;
+            String resetOn = pool != null ? pool.resetOn() : null;
+            if (!Objects.equals(changing.die().apply(level), die)
+                    || !Objects.equals(changing.resetOn().apply(level), resetOn)) {
+                failures.add("level " + level + ": the book gives " + changing.die().apply(level) + " and "
+                        + changing.resetOn().apply(level) + ", the pool " + die + " and " + resetOn);
+            }
+        }
+        assertTrue(failures.isEmpty(), changing.poolId() + " (" + changing.source() + "):\n" + String.join("\n", failures));
+    }
+
+    @Test
+    @DisplayName("A psionic recovery pool gives its uses back to its subclass's Psionic Energy dice")
+    void psionicRecoveryNamesItsDice() {
+        assertEquals(Map.of("recovers", "subclass:psi-warrior-psionic-energy"),
+                entryOf(CLASS_POOLS.stream().filter(b -> b.poolId().equals("subclass:psi-warrior-psionic-recovery"))
+                        .findFirst().orElseThrow(), 3, 0).metadata());
+        assertEquals(Map.of("recovers", "subclass:soulknife-psionic-power-dice"),
+                entryOf(CLASS_POOLS.stream().filter(b -> b.poolId().equals("subclass:soulknife-psionic-recovery"))
+                        .findFirst().orElseThrow(), 3, 0).metadata());
     }
 
     @Test
@@ -500,14 +512,10 @@ class PoolSizesGoldenTest {
                 for (Ability ability : Ability.values()) {
                     context.put(ability.fullName() + "Modifier", modifier);
                 }
-                assertEquals(pool.getValue(), ExpressionEvaluator.evaluate(definition.getMaxUsesFormula(), context),
+                assertEquals(pool.getValue(), Expression.evaluate(definition.getMaxUsesFormula(), context),
                         pool.getKey() + ", modifier " + modifier);
             }
         }
-    }
-
-    private static Wrong knownWrong(String poolId, int level, int modifier) {
-        return KNOWN_WRONG.stream().filter(wrong -> wrong.covers(poolId, level, modifier)).findFirst().orElse(null);
     }
 
     private static String show(Integer uses) {

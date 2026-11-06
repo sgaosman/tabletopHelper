@@ -9,6 +9,7 @@ import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatRepository;
+import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.ResourcePoolDefinitionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -229,5 +230,66 @@ class ProgressionIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForMap("SELECT initiative_bonus, hp_max, hp_current FROM player_characters "
                 + "WHERE id = ?", id)).isEqualTo(Map.of("initiative_bonus", 2, "hp_max", 11, "hp_current", 11));
         assertThat(transaction.execute(status -> recomputeCharactersJob.run(false)).changes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A level-table pool (V27, D169): Rage follows the barbarian level, recompute-characters reports a stored copy the table disagrees with, and spending it at 20th is never refused")
+    void levelTablePool() {
+        CharacterClass barbarian = characterClassRepository.save(CharacterClass.builder().name("Barbarian")
+                .source("PHB").hitDice(12).subclassLevel(3).isSpellcaster(false).isPactMagic(false)
+                .features("[{\"level\":1,\"name\":\"Rage\",\"description\":\"Rage\"}]")
+                .multiclassRequirements("[{\"ability\":\"STR\",\"minimum\":13}]")
+                .build());
+        ResourcePoolDefinition rage = poolDefinitionRepository.save(ResourcePoolDefinition.builder()
+                .poolId("class:barbarian-rage").displayName("Rage").sourceType("CLASS").maxUsesFormula("2")
+                .resetOn("longRest").spendActionType("BONUS_ACTION")
+                .levelTable(new PoolLevelTable("Barbarian", List.of(new PoolLevelTable.Row(3, "3", null, null, null),
+                        new PoolLevelTable.Row(6, "4", null, null, null),
+                        new PoolLevelTable.Row(20, "6", null, null, true))))
+                .build());
+        classFeaturePoolRepository.save(ClassFeaturePool.builder().characterClass(barbarian).minLevel(1)
+                .poolDefinition(rage).build());
+        // The JSONB column holds the table as typed, with no nulls
+        assertThat(jdbcTemplate.queryForObject("SELECT level_table::text FROM resource_pool_definitions "
+                + "WHERE pool_id = 'class:barbarian-rage'", String.class))
+                .isEqualTo("{\"rows\": [{\"level\": 3, \"maxUses\": \"3\"}, {\"level\": 6, \"maxUses\": \"4\"}, "
+                        + "{\"level\": 20, \"maxUses\": \"6\", \"unlimited\": true}], \"levelOf\": \"Barbarian\"}");
+        assertThat(poolDefinitionRepository.findById("class:barbarian-rage").orElseThrow().getLevelTable())
+                .isEqualTo(rage.getLevelTable());
+
+        UUID race = insertRace("Human");
+        JsonNode fifth = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", Map.of(
+                "name", "Grog", "raceId", race, "classId", barbarian.getId(), "level", 5,
+                "strength", 16, "dexterity", 14, "constitution", 14, "intelligence", 8, "wisdom", 10,
+                "charisma", 10), player.accessToken()));
+        String id = fifth.get("id").asText();
+        JsonNode pool = fifth.get("resourcePools").get(0);
+        assertThat(pool.get("poolId").asText()).isEqualTo("class:barbarian-rage");
+        assertThat(pool.get("maxUses").asInt()).isEqualTo(3);
+        assertThat(pool.get("currentUses").asInt()).isEqualTo(3);
+
+        assertThat(levelUp(id, barbarian.getId()).get("character").get("resourcePools").get(0).get("maxUses").asInt()).isEqualTo(4);
+
+        // A stored copy from before the table, as the local characters have, is what the job reports and repairs
+        jdbcTemplate.update("UPDATE player_characters SET resource_pools = jsonb_set(jsonb_set(resource_pools, "
+                + "'{0,maxUses}', '2'), '{0,currentUses}', '2') WHERE id = ?::uuid", id);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        assertThat(transaction.execute(status -> recomputeCharactersJob.run(false)).changes()).singleElement()
+                .asString().contains("pool class:barbarian-rage: 2/2 longRest → 4/4 longRest");
+        transaction.execute(status -> recomputeCharactersJob.run(true));
+        assertThat(get(id).get("resourcePools").get(0).get("maxUses").asInt()).isEqualTo(4);
+
+        // At 20th the pool is unlimited: spends never run it down
+        String twentieth = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", Map.of(
+                "name", "Grog the Elder", "raceId", race, "classId", barbarian.getId(), "level", 20,
+                "strength", 16, "dexterity", 14, "constitution", 14, "intelligence", 8, "wisdom", 10,
+                "charisma", 10), player.accessToken())).get("id").asText();
+        for (int i = 0; i < 8; i++) {
+            expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + twentieth + "/pools/spend",
+                    Map.of("poolId", "class:barbarian-rage"), player.accessToken()));
+        }
+        JsonNode unlimited = get(twentieth).get("resourcePools").get(0);
+        assertThat(unlimited.get("metadata").get("unlimited").asBoolean()).isTrue();
+        assertThat(unlimited.get("currentUses").asInt()).isEqualTo(6);
     }
 }

@@ -9,10 +9,15 @@ import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
+import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.rules.Ability;
-import com.tabletophelper.rules.ExpressionEvaluator;
+import com.tabletophelper.rules.Expression;
+import com.tabletophelper.rules.ExpressionException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -58,6 +63,8 @@ public class ResourcePoolService {
             String checkExpression
     ) {}
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     private final ClassFeaturePoolRepository classFeaturePoolRepository;
 
     // ── Character sheet ──────────────────────────────────────────
@@ -67,7 +74,8 @@ public class ResourcePoolService {
      * {@code innate:<spell>} pool for each spell it can cast now with uses of its own (D165), and one
      * {@code feat:<feat>} pool for each feat with limited uses that its level history records or the DM granted, such
      * as Lucky's (D158). A pool it already has keeps its place and the uses it has spent; one whose source is gone is
-     * dropped.
+     * dropped. A definition's level table, read at the level of the class it names, gives the pool's maximum, its
+     * rest, its die ({@code metadata.die}) and whether it is unlimited ({@code metadata.unlimited}) (D169).
      * Changes nothing, and a failure stops the command that asked rather than leaving the pools half worked out
      * (D155).
      *
@@ -91,8 +99,11 @@ public class ResourcePoolService {
                 if (def == null) continue;
                 desiredPoolIds.add(def.getPoolId());
 
-                int maxUses = evaluateMaxUses(def.getMaxUsesFormula(), context, def.getPoolId());
-                byPoolId.put(def.getPoolId(), buildEntry(def, maxUses, keptUses(byPoolId.get(def.getPoolId()), maxUses)));
+                PoolLevelTable.Row row = levelRow(def, character);
+                String formula = row != null && row.maxUses() != null ? row.maxUses() : def.getMaxUsesFormula();
+                int maxUses = evaluateMaxUses(formula, context, def.getPoolId());
+                byPoolId.put(def.getPoolId(), buildEntry(def, row, formula, maxUses,
+                        keptUses(byPoolId.get(def.getPoolId()), maxUses)));
             }
         }
 
@@ -124,6 +135,17 @@ public class ResourcePoolService {
         // Remove orphaned pools (source no longer present)
         byPoolId.keySet().retainAll(desiredPoolIds);
         return new ArrayList<>(byPoolId.values());
+    }
+
+    // The row of the definition's level table at the level of the class it names, or null without one
+    private static PoolLevelTable.Row levelRow(ResourcePoolDefinition def, PlayerCharacter character) {
+        PoolLevelTable table = def.getLevelTable();
+        if (table == null || table.levelOf() == null) return null;
+        int classLevel = orEmpty(character.getMulticlassEntries()).stream()
+                .filter(entry -> table.levelOf().equalsIgnoreCase(entry.className()))
+                .mapToInt(ClassEntry::level)
+                .sum();
+        return table.rowAt(classLevel).orElse(null);
     }
 
     // A pool the character already has keeps the uses it has spent, as slots and Hit Dice do, so a higher maximum
@@ -171,7 +193,8 @@ public class ResourcePoolService {
     // ── Pool mutation (in-combat) ─────────────────────────────────
 
     /**
-     * Decrements currentUses on the participant's pool. Clamped at 0.
+     * Decrements currentUses on the participant's pool. Clamped at 0. An unlimited pool always succeeds and keeps its
+     * uses.
      *
      * @return true if the spend succeeded (pool exists and had enough uses)
      */
@@ -181,7 +204,12 @@ public class ResourcePoolService {
         List<ResourcePoolEntry> updated = new ArrayList<>();
 
         for (ResourcePoolEntry e : participantPools(participant)) {
-            if (poolId.equals(e.poolId())) {
+            if (poolId.equals(e.poolId()) && e.unlimited()) {
+                // An unlimited pool, such as Rage at Barbarian 20, is never refused and never runs down
+                found = true;
+                hadEnough = true;
+                updated.add(e);
+            } else if (poolId.equals(e.poolId())) {
                 found = true;
                 hadEnough = e.currentUses() >= amount;
                 int newUses = Math.max(0, e.currentUses() - amount);
@@ -244,20 +272,16 @@ public class ResourcePoolService {
             if (!shouldReset) {
                 // Check probabilistic recharge
                 if ("turn".equals(resetTrigger) && e.resetCheck() != null && e.currentUses() == 0) {
-                    ExpressionEvaluator.RechargeResult recharge =
-                            ExpressionEvaluator.evaluateRechargeCheckWithRoll(e.resetCheck());
-                    if (recharge != null) {
-                        if (recharge.success()) {
-                            int recoverAmount = resolveResetAmount(e, context);
-                            updated.add(e.withCurrentUses(Math.min(e.maxUses(), recoverAmount)));
-                            rechargeResults.add(new RechargeLogEntry(
-                                    e.poolId(), e.displayName(), true, recharge.rollValue(), e.resetCheck()));
-                            continue;
-                        } else {
-                            rechargeResults.add(new RechargeLogEntry(
-                                    e.poolId(), e.displayName(), false, recharge.rollValue(), e.resetCheck()));
-                        }
+                    Expression.RechargeResult recharge = Expression.rechargeCheck(e.resetCheck());
+                    if (recharge.success()) {
+                        int recoverAmount = resolveResetAmount(e, context);
+                        updated.add(e.withCurrentUses(Math.min(e.maxUses(), recoverAmount)));
+                        rechargeResults.add(new RechargeLogEntry(
+                                e.poolId(), e.displayName(), true, recharge.rollValue(), e.resetCheck()));
+                        continue;
                     }
+                    rechargeResults.add(new RechargeLogEntry(
+                            e.poolId(), e.displayName(), false, recharge.rollValue(), e.resetCheck()));
                 }
                 updated.add(e);
                 continue;
@@ -279,31 +303,50 @@ public class ResourcePoolService {
 
     // ── Internal helpers ─────────────────────────────────────────
 
-    private ResourcePoolEntry buildEntry(ResourcePoolDefinition def, int maxUses, int currentUses) {
+    // The entry for a definition, with its level table's row, if one applies, in place of the definition's own rest,
+    // die and limit
+    private static ResourcePoolEntry buildEntry(ResourcePoolDefinition def, PoolLevelTable.Row row, String formula,
+                                                int maxUses, int currentUses) {
+        Map<String, Object> metadata = definitionMetadata(def);
+        String resetOn = def.getResetOn();
+        if (row != null) {
+            if (row.resetOn() != null) resetOn = row.resetOn();
+            if (row.die() != null) metadata.put("die", row.die());
+            if (Boolean.TRUE.equals(row.unlimited())) metadata.put("unlimited", true);
+        }
         return new ResourcePoolEntry(
                 def.getPoolId(),
                 def.getDisplayName(),
                 def.getSourceType(),
                 null, // sourceName filled from context if needed
                 maxUses,
-                def.getMaxUsesFormula(),
+                formula,
                 currentUses,
-                def.getResetOn(),
+                resetOn,
                 def.getResetAmount(),
                 def.getResetCheck(),
                 def.getSpendActionType(),
                 def.getIcon(),
-                def.getMetadata() != null ? def.getMetadata() : Map.of()
+                metadata
         );
     }
 
-    private int evaluateMaxUses(String formula, Map<String, Integer> context, String poolId) {
-        if (formula == null || formula.isBlank()) {
-            // No formula — use a default of 1? Actually, definitions without a formula
-            // should have an implicit max that is set during seeding. Return 1 as safe fallback.
-            return 1;
+    // The definition's metadata as a map to add to, empty without any
+    private static Map<String, Object> definitionMetadata(ResourcePoolDefinition def) {
+        if (def.getMetadata() == null || def.getMetadata().isBlank()) return new LinkedHashMap<>();
+        try {
+            return new LinkedHashMap<>(JSON.readValue(def.getMetadata(), new TypeReference<Map<String, Object>>() {}));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("The " + def.getPoolId() + " pool's metadata isn't a JSON object", e);
         }
-        return ExpressionEvaluator.evaluate(formula, context);
+    }
+
+    // A definition without a formula is the data's mistake, which the loader refuses: no default stands in (D169)
+    private static int evaluateMaxUses(String formula, Map<String, Integer> context, String poolId) {
+        if (formula == null || formula.isBlank()) {
+            throw new ExpressionException("The " + poolId + " pool has no maximum uses formula");
+        }
+        return Expression.evaluate(formula, context);
     }
 
     private int resolveResetAmount(ResourcePoolEntry entry, Map<String, Integer> context) {
@@ -312,7 +355,27 @@ public class ResourcePoolService {
         }
         Map<String, Integer> ctx = new LinkedHashMap<>(context);
         ctx.put("maxUses", entry.maxUses());
-        return ExpressionEvaluator.evaluate(entry.resetAmount(), ctx);
+        return Expression.evaluate(entry.resetAmount(), ctx);
+    }
+
+    /**
+     * Every name a character's pool formulas can read, for the loader to check them with (D169): the proficiency
+     * bonus, the total level, each class's level, each ability modifier, and {@code maxUses} for a reset amount.
+     *
+     * @param classNames the names of the classes there are, such as "Monk"
+     */
+    public static Set<String> formulaNames(Collection<String> classNames) {
+        Set<String> names = new LinkedHashSet<>(List.of("proficiencyBonus", "totalLevel", "maxUses"));
+        classNames.forEach(name -> names.add(classLevelName(name)));
+        for (Ability ability : Ability.values()) {
+            names.add(ability.fullName() + "Modifier");
+        }
+        return names;
+    }
+
+    // The name a class's level has in a formula, such as monkLevel
+    private static String classLevelName(String className) {
+        return className.toLowerCase(Locale.ROOT) + "Level";
     }
 
     public Map<String, Integer> buildCharacterContext(PlayerCharacter character) {
@@ -323,8 +386,7 @@ public class ResourcePoolService {
         // Class levels from multiclass entries
         List<ClassEntry> entries = orEmpty(character.getMulticlassEntries());
         for (ClassEntry e : entries) {
-            String key = e.className().toLowerCase() + "Level";
-            ctx.put(key, e.level());
+            ctx.put(classLevelName(e.className()), e.level());
         }
 
         // Ability modifiers, from the scores with the DM's adjustments (D158)

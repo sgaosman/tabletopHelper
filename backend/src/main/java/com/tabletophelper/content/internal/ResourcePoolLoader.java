@@ -8,25 +8,33 @@ import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.MonsterPoolTrigger;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
+import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.ResourcePoolDefinitionRepository;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
+import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.Expression;
+import com.tabletophelper.rules.ExpressionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Loads the M24.5 resource pool reference tables from resource-pools.json (D169): the pool definitions, by pool ID;
  * the pools each class and subclass grants, by class, subclass and pool; and the monster pool triggers, by pool and
  * condition. A class or subclass the classes loader didn't write is logged and its pools skipped.
+ * <p>
+ * Every formula, a level table's included, is checked against a context of zeros with the names a character's pool
+ * formulas can read, and every recharge check too: one that doesn't read, or names anything else, fails the load
+ * (D169). So does a definition without a maximum, a rest no reset knows, or a level table whose class isn't loaded.
  */
 @Component
 @RequiredArgsConstructor
@@ -54,7 +62,8 @@ public class ResourcePoolLoader implements ContentLoader {
 
     @Override
     public int version() {
-        return 1;
+        // 2: level tables (V27), and every formula checked (D169)
+        return 2;
     }
 
     @Override
@@ -64,29 +73,32 @@ public class ResourcePoolLoader implements ContentLoader {
 
     @Override
     public void load(LoadContext context) throws Exception {
-        JsonNode root;
-        try (InputStream is = new ClassPathResource(FILE).getInputStream()) {
-            root = objectMapper.readTree(is);
-        }
+        JsonNode root = context.read(FILE);
+        List<CharacterClass> classes = classRepo.findAll();
         Map<String, ResourcePoolDefinition> definitions = context.upsert("resource_pool_definitions", poolDefRepo,
-                definitions(root.path("definitions")), ResourcePoolDefinition::getPoolId);
+                definitions(root.path("definitions"), classes), ResourcePoolDefinition::getPoolId);
         context.upsert("class_feature_pools", classFeaturePoolRepo,
-                classPools(root.path("classPools"), definitions), ResourcePoolLoader::classPoolKey);
+                classPools(root.path("classPools"), definitions, classes), ResourcePoolLoader::classPoolKey);
         context.upsert("monster_pool_triggers", monsterTriggerRepo,
                 monsterTriggers(root.path("monsterTriggers"), definitions), trigger -> triggerKey(context, trigger));
     }
 
     // ── Pool definitions ─────────────────────────────────────────
 
-    private List<ResourcePoolDefinition> definitions(JsonNode entries) throws Exception {
+    private List<ResourcePoolDefinition> definitions(JsonNode entries, List<CharacterClass> classes)
+            throws Exception {
+        Set<String> names = ResourcePoolService.formulaNames(classes.stream().map(CharacterClass::getName).toList());
+        Set<String> classNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        classes.forEach(cc -> classNames.add(cc.getName()));
         List<ResourcePoolDefinition> defs = new ArrayList<>();
         for (JsonNode entry : entries) {
             JsonNode metadata = entry.path("metadata");
-            defs.add(ResourcePoolDefinition.builder()
+            JsonNode levelTable = entry.path("levelTable");
+            ResourcePoolDefinition def = ResourcePoolDefinition.builder()
                     .poolId(required(entry, "poolId"))
                     .displayName(required(entry, "displayName"))
                     .sourceType(required(entry, "sourceType"))
-                    .maxUsesFormula(text(entry, "maxUsesFormula"))
+                    .maxUsesFormula(required(entry, "maxUsesFormula"))
                     .resetOn(required(entry, "resetOn"))
                     .resetAmount(text(entry, "resetAmount"))
                     .resetCheck(text(entry, "resetCheck"))
@@ -94,16 +106,69 @@ public class ResourcePoolLoader implements ContentLoader {
                     .description(text(entry, "description"))
                     .icon(text(entry, "icon"))
                     .metadata(metadata.isObject() ? objectMapper.writeValueAsString(metadata) : null)
-                    .build());
+                    .levelTable(levelTable.isObject() ? objectMapper.treeToValue(levelTable, PoolLevelTable.class)
+                            : null)
+                    .build();
+            check(def, names, classNames);
+            defs.add(def);
         }
         return defs;
     }
 
+    private static final Set<String> RESETS = Set.of("shortRest", "longRest", "turn", "dawn", "never");
+
+    // A definition's formulas, rests and level table, as the pools will read them
+    private static void check(ResourcePoolDefinition def, Set<String> names, Set<String> classNames) {
+        String pool = def.getPoolId();
+        formula(pool, "maxUsesFormula", def.getMaxUsesFormula(), names);
+        if (def.getResetAmount() != null) formula(pool, "resetAmount", def.getResetAmount(), names);
+        if (def.getResetCheck() != null) {
+            try {
+                Expression.validateRechargeCheck(def.getResetCheck(), names);
+            } catch (ExpressionException e) {
+                throw new IllegalStateException(FILE + ": " + pool + "'s resetCheck: " + e.getMessage(), e);
+            }
+        }
+        reset(pool, def.getResetOn());
+        PoolLevelTable table = def.getLevelTable();
+        if (table == null) return;
+        if (table.levelOf() == null || !classNames.contains(table.levelOf())) {
+            throw new IllegalStateException(FILE + ": " + pool + "'s level table reads the level of '"
+                    + table.levelOf() + "', which isn't a loaded class");
+        }
+        if (table.rows().isEmpty()) {
+            throw new IllegalStateException(FILE + ": " + pool + "'s level table has no rows");
+        }
+        for (PoolLevelTable.Row row : table.rows()) {
+            if (row.level() < 1 || row.level() > 20) {
+                throw new IllegalStateException(FILE + ": " + pool + "'s level table has a row at level " + row.level());
+            }
+            if (row.maxUses() != null) formula(pool, "level " + row.level() + " maxUses", row.maxUses(), names);
+            if (row.resetOn() != null) reset(pool, row.resetOn());
+        }
+    }
+
+    private static void formula(String pool, String field, String formula, Set<String> names) {
+        try {
+            Expression.validate(formula, names);
+        } catch (ExpressionException e) {
+            throw new IllegalStateException(FILE + ": " + pool + "'s " + field + ": " + e.getMessage(), e);
+        }
+    }
+
+    private static void reset(String pool, String resetOn) {
+        if (!RESETS.contains(resetOn)) {
+            throw new IllegalStateException(FILE + ": " + pool + " resets on '" + resetOn + "', which isn't one of "
+                    + RESETS);
+        }
+    }
+
     // ── Class feature pools (junction table) ──────────────────────
 
-    private List<ClassFeaturePool> classPools(JsonNode entries, Map<String, ResourcePoolDefinition> definitions) {
+    private List<ClassFeaturePool> classPools(JsonNode entries, Map<String, ResourcePoolDefinition> definitions,
+                                              List<CharacterClass> loadedClasses) {
         Map<String, CharacterClass> classes = new HashMap<>();
-        for (CharacterClass cc : classRepo.findAll()) {
+        for (CharacterClass cc : loadedClasses) {
             classes.put(LoadContext.nameAndSource(cc.getName(), cc.getSource()), cc);
         }
         Map<String, Subclass> subclasses = new HashMap<>();

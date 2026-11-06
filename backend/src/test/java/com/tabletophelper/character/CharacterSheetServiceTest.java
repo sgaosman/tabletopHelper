@@ -13,6 +13,9 @@ import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.identity.User;
+import com.tabletophelper.reference.ClassFeaturePool;
+import com.tabletophelper.reference.PoolLevelTable;
+import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
@@ -36,6 +39,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -386,6 +390,68 @@ class CharacterSheetServiceTest {
             assertThatThrownBy(() -> f.sheet.spendPool(pc.getId(), new PoolUseRequest("class:monk-ki", 1), f.userId))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("Aria has no pool class:monk-ki");
+        }
+
+        // A fighter whose class grants Psionic Energy dice, their recovery and an unlimited pool, as a Psi Warrior's
+        // and Rage at Barbarian 20 are (D169)
+        private PlayerCharacter psionicFighter() {
+            ResourcePoolDefinition dice = ResourcePoolDefinition.builder().poolId("subclass:psi-warrior-psionic-energy")
+                    .displayName("Psionic Energy Dice").sourceType("CLASS").maxUsesFormula("2*proficiencyBonus")
+                    .resetOn("longRest").build();
+            ResourcePoolDefinition recovery = ResourcePoolDefinition.builder()
+                    .poolId("subclass:psi-warrior-psionic-recovery").displayName("Psionic Recovery")
+                    .sourceType("CLASS").maxUsesFormula("1").resetOn("shortRest").spendActionType("BONUS_ACTION")
+                    .metadata("{\"recovers\": \"subclass:psi-warrior-psionic-energy\"}").build();
+            ResourcePoolDefinition unlimited = ResourcePoolDefinition.builder().poolId("class:test-unlimited")
+                    .displayName("Unlimited").sourceType("CLASS").maxUsesFormula("6").resetOn("longRest")
+                    .levelTable(new PoolLevelTable("Fighter", List.of(new PoolLevelTable.Row(1, null, null, null, true))))
+                    .build();
+            List<ClassFeaturePool> pools = List.of(dice, recovery, unlimited).stream()
+                    .map(def -> ClassFeaturePool.builder().characterClass(f.fighter).minLevel(1).poolDefinition(def)
+                            .build())
+                    .toList();
+            when(f.featurePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(
+                    any(UUID.class), anyInt())).thenReturn(pools);
+            return fighter(3);
+        }
+
+        private static ResourcePoolEntry pool(CharacterResponse response, String poolId) {
+            return response.getResourcePools().stream().filter(pool -> pool.poolId().equals(poolId)).findFirst()
+                    .orElseThrow();
+        }
+
+        @Test
+        @DisplayName("Spending the psionic recovery regains one expended Psionic Energy die, and is a 409 with none expended")
+        void psionicRecoveryRegainsADie() {
+            PlayerCharacter pc = withUses(psionicFighter(), "subclass:psi-warrior-psionic-energy", 1);
+
+            CharacterResponse response = f.sheet.spendPool(pc.getId(),
+                    new PoolUseRequest("subclass:psi-warrior-psionic-recovery", null), f.userId);
+
+            assertThat(pool(response, "subclass:psi-warrior-psionic-energy").currentUses()).isEqualTo(2);
+            assertThat(pool(response, "subclass:psi-warrior-psionic-recovery").currentUses()).isZero();
+
+            PlayerCharacter full = psionicFighter();
+            assertThatThrownBy(() -> f.sheet.spendPool(full.getId(),
+                    new PoolUseRequest("subclass:psi-warrior-psionic-recovery", null), f.userId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Psionic Energy Dice has 4 of 4 left, so Psionic Recovery has nothing to regain");
+            assertThat(f.stored(full.getId()).getResourcePools()).allMatch(p -> p.currentUses() == p.maxUses());
+        }
+
+        @Test
+        @DisplayName("An unlimited pool is never refused and keeps its uses, spent or recovered")
+        void unlimitedPoolIsNeverRefused() {
+            PlayerCharacter pc = psionicFighter();
+
+            for (int i = 0; i < 10; i++) {
+                f.sheet.spendPool(pc.getId(), new PoolUseRequest("class:test-unlimited", 3), f.userId);
+            }
+            CharacterResponse response = f.sheet.recoverPool(pc.getId(),
+                    new PoolUseRequest("class:test-unlimited", 5), f.userId);
+
+            assertThat(pool(response, "class:test-unlimited").currentUses()).isEqualTo(6);
+            assertThat(pool(response, "class:test-unlimited").unlimited()).isTrue();
         }
     }
 }

@@ -189,21 +189,35 @@ public class CharacterSheetService {
     // ── Resource pools ───────────────────────────────────────────
 
     /**
-     * Spends uses of one of the character's pools, one unless the request says more.
+     * Spends uses of one of the character's pools, one unless the request says more. An unlimited pool, such as Rage
+     * at Barbarian 20, is never refused and keeps its uses. A pool that recovers another, such as a Psi Warrior's
+     * psionic recovery, gives that one a use back for each it spends (D169).
      *
      * @throws ValidationException for a pool the character doesn't have
-     * @throws ConflictException when the pool hasn't that many uses left
+     * @throws ConflictException when the pool hasn't that many uses left, or the pool it recovers hasn't that many
+     *                           spent
      */
     @Transactional
     public CharacterResponse spendPool(UUID characterId, PoolUseRequest request, UUID userId) {
         int uses = uses(request);
-        return characterCommands.run(characterId, userId, character -> changePool(character, request.poolId(), pool -> {
-            if (pool.currentUses() < uses) {
-                throw new ConflictException(pool.displayName() + " has " + pool.currentUses() + " of "
-                        + pool.maxUses() + " uses left, not " + uses);
+        return characterCommands.run(characterId, userId, character -> {
+            ResourcePoolEntry spent = pool(character, request.poolId());
+            if (spent.unlimited()) return;
+            if (spent.currentUses() < uses) {
+                throw new ConflictException(spent.displayName() + " has " + spent.currentUses() + " of "
+                        + spent.maxUses() + " uses left, not " + uses);
             }
-            return pool.withCurrentUses(pool.currentUses() - uses);
-        }));
+            if (spent.recovers() != null) {
+                ResourcePoolEntry recovered = pool(character, spent.recovers());
+                if (!recovered.unlimited() && recovered.currentUses() + uses > recovered.maxUses()) {
+                    throw new ConflictException(recovered.displayName() + " has " + recovered.currentUses() + " of "
+                            + recovered.maxUses() + " left, so " + spent.displayName() + " has nothing to regain");
+                }
+                changePool(character, recovered.poolId(), pool -> pool.withCurrentUses(
+                        Math.min(pool.maxUses(), pool.currentUses() + uses)));
+            }
+            changePool(character, spent.poolId(), pool -> pool.withCurrentUses(pool.currentUses() - uses));
+        });
     }
 
     /**
@@ -216,6 +230,7 @@ public class CharacterSheetService {
     public CharacterResponse recoverPool(UUID characterId, PoolUseRequest request, UUID userId) {
         int uses = uses(request);
         return characterCommands.run(characterId, userId, character -> changePool(character, request.poolId(), pool -> {
+            if (pool.unlimited()) return pool;
             if (pool.currentUses() + uses > pool.maxUses()) {
                 throw new ConflictException(pool.displayName() + " has " + pool.currentUses() + " of "
                         + pool.maxUses() + " uses left, so can't get " + uses + " back");
@@ -226,6 +241,13 @@ public class CharacterSheetService {
 
     private static int uses(PoolUseRequest request) {
         return request.amount() != null ? request.amount() : 1;
+    }
+
+    private static ResourcePoolEntry pool(PlayerCharacter character, String poolId) {
+        return orEmpty(character.getResourcePools()).stream()
+                .filter(pool -> poolId.equals(pool.poolId()))
+                .findFirst()
+                .orElseThrow(() -> new ValidationException(character.getName() + " has no pool " + poolId));
     }
 
     private static void changePool(PlayerCharacter character, String poolId,

@@ -13,7 +13,10 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
+import com.tabletophelper.reference.PoolLevelTable;
+import com.tabletophelper.reference.PoolLevelTable.Row;
 import com.tabletophelper.reference.ResourcePoolDefinition;
+import com.tabletophelper.rules.ExpressionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -305,6 +308,137 @@ class ResourcePoolServiceTest {
 
         assertThrows(IllegalStateException.class, () -> reconcile(psion));
         assertEquals(pools, psion.getResourcePools());
+    }
+
+    // ── Level tables (V27, D169) ─────────────────────────────────
+
+    // Bardic Inspiration as resource-pools.json defines it
+    private static ClassFeaturePool bardicInspiration() {
+        return ClassFeaturePool.builder().minLevel(1).poolDefinition(ResourcePoolDefinition.builder()
+                .poolId("class:bard-bardic-inspiration").displayName("Bardic Inspiration").sourceType("CLASS")
+                .maxUsesFormula("max(1, charismaModifier)").resetOn("longRest").metadata("{\"die\": \"d6\"}")
+                .levelTable(new PoolLevelTable("Bard", List.of(new Row(5, null, "shortRest", "d8", null),
+                        new Row(10, null, "shortRest", "d10", null), new Row(15, null, "shortRest", "d12", null))))
+                .build()).build();
+    }
+
+    private ResourcePoolEntry bardPool(int bardLevel, int charisma) {
+        UUID bardId = UUID.randomUUID();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(bardId,
+                bardLevel)).thenReturn(List.of(bardicInspiration()));
+        PlayerCharacter bard = PlayerCharacter.builder().level(bardLevel).charisma(charisma)
+                .multiclassEntries(List.of(new ClassEntry(bardId, "Bard", null, null, bardLevel)))
+                .build();
+        return findPool(reconcile(bard), "class:bard-bardic-inspiration");
+    }
+
+    @Test
+    @DisplayName("Bardic Inspiration comes back on a long rest at Bard 4, with a d6, and on a short rest from Bard 5 (Font of Inspiration), with a d8")
+    void resetTypeChangesWithLevel() {
+        ResourcePoolEntry fourth = bardPool(4, 16);
+        assertEquals("longRest", fourth.resetOn());
+        assertEquals(Map.of("die", "d6"), fourth.metadata());
+        assertEquals(3, fourth.maxUses());
+
+        ResourcePoolEntry fifth = bardPool(5, 16);
+        assertEquals("shortRest", fifth.resetOn());
+        assertEquals(Map.of("die", "d8"), fifth.metadata());
+
+        assertEquals("d12", ((Map<?, ?>) bardPool(15, 16).metadata()).get("die"));
+        // A minimum of once
+        assertEquals(1, bardPool(1, 8).maxUses());
+    }
+
+    @Test
+    @DisplayName("A short rest after Bard 5 brings Bardic Inspiration back, and before it doesn't")
+    void shortRestFollowsTheRow() {
+        ResourcePoolEntry fourth = bardPool(4, 16).withCurrentUses(0);
+        ResourcePoolEntry fifth = bardPool(5, 16).withCurrentUses(0);
+
+        List<ResourcePoolEntry> rested = service.resetPools(List.of(fourth, fifth), "shortRest", Map.of()).pools();
+
+        assertEquals(List.of(0, 3), rested.stream().map(ResourcePoolEntry::currentUses).toList());
+    }
+
+    @Test
+    @DisplayName("The row is picked by the named class's level, not the character's: a Paladin 12 / Bard 3 has Bard 3's d6")
+    void rowFollowsTheNamedClass() {
+        UUID bardId = UUID.randomUUID();
+        UUID paladinId = UUID.randomUUID();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(bardId, 3))
+                .thenReturn(List.of(bardicInspiration()));
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(paladinId,
+                12)).thenReturn(List.of());
+        PlayerCharacter character = PlayerCharacter.builder().level(15).charisma(16)
+                .multiclassEntries(List.of(new ClassEntry(paladinId, "Paladin", null, null, 12),
+                        new ClassEntry(bardId, "Bard", null, null, 3)))
+                .build();
+
+        ResourcePoolEntry pool = findPool(reconcile(character), "class:bard-bardic-inspiration");
+
+        assertEquals("longRest", pool.resetOn());
+        assertEquals(Map.of("die", "d6"), pool.metadata());
+    }
+
+    @Test
+    @DisplayName("Rage has the row's maximum at each level, and at Barbarian 20 is unlimited, which a spend never refuses or runs down")
+    void unlimitedPool() {
+        UUID barbarianId = UUID.randomUUID();
+        ClassFeaturePool rage = ClassFeaturePool.builder().minLevel(1).poolDefinition(ResourcePoolDefinition.builder()
+                .poolId("class:barbarian-rage").displayName("Rage").sourceType("CLASS").maxUsesFormula("2")
+                .resetOn("longRest")
+                .levelTable(new PoolLevelTable("Barbarian", List.of(new Row(3, "3", null, null, null),
+                        new Row(17, "6", null, null, null), new Row(20, "6", null, null, true))))
+                .build()).build();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(
+                org.mockito.ArgumentMatchers.eq(barbarianId), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(rage));
+
+        List<Integer> sizes = new java.util.ArrayList<>();
+        for (int level : new int[]{1, 3, 16, 17}) {
+            PlayerCharacter barbarian = PlayerCharacter.builder().level(level)
+                    .multiclassEntries(List.of(new ClassEntry(barbarianId, "Barbarian", null, null, level))).build();
+            ResourcePoolEntry pool = findPool(reconcile(barbarian), "class:barbarian-rage");
+            assertFalse(pool.unlimited());
+            sizes.add(pool.maxUses());
+        }
+        assertEquals(List.of(2, 3, 3, 6), sizes);
+
+        PlayerCharacter twentieth = PlayerCharacter.builder().level(20)
+                .multiclassEntries(List.of(new ClassEntry(barbarianId, "Barbarian", null, null, 20))).build();
+        ResourcePoolEntry pool = findPool(reconcile(twentieth), "class:barbarian-rage");
+        assertTrue(pool.unlimited());
+        assertEquals(Map.of("unlimited", true), pool.metadata());
+
+        EncounterParticipant participant = EncounterParticipant.builder()
+                .resourcePoolsCurrent(List.of(pool.withCurrentUses(0))).build();
+        assertTrue(service.spendPool(participant, "class:barbarian-rage", 1));
+        assertEquals(0, findPool(participant.getResourcePoolsCurrent(), "class:barbarian-rage").currentUses());
+    }
+
+    @Test
+    @DisplayName("A definition without a formula is an error, not 1 use (D169)")
+    void blankFormulaIsAnError() {
+        UUID classId = UUID.randomUUID();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(classId, 1))
+                .thenReturn(List.of(featurePool("class:blank", " ")));
+        PlayerCharacter monk = PlayerCharacter.builder().level(1)
+                .multiclassEntries(List.of(new ClassEntry(classId, "Monk", null, null, 1))).build();
+
+        assertThrows(ExpressionException.class, () -> reconcile(monk));
+    }
+
+    @Test
+    @DisplayName("A formula naming something the character's context hasn't is a 409, not 0")
+    void unknownNameIsAConflict() {
+        UUID classId = UUID.randomUUID();
+        when(classFeaturePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(classId, 1))
+                .thenReturn(List.of(featurePool("class:other", "wizardLevel")));
+        PlayerCharacter monk = PlayerCharacter.builder().level(1)
+                .multiclassEntries(List.of(new ClassEntry(classId, "Monk", null, null, 1))).build();
+
+        assertInstanceOf(com.tabletophelper.shared.ConflictException.class,
+                assertThrows(ExpressionException.class, () -> reconcile(monk)));
     }
 
     // ── Participant pools (typed since R5, D168) ─────────────────
