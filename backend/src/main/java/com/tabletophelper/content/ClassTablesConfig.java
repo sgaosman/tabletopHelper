@@ -1,6 +1,6 @@
 package com.tabletophelper.content;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.content.internal.ClassTablesFile;
 import com.tabletophelper.rules.character.ClassTables;
 import lombok.extern.slf4j.Slf4j;

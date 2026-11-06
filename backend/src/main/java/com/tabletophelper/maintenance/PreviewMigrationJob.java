@@ -1,7 +1,7 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.Encounter;
@@ -198,7 +198,7 @@ public class PreviewMigrationJob implements MaintenanceJob {
                 for (var row : rows.get(table.getKey()).entrySet()) {
                     Savepoint savepoint = connection.setSavepoint();
                     try {
-                        session.get(table.getValue(), UUID.fromString(row.getKey()));
+                        session.find(table.getValue(), UUID.fromString(row.getKey()));
                         connection.releaseSavepoint(savepoint);
                     } catch (RuntimeException e) {
                         connection.rollback(savepoint);

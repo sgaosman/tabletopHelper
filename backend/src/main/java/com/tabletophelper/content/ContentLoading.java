@@ -1,6 +1,6 @@
 package com.tabletophelper.content;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.content.internal.ContentHash;
 import com.tabletophelper.content.internal.ContentLoader;
 import com.tabletophelper.content.internal.ContentVersion;

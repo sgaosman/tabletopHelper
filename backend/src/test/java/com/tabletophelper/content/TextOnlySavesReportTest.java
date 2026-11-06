@@ -1,7 +1,8 @@
 package com.tabletophelper.content;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -62,7 +63,7 @@ class TextOnlySavesReportTest {
     private static final Pattern TAG = Pattern.compile("\\{@\\w+ ([^}|]*)[^}]*}");
     private static final Pattern PARENTHETICAL = Pattern.compile("\\(.*?\\)");
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonDefaults.mapper();
 
     /** One action whose text has a save its template doesn't record. */
     record TextOnlySave(String monster, String source, String list, String action, int dc, String ability,
@@ -82,29 +83,29 @@ class TextOnlySavesReportTest {
         int actions = 0;
         int withoutText = 0;
         for (JsonNode definition : read(new ClassPathResource(DEFINITIONS))) {
-            String monster = definition.path("monsterName").asText();
-            String source = definition.path("source").asText();
+            String monster = definition.path("monsterName").asString();
+            String source = definition.path("source").asString();
             JsonNode statBlock = bestiary.get(monster.toLowerCase() + "|" + source.toLowerCase());
             for (var list : LISTS.entrySet()) {
                 Map<String, JsonNode> entries = entries(statBlock, list.getValue());
                 for (JsonNode action : definition.path(list.getKey())) {
                     actions++;
-                    JsonNode entry = entries.get(key(action.path("name").asText()));
+                    JsonNode entry = entries.get(key(action.path("name").asString()));
                     String text;
                     String textFrom;
                     if (entry != null) {
                         text = plain(flatten(entry.path("entries")));
                         textFrom = "bestiary";
-                    } else if (action.path("description").isTextual()) {
-                        text = plain(action.path("description").asText());
+                    } else if (action.path("description").isString()) {
+                        text = plain(action.path("description").asString());
                         textFrom = "template";
                     } else {
                         withoutText++;
                         continue;
                     }
                     Matcher save = SAVE.matcher(text);
-                    if (save.find() && !recordsASave(action) && !action.path("dmNote").isTextual()) {
-                        saves.add(new TextOnlySave(monster, source, list.getKey(), action.path("name").asText(),
+                    if (save.find() && !recordsASave(action) && !action.path("dmNote").isString()) {
+                        saves.add(new TextOnlySave(monster, source, list.getKey(), action.path("name").asString(),
                                 Integer.parseInt(save.group(1)), capitalised(save.group(2)), textFrom));
                     }
                 }
@@ -145,7 +146,7 @@ class TextOnlySavesReportTest {
     }
 
     private static boolean hasSave(JsonNode node) {
-        return node.path("saveDC").isNumber() || node.path("saveAbility").isTextual();
+        return node.path("saveDC").isNumber() || node.path("saveAbility").isString();
     }
 
     // Every bestiary monster by lower-case "name|source", the first of any that share one
@@ -153,8 +154,8 @@ class TextOnlySavesReportTest {
         Map<String, JsonNode> monsters = new HashMap<>();
         for (Resource file : new PathMatchingResourcePatternResolver().getResources(BESTIARY)) {
             for (JsonNode monster : read(file).path("monster")) {
-                monsters.putIfAbsent(monster.path("name").asText().toLowerCase() + "|"
-                        + monster.path("source").asText().toLowerCase(), monster);
+                monsters.putIfAbsent(monster.path("name").asString().toLowerCase() + "|"
+                        + monster.path("source").asString().toLowerCase(), monster);
             }
         }
         return monsters;
@@ -167,8 +168,8 @@ class TextOnlySavesReportTest {
             return entries;
         }
         for (JsonNode entry : statBlock.path(bestiaryKey)) {
-            if (entry.path("name").isTextual()) {
-                entries.putIfAbsent(key(entry.path("name").asText()), entry);
+            if (entry.path("name").isString()) {
+                entries.putIfAbsent(key(entry.path("name").asString()), entry);
             }
         }
         return entries;
@@ -187,8 +188,8 @@ class TextOnlySavesReportTest {
 
     // The text of an entry and the entries, items and entry nested in it
     private static String flatten(JsonNode node) {
-        if (node.isTextual()) {
-            return node.asText();
+        if (node.isString()) {
+            return node.asString();
         }
         List<String> parts = new ArrayList<>();
         if (node.isArray()) {

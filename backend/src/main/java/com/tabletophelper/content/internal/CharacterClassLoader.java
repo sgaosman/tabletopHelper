@@ -1,9 +1,9 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Subclass;
@@ -81,8 +81,8 @@ public class CharacterClassLoader implements ContentLoader {
             Map<String, JsonNode> subclassFeatureMap = buildSubclassFeatureMap(root.get("subclassFeature"));
 
             for (JsonNode classNode : classArray) {
-                allClasses.add(LoadContext.reading(filename + ": class " + classNode.path("name").asText("?") + "|"
-                        + classNode.path("source").asText(""), () -> parseClass(classNode, classFeatureMap)));
+                allClasses.add(LoadContext.reading(filename + ": class " + classNode.path("name").asString("?") + "|"
+                        + classNode.path("source").asString(""), () -> parseClass(classNode, classFeatureMap)));
             }
 
             JsonNode subclassArray = root.get("subclass");
@@ -99,17 +99,17 @@ public class CharacterClassLoader implements ContentLoader {
         List<Subclass> allSubclasses = new ArrayList<>();
         for (SubclassData scd : allSubclassData) {
             JsonNode node = scd.node;
-            String className = node.path("className").asText();
-            String classSource = node.path("classSource").asText();
+            String className = node.path("className").asString("");
+            String classSource = node.path("classSource").asString("");
             CharacterClass parent = classLookup.get(className + "|" + classSource);
             if (parent == null) {
-                log.debug("Parent class not found for subclass {}: {}|{}", node.path("name").asText(), className,
+                log.debug("Parent class not found for subclass {}: {}|{}", node.path("name").asString(""), className,
                         classSource);
                 context.skip("subclasses of a class not loaded");
                 continue;
             }
-            allSubclasses.add(LoadContext.reading(scd.filename + ": subclass " + node.path("name").asText("?") + "|"
-                    + node.path("source").asText("") + " of " + className + "|" + classSource,
+            allSubclasses.add(LoadContext.reading(scd.filename + ": subclass " + node.path("name").asString("?") + "|"
+                    + node.path("source").asString("") + " of " + className + "|" + classSource,
                     () -> parseSubclass(scd, parent)));
         }
 
@@ -129,13 +129,13 @@ public class CharacterClassLoader implements ContentLoader {
     }
 
     private CharacterClass parseClass(JsonNode node, Map<String, JsonNode> featureMap) throws Exception {
-        String name = node.path("name").asText();
-        String source = node.path("source").asText();
+        String name = node.path("name").asString("");
+        String source = node.path("source").asString("");
         int hitDice = node.path("hd").path("faces").asInt(8);
 
         String spellcastingAbility = node.has("spellcastingAbility")
-                ? node.get("spellcastingAbility").asText().toUpperCase() : null;
-        String casterProgression = node.path("casterProgression").asText(null);
+                ? node.get("spellcastingAbility").asString("").toUpperCase() : null;
+        String casterProgression = node.path("casterProgression").asString(null);
 
         boolean isSpellcaster = spellcastingAbility != null;
         boolean isPreparedCaster = PREPARED_CASTERS.contains(name);
@@ -186,8 +186,8 @@ public class CharacterClassLoader implements ContentLoader {
 
     private Subclass parseSubclass(SubclassData scd, CharacterClass parent) throws Exception {
         JsonNode node = scd.node;
-        String name = node.path("name").asText();
-        String source = node.path("source").asText();
+        String name = node.path("name").asString("");
+        String source = node.path("source").asString("");
 
         String features = parseSubclassFeatures(node, scd.featureMap);
         String alwaysPreparedSpells = parseAlwaysPreparedSpells(node);
@@ -207,7 +207,7 @@ public class CharacterClassLoader implements ContentLoader {
         if (profNode == null || !profNode.isArray()) return null;
         ArrayNode arr = objectMapper.createArrayNode();
         for (JsonNode p : profNode) {
-            arr.add(p.asText().toUpperCase());
+            arr.add(p.asString("").toUpperCase());
         }
         return objectMapper.writeValueAsString(arr);
     }
@@ -216,11 +216,11 @@ public class CharacterClassLoader implements ContentLoader {
         if (node == null || !node.isArray()) return null;
         ArrayNode arr = objectMapper.createArrayNode();
         for (JsonNode item : node) {
-            if (item.isTextual()) {
-                arr.add(FiveEToolsMarkupParser.parse(item.asText()));
+            if (item.isString()) {
+                arr.add(FiveEToolsMarkupParser.parse(item.asString("")));
             } else if (item.isObject() && item.has("proficiency")) {
                 for (JsonNode p : item.get("proficiency")) {
-                    arr.add(FiveEToolsMarkupParser.parse(p.asText()));
+                    arr.add(FiveEToolsMarkupParser.parse(p.asString("")));
                 }
             }
         }
@@ -231,7 +231,7 @@ public class CharacterClassLoader implements ContentLoader {
         if (node == null || !node.isArray()) return null;
         ArrayNode arr = objectMapper.createArrayNode();
         for (JsonNode item : node) {
-            arr.add(FiveEToolsMarkupParser.parse(item.asText()));
+            arr.add(FiveEToolsMarkupParser.parse(item.asString("")));
         }
         return arr.isEmpty() ? null : objectMapper.writeValueAsString(arr);
     }
@@ -242,7 +242,7 @@ public class CharacterClassLoader implements ContentLoader {
         ObjectNode result = objectMapper.createObjectNode();
 
         if (first.has("any")) {
-            result.put("count", first.get("any").asInt());
+            result.put("count", first.get("any").asInt(0));
             ArrayNode allSkills = objectMapper.createArrayNode();
             for (String skill : ALL_SKILLS) allSkills.add(skill);
             result.set("from", allSkills);
@@ -253,7 +253,7 @@ public class CharacterClassLoader implements ContentLoader {
             JsonNode fromArr = choose.get("from");
             if (fromArr != null && fromArr.isArray()) {
                 for (JsonNode s : fromArr) {
-                    from.add(titleCase(s.asText()));
+                    from.add(titleCase(s.asString("")));
                 }
             }
             result.set("from", from);
@@ -270,22 +270,22 @@ public class CharacterClassLoader implements ContentLoader {
 
         if (mc.has("or") && mc.get("or").isArray()) {
             JsonNode orBlock = mc.get("or").get(0);
-            Iterator<String> fields = orBlock.fieldNames();
+            Iterator<String> fields = orBlock.propertyNames().iterator();
             while (fields.hasNext()) {
                 String ability = fields.next();
                 ObjectNode req = objectMapper.createObjectNode();
                 req.put("ability", ability.toUpperCase());
-                req.put("minimum", orBlock.get(ability).asInt());
+                req.put("minimum", orBlock.get(ability).asInt(0));
                 req.put("operator", "OR");
                 result.add(req);
             }
         } else {
-            Iterator<String> fields = mc.fieldNames();
+            Iterator<String> fields = mc.propertyNames().iterator();
             while (fields.hasNext()) {
                 String ability = fields.next();
                 ObjectNode req = objectMapper.createObjectNode();
                 req.put("ability", ability.toUpperCase());
-                req.put("minimum", mc.get(ability).asInt());
+                req.put("minimum", mc.get(ability).asInt(0));
                 result.add(req);
             }
         }
@@ -302,10 +302,10 @@ public class CharacterClassLoader implements ContentLoader {
         if (pg.has("armor") && pg.get("armor").isArray()) {
             ArrayNode armor = objectMapper.createArrayNode();
             for (JsonNode item : pg.get("armor")) {
-                if (item.isTextual()) {
-                    armor.add(titleCase(item.asText()));
+                if (item.isString()) {
+                    armor.add(titleCase(item.asString("")));
                 } else if (item.isObject() && item.has("proficiency")) {
-                    armor.add(titleCase(item.get("proficiency").asText()));
+                    armor.add(titleCase(item.get("proficiency").asString("")));
                 }
             }
             if (!armor.isEmpty()) result.set("armor", armor);
@@ -314,7 +314,7 @@ public class CharacterClassLoader implements ContentLoader {
         if (pg.has("weapons") && pg.get("weapons").isArray()) {
             ArrayNode weapons = objectMapper.createArrayNode();
             for (JsonNode item : pg.get("weapons")) {
-                weapons.add(FiveEToolsMarkupParser.parse(titleCase(item.asText())));
+                weapons.add(FiveEToolsMarkupParser.parse(titleCase(item.asString(""))));
             }
             if (!weapons.isEmpty()) result.set("weapons", weapons);
         }
@@ -322,7 +322,7 @@ public class CharacterClassLoader implements ContentLoader {
         if (pg.has("tools") && pg.get("tools").isArray()) {
             ArrayNode tools = objectMapper.createArrayNode();
             for (JsonNode item : pg.get("tools")) {
-                tools.add(FiveEToolsMarkupParser.parse(item.asText()));
+                tools.add(FiveEToolsMarkupParser.parse(item.asString("")));
             }
             if (!tools.isEmpty()) result.set("tools", tools);
         }
@@ -334,7 +334,7 @@ public class CharacterClassLoader implements ContentLoader {
                 skillChoice.put("count", first.get("choose").path("count").asInt(1));
                 ArrayNode from = objectMapper.createArrayNode();
                 for (JsonNode s : first.get("choose").path("from")) {
-                    from.add(titleCase(s.asText()));
+                    from.add(titleCase(s.asString("")));
                 }
                 skillChoice.set("from", from);
                 result.set("skills", skillChoice);
@@ -366,7 +366,7 @@ public class CharacterClassLoader implements ContentLoader {
 
     private static List<String> abilityNames(JsonNode requirements) {
         List<String> abilities = new ArrayList<>();
-        requirements.fieldNames().forEachRemaining(f -> abilities.add(f.toUpperCase()));
+        requirements.propertyNames().iterator().forEachRemaining(f -> abilities.add(f.toUpperCase()));
         return abilities;
     }
 
@@ -374,15 +374,15 @@ public class CharacterClassLoader implements ContentLoader {
         JsonNode refs = classNode.get("classFeatures");
         if (refs == null || !refs.isArray()) return null;
 
-        String className = classNode.path("name").asText();
+        String className = classNode.path("name").asString("");
         ArrayNode features = objectMapper.createArrayNode();
 
         for (JsonNode ref : refs) {
             String refStr;
-            if (ref.isTextual()) {
-                refStr = ref.asText();
+            if (ref.isString()) {
+                refStr = ref.asString("");
             } else if (ref.isObject() && ref.has("classFeature")) {
-                refStr = ref.get("classFeature").asText();
+                refStr = ref.get("classFeature").asString("");
             } else {
                 continue;
             }
@@ -391,7 +391,7 @@ public class CharacterClassLoader implements ContentLoader {
             if (featureNode == null) continue;
 
             int level = featureNode.path("level").asInt(0);
-            String featureName = featureNode.path("name").asText();
+            String featureName = featureNode.path("name").asString("");
             String description = flattenEntries(featureNode.get("entries"));
 
             ObjectNode feat = objectMapper.createObjectNode();
@@ -411,12 +411,12 @@ public class CharacterClassLoader implements ContentLoader {
         ArrayNode features = objectMapper.createArrayNode();
 
         for (JsonNode ref : refs) {
-            String refStr = ref.asText();
+            String refStr = ref.asString("");
             JsonNode featureNode = featureMap.get(refStr);
             if (featureNode == null) continue;
 
             int level = featureNode.path("level").asInt(0);
-            String featureName = featureNode.path("name").asText();
+            String featureName = featureNode.path("name").asString("");
             String description = flattenEntries(featureNode.get("entries"));
 
             ObjectNode feat = objectMapper.createObjectNode();
@@ -439,13 +439,13 @@ public class CharacterClassLoader implements ContentLoader {
             if (prep == null) continue;
 
             final JsonNode prepared = prep;
-            prepared.fieldNames().forEachRemaining(level -> {
+            prepared.propertyNames().iterator().forEachRemaining(level -> {
                 JsonNode spells = prepared.get(level);
                 if (spells != null && spells.isArray()) {
                     ArrayNode arr = objectMapper.createArrayNode();
                     for (JsonNode s : spells) {
-                        if (s.isTextual()) {
-                            arr.add(FiveEToolsMarkupParser.parse(s.asText()));
+                        if (s.isString()) {
+                            arr.add(FiveEToolsMarkupParser.parse(s.asString("")));
                         }
                     }
                     if (!arr.isEmpty()) result.set(level, arr);
@@ -465,13 +465,13 @@ public class CharacterClassLoader implements ContentLoader {
             JsonNode expanded = spellBlock.get("expanded");
             if (expanded == null) continue;
 
-            expanded.fieldNames().forEachRemaining(level -> {
+            expanded.propertyNames().iterator().forEachRemaining(level -> {
                 JsonNode spells = expanded.get(level);
                 if (spells != null && spells.isArray()) {
                     ArrayNode arr = objectMapper.createArrayNode();
                     for (JsonNode s : spells) {
-                        if (s.isTextual()) {
-                            arr.add(FiveEToolsMarkupParser.parse(s.asText()));
+                        if (s.isString()) {
+                            arr.add(FiveEToolsMarkupParser.parse(s.asString("")));
                         }
                     }
                     if (!arr.isEmpty()) result.set(level, arr);
@@ -486,11 +486,11 @@ public class CharacterClassLoader implements ContentLoader {
         Map<String, JsonNode> map = new HashMap<>();
         if (features == null || !features.isArray()) return map;
         for (JsonNode f : features) {
-            String name = f.path("name").asText();
-            String className = f.path("className").asText();
-            String classSource = f.path("classSource").asText();
-            String source = f.path("source").asText();
-            int level = f.path("level").asInt();
+            String name = f.path("name").asString("");
+            String className = f.path("className").asString("");
+            String classSource = f.path("classSource").asString("");
+            String source = f.path("source").asString("");
+            int level = f.path("level").asInt(0);
             String key = name + "|" + className + "|" + classSource + "|" + level;
             if (!source.equals(classSource)) {
                 key = name + "|" + className + "|" + classSource + "|" + level + "|" + source;
@@ -508,13 +508,13 @@ public class CharacterClassLoader implements ContentLoader {
         Map<String, JsonNode> map = new HashMap<>();
         if (features == null || !features.isArray()) return map;
         for (JsonNode f : features) {
-            String name = f.path("name").asText();
-            String className = f.path("className").asText();
-            String classSource = f.path("classSource").asText();
-            String scShort = f.path("subclassShortName").asText();
-            String scSource = f.path("subclassSource").asText();
-            String source = f.path("source").asText();
-            int level = f.path("level").asInt();
+            String name = f.path("name").asString("");
+            String className = f.path("className").asString("");
+            String classSource = f.path("classSource").asString("");
+            String scShort = f.path("subclassShortName").asString("");
+            String scSource = f.path("subclassSource").asString("");
+            String source = f.path("source").asString("");
+            int level = f.path("level").asInt(0);
             String key = name + "|" + className + "||" + scShort + "||" + level;
             map.put(key, f);
             if (!source.equals(scSource)) {
@@ -530,11 +530,11 @@ public class CharacterClassLoader implements ContentLoader {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (!sb.isEmpty()) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
-                String type = entry.path("type").asText("");
+                String type = entry.path("type").asString("");
                 if ("entries".equals(type) && entry.has("entries")) {
                     if (!sb.isEmpty()) sb.append("\n");
                     String nested = flattenEntries(entry.get("entries"));
@@ -542,10 +542,10 @@ public class CharacterClassLoader implements ContentLoader {
                 } else if ("list".equals(type) && entry.has("items")) {
                     for (JsonNode item : entry.get("items")) {
                         if (!sb.isEmpty()) sb.append("\n");
-                        if (item.isTextual()) {
-                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                        if (item.isString()) {
+                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                         } else if (item.isObject() && item.has("entry")) {
-                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.path("entry").asText()));
+                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.path("entry").asString("")));
                         } else if (item.isObject() && item.has("entries")) {
                             String nested = flattenEntries(item.get("entries"));
                             if (nested != null) sb.append("- ").append(nested);
@@ -557,7 +557,7 @@ public class CharacterClassLoader implements ContentLoader {
                             if (!sb.isEmpty()) sb.append("\n");
                             List<String> cells = new ArrayList<>();
                             for (JsonNode cell : row) {
-                                cells.add(FiveEToolsMarkupParser.parse(cell.asText()));
+                                cells.add(FiveEToolsMarkupParser.parse(cell.asString("")));
                             }
                             sb.append("| ").append(String.join(" | ", cells)).append(" |");
                         }

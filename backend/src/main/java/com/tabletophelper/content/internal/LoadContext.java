@@ -1,9 +1,9 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Transient;
@@ -130,7 +130,7 @@ public class LoadContext {
     public JsonNode read(DataFile file) {
         try (InputStream in = file.resource().getInputStream()) {
             return objectMapper.readTree(in);
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             throw new IllegalStateException(file.name() + " could not be read: " + e.getMessage(), e);
         }
     }
@@ -242,10 +242,10 @@ public class LoadContext {
     public String canonicalJson(String json) {
         try {
             Object value = objectMapper.treeToValue(readTree(json), Object.class);
-            return objectMapper.copy()
-                    .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+            return objectMapper.writer()
+                    .with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
                     .writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Could not write JSON back: " + json, e);
         }
     }
@@ -311,7 +311,7 @@ public class LoadContext {
     private JsonNode readTree(String json) {
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("A JSON column holds text that isn't JSON: " + json, e);
         }
     }

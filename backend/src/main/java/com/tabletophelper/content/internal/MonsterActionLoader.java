@@ -1,7 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.monster.MonsterTemplates;
@@ -64,8 +64,8 @@ public class MonsterActionLoader implements ContentLoader {
         // Build lookup map from the JSON: key = lowercase "name|source"
         Map<String, JsonNode> definitionMap = new LinkedHashMap<>();
         for (JsonNode entry : actionDefinitions) {
-            String name = entry.has("monsterName") ? entry.get("monsterName").asText().trim() : "";
-            String source = entry.has("source") ? entry.get("source").asText().trim() : "";
+            String name = entry.has("monsterName") ? entry.get("monsterName").asString("").trim() : "";
+            String source = entry.has("source") ? entry.get("source").asString("").trim() : "";
             if (!name.isEmpty() && !source.isEmpty()) {
                 String key = name.toLowerCase() + "|" + source.toLowerCase();
                 // If duplicate, first entry wins

@@ -1,8 +1,8 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -65,7 +65,7 @@ final class TableSnapshot {
     JsonNode readTree(String json) {
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("PostgreSQL returned JSON that doesn't parse: " + json, e);
         }
     }
@@ -108,8 +108,8 @@ final class TableSnapshot {
     // what each row loses.
     static String changedColumns(JsonNode oldRow, JsonNode newRow) {
         Set<String> columns = new TreeSet<>();
-        oldRow.fieldNames().forEachRemaining(columns::add);
-        newRow.fieldNames().forEachRemaining(columns::add);
+        oldRow.propertyNames().iterator().forEachRemaining(columns::add);
+        newRow.propertyNames().iterator().forEachRemaining(columns::add);
         StringBuilder sb = new StringBuilder();
         for (String column : columns) {
             JsonNode oldValue = oldRow.path(column);
@@ -131,7 +131,7 @@ final class TableSnapshot {
 
     private static String describe(String table, String key, JsonNode row, boolean labelled) {
         String label = !labelled ? null : LABEL_COLUMNS.stream()
-                .map(column -> row.path(column).asText(null))
+                .map(column -> row.path(column).asString(null))
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);

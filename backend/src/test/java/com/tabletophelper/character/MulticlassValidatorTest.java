@@ -1,5 +1,7 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.EligibleClassResponse;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.reference.CharacterClass;
@@ -15,6 +17,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MulticlassValidatorTest {
 
+    private static final ObjectMapper MAPPER = JacksonDefaults.mapper();
+
     private PlayerCharacter characterWithScores(int str, int dex, int con, int intel, int wis, int cha) {
         return PlayerCharacter.builder()
                 .strength(str).dexterity(dex).constitution(con)
@@ -26,14 +30,14 @@ class MulticlassValidatorTest {
     @DisplayName("Null requirements means no prerequisites")
     void nullRequirements() {
         var pc = characterWithScores(10, 10, 10, 10, 10, 10);
-        assertTrue(MulticlassValidator.meetsPrerequisites(null, pc));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, null, pc));
     }
 
     @Test
     @DisplayName("Empty requirements means no prerequisites")
     void emptyRequirements() {
         var pc = characterWithScores(10, 10, 10, 10, 10, 10);
-        assertTrue(MulticlassValidator.meetsPrerequisites("[]", pc));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, "[]", pc));
     }
 
     @Test
@@ -41,7 +45,7 @@ class MulticlassValidatorTest {
     void andPrerequisitesAllMet() {
         var pc = characterWithScores(13, 13, 10, 10, 10, 10);
         String reqs = "[{\"ability\":\"STR\",\"minimum\":13,\"operator\":\"AND\"},{\"ability\":\"DEX\",\"minimum\":13,\"operator\":\"AND\"}]";
-        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, pc));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, pc));
     }
 
     @Test
@@ -49,7 +53,7 @@ class MulticlassValidatorTest {
     void andPrerequisitesOneFails() {
         var pc = characterWithScores(13, 12, 10, 10, 10, 10);
         String reqs = "[{\"ability\":\"STR\",\"minimum\":13,\"operator\":\"AND\"},{\"ability\":\"DEX\",\"minimum\":13,\"operator\":\"AND\"}]";
-        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, pc));
+        assertFalse(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, pc));
     }
 
     @Test
@@ -57,7 +61,7 @@ class MulticlassValidatorTest {
     void orPrerequisitesOneMet() {
         var pc = characterWithScores(13, 8, 10, 10, 10, 10);
         String reqs = "[{\"ability\":\"STR\",\"minimum\":13,\"operator\":\"OR\"},{\"ability\":\"DEX\",\"minimum\":13,\"operator\":\"OR\"}]";
-        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, pc));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, pc));
     }
 
     @Test
@@ -65,7 +69,7 @@ class MulticlassValidatorTest {
     void orPrerequisitesNoneMet() {
         var pc = characterWithScores(12, 8, 10, 10, 10, 10);
         String reqs = "[{\"ability\":\"STR\",\"minimum\":13,\"operator\":\"OR\"},{\"ability\":\"DEX\",\"minimum\":13,\"operator\":\"OR\"}]";
-        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, pc));
+        assertFalse(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, pc));
     }
 
     @Test
@@ -94,8 +98,8 @@ class MulticlassValidatorTest {
         var passes = characterWithScores(14, 10, 10, 10, 10, 14);
         var fails = characterWithScores(14, 10, 10, 10, 10, 12);
         String reqs = "[{\"ability\":\"STR\",\"minimum\":13},{\"ability\":\"CHA\",\"minimum\":13}]";
-        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
-        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, passes));
+        assertFalse(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, fails));
     }
 
     @Test
@@ -104,8 +108,8 @@ class MulticlassValidatorTest {
         var passes = characterWithScores(10, 14, 10, 10, 16, 10);
         var fails = characterWithScores(10, 14, 10, 10, 11, 10);
         String reqs = "[{\"ability\":\"DEX\",\"minimum\":13},{\"ability\":\"WIS\",\"minimum\":13}]";
-        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
-        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, passes));
+        assertFalse(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, fails));
     }
 
     @Test
@@ -114,8 +118,8 @@ class MulticlassValidatorTest {
         var passes = characterWithScores(10, 13, 10, 10, 13, 10);
         var fails = characterWithScores(10, 12, 10, 10, 13, 10);
         String reqs = "[{\"ability\":\"DEX\",\"minimum\":13},{\"ability\":\"WIS\",\"minimum\":13}]";
-        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
-        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, passes));
+        assertFalse(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, fails));
     }
 
     @Test
@@ -124,8 +128,8 @@ class MulticlassValidatorTest {
         var passes = characterWithScores(8, 8, 8, 8, 8, 14);
         var fails = characterWithScores(20, 20, 20, 20, 20, 12);
         String reqs = "[{\"ability\":\"CHA\",\"minimum\":13}]";
-        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, passes));
-        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, fails));
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, passes));
+        assertFalse(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, fails));
     }
 
     @Test
@@ -134,9 +138,9 @@ class MulticlassValidatorTest {
         var atThreshold = characterWithScores(13, 10, 10, 10, 10, 10);
         var belowThreshold = characterWithScores(12, 10, 10, 10, 10, 10);
         String reqs = "[{\"ability\":\"STR\",\"minimum\":13}]";
-        assertTrue(MulticlassValidator.meetsPrerequisites(reqs, atThreshold),
+        assertTrue(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, atThreshold),
                 "Score of exactly 13 should pass");
-        assertFalse(MulticlassValidator.meetsPrerequisites(reqs, belowThreshold),
+        assertFalse(MulticlassValidator.meetsPrerequisites(MAPPER, reqs, belowThreshold),
                 "Score of 12 should fail");
     }
 
@@ -168,7 +172,7 @@ class MulticlassValidatorTest {
                 .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]")
                 .build();
 
-        List<EligibleClassResponse> results = MulticlassValidator.getEligibleClasses(pc,
+        List<EligibleClassResponse> results = MulticlassValidator.getEligibleClasses(MAPPER, pc,
                 List.of(fighterClass, rogueClass, bardClass));
 
         // Fighter should be marked as current class
@@ -194,9 +198,9 @@ class MulticlassValidatorTest {
     void unreadableRequirementsAreConflict() {
         var pc = characterWithScores(10, 10, 10, 10, 10, 10);
 
-        assertThrows(ConflictException.class, () -> MulticlassValidator.meetsPrerequisites("{not json", pc));
+        assertThrows(ConflictException.class, () -> MulticlassValidator.meetsPrerequisites(MAPPER, "{not json", pc));
         assertThrows(ConflictException.class,
-                () -> MulticlassValidator.meetsPrerequisites("[{\"ability\":\"Luck\",\"minimum\":13}]", pc));
+                () -> MulticlassValidator.meetsPrerequisites(MAPPER, "[{\"ability\":\"Luck\",\"minimum\":13}]", pc));
     }
 
     @Test
@@ -213,7 +217,7 @@ class MulticlassValidatorTest {
                 .multiclassRequirements("[{\"ability\":\"CHA\",\"minimum\":13}]").build();
 
         assertEquals(List.of("Bard", "Paladin"),
-                MulticlassValidator.unmetPrerequisites(pc, bard, List.of(fighter, paladin)));
-        assertEquals(List.of(), MulticlassValidator.unmetPrerequisites(pc, paladin, List.of(fighter, paladin)));
+                MulticlassValidator.unmetPrerequisites(MAPPER, pc, bard, List.of(fighter, paladin)));
+        assertEquals(List.of(), MulticlassValidator.unmetPrerequisites(MAPPER, pc, paladin, List.of(fighter, paladin)));
     }
 }

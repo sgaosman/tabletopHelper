@@ -1,6 +1,6 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -72,9 +72,9 @@ class WriteBackIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         raceId = insertRace("Human");
         fighterId = insertClass("Fighter", 10);
         wizardId = insertCaster("Wizard", 6, "INT", false);
@@ -105,10 +105,10 @@ class WriteBackIT extends IntegrationTest {
         combat(second, "hp", Map.of("targetId", inSecond, "hpCurrent", 23, "hpTemp", 4));
 
         JsonNode firstPreview = preview(first).get(0);
-        assertThat(firstPreview.get("characterId").asText()).isEqualTo(aria);
+        assertThat(firstPreview.get("characterId").asString()).isEqualTo(aria);
         assertThat(firstPreview.get("hpBefore").asInt()).isEqualTo(28);
         assertThat(firstPreview.get("hpAfter").asInt()).isEqualTo(18);
-        assertThat(firstPreview.get("lifeState").asText()).isEqualTo("ALIVE");
+        assertThat(firstPreview.get("lifeState").asString()).isEqualTo("ALIVE");
         assertThat(firstPreview.get("deadAfter").asBoolean()).isFalse();
         // The preview changes nothing
         assertThat(sheet(aria).get("hpCurrent").asInt()).isEqualTo(28);
@@ -152,7 +152,7 @@ class WriteBackIT extends IntegrationTest {
         JsonNode cast = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounter
                 + "/combat/cast-spell?actorId=" + inFight, Map.of("spellName", "Hellish Rebuke", "spellSource", "INNATE",
                 "slotLevel", 0, "targetIds", List.of(goblinId)), dm.accessToken()));
-        assertThat(cast.get("spellSource").asText()).isEqualTo("INNATE");
+        assertThat(cast.get("spellSource").asString()).isEqualTo("INNATE");
         // Meanwhile on the sheet: 15 damage, three level 1 slots and the same use
         command(bram, "/hp", Map.of("kind", "DAMAGE", "amount", 15));
         for (int i = 0; i < 3; i++) {
@@ -207,7 +207,7 @@ class WriteBackIT extends IntegrationTest {
         for (int i = 0; i < 3; i++) {
             combat(encounter, "death-save", Map.of("participantId", inFight));
         }
-        assertThat(participant(encounter, inFight).get("lifeState").asText()).isEqualTo("DEAD");
+        assertThat(participant(encounter, inFight).get("lifeState").asString()).isEqualTo("DEAD");
         assertThat(preview(encounter).get(0).get("deadAfter").asBoolean()).isTrue();
 
         end(encounter, true);
@@ -252,8 +252,8 @@ class WriteBackIT extends IntegrationTest {
         for (int i = 0; i < 3; i++) {
             combat(encounter, "death-save", Map.of("participantId", inFight.get(bram)));
         }
-        assertThat(participant(encounter, inFight.get(aria)).get("lifeState").asText()).isEqualTo("DYING");
-        assertThat(participant(encounter, inFight.get(bram)).get("lifeState").asText()).isEqualTo("STABLE");
+        assertThat(participant(encounter, inFight.get(aria)).get("lifeState").asString()).isEqualTo("DYING");
+        assertThat(participant(encounter, inFight.get(bram)).get("lifeState").asString()).isEqualTo("STABLE");
 
         end(encounter, true);
 
@@ -287,7 +287,7 @@ class WriteBackIT extends IntegrationTest {
 
         JsonNode ended = end(encounter, false);
 
-        assertThat(ended.get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(ended.get("status").asString()).isEqualTo("COMPLETED");
         assertThat(resultsApplied(encounter)).isFalse();
         assertThat(sheet(aria).get("hpCurrent").asInt()).isEqualTo(28);
         JsonNode bramAfter = sheet(bram);
@@ -418,7 +418,7 @@ class WriteBackIT extends IntegrationTest {
                 "charisma", 14));
         body.putAll(details);
         return expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", body, player.accessToken()))
-                .get("id").asText();
+                .get("id").asString();
     }
 
     // A new encounter in the campaign with these characters added
@@ -441,7 +441,7 @@ class WriteBackIT extends IntegrationTest {
         Map<String, String> byCharacter = new HashMap<>();
         for (JsonNode participant : encounterState(encounter).get("participants")) {
             if (!participant.get("characterId").isNull()) {
-                byCharacter.put(participant.get("characterId").asText(), participant.get("id").asText());
+                byCharacter.put(participant.get("characterId").asString(), participant.get("id").asString());
             }
         }
         return byCharacter;
@@ -453,7 +453,7 @@ class WriteBackIT extends IntegrationTest {
 
     private JsonNode participant(UUID encounter, String participantId) {
         for (JsonNode participant : encounterState(encounter).get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }
@@ -462,8 +462,8 @@ class WriteBackIT extends IntegrationTest {
 
     private static String idOf(JsonNode state, String displayName) {
         for (JsonNode participant : state.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError("No participant named " + displayName);
@@ -505,7 +505,7 @@ class WriteBackIT extends IntegrationTest {
 
     private static JsonNode pool(JsonNode character, String poolId) {
         for (JsonNode pool : character.get("resourcePools")) {
-            if (pool.get("poolId").asText().equals(poolId)) {
+            if (pool.get("poolId").asString().equals(poolId)) {
                 return pool;
             }
         }
@@ -513,11 +513,11 @@ class WriteBackIT extends IntegrationTest {
     }
 
     private String error(ResponseEntity<String> response) {
-        return json(response).get("error").asText();
+        return json(response).get("error").asString();
     }
 
     private String error(ResponseEntity<String> response, HttpStatus status) {
-        return expect(status, response).get("error").asText();
+        return expect(status, response).get("error").asString();
     }
 
     private Boolean resultsApplied(UUID encounter) {

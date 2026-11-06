@@ -1,9 +1,9 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.MissingNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.MissingNode;
 import com.tabletophelper.shared.ConflictException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,7 +30,7 @@ public final class StoredJson {
         }
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("{} is not valid JSON", what, e);
             throw new ConflictException(what + " can't be read");
         }

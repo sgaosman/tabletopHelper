@@ -1,8 +1,8 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
@@ -35,7 +35,6 @@ public class FeatEffectResolver {
 
     // The feat data's flag for a feat that can be taken more than once
     private static final String REPEATABLE = "repeatable";
-    private static final ObjectMapper EFFECTS_READER = new ObjectMapper();
 
     private final ObjectMapper objectMapper;
     private final SpellRepository spellRepository;
@@ -129,19 +128,19 @@ public class FeatEffectResolver {
             // Speed, initiative and hit points are Derived Stats: the bonuses are recorded, and CharacterStats adds
             // them (D167)
             if (effects.has("speedBonus")) {
-                speedBonus = effects.get("speedBonus").asInt();
+                speedBonus = effects.get("speedBonus").asInt(0);
             }
             if (effects.has("initiativeBonus")) {
-                initiativeBonus = effects.get("initiativeBonus").asInt();
+                initiativeBonus = effects.get("initiativeBonus").asInt(0);
             }
             if (effects.has("hpPerLevel")) {
-                hpPerLevel = effects.get("hpPerLevel").asInt();
+                hpPerLevel = effects.get("hpPerLevel").asInt(0);
             }
             if (effects.has("passivePerceptionBonus")) {
-                passivePerceptionBonus = effects.get("passivePerceptionBonus").asInt();
+                passivePerceptionBonus = effects.get("passivePerceptionBonus").asInt(0);
             }
             if (effects.has("passiveInvestigationBonus")) {
-                passiveInvestigationBonus = effects.get("passiveInvestigationBonus").asInt();
+                passiveInvestigationBonus = effects.get("passiveInvestigationBonus").asInt(0);
             }
             if (effects.has("resource")) {
                 resource = resource(effects.get("resource"), feat.getName());
@@ -243,7 +242,7 @@ public class FeatEffectResolver {
     private JsonNode readFeatData(String featName, String json) {
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new ConflictException("The effects of the feat " + featName + " can't be read");
         }
     }
@@ -268,7 +267,7 @@ public class FeatEffectResolver {
                     Map.Entry<String, JsonNode> field = fields.next();
                     if (!"choose".equals(field.getKey())) {
                         String ability = field.getKey().toLowerCase();
-                        int amount = field.getValue().asInt();
+                        int amount = field.getValue().asInt(0);
                         applied.put(ability, CharacterUpdates.increaseAbility(character, ability, amount));
                     }
                 }
@@ -285,8 +284,8 @@ public class FeatEffectResolver {
         List<String> current = copy(character.getDamageResistances());
 
         for (JsonNode item : resistNode) {
-            if (item.isTextual()) {
-                String resist = item.asText();
+            if (item.isString()) {
+                String resist = item.asString("");
                 if (!current.contains(resist)) {
                     current.add(resist);
                     added.add(resist);
@@ -548,9 +547,9 @@ public class FeatEffectResolver {
     // The feat's limited uses, recorded with its effects; CharacterStats gives the sheet a feat:<feat> pool of them,
     // which levelling down removes with the level (D158)
     private static FeatResourceEntry resource(JsonNode resourceNode, String featName) {
-        int uses = resourceNode.path("maxUses").asInt();
-        return new FeatResourceEntry(featName, resourceNode.path("name").asText(featName), uses, uses,
-                resourceNode.path("resetOn").asText("longRest"));
+        int uses = resourceNode.path("maxUses").asInt(0);
+        return new FeatResourceEntry(featName, resourceNode.path("name").asString(featName), uses, uses,
+                resourceNode.path("resetOn").asString("longRest"));
     }
 
     // --- Spells ---
@@ -674,8 +673,8 @@ public class FeatEffectResolver {
                         }
                         int uses = Integer.parseInt(count);
                         for (JsonNode spell : e.getValue()) {
-                            if (spell.isTextual()) {
-                                usage.put(spell.asText().toLowerCase(), uses);
+                            if (spell.isString()) {
+                                usage.put(spell.asString("").toLowerCase(), uses);
                             }
                         }
                     });
@@ -683,14 +682,14 @@ public class FeatEffectResolver {
                 JsonNode known = option.path("known").path("_");
                 if (known.isArray()) {
                     for (JsonNode item : known) {
-                        if (item.isTextual()) {
-                            usage.put(item.asText().replace("#c", "").replaceAll("#\\d+$", "")
+                        if (item.isString()) {
+                            usage.put(item.asString("").replace("#c", "").replaceAll("#\\d+$", "")
                                     .replaceAll("\\|.*$", "").toLowerCase(), 0);
                         }
                     }
                 }
             }
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.warn("Failed to parse feat spell usage from grantsFeatures JSON", e);
             throw new ConflictException("The spells the feat " + featName + " grants can't be read");
         }
@@ -752,12 +751,12 @@ public class FeatEffectResolver {
      *
      * @throws ConflictException when the feat's data can't be read (D155)
      */
-    public static boolean repeatable(Feat feat) {
+    public boolean repeatable(Feat feat) {
         if (feat.getEffects() == null || feat.getEffects().isBlank()) return false;
         JsonNode flag;
         try {
-            flag = EFFECTS_READER.readTree(feat.getEffects()).path(REPEATABLE);
-        } catch (JsonProcessingException e) {
+            flag = objectMapper.readTree(feat.getEffects()).path(REPEATABLE);
+        } catch (JacksonException e) {
             throw new ConflictException("The effects of the feat " + feat.getName() + " can't be read");
         }
         if (flag.isMissingNode() || flag.isNull()) return false;
@@ -765,7 +764,7 @@ public class FeatEffectResolver {
             throw new ConflictException("The effects of the feat " + feat.getName() + " can't be read: repeatable is "
                     + flag);
         }
-        return flag.asBoolean();
+        return flag.asBoolean(false);
     }
 
     // --- Helpers ---

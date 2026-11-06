@@ -1,7 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Condition;
 import com.tabletophelper.reference.ConditionRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,7 @@ public class ConditionLoader implements ContentLoader {
 
         List<Condition> batch = new ArrayList<>();
         for (JsonNode c : conditions) {
-            batch.add(LoadContext.reading(FILE + ": condition " + c.path("name").asText("?"), () -> parseCondition(c)));
+            batch.add(LoadContext.reading(FILE + ": condition " + c.path("name").asString("?"), () -> parseCondition(c)));
         }
 
         // A condition is known by its name alone, as content-snapshot reads it
@@ -51,10 +51,10 @@ public class ConditionLoader implements ContentLoader {
         List<String> effects = extractEffects(c.get("entries"));
 
         return Condition.builder()
-                .name(c.path("name").asText())
+                .name(c.path("name").asString(""))
                 .description(description != null ? description : "")
                 .effects(effects.isEmpty() ? null : objectMapper.writeValueAsString(effects))
-                .source(c.path("source").asText(null))
+                .source(c.path("source").asString(null))
                 .build();
     }
 
@@ -62,12 +62,12 @@ public class ConditionLoader implements ContentLoader {
         List<String> effects = new ArrayList<>();
         if (entries == null) return effects;
         for (JsonNode entry : entries) {
-            if (entry.isObject() && "list".equals(entry.path("type").asText())) {
+            if (entry.isObject() && "list".equals(entry.path("type").asString(""))) {
                 JsonNode items = entry.get("items");
                 if (items != null) {
                     for (JsonNode item : items) {
-                        if (item.isTextual()) {
-                            effects.add(FiveEToolsMarkupParser.parse(item.asText()));
+                        if (item.isString()) {
+                            effects.add(FiveEToolsMarkupParser.parse(item.asString("")));
                         }
                     }
                 }
@@ -80,16 +80,16 @@ public class ConditionLoader implements ContentLoader {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (sb.length() > 0) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
-                String type = entry.path("type").asText("");
+                String type = entry.path("type").asString("");
                 if ("list".equals(type) && entry.has("items")) {
                     for (JsonNode item : entry.get("items")) {
                         if (sb.length() > 0) sb.append("\n");
-                        if (item.isTextual()) {
-                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                        if (item.isString()) {
+                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                         }
                     }
                 } else if ("table".equals(type) && entry.has("rows")) {
@@ -97,8 +97,8 @@ public class ConditionLoader implements ContentLoader {
                     for (JsonNode row : rows) {
                         if (row.isArray() && row.size() >= 2) {
                             if (sb.length() > 0) sb.append("\n");
-                            sb.append("- ").append(FiveEToolsMarkupParser.parse(row.get(0).asText()))
-                              .append(": ").append(FiveEToolsMarkupParser.parse(row.get(1).asText()));
+                            sb.append("- ").append(FiveEToolsMarkupParser.parse(row.get(0).asString("")))
+                              .append(": ").append(FiveEToolsMarkupParser.parse(row.get(1).asString("")));
                         }
                     }
                 } else if ("entries".equals(type) && entry.has("entries")) {

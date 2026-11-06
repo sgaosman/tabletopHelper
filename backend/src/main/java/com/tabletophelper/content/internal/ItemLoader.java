@@ -1,7 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -77,24 +77,24 @@ public class ItemLoader implements ContentLoader {
                 context.skip("_copy items");
                 continue;
             }
-            allItems.add(LoadContext.reading(path + ": item " + i.path("name").asText("?") + "|"
-                    + i.path("source").asText(""), () -> parseItem(i)));
+            allItems.add(LoadContext.reading(path + ": item " + i.path("name").asString("?") + "|"
+                    + i.path("source").asString(""), () -> parseItem(i)));
         }
     }
 
     private Item parseItem(JsonNode i) throws Exception {
-        String typeCode = i.path("type").asText("");
+        String typeCode = i.path("type").asString("");
         if (typeCode.contains("|")) typeCode = typeCode.split("\\|")[0];
         String type = TYPE_MAP.getOrDefault(typeCode, typeCode);
         if (type.isEmpty()) {
-            String altCode = i.path("typeAlt").asText("");
+            String altCode = i.path("typeAlt").asString("");
             if (altCode.contains("|")) altCode = altCode.split("\\|")[0];
             if (!altCode.isEmpty()) {
                 type = TYPE_MAP.getOrDefault(altCode, altCode);
             }
         }
         if (type.isEmpty()) {
-            String baseItem = i.path("baseItem").asText("").split("\\|")[0].toLowerCase();
+            String baseItem = i.path("baseItem").asString("").split("\\|")[0].toLowerCase();
             if (!baseItem.isEmpty()) {
                 type = inferTypeFromBaseItem(baseItem);
             }
@@ -109,32 +109,32 @@ public class ItemLoader implements ContentLoader {
         if (type.isEmpty()) {
             type = inferTypeFromDescription(i);
         }
-        String rarity = i.path("rarity").asText("none");
+        String rarity = i.path("rarity").asString("none");
         if ("none".equals(rarity)) rarity = null;
 
         String dmgType = i.has("dmgType") ?
-                DAMAGE_TYPE_MAP.getOrDefault(i.path("dmgType").asText(""), i.path("dmgType").asText("")) : null;
+                DAMAGE_TYPE_MAP.getOrDefault(i.path("dmgType").asString(""), i.path("dmgType").asString("")) : null;
 
-        boolean attunement = i.has("reqAttune") && !i.path("reqAttune").asText("").equals("false");
+        boolean attunement = i.has("reqAttune") && !i.path("reqAttune").asString("").equals("false");
         String attunementCondition = null;
-        if (i.has("reqAttune") && i.get("reqAttune").isTextual()) {
-            attunementCondition = i.path("reqAttune").asText();
+        if (i.has("reqAttune") && i.get("reqAttune").isString()) {
+            attunementCondition = i.path("reqAttune").asString("");
         }
 
         return Item.builder()
-                .name(i.path("name").asText())
+                .name(i.path("name").asString(""))
                 .type(type.isEmpty() ? null : type)
-                .subtype(i.path("weaponCategory").asText(null))
+                .subtype(i.path("weaponCategory").asString(null))
                 .rarity(rarity)
                 .description(flattenEntries(i.get("entries")))
                 .properties(parseProperties(i))
                 .requiresAttunement(attunement)
                 .attunementCondition(attunementCondition)
-                .weight(i.has("weight") ? i.path("weight").asDouble() : null)
+                .weight(i.has("weight") ? i.path("weight").asDouble(0.0) : null)
                 .cost(parseCost(i))
-                .damageDice(i.path("dmg1").asText(null))
+                .damageDice(i.path("dmg1").asString(null))
                 .damageType(dmgType)
-                .source(i.path("source").asText(null))
+                .source(i.path("source").asString(null))
                 .isHomebrew(false)
                 .build();
     }
@@ -143,13 +143,16 @@ public class ItemLoader implements ContentLoader {
         Map<String, Object> props = new LinkedHashMap<>();
         if (i.has("property")) {
             List<String> propList = new ArrayList<>();
-            for (JsonNode p : i.get("property")) propList.add(p.asText());
+            for (JsonNode p : i.get("property")) propList.add(p.asString(""));
             props.put("tags", propList);
         }
-        if (i.has("dmg2")) props.put("versatile_damage", i.path("dmg2").asText());
-        if (i.has("range")) props.put("range", i.path("range").asText());
-        if (i.has("ac")) props.put("ac", i.path("ac").asInt());
-        if (i.has("strength")) props.put("strength_requirement", i.path("strength").asText());
+        if (i.has("dmg2")) props.put("versatile_damage", i.path("dmg2").asString(""));
+        if (i.has("range")) props.put("range", i.path("range").asString(""));
+        if (i.has("ac")) props.put("ac", i.path("ac").asInt(0));
+        // A null strength was stored as the text "null" under Jackson 2, whose asText() gave that; kept, so the
+        // stored items don't change (Vanrak's Mithral Shirt)
+        if (i.has("strength")) props.put("strength_requirement",
+                i.path("strength").isNull() ? "null" : i.path("strength").asString(""));
         if (i.has("stealth")) props.put("stealth_disadvantage", true);
         return props.isEmpty() ? null : objectMapper.writeValueAsString(props);
     }
@@ -166,21 +169,21 @@ public class ItemLoader implements ContentLoader {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (sb.length() > 0) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
-                String type = entry.path("type").asText("");
+                String type = entry.path("type").asString("");
                 if ("entries".equals(type) && entry.has("entries")) {
                     if (sb.length() > 0) sb.append("\n");
-                    String name = entry.path("name").asText("");
+                    String name = entry.path("name").asString("");
                     if (!name.isEmpty()) sb.append(name).append(". ");
                     sb.append(flattenEntries(entry.get("entries")));
                 } else if ("list".equals(type) && entry.has("items")) {
                     for (JsonNode item : entry.get("items")) {
                         if (sb.length() > 0) sb.append("\n");
-                        if (item.isTextual()) {
-                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                        if (item.isString()) {
+                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                         }
                     }
                 } else if ("table".equals(type)) {
@@ -222,11 +225,11 @@ public class ItemLoader implements ContentLoader {
     private String inferTypeFromDescription(JsonNode i) {
         JsonNode entries = i.get("entries");
         if (entries == null || !entries.isArray() || entries.isEmpty()) return "";
-        String first = entries.get(0).isTextual() ? entries.get(0).asText().toLowerCase() : "";
+        String first = entries.get(0).isString() ? entries.get(0).asString("").toLowerCase() : "";
         if (first.matches(".*\\+\\d (?:dagger|shortsword|longsword|greatsword|rapier|scimitar|battleaxe|greataxe|warhammer|maul|morningstar|flail|glaive|halberd|pike|trident|whip|mace|quarterstaff|spear|handaxe).*")) {
             return "Weapon";
         }
-        String rarity = i.path("rarity").asText("");
+        String rarity = i.path("rarity").asString("");
         if (!rarity.isEmpty() && !"none".equals(rarity)) {
             return "Wondrous item";
         }

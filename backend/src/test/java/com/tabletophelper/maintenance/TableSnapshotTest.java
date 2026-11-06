@@ -1,7 +1,8 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TableSnapshotTest {
 
-    private final TableSnapshot snapshot = new TableSnapshot(new ObjectMapper());
+    private final TableSnapshot snapshot = new TableSnapshot(JacksonDefaults.mapper());
 
     private Map<String, Map<String, JsonNode>> tables(String table, Map<String, String> rows) {
         Map<String, JsonNode> parsed = new TreeMap<>();

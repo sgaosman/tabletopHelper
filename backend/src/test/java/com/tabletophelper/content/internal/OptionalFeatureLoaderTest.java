@@ -1,6 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.OptionalFeatureRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -27,9 +28,9 @@ class OptionalFeatureLoaderTest {
         when(repository.findAll()).thenReturn(List.of());
         when(repository.saveAll(anyIterable()))
                 .thenAnswer(invocation -> new ArrayList<>(invocation.<Collection<OptionalFeature>>getArgument(0)));
-        LoadContext context = new LoadContext(new ObjectMapper());
+        LoadContext context = new LoadContext(JacksonDefaults.mapper());
 
-        new OptionalFeatureLoader(repository, new ObjectMapper()).load(context);
+        new OptionalFeatureLoader(repository, JacksonDefaults.mapper()).load(context);
 
         ArgumentCaptor<Collection<OptionalFeature>> saved = ArgumentCaptor.forClass(Collection.class);
         verify(repository).saveAll(saved.capture());

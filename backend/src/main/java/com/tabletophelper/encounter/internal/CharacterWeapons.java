@@ -1,7 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
@@ -212,7 +212,7 @@ class CharacterWeapons {
         Set<String> tags = new HashSet<>();
         for (JsonNode tag : StoredJson.read(objectMapper, item.getProperties(), item.getName() + "'s properties")
                 .path("tags")) {
-            String text = tag.asText("");
+            String text = tag.asString("");
             tags.add((text.contains("|") ? text.substring(0, text.indexOf('|')) : text).trim().toUpperCase(Locale.ROOT));
         }
         return tags;

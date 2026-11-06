@@ -1,6 +1,7 @@
 package com.tabletophelper.rules.character;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.content.internal.ClassTablesFile;
 import com.tabletophelper.rules.character.ClassTables.Preparing;
 import com.tabletophelper.rules.character.ClassTables.Spellcasting;
@@ -171,6 +172,6 @@ class ClassTablesFileTest {
     }
 
     private static ClassTables read(String json) {
-        return ClassTablesFile.read(new ObjectMapper(), new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)));
+        return ClassTablesFile.read(JacksonDefaults.mapper(), new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)));
     }
 }

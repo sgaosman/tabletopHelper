@@ -1,7 +1,8 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.Effect;
@@ -42,7 +43,7 @@ class MonsterActionDataTest {
     @BeforeAll
     static void readTheData() throws IOException {
         try (InputStream in = new ClassPathResource(FILE).getInputStream()) {
-            definitions = new ObjectMapper().readTree(in);
+            definitions = JacksonDefaults.mapper().readTree(in);
         }
     }
 
@@ -66,20 +67,20 @@ class MonsterActionDataTest {
         for (JsonNode definition : definitions) {
             for (String list : LISTS) {
                 for (JsonNode action : definition.path(list)) {
-                    if (!"ATTACK_ROLL".equals(action.path("deliveryMethod").asText())) {
+                    if (!"ATTACK_ROLL".equals(action.path("deliveryMethod").asString())) {
                         continue;
                     }
                     for (JsonNode effect : action.path("effects")) {
-                        if (!"CONDITION".equalsIgnoreCase(effect.path("effectType").asText())) {
+                        if (!"CONDITION".equalsIgnoreCase(effect.path("effectType").asString())) {
                             continue;
                         }
                         boolean ownDc = effect.path("saveDC").isNumber();
-                        boolean ownAbility = effect.path("saveAbility").isTextual();
+                        boolean ownAbility = effect.path("saveAbility").isString();
                         boolean actionDcWithoutAbility = action.path("saveDC").isNumber()
-                                && !action.path("saveAbility").isTextual() && !ownDc && !ownAbility;
+                                && !action.path("saveAbility").isString() && !ownDc && !ownAbility;
                         if (ownDc && !ownAbility || actionDcWithoutAbility) {
-                            found.add(name(definition) + " " + action.path("name").asText() + " "
-                                    + effect.path("condition").asText());
+                            found.add(name(definition) + " " + action.path("name").asString() + " "
+                                    + effect.path("condition").asString());
                         }
                     }
                 }
@@ -98,11 +99,11 @@ class MonsterActionDataTest {
         assertFalse(bite.has("saveDC") || bite.has("saveAbility") || bite.has("secondarySaveDC")
                 || bite.has("secondarySaveAbility") || bite.has("targetType") || bite.has("aoeSize"), bite::toString);
         assertEquals(1, bite.path("effects").size());
-        assertEquals("DAMAGE", bite.path("effects").get(0).path("effectType").asText());
-        assertEquals(piercing, bite.path("effects").get(0).path("damageDice").asText());
-        assertEquals("piercing", bite.path("effects").get(0).path("damageType").asText());
-        assertTrue(bite.path("dmNote").asText().startsWith("Swallowing is applied by hand. On a hit, "));
-        assertTrue(bite.path("dmNote").asText().contains("Constitution saving throw"));
+        assertEquals("DAMAGE", bite.path("effects").get(0).path("effectType").asString());
+        assertEquals(piercing, bite.path("effects").get(0).path("damageDice").asString());
+        assertEquals("piercing", bite.path("effects").get(0).path("damageType").asString());
+        assertTrue(bite.path("dmNote").asString().startsWith("Swallowing is applied by hand. On a hit, "));
+        assertTrue(bite.path("dmNote").asString().contains("Constitution saving throw"));
 
         MonsterTemplates templates = MonsterTemplates.of(definition(monster, source));
         MonsterEffects.MonsterAction plan = monsterEffects.plan(templates.find("ACTION", "Bite").orElseThrow(),
@@ -111,7 +112,7 @@ class MonsterActionDataTest {
         Effect.Attack attack = assertInstanceOf(Effect.Attack.class, effect.delivery());
         assertNull(attack.hitSave());
         assertEquals(List.of(), effect.conditions());
-        assertEquals(List.of(bite.path("dmNote").asText()), plan.notes());
+        assertEquals(List.of(bite.path("dmNote").asString()), plan.notes());
     }
 
     @ParameterizedTest(name = "{0}")
@@ -132,7 +133,7 @@ class MonsterActionDataTest {
 
     private static JsonNode action(String monster, String source, String name) {
         for (JsonNode action : definition(monster, source).path("actions")) {
-            if (name.equals(action.path("name").asText())) {
+            if (name.equals(action.path("name").asString())) {
                 return action;
             }
         }
@@ -141,8 +142,8 @@ class MonsterActionDataTest {
 
     private static JsonNode definition(String monster, String source) {
         for (JsonNode definition : definitions) {
-            if (monster.equals(definition.path("monsterName").asText())
-                    && source.equals(definition.path("source").asText())) {
+            if (monster.equals(definition.path("monsterName").asString())
+                    && source.equals(definition.path("source").asString())) {
                 return definition;
             }
         }
@@ -150,6 +151,6 @@ class MonsterActionDataTest {
     }
 
     private static String name(JsonNode definition) {
-        return definition.path("monsterName").asText() + " (" + definition.path("source").asText() + ")";
+        return definition.path("monsterName").asString() + " (" + definition.path("source").asString() + ")";
     }
 }

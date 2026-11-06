@@ -1,7 +1,7 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.monster.MonsterTemplates;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.SpellSlot;
@@ -68,9 +68,9 @@ class SpellcastingIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID character = createCharacter(player.accessToken(), insertRace("Tiefling"), insertClass("Warlock", 8));
         encounterId = createEncounter(dm.accessToken(), campaignId);
         spell("Hellish Rebuke", 1, HELLISH_REBUKE);
@@ -134,11 +134,11 @@ class SpellcastingIT extends IntegrationTest {
         var again = castSpell(hagId, Map.of("spellName", "Thunderwave", "slotLevel", 0, "targetIds", List.of(ariaId)),
                 dm.accessToken());
 
-        assertThat(cast.get("spellSource").asText()).isEqualTo("INNATE");
+        assertThat(cast.get("spellSource").asString()).isEqualTo("INNATE");
         assertThat(cast.get("slotLevelUsed").asInt()).isEqualTo(1);
         assertThat(participant(cast.get("encounterState"), ariaId).get("hpCurrent").asInt()).isEqualTo(32);
         assertThat(again.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(again).get("error").asText()).isEqualTo("Night Hag has no uses of Thunderwave left");
+        assertThat(json(again).get("error").asString()).isEqualTo("Night Hag has no uses of Thunderwave left");
         assertThat(pool(participant(dmView(), hagId), "innate:thunderwave").get("currentUses").asInt()).isZero();
         assertThat(descriptions(dmLog())).contains("Night Hag uses an innate use of Thunderwave (0/1 remaining)");
         // The old monster-spell endpoint is gone
@@ -155,9 +155,9 @@ class SpellcastingIT extends IntegrationTest {
         JsonNode cast = expect(HttpStatus.OK, castSpell(ariaId, Map.of("spellName", "Hellish Rebuke",
                 "spellSource", "PACT_SLOT", "slotLevel", 0, "targetIds", List.of(hagId)), player.accessToken()));
 
-        assertThat(cast.get("spellSource").asText()).isEqualTo("PACT_SLOT");
+        assertThat(cast.get("spellSource").asString()).isEqualTo("PACT_SLOT");
         assertThat(cast.get("slotLevelUsed").asInt()).isEqualTo(2);
-        assertThat(cast.get("resultSummary").asText()).startsWith("Aria casts Hellish Rebuke at level 2.");
+        assertThat(cast.get("resultSummary").asString()).startsWith("Aria casts Hellish Rebuke at level 2.");
         JsonNode state = dmView();
         assertThat(participant(state, hagId).get("hpCurrent").asInt()).isEqualTo(97);
         assertThat(participant(state, ariaId).get("spellSlotsCurrent").get("pact_2").get("used").asInt()).isEqualTo(1);
@@ -175,19 +175,19 @@ class SpellcastingIT extends IntegrationTest {
                 "slotLevel", 2, "targetIds", List.of(hagId)), player.accessToken());
 
         assertThat(unknown.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(unknown).get("error").asText()).isEqualTo("Aria can't cast Fireball: it isn't one of their spells");
+        assertThat(json(unknown).get("error").asString()).isEqualTo("Aria can't cast Fireball: it isn't one of their spells");
         assertThat(free.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(free).get("error").asText())
+        assertThat(json(free).get("error").asString())
                 .isEqualTo("Hellish Rebuke is a level 1 spell, so it needs a spell slot, a pact slot or an innate use");
         assertThat(wrongSource.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(wrongSource).get("error").asText()).isEqualTo("Hellish Rebuke can't be cast with a spell slot");
+        assertThat(json(wrongSource).get("error").asString()).isEqualTo("Hellish Rebuke can't be cast with a spell slot");
         assertThat(participant(dmView(), ariaId).get("spellSlotsCurrent").get("pact_2").get("used").asInt()).isZero();
         assertThat(participant(dmView(), hagId).get("hpCurrent").asInt()).isEqualTo(112);
 
         // The player reads their own options, and not a monster's
         JsonNode options = expect(HttpStatus.OK, spellOptions(ariaId, player.accessToken()));
-        assertThat(options.get(0).get("name").asText()).isEqualTo("Hellish Rebuke");
-        assertThat(options.get(0).get("sources").get(0).get("source").asText()).isEqualTo("PACT_SLOT");
+        assertThat(options.get(0).get("name").asString()).isEqualTo("Hellish Rebuke");
+        assertThat(options.get(0).get("sources").get(0).get("source").asString()).isEqualTo("PACT_SLOT");
         assertThat(spellOptions(hagId, player.accessToken()).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
@@ -208,7 +208,7 @@ class SpellcastingIT extends IntegrationTest {
         assertThat(expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId, null,
                 player.accessToken())).get("allowPlayerManualModifiers").asBoolean()).isFalse();
         assertThat(byPlayer.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(json(byPlayer).get("error").asText())
+        assertThat(json(byPlayer).get("error").asString())
                 .isEqualTo("This campaign doesn't allow players to enter Manual Modifiers");
         assertThat(participant(dmView(), hagId).get("hpCurrent").asInt()).isEqualTo(97);
         assertThat(descriptions(dmLog())).contains("Manual Modifier (DM): Aria's Hellish Rebuke uses spell save DC 20 "
@@ -281,8 +281,8 @@ class SpellcastingIT extends IntegrationTest {
 
     private static String idOf(JsonNode encounter, String displayName) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(displayName + " is not in the encounter");
@@ -290,7 +290,7 @@ class SpellcastingIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }
@@ -299,22 +299,22 @@ class SpellcastingIT extends IntegrationTest {
 
     private static JsonNode pool(JsonNode participant, String poolId) {
         for (JsonNode pool : participant.get("resourcePoolsCurrent")) {
-            if (pool.get("poolId").asText().equals(poolId)) {
+            if (pool.get("poolId").asString().equals(poolId)) {
                 return pool;
             }
         }
-        throw new AssertionError(participant.get("displayName").asText() + " has no " + poolId + " pool");
+        throw new AssertionError(participant.get("displayName").asString() + " has no " + poolId + " pool");
     }
 
     private static List<String> poolIds(JsonNode participant) {
         List<String> ids = new ArrayList<>();
-        participant.get("resourcePoolsCurrent").forEach(pool -> ids.add(pool.get("poolId").asText()));
+        participant.get("resourcePoolsCurrent").forEach(pool -> ids.add(pool.get("poolId").asString()));
         return ids;
     }
 
     private static List<String> descriptions(JsonNode log) {
         List<String> descriptions = new ArrayList<>();
-        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        log.forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 }

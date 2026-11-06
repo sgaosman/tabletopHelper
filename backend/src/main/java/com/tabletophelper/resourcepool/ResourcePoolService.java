@@ -9,9 +9,9 @@ import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.ClassFeaturePool;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.ResourcePoolDefinition;
@@ -63,9 +63,8 @@ public class ResourcePoolService {
             String checkExpression
     ) {}
 
-    private static final ObjectMapper JSON = new ObjectMapper();
-
     private final ClassFeaturePoolRepository classFeaturePoolRepository;
+    private final ObjectMapper objectMapper;
 
     // ── Character sheet ──────────────────────────────────────────
 
@@ -305,7 +304,7 @@ public class ResourcePoolService {
 
     // The entry for a definition, with its level table's row, if one applies, in place of the definition's own rest,
     // die and limit
-    private static ResourcePoolEntry buildEntry(ResourcePoolDefinition def, PoolLevelTable.Row row, String formula,
+    private ResourcePoolEntry buildEntry(ResourcePoolDefinition def, PoolLevelTable.Row row, String formula,
                                                 int maxUses, int currentUses) {
         Map<String, Object> metadata = definitionMetadata(def);
         String resetOn = def.getResetOn();
@@ -332,11 +331,11 @@ public class ResourcePoolService {
     }
 
     // The definition's metadata as a map to add to, empty without any
-    private static Map<String, Object> definitionMetadata(ResourcePoolDefinition def) {
+    private Map<String, Object> definitionMetadata(ResourcePoolDefinition def) {
         if (def.getMetadata() == null || def.getMetadata().isBlank()) return new LinkedHashMap<>();
         try {
-            return new LinkedHashMap<>(JSON.readValue(def.getMetadata(), new TypeReference<Map<String, Object>>() {}));
-        } catch (JsonProcessingException e) {
+            return new LinkedHashMap<>(objectMapper.readValue(def.getMetadata(), new TypeReference<Map<String, Object>>() {}));
+        } catch (JacksonException e) {
             throw new IllegalStateException("The " + def.getPoolId() + " pool's metadata isn't a JSON object", e);
         }
     }

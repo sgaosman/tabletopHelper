@@ -2,6 +2,7 @@ package com.tabletophelper.config;
 
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.SpellTemplate;
+import tools.jackson.databind.JsonNode;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
@@ -34,6 +35,20 @@ public class OpenApiConfig {
         schema.additionalProperties(true);
         schema.description(description);
         return schema;
+    }
+
+    /**
+     * The quick reference answers with a JsonNode, any JSON. The OpenAPI library knows only Jackson 2's JsonNode as
+     * an open object and would describe Jackson 3's by its getters, so its schema is set back to an open object.
+     */
+    @Bean
+    OpenApiCustomizer jsonNodeIsAnyObject() {
+        return openApi -> {
+            if (openApi.getComponents() != null && openApi.getComponents().getSchemas() != null) {
+                openApi.getComponents().getSchemas().computeIfPresent(JsonNode.class.getSimpleName(),
+                        (name, schema) -> new ObjectSchema());
+            }
+        };
     }
 
     /** A relative server URL, so the spec doesn't depend on the host or port that served it. */

@@ -1,5 +1,7 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.character.TestClassTables;
 import com.tabletophelper.character.state.LevelChoices;
@@ -21,13 +23,15 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class LevelUpCalculatorTest {
 
+    private static final ObjectMapper MAPPER = JacksonDefaults.mapper();
+
     private static final ClassTables TABLES = TestClassTables.load();
 
     @Test
     @DisplayName("Build single-class progression: the die's maximum at level 1 and its fixed average after")
     void singleClassProgressionHitDieResults() {
         UUID classId = UUID.randomUUID();
-        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(TABLES, 
+        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(MAPPER, TABLES, 
                 5, classId, "Fighter", 10,
                 null, null, null, 99
         );
@@ -45,9 +49,9 @@ class LevelUpCalculatorTest {
     @Test
     @DisplayName("Hit Die Results with a d6 and a d12: 6 then 4, and 12 then 7")
     void d6AndD12HitDieResults() {
-        List<LevelUpCalculator.LevelGain> wizard = LevelUpCalculator.buildProgression(TABLES, 
+        List<LevelUpCalculator.LevelGain> wizard = LevelUpCalculator.buildProgression(MAPPER, TABLES, 
                 2, UUID.randomUUID(), "Wizard", 6, null, null, null, 2);
-        List<LevelUpCalculator.LevelGain> barbarian = LevelUpCalculator.buildProgression(TABLES, 
+        List<LevelUpCalculator.LevelGain> barbarian = LevelUpCalculator.buildProgression(MAPPER, TABLES, 
                 2, UUID.randomUUID(), "Barbarian", 12, null, null, null, 3);
 
         assertEquals(List.of(6, 4), wizard.stream().map(LevelUpCalculator.LevelGain::hitDieResult).toList());
@@ -59,7 +63,7 @@ class LevelUpCalculatorTest {
     @DisplayName("collectFeaturesForLevel parses class features JSON")
     void collectFeaturesForLevel() {
         String classFeatures = "[{\"name\":\"Second Wind\",\"description\":\"Heal\",\"level\":1},{\"name\":\"Action Surge\",\"description\":\"Extra action\",\"level\":2}]";
-        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(MAPPER,
                 classFeatures, null, 1, "Fighter", null);
         assertEquals(1, features.size());
         assertEquals("Second Wind", features.get(0).name());
@@ -70,7 +74,7 @@ class LevelUpCalculatorTest {
     @DisplayName("collectFeaturesForLevel includes subclass features")
     void collectSubclassFeatures() {
         String subFeatures = "[{\"name\":\"War Magic\",\"description\":\"Bonus to init\",\"level\":2}]";
-        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(MAPPER,
                 null, subFeatures, 2, "Wizard", "War Magic");
         assertEquals(1, features.size());
         assertEquals("War Magic", features.get(0).name());
@@ -80,7 +84,7 @@ class LevelUpCalculatorTest {
     @Test
     @DisplayName("collectFeaturesForLevel handles null JSON gracefully")
     void collectFeaturesNullJson() {
-        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(MAPPER,
                 null, null, 1, "Fighter", null);
         assertTrue(features.isEmpty());
     }
@@ -89,7 +93,7 @@ class LevelUpCalculatorTest {
     @DisplayName("Class features that can't be read are a 409, not a level without them (D155)")
     void unreadableFeaturesAreConflict() {
         ConflictException e = assertThrows(ConflictException.class, () -> LevelUpCalculator.collectFeaturesForLevel(
-                "{not json", null, 1, "Fighter", null));
+                MAPPER, "{not json", null, 1, "Fighter", null));
         assertEquals("The features of the class Fighter can't be read", e.getMessage());
     }
 
@@ -107,7 +111,7 @@ class LevelUpCalculatorTest {
         );
 
         List<LevelUpCalculator.LevelGain> progression =
-                LevelUpCalculator.buildMulticlassProgression(TABLES, classInputs);
+                LevelUpCalculator.buildMulticlassProgression(MAPPER, TABLES, classInputs);
         assertEquals(4, progression.size());
 
         // Fighter level 1 (character level 1): the d10's maximum
@@ -130,7 +134,7 @@ class LevelUpCalculatorTest {
     void collectFeaturesFiltersByLevel() {
         String classFeatures = "[{\"name\":\"Extra Attack\",\"description\":\"Two attacks\",\"level\":5},"
                 + "{\"name\":\"Indomitable\",\"description\":\"Reroll save\",\"level\":9}]";
-        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(MAPPER,
                 classFeatures, null, 3, "Fighter", null);
         assertTrue(features.isEmpty(), "Level 3 should have no features from level 5 or 9");
     }
@@ -140,7 +144,7 @@ class LevelUpCalculatorTest {
     void collectClassAndSubclassFeaturesAtSameLevel() {
         String classFeatures = "[{\"name\":\"Channel Divinity\",\"description\":\"Use channel divinity\",\"level\":2}]";
         String subclassFeatures = "[{\"name\":\"Preserve Life\",\"description\":\"Restore HP\",\"level\":2}]";
-        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+        List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(MAPPER,
                 classFeatures, subclassFeatures, 2, "Cleric", "Life Domain");
         assertEquals(2, features.size());
 
@@ -159,7 +163,7 @@ class LevelUpCalculatorTest {
     @DisplayName("buildProgression total levels matches input")
     void buildProgressionTotalLevelsMatchInput() {
         UUID classId = UUID.randomUUID();
-        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(TABLES, 
+        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(MAPPER, TABLES, 
                 5, classId, "Fighter", 10,
                 null, null, null, 99);
         assertEquals(5, progression.size());
@@ -175,8 +179,8 @@ class LevelUpCalculatorTest {
     @DisplayName("levelHistory records each level's Hit Die Result with no choices, its hit points to be filled in")
     void levelHistoryRecordsHitDieResults() {
         UUID classId = UUID.randomUUID();
-        List<LevelHistoryEntry> history = LevelUpCalculator.levelHistory(LevelUpCalculator.buildProgression(TABLES, 
-                2, classId, "Fighter", 10, null, null, null, 3));
+        List<LevelHistoryEntry> history = LevelUpCalculator.levelHistory(LevelUpCalculator.buildProgression(MAPPER,
+                TABLES, 2, classId, "Fighter", 10, null, null, null, 3));
 
         assertEquals(List.of(10, 6), history.stream().map(LevelHistoryEntry::hitDieResult).toList());
         assertEquals(List.of(0, 0), history.stream().map(LevelHistoryEntry::hpGained).toList());

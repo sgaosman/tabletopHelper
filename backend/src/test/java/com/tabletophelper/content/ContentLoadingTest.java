@@ -1,6 +1,7 @@
 package com.tabletophelper.content;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.content.internal.ContentLoader;
 import com.tabletophelper.content.internal.ContentVersion;
 import com.tabletophelper.content.internal.ContentVersionRepository;
@@ -76,7 +77,7 @@ class ContentLoadingTest {
                 body.accept(context);
             }));
         }
-        return new ContentLoading(loaders, versions, mock(EntityManager.class), new ObjectMapper(),
+        return new ContentLoading(loaders, versions, mock(EntityManager.class), JacksonDefaults.mapper(),
                 transactionManager, failOnError);
     }
 

@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -35,7 +35,7 @@ class EncounterLifecycleIT extends IntegrationTest {
     @BeforeEach
     void setUpEncounter() {
         dm = register("dungeonmaster");
-        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asText());
+        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asString());
         encounterId = createEncounter(dm.accessToken(), campaignId);
         Monster goblin = monsterRepository.save(Monster.builder()
                 .name("Goblin").type("Humanoid").challengeRating("1/4").source("MM")
@@ -43,7 +43,7 @@ class EncounterLifecycleIT extends IntegrationTest {
                 .build());
         JsonNode state = addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", goblin.getId(), "displayName", "Goblin"));
-        goblinId = state.get("participants").get(0).get("id").asText();
+        goblinId = state.get("participants").get(0).get("id").asString();
     }
 
     @Test
@@ -74,7 +74,7 @@ class EncounterLifecycleIT extends IntegrationTest {
     void completedEncounterIsFinal() {
         startEncounter(dm.accessToken(), encounterId);
         expect(HttpStatus.OK, command("pause"));
-        assertThat(expect(HttpStatus.OK, command("end")).get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(expect(HttpStatus.OK, command("end")).get("status").asString()).isEqualTo("COMPLETED");
 
         var damage = combat("damage", Map.of("targetId", goblinId, "amount", 3));
         var resume = command("resume");
@@ -86,7 +86,7 @@ class EncounterLifecycleIT extends IntegrationTest {
         assertThat(error(resume)).isEqualTo("Cannot resume an encounter that is completed");
         assertThat(endAgain.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(error(endAgain)).isEqualTo("The encounter is already completed");
-        assertThat(encounter().get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(encounter().get("status").asString()).isEqualTo("COMPLETED");
         assertThat(goblin(encounter()).get("hpCurrent").asInt()).isEqualTo(7);
     }
 
@@ -103,10 +103,10 @@ class EncounterLifecycleIT extends IntegrationTest {
         assertThat(error(resume)).isEqualTo("Cannot resume an encounter that is still being prepared");
         assertThat(end.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(error(end)).isEqualTo("Cannot complete an encounter that is still being prepared");
-        assertThat(encounter().get("status").asText()).isEqualTo("PREPARING");
+        assertThat(encounter().get("status").asString()).isEqualTo("PREPARING");
         assertThat(encounter().get("sessionCode").isNull()).isTrue();
 
-        String sessionCode = startEncounter(dm.accessToken(), encounterId).get("sessionCode").asText();
+        String sessionCode = startEncounter(dm.accessToken(), encounterId).get("sessionCode").asString();
         var startAgain = command("start");
         var resumeActive = command("resume");
 
@@ -114,8 +114,8 @@ class EncounterLifecycleIT extends IntegrationTest {
         assertThat(error(startAgain)).isEqualTo("The encounter is already active");
         assertThat(resumeActive.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(error(resumeActive)).isEqualTo("The encounter is already active");
-        assertThat(encounter().get("status").asText()).isEqualTo("ACTIVE");
-        assertThat(encounter().get("sessionCode").asText()).isEqualTo(sessionCode);
+        assertThat(encounter().get("status").asString()).isEqualTo("ACTIVE");
+        assertThat(encounter().get("sessionCode").asString()).isEqualTo(sessionCode);
     }
 
     // ── Helpers ──────────────────────────────────────────────────
@@ -136,7 +136,7 @@ class EncounterLifecycleIT extends IntegrationTest {
 
     private JsonNode goblin(JsonNode encounter) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(goblinId)) {
+            if (participant.get("id").asString().equals(goblinId)) {
                 return participant;
             }
         }
@@ -144,6 +144,6 @@ class EncounterLifecycleIT extends IntegrationTest {
     }
 
     private String error(ResponseEntity<String> response) {
-        return json(response).get("error").asText();
+        return json(response).get("error").asString();
     }
 }

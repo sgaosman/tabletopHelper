@@ -1,6 +1,7 @@
 package com.tabletophelper.character.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DerivedStats;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
@@ -61,7 +62,8 @@ class CharacterStatsTest {
     private final SubclassRepository subclassRepository = mock(SubclassRepository.class);
     private final ClassFeaturePoolRepository featurePools = mock(ClassFeaturePoolRepository.class);
     private final CharacterStats stats = new CharacterStats(classRepository, subclassRepository,
-            new ResourcePoolService(featurePools), new ObjectMapper(), TestClassTables.load());
+            new ResourcePoolService(featurePools, JacksonDefaults.mapper()), JacksonDefaults.mapper(),
+            TestClassTables.load());
 
     private final CharacterClass fighter = caster("Fighter", 10, null, false);
     private final CharacterClass wizard = caster("Wizard", 6, "INT", false);

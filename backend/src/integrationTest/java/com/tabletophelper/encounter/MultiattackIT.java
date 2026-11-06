@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -53,16 +53,16 @@ class MultiattackIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        UUID campaignId = UUID.fromString(campaign.get("id").asText());
+        UUID campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID race = insertRace("Human");
         UUID fighter = insertClass("Fighter", 10);
         UUID aria = createCharacter(player.accessToken(), race, fighter);
         UUID bram = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", Map.of(
                 "name", "Bram", "raceId", race, "classId", fighter,
                 "strength", 10, "dexterity", 10, "constitution", 10,
-                "intelligence", 10, "wisdom", 10, "charisma", 10), player.accessToken())).get("id").asText());
+                "intelligence", 10, "wisdom", 10, "charisma", 10), player.accessToken())).get("id").asString());
         encounterId = createEncounter(dm.accessToken(), campaignId);
 
         Monster owlbear = monsterRepository.save(Monster.builder().name("Owlbear").type("Monstrosity")
@@ -107,7 +107,7 @@ class MultiattackIT extends IntegrationTest {
         JsonNode state = dmView();
         assertThat(participant(state, ariaId).get("hpCurrent").asInt()).isEqualTo(31);
         assertThat(participant(state, bramId).get("hpCurrent").asInt()).isZero();
-        assertThat(participant(state, bramId).get("lifeState").asText()).isEqualTo("DYING");
+        assertThat(participant(state, bramId).get("lifeState").asString()).isEqualTo("DYING");
         assertThat(descriptions(dmLog())).containsSubsequence(
                 "Owlbear uses Multiattack.",
                 "Owlbear uses Multiattack (Beak) on Aria: d20(10) + 7 = 17 vs AC 12 — hit, 9 piercing damage.",
@@ -131,10 +131,10 @@ class MultiattackIT extends IntegrationTest {
 
         assertThat(participant(dmView(), ariaId).get("hpCurrent").asInt()).isEqualTo(33);
         assertThat(bothTargets.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(bothTargets).get("error").asText())
+        assertThat(json(bothTargets).get("error").asString())
                 .isEqualTo("Multiattack makes its attacks one target at a time: choose a target for each attack");
         assertThat(tooMany.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(tooMany).get("error").asText()).isEqualTo("Beak can target 1 creature, but 2 were chosen");
+        assertThat(json(tooMany).get("error").asString()).isEqualTo("Beak can target 1 creature, but 2 were chosen");
         assertThat(multiattackOptions(player.accessToken()).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
@@ -173,8 +173,8 @@ class MultiattackIT extends IntegrationTest {
 
     private static String idOf(JsonNode encounter, String displayName) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(displayName + " is not in the encounter");
@@ -182,7 +182,7 @@ class MultiattackIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }
@@ -191,7 +191,7 @@ class MultiattackIT extends IntegrationTest {
 
     private static List<String> descriptions(JsonNode log) {
         List<String> descriptions = new ArrayList<>();
-        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        log.forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 }

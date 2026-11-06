@@ -1,7 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import lombok.RequiredArgsConstructor;
@@ -67,7 +67,7 @@ public class SpellLoader implements ContentLoader {
                     context.skip("_copy spells");
                     continue;
                 }
-                String key = s.path("name").asText() + "|" + s.path("source").asText();
+                String key = s.path("name").asString("") + "|" + s.path("source").asString("");
                 if (!seen.add(key)) {
                     context.skip("spells repeated in another file");
                     continue;
@@ -103,13 +103,13 @@ public class SpellLoader implements ContentLoader {
                 JsonNode classArray = spellData.get("class");
                 if (classArray != null && classArray.isArray()) {
                     for (JsonNode c : classArray) {
-                        classes.add(c.path("name").asText());
+                        classes.add(c.path("name").asString(""));
                     }
                 }
                 JsonNode classVariantArray = spellData.get("classVariant");
                 if (classVariantArray != null && classVariantArray.isArray()) {
                     for (JsonNode c : classVariantArray) {
-                        classes.add(c.path("name").asText());
+                        classes.add(c.path("name").asString(""));
                     }
                 }
             }
@@ -126,7 +126,7 @@ public class SpellLoader implements ContentLoader {
             String className = null;
             JsonNode classArray = root.get("class");
             if (classArray != null && classArray.isArray() && classArray.size() > 0) {
-                className = classArray.get(0).path("name").asText(null);
+                className = classArray.get(0).path("name").asString(null);
             }
             if (className == null) continue;
 
@@ -134,7 +134,7 @@ public class SpellLoader implements ContentLoader {
             if (subclasses == null || !subclasses.isArray()) continue;
 
             for (JsonNode sc : subclasses) {
-                String subclassName = sc.path("name").asText(null);
+                String subclassName = sc.path("name").asString(null);
                 if (subclassName == null) continue;
 
                 JsonNode additionalSpells = sc.get("additionalSpells");
@@ -158,8 +158,8 @@ public class SpellLoader implements ContentLoader {
         if (node == null) return;
         if (node.isArray()) {
             for (JsonNode spellNode : node) {
-                if (!spellNode.isTextual()) continue;
-                String spellName = spellNode.asText().replace("#c", "");
+                if (!spellNode.isString()) continue;
+                String spellName = spellNode.asString("").replace("#c", "");
                 for (Map.Entry<String, Set<String>> entry : target.entrySet()) {
                     if (entry.getKey().toLowerCase().startsWith(spellName.toLowerCase() + "|")) {
                         entry.getValue().add(label);
@@ -176,10 +176,10 @@ public class SpellLoader implements ContentLoader {
     }
 
     private Spell parseSpell(JsonNode s, Map<String, Set<String>> classMap) throws Exception {
-        String schoolCode = s.path("school").asText("");
+        String schoolCode = s.path("school").asString("");
         String school = SCHOOL_MAP.getOrDefault(schoolCode, schoolCode);
-        String spellName = s.path("name").asText();
-        String source = s.path("source").asText(null);
+        String spellName = s.path("name").asString("");
+        String source = s.path("source").asString(null);
 
         Set<String> spellClasses = new LinkedHashSet<>();
         String key = spellName + "|" + source;
@@ -219,11 +219,11 @@ public class SpellLoader implements ContentLoader {
         if (timeNode == null || !timeNode.isArray() || timeNode.isEmpty()) return null;
         JsonNode first = timeNode.get(0);
         int number = first.path("number").asInt(1);
-        String unit = first.path("unit").asText("action");
+        String unit = first.path("unit").asString("action");
         if (number == 1 && "action".equals(unit)) return "1 action";
         if (number == 1 && "bonus".equals(unit)) return "1 bonus action";
         if (number == 1 && "reaction".equals(unit)) {
-            String condition = first.path("condition").asText("");
+            String condition = first.path("condition").asString("");
             return "1 reaction" + (condition.isEmpty() ? "" : ", " + FiveEToolsMarkupParser.parse(condition));
         }
         return number + " " + unit + (number > 1 ? "s" : "");
@@ -231,16 +231,16 @@ public class SpellLoader implements ContentLoader {
 
     private String parseRange(JsonNode rangeNode) {
         if (rangeNode == null) return null;
-        String type = rangeNode.path("type").asText("");
+        String type = rangeNode.path("type").asString("");
         JsonNode distance = rangeNode.get("distance");
 
         if ("special".equals(type)) return "Special";
         if (distance == null) return type;
 
-        String distType = distance.path("type").asText("");
+        String distType = distance.path("type").asString("");
         if ("self".equals(distType)) {
             if (rangeNode.has("distance") && distance.has("amount")) {
-                return "Self (" + distance.path("amount").asInt() + "-foot " + type + ")";
+                return "Self (" + distance.path("amount").asInt(0) + "-foot " + type + ")";
             }
             return "Self";
         }
@@ -259,10 +259,10 @@ public class SpellLoader implements ContentLoader {
         result.put("somatic", compNode.path("s").asBoolean(false));
         JsonNode material = compNode.get("m");
         if (material != null) {
-            if (material.isTextual()) {
-                result.put("material", material.asText());
+            if (material.isString()) {
+                result.put("material", material.asString(""));
             } else if (material.isObject()) {
-                result.put("material", material.path("text").asText(""));
+                result.put("material", material.path("text").asString(""));
             } else {
                 result.put("material", true);
             }
@@ -273,7 +273,7 @@ public class SpellLoader implements ContentLoader {
     private String parseDuration(JsonNode durNode) {
         if (durNode == null || !durNode.isArray() || durNode.isEmpty()) return null;
         JsonNode first = durNode.get(0);
-        String type = first.path("type").asText("");
+        String type = first.path("type").asString("");
 
         return switch (type) {
             case "instant" -> "Instantaneous";
@@ -281,7 +281,7 @@ public class SpellLoader implements ContentLoader {
             case "special" -> "Special";
             case "timed" -> {
                 int amount = first.path("duration").path("amount").asInt(0);
-                String unit = first.path("duration").path("type").asText("");
+                String unit = first.path("duration").path("type").asString("");
                 boolean concentration = first.path("concentration").asBoolean(false);
                 String prefix = concentration ? "Concentration, up to " : "";
                 yield prefix + amount + " " + unit + (amount > 1 ? "s" : "");
@@ -297,33 +297,33 @@ public class SpellLoader implements ContentLoader {
 
     private String parseDamageType(JsonNode dmgNode) {
         if (dmgNode == null || !dmgNode.isArray() || dmgNode.isEmpty()) return null;
-        return dmgNode.get(0).asText(null);
+        return dmgNode.get(0).asString(null);
     }
 
     private String parseSaveAbility(JsonNode saveNode) {
         if (saveNode == null || !saveNode.isArray() || saveNode.isEmpty()) return null;
-        return saveNode.get(0).asText(null);
+        return saveNode.get(0).asString(null);
     }
 
     private String flattenEntries(JsonNode entries) {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (sb.length() > 0) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
-                String type = entry.path("type").asText("");
+                String type = entry.path("type").asString("");
                 if ("entries".equals(type) && entry.has("entries")) {
                     if (sb.length() > 0) sb.append("\n");
-                    String name = entry.path("name").asText("");
+                    String name = entry.path("name").asString("");
                     if (!name.isEmpty()) sb.append(name).append(": ");
                     sb.append(flattenEntries(entry.get("entries")));
                 } else if ("list".equals(type) && entry.has("items")) {
                     for (JsonNode item : entry.get("items")) {
                         if (sb.length() > 0) sb.append("\n");
-                        if (item.isTextual()) {
-                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                        if (item.isString()) {
+                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                         }
                     }
                 } else if ("table".equals(type)) {

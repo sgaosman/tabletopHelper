@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -37,7 +38,7 @@ import static org.mockito.Mockito.when;
  */
 class MonsterPoolsTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonDefaults.mapper();
     private final MonsterPoolTriggerRepository triggerRepository = mock(MonsterPoolTriggerRepository.class);
     private final SpellRepository spellRepository = mock(SpellRepository.class);
     private final MonsterPools monsterPools = new MonsterPools(triggerRepository, spellRepository, objectMapper);

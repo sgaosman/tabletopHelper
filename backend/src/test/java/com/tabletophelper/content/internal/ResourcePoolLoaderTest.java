@@ -1,6 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
@@ -38,7 +39,7 @@ class ResourcePoolLoaderTest {
     @TempDir
     Path dir;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonDefaults.mapper();
     private final ResourcePoolDefinitionRepository definitions = mock(ResourcePoolDefinitionRepository.class);
     private final List<ResourcePoolDefinition> saved = new ArrayList<>();
 

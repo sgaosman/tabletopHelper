@@ -1,9 +1,9 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -215,7 +215,7 @@ public class ContentSnapshotJob implements MaintenanceJob {
         Map<String, List<Keyed>> byKey = new TreeMap<>();
         for (TableSnapshot.Row found : tableSnapshot.rows(connection, sql)) {
             byKey.computeIfAbsent(found.key(), k -> new ArrayList<>())
-                    .add(new Keyed(found.columns().path("id").asText(), found.columns().path("row")));
+                    .add(new Keyed(found.columns().path("id").asString(""), found.columns().path("row")));
         }
         Map<String, Keyed> rows = new TreeMap<>();
         byKey.forEach((key, sharing) -> {
@@ -284,12 +284,12 @@ public class ContentSnapshotJob implements MaintenanceJob {
         for (ReferenceTable table : TABLES) {
             Map<String, JsonNode> rows = new TreeMap<>();
             for (JsonNode line : lines(directory.resolve(table.table() + BY_ID))) {
-                rows.put(line.path("id").asText(), line.path("row"));
+                rows.put(line.path("id").asString(""), line.path("row"));
             }
             byId.put(table.table(), rows);
             Map<String, Keyed> keyed = new TreeMap<>();
             for (JsonNode line : lines(directory.resolve(table.table() + BY_KEY))) {
-                keyed.put(line.path("key").asText(), new Keyed(line.path("id").asText(), line.path("row")));
+                keyed.put(line.path("key").asString(""), new Keyed(line.path("id").asString(""), line.path("row")));
             }
             byKey.put(table.table(), keyed);
         }
@@ -309,7 +309,7 @@ public class ContentSnapshotJob implements MaintenanceJob {
                 }
             }
             return lines;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalArgumentException(file.toAbsolutePath() + " has a line that isn't JSON: "
                     + e.getOriginalMessage(), e);
         } catch (IOException e) {

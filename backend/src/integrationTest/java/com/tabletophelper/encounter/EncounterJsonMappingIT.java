@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
@@ -207,7 +207,7 @@ class EncounterJsonMappingIT extends IntegrationTest {
     @DisplayName("Combat changes the typed state in place, and the API returns it as JSON rather than strings")
     void combatChangesTypedStateThroughTheApi() {
         RegisteredUser dm = register("dungeonmaster");
-        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asText());
+        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asString());
         UUID encounterId = createEncounter(dm.accessToken(), campaignId);
         Monster mage = monsterRepository.save(Monster.builder()
                 .name("Mage").type("Humanoid").challengeRating("6").source("MM")
@@ -215,7 +215,7 @@ class EncounterJsonMappingIT extends IntegrationTest {
                 .build());
         String mageId = addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", mage.getId(), "displayName", "Mage"))
-                .get("participants").get(0).get("id").asText();
+                .get("participants").get(0).get("id").asString();
         EncounterParticipant participant = reload(UUID.fromString(mageId));
         participant.setSpellSlotsCurrent(Map.of("1", new SpellSlot(4, 0), "3", new SpellSlot(3, 1)));
         participantRepository.save(participant);
@@ -229,7 +229,7 @@ class EncounterJsonMappingIT extends IntegrationTest {
 
         JsonNode mageState = state.get("participants").get(0);
         assertThat(mageState.get("spellSlotsCurrent").get("3").get("used").asInt()).isEqualTo(2);
-        assertThat(mageState.get("activeConditions").get(0).get("name").asText()).isEqualTo("prone");
+        assertThat(mageState.get("activeConditions").get(0).get("name").asString()).isEqualTo("prone");
         assertThat(reload(UUID.fromString(mageId)).getSpellSlotsCurrent())
                 .isEqualTo(Map.of("1", new SpellSlot(4, 0), "3", new SpellSlot(3, 2)));
         assertThat(reload(UUID.fromString(mageId)).getActiveConditions())

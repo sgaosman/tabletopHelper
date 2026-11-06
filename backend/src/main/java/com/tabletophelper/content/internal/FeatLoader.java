@@ -1,9 +1,9 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatRepository;
 import lombok.RequiredArgsConstructor;
@@ -58,12 +58,12 @@ public class FeatLoader implements ContentLoader {
         JsonNode feats = LoadContext.array(context.read(FEATS_FILE), "feat", FEATS_FILE);
         List<Feat> batch = new ArrayList<>();
         for (JsonNode feat : feats) {
-            String name = feat.path("name").asText(null);
+            String name = feat.path("name").asString(null);
             if (name == null) {
                 context.skip("feats with no name");
                 continue;
             }
-            batch.add(LoadContext.reading(FEATS_FILE + ": feat " + name + "|" + feat.path("source").asText(""),
+            batch.add(LoadContext.reading(FEATS_FILE + ": feat " + name + "|" + feat.path("source").asString(""),
                     () -> parseFeat(name, feat, extraEffects)));
         }
         return batch;
@@ -72,7 +72,7 @@ public class FeatLoader implements ContentLoader {
     private Feat parseFeat(String name, JsonNode feat, JsonNode extraEffects) throws Exception {
         return Feat.builder()
                 .name(name)
-                .source(feat.path("source").asText(null))
+                .source(feat.path("source").asString(null))
                 .prerequisite(extractPrerequisite(feat))
                 .description(flattenEntries(feat.get("entries")))
                 .abilityScoreIncrease(extractAbilityScoreIncrease(feat))
@@ -102,7 +102,7 @@ public class FeatLoader implements ContentLoader {
                         if (value.isArray()) {
                             for (JsonNode ab : value) {
                                 ab.properties().forEach(e ->
-                                        abilities.add(titleCase(e.getKey()) + " " + e.getValue().asInt()));
+                                        abilities.add(titleCase(e.getKey()) + " " + e.getValue().asInt(0)));
                             }
                         }
                         normalized.set("ability", abilities);
@@ -111,8 +111,8 @@ public class FeatLoader implements ContentLoader {
                         ArrayNode races = objectMapper.createArrayNode();
                         if (value.isArray()) {
                             for (JsonNode race : value) {
-                                String raceName = race.path("name").asText("");
-                                String subrace = race.path("subrace").asText("");
+                                String raceName = race.path("name").asString("");
+                                String subrace = race.path("subrace").asString("");
                                 races.add(subrace.isEmpty() ? raceName : raceName + " (" + subrace + ")");
                             }
                         }
@@ -127,9 +127,9 @@ public class FeatLoader implements ContentLoader {
                         ArrayNode profs = objectMapper.createArrayNode();
                         if (value.isArray()) {
                             for (JsonNode prof : value) {
-                                if (prof.has("armor")) profs.add("Armor: " + prof.get("armor").asText());
-                                if (prof.has("weapon")) profs.add("Weapon: " + prof.get("weapon").asText());
-                                if (prof.has("weaponGroup")) profs.add("Weapon Group: " + titleCase(prof.get("weaponGroup").asText()));
+                                if (prof.has("armor")) profs.add("Armor: " + prof.get("armor").asString(""));
+                                if (prof.has("weapon")) profs.add("Weapon: " + prof.get("weapon").asString(""));
+                                if (prof.has("weaponGroup")) profs.add("Weapon Group: " + titleCase(prof.get("weaponGroup").asString("")));
                             }
                         }
                         normalized.set("proficiency", profs);
@@ -138,27 +138,27 @@ public class FeatLoader implements ContentLoader {
                         ArrayNode featPrereqs = objectMapper.createArrayNode();
                         if (value.isArray()) {
                             for (JsonNode f : value) {
-                                featPrereqs.add(f.asText());
+                                featPrereqs.add(f.asString(""));
                             }
                         }
                         normalized.set("feat", featPrereqs);
                     }
                     case "level" -> {
                         if (value.isInt()) {
-                            normalized.put("level", value.asInt());
+                            normalized.put("level", value.asInt(0));
                         } else if (value.isObject()) {
-                            int lvl = value.path("level").asInt();
-                            String className = value.path("class").path("name").asText("");
+                            int lvl = value.path("level").asInt(0);
+                            String className = value.path("class").path("name").asString("");
                             normalized.put("level", lvl);
                             if (!className.isEmpty()) normalized.put("class", className);
                         }
                     }
-                    case "other" -> normalized.put("other", value.asText());
+                    case "other" -> normalized.put("other", value.asString(""));
                     case "psionics" -> normalized.put("psionics", value.asBoolean(false));
                     case "campaign" -> {
                         ArrayNode campaigns = objectMapper.createArrayNode();
                         if (value.isArray()) {
-                            for (JsonNode c : value) campaigns.add(c.asText());
+                            for (JsonNode c : value) campaigns.add(c.asString(""));
                         }
                         normalized.set("campaign", campaigns);
                     }
@@ -166,7 +166,7 @@ public class FeatLoader implements ContentLoader {
                         ArrayNode bgs = objectMapper.createArrayNode();
                         if (value.isArray()) {
                             for (JsonNode bg : value) {
-                                bgs.add(bg.path("name").asText());
+                                bgs.add(bg.path("name").asString(""));
                             }
                         }
                         normalized.set("background", bgs);
@@ -199,14 +199,14 @@ public class FeatLoader implements ContentLoader {
                     if (value.has("from")) {
                         ArrayNode from = objectMapper.createArrayNode();
                         for (JsonNode f : value.get("from")) {
-                            from.add(f.asText().toUpperCase());
+                            from.add(f.asString("").toUpperCase());
                         }
                         chooseObj.set("from", from);
                     }
                     chooseObj.put("amount", value.path("amount").asInt(1));
                     entry.set("choose", chooseObj);
                 } else {
-                    entry.put(key.toUpperCase(), value.asInt());
+                    entry.put(key.toUpperCase(), value.asInt(0));
                 }
             }
             result.add(entry);
@@ -266,14 +266,14 @@ public class FeatLoader implements ContentLoader {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (!sb.isEmpty()) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
-                String type = entry.path("type").asText("");
+                String type = entry.path("type").asString("");
                 switch (type) {
                     case "entries" -> {
-                        String name = entry.path("name").asText("");
+                        String name = entry.path("name").asString("");
                         if (!name.isEmpty()) {
                             if (!sb.isEmpty()) sb.append("\n");
                             sb.append(name).append(": ");
@@ -292,11 +292,11 @@ public class FeatLoader implements ContentLoader {
                         if (items != null) {
                             for (JsonNode item : items) {
                                 if (!sb.isEmpty()) sb.append("\n");
-                                if (item.isTextual()) {
-                                    sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                                if (item.isString()) {
+                                    sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                                 } else if (item.isObject()) {
-                                    String itemName = item.path("name").asText("");
-                                    String itemEntry = item.path("entry").asText("");
+                                    String itemName = item.path("name").asString("");
+                                    String itemEntry = item.path("entry").asString("");
                                     if (!itemName.isEmpty()) {
                                         sb.append("- ").append(itemName).append(" ").append(FiveEToolsMarkupParser.parse(itemEntry));
                                     } else {
@@ -316,7 +316,7 @@ public class FeatLoader implements ContentLoader {
                                     StringBuilder rowStr = new StringBuilder();
                                     for (JsonNode cell : row) {
                                         if (!rowStr.isEmpty()) rowStr.append(" | ");
-                                        rowStr.append(FiveEToolsMarkupParser.parse(cell.asText()));
+                                        rowStr.append(FiveEToolsMarkupParser.parse(cell.asString("")));
                                     }
                                     sb.append(rowStr);
                                 }
@@ -325,8 +325,8 @@ public class FeatLoader implements ContentLoader {
                     }
                     case "item" -> {
                         if (!sb.isEmpty()) sb.append("\n");
-                        String itemName = entry.path("name").asText("");
-                        String itemEntry = entry.path("entry").asText("");
+                        String itemName = entry.path("name").asString("");
+                        String itemEntry = entry.path("entry").asString("");
                         sb.append(itemName).append(" ").append(FiveEToolsMarkupParser.parse(itemEntry));
                     }
                     default -> {

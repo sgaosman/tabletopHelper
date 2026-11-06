@@ -1,9 +1,9 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.RaceRepository;
 import com.tabletophelper.reference.Spell;
@@ -71,7 +71,7 @@ public class RaceLoader implements ContentLoader {
         if (fixedSpells != null && fixedSpells.isArray()) {
             for (JsonNode spell : fixedSpells) {
                 if (spell.path("level").asInt(0) == 0 && !spell.path("atWill").asBoolean(false)) {
-                    String name = spell.path("name").asText("").toLowerCase();
+                    String name = spell.path("name").asString("").toLowerCase();
                     Integer correctLevel = spellLevelLookup.get(name);
                     if (correctLevel != null && correctLevel > 0) {
                         ((ObjectNode) spell).put("level", correctLevel);
@@ -117,15 +117,15 @@ public class RaceLoader implements ContentLoader {
 
         Map<String, JsonNode> raceIndex = new HashMap<>();
         for (JsonNode r : racesArray) {
-            String key = r.path("name").asText() + "|" + r.path("source").asText();
+            String key = r.path("name").asString("") + "|" + r.path("source").asString("");
             raceIndex.put(key, r);
         }
 
         List<Race> batch = new ArrayList<>();
 
         for (JsonNode r : racesArray) {
-            batch.add(LoadContext.reading(FILE + ": race " + r.path("name").asText("?") + "|"
-                    + r.path("source").asText(""), () -> parseRace(r, null, null)));
+            batch.add(LoadContext.reading(FILE + ": race " + r.path("name").asString("?") + "|"
+                    + r.path("source").asString(""), () -> parseRace(r, null, null)));
         }
 
         if (subracesArray != null && subracesArray.isArray()) {
@@ -139,27 +139,27 @@ public class RaceLoader implements ContentLoader {
                     continue;
                 }
 
-                String subName = sr.path("name").asText("");
+                String subName = sr.path("name").asString("");
                 if ("?".equals(subName)) {
                     context.skip("subraces named ?");
                     continue;
                 }
 
-                String parentKey = sr.path("raceName").asText() + "|" + sr.path("raceSource").asText();
+                String parentKey = sr.path("raceName").asString("") + "|" + sr.path("raceSource").asString("");
                 JsonNode parent = raceIndex.get(parentKey);
                 if (parent == null) {
                     log.warn("Subrace '{}' references unknown parent '{}'", subName, parentKey);
                     context.skip("subraces of a race not in the data");
                     continue;
                 }
-                String what = FILE + ": subrace " + subName + "|" + sr.path("source").asText("") + " of " + parentKey;
+                String what = FILE + ": subrace " + subName + "|" + sr.path("source").asString("") + " of " + parentKey;
 
                 if (subName.isEmpty()) {
                     // A subrace with no name adds its ability bonuses to its race
                     String mergedBonuses = LoadContext.reading(what, () -> resolveAbilityBonuses(sr, parent));
                     if (!"[]".equals(mergedBonuses)) {
-                        String parentName = sr.path("raceName").asText();
-                        String parentSource = parent.path("source").asText("");
+                        String parentName = sr.path("raceName").asString("");
+                        String parentSource = parent.path("source").asString("");
                         for (Race r : batch) {
                             if (r.getName().equals(parentName) && r.getSource().equals(parentSource)
                                     && "[]".equals(r.getAbilityScoreBonuses())) {
@@ -171,7 +171,7 @@ public class RaceLoader implements ContentLoader {
                     continue;
                 }
 
-                batch.add(LoadContext.reading(what, () -> parseRace(sr, parent, sr.path("raceName").asText())));
+                batch.add(LoadContext.reading(what, () -> parseRace(sr, parent, sr.path("raceName").asString(""))));
             }
         }
 
@@ -193,11 +193,11 @@ public class RaceLoader implements ContentLoader {
         boolean isSubrace = parent != null;
         String name;
         if (isSubrace) {
-            name = node.path("name").asText() + " " + parentRaceName;
+            name = node.path("name").asString("") + " " + parentRaceName;
         } else {
-            name = node.path("name").asText();
+            name = node.path("name").asString("");
         }
-        String source = node.path("source").asText("");
+        String source = node.path("source").asString("");
 
         String size = resolveSize(node, parent);
         String speed = resolveSpeed(node, parent);
@@ -234,7 +234,7 @@ public class RaceLoader implements ContentLoader {
 
         List<String> sizes = new ArrayList<>();
         for (JsonNode s : sizeNode) {
-            sizes.add(SIZE_MAP.getOrDefault(s.asText(), s.asText()));
+            sizes.add(SIZE_MAP.getOrDefault(s.asString(""), s.asString("")));
         }
         return String.join("/", sizes);
     }
@@ -246,7 +246,7 @@ public class RaceLoader implements ContentLoader {
 
         if (speedNode.isInt() || speedNode.isNumber()) {
             ObjectNode obj = objectMapper.createObjectNode();
-            obj.put("walk", speedNode.asInt());
+            obj.put("walk", speedNode.asInt(0));
             return objectMapper.writeValueAsString(obj);
         }
         if (speedNode.isObject()) {
@@ -254,11 +254,11 @@ public class RaceLoader implements ContentLoader {
             speedNode.properties().forEach(entry -> {
                 JsonNode v = entry.getValue();
                 if (v.isInt() || v.isNumber()) {
-                    clean.put(entry.getKey(), v.asInt());
-                } else if (v.isBoolean() && v.asBoolean()) {
+                    clean.put(entry.getKey(), v.asInt(0));
+                } else if (v.isBoolean() && v.asBoolean(false)) {
                     clean.put(entry.getKey(), true);
                 } else if (v.isObject() && v.has("number")) {
-                    clean.put(entry.getKey(), v.get("number").asInt());
+                    clean.put(entry.getKey(), v.get("number").asInt(0));
                 }
             });
             return objectMapper.writeValueAsString(clean);
@@ -275,8 +275,8 @@ public class RaceLoader implements ContentLoader {
         }
         addAbilityBonuses(node.get("ability"), bonuses);
 
-        String lineage = node.path("lineage").asText(null);
-        if (lineage == null && parent != null) lineage = parent.path("lineage").asText(null);
+        String lineage = node.path("lineage").asString(null);
+        if (lineage == null && parent != null) lineage = parent.path("lineage").asString(null);
         if (bonuses.isEmpty() && "VRGR".equals(lineage)) {
             Map<String, Object> choose1 = new LinkedHashMap<>();
             choose1.put("ability", "CHOOSE");
@@ -308,11 +308,11 @@ public class RaceLoader implements ContentLoader {
                     bonus.put("ability", "CHOOSE");
                     if (choose.has("from")) {
                         List<String> from = new ArrayList<>();
-                        choose.get("from").forEach(n -> from.add(ABILITY_MAP.getOrDefault(n.asText(), n.asText().toUpperCase())));
+                        choose.get("from").forEach(n -> from.add(ABILITY_MAP.getOrDefault(n.asString(""), n.asString("").toUpperCase())));
                         bonus.put("from", from);
                     }
-                    int count = choose.has("count") ? choose.get("count").asInt() : 1;
-                    int amount = choose.has("amount") ? choose.get("amount").asInt() : 1;
+                    int count = choose.has("count") ? choose.get("count").asInt(0) : 1;
+                    int amount = choose.has("amount") ? choose.get("amount").asInt(0) : 1;
                     bonus.put("count", count);
                     bonus.put("bonus", amount);
                     bonuses.add(bonus);
@@ -320,7 +320,7 @@ public class RaceLoader implements ContentLoader {
                     String abilityName = ABILITY_MAP.getOrDefault(key, key.toUpperCase());
                     Map<String, Object> bonus = new LinkedHashMap<>();
                     bonus.put("ability", abilityName);
-                    bonus.put("bonus", entry.getValue().asInt());
+                    bonus.put("bonus", entry.getValue().asInt(0));
                     bonuses.add(bonus);
                 }
             });
@@ -331,7 +331,7 @@ public class RaceLoader implements ContentLoader {
         JsonNode ct = node.get("creatureTypes");
         if (ct == null && parent != null) ct = parent.get("creatureTypes");
         if (ct != null && ct.isArray() && ct.size() > 0) {
-            String type = ct.get(0).asText();
+            String type = ct.get(0).asString("");
             return type.substring(0, 1).toUpperCase() + type.substring(1);
         }
         return "Humanoid";
@@ -340,7 +340,7 @@ public class RaceLoader implements ContentLoader {
     private Integer resolveDarkvision(JsonNode node, JsonNode parent) {
         JsonNode dv = node.get("darkvision");
         if (dv == null && parent != null) dv = parent.get("darkvision");
-        if (dv != null && dv.isInt()) return dv.asInt();
+        if (dv != null && dv.isInt()) return dv.asInt(0);
         return null;
     }
 
@@ -358,7 +358,7 @@ public class RaceLoader implements ContentLoader {
                 if (entry.isObject() && entry.has("data")) {
                     JsonNode data = entry.get("data");
                     if (data.has("overwrite")) {
-                        overwriteNames.add(data.get("overwrite").asText());
+                        overwriteNames.add(data.get("overwrite").asString(""));
                     }
                 }
             }
@@ -377,23 +377,23 @@ public class RaceLoader implements ContentLoader {
         if (entries == null || !entries.isArray()) return;
         for (JsonNode entry : entries) {
             if (!entry.isObject()) continue;
-            String name = entry.path("name").asText(null);
+            String name = entry.path("name").asString(null);
             if (name == null || name.isEmpty()) continue;
 
             StringBuilder desc = new StringBuilder();
             JsonNode subEntries = entry.get("entries");
             if (subEntries != null && subEntries.isArray()) {
                 for (JsonNode e : subEntries) {
-                    if (e.isTextual()) {
+                    if (e.isString()) {
                         if (desc.length() > 0) desc.append("\n");
-                        desc.append(FiveEToolsMarkupParser.parse(e.asText()));
-                    } else if (e.isObject() && "list".equals(e.path("type").asText())) {
+                        desc.append(FiveEToolsMarkupParser.parse(e.asString("")));
+                    } else if (e.isObject() && "list".equals(e.path("type").asString(""))) {
                         JsonNode items = e.get("items");
                         if (items != null) {
                             for (JsonNode item : items) {
-                                if (item.isTextual()) {
+                                if (item.isString()) {
                                     if (desc.length() > 0) desc.append("\n");
-                                    desc.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                                    desc.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                                 }
                             }
                         }
@@ -449,7 +449,7 @@ public class RaceLoader implements ContentLoader {
         for (JsonNode obj : node) {
             obj.properties().forEach(entry -> {
                 String key = entry.getKey();
-                if (!"choose".equals(key) && !"any".equals(key) && entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
+                if (!"choose".equals(key) && !"any".equals(key) && entry.getValue().isBoolean() && entry.getValue().asBoolean(false)) {
                     String skillName = key.substring(0, 1).toUpperCase() + key.substring(1);
                     skills.add(skillName);
                 }
@@ -463,7 +463,7 @@ public class RaceLoader implements ContentLoader {
             obj.properties().forEach(entry -> {
                 String key = entry.getKey();
                 if ("anyStandard".equals(key) || "other".equals(key)) return;
-                if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
+                if (entry.getValue().isBoolean() && entry.getValue().asBoolean(false)) {
                     String lang = key.substring(0, 1).toUpperCase() + key.substring(1);
                     languages.add(lang);
                 }
@@ -476,7 +476,7 @@ public class RaceLoader implements ContentLoader {
         for (JsonNode obj : node) {
             obj.properties().forEach(entry -> {
                 if ("choose".equals(entry.getKey())) return;
-                if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
+                if (entry.getValue().isBoolean() && entry.getValue().asBoolean(false)) {
                     String weapon = entry.getKey();
                     if (weapon.contains("|")) weapon = weapon.substring(0, weapon.indexOf('|'));
                     weapons.add(weapon.substring(0, 1).toUpperCase() + weapon.substring(1));
@@ -489,7 +489,7 @@ public class RaceLoader implements ContentLoader {
         if (node == null || !node.isArray()) return;
         for (JsonNode obj : node) {
             obj.properties().forEach(entry -> {
-                if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
+                if (entry.getValue().isBoolean() && entry.getValue().asBoolean(false)) {
                     armor.add(entry.getKey().substring(0, 1).toUpperCase() + entry.getKey().substring(1));
                 }
             });
@@ -501,7 +501,7 @@ public class RaceLoader implements ContentLoader {
         for (JsonNode obj : node) {
             obj.properties().forEach(entry -> {
                 if ("choose".equals(entry.getKey()) || "any".equals(entry.getKey())) return;
-                if (entry.getValue().isBoolean() && entry.getValue().asBoolean()) {
+                if (entry.getValue().isBoolean() && entry.getValue().asBoolean(false)) {
                     String tool = entry.getKey();
                     if (tool.contains("|")) tool = tool.substring(0, tool.indexOf('|'));
                     tools.add(tool.substring(0, 1).toUpperCase() + tool.substring(1));
@@ -527,13 +527,13 @@ public class RaceLoader implements ContentLoader {
     private void extractResistances(JsonNode resistNode, List<String> resistances) {
         if (resistNode == null || !resistNode.isArray()) return;
         for (JsonNode r : resistNode) {
-            if (r.isTextual()) {
-                resistances.add(r.asText());
+            if (r.isString()) {
+                resistances.add(r.asString(""));
             } else if (r.isObject() && r.has("choose")) {
                 JsonNode from = r.path("choose").get("from");
                 if (from != null && from.isArray()) {
                     List<String> options = new ArrayList<>();
-                    from.forEach(f -> options.add(f.asText()));
+                    from.forEach(f -> options.add(f.asString("")));
                     resistances.add("choose: " + String.join(", ", options));
                 }
             }
@@ -543,8 +543,8 @@ public class RaceLoader implements ContentLoader {
     private void extractConditionImmunities(JsonNode ciNode, List<String> resistances) {
         if (ciNode == null || !ciNode.isArray()) return;
         for (JsonNode c : ciNode) {
-            if (c.isTextual()) {
-                resistances.add("condition immunity: " + c.asText());
+            if (c.isString()) {
+                resistances.add("condition immunity: " + c.asString(""));
             }
         }
     }
@@ -561,21 +561,21 @@ public class RaceLoader implements ContentLoader {
     private void flattenEntriesToText(JsonNode entries, StringBuilder sb) {
         if (entries == null || !entries.isArray()) return;
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (sb.length() > 0) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject() && entry.has("entries")) {
-                String name = entry.path("name").asText("");
+                String name = entry.path("name").asString("");
                 if (!name.isEmpty() && sb.length() > 0) sb.append("\n");
                 if (!name.isEmpty()) sb.append(name).append(": ");
                 JsonNode subEntries = entry.get("entries");
                 if (subEntries.isArray()) {
                     for (JsonNode e : subEntries) {
-                        if (e.isTextual()) {
+                        if (e.isString()) {
                             if (sb.length() > 0 && sb.charAt(sb.length() - 1) != ' ' && sb.charAt(sb.length() - 1) != ':') {
                                 sb.append("\n");
                             }
-                            sb.append(FiveEToolsMarkupParser.parse(e.asText()));
+                            sb.append(FiveEToolsMarkupParser.parse(e.asString("")));
                         }
                     }
                 }
@@ -638,11 +638,11 @@ public class RaceLoader implements ContentLoader {
             boolean hasAnyStandard = false;
             if (obj.has("anyStandard")) {
                 ObjectNode c = objectMapper.createObjectNode();
-                c.put("anyStandard", obj.get("anyStandard").asInt());
+                c.put("anyStandard", obj.get("anyStandard").asInt(0));
                 choices.add(c);
                 hasAnyStandard = true;
             }
-            if (!hasAnyStandard && obj.has("other") && obj.get("other").asBoolean()) {
+            if (!hasAnyStandard && obj.has("other") && obj.get("other").asBoolean(false)) {
                 ObjectNode c = objectMapper.createObjectNode();
                 c.put("anyStandard", 1);
                 choices.add(c);
@@ -654,7 +654,7 @@ public class RaceLoader implements ContentLoader {
                 boolean hasOther = false;
                 if (choose.has("from")) {
                     for (JsonNode f : choose.get("from")) {
-                        String lang = f.asText();
+                        String lang = f.asString("");
                         if ("other".equals(lang)) {
                             hasOther = true;
                         } else {
@@ -685,7 +685,7 @@ public class RaceLoader implements ContentLoader {
             if (!obj.isObject()) continue;
             if (obj.has("any")) {
                 ObjectNode c = objectMapper.createObjectNode();
-                c.put("any", obj.get("any").asInt());
+                c.put("any", obj.get("any").asInt(0));
                 choices.add(c);
             }
             if (obj.has("choose")) {
@@ -695,7 +695,7 @@ public class RaceLoader implements ContentLoader {
                 if (choose.has("from")) {
                     ArrayNode from = objectMapper.createArrayNode();
                     for (JsonNode f : choose.get("from")) {
-                        String skill = f.asText();
+                        String skill = f.asString("");
                         if (skill.contains(" ")) {
                             from.add(Arrays.stream(skill.split(" "))
                                     .map(this::titleCase)
@@ -719,17 +719,17 @@ public class RaceLoader implements ContentLoader {
             if (!obj.isObject()) continue;
             if (obj.has("any")) {
                 ObjectNode c = objectMapper.createObjectNode();
-                c.put("any", obj.get("any").asInt());
+                c.put("any", obj.get("any").asInt(0));
                 choices.add(c);
             }
             if (obj.has("anyArtisansTool")) {
                 ObjectNode c = objectMapper.createObjectNode();
-                c.put("anyArtisansTool", obj.get("anyArtisansTool").asInt());
+                c.put("anyArtisansTool", obj.get("anyArtisansTool").asInt(0));
                 choices.add(c);
             }
             if (obj.has("anyMusicalInstrument")) {
                 ObjectNode c = objectMapper.createObjectNode();
-                c.put("anyMusicalInstrument", obj.get("anyMusicalInstrument").asInt());
+                c.put("anyMusicalInstrument", obj.get("anyMusicalInstrument").asInt(0));
                 choices.add(c);
             }
             if (obj.has("choose")) {
@@ -739,7 +739,7 @@ public class RaceLoader implements ContentLoader {
                 if (choose.has("from")) {
                     ArrayNode from = objectMapper.createArrayNode();
                     for (JsonNode f : choose.get("from")) {
-                        from.add(titleCase(f.asText()));
+                        from.add(titleCase(f.asString("")));
                     }
                     inner.set("from", from);
                 }
@@ -760,10 +760,10 @@ public class RaceLoader implements ContentLoader {
             c.put("count", count);
             if (choose.has("from")) {
                 ArrayNode from = objectMapper.createArrayNode();
-                for (JsonNode f : choose.get("from")) from.add(titleCase(f.asText()));
+                for (JsonNode f : choose.get("from")) from.add(titleCase(f.asString("")));
                 c.set("from", from);
             } else if (choose.has("fromFilter")) {
-                String filter = choose.get("fromFilter").asText("");
+                String filter = choose.get("fromFilter").asString("");
                 if (filter.contains("martial weapon")) {
                     ArrayNode from = objectMapper.createArrayNode();
                     MARTIAL_WEAPONS.forEach(from::add);
@@ -782,7 +782,7 @@ public class RaceLoader implements ContentLoader {
                 if (from != null && from.isArray()) {
                     ObjectNode c = objectMapper.createObjectNode();
                     ArrayNode fromArr = objectMapper.createArrayNode();
-                    from.forEach(f -> fromArr.add(titleCase(f.asText())));
+                    from.forEach(f -> fromArr.add(titleCase(f.asString(""))));
                     c.set("from", fromArr);
                     choices.add(c);
                 }
@@ -803,18 +803,18 @@ public class RaceLoader implements ContentLoader {
         for (JsonNode entry : spellsNode) {
             JsonNode abilityNode = entry.get("ability");
             if (abilityNode == null) continue;
-            if (abilityNode.isTextual()) {
-                ability = ABILITY_MAP.getOrDefault(abilityNode.asText(), abilityNode.asText().toUpperCase());
+            if (abilityNode.isString()) {
+                ability = ABILITY_MAP.getOrDefault(abilityNode.asString(""), abilityNode.asString("").toUpperCase());
             } else if (abilityNode.isObject() && abilityNode.has("choose")) {
                 abilityChoicesArr = objectMapper.createArrayNode();
                 JsonNode choose = abilityNode.get("choose");
                 if (choose.isArray()) {
                     for (JsonNode c : choose) {
-                        if (c.isTextual()) {
-                            abilityChoicesArr.add(ABILITY_MAP.getOrDefault(c.asText(), c.asText().toUpperCase()));
+                        if (c.isString()) {
+                            abilityChoicesArr.add(ABILITY_MAP.getOrDefault(c.asString(""), c.asString("").toUpperCase()));
                         } else if (c.isObject() && c.has("from")) {
                             for (JsonNode f : c.get("from"))
-                                abilityChoicesArr.add(ABILITY_MAP.getOrDefault(f.asText(), f.asText().toUpperCase()));
+                                abilityChoicesArr.add(ABILITY_MAP.getOrDefault(f.asString(""), f.asString("").toUpperCase()));
                         }
                     }
                 }
@@ -867,7 +867,7 @@ public class RaceLoader implements ContentLoader {
         // "known" block: spells known at certain levels
         JsonNode known = entry.get("known");
         if (known != null) {
-            var fieldNames = known.fieldNames();
+            var fieldNames = known.propertyNames().iterator();
             while (fieldNames.hasNext()) {
                 String levelKey = fieldNames.next();
                 int unlocksAt = "_".equals(levelKey) ? 1 : parseIntSafe(levelKey, 1);
@@ -875,19 +875,19 @@ public class RaceLoader implements ContentLoader {
 
                 if (spellsAtLevel.isArray()) {
                     for (JsonNode s : spellsAtLevel) {
-                        if (s.isTextual()) {
-                            addFixedSpell(fixedSpells, s.asText(), unlocksAt, true, 0);
+                        if (s.isString()) {
+                            addFixedSpell(fixedSpells, s.asString(""), unlocksAt, true, 0);
                         }
                     }
                 } else if (spellsAtLevel.isObject()) {
-                    var innerKeys = spellsAtLevel.fieldNames();
+                    var innerKeys = spellsAtLevel.propertyNames().iterator();
                     while (innerKeys.hasNext()) {
                         String innerKey = innerKeys.next();
                         JsonNode innerArr = spellsAtLevel.get(innerKey);
                         if (innerArr.isArray()) {
                             for (JsonNode s : innerArr) {
-                                if (s.isTextual()) {
-                                    addFixedSpell(fixedSpells, s.asText(), unlocksAt, true, 0);
+                                if (s.isString()) {
+                                    addFixedSpell(fixedSpells, s.asString(""), unlocksAt, true, 0);
                                 }
                             }
                         }
@@ -899,7 +899,7 @@ public class RaceLoader implements ContentLoader {
         // "innate" block: spells castable innately (often daily)
         JsonNode innate = entry.get("innate");
         if (innate != null) {
-            var fieldNames = innate.fieldNames();
+            var fieldNames = innate.propertyNames().iterator();
             while (fieldNames.hasNext()) {
                 String levelKey = fieldNames.next();
                 int unlocksAt = "_".equals(levelKey) ? 1 : parseIntSafe(levelKey, 1);
@@ -907,23 +907,23 @@ public class RaceLoader implements ContentLoader {
 
                 if (spellsAtLevel.isArray()) {
                     for (JsonNode s : spellsAtLevel) {
-                        if (s.isTextual()) {
-                            addFixedSpell(fixedSpells, s.asText(), unlocksAt, false, 0);
+                        if (s.isString()) {
+                            addFixedSpell(fixedSpells, s.asString(""), unlocksAt, false, 0);
                         }
                     }
                 } else if (spellsAtLevel.isObject()) {
                     // daily: {"1": [...], "1e": [...]}
                     JsonNode daily = spellsAtLevel.get("daily");
                     if (daily != null) {
-                        var dailyKeys = daily.fieldNames();
+                        var dailyKeys = daily.propertyNames().iterator();
                         while (dailyKeys.hasNext()) {
                             String usesKey = dailyKeys.next();
                             int uses = parseIntSafe(usesKey.replace("e", ""), 1);
                             JsonNode dailySpells = daily.get(usesKey);
                             if (dailySpells.isArray()) {
                                 for (JsonNode s : dailySpells) {
-                                    if (s.isTextual()) {
-                                        addFixedSpell(fixedSpells, s.asText(), unlocksAt, false, uses);
+                                    if (s.isString()) {
+                                        addFixedSpell(fixedSpells, s.asString(""), unlocksAt, false, uses);
                                     }
                                 }
                             }
@@ -932,13 +932,13 @@ public class RaceLoader implements ContentLoader {
                     // rest/will not handled (rare) — treat as daily 1
                     JsonNode rest = spellsAtLevel.get("rest");
                     if (rest != null) {
-                        var restKeys = rest.fieldNames();
+                        var restKeys = rest.propertyNames().iterator();
                         while (restKeys.hasNext()) {
                             String key = restKeys.next();
                             JsonNode restSpells = rest.get(key);
                             if (restSpells.isArray()) {
                                 for (JsonNode s : restSpells) {
-                                    if (s.isTextual()) addFixedSpell(fixedSpells, s.asText(), unlocksAt, false, 1);
+                                    if (s.isString()) addFixedSpell(fixedSpells, s.asString(""), unlocksAt, false, 1);
                                 }
                             }
                         }
@@ -946,7 +946,7 @@ public class RaceLoader implements ContentLoader {
                     JsonNode will = spellsAtLevel.get("will");
                     if (will != null && will.isArray()) {
                         for (JsonNode s : will) {
-                            if (s.isTextual()) addFixedSpell(fixedSpells, s.asText(), unlocksAt, true, 0);
+                            if (s.isString()) addFixedSpell(fixedSpells, s.asString(""), unlocksAt, true, 0);
                         }
                     }
                 }
@@ -1009,12 +1009,12 @@ public class RaceLoader implements ContentLoader {
     }
 
     private void collectChooseFromNode(JsonNode block, ArrayNode spellChoices) {
-        var keys = block.fieldNames();
+        var keys = block.propertyNames().iterator();
         while (keys.hasNext()) {
             String key = keys.next();
             JsonNode value = block.get(key);
             if (value.isObject()) {
-                var innerKeys = value.fieldNames();
+                var innerKeys = value.propertyNames().iterator();
                 while (innerKeys.hasNext()) {
                     String ik = innerKeys.next();
                     JsonNode inner = value.get(ik);
@@ -1034,7 +1034,7 @@ public class RaceLoader implements ContentLoader {
 
     private void parseChooseItem(JsonNode item, ArrayNode spellChoices) {
         if (!item.isObject() || !item.has("choose")) return;
-        String filter = item.get("choose").asText("");
+        String filter = item.get("choose").asString("");
         int count = item.path("count").asInt(1);
 
         // Parse filter string like "level=0|class=Wizard"
@@ -1056,15 +1056,15 @@ public class RaceLoader implements ContentLoader {
         if (expanded == null || !expanded.isObject()) return null;
 
         ObjectNode result = objectMapper.createObjectNode();
-        var keys = expanded.fieldNames();
+        var keys = expanded.propertyNames().iterator();
         while (keys.hasNext()) {
             String key = keys.next();
             JsonNode spells = expanded.get(key);
             if (spells.isArray()) {
                 ArrayNode cleaned = objectMapper.createArrayNode();
                 for (JsonNode s : spells) {
-                    if (s.isTextual()) {
-                        String name = s.asText();
+                    if (s.isString()) {
+                        String name = s.asString("");
                         if (name.contains("|")) name = name.split("\\|")[0];
                         if (name.contains("#")) name = name.split("#")[0];
                         cleaned.add(titleCaseSpell(name));
@@ -1101,11 +1101,11 @@ public class RaceLoader implements ContentLoader {
             JsonNode choose = ability.get("choose");
             if (choose.isArray()) {
                 for (JsonNode c : choose) {
-                    if (c.isTextual()) {
-                        choices.add(ABILITY_MAP.getOrDefault(c.asText(), c.asText().toUpperCase()));
+                    if (c.isString()) {
+                        choices.add(ABILITY_MAP.getOrDefault(c.asString(""), c.asString("").toUpperCase()));
                     } else if (c.isObject() && c.has("from")) {
                         for (JsonNode f : c.get("from")) {
-                            choices.add(ABILITY_MAP.getOrDefault(f.asText(), f.asText().toUpperCase()));
+                            choices.add(ABILITY_MAP.getOrDefault(f.asString(""), f.asString("").toUpperCase()));
                         }
                     }
                 }
@@ -1126,7 +1126,7 @@ public class RaceLoader implements ContentLoader {
         Set<String> keys = new HashSet<>();
         JsonNode overwrite = node.get("overwrite");
         if (overwrite != null && overwrite.isObject()) {
-            overwrite.fieldNames().forEachRemaining(keys::add);
+            overwrite.propertyNames().iterator().forEachRemaining(keys::add);
         }
         return keys;
     }

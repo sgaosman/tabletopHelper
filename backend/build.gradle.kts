@@ -3,7 +3,7 @@ import java.util.concurrent.TimeUnit
 
 plugins {
     java
-    id("org.springframework.boot") version "3.5.16"
+    id("org.springframework.boot") version "4.1.2"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -27,21 +27,24 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // The reference endpoints' @Cacheable: Spring Boot 4 sets up a CacheManager only with this starter
+    implementation("org.springframework.boot:spring-boot-starter-cache")
 
-    implementation("org.flywaydb:flyway-core")
+    // Spring Boot 4 runs Flyway only with its starter on the classpath; flyway-core alone no longer does
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
 
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
 
     runtimeOnly("org.postgresql:postgresql")
 
@@ -49,7 +52,7 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -73,10 +76,13 @@ testing {
             dependencies {
                 implementation(project())
                 implementation("org.springframework.boot:spring-boot-starter-test")
+                implementation("org.springframework.boot:spring-boot-starter-security-test")
+                // TestRestTemplate, which needs RestTemplateBuilder from spring-boot-restclient
+                implementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+                implementation("org.springframework.boot:spring-boot-restclient")
                 implementation("org.springframework.boot:spring-boot-testcontainers")
-                implementation("org.springframework.security:spring-security-test")
-                implementation("org.testcontainers:junit-jupiter")
-                implementation("org.testcontainers:postgresql")
+                implementation("org.testcontainers:testcontainers-junit-jupiter")
+                implementation("org.testcontainers:testcontainers-postgresql")
             }
             targets {
                 all {

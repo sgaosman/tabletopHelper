@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.CharacterRepository;
@@ -75,10 +75,10 @@ class HitSaveIT extends IntegrationTest {
         RegisteredUser player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID aria = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
         ariaCharacterId = aria;
-        encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
+        encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
 
         Monster wolf = monsterRepository.save(Monster.builder().name("Dire Wolf").type("Beast")
                 .challengeRating("1").source("MM").hitPoints(37).armourClass(14)
@@ -147,7 +147,7 @@ class HitSaveIT extends IntegrationTest {
         assertThat(aria.get("hpCurrent").asInt()).isEqualTo(30);
         assertThat(conditionNames(aria)).containsExactly("prone");
         assertThat(result.get("targetResults").get(0).get("savedSuccessfully").asBoolean()).isFalse();
-        assertThat(result.get("targetResults").get(0).get("conditionsApplied").get(0).asText()).isEqualTo("prone");
+        assertThat(result.get("targetResults").get(0).get("conditionsApplied").get(0).asString()).isEqualTo("prone");
         assertThat(descriptions(dmLog())).contains("Dire Wolf uses Bite on Aria: d20(15) + 5 = 20 vs AC 12 — hit, "
                 + "10 piercing damage, STR save d20(12) + 0 = 12 vs DC 13 fails, gains prone.");
         assertThat(dice.remaining()).isZero();
@@ -224,8 +224,8 @@ class HitSaveIT extends IntegrationTest {
         try (InputStream in = new ClassPathResource("data/monster-actions/monster-action-definitions.json")
                 .getInputStream()) {
             for (JsonNode definition : objectMapper.readTree(in)) {
-                if (monster.equals(definition.path("monsterName").asText())
-                        && source.equals(definition.path("source").asText())) {
+                if (monster.equals(definition.path("monsterName").asString())
+                        && source.equals(definition.path("source").asString())) {
                     return MonsterTemplates.of(definition);
                 }
             }
@@ -261,8 +261,8 @@ class HitSaveIT extends IntegrationTest {
 
     private static String idOf(JsonNode encounter, String displayName) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(displayName + " is not in the encounter");
@@ -270,7 +270,7 @@ class HitSaveIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }
@@ -279,13 +279,13 @@ class HitSaveIT extends IntegrationTest {
 
     private static List<String> conditionNames(JsonNode participant) {
         List<String> names = new ArrayList<>();
-        participant.path("activeConditions").forEach(condition -> names.add(condition.get("name").asText()));
+        participant.path("activeConditions").forEach(condition -> names.add(condition.get("name").asString()));
         return names;
     }
 
     private static List<String> descriptions(JsonNode log) {
         List<String> descriptions = new ArrayList<>();
-        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        log.forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 }

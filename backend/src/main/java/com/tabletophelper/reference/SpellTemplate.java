@@ -3,13 +3,13 @@ package com.tabletophelper.reference;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.JacksonDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,8 +62,9 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
 
     private static final Logger log = LoggerFactory.getLogger(SpellTemplate.class);
 
-    // Reads the parts into the records. Each record ignores the keys it doesn't name, as the column's mapper does
-    private static final ObjectMapper READER = JsonMapper.builder()
+    // Reads the parts into the records, with the application's Jackson settings. Each record ignores the keys it
+    // doesn't name, as the column's mapper does
+    private static final ObjectMapper READER = JacksonDefaults.builder()
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
     private static final TypeReference<List<Part>> PARTS = new TypeReference<>() {
@@ -99,7 +100,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                     read(json, "canTargetEnemies", Boolean.class), READER.convertValue(json.get("effects"), PARTS),
                     read(json, "healing", Healing.class), RepeatEffect.of(json.get("repeatEffect")),
                     READER.convertValue(json.get("conditionsInflicted"), CONDITIONS), json, null);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
         }
     }
@@ -118,7 +119,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         }
         try {
             return of(READER.readTree(json));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalArgumentException("Not JSON: " + json, e);
         }
     }
@@ -235,7 +236,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                 return null;
             }
             if (node.isBoolean()) {
-                return node.asBoolean() ? new RepeatEffect(false, null, null, null, null, null, null, null, false, null)
+                return node.asBoolean(false) ? new RepeatEffect(false, null, null, null, null, null, null, null, false, null)
                         : null;
             }
             if (!node.isObject()) {
@@ -265,12 +266,12 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
         public static ConditionInflicted of(JsonNode node) {
             if (node == null || !node.isObject()) {
-                return new ConditionInflicted(node != null && node.isTextual() ? node.asText() : null,
+                return new ConditionInflicted(node != null && node.isString() ? node.asString("") : null,
                         null, false, null, false);
             }
             JsonNode duration = node.path("durationRounds");
             return new ConditionInflicted(text(node, "condition"),
-                    duration.isInt() && duration.asInt() > 0 ? duration.asInt() : null,
+                    duration.isInt() && duration.asInt(0) > 0 ? duration.asInt(0) : null,
                     node.path("saveToEndEachTurn").asBoolean(false), text(node, "saveToEndAbility"),
                     !node.path("saveToEndCondition").isMissingNode());
         }
@@ -293,7 +294,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     // The key's text, or null when it isn't text
     private static String text(JsonNode node, String key) {
         JsonNode value = node.path(key);
-        return value.isTextual() ? value.asText() : null;
+        return value.isString() ? value.asString("") : null;
     }
 
     // A list without nulls, empty when there is none

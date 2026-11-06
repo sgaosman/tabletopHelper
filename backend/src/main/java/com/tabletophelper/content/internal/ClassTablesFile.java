@@ -1,7 +1,8 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.rules.character.ClassTables;
 import org.springframework.core.io.ClassPathResource;
 
@@ -36,7 +37,7 @@ public final class ClassTablesFile {
                     .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                     .with(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                     .readValue(in);
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (JacksonException | IllegalArgumentException e) {
             throw new IllegalStateException(PATH + " could not be read: " + e.getMessage(), e);
         }
     }

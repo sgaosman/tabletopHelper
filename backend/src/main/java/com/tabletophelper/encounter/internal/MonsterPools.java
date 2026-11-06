@@ -1,7 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -184,11 +184,11 @@ public class MonsterPools {
     private boolean triggers(MonsterPoolTrigger trigger, Monster monster) {
         JsonNode condition = StoredJson.read(objectMapper, trigger.getTriggerCondition(),
                 "The trigger for the " + trigger.getPoolDefinition().getPoolId() + " pool");
-        if (condition.path("hasField").isTextual()) {
-            return "legendary".equals(condition.path("hasField").asText()) && hasLegendaryActions(monster);
+        if (condition.path("hasField").isString()) {
+            return "legendary".equals(condition.path("hasField").asString("")) && hasLegendaryActions(monster);
         }
-        if (condition.path("hasFeature").isTextual()) {
-            return hasTrait(monster, condition.path("hasFeature").asText());
+        if (condition.path("hasFeature").isString()) {
+            return hasTrait(monster, condition.path("hasFeature").asString(""));
         }
         return false;
     }
@@ -201,7 +201,7 @@ public class MonsterPools {
 
     private boolean hasTrait(Monster monster, String feature) {
         for (JsonNode trait : StoredJson.read(objectMapper, monster.getTraits(), monster.getName() + "'s traits")) {
-            String name = trait.path("name").asText("");
+            String name = trait.path("name").asString("");
             if (TRAIT_NOTE.matcher(name).replaceFirst("").trim().equalsIgnoreCase(feature.trim())) {
                 return true;
             }

@@ -8,10 +8,13 @@ spring:
       hibernate:
         format_sql: true
 
+  # Spring Boot 4 moved server.error.* to spring.web.error.*
+  web:
+    error:
+      include-binding-errors: always
+
 server:
   port: 8080
-  error:
-    include-binding-errors: always
 
 app:
   jwt:

@@ -4,13 +4,13 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.JacksonDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,8 +45,9 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
 
     private static final Logger log = LoggerFactory.getLogger(MonsterTemplates.class);
 
-    // Reads the parts into the records. Each record ignores the keys it doesn't name, as the column's mapper does
-    private static final ObjectMapper READER = JsonMapper.builder()
+    // Reads the parts into the records, with the application's Jackson settings. Each record ignores the keys it
+    // doesn't name, as the column's mapper does
+    private static final ObjectMapper READER = JacksonDefaults.builder()
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
     private static final TypeReference<List<Action>> ACTIONS = new TypeReference<>() {
@@ -85,7 +86,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                     actions(root, "traits"), READER.convertValue(root.get("legendaryActionCount"), Integer.class),
                     READER.convertValue(root.get("legendaryResistanceCount"), Integer.class),
                     READER.convertValue(root.get("spellcasting"), Spellcasting.class), json, null);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | JacksonException e) {
             return new MonsterTemplates(null, null, null, null, null, null, null, null, null, json,
                     e.getMessage() != null ? e.getMessage() : e.toString());
         }
@@ -118,7 +119,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         }
         try {
             return readable(of(READER.readTree(json)), what);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("{} are not valid JSON", what, e);
             throw new ConflictException(what + " can't be read");
         }
@@ -134,7 +135,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
         }
         try {
             return of(READER.readTree(json));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalArgumentException("Not JSON: " + json, e);
         }
     }
@@ -292,8 +293,8 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                 innateSpells.properties().forEach(group -> {
                     List<String> names = new ArrayList<>();
                     group.getValue().forEach(name -> {
-                        if (name.isTextual()) {
-                            names.add(name.asText());
+                        if (name.isString()) {
+                            names.add(name.asString(""));
                         }
                     });
                     lists.put(group.getKey(), names);

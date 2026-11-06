@@ -1,6 +1,7 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.CampaignMemberRepository;
 import com.tabletophelper.campaign.CampaignRepository;
@@ -87,10 +88,11 @@ class CharacterFixture {
         return roll;
     };
 
-    final ObjectMapper objectMapper = new ObjectMapper();
+    final ObjectMapper objectMapper = JacksonDefaults.mapper();
     final ClassTables classTables = TestClassTables.load();
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
-    final ResourcePoolService resourcePoolService = new ResourcePoolService(featurePoolRepository);
+    final ResourcePoolService resourcePoolService =
+            new ResourcePoolService(featurePoolRepository, JacksonDefaults.mapper());
     final CharacterStats characterStats = new CharacterStats(classRepository, subclassRepository,
             resourcePoolService, objectMapper, classTables);
     final CharacterMapper mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats, liveEncounters);

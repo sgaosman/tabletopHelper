@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.SpellSlot;
@@ -50,9 +50,9 @@ class PlayerViewIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID aria = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
         encounterId = createEncounter(dm.accessToken(), campaignId);
 
@@ -79,14 +79,14 @@ class PlayerViewIT extends IntegrationTest {
 
         assertThat(participantIds(encounter)).containsExactly(characterId, goblinId);
         JsonNode goblin = participant(encounter, goblinId);
-        assertThat(goblin.get("healthStatus").asText()).isEqualTo("UNHARMED");
+        assertThat(goblin.get("healthStatus").asString()).isEqualTo("UNHARMED");
         assertThat(goblin.get("hpCurrent").isNull()).isTrue();
         assertThat(goblin.get("hpMax").isNull()).isTrue();
         assertThat(goblin.get("monsterId").isNull()).isTrue();
         // The player's own character keeps its numbers, and its class gives its colour
         assertThat(participant(encounter, characterId).get("hpCurrent").isNull()).isFalse();
         assertThat(participant(encounter, characterId).get("healthStatus").isNull()).isTrue();
-        assertThat(participant(encounter, characterId).get("characterClass").asText()).isEqualTo("Fighter");
+        assertThat(participant(encounter, characterId).get("characterClass").asString()).isEqualTo("Fighter");
         assertThat(goblin.get("characterClass").isNull()).isTrue();
         // The view's context stays on the server
         assertThat(encounter.has("dmUserId")).isFalse();
@@ -102,7 +102,7 @@ class PlayerViewIT extends IntegrationTest {
         assertThat(participant(encounter, bugbearId).get("isVisibleToPlayers").asBoolean()).isFalse();
         assertThat(participant(encounter, goblinId).get("hpCurrent").asInt()).isEqualTo(7);
         assertThat(participant(encounter, goblinId).get("healthStatus").isNull()).isTrue();
-        assertThat(participant(encounter, characterId).get("characterClass").asText()).isEqualTo("Fighter");
+        assertThat(participant(encounter, characterId).get("characterClass").asString()).isEqualTo("Fighter");
         assertThat(participant(encounter, goblinId).get("characterClass").isNull()).isTrue();
     }
 
@@ -117,7 +117,7 @@ class PlayerViewIT extends IntegrationTest {
                 player.accessToken()));
 
         assertThat(participantIds(encounter)).containsExactly(characterId, goblinId);
-        assertThat(participant(encounter, goblinId).get("healthStatus").asText()).isEqualTo("BLOODIED");
+        assertThat(participant(encounter, goblinId).get("healthStatus").asString()).isEqualTo("BLOODIED");
         assertThat(participant(encounter, goblinId).get("hpCurrent").isNull()).isTrue();
         assertThat(participant(getEncounter(dm.accessToken()), goblinId).get("hpCurrent").asInt()).isEqualTo(3);
     }
@@ -134,11 +134,11 @@ class PlayerViewIT extends IntegrationTest {
                 Map.of("targetId", bugbearId, "weapon", "Unarmed Strike"), player.accessToken());
 
         assertThat(forced.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(json(forced).get("error").asText())
+        assertThat(json(forced).get("error").asString())
                 .isEqualTo("This campaign doesn't allow players to enter Manual Modifiers");
         // The same answer as for a participant that doesn't exist
         assertThat(hidden.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(hidden).get("error").asText()).isEqualTo("Participant not found");
+        assertThat(json(hidden).get("error").asString()).isEqualTo("Participant not found");
         assertThat(participant(getEncounter(dm.accessToken()), goblinId).get("hpCurrent").asInt()).isEqualTo(7);
     }
 
@@ -206,8 +206,8 @@ class PlayerViewIT extends IntegrationTest {
         assertThat(participant(dmView, bugbearId).get("sortOrder").asInt()).isEqualTo(2);
         assertThat(turnNames(playerView)).containsExactly("Aria", "Goblin");
         assertThat(playerView.get("currentTurnIndex").isNull()).isTrue();
-        assertThat(playerView.get("turnOrder").findValuesAsText("current")).containsOnly("false");
-        assertThat(playerView.get("participants").findValuesAsText("isCurrentTurn")).containsOnly("false");
+        assertThat(playerView.get("turnOrder").findValuesAsString("current")).containsOnly("false");
+        assertThat(playerView.get("participants").findValuesAsString("isCurrentTurn")).containsOnly("false");
         assertThat(participant(playerView, characterId).get("sortOrder").asInt()).isZero();
         assertThat(participant(playerView, goblinId).get("sortOrder").asInt()).isEqualTo(1);
         // The players' log keeps the turns they can see, and never names the bugbear
@@ -250,7 +250,7 @@ class PlayerViewIT extends IntegrationTest {
         var settings = updateSettings(true, player.accessToken());
 
         assertThat(hide.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(json(hide).get("error").asText()).isEqualTo("Only the DM can perform this action");
+        assertThat(json(hide).get("error").asString()).isEqualTo("Only the DM can perform this action");
         assertThat(settings.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(participantIds(getEncounter(player.accessToken()))).contains(goblinId);
     }
@@ -264,7 +264,7 @@ class PlayerViewIT extends IntegrationTest {
                 dm.accessToken());
 
         assertThat(hideCharacter.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(hideCharacter).get("error").asText()).isEqualTo("Only monsters can be hidden from players");
+        assertThat(json(hideCharacter).get("error").asString()).isEqualTo("Only monsters can be hidden from players");
         assertThat(noValue.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
@@ -306,14 +306,14 @@ class PlayerViewIT extends IntegrationTest {
 
     private static List<String> turnNames(JsonNode encounter) {
         List<String> names = new ArrayList<>();
-        encounter.get("turnOrder").forEach(turn -> names.add(turn.get("name").asText()));
+        encounter.get("turnOrder").forEach(turn -> names.add(turn.get("name").asString()));
         return names;
     }
 
     private static String idOf(JsonNode encounter, String displayName) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(displayName + " is not in the encounter");
@@ -321,7 +321,7 @@ class PlayerViewIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }
@@ -331,13 +331,13 @@ class PlayerViewIT extends IntegrationTest {
     // In initiative order, as the response lists them
     private static List<String> participantIds(JsonNode encounter) {
         List<String> ids = new ArrayList<>();
-        encounter.get("participants").forEach(participant -> ids.add(participant.get("id").asText()));
+        encounter.get("participants").forEach(participant -> ids.add(participant.get("id").asString()));
         return ids;
     }
 
     private static List<String> descriptions(JsonNode log) {
         List<String> descriptions = new ArrayList<>();
-        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        log.forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 }

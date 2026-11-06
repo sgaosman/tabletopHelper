@@ -1,6 +1,6 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -44,13 +44,13 @@ class JsonRoundTripJobIT extends IntegrationTest {
         RegisteredUser player = register("bram");
         JsonNode campaign = createCampaign(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         characterId = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
                 Map.of("name", "Bram", "raceId", insertRace("Tiefling"), "classId", insertCaster("Warlock", 8, "CHA", true),
                         "strength", 10, "dexterity", 14, "constitution", 12, "intelligence", 10, "wisdom", 10,
                         "charisma", 16, "spellsKnown", List.of(Map.of("name", "Hellish Rebuke", "level", 1,
                                 "source", "race:Tiefling", "usesPerLongRest", 1))),
-                player.accessToken())).get("id").asText());
+                player.accessToken())).get("id").asString());
 
         Monster goblin = monsterRepository.save(Monster.builder()
                 .name("Goblin").type("Humanoid").challengeRating("1/4").source("MM")
@@ -68,7 +68,7 @@ class JsonRoundTripJobIT extends IntegrationTest {
         featRepository.save(Feat.builder().name("Grappler").source("PHB").description("You've developed the skills")
                 .prerequisite("[{\"ability\": [\"Strength 13\"]}]").build());
 
-        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
+        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
         addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", characterId, "displayName", "Bram"));
         addParticipant(dm.accessToken(), encounterId,

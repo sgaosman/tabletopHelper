@@ -1,6 +1,6 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Feat;
@@ -61,9 +61,9 @@ class PendingChoicesIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         humanId = insertRace("Human");
         variantHumanId = raceRepository.save(Race.builder().name("Variant Human").source("PHB")
                 .speed("{\"walk\":30}").raceChoices("{\"feats\": 1, \"skills\": [{\"any\": 1}]}").build()).getId();
@@ -136,20 +136,20 @@ class PendingChoicesIT extends IntegrationTest {
     }
 
     private String error(ResponseEntity<String> response, HttpStatus status) {
-        return expect(status, response).get("error").asText();
+        return expect(status, response).get("error").asString();
     }
 
     // Each pending choice as its level, type and count, as "4 ASI" or "3 SPELLS×3"
     private static List<String> described(JsonNode character) {
         List<String> choices = new ArrayList<>();
         character.get("pendingChoices").forEach(c -> choices.add(c.get("characterLevel").asInt() + " "
-                + c.get("type").asText() + (c.get("count").asInt() > 1 ? "×" + c.get("count").asInt() : "")));
+                + c.get("type").asString() + (c.get("count").asInt() > 1 ? "×" + c.get("count").asInt() : "")));
         return choices;
     }
 
     private static JsonNode choice(JsonNode character, String type, int characterLevel) {
         for (JsonNode choice : character.get("pendingChoices")) {
-            if (choice.get("type").asText().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
+            if (choice.get("type").asString().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
                 return choice;
             }
         }
@@ -158,20 +158,20 @@ class PendingChoicesIT extends IntegrationTest {
     }
 
     private static String id(JsonNode character, String type, int characterLevel) {
-        return choice(character, type, characterLevel).get("id").asText();
+        return choice(character, type, characterLevel).get("id").asString();
     }
 
     private static List<String> names(JsonNode character, String source) {
         List<String> names = new ArrayList<>();
         character.get("spellsKnown").forEach(s -> {
-            if (source.equals(s.path("source").asText())) names.add(s.get("name").asText());
+            if (source.equals(s.path("source").asString())) names.add(s.get("name").asString());
         });
         return names;
     }
 
     private static List<String> features(JsonNode character) {
         List<String> names = new ArrayList<>();
-        character.get("features").forEach(f -> names.add(f.get("name").asText()));
+        character.get("features").forEach(f -> names.add(f.get("name").asString()));
         return names;
     }
 
@@ -187,12 +187,12 @@ class PendingChoicesIT extends IntegrationTest {
     @DisplayName("Creating a Fighter 5 owes the choices of levels 1 to 5, and levelling up adds the new level's")
     void creationAndLevelUp() {
         JsonNode created = create(Map.of("level", 5));
-        String aria = created.get("id").asText();
+        String aria = created.get("id").asString();
 
         assertThat(described(created)).containsExactly("1 FIGHTING_STYLE", "3 SUBCLASS", "4 ASI");
         JsonNode subclass = choice(created, "SUBCLASS", 3);
-        assertThat(subclass.get("source").asText()).isEqualTo("CREATION");
-        assertThat(subclass.get("classId").asText()).isEqualTo(fighterId.toString());
+        assertThat(subclass.get("source").asString()).isEqualTo("CREATION");
+        assertThat(subclass.get("classId").asString()).isEqualTo(fighterId.toString());
         assertThat(subclass.get("options").toString()).isEqualTo("[\"Champion\",\"Eldritch Knight\"]");
         assertThat(choice(created, "FIGHTING_STYLE", 1).get("options").toString())
                 .startsWith("[\"Archery\",\"Defense\",\"Dueling\"");
@@ -200,7 +200,7 @@ class PendingChoicesIT extends IntegrationTest {
         // The player leaves every choice for later and levels up: Fighter 6 owes another ASI
         JsonNode sixth = levelUp(aria, fighterId);
         assertThat(described(sixth)).containsExactly("1 FIGHTING_STYLE", "3 SUBCLASS", "4 ASI", "6 ASI");
-        assertThat(choice(sixth, "ASI", 6).get("source").asText()).isEqualTo("LEVEL_UP");
+        assertThat(choice(sixth, "ASI", 6).get("source").asString()).isEqualTo("LEVEL_UP");
         assertThat(choice(sixth, "ASI", 6).get("classLevel").asInt()).isEqualTo(6);
     }
 
@@ -214,7 +214,7 @@ class PendingChoicesIT extends IntegrationTest {
                 Map.of("name", "Mage Hand", "level", 0, "source", "class:Sorcerer"),
                 Map.of("name", "Shield", "level", 1, "source", "class:Sorcerer"),
                 Map.of("name", "Magic Missile", "level", 1, "source", "class:Sorcerer"))));
-        String aria = created.get("id").asText();
+        String aria = created.get("id").asString();
         // The wizard gives the 1st level's four cantrips and two spells; levels 2 to 5 each owe a spell
         assertThat(described(created)).containsExactly("2 SPELLS", "3 SPELLS", "4 ASI", "4 CANTRIPS", "4 SPELLS",
                 "5 SPELLS");
@@ -236,8 +236,8 @@ class PendingChoicesIT extends IntegrationTest {
                 "Magic Missile", "Witch Bolt", "Sleep", "Misty Step", "Prestidigitation", "Fireball");
         JsonNode third = fifth.get("levelHistory").get(2).get("choices").get("spells");
         assertThat(third.get("learned").toString()).isEqualTo("[\"Misty Step\"]");
-        assertThat(third.get("replaced").get("name").asText()).isEqualTo("Shield");
-        assertThat(third.get("replacement").asText()).isEqualTo("Sleep");
+        assertThat(third.get("replaced").get("name").asString()).isEqualTo("Shield");
+        assertThat(third.get("replacement").asString()).isEqualTo("Sleep");
         assertThat(described(fifth)).containsExactly("4 ASI", "4 SPELLS");
     }
 
@@ -246,18 +246,18 @@ class PendingChoicesIT extends IntegrationTest {
     @Test
     @DisplayName("A subclass chosen on the sheet is recorded on its level, with its features, and brings the choices it gives")
     void subclassAndTheChoicesItBrings() {
-        String aria = create(Map.of("level", 4)).get("id").asText();
+        String aria = create(Map.of("level", 4)).get("id").asString();
         JsonNode owed = get(aria);
 
         JsonNode knight = applied(aria, Map.of("choiceId", id(owed, "SUBCLASS", 3), "subclassId", eldritchKnightId));
 
-        assertThat(knight.get("subclass").asText()).isEqualTo("Eldritch Knight");
-        assertThat(knight.get("levelHistory").get(2).get("choices").get("subclass").get("subclassName").asText())
+        assertThat(knight.get("subclass").asString()).isEqualTo("Eldritch Knight");
+        assertThat(knight.get("levelHistory").get(2).get("choices").get("subclass").get("subclassName").asString())
                 .isEqualTo("Eldritch Knight");
         assertThat(features(knight)).contains("Weapon Bond");
         assertThat(described(knight)).containsExactly("1 FIGHTING_STYLE", "3 CANTRIPS×2", "3 SPELLS×3", "4 ASI",
                 "4 SPELLS");
-        assertThat(knight.get("spellcasting").get(0).get("className").asText()).isEqualTo("Fighter");
+        assertThat(knight.get("spellcasting").get(0).get("className").asString()).isEqualTo("Fighter");
 
         JsonNode style = applied(aria, Map.of("choiceId", id(knight, "FIGHTING_STYLE", 1), "fightingStyle", "Defense"));
         assertThat(features(style)).contains("Fighting Style: Defense");
@@ -265,7 +265,7 @@ class PendingChoicesIT extends IntegrationTest {
                 "increases", List.of(Map.of("ability", "dexterity", "bonus", 2)))));
         assertThat(improved.get("dexterity").asInt()).isEqualTo(16);
         assertThat(improved.get("initiativeBonus").asInt()).isEqualTo(3);
-        assertThat(improved.get("levelHistory").get(3).get("choices").get("asi").get("type").asText())
+        assertThat(improved.get("levelHistory").get(3).get("choices").get("asi").get("type").asString())
                 .isEqualTo("ability");
     }
 
@@ -273,7 +273,7 @@ class PendingChoicesIT extends IntegrationTest {
     @DisplayName("A choice the character doesn't have, or one made already, is a 409; an answer that doesn't fit is a 400; neither changes anything")
     void refusals() {
         JsonNode created = create(Map.of("level", 4));
-        String aria = created.get("id").asText();
+        String aria = created.get("id").asString();
         String asi = id(created, "ASI", 4);
         int version = version(aria);
 
@@ -304,7 +304,7 @@ class PendingChoicesIT extends IntegrationTest {
     @Test
     @DisplayName("Choices left for later stay pending while the character joins an encounter; while it is under way they wait, a 409")
     void skippedChoicesAndEncounters() {
-        String aria = create(Map.of("level", 4)).get("id").asText();
+        String aria = create(Map.of("level", 4)).get("id").asString();
         String asi = id(get(aria), "ASI", 4);
         UUID encounterId = createEncounter(dm.accessToken(), campaignId);
 
@@ -326,7 +326,7 @@ class PendingChoicesIT extends IntegrationTest {
     @Test
     @DisplayName("Levelling down removes the level's pending choices and reverses those made for it, a subclass among them")
     void levelDownRemovesAndReverses() {
-        String aria = create(Map.of("level", 3)).get("id").asText();
+        String aria = create(Map.of("level", 3)).get("id").asString();
         JsonNode owed = get(aria);
         JsonNode champion = applied(aria, Map.of("choiceId", id(owed, "SUBCLASS", 3), "subclassId", championId));
         assertThat(features(champion)).contains("Improved Critical");
@@ -334,11 +334,11 @@ class PendingChoicesIT extends IntegrationTest {
 
         JsonNode third = levelDown(aria);
         assertThat(described(third)).containsExactly("1 FIGHTING_STYLE");
-        assertThat(third.get("subclass").asText()).isEqualTo("Champion");
+        assertThat(third.get("subclass").asString()).isEqualTo("Champion");
 
         JsonNode second = levelDown(aria);
         assertThat(second.get("subclass").isNull()).isTrue();
-        assertThat(second.get("multiclassEntries").get(0).path("subclassId").isTextual()).isFalse();
+        assertThat(second.get("multiclassEntries").get(0).path("subclassId").isString()).isFalse();
         assertThat(features(second)).doesNotContain("Improved Critical");
         assertThat(described(second)).containsExactly("1 FIGHTING_STYLE");
 
@@ -350,22 +350,22 @@ class PendingChoicesIT extends IntegrationTest {
     @DisplayName("A Variant Human's feat is a choice on the sheet; taken, Lucky gets its pool and Alert its initiative, and the ASI can't take Lucky again")
     void variantHumanFeat() {
         JsonNode created = create(Map.of("raceId", variantHumanId, "level", 4));
-        String aria = created.get("id").asText();
+        String aria = created.get("id").asString();
         JsonNode feat = choice(created, "FEAT", 1);
-        assertThat(feat.get("source").asText()).isEqualTo("RACE");
+        assertThat(feat.get("source").asString()).isEqualTo("RACE");
         assertThat(feat.has("options")).isFalse();
 
-        JsonNode lucky = applied(aria, Map.of("choiceId", feat.get("id").asText(),
+        JsonNode lucky = applied(aria, Map.of("choiceId", feat.get("id").asString(),
                 "feat", Map.of("type", "feat", "featId", luckyId)));
 
         assertThat(lucky.get("resourcePools").toString()).contains("\"poolId\":\"feat:lucky\"");
         JsonNode pool = null;
         for (JsonNode p : lucky.get("resourcePools")) {
-            if ("feat:lucky".equals(p.get("poolId").asText())) pool = p;
+            if ("feat:lucky".equals(p.get("poolId").asString())) pool = p;
         }
         assertThat(pool).isNotNull();
         assertThat(pool.get("maxUses").asInt()).isEqualTo(3);
-        assertThat(lucky.get("levelHistory").get(0).get("choices").get("feats").get(0).get("featName").asText())
+        assertThat(lucky.get("levelHistory").get(0).get("choices").get("feats").get(0).get("featName").asString())
                 .isEqualTo("Lucky");
         assertThat(error(apply(aria, Map.of("choiceId", id(lucky, "ASI", 4), "asi", Map.of("type", "feat",
                 "featId", luckyId))), HttpStatus.BAD_REQUEST))
@@ -383,7 +383,7 @@ class PendingChoicesIT extends IntegrationTest {
     @Test
     @DisplayName("The DM sees a character's pending choices in the campaign's list, but can't make one")
     void theDmSeesButCantChoose() {
-        String aria = create(Map.of("level", 4)).get("id").asText();
+        String aria = create(Map.of("level", 4)).get("id").asString();
         String asi = id(get(aria), "ASI", 4);
 
         JsonNode list = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/characters/campaign/" + campaignId,

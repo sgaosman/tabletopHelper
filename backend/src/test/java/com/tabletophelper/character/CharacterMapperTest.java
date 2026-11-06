@@ -1,6 +1,7 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
 import com.tabletophelper.character.dto.BaseAbilityScores;
 import com.tabletophelper.character.dto.CharacterResponse;
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class CharacterMapperTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonDefaults.mapper();
 
     @Mock
     private SubclassRepository subclassRepository;

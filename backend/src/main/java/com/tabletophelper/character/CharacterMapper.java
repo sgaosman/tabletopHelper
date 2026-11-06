@@ -1,8 +1,8 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.BaseAbilityScores;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.internal.CharacterStats;
@@ -153,7 +153,7 @@ public class CharacterMapper {
         if (subclass.getAlwaysPreparedSpells() == null) return Optional.empty();
         try {
             return Optional.ofNullable(objectMapper.readValue(subclass.getAlwaysPreparedSpells(), SPELLS_BY_CLASS_LEVEL));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.warn("Failed to parse always-prepared spells for subclass {}", subclass.getName(), e);
             throw new ConflictException("The always-prepared spells of the subclass " + subclass.getName()
                     + " can't be read");

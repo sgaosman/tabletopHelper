@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
@@ -71,7 +72,7 @@ class EncounterServiceTest {
     @BeforeEach
     void setUp() {
         AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
-        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = JacksonDefaults.mapper();
         CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
         TurnProcessor turnProcessor = new TurnProcessor(new EffectApplier(new Resolver(Rng.random()),
                 new CreatureStats(objectMapper), combatLog, resourcePoolService), combatLog);

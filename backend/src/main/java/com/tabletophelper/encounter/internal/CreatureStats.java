@@ -1,7 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -162,7 +162,7 @@ public class CreatureStats {
             if (race != null) {
                 for (JsonNode entry : StoredJson.read(objectMapper, race.getResistances(),
                         race.getName() + "'s resistances")) {
-                    Matcher immunity = RACE_CONDITION_IMMUNITY.matcher(entry.isTextual() ? entry.asText() : "");
+                    Matcher immunity = RACE_CONDITION_IMMUNITY.matcher(entry.isString() ? entry.asString("") : "");
                     if (immunity.matches() && immunity.group(1).trim().equalsIgnoreCase(name)) {
                         return true;
                     }
@@ -222,7 +222,7 @@ public class CreatureStats {
     // Whether a JSON array of names, such as damage types, names this one, in any case
     private boolean lists(String json, String what, String name) {
         for (JsonNode entry : StoredJson.read(objectMapper, json, what)) {
-            if (entry.isTextual() && entry.asText().trim().equalsIgnoreCase(name)) {
+            if (entry.isString() && entry.asString("").trim().equalsIgnoreCase(name)) {
                 return true;
             }
         }
@@ -232,10 +232,10 @@ public class CreatureStats {
     // A save bonus as a stat block lists it: a number, or text such as "+6"; null when absent or unreadable
     private static Integer bonus(JsonNode node) {
         if (node.isInt()) {
-            return node.asInt();
+            return node.asInt(0);
         }
-        if (node.isTextual()) {
-            Matcher matcher = BONUS.matcher(node.asText());
+        if (node.isString()) {
+            Matcher matcher = BONUS.matcher(node.asString(""));
             if (matcher.matches()) {
                 return Integer.parseInt(matcher.group(1));
             }

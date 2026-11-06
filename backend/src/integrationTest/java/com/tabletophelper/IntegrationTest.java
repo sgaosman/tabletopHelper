@@ -1,8 +1,8 @@
 package com.tabletophelper;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Race;
@@ -10,8 +10,9 @@ import com.tabletophelper.reference.RaceRepository;
 import com.tabletophelper.content.ContentStartup;
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Import;
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * /error.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureTestRestTemplate
 @Import({TestcontainersConfiguration.class, ScriptedDiceConfiguration.class})
 @ActiveProfiles("it")
 public abstract class IntegrationTest {
@@ -81,8 +83,8 @@ public abstract class IntegrationTest {
                 "email", username + "@example.com",
                 "password", "password123"), null);
         JsonNode body = expect(HttpStatus.CREATED, response);
-        return new RegisteredUser(UUID.fromString(body.get("userId").asText()),
-                body.get("accessToken").asText(), refreshCookieValue(response));
+        return new RegisteredUser(UUID.fromString(body.get("userId").asString()),
+                body.get("accessToken").asString(), refreshCookieValue(response));
     }
 
     /** The value of the refresh_token cookie a response sets, or null when it sets none. */
@@ -133,7 +135,7 @@ public abstract class IntegrationTest {
     protected JsonNode json(ResponseEntity<String> response) {
         try {
             return objectMapper.readTree(response.getBody());
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Response body is not JSON: " + response.getBody(), e);
         }
     }
@@ -152,7 +154,7 @@ public abstract class IntegrationTest {
     protected UUID createEncounter(String dmToken, UUID campaignId) {
         JsonNode encounter = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/encounters",
                 Map.of("campaignId", campaignId, "name", "Goblin Ambush"), dmToken));
-        return UUID.fromString(encounter.get("id").asText());
+        return UUID.fromString(encounter.get("id").asString());
     }
 
     protected UUID createCharacter(String token, UUID raceId, UUID classId) {
@@ -160,7 +162,7 @@ public abstract class IntegrationTest {
                 "name", "Aria", "raceId", raceId, "classId", classId,
                 "strength", 10, "dexterity", 14, "constitution", 12,
                 "intelligence", 10, "wisdom", 10, "charisma", 10), token));
-        return UUID.fromString(character.get("id").asText());
+        return UUID.fromString(character.get("id").asString());
     }
 
     protected JsonNode addParticipant(String dmToken, UUID encounterId, Map<String, Object> request) {

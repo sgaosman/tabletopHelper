@@ -62,6 +62,17 @@ class ModuleBoundaryTest {
                 .check(productionClasses);
     }
 
+    @Test
+    @DisplayName("No class uses Jackson 2, which stays inside jjwt: the application's JSON is Jackson 3's")
+    void noClassUsesJackson2() {
+        // Jackson 2 is still on the classpath for jjwt-jackson and springdoc, so an old import would compile.
+        // The annotations keep their com.fasterxml package in Jackson 3 and are allowed (D154)
+        noClasses().should().dependOnClassesThat().resideInAnyPackage(
+                        "com.fasterxml.jackson.core..", "com.fasterxml.jackson.databind..",
+                        "com.fasterxml.jackson.datatype..", "com.fasterxml.jackson.module..")
+                .check(productionClasses);
+    }
+
     private static ArchCondition<JavaClass> useNoOtherModulesInternalPackage() {
         return new ArchCondition<>("use no other module's internal package") {
             @Override

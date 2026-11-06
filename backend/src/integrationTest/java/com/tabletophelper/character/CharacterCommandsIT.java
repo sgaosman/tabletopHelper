@@ -1,6 +1,6 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
@@ -68,9 +68,9 @@ class CharacterCommandsIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         raceId = insertRace("Tiefling");
         fighterId = insertClass("Fighter", 10);
         warlockId = insertCaster("Warlock", 8, "CHA", true);
@@ -90,21 +90,21 @@ class CharacterCommandsIT extends IntegrationTest {
                 .damageDice("1d8").damageType("slashing").source("PHB").build()).getId();
 
         JsonNode details = ok(HttpMethod.PATCH, aria, "/details", Map.of("name", "Aria Swift", "notes", "Owes 10 gp"));
-        assertThat(details.get("name").asText()).isEqualTo("Aria Swift");
-        assertThat(details.get("notes").asText()).isEqualTo("Owes 10 gp");
+        assertThat(details.get("name").asString()).isEqualTo("Aria Swift");
+        assertThat(details.get("notes").asString()).isEqualTo("Owes 10 gp");
         assertThat(details.get("hpMax").asInt()).isEqualTo(28);
 
         Map<String, Object> noCampaign = new HashMap<>();
         noCampaign.put("campaignId", null);
         assertThat(ok(HttpMethod.PUT, aria, "/campaign", noCampaign).get("campaignId").isNull()).isTrue();
-        assertThat(ok(HttpMethod.PUT, aria, "/campaign", Map.of("campaignId", campaignId)).get("campaignId").asText())
+        assertThat(ok(HttpMethod.PUT, aria, "/campaign", Map.of("campaignId", campaignId)).get("campaignId").asString())
                 .isEqualTo(campaignId.toString());
 
         JsonNode inventory = ok(HttpMethod.PUT, aria, "/inventory", Map.of(
                 "equipment", List.of(Map.of("name", "Heirloom blade", "quantity", 1, "itemId", longsword),
                         Map.of("name", "Torch", "quantity", 3)),
                 "currency", Map.of("cp", 0, "sp", 5, "ep", 0, "gp", 12, "pp", 0)));
-        assertThat(inventory.get("equipment").get(0).get("itemId").asText()).isEqualTo(longsword.toString());
+        assertThat(inventory.get("equipment").get(0).get("itemId").asString()).isEqualTo(longsword.toString());
         assertThat(inventory.get("currency").get("gp").asInt()).isEqualTo(12);
         assertThat(error(command(HttpMethod.PUT, aria, "/inventory", Map.of(
                 "equipment", List.of(Map.of("name", "Vorpal Sword", "itemId", UUID.randomUUID())),
@@ -242,11 +242,11 @@ class CharacterCommandsIT extends IntegrationTest {
             var asStranger = exchange(command.getKey(), "/api/characters/" + aria + path, command.getValue(),
                     stranger.accessToken());
             assertThat(asStranger.getStatusCode()).as(path).isEqualTo(HttpStatus.FORBIDDEN);
-            assertThat(json(asStranger).get("error").asText()).as(path).isEqualTo("You do not own this character");
+            assertThat(json(asStranger).get("error").asString()).as(path).isEqualTo("You do not own this character");
             var unknown = exchange(command.getKey(), "/api/characters/" + nobody + path, command.getValue(),
                     player.accessToken());
             assertThat(unknown.getStatusCode()).as(path).isEqualTo(HttpStatus.NOT_FOUND);
-            assertThat(json(unknown).get("error").asText()).as(path).isEqualTo("Character not found");
+            assertThat(json(unknown).get("error").asString()).as(path).isEqualTo("Character not found");
         });
         var removeFromSpellbook = exchange(HttpMethod.DELETE, "/api/characters/" + aria + "/spellbook",
                 Map.of("spells", List.of("Shield")), stranger.accessToken());
@@ -389,14 +389,14 @@ class CharacterCommandsIT extends IntegrationTest {
                 "charisma", 14));
         body.putAll(details);
         return expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", body, player.accessToken()))
-                .get("id").asText();
+                .get("id").asString();
     }
 
     // The ID of the character's pending choice of the type at the character level (D159)
     private static String choiceId(JsonNode character, String type, int characterLevel) {
         for (JsonNode choice : character.get("pendingChoices")) {
-            if (choice.get("type").asText().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
-                return choice.get("id").asText();
+            if (choice.get("type").asString().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
+                return choice.get("id").asString();
             }
         }
         throw new AssertionError("No pending " + type + " at level " + characterLevel);
@@ -425,7 +425,7 @@ class CharacterCommandsIT extends IntegrationTest {
     }
 
     private String error(ResponseEntity<String> response, HttpStatus status) {
-        return expect(status, response).get("error").asText();
+        return expect(status, response).get("error").asString();
     }
 
     private int version(String characterId) {

@@ -1,6 +1,6 @@
 package com.tabletophelper.monster;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;

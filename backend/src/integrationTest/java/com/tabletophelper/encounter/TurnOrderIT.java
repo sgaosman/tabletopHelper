@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.monster.Monster;
@@ -56,9 +56,9 @@ class TurnOrderIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID character = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
         encounterId = createEncounter(dm.accessToken(), campaignId);
 
@@ -99,7 +99,7 @@ class TurnOrderIT extends IntegrationTest {
         assertThat(currentTurnName(state)).isEqualTo("Aria");
         ResponseEntity<String> lairOutOfTurn = dragonAction("Magma Eruption", "LAIR");
         assertThat(lairOutOfTurn.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(json(lairOutOfTurn).get("error").asText())
+        assertThat(json(lairOutOfTurn).get("error").asString())
                 .isEqualTo("Lair actions happen only on the Lair's turn, at initiative 20");
 
         // The dead goblin's turn is passed over
@@ -108,7 +108,7 @@ class TurnOrderIT extends IntegrationTest {
         assertThat(state.get("turnOrder").get(3).get("skipped").asBoolean()).isTrue();
         ResponseEntity<String> ownTurn = dragonAction("Tail Attack", "LEGENDARY");
         assertThat(ownTurn.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(json(ownTurn).get("error").asText())
+        assertThat(json(ownTurn).get("error").asString())
                 .isEqualTo("Dragon can't use legendary actions on its own turn, only on other creatures' turns");
 
         // Once the dragon dies, the Lair takes no more turns
@@ -139,9 +139,9 @@ class TurnOrderIT extends IntegrationTest {
                 Map.of("monsterIds", List.of(dragonId)), player.accessToken());
 
         assertThat(notInLair.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(json(notInLair).get("error").asText()).isEqualTo("Ogre isn't fighting in its lair");
+        assertThat(json(notInLair).get("error").asString()).isEqualTo("Ogre isn't fighting in its lair");
         assertThat(playerInLair.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(playerInLair).get("error").asText()).isEqualTo("Only monsters fight in their lair");
+        assertThat(json(playerInLair).get("error").asString()).isEqualTo("Only monsters fight in their lair");
         assertThat(byPlayer.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
@@ -150,7 +150,7 @@ class TurnOrderIT extends IntegrationTest {
     void playerActsOnItsTurn() {
         ResponseEntity<String> early = attack(goblinId);
         assertThat(early.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(json(early).get("error").asText()).isEqualTo("You can only attack on your turn");
+        assertThat(json(early).get("error").asString()).isEqualTo("You can only attack on your turn");
 
         nextTurn();
         dice.script(15);
@@ -173,7 +173,7 @@ class TurnOrderIT extends IntegrationTest {
 
         ResponseEntity<String> untied = tieOrder(List.of(dragonId, ogreId));
         assertThat(untied.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(untied).get("error").asText())
+        assertThat(json(untied).get("error").asString())
                 .isEqualTo("Only participants tied on both initiative and DEX can be reordered");
         assertThat(tieOrder(List.of(goblinId, ariaId), player.accessToken()).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
@@ -265,24 +265,24 @@ class TurnOrderIT extends IntegrationTest {
     private List<String> dmLogDescriptions() {
         List<String> descriptions = new ArrayList<>();
         expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId + "/combat/log", null,
-                dm.accessToken())).forEach(entry -> descriptions.add(entry.get("description").asText()));
+                dm.accessToken())).forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 
     private static List<String> turnNames(JsonNode state) {
         List<String> names = new ArrayList<>();
-        state.get("turnOrder").forEach(turn -> names.add(turn.get("name").asText()));
+        state.get("turnOrder").forEach(turn -> names.add(turn.get("name").asString()));
         return names;
     }
 
     private static String currentTurnName(JsonNode state) {
-        return state.get("turnOrder").get(state.get("currentTurnIndex").asInt()).get("name").asText();
+        return state.get("turnOrder").get(state.get("currentTurnIndex").asInt()).get("name").asString();
     }
 
     private static String idOf(JsonNode encounter, String displayName) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(displayName + " is not in the encounter");
@@ -290,7 +290,7 @@ class TurnOrderIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }

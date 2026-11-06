@@ -1,6 +1,7 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class FeatEffectResolverTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonDefaults.mapper();
 
     @Mock
     private SpellRepository spellRepository;
@@ -582,11 +583,11 @@ class FeatEffectResolverTest {
         Feat blank = buildFeat("Blank", null, null, null);
         Feat unreadable = buildFeat("Odd", null, "{\"repeatable\": \"yes\"}", null);
 
-        assertTrue(FeatEffectResolver.repeatable(adept));
-        assertFalse(FeatEffectResolver.repeatable(lucky));
-        assertFalse(FeatEffectResolver.repeatable(notRepeatable));
-        assertFalse(FeatEffectResolver.repeatable(blank));
-        assertThrows(ConflictException.class, () -> FeatEffectResolver.repeatable(unreadable));
+        assertTrue(resolver.repeatable(adept));
+        assertFalse(resolver.repeatable(lucky));
+        assertFalse(resolver.repeatable(notRepeatable));
+        assertFalse(resolver.repeatable(blank));
+        assertThrows(ConflictException.class, () -> resolver.repeatable(unreadable));
     }
 
     // --- 6.25 to 6.27 The race and feat spellcasting ability (D159) and unknown spells ---

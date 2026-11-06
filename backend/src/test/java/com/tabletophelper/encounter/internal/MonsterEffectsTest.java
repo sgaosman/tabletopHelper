@@ -1,7 +1,8 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.shared.JacksonDefaults;
 import com.tabletophelper.monster.MonsterTemplates;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.monster.MonsterTemplatesTest;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
@@ -24,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MonsterEffectsTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonDefaults.mapper();
     private final CombatFixture.ScriptedDice dice = new CombatFixture.ScriptedDice();
     private final MonsterEffects monsterEffects = new MonsterEffects(dice);
     private final UUID aria = UUID.randomUUID();

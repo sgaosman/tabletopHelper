@@ -1,6 +1,6 @@
 package com.tabletophelper.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,8 +56,8 @@ class OpenApiSpecIT extends IntegrationTest {
     void specIsOpenApi30WithRelativeServer() {
         JsonNode spec = liveSpec();
 
-        assertThat(spec.path("openapi").asText()).startsWith("3.0.");
-        assertThat(spec.path("servers").path(0).path("url").asText()).isEqualTo("/");
+        assertThat(spec.path("openapi").asString()).startsWith("3.0.");
+        assertThat(spec.path("servers").path(0).path("url").asString()).isEqualTo("/");
     }
 
     @Test
@@ -65,7 +65,7 @@ class OpenApiSpecIT extends IntegrationTest {
     void requiredFieldIsNotNullable() {
         JsonNode schema = campaignResponseSchema();
 
-        assertThat(schema.path("required")).extracting(JsonNode::asText).contains("inviteCode");
+        assertThat(schema.path("required")).extracting(JsonNode::asString).contains("inviteCode");
         assertThat(schema.path("properties").path("inviteCode").has("nullable")).isFalse();
     }
 
@@ -74,7 +74,7 @@ class OpenApiSpecIT extends IntegrationTest {
     void optionalFieldIsNullable() {
         JsonNode schema = campaignResponseSchema();
 
-        assertThat(schema.path("required")).extracting(JsonNode::asText).doesNotContain("description");
+        assertThat(schema.path("required")).extracting(JsonNode::asString).doesNotContain("description");
         assertThat(schema.path("properties").path("description").path("nullable").asBoolean()).isTrue();
     }
 
@@ -85,8 +85,8 @@ class OpenApiSpecIT extends IntegrationTest {
         liveSpec().path("components").path("schemas").properties().forEach(schema -> {
             JsonNode properties = schema.getValue().path("properties");
             schema.getValue().path("required").forEach(name -> {
-                if (properties.path(name.asText()).path("nullable").asBoolean()) {
-                    requiredAndNullable.add(schema.getKey() + "." + name.asText());
+                if (properties.path(name.asString()).path("nullable").asBoolean()) {
+                    requiredAndNullable.add(schema.getKey() + "." + name.asString());
                 }
             });
         });
@@ -108,8 +108,8 @@ class OpenApiSpecIT extends IntegrationTest {
             }
         } else if (live.isObject() && committed.isObject()) {
             Set<String> names = new TreeSet<>();
-            live.fieldNames().forEachRemaining(names::add);
-            committed.fieldNames().forEachRemaining(names::add);
+            names.addAll(live.propertyNames());
+            names.addAll(committed.propertyNames());
             for (String name : names) {
                 String child = path + "/" + name.replace("~", "~0").replace("/", "~1");
                 if (!committed.has(name)) {

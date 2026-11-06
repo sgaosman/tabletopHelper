@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.Feature;
@@ -34,7 +35,7 @@ import static org.mockito.Mockito.when;
 class CharacterWeaponsTest {
 
     private final ItemRepository itemRepository = mock(ItemRepository.class);
-    private final CharacterWeapons weapons = new CharacterWeapons(itemRepository, new ObjectMapper());
+    private final CharacterWeapons weapons = new CharacterWeapons(itemRepository, JacksonDefaults.mapper());
     private PlayerCharacter character;
 
     @BeforeEach

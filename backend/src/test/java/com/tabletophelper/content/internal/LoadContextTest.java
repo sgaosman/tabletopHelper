@@ -1,6 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.OptionalFeatureRepository;
@@ -30,7 +31,7 @@ import static org.mockito.Mockito.when;
 /** The upsert by natural key every loader uses (D169), over mocked repositories. */
 class LoadContextTest {
 
-    private final LoadContext context = new LoadContext(new ObjectMapper());
+    private final LoadContext context = new LoadContext(JacksonDefaults.mapper());
 
     private static OptionalFeature feature(UUID id, String name, String description) {
         return OptionalFeature.builder().id(id).name(name).source("PHB").featureType("FightingStyle")
@@ -117,7 +118,7 @@ class LoadContextTest {
         context.skip("_copy subraces");
 
         assertThat(context.skips()).containsExactly(Map.entry("_copy subraces", 2), Map.entry("SKIP_FILES", 1));
-        assertThat(new LoadContext(new ObjectMapper()).skips()).isEmpty();
+        assertThat(new LoadContext(JacksonDefaults.mapper()).skips()).isEmpty();
     }
 
     @Test
@@ -135,7 +136,7 @@ class LoadContextTest {
     @Test
     @DisplayName("A file without its array of rows, a missing file and a pattern that matches nothing each fail, naming the file")
     void missingFilesAndArraysFail() throws Exception {
-        var root = new ObjectMapper().readTree("{\"race\": {}}");
+        var root = JacksonDefaults.mapper().readTree("{\"race\": {}}");
 
         assertThatThrownBy(() -> LoadContext.array(root, "race", "races.json"))
                 .isInstanceOf(IllegalStateException.class).hasMessage("races.json has no \"race\" array");

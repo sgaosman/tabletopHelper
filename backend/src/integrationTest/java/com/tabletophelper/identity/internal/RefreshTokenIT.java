@@ -1,6 +1,6 @@
 package com.tabletophelper.identity.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class RefreshTokenIT extends IntegrationTest {
 
         JsonNode body = expect(HttpStatus.OK, response);
         assertThat(body.has("refreshToken")).isFalse();
-        assertThat(body.get("accessToken").asText()).isNotBlank();
+        assertThat(body.get("accessToken").asString()).isNotBlank();
         List<String> attributes = List.of(setCookie(response).split("; "));
         assertThat(attributes.get(0)).startsWith("refresh_token=");
         assertThat(attributes).contains("Path=/api/auth", "Max-Age=604800", "Secure", "HttpOnly", "SameSite=Strict");
@@ -62,8 +62,8 @@ class RefreshTokenIT extends IntegrationTest {
         JsonNode body = expect(HttpStatus.OK, response);
         String next = refreshCookieValue(response);
         assertThat(next).isNotBlank().isNotEqualTo(user.refreshToken());
-        assertThat(body.get("userId").asText()).isEqualTo(user.id().toString());
-        expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/characters", null, body.get("accessToken").asText()));
+        assertThat(body.get("userId").asString()).isEqualTo(user.id().toString());
+        expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/characters", null, body.get("accessToken").asString()));
         Map<String, Object> old = row(user.refreshToken());
         Map<String, Object> replacement = row(next);
         assertThat(old.get("replaced_by_id")).isEqualTo(replacement.get("id"));
@@ -124,7 +124,7 @@ class RefreshTokenIT extends IntegrationTest {
         var response = post("/api/auth/refresh", null, Map.of("refreshToken", user.refreshToken()));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(json(response).get("error").asText()).isNotBlank();
+        assertThat(json(response).get("error").asString()).isNotBlank();
         assertThat(response.getHeaders().get(HttpHeaders.SET_COOKIE)).isNull();
         assertThat(row(user.refreshToken()).get("replaced_by_id")).isNull();
     }

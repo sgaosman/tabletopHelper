@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -49,7 +49,7 @@ class ConcurrentCombatIT extends IntegrationTest {
     @BeforeEach
     void setUpEncounter() {
         dm = register("dungeonmaster");
-        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asText());
+        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asString());
         encounterId = createEncounter(dm.accessToken(), campaignId);
         Monster ogre = monsterRepository.save(Monster.builder()
                 .name("Ogre").type("Giant").challengeRating("2").source("MM")
@@ -57,7 +57,7 @@ class ConcurrentCombatIT extends IntegrationTest {
                 .build());
         JsonNode state = addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", ogre.getId(), "displayName", "Ogre"));
-        ogreId = state.get("participants").get(0).get("id").asText();
+        ogreId = state.get("participants").get(0).get("id").asString();
         startEncounter(dm.accessToken(), encounterId);
     }
 
@@ -104,7 +104,7 @@ class ConcurrentCombatIT extends IntegrationTest {
         }
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(json(response).get("error").asText())
+        assertThat(json(response).get("error").asString())
                 .isEqualTo("Another change is still in progress. Please try again in a moment.");
         assertThat(waitedMillis).isBetween(4_500L, 15_000L);
         assertThat(ogreHp()).isEqualTo(59);
@@ -156,7 +156,7 @@ class ConcurrentCombatIT extends IntegrationTest {
 
     private JsonNode ogre(JsonNode encounter) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(ogreId)) {
+            if (participant.get("id").asString().equals(ogreId)) {
                 return participant;
             }
         }
@@ -171,7 +171,7 @@ class ConcurrentCombatIT extends IntegrationTest {
     private List<String> log() {
         List<String> descriptions = new ArrayList<>();
         expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId + "/combat/log", null,
-                dm.accessToken())).forEach(entry -> descriptions.add(entry.get("description").asText()));
+                dm.accessToken())).forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 }

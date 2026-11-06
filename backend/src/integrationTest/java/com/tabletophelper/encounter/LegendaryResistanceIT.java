@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.ResourcePoolEntry;
@@ -47,9 +47,9 @@ class LegendaryResistanceIT extends IntegrationTest {
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID character = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Wizard", 6));
-        encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
+        encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
         spellRepository.save(Spell.builder().name("Fireball").level(3).source("PHB").effectTemplate(SpellTemplate.parse("""
                 {"spellName": "Fireball", "spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX",
                  "halfOnSave": true, "concentration": false, "components": {"verbal": true},
@@ -62,12 +62,12 @@ class LegendaryResistanceIT extends IntegrationTest {
 
         JsonNode state = addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", character, "displayName", "Aria"));
-        ariaId = state.get("participants").get(0).get("id").asText();
+        ariaId = state.get("participants").get(0).get("id").asString();
         state = addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", dragon.getId(), "displayName", "Dragon"));
         for (JsonNode participant : state.get("participants")) {
-            if (participant.get("displayName").asText().equals("Dragon")) {
-                dragonId = participant.get("id").asText();
+            if (participant.get("displayName").asString().equals("Dragon")) {
+                dragonId = participant.get("id").asString();
             }
         }
 
@@ -109,13 +109,13 @@ class LegendaryResistanceIT extends IntegrationTest {
         assertThat(entry.get("lrConditionIds").isEmpty()).isTrue();
         // The players' log never carries the Legendary Resistance fields (D157)
         JsonNode playerLog = playerLog();
-        JsonNode playerEntry = playerLog.get(entryIndex(playerLog, entry.get("id").asText()));
+        JsonNode playerEntry = playerLog.get(entryIndex(playerLog, entry.get("id").asString()));
         assertThat(playerEntry.path("legendaryResistanceEligible").isBoolean()).isFalse();
         assertThat(playerEntry.path("lrSuccessDamage").isNumber()).isFalse();
 
         JsonNode state = expect(HttpStatus.OK, exchange(HttpMethod.POST,
                 "/api/encounters/" + encounterId + "/combat/legendary-resistance",
-                Map.of("combatLogId", entry.get("id").asText()), dm.accessToken()));
+                Map.of("combatLogId", entry.get("id").asString()), dm.accessToken()));
 
         // It ends as if it had made the save: 200 less half of 32
         assertThat(participant(state, dragonId).get("hpCurrent").asInt()).isEqualTo(184);
@@ -134,7 +134,7 @@ class LegendaryResistanceIT extends IntegrationTest {
                 "/api/encounters/" + encounterId + "/combat/cast-spell?actorId=" + ariaId,
                 Map.of("spellName", "Fireball", "slotLevel", 3, "targetIds", List.of(dragonId)),
                 player.accessToken()));
-        String entryId = failedSaveEntry().get("id").asText();
+        String entryId = failedSaveEntry().get("id").asString();
 
         var byPlayer = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/legendary-resistance",
                 Map.of("combatLogId", entryId), player.accessToken());
@@ -168,7 +168,7 @@ class LegendaryResistanceIT extends IntegrationTest {
     // The dragon's entry for the Fireball
     private JsonNode failedSaveEntry() {
         for (JsonNode entry : dmLog()) {
-            if (dragonId.equals(entry.path("targetId").asText()) && "SPELL_CAST".equals(entry.get("actionType").asText())) {
+            if (dragonId.equals(entry.path("targetId").asString()) && "SPELL_CAST".equals(entry.get("actionType").asString())) {
                 return entry;
             }
         }
@@ -177,7 +177,7 @@ class LegendaryResistanceIT extends IntegrationTest {
 
     private static int entryIndex(JsonNode log, String id) {
         for (int i = 0; i < log.size(); i++) {
-            if (log.get(i).get("id").asText().equals(id)) {
+            if (log.get(i).get("id").asString().equals(id)) {
                 return i;
             }
         }
@@ -186,7 +186,7 @@ class LegendaryResistanceIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }

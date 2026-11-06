@@ -1,6 +1,6 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.AbilityBonus;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
@@ -314,10 +314,10 @@ class CharacterJsonMappingIT extends IntegrationTest {
 
         JsonNode created = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", create,
                 player.accessToken()));
-        String id = created.get("id").asText();
+        String id = created.get("id").asString();
 
         assertThat(created.get("skillProficiencies").isArray()).isTrue();
-        assertThat(created.get("skillProficiencies").get(1).asText()).isEqualTo("Perception");
+        assertThat(created.get("skillProficiencies").get(1).asString()).isEqualTo("Perception");
         assertThat(created.get("racialAbilityBonuses").get(0).get("bonus").asInt()).isEqualTo(2);
         assertThat(created.get("features").isArray()).isTrue();
         assertThat(created.get("features")).isEmpty();
@@ -330,7 +330,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
         assertThat(created.get("abilityScoreMaximums").get("strength").asInt()).isEqualTo(20);
         assertThat(created.get("levelHistory").get(0).get("hitDieResult").asInt()).isEqualTo(6);
         assertThat(created.get("currency").get("gp").asInt()).isZero();
-        assertThat(created.get("multiclassEntries").get(0).get("classId").asText()).isEqualTo(classId.toString());
+        assertThat(created.get("multiclassEntries").get(0).get("classId").asString()).isEqualTo(classId.toString());
         assertThat(created.get("levelHistory").get(0).get("choices").isObject()).isTrue();
         assertThat(created.has("hitDiceMap")).isFalse();
         assertThat(created.has("hitDiceTotal")).isFalse();
@@ -355,7 +355,7 @@ class CharacterJsonMappingIT extends IntegrationTest {
                 player.accessToken());
         assertThat(asString.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         var createdWithString = exchange(HttpMethod.POST, "/api/characters", Map.of(
-                "name", "Cade", "raceId", created.get("raceId").asText(), "skillProficiencies", "[\"Stealth\"]"),
+                "name", "Cade", "raceId", created.get("raceId").asString(), "skillProficiencies", "[\"Stealth\"]"),
                 player.accessToken());
         assertThat(createdWithString.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -367,26 +367,26 @@ class CharacterJsonMappingIT extends IntegrationTest {
         RegisteredUser player = register("bram");
         JsonNode campaign = createCampaign(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID characterId = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
                 Map.of("name", "Bram", "raceId", insertRace("Tiefling"), "classId", insertCaster("Warlock", 8, "CHA", true),
                         "strength", 10, "dexterity", 14, "constitution", 12, "intelligence", 10, "wisdom", 10,
                         "charisma", 16, "spellsKnown", List.of(Map.of("name", "Hellish Rebuke", "level", 1,
                                 "source", "race:Tiefling", "usesPerLongRest", 1))),
-                player.accessToken())).get("id").asText());
+                player.accessToken())).get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + characterId + "/spell-slots/pact_1/spend",
                 null, player.accessToken()));
-        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
+        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
 
         JsonNode participant = addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", characterId, "displayName", "Bram"))
                 .get("participants").get(0);
 
         assertThat(participant.get("spellSlotsCurrent").get("pact_1").get("used").asInt()).isEqualTo(1);
-        assertThat(participant.get("spellsKnown").get(0).get("name").asText()).isEqualTo("Hellish Rebuke");
+        assertThat(participant.get("spellsKnown").get(0).get("name").asString()).isEqualTo("Hellish Rebuke");
         assertThat(participant.get("spellsKnown").get(0).get("usesPerLongRest").asInt()).isEqualTo(1);
         // The sheet keeps the race spell's innate use as a pool, which the participant joins with (D165)
-        assertThat(participant.get("resourcePoolsCurrent").get(0).get("poolId").asText())
+        assertThat(participant.get("resourcePoolsCurrent").get(0).get("poolId").asString())
                 .isEqualTo("innate:hellish-rebuke");
     }
 }

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import javax.sql.DataSource;
 import java.util.List;
@@ -65,7 +65,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     @Autowired private CampaignRepository campaignRepository;
     @Autowired private EncounterRepository encounterRepository;
     @Autowired private CombatLogRepository combatLogRepository;
-    @Autowired private PostgreSQLContainer<?> postgres;
+    @Autowired private PostgreSQLContainer postgres;
 
     private Map<String, UUID> participants;
 

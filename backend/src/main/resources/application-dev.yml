@@ -18,10 +18,11 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
 
-# Unexpected errors show their real message in dev only; elsewhere users get a generic one (D155)
-server:
-  error:
-    include-message: always
+  # Unexpected errors show their real message in dev only; elsewhere users get a generic one (D155).
+  # Spring Boot 4 moved server.error.* to spring.web.error.*
+  web:
+    error:
+      include-message: always
 
 app:
   jwt:

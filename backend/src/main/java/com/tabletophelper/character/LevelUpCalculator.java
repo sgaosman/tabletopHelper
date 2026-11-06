@@ -1,7 +1,7 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
@@ -18,8 +18,6 @@ import java.util.stream.Collectors;
  * its Hit Die Result (D167). The rules themselves are rules.character's.
  */
 public class LevelUpCalculator {
-
-    private static final ObjectMapper mapper = new ObjectMapper();
 
     public record FeatureEntry(String name, String description, String source) {}
 
@@ -39,27 +37,29 @@ public class LevelUpCalculator {
 
     /**
      * The features a class level brings, from the class's features and, once the subclass has been chosen, the
-     * subclass's.
+     * subclass's, read with the caller's injected mapper.
      *
      * @throws ConflictException when the class or subclass data can't be read (D155)
      */
-    public static List<FeatureEntry> collectFeaturesForLevel(
+    public static List<FeatureEntry> collectFeaturesForLevel(ObjectMapper objectMapper,
             String classFeatureJson, String subclassFeatureJson,
             int classLevel, String className, String subclassName) {
         List<FeatureEntry> result = new ArrayList<>();
         if (classFeatureJson != null) {
-            result.addAll(featuresAt(classFeatureJson, classLevel, className, "class " + className));
+            result.addAll(featuresAt(objectMapper, classFeatureJson, classLevel, className, "class " + className));
         }
         if (subclassFeatureJson != null && subclassName != null) {
-            result.addAll(featuresAt(subclassFeatureJson, classLevel, subclassName, "subclass " + subclassName));
+            result.addAll(featuresAt(objectMapper, subclassFeatureJson, classLevel, subclassName,
+                    "subclass " + subclassName));
         }
         return result;
     }
 
-    private static List<FeatureEntry> featuresAt(String featureJson, int classLevel, String source, String what) {
+    private static List<FeatureEntry> featuresAt(ObjectMapper objectMapper, String featureJson, int classLevel,
+                                                 String source, String what) {
         List<Map<String, Object>> features;
         try {
-            features = mapper.readValue(featureJson, new TypeReference<>() {});
+            features = objectMapper.readValue(featureJson, new TypeReference<>() {});
         } catch (Exception e) {
             throw new ConflictException("The features of the " + what + " can't be read");
         }
@@ -74,7 +74,7 @@ public class LevelUpCalculator {
         return result;
     }
 
-    public static List<LevelGain> buildProgression(
+    public static List<LevelGain> buildProgression(ObjectMapper objectMapper,
             ClassTables tables, int targetLevel, UUID classId, String className,
             int hitDice,
             String classFeatureJson, String subclassFeatureJson,
@@ -88,7 +88,7 @@ public class LevelUpCalculator {
             String scName = (subclassName != null && lvl >= subclassLevel)
                     ? subclassName : null;
 
-            List<FeatureEntry> features = collectFeaturesForLevel(
+            List<FeatureEntry> features = collectFeaturesForLevel(objectMapper,
                     classFeatureJson, scFeatures, lvl, className, scName);
 
             progression.add(new LevelGain(
@@ -108,7 +108,8 @@ public class LevelUpCalculator {
      * Each class's levels in the order given, so only the first class's first level is character level 1, with the
      * die's maximum; every other class's first level has the average (PHB p.163).
      */
-    public static List<LevelGain> buildMulticlassProgression(ClassTables tables, List<ClassInput> classInputs) {
+    public static List<LevelGain> buildMulticlassProgression(ObjectMapper objectMapper, ClassTables tables,
+                                                             List<ClassInput> classInputs) {
         List<LevelGain> progression = new ArrayList<>();
         int characterLevel = 0;
 
@@ -121,7 +122,7 @@ public class LevelUpCalculator {
                 String scName = (ci.subclassName() != null && clsLvl >= ci.subclassLevel())
                         ? ci.subclassName() : null;
 
-                List<FeatureEntry> features = collectFeaturesForLevel(
+                List<FeatureEntry> features = collectFeaturesForLevel(objectMapper,
                         ci.classFeatureJson(), scFeatures, clsLvl, ci.className(), scName);
 
                 progression.add(new LevelGain(

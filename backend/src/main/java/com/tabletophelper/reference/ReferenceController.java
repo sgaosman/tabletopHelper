@@ -1,7 +1,8 @@
 package com.tabletophelper.reference;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.ClassTablesResponse;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
 import com.tabletophelper.rules.character.ClassTables;
@@ -310,7 +311,7 @@ public class ReferenceController {
         try (InputStream in = new ClassPathResource(QUICK_REFERENCE).getInputStream()) {
             JsonNode root = objectMapper.readTree(in);
             return ResponseEntity.ok(root.path("data").path("bookref-quick"));
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             // A bundled file that is missing or isn't JSON is a fault in the content (D155)
             log.error("{} can't be read: {}", QUICK_REFERENCE, e.getMessage());
             throw new ConflictException("The quick reference can't be read");

@@ -1,6 +1,6 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.maintenance.MaintenanceReport;
 import com.tabletophelper.maintenance.RecomputeCharactersJob;
@@ -97,8 +97,8 @@ class ProgressionIT extends IntegrationTest {
     // The ID of the character's pending choice of the type at the character level
     private static String choiceId(JsonNode character, String type, int characterLevel) {
         for (JsonNode choice : character.get("pendingChoices")) {
-            if (choice.get("type").asText().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
-                return choice.get("id").asText();
+            if (choice.get("type").asString().equals(type) && choice.get("characterLevel").asInt() == characterLevel) {
+                return choice.get("id").asString();
             }
         }
         throw new AssertionError("No pending " + type + " at level " + characterLevel + ": "
@@ -110,9 +110,9 @@ class ProgressionIT extends IntegrationTest {
         List<Integer> hitDieResults = new ArrayList<>();
         c.get("levelHistory").forEach(entry -> hitDieResults.add(entry.get("hitDieResult").asInt()));
         List<String> pools = new ArrayList<>();
-        c.get("resourcePools").forEach(pool -> pools.add(pool.get("poolId").asText()));
+        c.get("resourcePools").forEach(pool -> pools.add(pool.get("poolId").asString()));
         List<String> features = new ArrayList<>();
-        c.get("features").forEach(feature -> features.add(feature.get("name").asText()));
+        c.get("features").forEach(feature -> features.add(feature.get("name").asString()));
         return Map.ofEntries(
                 Map.entry("level", c.get("level").asInt()),
                 Map.entry("hp", c.get("hpCurrent").asInt() + "/" + c.get("hpMax").asInt()),
@@ -138,7 +138,7 @@ class ProgressionIT extends IntegrationTest {
                 "name", "Aria", "raceId", insertRace("Human"), "classId", fighterId, "level", 3,
                 "strength", 16, "dexterity", 14, "constitution", 14, "intelligence", 14, "wisdom", 10,
                 "charisma", 10), player.accessToken()));
-        String id = created.get("id").asText();
+        String id = created.get("id").asString();
         Map<String, Object> fighter3 = stats(created);
 
         // Fighter 3 with CON 14: 10+2, 6+2, 6+2
@@ -155,12 +155,12 @@ class ProgressionIT extends IntegrationTest {
         assertThat(wizard4.get("levelHistory").get(3).get("hitDieResult").asInt()).isEqualTo(4);
         assertThat(wizard4.get("spellSlots").get("1").get("max").asInt()).isEqualTo(2);
         assertThat(wizard4.get("hitDice").get("Wizard").get("total").asInt()).isEqualTo(1);
-        assertThat(wizard4.get("spellcasting").get(0).get("className").asText()).isEqualTo("Wizard");
+        assertThat(wizard4.get("spellcasting").get(0).get("className").asString()).isEqualTo("Wizard");
         assertThat(wizard4.get("spellcasting").get(0).get("spellSaveDc").asInt()).isEqualTo(12);
         assertThat(wizard4.get("spellSaveDc").asInt()).isEqualTo(12);
         // The dip's 1st level owes three cantrips and six spellbook spells of 1st level
         JsonNode spellbook = wizard4.get("pendingChoices").get(wizard4.get("pendingChoices").size() - 1);
-        assertThat(spellbook.get("type").asText()).isEqualTo("SPELLS");
+        assertThat(spellbook.get("type").asString()).isEqualTo("SPELLS");
         assertThat(spellbook.get("characterLevel").asInt()).isEqualTo(4);
         assertThat(spellbook.get("count").asInt()).isEqualTo(6);
         assertThat(spellbook.get("maxSpellLevel").asInt()).isEqualTo(1);
@@ -186,7 +186,7 @@ class ProgressionIT extends IntegrationTest {
         JsonNode tough = applyChoices(id, Map.of("choiceId", sixth, "asi", Map.of("type", "feat", "featId", toughId)));
         assertThat(tough.get("hpMax").asInt()).isEqualTo(65 + 14);
         assertThat(tough.get("hpCurrent").asInt()).isEqualTo(79);
-        assertThat(tough.get("levelHistory").get(6).get("choices").get("asi").get("featName").asText())
+        assertThat(tough.get("levelHistory").get(6).get("choices").get("asi").get("featName").asString())
                 .isEqualTo("Tough");
 
         // A taken ASI isn't owed again
@@ -262,9 +262,9 @@ class ProgressionIT extends IntegrationTest {
                 "name", "Grog", "raceId", race, "classId", barbarian.getId(), "level", 5,
                 "strength", 16, "dexterity", 14, "constitution", 14, "intelligence", 8, "wisdom", 10,
                 "charisma", 10), player.accessToken()));
-        String id = fifth.get("id").asText();
+        String id = fifth.get("id").asString();
         JsonNode pool = fifth.get("resourcePools").get(0);
-        assertThat(pool.get("poolId").asText()).isEqualTo("class:barbarian-rage");
+        assertThat(pool.get("poolId").asString()).isEqualTo("class:barbarian-rage");
         assertThat(pool.get("maxUses").asInt()).isEqualTo(3);
         assertThat(pool.get("currentUses").asInt()).isEqualTo(3);
 
@@ -283,7 +283,7 @@ class ProgressionIT extends IntegrationTest {
         String twentieth = expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", Map.of(
                 "name", "Grog the Elder", "raceId", race, "classId", barbarian.getId(), "level", 20,
                 "strength", 16, "dexterity", 14, "constitution", 14, "intelligence", 8, "wisdom", 10,
-                "charisma", 10), player.accessToken())).get("id").asText();
+                "charisma", 10), player.accessToken())).get("id").asString();
         for (int i = 0; i < 8; i++) {
             expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + twentieth + "/pools/spend",
                     Map.of("poolId", "class:barbarian-rage"), player.accessToken()));

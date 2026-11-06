@@ -8,7 +8,7 @@ import jakarta.persistence.LockTimeoutException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.web.ErrorProperties;
-import org.springframework.boot.autoconfigure.web.ServerProperties;
+import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -26,7 +26,7 @@ import java.util.Map;
 /**
  * Maps exceptions to status codes with an {@code {"error": ...}} body (D155). Domain exceptions carry
  * a message meant for users, which is always returned. Anything unexpected is a 500 whose message is
- * shown only where {@code server.error.include-message} is {@code always}, which is the dev profile.
+ * shown only where {@code spring.web.error.include-message} is {@code always}, which is the dev profile.
  */
 @Slf4j
 @RestControllerAdvice
@@ -37,8 +37,8 @@ public class GlobalExceptionHandler {
 
     private final boolean includeMessage;
 
-    public GlobalExceptionHandler(ServerProperties serverProperties) {
-        this.includeMessage = serverProperties.getError().getIncludeMessage()
+    public GlobalExceptionHandler(WebProperties webProperties) {
+        this.includeMessage = webProperties.getError().getIncludeMessage()
                 == ErrorProperties.IncludeAttribute.ALWAYS;
     }
 

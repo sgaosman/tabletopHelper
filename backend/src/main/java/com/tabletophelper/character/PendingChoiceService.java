@@ -1,8 +1,8 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterCreateRequest;
@@ -302,8 +302,8 @@ public class PendingChoiceService {
     }
 
     // A feat the character already has can't be taken again, unless its text says it can (D158)
-    private static void requireNewFeat(PlayerCharacter character, Feat feat) {
-        if (DmAdjustments.hasFeat(character, feat.getName()) && !FeatEffectResolver.repeatable(feat)) {
+    private void requireNewFeat(PlayerCharacter character, Feat feat) {
+        if (DmAdjustments.hasFeat(character, feat.getName()) && !featEffectResolver.repeatable(feat)) {
             throw new ValidationException(character.getName() + " already has " + feat.getName()
                     + ", which can't be taken again");
         }
@@ -359,7 +359,7 @@ public class PendingChoiceService {
         for (int level = Math.max(1, subclassLevel); level <= classLevel; level++) {
             int levelIndex = historyIndexOf(character, classId, choice.className(), level);
             if (levelIndex < 0) continue;
-            List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(
+            List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(objectMapper,
                     null, subclass.getFeatures(), level, choice.className(), subclass.getName());
             CharacterUpdates.appendFeatures(character, features);
             CharacterUpdates.appendFeaturesGained(character, levelIndex, features.stream()
@@ -755,10 +755,10 @@ public class PendingChoiceService {
         List<String> offered = new ArrayList<>();
         if (listed != null && listed.isArray()) {
             for (JsonNode name : listed) {
-                if (name.isTextual() && !name.asText().isBlank()) {
-                    offered.add(featRepository.findByNameIgnoreCase(name.asText().trim())
+                if (name.isString() && !name.asString("").isBlank()) {
+                    offered.add(featRepository.findByNameIgnoreCase(name.asString("").trim())
                             .map(Feat::getName)
-                            .orElse(name.asText().trim()));
+                            .orElse(name.asString("").trim()));
                 }
             }
         }
@@ -774,7 +774,7 @@ public class PendingChoiceService {
         if (json == null || json.isBlank()) return null;
         try {
             return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new ConflictException("The data of the " + what + " can't be read");
         }
     }

@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignMemberRepository;
@@ -72,12 +73,13 @@ class CombatFixture {
     // A class spell's numbers come from the character module; unstubbed, a spell uses the caster's main numbers
     final CharacterService characterService = mock(CharacterService.class);
 
-    final ObjectMapper objectMapper = new ObjectMapper();
+    final ObjectMapper objectMapper = JacksonDefaults.mapper();
     final ScriptedDice dice = new ScriptedDice();
     final Resolver resolver = new Resolver(dice);
     final CreatureStats stats = new CreatureStats(objectMapper);
     final CombatLogWriter combatLog = new CombatLogWriter(combatLogRepository);
-    final ResourcePoolService resourcePoolService = new ResourcePoolService(mock(ClassFeaturePoolRepository.class));
+    final ResourcePoolService resourcePoolService =
+            new ResourcePoolService(mock(ClassFeaturePoolRepository.class), JacksonDefaults.mapper());
     final EffectApplier effectApplier = new EffectApplier(resolver, stats, combatLog, resourcePoolService);
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final CombatAccess access = new CombatAccess(

@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -48,9 +48,9 @@ class WeaponAttackIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         // Proficiencies come only from creation or levelling (D158, D167), and a feat only from a Pending Choice or
         // the DM's grant, as Great Weapon Master comes here; the proficiency bonus is the server's, +2
         Map<String, Object> aria = new HashMap<>(Map.of("name", "Aria", "raceId", insertRace("Human"),
@@ -59,7 +59,7 @@ class WeaponAttackIT extends IntegrationTest {
         aria.put("weaponProficiencies", List.of("simple", "martial"));
         aria.put("campaignId", campaignId);
         UUID character = UUID.fromString(expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters",
-                aria, player.accessToken())).get("id").asText());
+                aria, player.accessToken())).get("id").asString());
         UUID greatWeaponMaster = featRepository.save(Feat.builder().name("Great Weapon Master").source("PHB")
                 .description("You've learned to put the weight of a weapon to your advantage.").build()).getId();
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + character + "/adjustments",
@@ -127,7 +127,7 @@ class WeaponAttackIT extends IntegrationTest {
                 "Manual Modifier (player): Aria's Longsword attack adds 1 slashing damage.",
                 "Aria uses Longsword on Ogre: d20(5) + 6 = 11 vs AC 11 — hit, 10 slashing damage.");
         assertThat(notHeavy.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(json(notHeavy).get("error").asText()).isEqualTo("Great Weapon Master needs a heavy melee weapon and "
+        assertThat(json(notHeavy).get("error").asString()).isEqualTo("Great Weapon Master needs a heavy melee weapon and "
                 + "Sharpshooter a ranged weapon, and the Longsword is neither");
         // The players' log has the same entries: they name no hidden participant
         assertThat(descriptions(expect(HttpStatus.OK, exchange(HttpMethod.GET,
@@ -159,7 +159,7 @@ class WeaponAttackIT extends IntegrationTest {
 
         for (ResponseEntity<String> refused : List.of(magic, crit, entered)) {
             assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-            assertThat(json(refused).get("error").asText())
+            assertThat(json(refused).get("error").asString())
                     .isEqualTo("This campaign doesn't allow players to enter Manual Modifiers");
         }
         assertThat(participant(dmView(), ogreId).get("hpCurrent").asInt()).isEqualTo(59 - 7 - 6);
@@ -176,7 +176,7 @@ class WeaponAttackIT extends IntegrationTest {
         RegisteredUser other = register("bram");
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join", Map.of("inviteCode",
                 expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/campaigns/" + campaignId, null, dm.accessToken()))
-                        .get("inviteCode").asText()), other.accessToken()));
+                        .get("inviteCode").asString()), other.accessToken()));
 
         assertThat(attackOptions(other.accessToken()).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(expect(HttpStatus.OK, attackOptions(dm.accessToken())).size()).isEqualTo(3);
@@ -208,8 +208,8 @@ class WeaponAttackIT extends IntegrationTest {
 
     private static String idOf(JsonNode encounter, String displayName) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(displayName + " is not in the encounter");
@@ -217,7 +217,7 @@ class WeaponAttackIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }
@@ -226,7 +226,7 @@ class WeaponAttackIT extends IntegrationTest {
 
     private static List<String> descriptions(JsonNode log) {
         List<String> descriptions = new ArrayList<>();
-        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        log.forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 }

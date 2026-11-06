@@ -1,7 +1,8 @@
 package com.tabletophelper.rules;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.content.internal.LoadContext;
 import com.tabletophelper.content.internal.ResourcePoolLoader;
 import com.tabletophelper.character.PlayerCharacter;
@@ -316,13 +317,13 @@ class PoolSizesGoldenTest {
             CLASSES.put(name, CharacterClass.builder().id(UUID.randomUUID()).name(name).source("PHB").build());
         }
         // The subclasses the file maps pools to, as the classes loader writes them
-        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectMapper objectMapper = JacksonDefaults.mapper();
         try (InputStream in = new ClassPathResource("data/content/resource-pools.json").getInputStream()) {
             for (JsonNode pool : objectMapper.readTree(in).path("classPools")) {
                 if (pool.hasNonNull("subclass")) {
-                    SUBCLASSES.computeIfAbsent(pool.get("subclass").asText(), name -> Subclass.builder()
-                            .id(UUID.randomUUID()).name(name).source(pool.get("subclassSource").asText())
-                            .characterClass(CLASSES.get(pool.get("class").asText())).build());
+                    SUBCLASSES.computeIfAbsent(pool.get("subclass").asString(), name -> Subclass.builder()
+                            .id(UUID.randomUUID()).name(name).source(pool.get("subclassSource").asString())
+                            .characterClass(CLASSES.get(pool.get("class").asString())).build());
                 }
             }
         }
@@ -366,7 +367,7 @@ class PoolSizesGoldenTest {
         when(lookups.findByClassIdAndLevelAndSubclass(any(), anyInt(), any()))
                 .thenAnswer(invocation -> poolsOf(invocation.getArgument(0), invocation.getArgument(1),
                         invocation.getArgument(2)));
-        service = new ResourcePoolService(lookups);
+        service = new ResourcePoolService(lookups, JacksonDefaults.mapper());
     }
 
     private static List<ClassFeaturePool> poolsOf(UUID classId, int level, UUID subclassId) {

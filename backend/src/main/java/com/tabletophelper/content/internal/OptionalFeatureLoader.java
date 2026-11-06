@@ -1,8 +1,8 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.OptionalFeatureRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +45,7 @@ public class OptionalFeatureLoader implements ContentLoader {
 
         List<OptionalFeature> batch = new ArrayList<>();
         for (JsonNode feature : features) {
-            String name = feature.path("name").asText(null);
+            String name = feature.path("name").asString(null);
             JsonNode featureTypes = feature.get("featureType");
             if (name == null) {
                 context.skip("optional features with no name");
@@ -56,7 +56,7 @@ public class OptionalFeatureLoader implements ContentLoader {
                 continue;
             }
             List<OptionalFeature> entities = LoadContext.reading(FILE + ": optional feature " + name + "|"
-                    + feature.path("source").asText(""), () -> parseFeature(name, featureTypes, feature));
+                    + feature.path("source").asString(""), () -> parseFeature(name, featureTypes, feature));
             if (entities.isEmpty()) {
                 context.skip("optional features of a type not loaded");
             }
@@ -74,7 +74,7 @@ public class OptionalFeatureLoader implements ContentLoader {
         List<OptionalFeature> results = new ArrayList<>();
         Set<String> built = new HashSet<>();
         for (JsonNode ft : featureTypes) {
-            String type = ft.asText();
+            String type = ft.asString("");
             if (!RELEVANT_TYPES.contains(type)) continue;
 
             String normalizedType = normalizeType(type);
@@ -82,7 +82,7 @@ public class OptionalFeatureLoader implements ContentLoader {
 
             results.add(OptionalFeature.builder()
                     .name(name)
-                    .source(feature.path("source").asText(null))
+                    .source(feature.path("source").asString(null))
                     .featureType(normalizedType)
                     .description(flattenEntries(feature.get("entries")))
                     .prerequisite(extractPrerequisite(feature))
@@ -118,13 +118,13 @@ public class OptionalFeatureLoader implements ContentLoader {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (!sb.isEmpty()) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
-                String type = entry.path("type").asText("");
+                String type = entry.path("type").asString("");
                 if ("entries".equals(type)) {
-                    String entryName = entry.path("name").asText("");
+                    String entryName = entry.path("name").asString("");
                     if (!entryName.isEmpty()) {
                         if (!sb.isEmpty()) sb.append("\n");
                         sb.append(entryName).append(": ");
@@ -139,8 +139,8 @@ public class OptionalFeatureLoader implements ContentLoader {
                     if (items != null) {
                         for (JsonNode item : items) {
                             if (!sb.isEmpty()) sb.append("\n");
-                            if (item.isTextual()) {
-                                sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                            if (item.isString()) {
+                                sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                             }
                         }
                     }

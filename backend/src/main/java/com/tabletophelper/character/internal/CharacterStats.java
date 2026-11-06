@@ -1,8 +1,8 @@
 package com.tabletophelper.character.internal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DerivedStats;
 import com.tabletophelper.character.DmAdjustments;
 import com.tabletophelper.character.PlayerCharacter;
@@ -332,8 +332,8 @@ public class CharacterStats {
         try {
             JsonNode value = objectMapper.readTree(effects).get(name);
             if (value == null || value.isNull()) return 0;
-            if (value.isIntegralNumber() && value.canConvertToInt()) return value.asInt();
-        } catch (JsonProcessingException e) {
+            if (value.isIntegralNumber() && value.canConvertToInt()) return value.asInt(0);
+        } catch (JacksonException e) {
             // Falls through to the 409 below
         }
         throw new ConflictException("The effects of the " + of + " can't be read: " + effects);
@@ -359,9 +359,9 @@ public class CharacterStats {
         }
         try {
             JsonNode speed = objectMapper.readTree(race.getSpeed());
-            if (speed.isNumber()) return speed.asInt();
-            if (speed.path("walk").isNumber()) return speed.path("walk").asInt();
-        } catch (JsonProcessingException e) {
+            if (speed.isNumber()) return speed.asInt(0);
+            if (speed.path("walk").isNumber()) return speed.path("walk").asInt(0);
+        } catch (JacksonException e) {
             // Falls through to the 409 below
         }
         throw new ConflictException("The speed of the race " + race.getName() + " can't be read: " + race.getSpeed());

@@ -1,6 +1,6 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatRepository;
@@ -47,9 +47,9 @@ class DmAdjustmentIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         raceId = insertRace("Human");
         fighterId = insertClass("Fighter", 10);
         wizardId = insertCaster("Wizard", 6, "INT", false);
@@ -64,19 +64,19 @@ class DmAdjustmentIT extends IntegrationTest {
 
         assertThat(added.get("armourClass").asInt()).isEqualTo(13);
         JsonNode ring = added.get("dmAdjustments").get(0);
-        assertThat(ring.get("kind").asText()).isEqualTo("STAT");
-        assertThat(ring.get("target").asText()).isEqualTo("ARMOUR_CLASS");
+        assertThat(ring.get("kind").asString()).isEqualTo("STAT");
+        assertThat(ring.get("target").asString()).isEqualTo("ARMOUR_CLASS");
         assertThat(ring.get("amount").asInt()).isEqualTo(1);
-        assertThat(ring.get("reason").asText()).isEqualTo("Ring of Protection");
-        assertThat(ring.get("addedBy").asText()).isEqualTo(dm.id().toString());
-        assertThat(ring.get("addedAt").isTextual()).isTrue();
+        assertThat(ring.get("reason").asString()).isEqualTo("Ring of Protection");
+        assertThat(ring.get("addedBy").asString()).isEqualTo(dm.id().toString());
+        assertThat(ring.get("addedAt").isString()).isTrue();
         assertThat(ring.has("removedAt")).isFalse();
         // The player sees it on their sheet, reason and all
         JsonNode sheet = get(aria);
         assertThat(sheet.get("armourClass").asInt()).isEqualTo(13);
-        assertThat(sheet.get("dmAdjustments").get(0).get("reason").asText()).isEqualTo("Ring of Protection");
+        assertThat(sheet.get("dmAdjustments").get(0).get("reason").asString()).isEqualTo("Ring of Protection");
         // Every use is logged by ID, never with the reason
-        String ringId = ring.get("id").asText();
+        String ringId = ring.get("id").asString();
         assertThat(output.getOut()).contains("DM " + dm.id() + " added DM Adjustment " + ringId + " to character "
                 + aria + ": STAT ARMOUR_CLASS +1");
 
@@ -84,9 +84,9 @@ class DmAdjustmentIT extends IntegrationTest {
 
         assertThat(removed.get("armourClass").asInt()).isEqualTo(12);
         JsonNode record = removed.get("dmAdjustments").get(0);
-        assertThat(record.get("reason").asText()).isEqualTo("Ring of Protection");
-        assertThat(record.get("removedBy").asText()).isEqualTo(dm.id().toString());
-        assertThat(record.get("removedAt").isTextual()).isTrue();
+        assertThat(record.get("reason").asString()).isEqualTo("Ring of Protection");
+        assertThat(record.get("removedBy").asString()).isEqualTo(dm.id().toString());
+        assertThat(record.get("removedAt").isString()).isTrue();
         assertThat(output.getOut()).contains("DM " + dm.id() + " removed DM Adjustment " + ringId)
                 .doesNotContain("Ring of Protection");
 
@@ -103,7 +103,7 @@ class DmAdjustmentIT extends IntegrationTest {
         RegisteredUser stranger = register("bram");
         Map<String, Object> ring = Map.of("kind", "STAT", "target", "ARMOUR_CLASS", "amount", 1,
                 "reason", "Ring of Protection");
-        String ringId = adjust(aria, ring).get("dmAdjustments").get(0).get("id").asText();
+        String ringId = adjust(aria, ring).get("dmAdjustments").get(0).get("id").asString();
         int version = version(aria);
 
         for (RegisteredUser notTheDm : List.of(player, stranger)) {
@@ -132,9 +132,9 @@ class DmAdjustmentIT extends IntegrationTest {
     void theOwnerIsNeverTheirOwnDm() {
         Map<String, Object> ring = Map.of("kind", "STAT", "target", "ARMOUR_CLASS", "amount", 1,
                 "reason", "Ring of Protection");
-        String ringId = adjust(aria, ring).get("dmAdjustments").get(0).get("id").asText();
+        String ringId = adjust(aria, ring).get("dmAdjustments").get(0).get("id").asString();
         // Creating a campaign makes the player its DM
-        UUID ownCampaign = UUID.fromString(createCampaign(player.accessToken()).get("id").asText());
+        UUID ownCampaign = UUID.fromString(createCampaign(player.accessToken()).get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + aria + "/campaign",
                 Map.of("campaignId", ownCampaign), player.accessToken()));
         int version = version(aria);
@@ -176,7 +176,7 @@ class DmAdjustmentIT extends IntegrationTest {
         JsonNode cursed = adjust(bram, stat("HP_MAX", -10, "Curse of the hag"));
         assertThat(cursed.get("hpMax").asInt()).isEqualTo(13);
         assertThat(cursed.get("hpCurrent").asInt()).isEqualTo(13);
-        JsonNode lifted = expect(HttpStatus.OK, remove(bram, cursed.get("dmAdjustments").get(1).get("id").asText(), dm));
+        JsonNode lifted = expect(HttpStatus.OK, remove(bram, cursed.get("dmAdjustments").get(1).get("id").asString(), dm));
         assertThat(lifted.get("hpMax").asInt()).isEqualTo(23);
         assertThat(lifted.get("hpCurrent").asInt()).isEqualTo(23);
 
@@ -222,11 +222,11 @@ class DmAdjustmentIT extends IntegrationTest {
         assertThat(log(encounterId)).anySatisfy(line -> assertThat(line).contains("halved by resistance"));
 
         String vulnerability = adjust(aria, defence("VULNERABILITY", "cold", "Curse of the frost giant"))
-                .get("dmAdjustments").get(1).get("id").asText();
+                .get("dmAdjustments").get(1).get("id").asString();
         assertThat(get(aria).get("damageVulnerabilities").toString()).isEqualTo("[\"cold\"]");
         assertThat(damage(encounterId, aria, 4, "cold")).isEqualTo(23 - 8);
 
-        expect(HttpStatus.OK, remove(aria, resistant.get("dmAdjustments").get(0).get("id").asText(), dm));
+        expect(HttpStatus.OK, remove(aria, resistant.get("dmAdjustments").get(0).get("id").asString(), dm));
         expect(HttpStatus.OK, remove(aria, vulnerability, dm));
         assertThat(damage(encounterId, aria, 10, "fire")).isEqualTo(15 - 10);
         assertThat(damage(encounterId, aria, 4, "cold")).isEqualTo(5 - 4);
@@ -236,7 +236,7 @@ class DmAdjustmentIT extends IntegrationTest {
         assertThat(twice.get("damageResistances").toString()).isEqualTo("[\"fire\"]");
         assertThat(damage(encounterId, tiefling, 12, "fire")).isEqualTo(28 - 6);
         JsonNode racialOnly = expect(HttpStatus.OK,
-                remove(tiefling, twice.get("dmAdjustments").get(0).get("id").asText(), dm));
+                remove(tiefling, twice.get("dmAdjustments").get(0).get("id").asString(), dm));
         assertThat(racialOnly.get("damageResistances").toString()).isEqualTo("[\"fire\"]");
         assertThat(damage(encounterId, tiefling, 12, "fire")).isEqualTo(22 - 6);
     }
@@ -257,8 +257,8 @@ class DmAdjustmentIT extends IntegrationTest {
         JsonNode luckPool = pool(luck, "feat:lucky");
         assertThat(luckPool.get("currentUses").asInt()).isEqualTo(3);
         assertThat(luckPool.get("maxUses").asInt()).isEqualTo(3);
-        assertThat(luck.get("dmAdjustments").get(0).get("target").asText()).isEqualTo("Lucky");
-        assertThat(luck.get("dmAdjustments").get(0).get("featId").asText()).isEqualTo(lucky.toString());
+        assertThat(luck.get("dmAdjustments").get(0).get("target").asString()).isEqualTo("Lucky");
+        assertThat(luck.get("dmAdjustments").get(0).get("featId").asString()).isEqualTo(lucky.toString());
         assertThat(featureNames(luck)).contains("Lucky");
         // The pool is the player's to spend, as any other
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + aria + "/pools/spend",
@@ -280,7 +280,7 @@ class DmAdjustmentIT extends IntegrationTest {
                 .isEqualTo(40);
 
         for (int i = 0; i < 3; i++) {
-            String id = get(aria).get("dmAdjustments").get(i).get("id").asText();
+            String id = get(aria).get("dmAdjustments").get(i).get("id").asString();
             expect(HttpStatus.OK, remove(aria, id, dm));
         }
 
@@ -302,7 +302,7 @@ class DmAdjustmentIT extends IntegrationTest {
         JsonNode twice = adjust(aria, grant(Map.of("featId", adept), "Gift of the frost primordial"));
         assertThat(featureNames(twice)).filteredOn("Elemental Adept"::equals).hasSize(2);
 
-        JsonNode once = expect(HttpStatus.OK, remove(aria, twice.get("dmAdjustments").get(1).get("id").asText(), dm));
+        JsonNode once = expect(HttpStatus.OK, remove(aria, twice.get("dmAdjustments").get(1).get("id").asString(), dm));
         assertThat(featureNames(once)).filteredOn("Elemental Adept"::equals).hasSize(1);
     }
 
@@ -343,7 +343,7 @@ class DmAdjustmentIT extends IntegrationTest {
                 "charisma", 10));
         body.putAll(details);
         return expect(HttpStatus.CREATED, exchange(HttpMethod.POST, "/api/characters", body, player.accessToken()))
-                .get("id").asText();
+                .get("id").asString();
     }
 
     private UUID feat(String name, String description, String abilityScoreIncrease, String effects) {
@@ -379,7 +379,7 @@ class DmAdjustmentIT extends IntegrationTest {
     }
 
     private String error(ResponseEntity<String> response, HttpStatus status) {
-        return expect(status, response).get("error").asText();
+        return expect(status, response).get("error").asString();
     }
 
     private int version(String characterId) {
@@ -394,15 +394,15 @@ class DmAdjustmentIT extends IntegrationTest {
                 dm.accessToken()));
         String participantId = null;
         for (JsonNode participant : encounter.get("participants")) {
-            if (characterId.equals(participant.path("characterId").asText())) {
-                participantId = participant.get("id").asText();
+            if (characterId.equals(participant.path("characterId").asString())) {
+                participantId = participant.get("id").asString();
             }
         }
         JsonNode after = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
                 + "/combat/damage", Map.of("targetId", participantId, "amount", amount, "damageType", damageType),
                 dm.accessToken()));
         for (JsonNode participant : after.get("participants")) {
-            if (participantId.equals(participant.get("id").asText())) {
+            if (participantId.equals(participant.get("id").asString())) {
                 return participant.get("hpCurrent").asInt();
             }
         }
@@ -412,13 +412,13 @@ class DmAdjustmentIT extends IntegrationTest {
     private List<String> log(UUID encounterId) {
         List<String> lines = new ArrayList<>();
         expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId + "/combat/log", null,
-                dm.accessToken())).forEach(entry -> lines.add(entry.get("description").asText()));
+                dm.accessToken())).forEach(entry -> lines.add(entry.get("description").asString()));
         return lines;
     }
 
     private static JsonNode pool(JsonNode character, String poolId) {
         for (JsonNode pool : character.get("resourcePools")) {
-            if (poolId.equals(pool.get("poolId").asText())) {
+            if (poolId.equals(pool.get("poolId").asString())) {
                 return pool;
             }
         }
@@ -427,7 +427,7 @@ class DmAdjustmentIT extends IntegrationTest {
 
     private static List<String> featureNames(JsonNode character) {
         List<String> names = new ArrayList<>();
-        character.get("features").forEach(feature -> names.add(feature.get("name").asText()));
+        character.get("features").forEach(feature -> names.add(feature.get("name").asString()));
         return names;
     }
 

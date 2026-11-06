@@ -1,7 +1,7 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.monster.MonsterTemplates;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.monster.Monster;
@@ -48,9 +48,9 @@ class TurnBoundaryIT extends IntegrationTest {
         dm = register("dungeonmaster");
         player = register("aria");
         JsonNode campaign = createCampaign(dm.accessToken());
-        campaignId = UUID.fromString(campaign.get("id").asText());
+        campaignId = UUID.fromString(campaign.get("id").asString());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
         UUID character = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
         encounterId = createEncounter(dm.accessToken(), campaignId);
 
@@ -127,18 +127,18 @@ class TurnBoundaryIT extends IntegrationTest {
         nextTurn();
         JsonNode paralyzed = aria(player.accessToken()).get("activeConditions").get(0);
         assertThat(paralyzed.get("repeatSave").get("awaitingRoll").asBoolean()).isTrue();
-        assertThat(paralyzed.get("repeatSave").get("ability").asText()).isEqualTo("CON");
+        assertThat(paralyzed.get("repeatSave").get("ability").asString()).isEqualTo("CON");
         assertThat(paralyzed.get("repeatSave").get("dc").asInt()).isEqualTo(10);
         assertThat(actionTypes(log(dm.accessToken()))).doesNotContain("REPEAT_SAVE");
 
         // Aria's player rolls it on the ghoul's turn: 14 beats DC 10
         dice.script(14);
-        JsonNode state = expect(HttpStatus.OK, repeatSave(paralyzed.get("id").asText(), player.accessToken()));
+        JsonNode state = expect(HttpStatus.OK, repeatSave(paralyzed.get("id").asString(), player.accessToken()));
 
         assertThat(conditionNames(participant(state, ariaId))).isEmpty();
         assertThat(descriptions(log(player.accessToken()))).anySatisfy(description -> assertThat(description)
                 .startsWith("Aria repeats the CON save against paralyzed: d20(14)"));
-        ResponseEntity<String> again = repeatSave(paralyzed.get("id").asText(), player.accessToken());
+        ResponseEntity<String> again = repeatSave(paralyzed.get("id").asString(), player.accessToken());
         assertThat(again.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
@@ -185,7 +185,7 @@ class TurnBoundaryIT extends IntegrationTest {
         JsonNode aria = aria(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/damage",
                 Map.of("targetId", ariaId, "amount", aria.get("hpCurrent").asInt()), dm.accessToken()));
-        assertThat(aria(dm.accessToken()).get("lifeState").asText()).isEqualTo("DYING");
+        assertThat(aria(dm.accessToken()).get("lifeState").asString()).isEqualTo("DYING");
         assertThat(aria(dm.accessToken()).get("deathSaveDue").asBoolean()).isFalse();
 
         nextTurn();
@@ -249,26 +249,26 @@ class TurnBoundaryIT extends IntegrationTest {
 
     private static List<String> descriptions(JsonNode log) {
         List<String> descriptions = new ArrayList<>();
-        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        log.forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 
     private static List<String> actionTypes(JsonNode log) {
         List<String> types = new ArrayList<>();
-        log.forEach(entry -> types.add(entry.get("actionType").asText()));
+        log.forEach(entry -> types.add(entry.get("actionType").asString()));
         return types;
     }
 
     private static List<String> conditionNames(JsonNode participant) {
         List<String> names = new ArrayList<>();
-        participant.path("activeConditions").forEach(condition -> names.add(condition.get("name").asText()));
+        participant.path("activeConditions").forEach(condition -> names.add(condition.get("name").asString()));
         return names;
     }
 
     private static String idOf(JsonNode encounter, String displayName) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("displayName").asText().equals(displayName)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(displayName)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(displayName + " is not in the encounter");
@@ -276,7 +276,7 @@ class TurnBoundaryIT extends IntegrationTest {
 
     private static JsonNode participant(JsonNode encounter, String participantId) {
         for (JsonNode participant : encounter.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }

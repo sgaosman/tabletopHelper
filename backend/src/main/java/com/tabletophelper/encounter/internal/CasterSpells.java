@@ -1,7 +1,7 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.KnownSpell;
@@ -186,8 +186,8 @@ class CasterSpells {
                     return;
                 }
                 for (JsonNode name : group.getValue()) {
-                    if (name.isTextual() && !name.asText().isBlank()) {
-                        Resolved resolved = resolve(name.asText(), null);
+                    if (name.isString() && !name.asString("").isBlank()) {
+                        Resolved resolved = resolve(name.asString(""), null);
                         spells.add(new SpellSources.Known(resolved.name(), resolved.level(), origin, false, true,
                                 false, null, null));
                     }

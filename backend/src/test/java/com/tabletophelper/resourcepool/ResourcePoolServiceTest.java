@@ -1,5 +1,6 @@
 package com.tabletophelper.resourcepool;
 
+import com.tabletophelper.shared.JacksonDefaults;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.AppliedFeatEffects;
@@ -42,7 +43,7 @@ class ResourcePoolServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ResourcePoolService(classFeaturePoolRepository);
+        service = new ResourcePoolService(classFeaturePoolRepository, JacksonDefaults.mapper());
     }
 
     // ── Pool reset: full reset ────────────────────────────────────

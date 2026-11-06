@@ -1,6 +1,6 @@
 package com.tabletophelper.reference;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.reference.dto.ClassTablesResponse;
 import com.tabletophelper.rules.character.ClassTables;
@@ -38,7 +38,7 @@ class ClassTablesEndpointIT extends IntegrationTest {
         assertThat(body.path("classes").path("Bard").path("spellcasting").path("spellsKnown").path(10).asInt())
                 .isEqualTo(14);
         assertThat(body.path("classes").path("Rogue").path("expertise").path("6").asInt()).isEqualTo(2);
-        assertThat(body.path("subclasses").path("Eldritch Knight").path("spellcasting").path("casterType").asText())
+        assertThat(body.path("subclasses").path("Eldritch Knight").path("spellcasting").path("casterType").asString())
                 .isEqualTo("third");
         assertThat(body.path("proficiencyBonus").path(17).asInt()).isEqualTo(6);
         assertThat(body.path("classes")).hasSize(13);

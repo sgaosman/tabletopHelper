@@ -1,6 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.RaceRepository;
 import com.tabletophelper.reference.SpellRepository;
@@ -31,7 +32,7 @@ import static org.mockito.Mockito.when;
 class EffectsOverlayTest {
 
     private static final String FILE = "data/content/test-effects.json";
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = JacksonDefaults.mapper();
 
     @TempDir
     Path dir;

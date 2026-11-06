@@ -1,8 +1,8 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import lombok.RequiredArgsConstructor;
@@ -75,8 +75,8 @@ public class MonsterLoader implements ContentLoader {
                     context.skip("_copy monsters");
                     continue;
                 }
-                batch.add(LoadContext.reading(filename + ": monster " + m.path("name").asText("?") + "|"
-                        + m.path("source").asText(""), () -> parseMonster(m)));
+                batch.add(LoadContext.reading(filename + ": monster " + m.path("name").asString("?") + "|"
+                        + m.path("source").asString(""), () -> parseMonster(m)));
             }
         }
 
@@ -95,7 +95,7 @@ public class MonsterLoader implements ContentLoader {
         String acType = parseAcType(m.get("ac"));
 
         return Monster.builder()
-                .name(m.path("name").asText())
+                .name(m.path("name").asString(""))
                 .size(size)
                 .type(type)
                 .subtype(subtype)
@@ -103,7 +103,7 @@ public class MonsterLoader implements ContentLoader {
                 .armourClass(ac)
                 .acType(acType)
                 .hitPoints(m.path("hp").path("average").asInt(0))
-                .hitDice(m.path("hp").path("formula").asText(null))
+                .hitDice(m.path("hp").path("formula").asString(null))
                 .speed(nodeToJson(m.get("speed")))
                 .strength(m.path("str").asInt(10))
                 .dexterity(m.path("dex").asInt(10))
@@ -126,39 +126,39 @@ public class MonsterLoader implements ContentLoader {
                 .reactions(parseEntryList(m.get("reaction")))
                 .legendaryActions(parseEntryList(m.get("legendary")))
                 .lairActions(parseEntryList(m.get("legendaryGroup")))
-                .source(m.path("source").asText(null))
+                .source(m.path("source").asString(null))
                 .isHomebrew(false)
                 .build();
     }
 
     private String parseCr(JsonNode crNode) {
         if (crNode == null) return null;
-        if (crNode.isTextual()) return crNode.asText();
-        if (crNode.isObject()) return crNode.path("cr").asText(null);
+        if (crNode.isString()) return crNode.asString("");
+        if (crNode.isObject()) return crNode.path("cr").asString(null);
         return null;
     }
 
     private String parseSize(JsonNode sizeNode) {
         if (sizeNode == null) return null;
         if (sizeNode.isArray() && sizeNode.size() > 0) {
-            String code = sizeNode.get(0).asText();
+            String code = sizeNode.get(0).asString("");
             return SIZE_MAP.getOrDefault(code, code);
         }
-        return SIZE_MAP.getOrDefault(sizeNode.asText(), sizeNode.asText());
+        return SIZE_MAP.getOrDefault(sizeNode.asString(""), sizeNode.asString(""));
     }
 
     private String parseType(JsonNode typeNode) {
         if (typeNode == null) return null;
-        if (typeNode.isTextual()) return typeNode.asText();
+        if (typeNode.isString()) return typeNode.asString("");
         if (typeNode.isObject()) {
             JsonNode inner = typeNode.get("type");
             if (inner == null) return null;
-            if (inner.isTextual()) return inner.asText();
+            if (inner.isString()) return inner.asString("");
             if (inner.isObject() && inner.has("choose")) {
                 JsonNode choices = inner.get("choose");
                 if (choices.isArray()) {
                     List<String> types = new ArrayList<>();
-                    for (JsonNode c : choices) types.add(c.asText());
+                    for (JsonNode c : choices) types.add(c.asString(""));
                     return String.join(" or ", types);
                 }
             }
@@ -172,8 +172,8 @@ public class MonsterLoader implements ContentLoader {
         if (tags != null && tags.isArray() && tags.size() > 0) {
             List<String> subtypes = new ArrayList<>();
             for (JsonNode tag : tags) {
-                if (tag.isTextual()) subtypes.add(tag.asText());
-                else if (tag.isObject()) subtypes.add(tag.path("tag").asText());
+                if (tag.isString()) subtypes.add(tag.asString(""));
+                else if (tag.isObject()) subtypes.add(tag.path("tag").asString(""));
             }
             return String.join(", ", subtypes);
         }
@@ -182,10 +182,10 @@ public class MonsterLoader implements ContentLoader {
 
     private int parseAc(JsonNode acNode) {
         if (acNode == null) return 10;
-        if (acNode.isInt()) return acNode.asInt();
+        if (acNode.isInt()) return acNode.asInt(0);
         if (acNode.isArray() && acNode.size() > 0) {
             JsonNode first = acNode.get(0);
-            if (first.isInt()) return first.asInt();
+            if (first.isInt()) return first.asInt(0);
             if (first.isObject()) return first.path("ac").asInt(10);
         }
         return 10;
@@ -199,7 +199,7 @@ public class MonsterLoader implements ContentLoader {
         if (from != null && from.isArray()) {
             List<String> sources = new ArrayList<>();
             for (JsonNode f : from) {
-                sources.add(FiveEToolsMarkupParser.parse(f.asText()));
+                sources.add(FiveEToolsMarkupParser.parse(f.asString("")));
             }
             return String.join(", ", sources);
         }
@@ -215,8 +215,8 @@ public class MonsterLoader implements ContentLoader {
         );
         List<String> parts = new ArrayList<>();
         for (JsonNode a : alignNode) {
-            if (a.isTextual()) {
-                parts.add(alignMap.getOrDefault(a.asText(), a.asText()));
+            if (a.isString()) {
+                parts.add(alignMap.getOrDefault(a.asString(""), a.asString("")));
             }
         }
         return parts.isEmpty() ? null : String.join(" ", parts);
@@ -227,7 +227,7 @@ public class MonsterLoader implements ContentLoader {
         JsonNode senses = m.get("senses");
         if (senses != null && senses.isArray()) {
             List<String> senseList = new ArrayList<>();
-            for (JsonNode s : senses) senseList.add(s.asText());
+            for (JsonNode s : senses) senseList.add(s.asString(""));
             sensesMap.put("special", senseList);
         }
         int passive = m.path("passive").asInt(0);
@@ -239,10 +239,10 @@ public class MonsterLoader implements ContentLoader {
         if (langNode == null) return null;
         if (langNode.isArray()) {
             List<String> langs = new ArrayList<>();
-            for (JsonNode l : langNode) langs.add(l.asText());
+            for (JsonNode l : langNode) langs.add(l.asString(""));
             return String.join(", ", langs);
         }
-        return langNode.asText(null);
+        return langNode.asString(null);
     }
 
     private String parseEntryList(JsonNode entriesNode) throws Exception {
@@ -250,7 +250,7 @@ public class MonsterLoader implements ContentLoader {
         ArrayNode result = objectMapper.createArrayNode();
         for (JsonNode entry : entriesNode) {
             var obj = objectMapper.createObjectNode();
-            obj.put("name", FiveEToolsMarkupParser.parse(entry.path("name").asText("")));
+            obj.put("name", FiveEToolsMarkupParser.parse(entry.path("name").asString("")));
             obj.put("description", flattenEntries(entry.get("entries")));
             result.add(obj);
         }
@@ -261,9 +261,9 @@ public class MonsterLoader implements ContentLoader {
         if (entries == null) return "";
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (sb.length() > 0) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
                 if (entry.has("entries")) {
                     if (sb.length() > 0) sb.append("\n");
@@ -272,8 +272,8 @@ public class MonsterLoader implements ContentLoader {
                     JsonNode items = entry.get("items");
                     for (JsonNode item : items) {
                         if (sb.length() > 0) sb.append("\n");
-                        if (item.isTextual()) {
-                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                        if (item.isString()) {
+                            sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                         } else if (item.isObject() && item.has("entries")) {
                             sb.append("- ").append(flattenEntries(item.get("entries")));
                         }
@@ -293,8 +293,8 @@ public class MonsterLoader implements ContentLoader {
         if (node == null || !node.isArray()) return null;
         List<String> items = new ArrayList<>();
         for (JsonNode n : node) {
-            if (n.isTextual()) {
-                items.add(n.asText());
+            if (n.isString()) {
+                items.add(n.asString(""));
             } else if (n.isObject()) {
                 items.add(objectMapper.writeValueAsString(n));
             }

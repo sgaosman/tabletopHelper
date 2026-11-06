@@ -1,8 +1,8 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.campaign.CampaignRepository;
@@ -168,13 +168,13 @@ public class CharacterService {
                         mcSubclassRef != null ? mcSubclassRef.getId() : null, mcSubName, mcLevel));
             }
 
-            progression = LevelUpCalculator.buildMulticlassProgression(classTables, classInputs);
+            progression = LevelUpCalculator.buildMulticlassProgression(objectMapper, classTables, classInputs);
             multiclassEntries = mcEntryList;
             characterClassName = classInputs.stream()
                     .map(LevelUpCalculator.ClassInput::className)
                     .reduce((a, b) -> a + " / " + b).orElse(className);
         } else {
-            progression = LevelUpCalculator.buildProgression(classTables,
+            progression = LevelUpCalculator.buildProgression(objectMapper, classTables,
                     level, classRef != null ? classRef.getId() : null, className,
                     classRef != null ? classRef.getHitDice() : 8,
                     classRef != null ? classRef.getFeatures() : null,
@@ -286,7 +286,8 @@ public class CharacterService {
         boolean isNewClass = !classLevels.containsKey(levelClassId);
         if (isNewClass) {
             // A new class needs its own prerequisites and those of every class the character has (PHB p.163)
-            List<String> unmet = MulticlassValidator.unmetPrerequisites(character, levelClass, currentClasses(character));
+            List<String> unmet = MulticlassValidator.unmetPrerequisites(objectMapper, character, levelClass,
+                    currentClasses(character));
             if (!unmet.isEmpty())
                 throw new ConflictException("Character does not meet multiclass prerequisites for "
                         + String.join(" and ", unmet));
@@ -307,7 +308,7 @@ public class CharacterService {
         }
 
         boolean subclassFeatures = levelSubclass != null && newClassLevel >= subclassLevel(levelClass);
-        List<LevelUpCalculator.FeatureEntry> newFeatures = LevelUpCalculator.collectFeaturesForLevel(
+        List<LevelUpCalculator.FeatureEntry> newFeatures = LevelUpCalculator.collectFeaturesForLevel(objectMapper,
                 levelClass.getFeatures(), subclassFeatures ? levelSubclass.getFeatures() : null, newClassLevel,
                 levelClass.getName(), subclassFeatures ? levelSubclass.getName() : null);
 
@@ -358,7 +359,7 @@ public class CharacterService {
         JsonNode grants;
         try {
             grants = objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new ConflictException("The multiclassing proficiencies of the class " + newClass.getName()
                     + " can't be read");
         }
@@ -380,7 +381,7 @@ public class CharacterService {
     private static List<String> texts(JsonNode array) {
         List<String> texts = new ArrayList<>();
         for (JsonNode item : array) {
-            if (item.isTextual() && !item.asText().isBlank()) texts.add(item.asText());
+            if (item.isString() && !item.asString("").isBlank()) texts.add(item.asString(""));
         }
         return texts;
     }
@@ -453,7 +454,7 @@ public class CharacterService {
         accessPolicy.requireCharacterOwner(character.getUser().getId(), userId);
 
         List<CharacterClass> allClasses = characterClassRepository.findAll();
-        return MulticlassValidator.getEligibleClasses(character, allClasses);
+        return MulticlassValidator.getEligibleClasses(objectMapper, character, allClasses);
     }
 
     // ── Derived Stats for other modules ──────────────────────────

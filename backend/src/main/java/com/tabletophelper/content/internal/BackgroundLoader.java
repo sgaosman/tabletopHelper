@@ -1,9 +1,9 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.BackgroundRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,18 +41,18 @@ public class BackgroundLoader implements ContentLoader {
 
         Map<String, JsonNode> bgIndex = new LinkedHashMap<>();
         for (JsonNode bg : backgrounds) {
-            String key = bg.path("name").asText("") + "|" + bg.path("source").asText("");
+            String key = bg.path("name").asString("") + "|" + bg.path("source").asString("");
             bgIndex.put(key, bg);
         }
 
         List<Background> batch = new ArrayList<>();
         for (JsonNode bg : backgrounds) {
-            String name = bg.path("name").asText(null);
+            String name = bg.path("name").asString(null);
             if (name == null) {
                 context.skip("backgrounds with no name");
                 continue;
             }
-            batch.add(LoadContext.reading(FILE + ": background " + name + "|" + bg.path("source").asText(""),
+            batch.add(LoadContext.reading(FILE + ": background " + name + "|" + bg.path("source").asString(""),
                     () -> parseBackground(name, bg, bgIndex)));
         }
 
@@ -65,7 +65,7 @@ public class BackgroundLoader implements ContentLoader {
 
         return Background.builder()
                 .name(name)
-                .source(bg.path("source").asText(null))
+                .source(bg.path("source").asString(null))
                 .skillProficiencies(extractSkillProficiencies(resolved))
                 .toolProficiencies(extractToolProficiencies(resolved))
                 .languageProficiencies(extractLanguageProficiencies(resolved))
@@ -85,15 +85,15 @@ public class BackgroundLoader implements ContentLoader {
         JsonNode copyNode = bg.get("_copy");
         if (copyNode == null || depth > 5) return bg;
 
-        String parentKey = copyNode.path("name").asText("") + "|" + copyNode.path("source").asText("");
+        String parentKey = copyNode.path("name").asString("") + "|" + copyNode.path("source").asString("");
         JsonNode parent = bgIndex.get(parentKey);
         if (parent == null) return bg;
 
         JsonNode resolvedParent = resolveCopyRecursive(parent, bgIndex, depth + 1);
 
-        ObjectNode merged = resolvedParent.deepCopy();
-        merged.put("name", bg.path("name").asText(""));
-        merged.put("source", bg.path("source").asText(""));
+        ObjectNode merged = (ObjectNode) resolvedParent.deepCopy();
+        merged.put("name", bg.path("name").asString(""));
+        merged.put("source", bg.path("source").asString(""));
 
         JsonNode mod = copyNode.get("_mod");
         if (mod != null && mod.has("entries")) {
@@ -119,15 +119,15 @@ public class BackgroundLoader implements ContentLoader {
 
         ArrayNode entriesArr = (ArrayNode) entries;
         for (JsonNode mod : modsArr) {
-            String mode = mod.path("mode").asText("");
+            String mode = mod.path("mode").asString("");
             switch (mode) {
                 case "replaceArr" -> {
-                    String replace = mod.path("replace").asText("");
+                    String replace = mod.path("replace").asString("");
                     JsonNode items = mod.get("items");
                     if (items != null && !replace.isEmpty()) {
                         for (int i = 0; i < entriesArr.size(); i++) {
                             JsonNode entry = entriesArr.get(i);
-                            if (entry.isObject() && replace.equals(entry.path("name").asText(""))) {
+                            if (entry.isObject() && replace.equals(entry.path("name").asString(""))) {
                                 entriesArr.set(i, items);
                                 break;
                             }
@@ -143,10 +143,10 @@ public class BackgroundLoader implements ContentLoader {
                 }
                 case "removeArr" -> {
                     String removeName = mod.path("names").isArray() && !mod.path("names").isEmpty()
-                            ? mod.path("names").get(0).asText("") : "";
+                            ? mod.path("names").get(0).asString("") : "";
                     if (!removeName.isEmpty()) {
                         for (int i = 0; i < entriesArr.size(); i++) {
-                            if (removeName.equals(entriesArr.get(i).path("name").asText(""))) {
+                            if (removeName.equals(entriesArr.get(i).path("name").asString(""))) {
                                 entriesArr.remove(i);
                                 break;
                             }
@@ -192,7 +192,7 @@ public class BackgroundLoader implements ContentLoader {
                 if (spellList.isArray()) {
                     ArrayNode cleaned = objectMapper.createArrayNode();
                     for (JsonNode spell : spellList) {
-                        String spellName = spell.asText("");
+                        String spellName = spell.asString("");
                         if (spellName.contains("|")) spellName = spellName.substring(0, spellName.indexOf('|'));
                         cleaned.add(titleCase(spellName));
                     }
@@ -241,7 +241,7 @@ public class BackgroundLoader implements ContentLoader {
             JsonNode value = field.getValue();
             if ("anyStandard".equals(key)) {
                 ObjectNode obj = objectMapper.createObjectNode();
-                obj.put("anyStandard", value.asInt());
+                obj.put("anyStandard", value.asInt(0));
                 result.add(obj);
             } else if ("choose".equals(key)) {
                 ObjectNode chooseObj = objectMapper.createObjectNode();
@@ -287,7 +287,7 @@ public class BackgroundLoader implements ContentLoader {
                 if (value.has("from")) {
                     ArrayNode from = objectMapper.createArrayNode();
                     for (JsonNode f : value.get("from")) {
-                        from.add(titleCase(f.asText()));
+                        from.add(titleCase(f.asString("")));
                     }
                     inner.set("from", from);
                 }
@@ -331,8 +331,8 @@ public class BackgroundLoader implements ContentLoader {
 
         for (JsonNode entry : entries) {
             if (!entry.isObject()) continue;
-            if (!"entries".equals(entry.path("type").asText())) continue;
-            String entryName = entry.path("name").asText("");
+            if (!"entries".equals(entry.path("type").asString(""))) continue;
+            String entryName = entry.path("name").asString("");
             if (entryName.startsWith("Feature:") || entryName.startsWith("feature:")) {
                 ObjectNode feature = objectMapper.createObjectNode();
                 feature.put("name", entryName.replaceFirst("^[Ff]eature:\\s*", "").trim());
@@ -343,12 +343,12 @@ public class BackgroundLoader implements ContentLoader {
 
         for (JsonNode entry : entries) {
             if (!entry.isObject()) continue;
-            if (!"entries".equals(entry.path("type").asText())) continue;
-            String entryName = entry.path("name").asText("");
+            if (!"entries".equals(entry.path("type").asString(""))) continue;
+            String entryName = entry.path("name").asString("");
             if (entryName.isEmpty()) continue;
             if (entryName.contains("Proficiencies:") || entryName.contains("Languages:")
                     || entryName.contains("Equipment:") || entryName.contains("Suggested Characteristics")) continue;
-            if ("list".equals(entry.path("type").asText())) continue;
+            if ("list".equals(entry.path("type").asString(""))) continue;
 
             ObjectNode feature = objectMapper.createObjectNode();
             feature.put("name", entryName);
@@ -363,14 +363,14 @@ public class BackgroundLoader implements ContentLoader {
         if (entries == null) return null;
         StringBuilder sb = new StringBuilder();
         for (JsonNode entry : entries) {
-            if (entry.isTextual()) {
+            if (entry.isString()) {
                 if (!sb.isEmpty()) sb.append("\n");
-                sb.append(FiveEToolsMarkupParser.parse(entry.asText()));
+                sb.append(FiveEToolsMarkupParser.parse(entry.asString("")));
             } else if (entry.isObject()) {
-                String type = entry.path("type").asText("");
+                String type = entry.path("type").asString("");
                 switch (type) {
                     case "entries" -> {
-                        String name = entry.path("name").asText("");
+                        String name = entry.path("name").asString("");
                         if (!name.isEmpty()) {
                             if (!sb.isEmpty()) sb.append("\n");
                             sb.append(name).append(": ");
@@ -389,11 +389,11 @@ public class BackgroundLoader implements ContentLoader {
                         if (items != null) {
                             for (JsonNode item : items) {
                                 if (!sb.isEmpty()) sb.append("\n");
-                                if (item.isTextual()) {
-                                    sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asText()));
+                                if (item.isString()) {
+                                    sb.append("- ").append(FiveEToolsMarkupParser.parse(item.asString("")));
                                 } else if (item.isObject()) {
-                                    String itemName = item.path("name").asText("");
-                                    String itemEntry = item.path("entry").asText("");
+                                    String itemName = item.path("name").asString("");
+                                    String itemEntry = item.path("entry").asString("");
                                     if (!itemName.isEmpty()) {
                                         sb.append("- ").append(itemName).append(" ").append(FiveEToolsMarkupParser.parse(itemEntry));
                                     } else {
@@ -413,7 +413,7 @@ public class BackgroundLoader implements ContentLoader {
                                     StringBuilder rowStr = new StringBuilder();
                                     for (JsonNode cell : row) {
                                         if (!rowStr.isEmpty()) rowStr.append(" | ");
-                                        rowStr.append(FiveEToolsMarkupParser.parse(cell.asText()));
+                                        rowStr.append(FiveEToolsMarkupParser.parse(cell.asString("")));
                                     }
                                     sb.append(rowStr);
                                 }
@@ -422,8 +422,8 @@ public class BackgroundLoader implements ContentLoader {
                     }
                     case "item" -> {
                         if (!sb.isEmpty()) sb.append("\n");
-                        String itemName = entry.path("name").asText("");
-                        String itemEntry = entry.path("entry").asText("");
+                        String itemName = entry.path("name").asString("");
+                        String itemEntry = entry.path("entry").asString("");
                         sb.append(itemName).append(" ").append(FiveEToolsMarkupParser.parse(itemEntry));
                     }
                     default -> {

@@ -1,7 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.ClassFeaturePool;
@@ -204,7 +204,7 @@ public class ResourcePoolLoader implements ContentLoader {
             mappings.add(ClassFeaturePool.builder()
                     .characterClass(cc)
                     .subclass(sc)
-                    .minLevel(entry.path("minLevel").asInt())
+                    .minLevel(entry.path("minLevel").asInt(0))
                     .poolDefinition(def)
                     .build());
         }
@@ -250,7 +250,7 @@ public class ResourcePoolLoader implements ContentLoader {
 
     private static String text(JsonNode entry, String field) {
         JsonNode value = entry.path(field);
-        return value.isNull() || value.isMissingNode() ? null : value.asText();
+        return value.isNull() || value.isMissingNode() ? null : value.asString("");
     }
 
     private static String required(JsonNode entry, String field) {

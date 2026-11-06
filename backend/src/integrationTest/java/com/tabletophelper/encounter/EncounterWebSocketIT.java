@@ -1,6 +1,6 @@
 package com.tabletophelper.encounter;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.identity.internal.WebSocketAuthInterceptor;
 import com.tabletophelper.monster.Monster;
@@ -15,7 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.converter.MappingJackson2MessageConverter;
+import org.springframework.messaging.converter.JacksonJsonMessageConverter;
 import org.springframework.messaging.simp.stomp.ConnectionLostException;
 import org.springframework.messaging.simp.stomp.StompFrameHandler;
 import org.springframework.messaging.simp.stomp.StompHeaders;
@@ -74,7 +74,7 @@ class EncounterWebSocketIT extends IntegrationTest {
     void createClient() {
         stompClient = new WebSocketStompClient(new SockJsClient(
                 List.of(new WebSocketTransport(new StandardWebSocketClient()))));
-        stompClient.setMessageConverter(new MappingJackson2MessageConverter());
+        stompClient.setMessageConverter(new JacksonJsonMessageConverter());
     }
 
     @AfterEach
@@ -111,8 +111,8 @@ class EncounterWebSocketIT extends IntegrationTest {
 
         JsonNode state = joinUntilMessageArrives(session, encounterId, states);
 
-        assertThat(state.get("id").asText()).isEqualTo(encounterId.toString());
-        assertThat(state.get("status").asText()).isEqualTo("PREPARING");
+        assertThat(state.get("id").asString()).isEqualTo(encounterId.toString());
+        assertThat(state.get("status").asString()).isEqualTo("PREPARING");
     }
 
     @Test
@@ -155,7 +155,7 @@ class EncounterWebSocketIT extends IntegrationTest {
         JsonNode dmState = awaitMessage(dmStates, s -> hpOf(s, goblinId) == 4);
         assertThat(hpOf(dmState, bugbearId)).isEqualTo(27);
         JsonNode playerState = awaitMessage(playerStates,
-                s -> "INJURED".equals(participant(s, goblinId).path("healthStatus").asText()));
+                s -> "INJURED".equals(participant(s, goblinId).path("healthStatus").asString()));
         assertThat(participantIds(playerState)).containsExactly(goblinId);
         assertThat(participant(playerState, goblinId).get("hpCurrent").isNull()).isTrue();
         assertThat(participant(playerState, goblinId).get("hpMax").isNull()).isTrue();
@@ -190,7 +190,7 @@ class EncounterWebSocketIT extends IntegrationTest {
                 "DM deals 3 damage to Goblin", "DM deals 5 damage to Bugbear", "DM deals 1 damage to Goblin");
         JsonNode playerLog = awaitMessage(playerLogs, log -> descriptions(log).contains("DM deals 1 damage to Goblin"));
         assertThat(descriptions(playerLog)).containsExactly("DM deals 3 damage to Goblin", "DM deals 1 damage to Goblin");
-        assertThat(playerLog.get(0).get("actionType").asText()).isEqualTo("DAMAGE");
+        assertThat(playerLog.get(0).get("actionType").asString()).isEqualTo("DAMAGE");
 
         reveal(dm.accessToken(), encounterId, bugbearId);
 
@@ -273,7 +273,7 @@ class EncounterWebSocketIT extends IntegrationTest {
         var campaign = createCampaign(dm.accessToken());
         join(player.accessToken(), campaign);
         join(otherPlayer.accessToken(), campaign);
-        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
+        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
         StompSession listener = connect(otherPlayer.accessToken());
         BlockingQueue<JsonNode> states = subscribe(listener, EncounterBroadcaster.stateDestination(encounterId));
         joinUntilMessageArrives(listener, encounterId, states);
@@ -286,7 +286,7 @@ class EncounterWebSocketIT extends IntegrationTest {
         // States from the listener's own joins may still arrive; the forged one never does
         for (JsonNode state = states.poll(500, TimeUnit.MILLISECONDS); state != null;
              state = states.poll(500, TimeUnit.MILLISECONDS)) {
-            assertThat(state.get("name").asText()).isEqualTo("Goblin Ambush");
+            assertThat(state.get("name").asString()).isEqualTo("Goblin Ambush");
         }
     }
 
@@ -326,19 +326,19 @@ class EncounterWebSocketIT extends IntegrationTest {
     }
 
     private UUID campaignId(RegisteredUser dm) {
-        return UUID.fromString(createCampaign(dm.accessToken()).get("id").asText());
+        return UUID.fromString(createCampaign(dm.accessToken()).get("id").asString());
     }
 
     /** Creates the DM's campaign with the player in it, and returns its id. */
     private UUID joinedCampaign(RegisteredUser dm, RegisteredUser player) {
         JsonNode campaign = createCampaign(dm.accessToken());
         join(player.accessToken(), campaign);
-        return UUID.fromString(campaign.get("id").asText());
+        return UUID.fromString(campaign.get("id").asString());
     }
 
     private void join(String playerToken, JsonNode campaign) {
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), playerToken));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), playerToken));
     }
 
     /** Adds a monster with the given HP and returns its participant id. */
@@ -350,8 +350,8 @@ class EncounterWebSocketIT extends IntegrationTest {
         JsonNode state = addParticipant(dmToken, encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", monster.getId(), "displayName", name));
         for (JsonNode participant : state.get("participants")) {
-            if (participant.get("displayName").asText().equals(name)) {
-                return participant.get("id").asText();
+            if (participant.get("displayName").asString().equals(name)) {
+                return participant.get("id").asString();
             }
         }
         throw new AssertionError(name + " is not in the encounter");
@@ -476,13 +476,13 @@ class EncounterWebSocketIT extends IntegrationTest {
     // A log message is the whole log, oldest entry first
     private static List<String> descriptions(JsonNode log) {
         List<String> descriptions = new ArrayList<>();
-        log.forEach(entry -> descriptions.add(entry.get("description").asText()));
+        log.forEach(entry -> descriptions.add(entry.get("description").asString()));
         return descriptions;
     }
 
     private static JsonNode participant(JsonNode state, String participantId) {
         for (JsonNode participant : state.get("participants")) {
-            if (participant.get("id").asText().equals(participantId)) {
+            if (participant.get("id").asString().equals(participantId)) {
                 return participant;
             }
         }
@@ -491,7 +491,7 @@ class EncounterWebSocketIT extends IntegrationTest {
 
     private static List<String> participantIds(JsonNode state) {
         List<String> ids = new ArrayList<>();
-        state.get("participants").forEach(participant -> ids.add(participant.get("id").asText()));
+        state.get("participants").forEach(participant -> ids.add(participant.get("id").asString()));
         return ids;
     }
 

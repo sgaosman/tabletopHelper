@@ -9,7 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.web.ErrorProperties;
-import org.springframework.boot.autoconfigure.web.ServerProperties;
+import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -39,7 +39,7 @@ class GlobalExceptionHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new GlobalExceptionHandler(new ServerProperties());
+        handler = new GlobalExceptionHandler(new WebProperties());
         request = new MockHttpServletRequest("POST", "/api/characters");
     }
 
@@ -149,7 +149,7 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("With include-message set to always, as in dev, an unexpected exception shows its message")
     void handleUnexpected_showsMessageInDev() throws Exception {
-        ServerProperties devProperties = new ServerProperties();
+        WebProperties devProperties = new WebProperties();
         devProperties.getError().setIncludeMessage(ErrorProperties.IncludeAttribute.ALWAYS);
         handler = new GlobalExceptionHandler(devProperties);
 
@@ -162,7 +162,7 @@ class GlobalExceptionHandlerTest {
     @Test
     @DisplayName("An unexpected exception without a message still gets the generic message in dev")
     void handleUnexpected_withoutMessageUsesGenericMessage() throws Exception {
-        ServerProperties devProperties = new ServerProperties();
+        WebProperties devProperties = new WebProperties();
         devProperties.getError().setIncludeMessage(ErrorProperties.IncludeAttribute.ALWAYS);
         handler = new GlobalExceptionHandler(devProperties);
 

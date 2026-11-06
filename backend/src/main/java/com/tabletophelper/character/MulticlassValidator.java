@@ -1,7 +1,7 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.EligibleClassResponse;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.reference.CharacterClass;
@@ -14,11 +14,9 @@ import java.util.*;
 /**
  * Multiclassing prerequisites as the class data records them, checked with rules.character.Multiclassing (PHB
  * p.163): a new class needs its own prerequisites and those of every class the character already has. Class data
- * that can't be read is a 409, never "no prerequisites" (D155).
+ * that can't be read is a 409, never "no prerequisites" (D155). The data is read with the caller's injected mapper.
  */
 public class MulticlassValidator {
-
-    private static final ObjectMapper mapper = new ObjectMapper();
 
     public record Requirement(String ability, int minimum, String operator) {}
 
@@ -27,10 +25,10 @@ public class MulticlassValidator {
      *
      * @throws ConflictException when the text can't be read
      */
-    public static List<Requirement> parseRequirements(String requirementsJson) {
+    public static List<Requirement> parseRequirements(ObjectMapper objectMapper, String requirementsJson) {
         if (requirementsJson == null || requirementsJson.isBlank()) return List.of();
         try {
-            List<Map<String, Object>> raw = mapper.readValue(requirementsJson, new TypeReference<>() {});
+            List<Map<String, Object>> raw = objectMapper.readValue(requirementsJson, new TypeReference<>() {});
             return raw.stream().map(m -> new Requirement(
                     (String) m.get("ability"),
                     m.get("minimum") instanceof Number n ? n.intValue() : 13,
@@ -46,8 +44,8 @@ public class MulticlassValidator {
      *
      * @throws ConflictException when they can't be read, or name no ability
      */
-    public static Multiclassing.Prerequisites prerequisites(String requirementsJson) {
-        List<Requirement> requirements = parseRequirements(requirementsJson);
+    public static Multiclassing.Prerequisites prerequisites(ObjectMapper objectMapper, String requirementsJson) {
+        List<Requirement> requirements = parseRequirements(objectMapper, requirementsJson);
         Map<Ability, Integer> minimums = new EnumMap<>(Ability.class);
         for (Requirement requirement : requirements) {
             Ability ability = Ability.parse(requirement.ability()).orElseThrow(() -> new ConflictException(
@@ -58,26 +56,28 @@ public class MulticlassValidator {
         return any ? Multiclassing.Prerequisites.anyOf(minimums) : Multiclassing.Prerequisites.allOf(minimums);
     }
 
-    public static boolean meetsPrerequisites(String requirementsJson, PlayerCharacter character) {
-        return prerequisites(requirementsJson).metBy(scores(character));
+    public static boolean meetsPrerequisites(ObjectMapper objectMapper, String requirementsJson,
+                                             PlayerCharacter character) {
+        return prerequisites(objectMapper, requirementsJson).metBy(scores(character));
     }
 
     /**
      * The classes whose prerequisites stop the character taking a level in a class: the new class first, then each
      * class it already has; empty when it may, which it always may in a class it has.
      */
-    public static List<String> unmetPrerequisites(PlayerCharacter character, CharacterClass newClass,
-                                                  List<CharacterClass> currentClasses) {
+    public static List<String> unmetPrerequisites(ObjectMapper objectMapper, PlayerCharacter character,
+                                                  CharacterClass newClass, List<CharacterClass> currentClasses) {
         Map<String, Multiclassing.Prerequisites> current = new LinkedHashMap<>();
         for (CharacterClass currentClass : currentClasses) {
-            current.put(currentClass.getName(), prerequisites(currentClass.getMulticlassRequirements()));
+            current.put(currentClass.getName(), prerequisites(objectMapper, currentClass.getMulticlassRequirements()));
         }
         return Multiclassing.unmetPrerequisites(scores(character), current, newClass.getName(),
-                prerequisites(newClass.getMulticlassRequirements()));
+                prerequisites(objectMapper, newClass.getMulticlassRequirements()));
     }
 
-    public static String describePrerequisites(String requirementsJson, PlayerCharacter character) {
-        List<Requirement> reqs = parseRequirements(requirementsJson);
+    public static String describePrerequisites(ObjectMapper objectMapper, String requirementsJson,
+                                               PlayerCharacter character) {
+        List<Requirement> reqs = parseRequirements(objectMapper, requirementsJson);
         if (reqs.isEmpty()) return "No requirements";
 
         boolean hasOr = reqs.stream().anyMatch(r -> "OR".equals(r.operator()));
@@ -95,7 +95,7 @@ public class MulticlassValidator {
     }
 
     public static List<EligibleClassResponse> getEligibleClasses(
-            PlayerCharacter character, List<CharacterClass> allClasses) {
+            ObjectMapper objectMapper, PlayerCharacter character, List<CharacterClass> allClasses) {
 
         Map<UUID, Integer> currentClassLevels = classLevels(character.getMulticlassEntries());
         List<CharacterClass> currentClasses = allClasses.stream()
@@ -107,10 +107,10 @@ public class MulticlassValidator {
         for (CharacterClass cc : allClasses) {
             boolean isCurrent = currentClassLevels.containsKey(cc.getId());
             int classLevel = currentClassLevels.getOrDefault(cc.getId(), 0);
-            boolean eligible = isCurrent || unmetPrerequisites(character, cc, currentClasses).isEmpty();
+            boolean eligible = isCurrent || unmetPrerequisites(objectMapper, character, cc, currentClasses).isEmpty();
 
             String description = isCurrent ? "Current class"
-                    : describePrerequisites(cc.getMulticlassRequirements(), character);
+                    : describePrerequisites(objectMapper, cc.getMulticlassRequirements(), character);
 
             results.add(EligibleClassResponse.builder()
                     .classId(cc.getId())

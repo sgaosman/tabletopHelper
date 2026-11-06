@@ -1,6 +1,7 @@
 package com.tabletophelper.reference;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.shared.JacksonDefaults;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
 import com.tabletophelper.rules.character.TestClassTables;
 import com.tabletophelper.shared.ConflictException;
@@ -35,7 +36,7 @@ class ReferenceControllerTargetingTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
+        objectMapper = JacksonDefaults.mapper();
         controller = new ReferenceController(spellRepository, conditionRepository, itemRepository,
                 raceRepository, characterClassRepository, subclassRepository,
                 backgroundRepository, featRepository, optionalFeatureRepository, objectMapper,

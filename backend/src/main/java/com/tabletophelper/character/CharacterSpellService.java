@@ -1,8 +1,8 @@
 package com.tabletophelper.character;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.dto.ApplyChoicesRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ClassSpellcasting;
@@ -399,7 +399,7 @@ public class CharacterSpellService {
         try {
             List<String> lists = objectMapper.readValue(spell.getClasses(), CLASS_LISTS);
             return lists != null ? lists : List.of();
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new ConflictException("The class lists of the spell " + spell.getName() + " can't be read");
         }
     }

@@ -1,6 +1,6 @@
 package com.tabletophelper.maintenance;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -102,37 +102,37 @@ class ContentSnapshotJobIT extends IntegrationTest {
         }
 
         List<JsonNode> racesById = lines(output.resolve("races.by-id.jsonl"));
-        assertThat(racesById).extracting(line -> line.path("id").asText())
+        assertThat(racesById).extracting(line -> line.path("id").asString())
                 .containsExactlyElementsOf(List.of(elf.toString(), dwarf.toString()).stream().sorted().toList());
-        assertThat(racesById.get(0).path("row").path("id").asText()).isEqualTo(racesById.get(0).path("id").asText());
+        assertThat(racesById.get(0).path("row").path("id").asString()).isEqualTo(racesById.get(0).path("id").asString());
 
         List<JsonNode> racesByKey = lines(output.resolve("races.by-key.jsonl"));
-        assertThat(racesByKey).extracting(line -> line.path("key").asText()).containsExactly("Dwarf|PHB", "Elf|PHB");
+        assertThat(racesByKey).extracting(line -> line.path("key").asString()).containsExactly("Dwarf|PHB", "Elf|PHB");
         JsonNode dwarfRow = racesByKey.get(0);
-        assertThat(dwarfRow.path("id").asText()).isEqualTo(dwarf.toString());
+        assertThat(dwarfRow.path("id").asString()).isEqualTo(dwarf.toString());
         assertThat(dwarfRow.path("row").has("id")).isFalse();
         assertThat(dwarfRow.path("row").has("created_at")).isFalse();
-        assertThat(dwarfRow.path("row").path("name").asText()).isEqualTo("Dwarf");
+        assertThat(dwarfRow.path("row").path("name").asString()).isEqualTo("Dwarf");
 
         JsonNode subclass = lines(output.resolve("subclasses.by-key.jsonl")).get(0);
-        assertThat(subclass.path("key").asText()).isEqualTo("Fighter|PHB|Battle Master|PHB");
+        assertThat(subclass.path("key").asString()).isEqualTo("Fighter|PHB|Battle Master|PHB");
         assertThat(subclass.path("row").has("character_class_id")).isFalse();
-        assertThat(subclass.path("row").path("class").asText()).isEqualTo("Fighter|PHB");
+        assertThat(subclass.path("row").path("class").asString()).isEqualTo("Fighter|PHB");
 
         JsonNode pool = lines(output.resolve("class_feature_pools.by-key.jsonl")).get(0);
-        assertThat(pool.path("key").asText())
+        assertThat(pool.path("key").asString())
                 .isEqualTo("Fighter|PHB|Battle Master|PHB|subclass:battle-master-superiority-dice");
         assertThat(pool.path("row").has("class_id")).isFalse();
         assertThat(pool.path("row").has("subclass_id")).isFalse();
-        assertThat(pool.path("row").path("subclass").asText()).isEqualTo("Battle Master|PHB");
+        assertThat(pool.path("row").path("subclass").asString()).isEqualTo("Battle Master|PHB");
         assertThat(pool.path("row").path("min_level").asInt()).isEqualTo(3);
 
         JsonNode definition = lines(output.resolve("resource_pool_definitions.by-id.jsonl")).get(0);
-        assertThat(definition.path("id").asText()).isEqualTo("subclass:battle-master-superiority-dice");
+        assertThat(definition.path("id").asString()).isEqualTo("subclass:battle-master-superiority-dice");
 
-        assertThat(lines(output.resolve("monster_pool_triggers.by-key.jsonl")).get(0).path("key").asText())
+        assertThat(lines(output.resolve("monster_pool_triggers.by-key.jsonl")).get(0).path("key").asString())
                 .isEqualTo("subclass:battle-master-superiority-dice|{\"hasField\": \"legendary\"}");
-        assertThat(lines(output.resolve("conditions.by-key.jsonl")).get(0).path("key").asText()).isEqualTo("Prone");
+        assertThat(lines(output.resolve("conditions.by-key.jsonl")).get(0).path("key").asString()).isEqualTo("Prone");
         assertThat(Files.readAllLines(output.resolve("monsters.by-id.jsonl"))).isEmpty();
     }
 
@@ -198,7 +198,7 @@ class ContentSnapshotJobIT extends IntegrationTest {
         assertThat(report.warnings()).containsExactly(
                 "monster_pool_triggers " + key + ": 2 rows share this natural key (" + ids.get(0) + ", " + ids.get(1) + ")");
         assertThat(lines(output.resolve("monster_pool_triggers.by-key.jsonl")))
-                .extracting(line -> line.path("key").asText() + " " + line.path("id").asText())
+                .extracting(line -> line.path("key").asString() + " " + line.path("id").asString())
                 .contains(key + " " + ids.get(0), key + " #2 " + ids.get(1));
     }
 

@@ -150,7 +150,7 @@ public class DmAdjustmentService {
         }
         Feat feat = featRepository.findById(choices.getFeatId())
                 .orElseThrow(() -> new ValidationException("Feat not found"));
-        if (DmAdjustments.hasFeat(character, feat.getName()) && !FeatEffectResolver.repeatable(feat)) {
+        if (DmAdjustments.hasFeat(character, feat.getName()) && !featEffectResolver.repeatable(feat)) {
             throw new ConflictException(character.getName() + " already has " + feat.getName()
                     + ", which can't be taken again");
         }

@@ -1,8 +1,8 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -55,7 +55,7 @@ final class EffectsOverlay {
             });
             try {
                 effects.put(row.getKey(), objectMapper.writeValueAsString(value));
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 throw new IllegalStateException(file + ": " + row.getKey() + " could not be written", e);
             }
         }

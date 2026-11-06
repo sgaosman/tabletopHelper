@@ -1,6 +1,6 @@
 package com.tabletophelper.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.identity.internal.JwtTokenProvider;
 import com.tabletophelper.monster.Monster;
@@ -36,7 +36,7 @@ class HttpSecurityIT extends IntegrationTest {
     private MonsterRepository monsterRepository;
 
     private String error(ResponseEntity<String> response) {
-        return json(response).get("error").asText();
+        return json(response).get("error").asString();
     }
 
     @Test
@@ -104,7 +104,7 @@ class HttpSecurityIT extends IntegrationTest {
     void nonMemberCampaignIsRefused() {
         var dm = register("dungeonmaster");
         var stranger = register("bram");
-        String campaignId = createCampaign(dm.accessToken()).get("id").asText();
+        String campaignId = createCampaign(dm.accessToken()).get("id").asString();
 
         var response = exchange(HttpMethod.GET, "/api/campaigns/" + campaignId, null, stranger.accessToken());
 
@@ -119,7 +119,7 @@ class HttpSecurityIT extends IntegrationTest {
         var player = register("aria");
         var campaign = createCampaign(dm.accessToken());
         join(player.accessToken(), campaign);
-        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
+        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
 
         var response = exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null, player.accessToken());
 
@@ -153,7 +153,7 @@ class HttpSecurityIT extends IntegrationTest {
     void deletingCharacterInActiveEncounterConflicts() {
         var dm = register("dungeonmaster");
         UUID characterId = createCharacter(dm.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
-        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asText());
+        UUID campaignId = UUID.fromString(createCampaign(dm.accessToken()).get("id").asString());
         UUID encounterId = createEncounter(dm.accessToken(), campaignId);
         addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", characterId, "displayName", "Aria"));
@@ -237,15 +237,15 @@ class HttpSecurityIT extends IntegrationTest {
         var stranger = register("bram");
         var campaign = createCampaign(dm.accessToken());
         join(player.accessToken(), campaign);
-        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
-        String sessionCode = startEncounter(dm.accessToken(), encounterId).get("sessionCode").asText();
+        UUID encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
+        String sessionCode = startEncounter(dm.accessToken(), encounterId).get("sessionCode").asString();
 
         var asStranger = exchange(HttpMethod.GET, "/api/encounters/join/" + sessionCode, null, stranger.accessToken());
         var asPlayer = exchange(HttpMethod.GET, "/api/encounters/join/" + sessionCode, null, player.accessToken());
 
         assertThat(asStranger.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(error(asStranger)).isEqualTo("You are not a member of this campaign");
-        assertThat(json(asPlayer).get("id").asText()).isEqualTo(encounterId.toString());
+        assertThat(json(asPlayer).get("id").asString()).isEqualTo(encounterId.toString());
     }
 
     @Test
@@ -317,7 +317,7 @@ class HttpSecurityIT extends IntegrationTest {
                 Map.of("targetId", goblinId, "amount", 3), dm.accessToken()));
         JsonNode log = expect(HttpStatus.OK, exchange(HttpMethod.GET,
                 "/api/encounters/" + firstEncounter + "/combat/log", null, dm.accessToken()));
-        String otherEncountersEntry = log.get(0).get("id").asText();
+        String otherEncountersEntry = log.get(0).get("id").asString();
         UUID secondEncounter = createEncounter(dm.accessToken(), campaignId);
         startEncounter(dm.accessToken(), secondEncounter);
 
@@ -339,25 +339,25 @@ class HttpSecurityIT extends IntegrationTest {
         join(otherPlayer.accessToken(), campaign);
         UUID characterId = createCharacter(owner.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
         expect(HttpStatus.OK, exchange(HttpMethod.PUT, "/api/characters/" + characterId + "/campaign",
-                Map.of("campaignId", campaign.get("id").asText()), owner.accessToken()));
+                Map.of("campaignId", campaign.get("id").asString()), owner.accessToken()));
 
         var asOtherPlayer = exchange(HttpMethod.GET, "/api/characters/" + characterId, null, otherPlayer.accessToken());
         var asDm = exchange(HttpMethod.GET, "/api/characters/" + characterId, null, dm.accessToken());
 
         assertThat(asOtherPlayer.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(error(asOtherPlayer)).isEqualTo("You do not have access to this character");
-        assertThat(json(asDm).get("id").asText()).isEqualTo(characterId.toString());
+        assertThat(json(asDm).get("id").asString()).isEqualTo(characterId.toString());
     }
 
     // ── Helpers ──────────────────────────────────────────────────
 
     private void join(String playerToken, JsonNode campaign) {
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
-                Map.of("inviteCode", campaign.get("inviteCode").asText()), playerToken));
+                Map.of("inviteCode", campaign.get("inviteCode").asString()), playerToken));
     }
 
     private UUID campaignId(RegisteredUser dm) {
-        return UUID.fromString(createCampaign(dm.accessToken()).get("id").asText());
+        return UUID.fromString(createCampaign(dm.accessToken()).get("id").asString());
     }
 
     /** Adds a 7 HP goblin and returns its participant id. */
@@ -368,6 +368,6 @@ class HttpSecurityIT extends IntegrationTest {
                 .build());
         JsonNode state = addParticipant(dmToken, encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", goblin.getId(), "displayName", "Goblin"));
-        return state.get("participants").get(0).get("id").asText();
+        return state.get("participants").get(0).get("id").asString();
     }
 }

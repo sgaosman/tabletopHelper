@@ -1,7 +1,7 @@
 package com.tabletophelper.content.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.SpellTemplate;
@@ -74,7 +74,7 @@ public class SpellEffectLoader implements ContentLoader {
         Map<Spell, JsonNode> templates = new LinkedHashMap<>();
         int unmatched = 0;
         for (JsonNode definition : definitions) {
-            String spellName = definition.path("spellName").asText(null);
+            String spellName = definition.path("spellName").asString(null);
             if (spellName == null) continue;
             Spell spell = spellsByName.get(spellName.toLowerCase());
             if (spell == null) {
