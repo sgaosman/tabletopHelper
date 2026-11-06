@@ -96,8 +96,9 @@ class JsonRoundTripJobIT extends IntegrationTest {
                 .doesNotContain("monsters.action_templates", "spells.effect_template", "feats.prerequisite",
                         "feats.effects", "feats.ability_score_increase", "feats.grants_features"));
         assertThat(report.warnings()).noneMatch(warning -> warning.contains("don't fit the records"));
-        // Every typed column of the six tables is checked, the ones this test leaves null included
-        assertThat(report.subject()).isEqualTo("typed JSON values in 35 columns");
+        // Every typed column of the six tables is checked, the ones this test leaves null included, and
+        // encounter_participants.turn_economy since V30 (D174)
+        assertThat(report.subject()).isEqualTo("typed JSON values in 36 columns");
     }
 
     @Test

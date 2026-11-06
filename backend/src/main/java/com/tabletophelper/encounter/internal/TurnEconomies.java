@@ -1,0 +1,102 @@
+package com.tabletophelper.encounter.internal;
+
+import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.Feature;
+import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.monster.Monster;
+import com.tabletophelper.rules.combat.ActionEconomy;
+import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * What a participant's turn economy needs from its sheet or stat block (D174): the attacks one Attack action gives
+ * it, and its speeds.
+ */
+@Slf4j
+public final class TurnEconomies {
+
+    private static final String WALK = "walk";
+
+    private TurnEconomies() {}
+
+    /**
+     * The attacks one Attack action gives the participant: a player character's from its features and class levels
+     * (rules.combat.ActionEconomy), and 1 for a monster, whose Multiattack is an action of its own.
+     */
+    public static int attacksPerAction(EncounterParticipant participant) {
+        PlayerCharacter character = participant.getCharacter();
+        if (character == null) {
+            return 1;
+        }
+        List<String> features = orEmpty(character.getFeatures()).stream()
+                .map(Feature::name)
+                .toList();
+        List<ActionEconomy.ClassLevel> classes = orEmpty(character.getMulticlassEntries()).stream()
+                .map(entry -> new ActionEconomy.ClassLevel(entry.className(), entry.subclassName(), entry.level()))
+                .toList();
+        return ActionEconomy.attacksPerAction(features, classes);
+    }
+
+    /**
+     * The participant's speeds in feet by kind, walking first: a player character's walking speed from its sheet,
+     * and a monster's speeds from its stat block (a speed with a condition, such as "(hover)", by its number).
+     * Empty when neither has one.
+     */
+    public static Map<String, Integer> speed(EncounterParticipant participant, ObjectMapper objectMapper) {
+        Map<String, Integer> speeds = new LinkedHashMap<>();
+        PlayerCharacter character = participant.getCharacter();
+        if (character != null) {
+            if (character.getSpeed() != null) {
+                speeds.put(WALK, character.getSpeed());
+            }
+            return speeds;
+        }
+        Monster monster = participant.getMonster();
+        if (monster == null || monster.getSpeed() == null || monster.getSpeed().isBlank()) {
+            return speeds;
+        }
+        JsonNode stats;
+        try {
+            stats = objectMapper.readTree(monster.getSpeed());
+        } catch (JacksonException e) {
+            log.warn("Monster {} has a speed that can't be read", monster.getId());
+            return speeds;
+        }
+        if (!stats.isObject()) {
+            return speeds;
+        }
+        Integer walk = feet(stats.get(WALK));
+        if (walk != null) {
+            speeds.put(WALK, walk);
+        }
+        for (Map.Entry<String, JsonNode> entry : stats.properties()) {
+            Integer feet = feet(entry.getValue());
+            if (!entry.getKey().equals(WALK) && feet != null) {
+                speeds.put(entry.getKey(), feet);
+            }
+        }
+        return speeds;
+    }
+
+    // A speed is a number, or an object with its number and a condition; anything else (canHover) isn't one
+    private static Integer feet(JsonNode value) {
+        if (value == null) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asInt();
+        }
+        JsonNode number = value.get("number");
+        return number != null && number.isNumber() ? number.asInt() : null;
+    }
+
+    private static <T> List<T> orEmpty(List<T> list) {
+        return list != null ? list : List.of();
+    }
+}

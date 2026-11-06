@@ -9,6 +9,7 @@ import com.tabletophelper.encounter.dto.EncounterResponse.ParticipantResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse.TurnResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,9 @@ class EncounterViewsTest {
     private final UUID gimliId = UUID.randomUUID();
 
     private static final List<ConditionEntry> PRONE = List.of(ConditionEntry.manual("prone", null, 1));
+
+    // An action, bonus action and reaction spent (D174)
+    private static final TurnEconomy SPENT = new TurnEconomy(1, 1, true, 0, true, true, false, false, false, false, false);
 
     private ParticipantResponse goblin(int hpCurrent) {
         return ParticipantResponse.builder()
@@ -52,6 +56,9 @@ class EncounterViewsTest {
                 .resourcePoolsCurrent(List.of(new ResourcePoolEntry("monster:legendary-resistance",
                         "Legendary Resistance", "MONSTER", "Goblin", 3, null, 3, "longRest", null, null, "FREE",
                         "shield", Map.of())))
+                .turnEconomy(SPENT)
+                .attacksPerAction(1)
+                .speed(Map.of("walk", 30))
                 .build();
     }
 
@@ -84,6 +91,9 @@ class EncounterViewsTest {
                 .spellSaveDc(13)
                 .spellcastingAbility("WIS")
                 .resourcePoolsCurrent(List.of())
+                .turnEconomy(SPENT)
+                .attacksPerAction(2)
+                .speed(Map.of("walk", 25))
                 .build();
     }
 
@@ -122,7 +132,7 @@ class EncounterViewsTest {
         }
 
         @Test
-        @DisplayName("Removes a monster's notes, spells, spell slots, spellcasting numbers, resource pools and bestiary entry")
+        @DisplayName("Removes a monster's notes, spells, spell slots, spellcasting numbers, resource pools, turn economy, attacks per action and bestiary entry")
         void removesMonsterDetails() {
             var goblin = find(EncounterViews.playerView(encounter(true, goblin(7))), goblinId);
 
@@ -134,8 +144,12 @@ class EncounterViewsTest {
             assertNull(goblin.getSpellcastingAbility());
             assertNull(goblin.getResourcePoolsCurrent());
             assertNull(goblin.getMonsterId());
+            // Q8, D157: the monster's turn economy is the DM's (D174)
+            assertNull(goblin.getTurnEconomy());
+            assertNull(goblin.getAttacksPerAction());
             // What the table can see stays
             assertEquals("Goblin", goblin.getDisplayName());
+            assertEquals(Map.of("walk", 30), goblin.getSpeed());
             assertEquals(15, goblin.getArmourClass());
             assertEquals(PRONE, goblin.getActiveConditions());
         }
@@ -171,6 +185,8 @@ class EncounterViewsTest {
 
             assertEquals(dmGimli, playerGimli);
             assertEquals("Fighter", playerGimli.getCharacterClass());
+            assertEquals(SPENT, playerGimli.getTurnEconomy());
+            assertEquals(2, playerGimli.getAttacksPerAction());
         }
 
         @Test

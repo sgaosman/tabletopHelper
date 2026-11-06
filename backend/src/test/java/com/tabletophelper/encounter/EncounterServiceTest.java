@@ -19,6 +19,7 @@ import com.tabletophelper.encounter.internal.CombatLogWriter;
 import com.tabletophelper.encounter.internal.CreatureStats;
 import com.tabletophelper.encounter.internal.EffectApplier;
 import com.tabletophelper.encounter.internal.TurnProcessor;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
@@ -1352,7 +1353,7 @@ class EncounterServiceTest {
     void startEncounter_givesTheFirstTurn() {
         EncounterParticipant goblin = fighting("Goblin", ParticipantType.MONSTER, 12, 14, 0);
         EncounterParticipant fighter = fighting("Fighter", ParticipantType.PLAYER, 18, 10, 1);
-        fighter.setActionUsed(true);
+        fighter.setTurnEconomy(new TurnEconomy(1, 1, true, 1, true, true, true, false, false, true, false));
         Encounter encounter = encounterIn(EncounterStatus.PREPARING, goblin, fighter);
         when(encounterRepository.findBySessionCode(anyString())).thenReturn(Optional.empty());
 
@@ -1360,7 +1361,7 @@ class EncounterServiceTest {
 
         assertEquals(fighter.getId(), encounter.getCurrentTurnParticipantId());
         assertFalse(encounter.getLairTurn());
-        assertFalse(fighter.getActionUsed());
+        assertEquals(TurnEconomy.fresh(), fighter.getTurnEconomy());
         assertEquals(0, response.getCurrentTurnIndex());
         assertEquals("Fighter", response.getTurnOrder().getFirst().getName());
     }

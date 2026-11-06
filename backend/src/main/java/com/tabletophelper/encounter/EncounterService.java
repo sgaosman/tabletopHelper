@@ -15,6 +15,7 @@ import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.EncounterTurns;
 import com.tabletophelper.encounter.internal.MonsterPools;
+import com.tabletophelper.encounter.internal.TurnEconomies;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.monster.Monster;
@@ -550,9 +551,9 @@ public class EncounterService {
                         .spellcastingAbility(p.getSpellcastingAbility())
                         .spellsKnown(p.getSpellsKnown())
                         .resourcePoolsCurrent(p.getResourcePoolsCurrent())
-                        .actionUsed(p.getActionUsed())
-                        .bonusActionUsed(p.getBonusActionUsed())
-                        .reactionUsed(p.getReactionUsed())
+                        .turnEconomy(p.getTurnEconomy())
+                        .attacksPerAction(TurnEconomies.attacksPerAction(p))
+                        .speed(TurnEconomies.speed(p, objectMapper))
                         .build())
                 .toList();
 

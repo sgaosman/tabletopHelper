@@ -8311,9 +8311,7 @@
       },
       "ParticipantResponse": {
         "required": [
-          "actionUsed",
           "armourClass",
-          "bonusActionUsed",
           "deathSaveDue",
           "deathSaveFailures",
           "deathSaveSuccesses",
@@ -8322,14 +8320,11 @@
           "isCurrentTurn",
           "lifeState",
           "participantType",
-          "reactionUsed",
-          "sortOrder"
+          "sortOrder",
+          "speed"
         ],
         "type": "object",
         "properties": {
-          "actionUsed": {
-            "type": "boolean"
-          },
           "activeConditions": {
             "type": "array",
             "nullable": true,
@@ -8350,8 +8345,10 @@
             "type": "integer",
             "format": "int32"
           },
-          "bonusActionUsed": {
-            "type": "boolean"
+          "attacksPerAction": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           },
           "characterClass": {
             "type": "string",
@@ -8466,9 +8463,6 @@
               "COMPANION"
             ]
           },
-          "reactionUsed": {
-            "type": "boolean"
-          },
           "resourcePoolsCurrent": {
             "type": "array",
             "nullable": true,
@@ -8479,6 +8473,13 @@
           "sortOrder": {
             "type": "integer",
             "format": "int32"
+          },
+          "speed": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
           },
           "spellAttackBonus": {
             "type": "integer",
@@ -8507,6 +8508,14 @@
             "items": {
               "$ref": "#/components/schemas/KnownSpell"
             }
+          },
+          "turnEconomy": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TurnEconomy"
+              }
+            ]
           }
         }
       },
@@ -9708,6 +9717,60 @@
               "type": "string",
               "format": "uuid"
             }
+          }
+        }
+      },
+      "TurnEconomy": {
+        "required": [
+          "actions",
+          "actionsUsed",
+          "attackActionTaken",
+          "attacksLeft",
+          "bonusActionSpellCast",
+          "bonusActionUsed",
+          "dashed",
+          "disengaged",
+          "objectInteractionUsed",
+          "otherSpellCast",
+          "reactionUsed"
+        ],
+        "type": "object",
+        "properties": {
+          "actions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "actionsUsed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attackActionTaken": {
+            "type": "boolean"
+          },
+          "attacksLeft": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bonusActionSpellCast": {
+            "type": "boolean"
+          },
+          "bonusActionUsed": {
+            "type": "boolean"
+          },
+          "dashed": {
+            "type": "boolean"
+          },
+          "disengaged": {
+            "type": "boolean"
+          },
+          "objectInteractionUsed": {
+            "type": "boolean"
+          },
+          "otherSpellCast": {
+            "type": "boolean"
+          },
+          "reactionUsed": {
+            "type": "boolean"
           }
         }
       },

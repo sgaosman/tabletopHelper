@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.rules.combat.LifeState;
 import jakarta.persistence.*;
@@ -120,17 +121,11 @@ public class EncounterParticipant {
     @Column(name = "joined_with", columnDefinition = "jsonb")
     private CombatTotals joinedWith;
 
-    @Column(name = "action_used")
+    // What it has spent of its turn, fresh at the start of its own turn (D174, V30)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "turn_economy", columnDefinition = "jsonb", nullable = false)
     @Builder.Default
-    private Boolean actionUsed = false;
-
-    @Column(name = "bonus_action_used")
-    @Builder.Default
-    private Boolean bonusActionUsed = false;
-
-    @Column(name = "reaction_used")
-    @Builder.Default
-    private Boolean reactionUsed = false;
+    private TurnEconomy turnEconomy = TurnEconomy.fresh();
 
     @Column(name = "is_visible_to_players")
     @Builder.Default

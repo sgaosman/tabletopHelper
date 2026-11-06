@@ -88,6 +88,11 @@ class PlayerViewIT extends IntegrationTest {
         assertThat(participant(encounter, characterId).get("healthStatus").isNull()).isTrue();
         assertThat(participant(encounter, characterId).get("characterClass").asString()).isEqualTo("Fighter");
         assertThat(goblin.get("characterClass").isNull()).isTrue();
+        // The monster's turn economy is the DM's (Q8, D174); the player's own character keeps its
+        assertThat(goblin.get("turnEconomy").isNull()).isTrue();
+        assertThat(goblin.get("attacksPerAction").isNull()).isTrue();
+        assertThat(participant(encounter, characterId).get("turnEconomy").get("actions").asInt()).isEqualTo(1);
+        assertThat(participant(encounter, characterId).get("attacksPerAction").asInt()).isEqualTo(1);
         // The view's context stays on the server
         assertThat(encounter.has("dmUserId")).isFalse();
         assertThat(encounter.has("showExactMonsterHp")).isFalse();
@@ -104,6 +109,8 @@ class PlayerViewIT extends IntegrationTest {
         assertThat(participant(encounter, goblinId).get("healthStatus").isNull()).isTrue();
         assertThat(participant(encounter, characterId).get("characterClass").asString()).isEqualTo("Fighter");
         assertThat(participant(encounter, goblinId).get("characterClass").isNull()).isTrue();
+        assertThat(participant(encounter, goblinId).get("turnEconomy").get("actions").asInt()).isEqualTo(1);
+        assertThat(participant(encounter, goblinId).get("attacksPerAction").asInt()).isEqualTo(1);
     }
 
     @Test

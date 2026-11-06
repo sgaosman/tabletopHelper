@@ -44,13 +44,13 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V29 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V30 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30");
     }
 
     @Test
@@ -81,6 +81,24 @@ class FlywayMigrationIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE "
                 + "table_schema = 'public' AND table_name = 'player_characters' AND column_name = 'hit_dice'",
                 Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("V30 replaces the three action flags with encounter_participants.turn_economy, NOT NULL with the fresh record as its default, and the combat log takes the action economy's types")
+    void turnEconomyColumn() {
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                + "WHERE table_name = 'encounter_participants' AND column_name = 'turn_economy'"))
+                .isEqualTo(Map.of("data_type", "jsonb", "is_nullable", "NO"));
+        assertThat(jdbcTemplate.queryForObject("SELECT column_default::text FROM information_schema.columns "
+                + "WHERE table_name = 'encounter_participants' AND column_name = 'turn_economy'", String.class))
+                .contains("\"actions\": 1").contains("\"actionsUsed\": 0").contains("\"reactionUsed\": false");
+        assertThat(jdbcTemplate.queryForList("SELECT column_name::text FROM information_schema.columns "
+                + "WHERE table_schema = 'public' AND table_name = 'encounter_participants' AND column_name IN "
+                + "('action_used', 'bonus_action_used', 'reaction_used')", String.class)).isEmpty();
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conname = 'combat_logs_action_type_check'", String.class))
+                .contains("'HP_SET'", "'REPEAT_SAVE'", "'POOL_USE'", "'STANDARD_ACTION'", "'OBJECT_INTERACTION'",
+                        "'TURN_ECONOMY_SET'", "'REACTION_TAKEN'");
     }
 
     @Test

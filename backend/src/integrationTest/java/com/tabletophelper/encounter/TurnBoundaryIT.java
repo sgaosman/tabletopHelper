@@ -4,6 +4,7 @@ import com.tabletophelper.monster.MonsterTemplates;
 import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;
@@ -26,9 +27,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * What happens at turn boundaries, end to end (D162, D163): Repeat Saves rolled by the server or left to the
- * player as the campaign prefers, a spell's rounds ending at the start of its caster's turn, and a death save
- * due at the start of a Dying PC's turn. A table of a DM and one player, whose character Aria acts on 20, and a
- * ghoul on 10 whose claws paralyze until a DC 10 CON save at the end of its target's turn.
+ * player as the campaign prefers, a spell's rounds ending at the start of its caster's turn, a death save due at
+ * the start of a Dying PC's turn, and a fresh turn economy at the start of a creature's own turn (D174). A table of
+ * a DM and one player, whose character Aria acts on 20, and a ghoul on 10 whose claws paralyze until a DC 10 CON
+ * save at the end of its target's turn.
  */
 class TurnBoundaryIT extends IntegrationTest {
 
@@ -202,7 +204,62 @@ class TurnBoundaryIT extends IntegrationTest {
         assertThat(participant(state, ariaId).get("deathSaveSuccesses").asInt()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("A turn economy is fresh at the start of its creature's own turn only: a reaction taken off-turn stays taken until then, and going back changes nothing (D174, D163)")
+    void turnEconomyAtTurnBoundaries() {
+        JsonNode start = getEncounter(dm.accessToken());
+        assertThat(economy(participant(start, ariaId))).isEqualTo(FRESH);
+        assertThat(economy(participant(start, ghoulId))).isEqualTo(FRESH);
+
+        // On Aria's turn she spends her action, bonus action and reaction, and the ghoul its reaction
+        setEconomy(ariaId, SPENT);
+        setEconomy(ghoulId, REACTION_TAKEN);
+
+        // The ghoul's turn starts: its economy is fresh, and Aria's reaction stays taken
+        JsonNode state = nextTurn();
+        assertThat(economy(participant(state, ghoulId))).isEqualTo(FRESH);
+        assertThat(economy(participant(state, ariaId))).isEqualTo(SPENT);
+
+        // Going back to Aria's turn starts nothing
+        setEconomy(ghoulId, SPENT);
+        state = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/turn/previous", null, dm.accessToken()));
+        assertThat(economy(participant(state, ariaId))).isEqualTo(SPENT);
+        assertThat(economy(participant(state, ghoulId))).isEqualTo(SPENT);
+
+        // The ghoul's turn starts again, then Aria's in the next round, each fresh
+        state = nextTurn();
+        assertThat(economy(participant(state, ghoulId))).isEqualTo(FRESH);
+        assertThat(economy(participant(state, ariaId))).isEqualTo(SPENT);
+        state = nextTurn();
+        assertThat(state.get("roundNumber").asInt()).isEqualTo(2);
+        assertThat(economy(participant(state, ariaId))).isEqualTo(FRESH);
+        assertThat(participant(state, ariaId).get("attacksPerAction").asInt()).isEqualTo(1);
+        assertThat(participant(state, ariaId).get("speed").get("walk").asInt()).isEqualTo(30);
+
+        // The Player View shows Aria's economy, and not the ghoul's (Q8, D157)
+        JsonNode playerView = getEncounter(player.accessToken());
+        assertThat(economy(participant(playerView, ariaId))).isEqualTo(FRESH);
+        assertThat(participant(playerView, ghoulId).get("turnEconomy").isNull()).isTrue();
+        assertThat(participant(playerView, ghoulId).get("attacksPerAction").isNull()).isTrue();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    private static final TurnEconomy FRESH = TurnEconomy.fresh();
+    private static final TurnEconomy SPENT = new TurnEconomy(1, 1, true, 1, true, true, true, true, false, true, false);
+    private static final TurnEconomy REACTION_TAKEN =
+            new TurnEconomy(1, 0, false, 0, false, true, false, false, false, false, false);
+
+    private void setEconomy(String participantId, TurnEconomy economy) {
+        EncounterParticipant participant = participantRepository.findById(UUID.fromString(participantId)).orElseThrow();
+        participant.setTurnEconomy(economy);
+        participantRepository.save(participant);
+    }
+
+    private TurnEconomy economy(JsonNode participant) {
+        return objectMapper.treeToValue(participant.get("turnEconomy"), TurnEconomy.class);
+    }
 
     private void spell(String name, String template) {
         spellRepository.save(Spell.builder().name(name).level(0).source("PHB").effectTemplate(SpellTemplate.parse(template)).build());

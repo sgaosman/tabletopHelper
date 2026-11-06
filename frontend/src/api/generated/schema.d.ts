@@ -2869,14 +2869,14 @@ export interface components {
             unpaged?: boolean | null;
         };
         ParticipantResponse: {
-            actionUsed: boolean;
             activeConditions?: components["schemas"]["ConditionEntry"][] | null;
             activeSpell?: string | null;
             /** Format: int32 */
             activeSpellSlotLevel?: number | null;
             /** Format: int32 */
             armourClass: number;
-            bonusActionUsed: boolean;
+            /** Format: int32 */
+            attacksPerAction?: number | null;
             characterClass?: string | null;
             /** Format: uuid */
             characterId?: string | null;
@@ -2915,10 +2915,12 @@ export interface components {
             notes?: string | null;
             /** @enum {string} */
             participantType: "PLAYER" | "MONSTER" | "COMPANION";
-            reactionUsed: boolean;
             resourcePoolsCurrent?: components["schemas"]["ResourcePoolEntry"][] | null;
             /** Format: int32 */
             sortOrder: number;
+            speed: {
+                [key: string]: number;
+            };
             /** Format: int32 */
             spellAttackBonus?: number | null;
             /** Format: int32 */
@@ -2928,6 +2930,7 @@ export interface components {
             } | null;
             spellcastingAbility?: string | null;
             spellsKnown?: components["schemas"]["KnownSpell"][] | null;
+            turnEconomy?: components["schemas"]["TurnEconomy"] | null;
         };
         PendingChoice: {
             /** Format: int32 */
@@ -3257,6 +3260,22 @@ export interface components {
         };
         TieOrderRequest: {
             participantIds: string[];
+        };
+        TurnEconomy: {
+            /** Format: int32 */
+            actions: number;
+            /** Format: int32 */
+            actionsUsed: number;
+            attackActionTaken: boolean;
+            /** Format: int32 */
+            attacksLeft: number;
+            bonusActionSpellCast: boolean;
+            bonusActionUsed: boolean;
+            dashed: boolean;
+            disengaged: boolean;
+            objectInteractionUsed: boolean;
+            otherSpellCast: boolean;
+            reactionUsed: boolean;
         };
         TurnResponse: {
             current: boolean;

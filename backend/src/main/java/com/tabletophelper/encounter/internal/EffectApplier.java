@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
@@ -427,14 +428,12 @@ public class EffectApplier {
     }
 
     /**
-     * The start of the participant's turn gives back its action, bonus action and reaction, refills its
-     * per-turn pools, such as legendary actions, and rolls the d6 of each spent Recharge ability, logging the
-     * roll (M12, D146).
+     * The start of the participant's turn gives it a fresh turn economy, with its action, bonus action, reaction
+     * and object interaction back (D174), refills its per-turn pools, such as legendary actions, and rolls the d6 of
+     * each spent Recharge ability, logging the roll (M12, D146).
      */
     public void refreshTurn(Encounter encounter, EncounterParticipant participant) {
-        participant.setActionUsed(false);
-        participant.setBonusActionUsed(false);
-        participant.setReactionUsed(false);
+        participant.setTurnEconomy(TurnEconomy.fresh());
 
         List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent();
         if (pools == null || pools.isEmpty()) {

@@ -8,6 +8,7 @@ import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.HealthStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.rules.combat.LifeState;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
@@ -168,15 +169,15 @@ public class EncounterResponse {
         private List<KnownSpell> spellsKnown;
         private List<ResourcePoolEntry> resourcePoolsCurrent;
 
-        // V8 added these columns with a default of false, which the entity's builder matches
-        @Schema(requiredMode = REQUIRED)
-        private Boolean actionUsed;
+        // What it has spent of its turn (D174); null in the Player View for a monster (D157)
+        private TurnEconomy turnEconomy;
 
-        @Schema(requiredMode = REQUIRED)
-        private Boolean bonusActionUsed;
+        // The attacks one Attack action gives it (Extra Attack); null in the Player View for a monster
+        private Integer attacksPerAction;
 
+        // Its speeds in feet by kind ("walk", "fly", "swim", "climb", "burrow"), walking first; empty when unknown
         @Schema(requiredMode = REQUIRED)
-        private Boolean reactionUsed;
+        private Map<String, Integer> speed;
     }
 
     /** One turn in the order: a participant's, or the Lair's (D163). */

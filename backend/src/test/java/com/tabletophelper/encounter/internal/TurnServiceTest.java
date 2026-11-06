@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
@@ -62,6 +63,11 @@ class TurnServiceTest {
         f.turns.advanceTurn(f.encounterId(), f.dmUserId);
     }
 
+    // A turn economy with its action, bonus action, reaction and object interaction spent, in an Attack action (D174)
+    private static TurnEconomy spent() {
+        return new TurnEconomy(1, 1, true, 1, true, true, true, false, false, true, false);
+    }
+
     private static void give(EncounterParticipant participant, ConditionEntry... conditions) {
         participant.setActiveConditions(new ArrayList<>(List.of(conditions)));
     }
@@ -83,13 +89,13 @@ class TurnServiceTest {
             EncounterParticipant goblin = monster("Goblin", 7);
             EncounterParticipant fighter = pc("Fighter", 18);
             EncounterParticipant wizard = pc("Wizard", 12);
-            wizard.setActionUsed(true);
+            wizard.setTurnEconomy(spent());
             f.turnOf(fighter);
 
             advance();
 
             assertTrue(EncounterTurns.isCurrentTurn(f.encounter, wizard.getId()));
-            assertFalse(wizard.getActionUsed());
+            assertEquals(TurnEconomy.fresh(), wizard.getTurnEconomy());
             assertEquals(1, f.encounter.getRoundNumber());
             assertEquals(List.of("Turn passes to Wizard (Round 1)"), f.descriptions());
             assertEquals(wizard.getId(), f.log.getFirst().getTargetId());
@@ -158,7 +164,7 @@ class TurnServiceTest {
         void previousTurnOnlyMovesTheMarker() {
             EncounterParticipant fighter = pc("Fighter", 18);
             EncounterParticipant wizard = pc("Wizard", 12);
-            fighter.setActionUsed(true);
+            fighter.setTurnEconomy(spent());
             give(fighter, ConditionEntry.manual("blinded", 1, 1));
             f.encounter.setRoundNumber(3);
             f.turnOf(wizard);
@@ -166,7 +172,7 @@ class TurnServiceTest {
             f.turns.previousTurn(f.encounterId(), f.dmUserId);
 
             assertTrue(EncounterTurns.isCurrentTurn(f.encounter, fighter.getId()));
-            assertTrue(fighter.getActionUsed());
+            assertEquals(spent(), fighter.getTurnEconomy());
             assertEquals(List.of("blinded"), CombatFixture.conditionNames(fighter));
             assertEquals(3, f.encounter.getRoundNumber());
             assertEquals(List.of("Turn returns to Fighter (Round 3)"), f.descriptions());
@@ -238,14 +244,14 @@ class TurnServiceTest {
         @Test
         @DisplayName("Its turn names the lair monster, comes and goes with it, and starts nobody's turn")
         void lairTurnEntry() {
-            fighter.setActionUsed(true);
+            fighter.setTurnEconomy(spent());
 
             advance();
 
             assertTrue(EncounterTurns.isLairTurn(f.encounter));
             assertEquals(List.of("Turn passes to Lair Actions (Round 1)"), f.descriptions());
             assertEquals(dragon.getId(), f.log.getFirst().getTargetId());
-            assertTrue(fighter.getActionUsed());
+            assertEquals(spent(), fighter.getTurnEconomy());
 
             advance();
             assertTrue(EncounterTurns.isCurrentTurn(f.encounter, fighter.getId()));
@@ -612,7 +618,7 @@ class TurnServiceTest {
     void leavingOnItsTurn() {
         EncounterParticipant mage = monster("Mage", 20);
         EncounterParticipant fighter = pc("Fighter", 10);
-        fighter.setActionUsed(true);
+        fighter.setTurnEconomy(spent());
         ConcentrationInstance web = new ConcentrationInstance(UUID.randomUUID(), "Web", 2, 1, 600);
         mage.setConcentration(web);
         give(fighter, ConditionEntry.fromEffect("restrained", 600, 1, "Web", mage.getId(), web));
@@ -623,7 +629,7 @@ class TurnServiceTest {
         f.encounter.getParticipants().remove(mage);
 
         assertTrue(EncounterTurns.isCurrentTurn(f.encounter, fighter.getId()));
-        assertFalse(fighter.getActionUsed());
+        assertEquals(TurnEconomy.fresh(), fighter.getTurnEconomy());
         assertEquals(List.of(), CombatFixture.conditionNames(fighter));
         assertEquals(List.of(), f.encounter.getMonstersInLair());
         assertEquals("Turn passes to Fighter (Round 1)", f.descriptions().getLast());

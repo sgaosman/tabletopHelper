@@ -510,7 +510,14 @@ export function makeMockParticipant(
     hpMax: 30, hpCurrent: 30, hpTemp: 0, armourClass: 14,
     isVisibleToPlayers: true, lifeState: 'ALIVE', isCurrentTurn: false, deathSaveDue: false,
     deathSaveSuccesses: 0, deathSaveFailures: 0,
-    actionUsed: false, bonusActionUsed: false, reactionUsed: false,
+    // A fresh turn's economy, one Attack action's attacks and a walking speed (D174)
+    turnEconomy: {
+      actions: 1, actionsUsed: 0, attackActionTaken: false, attacksLeft: 0, bonusActionUsed: false,
+      reactionUsed: false, objectInteractionUsed: false, bonusActionSpellCast: false, otherSpellCast: false,
+      dashed: false, disengaged: false,
+    },
+    attacksPerAction: 1,
+    speed: { walk: 30 },
   } satisfies EncounterParticipant;
   return { ...participant, ...overrides };
 }

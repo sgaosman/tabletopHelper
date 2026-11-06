@@ -11,6 +11,7 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.identity.internal.UserRepository;
 import com.tabletophelper.monster.Monster;
@@ -188,6 +189,31 @@ class EncounterJsonMappingIT extends IntegrationTest {
         // A monster joins with nothing to write back
         assertThat(column("SELECT joined_with::text FROM encounter_participants WHERE id = ?",
                 saveParticipant(EncounterParticipant.builder(), null))).isNull();
+    }
+
+    @Test
+    @DisplayName("A turn economy round-trips, a participant starts with a fresh one, and the column's default is the fresh record (D174, V30)")
+    void turnEconomyRoundTrips() {
+        TurnEconomy spent = new TurnEconomy(2, 1, true, 1, true, true, true, false, true, true, false);
+
+        UUID id = saveParticipant(EncounterParticipant.builder().turnEconomy(spent), null);
+
+        assertThat(reload(id).getTurnEconomy()).isEqualTo(spent);
+        assertThat(column("SELECT turn_economy::text FROM encounter_participants WHERE id = ?", id))
+                .isEqualTo("{\"dashed\": true, \"actions\": 2, \"disengaged\": false, \"actionsUsed\": 1, "
+                        + "\"attacksLeft\": 1, \"reactionUsed\": true, \"otherSpellCast\": true, "
+                        + "\"bonusActionUsed\": true, \"attackActionTaken\": true, \"bonusActionSpellCast\": false, "
+                        + "\"objectInteractionUsed\": true}");
+
+        UUID fresh = saveParticipant(EncounterParticipant.builder(), null);
+        assertThat(reload(fresh).getTurnEconomy()).isEqualTo(TurnEconomy.fresh());
+        jdbcTemplate.update("UPDATE encounter_participants SET turn_economy = DEFAULT WHERE id = ?", id);
+        assertThat(reload(id).getTurnEconomy()).isEqualTo(TurnEconomy.fresh());
+        assertThat(column("SELECT turn_economy::text FROM encounter_participants WHERE id = ?", id))
+                .isEqualTo(column("SELECT turn_economy::text FROM encounter_participants WHERE id = ?", fresh));
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE encounter_participants SET turn_economy = NULL WHERE id = ?", id))
+                .hasMessageContaining("turn_economy");
     }
 
     @Test

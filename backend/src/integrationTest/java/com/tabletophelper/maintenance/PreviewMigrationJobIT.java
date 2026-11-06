@@ -43,9 +43,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * schema at V19 (D167); their previews, which load the characters with entities now at V23, gave way to V21's,
  * applied against characters in a schema at V20 (D158), whose preview in turn gave way to V22's, applied against
  * characters in a schema at V21 (D158), and V22's preview to V23's, applied against characters in a schema at V22
- * (D159), whose preview in turn gave way to V24's, previewed and applied against encounters and characters in a schema
- * at V23 (D166). V29, which drops columns, is previewed and applied against characters in a schema at V28, the
- * preview listing each value a row loses.
+ * (D159), whose preview in turn gave way to V24's, applied against encounters and characters in a schema at V23
+ * (D166); V24's preview, which loads participants with entities now at V30, gave way to V30's. V29, which drops
+ * columns, is previewed and applied against characters in a schema at V28, the preview listing each value a row
+ * loses. V30 is previewed and applied against participants of an Active and a Paused encounter in a schema at V29
+ * (D174).
  */
 class PreviewMigrationJobIT extends IntegrationTest {
 
@@ -58,6 +60,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
     private static final String V23_SCHEMA = "v23_preview";
     private static final String V24_SCHEMA = "v24_preview";
     private static final String V29_SCHEMA = "v29_preview";
+    private static final String V30_SCHEMA = "v30_preview";
 
     @Autowired private DataSource dataSource;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -84,6 +87,7 @@ class PreviewMigrationJobIT extends IntegrationTest {
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V23_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V24_SCHEMA + " CASCADE");
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V29_SCHEMA + " CASCADE");
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + V30_SCHEMA + " CASCADE");
     }
 
     @BeforeEach
@@ -825,32 +829,6 @@ class PreviewMigrationJobIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("Previews V24 on a database at V23: the player participants of encounters under way join with their sheets, every character gains is_dead, every row loads, nothing is written")
-    void previewsV24() {
-        Map<String, UUID> rows = v24Rows();
-        DataSource v24 = schemaDataSource(V24_SCHEMA);
-
-        MaintenanceReport report = new PreviewMigrationJob(v24, new JdbcTemplate(v24), entityManagerFactory,
-                objectMapper, "24").run(false);
-
-        assertThat(report.warnings()).isEmpty();
-        // 4 encounters, 6 participants and 2 characters
-        assertThat(report.examined()).isEqualTo(12);
-        // Encounters gain results_applied as null, which changes nothing in the row
-        assertThat(report.changes()).hasSize(5);
-        assertThat(characterChange(report, rows.get("Aria ACTIVE"))).contains("(Aria)").contains("joined_with:  → "
-                + "{\"hpTemp\":5,\"hpCurrent\":30,\"slotsUsed\":{\"1\":1,\"pact_1\":2},"
-                + "\"poolsCurrentUses\":{\"class:barbarian-rage\":1}}");
-        assertThat(characterChange(report, rows.get("Aria PAUSED"))).contains("joined_with:");
-        assertThat(characterChange(report, rows.get("Bram ACTIVE"))).contains("joined_with:  → "
-                + "{\"hpTemp\":0,\"hpCurrent\":12,\"slotsUsed\":{},\"poolsCurrentUses\":{}}");
-        assertThat(characterChange(report, rows.get("Aria"))).containsPattern("is_dead: +→ false");
-        assertThat(characterChange(report, rows.get("Bram"))).containsPattern("is_dead: +→ false");
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
-                + "AND column_name IN ('joined_with', 'results_applied', 'is_dead')", Integer.class, V24_SCHEMA)).isZero();
-    }
-
-    @Test
     @DisplayName("V24 gives player participants of Active and Paused encounters what they joined with from their sheets, and nobody else, and leaves the rest as it was")
     void appliesV24() {
         Map<String, UUID> rows = v24Rows();
@@ -951,5 +929,129 @@ class PreviewMigrationJobIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT hit_dice::text FROM " + V29_SCHEMA
                 + ".player_characters WHERE id = ?", String.class, rows.get("Aria")))
                 .isEqualTo("{\"Wizard\": {\"total\": 5, \"dieSize\": 6, \"remaining\": 3}}");
+    }
+
+    // ── V30: the turn economy (D174) ─────────────────────────────
+
+    /**
+     * Takes a schema of its own to V29 and fills it as M13 found it: Aria and a goblin in an Active encounter, Aria's
+     * three action flags clear and the goblin's action and reaction set, and an ogre in a Paused one with its bonus
+     * action set.
+     */
+    private Map<String, UUID> v30Rows() {
+        Flyway.configure().dataSource(dataSource).schemas(V30_SCHEMA).locations("classpath:db/migration")
+                .target("29").load().migrate();
+        UUID dm = UUID.randomUUID();
+        UUID campaign = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V30_SCHEMA + ".users (id, username, email, password_hash) "
+                + "VALUES (?, 'dm', 'dm@example.com', 'hash')", dm);
+        jdbcTemplate.update("INSERT INTO " + V30_SCHEMA + ".campaigns (id, name, invite_code, dm_user_id) "
+                + "VALUES (?, 'Lost Mine', 'ABCD2345', ?)", campaign, dm);
+
+        Map<String, UUID> rows = new java.util.LinkedHashMap<>();
+        for (String status : List.of("ACTIVE", "PAUSED")) {
+            UUID encounter = UUID.randomUUID();
+            jdbcTemplate.update("INSERT INTO " + V30_SCHEMA + ".encounters (id, name, status, campaign_id) "
+                    + "VALUES (?, ?, ?, ?)", encounter, status.toLowerCase(), status, campaign);
+            rows.put(status, encounter);
+        }
+        rows.put("Aria", v30Participant(rows.get("ACTIVE"), "Aria", "PLAYER", false, false, false));
+        rows.put("Goblin", v30Participant(rows.get("ACTIVE"), "Goblin", "MONSTER", true, false, true));
+        rows.put("Ogre", v30Participant(rows.get("PAUSED"), "Ogre", "MONSTER", false, true, false));
+        return rows;
+    }
+
+    private UUID v30Participant(UUID encounter, String name, String type, boolean action, boolean bonusAction,
+                                boolean reaction) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V30_SCHEMA + ".encounter_participants (id, display_name, "
+                + "participant_type, hp_max, hp_current, armour_class, life_state, encounter_id, action_used, "
+                + "bonus_action_used, reaction_used) VALUES (?, ?, ?, 20, 7, 12, 'ALIVE', ?, ?, ?, ?)",
+                id, name, type, encounter, action, bonusAction, reaction);
+        return id;
+    }
+
+    // A participant inserted after V30, which names none of the dropped columns
+    private UUID v30NewParticipant(UUID encounter, String name) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO " + V30_SCHEMA + ".encounter_participants (id, display_name, "
+                + "participant_type, hp_max, hp_current, armour_class, life_state, encounter_id) "
+                + "VALUES (?, ?, 'PLAYER', 20, 7, 12, 'ALIVE', ?)", id, name, encounter);
+        return id;
+    }
+
+    private String v30TurnEconomy(UUID participant) {
+        return jdbcTemplate.queryForObject("SELECT turn_economy::text FROM " + V30_SCHEMA
+                + ".encounter_participants WHERE id = ?", String.class, participant);
+    }
+
+    // The fresh turn economy as the preview prints it: jsonb's key order, without spaces
+    private static final String FRESH_ECONOMY = "{\"dashed\":false,\"actions\":1,\"disengaged\":false,"
+            + "\"actionsUsed\":0,\"attacksLeft\":0,\"reactionUsed\":false,\"otherSpellCast\":false,"
+            + "\"bonusActionUsed\":false,\"attackActionTaken\":false,\"bonusActionSpellCast\":false,"
+            + "\"objectInteractionUsed\":false}";
+
+    @Test
+    @DisplayName("Previews V30 on a database at V29: every participant loses the three flags and gains a turn economy that keeps them, every row loads, nothing is written")
+    void previewsV30() {
+        Map<String, UUID> rows = v30Rows();
+        DataSource v30 = schemaDataSource(V30_SCHEMA);
+
+        MaintenanceReport report = new PreviewMigrationJob(v30, new JdbcTemplate(v30), entityManagerFactory,
+                objectMapper, "30").run(false);
+
+        assertThat(report.warnings()).isEmpty();
+        // 2 encounters and 3 participants; the encounters don't change
+        assertThat(report.examined()).isEqualTo(5);
+        assertThat(report.changes()).hasSize(3);
+        assertThat(characterChange(report, rows.get("Aria"))).contains("(Aria)")
+                .contains("action_used: false → (dropped)")
+                .contains("bonus_action_used: false → (dropped)")
+                .contains("reaction_used: false → (dropped)")
+                .contains("turn_economy:  → " + FRESH_ECONOMY);
+        assertThat(characterChange(report, rows.get("Goblin"))).contains("action_used: true → (dropped)")
+                .contains("\"actionsUsed\":1").contains("\"reactionUsed\":true").contains("\"bonusActionUsed\":false");
+        assertThat(characterChange(report, rows.get("Ogre"))).contains("bonus_action_used: true → (dropped)")
+                .contains("\"actionsUsed\":0").contains("\"bonusActionUsed\":true");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND column_name IN ('action_used', 'bonus_action_used', 'reaction_used')", Integer.class, V30_SCHEMA))
+                .isEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND column_name = 'turn_economy'", Integer.class, V30_SCHEMA)).isZero();
+    }
+
+    @Test
+    @DisplayName("V30 gives every participant a turn economy keeping its flags, drops the flags, defaults new rows to the fresh record and widens the combat log's types")
+    void appliesV30() {
+        Map<String, UUID> rows = v30Rows();
+
+        Flyway.configure().dataSource(dataSource).schemas(V30_SCHEMA).locations("classpath:db/migration")
+                .target("30").load().migrate();
+
+        String fresh = FRESH_ECONOMY.replace(":", ": ").replace(",", ", ");
+        assertThat(v30TurnEconomy(rows.get("Aria"))).isEqualTo(fresh);
+        assertThat(v30TurnEconomy(rows.get("Goblin")))
+                .isEqualTo(fresh.replace("\"actionsUsed\": 0", "\"actionsUsed\": 1")
+                        .replace("\"reactionUsed\": false", "\"reactionUsed\": true"));
+        assertThat(v30TurnEconomy(rows.get("Ogre")))
+                .isEqualTo(fresh.replace("\"bonusActionUsed\": false", "\"bonusActionUsed\": true"));
+        assertThat(v30TurnEconomy(v30NewParticipant(rows.get("ACTIVE"), "Bram"))).isEqualTo(fresh);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM information_schema.columns WHERE table_schema = ? "
+                + "AND column_name IN ('action_used', 'bonus_action_used', 'reaction_used')", Integer.class, V30_SCHEMA))
+                .isZero();
+        // The participant's other columns stay as they were
+        assertThat(jdbcTemplate.queryForObject("SELECT hp_current FROM " + V30_SCHEMA
+                + ".encounter_participants WHERE id = ?", Integer.class, rows.get("Aria"))).isEqualTo(7);
+        for (String type : List.of("POOL_USE", "STANDARD_ACTION", "OBJECT_INTERACTION", "TURN_ECONOMY_SET",
+                "REACTION_TAKEN", "REPEAT_SAVE")) {
+            jdbcTemplate.update("INSERT INTO " + V30_SCHEMA + ".combat_logs (id, encounter_id, action_type, "
+                    + "description, round_number) VALUES (?, ?, ?, 'logged', 1)", UUID.randomUUID(),
+                    rows.get("ACTIVE"), type);
+        }
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO " + V30_SCHEMA + ".combat_logs (id, encounter_id, "
+                + "action_type, description, round_number) VALUES (?, ?, 'DASH', 'logged', 1)", UUID.randomUUID(),
+                rows.get("ACTIVE"))).hasMessageContaining("combat_logs_action_type_check");
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE " + V30_SCHEMA + ".encounter_participants "
+                + "SET turn_economy = NULL WHERE id = ?", rows.get("Aria"))).hasMessageContaining("turn_economy");
     }
 }

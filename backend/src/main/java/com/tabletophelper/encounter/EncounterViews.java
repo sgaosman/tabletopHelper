@@ -42,8 +42,8 @@ public final class EncounterViews {
 
     /**
      * Leaves out participants hidden from players (a null flag counts as visible). Monsters lose
-     * their notes, known spells, spell slots, spellcasting numbers, resource pools and the ID of their
-     * bestiary entry, which would lead to the full stat block. Unless the campaign shows exact monster
+     * their notes, known spells, spell slots, spellcasting numbers, resource pools, turn economy and attacks per
+     * Attack action (D174) and the ID of their bestiary entry, which would lead to the full stat block. Unless the campaign shows exact monster
      * HP, their HP, temporary HP included, is replaced by a Health Status.
      * <p>
      * The turn order leaves out the hidden participants' turns, and the Lair's unless players can see a
@@ -141,7 +141,9 @@ public final class EncounterViews {
                 .spellAttackBonus(null)
                 .spellSaveDc(null)
                 .spellcastingAbility(null)
-                .resourcePoolsCurrent(null);
+                .resourcePoolsCurrent(null)
+                .turnEconomy(null)
+                .attacksPerAction(null);
         if (!showExactHp) {
             HealthStatus status = HealthStatus.of(monster.getHpCurrent(), monster.getHpMax());
             view.healthStatus(status != null ? status.name() : null)
