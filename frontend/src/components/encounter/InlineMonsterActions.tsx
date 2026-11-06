@@ -23,7 +23,9 @@ type TemplatesAnswer = MonsterActionTemplate & {
   error?: string;
 };
 
-type Tab = 'actions' | 'bonus' | 'reactions' | 'legendary' | 'lair';
+export type MonsterActionTab = 'actions' | 'bonus' | 'reactions' | 'legendary' | 'lair';
+
+type Tab = MonsterActionTab;
 
 /** The action source each tab sends (D138, D163, D174). */
 const TAB_SOURCE: Record<Tab, ActionSource> = {
@@ -72,16 +74,18 @@ function formatActionLabel(a: MonsterAction) {
  * notes saying what the DM applies by hand (D174); where its turn economy can't pay, the tab warns, but the DM is
  * never refused. Legendary actions are used on other creatures' turns, the Lair's included, never on the monster's
  * own; lair actions only on the Lair's turn, by a monster fighting in its lair (D163). The server refuses the rest.
+ * `initialTab` opens it on a tab, such as Reactions from the DM's Reaction menu.
  */
-export default function InlineMonsterActions({ participant, participants, isLairTurn, inLair }: {
+export default function InlineMonsterActions({ participant, participants, isLairTurn, inLair, initialTab = 'actions' }: {
   participant: EncounterParticipant;
   participants: EncounterParticipant[];
   isLairTurn: boolean;
   inLair: boolean;
+  initialTab?: MonsterActionTab;
 }) {
   const encounterActions = useEncounterAction();
   const templatesQuery = useMonsterActionTemplates(participant.id);
-  const [tab, setTab] = useState<Tab>('actions');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [selectedAction, setSelectedAction] = useState<MonsterAction | null>(null);
   // The multiattack whose target per attack the DM is choosing (D165)
   const [multiattackName, setMultiattackName] = useState<string | null>(null);

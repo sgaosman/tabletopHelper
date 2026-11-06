@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { makeMockCondition, makeMockParticipant } from '../test/mocks/handlers';
-import type { EncounterParticipant, TurnEconomy } from '../types/encounter';
-import { chargeBlock, costPhrase, spellCastBlock, speedText } from './turnEconomy';
+import { makeMockCondition, makeMockParticipant, makeMockResourcePool } from '../test/mocks/handlers';
+import type { EncounterParticipant, ResourcePoolEntry, TurnEconomy } from '../types/encounter';
+import {
+  bonusActionGrant, bonusActionRefusal, chargeBlock, costPhrase, objectInteractionBlock, poolBudgetBlock, poolCost,
+  poolCostLabel, poolRecoveryText, poolRefusal, spellCastBlock, speedText,
+} from './turnEconomy';
 
 const FRESH: TurnEconomy = {
   actions: 1, actionsUsed: 0, attackActionTaken: false, attacksLeft: 0, bonusActionUsed: false,
@@ -102,5 +105,61 @@ describe('costPhrase', () => {
     expect(costPhrase('ACTION')).toBe('an action');
     expect(costPhrase('BONUS_ACTION')).toBe('a bonus action');
     expect(costPhrase('NONE')).toBe('nothing from the turn');
+  });
+});
+
+describe('standard actions and object interactions', () => {
+  it('grants Dash, Disengage and Hide as a bonus action with Cunning Action, and Disengage and Hide with Nimble Escape', () => {
+    expect(bonusActionGrant('DASH', ['Sneak Attack', 'cunning action '])).toBe('Cunning Action');
+    expect(bonusActionGrant('HIDE', ['Nimble Escape'])).toBe('Nimble Escape');
+    expect(bonusActionGrant('DASH', ['Nimble Escape'])).toBeNull();
+    expect(bonusActionGrant('DODGE', ['Cunning Action'])).toBeNull();
+    expect(bonusActionRefusal('DASH')).toBe('Dash as a bonus action needs Cunning Action');
+    expect(bonusActionRefusal('DISENGAGE')).toBe('Disengage as a bonus action needs Cunning Action or Nimble Escape');
+  });
+
+  it('gives the first object interaction each turn free, on the creature\'s own turn', () => {
+    expect(objectInteractionBlock(caster())).toBeNull();
+    expect(objectInteractionBlock(caster({ objectInteractionUsed: true }))).toMatch(/needs the Use an Object action$/);
+    expect(objectInteractionBlock(caster({}, { isCurrentTurn: false }))).toMatch(/^Not this creature's turn/);
+  });
+});
+
+describe('pools at the table', () => {
+  const metadata = (value: Record<string, unknown>) => value as unknown as ResourcePoolEntry['metadata'];
+  const energy = (currentUses: number) => makeMockResourcePool('psi-energy', 'Psionic Energy Dice', {
+    maxUses: 4, currentUses, metadata: metadata({ die: 'd8' }),
+  });
+  const recovery = makeMockResourcePool('psi-recovery', 'Psionic Recovery', {
+    maxUses: 1, currentUses: 1, spendActionType: 'BONUS_ACTION', metadata: metadata({ recovers: 'psi-energy' }),
+  });
+  const surge = makeMockResourcePool('surge', 'Action Surge', { spendActionType: 'FREE', metadata: metadata({ grantsAction: true }) });
+
+  it('reads the cost from spendActionType, a missing one costing nothing', () => {
+    expect(poolCost({ spendActionType: 'REPLACE_ATTACK' })).toBe('REPLACE_ATTACK');
+    expect(poolCost({ spendActionType: null })).toBe('FREE');
+    expect(poolCostLabel(recovery)).toBe('Bonus action');
+    expect(poolCostLabel(surge)).toBe('Own turn, once: +1 action');
+  });
+
+  it('refuses an empty pool, and a recovery with nothing to regain, but never an unlimited pool', () => {
+    expect(poolRefusal({ ...recovery, currentUses: 0 }, [])).toBe('No Psionic Recovery uses left');
+    expect(poolRefusal(recovery, [energy(4), recovery])).toBe('No Psionic Energy Dice expended to regain');
+    expect(poolRefusal(recovery, [energy(3), recovery])).toBeNull();
+    expect(poolRefusal({ ...recovery, currentUses: 0, metadata: metadata({ unlimited: true }) }, [])).toBeNull();
+    expect(poolRecoveryText(recovery, [energy(3)])).toBe('regains a die of Psionic Energy Dice');
+  });
+
+  it('charges the turn as the pool\'s cost says, Action Surge on its own turn once', () => {
+    const bonus = makeMockResourcePool('rage', 'Rage', { spendActionType: 'BONUS_ACTION' });
+    const reaction = makeMockResourcePool('duelist', 'Defensive Duelist', { spendActionType: 'REACTION' });
+    const replace = makeMockResourcePool('channel', 'Maneuver', { spendActionType: 'REPLACE_ATTACK' });
+    expect(poolBudgetBlock(caster({ bonusActionUsed: true }), bonus)).toBe('Bonus action already used this turn');
+    expect(poolBudgetBlock(caster({}, { isCurrentTurn: false }), reaction)).toBeNull();
+    expect(poolBudgetBlock(caster({ actionsUsed: 1, attackActionTaken: true, attacksLeft: 1 }), replace)).toBeNull();
+    expect(poolBudgetBlock(caster({ actionsUsed: 1 }), replace)).toBe('No action left this turn');
+    expect(poolBudgetBlock(caster(), surge)).toBeNull();
+    expect(poolBudgetBlock(caster({ actionSurgeUsed: true }), surge)).toMatch(/only be used once on the same turn$/);
+    expect(poolBudgetBlock(caster({}, { isCurrentTurn: false }), surge)).toBe('Action Surge is used on its own turn');
   });
 });

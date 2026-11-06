@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { AxiosError, AxiosHeaders } from 'axios';
 import userEvent from '@testing-library/user-event';
-import { makeMockResourcePool } from '../../test/mocks/handlers';
-import type { ResourcePoolEntry } from '../../types/encounter';
+import { makeMockParticipant, makeMockResourcePool } from '../../test/mocks/handlers';
+import type { EncounterParticipant, ResourcePoolEntry } from '../../types/encounter';
 import ResourcePoolDisplay from './ResourcePoolDisplay';
 
 const rage = makeMockResourcePool('class:barbarian:rage', 'Rage', {
@@ -119,5 +120,116 @@ describe('ResourcePoolDisplay', () => {
     expect(screen.queryByTitle('Recover one Rage use')).not.toBeInTheDocument();
     await user.click(spend);
     expect(onSpend).toHaveBeenCalledWith('class:barbarian-rage');
+  });
+
+  // ── At the table (D174) ──────────────────────────────────────────
+
+  describe('in an encounter', () => {
+    const FRESH = makeMockParticipant('x', 'x', 'PLAYER').turnEconomy!;
+    const fighter = (entries: ResourcePoolEntry[], overrides: Partial<EncounterParticipant> = {}) =>
+      makeMockParticipant('part-vex', 'Vex', 'PLAYER', { isCurrentTurn: true, resourcePoolsCurrent: entries, ...overrides });
+    const secondWind = makeMockResourcePool('class:fighter-second-wind', 'Second Wind', {
+      maxUses: 1, currentUses: 1, spendActionType: 'BONUS_ACTION',
+    });
+    const actionSurge = makeMockResourcePool('class:fighter-action-surge', 'Action Surge', {
+      maxUses: 1, currentUses: 1, spendActionType: 'FREE', metadata: metadata({ grantsAction: true }),
+    });
+    const energy = (currentUses: number) => makeMockResourcePool('subclass:psi-warrior-psionic-energy', 'Psionic Energy Dice', {
+      maxUses: 4, currentUses, metadata: metadata({ die: 'd6' }),
+    });
+    const recovery = makeMockResourcePool('subclass:psi-warrior-psionic-recovery', 'Psionic Recovery', {
+      maxUses: 1, currentUses: 1, spendActionType: 'BONUS_ACTION',
+      metadata: metadata({ recovers: 'subclass:psi-warrior-psionic-energy' }),
+    });
+    const duelist = makeMockResourcePool('feat:defensive-duelist', 'Defensive Duelist', { spendActionType: 'REACTION' });
+    const luckFree = makeMockResourcePool('feat:lucky', 'Luck Points', { spendActionType: 'FREE' });
+
+    function renderAtTable(participant: EncounterParticipant, { asDm = false, onUse = vi.fn().mockResolvedValue(undefined) } = {}) {
+      const view = render(<ResourcePoolDisplay pools={participant.resourcePoolsCurrent} participant={participant} onUse={onUse} asDm={asDm} />);
+      return { onUse, view, user: userEvent.setup() };
+    }
+
+    it('shows each pool\'s cost from its spendActionType and uses it', async () => {
+      const { onUse, user } = renderAtTable(fighter([secondWind, duelist, luckFree]));
+
+      expect(screen.getByText('Bonus action')).toBeInTheDocument();
+      expect(screen.getByText('Reaction')).toBeInTheDocument();
+      expect(screen.getByText('Free')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Use Second Wind' }));
+
+      expect(onUse).toHaveBeenCalledWith('class:fighter-second-wind');
+    });
+
+    it('offers no use without the encounter\'s use, as for a player looking at another\'s pools', () => {
+      render(<ResourcePoolDisplay pools={pools(secondWind)} />);
+
+      expect(screen.queryByRole('button', { name: 'Use Second Wind' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Bonus action')).not.toBeInTheDocument();
+    });
+
+    it('greys a player\'s action or bonus action pool off their turn, keeping reactions and free uses', () => {
+      renderAtTable(fighter([secondWind, duelist, luckFree], { isCurrentTurn: false }));
+
+      expect(screen.getByRole('button', { name: 'Use Second Wind' })).toBeDisabled();
+      expect(screen.getByText("Not this creature's turn: only a reaction can be taken")).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Use Defensive Duelist' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Use Luck Points' })).toBeEnabled();
+    });
+
+    it('only warns the DM about what the turn can\'t pay for', () => {
+      renderAtTable(fighter([secondWind], { turnEconomy: { ...FRESH, bonusActionUsed: true } }), { asDm: true });
+
+      expect(screen.getByRole('button', { name: 'Use Second Wind' })).toBeEnabled();
+      expect(screen.getByText('Over the action economy: Bonus action already used this turn')).toBeInTheDocument();
+    });
+
+    it('refuses everyone a pool with no uses left', () => {
+      renderAtTable(fighter([{ ...secondWind, currentUses: 0 }]), { asDm: true });
+
+      expect(screen.getByRole('button', { name: 'Use Second Wind' })).toBeDisabled();
+      expect(screen.getByText('No Second Wind uses left')).toBeInTheDocument();
+    });
+
+    it('shows that Psionic Recovery regains a die, at its cost, and refuses it while no die is expended', () => {
+      const full = renderAtTable(fighter([energy(4), recovery]), { asDm: true });
+
+      expect(screen.getByText('Bonus action: regains a die of Psionic Energy Dice')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Use Psionic Recovery' })).toBeDisabled();
+      expect(screen.getByText('No Psionic Energy Dice expended to regain')).toBeInTheDocument();
+      full.view.unmount();
+
+      renderAtTable(fighter([energy(2), recovery]));
+      expect(screen.getByRole('button', { name: 'Use Psionic Recovery' })).toBeEnabled();
+    });
+
+    it('lets Action Surge be used on the fighter\'s own turn, once', () => {
+      const fresh = renderAtTable(fighter([actionSurge]));
+      expect(screen.getByText('Own turn, once: +1 action')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Use Action Surge' })).toBeEnabled();
+      fresh.view.unmount();
+
+      const surged = renderAtTable(fighter([{ ...actionSurge, maxUses: 2 }], {
+        turnEconomy: { ...FRESH, actions: 2, actionSurgeUsed: true },
+      }));
+      expect(screen.getByRole('button', { name: 'Use Action Surge' })).toBeDisabled();
+      expect(screen.getByText(/can only be used once on the same turn/)).toBeInTheDocument();
+      surged.view.unmount();
+
+      renderAtTable(fighter([actionSurge], { isCurrentTurn: false }));
+      expect(screen.getByRole('button', { name: 'Use Action Surge' })).toBeDisabled();
+      expect(screen.getByText('Action Surge is used on its own turn')).toBeInTheDocument();
+    });
+
+    it('shows the server\'s refusal', async () => {
+      const refusal = new AxiosError('Conflict', '409', undefined, undefined, {
+        status: 409, statusText: 'Conflict', headers: {}, config: { headers: new AxiosHeaders() },
+        data: { error: 'Bonus action already used this turn' },
+      });
+      const { user } = renderAtTable(fighter([secondWind]), { onUse: vi.fn().mockRejectedValue(refusal) });
+
+      await user.click(screen.getByRole('button', { name: 'Use Second Wind' }));
+
+      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Bonus action already used this turn'));
+    });
   });
 });

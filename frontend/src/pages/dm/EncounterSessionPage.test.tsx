@@ -5,7 +5,9 @@ import { http, HttpResponse } from 'msw';
 import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
+import {
+  makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant, makeMockResourcePool,
+} from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
 import type { MonsterActionResponse, MonsterActionTemplate, MultiattackOption } from '../../types/combat';
 import type { CombatResultPreview, Encounter, EncounterParticipant, TurnEntry } from '../../types/encounter';
@@ -984,6 +986,76 @@ describe('DM EncounterSessionPage', () => {
       const bar = screen.getByRole('group', { name: "Gimli's turn economy" });
       expect(within(bar).queryAllByRole('button')).toHaveLength(0);
       expect(within(bar).getByRole('img', { name: 'Action available' })).toBeInTheDocument();
+    });
+
+    it('opens any creature\'s Actions menu, off its turn too, with warnings only, and sends the action', async () => {
+      let body: unknown;
+      server.use(http.post('/api/encounters/:id/combat/standard-action', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(encounterWith());
+      }));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Actions for Test Goblin' }));
+      const menu = await screen.findByRole('dialog', { name: /Actions/ });
+      // Not the goblin's turn: the DM is warned, never stopped
+      expect(within(menu).getAllByText(/Over the action economy: Not this creature's turn/).length).toBeGreaterThan(0);
+      await user.click(within(menu).getByRole('button', { name: /^Dash/ }));
+      await user.click(within(menu).getByRole('button', { name: 'Take Dash' }));
+
+      await waitFor(() => expect(body).toEqual({ participantId: 'part-goblin', action: 'DASH' }));
+    });
+
+    it('opens a creature\'s Reaction menu, and its stat-block reactions in the monster panel', async () => {
+      server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+        actions: [], reactions: [{ name: 'Parry', description: 'Adds 2 to its AC against one melee attack.', dmNote: 'Add 2 to AC' }],
+      })));
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      await user.click(screen.getByRole('button', { name: 'Reactions for Test Goblin' }));
+      const menu = await screen.findByRole('dialog', { name: /Reactions/ });
+      expect(within(menu).getByRole('region', { name: 'Opportunity attack' })).toBeInTheDocument();
+      await user.click(within(menu).getByRole('button', { name: 'Stat block reactions (monster panel)' }));
+
+      expect(await screen.findByText('Parry')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reactions (1)' })).toBeInTheDocument();
+    });
+
+    it('uses any participant\'s pool, warning when its turn can\'t pay', async () => {
+      let body: unknown;
+      const rage = makeMockResourcePool('class:barbarian-rage', 'Rage', { spendActionType: 'BONUS_ACTION' });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+          participants: [gimli({ resourcePoolsCurrent: [rage] }), goblin(), bugbear()],
+        }))),
+        http.post('/api/encounters/:id/combat/use-pool', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(encounterWith());
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      const pools = screen.getByRole('list', { name: "Gimli's resource pools" });
+      expect(within(pools).getByText(/Over the action economy: Not this creature's turn/)).toBeInTheDocument();
+      await user.click(within(pools).getByRole('button', { name: 'Use Rage' }));
+
+      await waitFor(() => expect(body).toEqual({ participantId: 'part-gimli', poolId: 'class:barbarian-rage' }));
+    });
+
+    it('offers no menus or pool use while the encounter is Paused', async () => {
+      const rage = makeMockResourcePool('class:barbarian-rage', 'Rage', { spendActionType: 'BONUS_ACTION' });
+      server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        status: 'PAUSED', participants: [gimli({ resourcePoolsCurrent: [rage] }), goblin(), bugbear()],
+      }))));
+      await renderLoaded();
+
+      expect(screen.getByText('Rage')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Use Rage' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Reactions for/ })).not.toBeInTheDocument();
     });
   });
 });

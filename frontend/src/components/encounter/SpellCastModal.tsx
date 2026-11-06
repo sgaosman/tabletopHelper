@@ -4,7 +4,7 @@ import { useEncounterAction, useSpellOptions } from '../../queries/encounters';
 import { apiErrorMessage } from '../../api/errors';
 import type { EncounterParticipant, SpellSlot } from '../../types/encounter';
 import type { SpellOption, SpellSource } from '../../types/combat';
-import { spellCastBlock } from '../../utils/turnEconomy';
+import { spellCastBlock, type CastingTime } from '../../utils/turnEconomy';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Modal from '../ui/Modal';
@@ -25,6 +25,8 @@ interface Props {
    * castable with the reason as a warning, and one longer than a turn costs an action (D174).
    */
   asDm?: boolean;
+  /** Only spells with these casting times, such as the reaction spells the Reaction menu offers (D174). */
+  castingTimes?: CastingTime[];
 }
 
 /** How the chosen spell is paid for: a Spell Source, and the level that casts it at (D165). */
@@ -50,7 +52,9 @@ interface ChoiceRow extends CastChoice {
  * authority and its refusal shows too (D174). Its own steps choose the spell and how to pay for it; the targets,
  * confirm and result are the steps every spell pop-up shares.
  */
-export default function SpellCastModal({ caster, participants, onClose, allowManualModifiers = false, asDm = false }: Props) {
+export default function SpellCastModal({
+  caster, participants, onClose, allowManualModifiers = false, asDm = false, castingTimes,
+}: Props) {
   const actions = useEncounterAction();
   const spellOptions = useSpellOptions(caster.id);
   const flow = useSpellFlow<'spell' | 'slot'>('spell', { allowManualModifiers });
@@ -60,8 +64,9 @@ export default function SpellCastModal({ caster, participants, onClose, allowMan
 
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
-    return (spellOptions.data ?? []).filter(s => s.name.toLowerCase().includes(q));
-  }, [spellOptions.data, search]);
+    return (spellOptions.data ?? []).filter(s => s.name.toLowerCase().includes(q)
+      && (!castingTimes || castingTimes.includes(s.castingTime)));
+  }, [spellOptions.data, search, castingTimes]);
 
   // Why the caster's turn can't pay for a spell now, if it can't (D174)
   const blockFor = (spell: SpellOption) => spellCastBlock(caster, spell.castingTime, spell.level, { dm: asDm });
@@ -113,7 +118,7 @@ export default function SpellCastModal({ caster, participants, onClose, allowMan
 
   return (
     <Modal
-      title={<><Sparkles className="w-5 h-5 text-ink" />Cast Spell</>}
+      title={<><Sparkles className="w-5 h-5 text-ink" />{castingTimes?.length === 1 && castingTimes[0] === 'REACTION' ? 'Cast a Reaction Spell' : 'Cast Spell'}</>}
       subtitle={caster.displayName}
       size="lg"
       onClose={onClose}

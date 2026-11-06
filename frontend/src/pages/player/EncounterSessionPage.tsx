@@ -21,13 +21,15 @@ import CombatLog from '../../components/encounter/CombatLog';
 import ConnectionStatus from '../../components/encounter/ConnectionStatus';
 import ConditionForm from '../../components/encounter/ConditionForm';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
+import StandardActionMenu from '../../components/encounter/StandardActionMenu';
+import ReactionMenu from '../../components/encounter/ReactionMenu';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
-import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, RotateCw } from 'lucide-react';
+import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, RotateCw, Footprints, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 
-type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
+type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | 'standard' | 'reaction' | null;
 
 function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClose }: {
   myCharacter: EncounterParticipant;
@@ -100,9 +102,10 @@ function PlayerSessionView() {
   const lairMonsters = encounter.monstersInLair.flatMap(id => participantsById.get(id)?.displayName ?? []);
   const isMyTurn = encounter.participants.some(p => p.isCurrentTurn && p.controlledByUserId === user?.userId);
   const myCharacter = encounter.participants.find(p => p.controlledByUserId === user?.userId);
-  // Off their turn a player may still make an opportunity attack while their reaction is unused (D174)
-  const canOpportunityAttack = !isMyTurn && myCharacter?.lifeState === 'ALIVE'
-    && myCharacter.turnEconomy != null && !myCharacter.turnEconomy.reactionUsed;
+  // A player's reactions, on any turn, while their reaction is unused; off their turn they are all a player can take
+  // (D174)
+  const canReact = myCharacter?.lifeState === 'ALIVE' && myCharacter.turnEconomy != null
+    && !myCharacter.turnEconomy.reactionUsed;
   // Repeat Saves the campaign leaves to this player, at the end of their character's turn (D162)
   const savesToRoll = (myCharacter?.activeConditions ?? []).filter(c => c.repeatSave?.awaitingRoll);
   // Actions show only while the encounter is Active: the server refuses them while it is Paused or
@@ -193,12 +196,30 @@ function PlayerSessionView() {
           />
         )}
 
-        {/* Resource pools (M24.5) */}
-        {myCharacter && <ResourcePoolDisplay pools={myCharacter.resourcePoolsCurrent} />}
+        {/* Resource pools (M24.5), used at the table while the encounter is Active, each costing what its pool says from
+            the turn (D174) */}
+        {myCharacter && (
+          <ResourcePoolDisplay pools={myCharacter.resourcePoolsCurrent} participant={myCharacter}
+            onUse={isActive && myCharacter.lifeState === 'ALIVE'
+              ? poolId => actions.usePool({ participantId: myCharacter.id, poolId }) : undefined} />
+        )}
 
         {/* Player self-action buttons */}
         {isActive && myCharacter && myCharacter.lifeState === 'ALIVE' && (
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {/* The standard actions and object interactions are for the player's own turn (D174) */}
+            {isMyTurn && (
+              <button onClick={() => selectSelfAction('standard')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-fighter/30">
+                <Footprints className="w-3.5 h-3.5" /> Actions
+              </button>
+            )}
+            {canReact && (
+              <button onClick={() => selectSelfAction('reaction')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-rogue/10 hover:bg-cls-rogue/20 text-cls-rogue font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-rogue/30">
+                <ShieldAlert className="w-3.5 h-3.5" /> Reaction
+              </button>
+            )}
             <button onClick={() => selectSelfAction('condition')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-monk/30">
               <Zap className="w-3.5 h-3.5" /> Add Condition
@@ -243,8 +264,17 @@ function PlayerSessionView() {
           />
         )}
 
+        {/* The player's own Actions and Reactions menus; players never see another creature's (D157, D174) */}
+        {isActive && actionMode === 'standard' && isMyTurn && myCharacter && (
+          <StandardActionMenu participant={myCharacter} participants={encounter.participants} onClose={closeAction} />
+        )}
+        {isActive && actionMode === 'reaction' && myCharacter && (
+          <ReactionMenu participant={myCharacter} participants={encounter.participants}
+            allowManualModifiers={encounter.allowPlayerManualModifiers} onClose={closeAction} />
+        )}
+
         {/* Action panel */}
-        {isActive && actionMode && actionMode !== 'spell' && myCharacter && (
+        {isActive && actionMode && actionMode !== 'spell' && actionMode !== 'standard' && actionMode !== 'reaction' && myCharacter && (
           <PlayerActionPanel
             myCharacter={myCharacter}
             encounter={encounter}
@@ -284,9 +314,10 @@ function PlayerSessionView() {
                     {monsterHealth && (
                       <span className="font-heading text-[13px] font-semibold text-muted">{monsterHealth}</span>
                     )}
-                    {/* The dead can't be attacked; the dying can (D161) */}
-                    {isActive && (isMyTurn || canOpportunityAttack) && p.lifeState !== 'DEAD' && (
-                      <IconButton label={isMyTurn ? 'Attack' : 'Opportunity attack'} onClick={() => selectAttackTarget(p.id)}
+                    {/* The dead can't be attacked; the dying can (D161). Off the player's turn an opportunity attack is
+                        in their Reaction menu (D174) */}
+                    {isActive && isMyTurn && p.lifeState !== 'DEAD' && (
+                      <IconButton label="Attack" onClick={() => selectAttackTarget(p.id)}
                         className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
                         <Crosshair className="w-3.5 h-3.5" />
                       </IconButton>

@@ -26,7 +26,9 @@ import ConnectionStatus from '../../components/encounter/ConnectionStatus';
 import ConditionForm from '../../components/encounter/ConditionForm';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import ManualAttackForm from '../../components/encounter/ManualAttackForm';
-import InlineMonsterActions from '../../components/encounter/InlineMonsterActions';
+import InlineMonsterActions, { type MonsterActionTab } from '../../components/encounter/InlineMonsterActions';
+import StandardActionMenu from '../../components/encounter/StandardActionMenu';
+import ReactionMenu from '../../components/encounter/ReactionMenu';
 import { FIELD_INPUT, FIELD_LABEL, SUBMIT_BUTTON } from '../../components/encounter/formStyles';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import Button from '../../components/ui/Button';
@@ -37,11 +39,12 @@ import { DAMAGE_TYPES } from '../../utils/conditions';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check,
   ChevronRight, ChevronLeft, Heart, HeartPulse, Swords,
-  Plus, Minus, X, Zap, Crosshair, Sparkles, Trash2
+  Plus, Minus, X, Zap, Crosshair, Sparkles, Trash2, Footprints, ShieldAlert
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
-type ActionMode = 'attack' | 'damage' | 'heal' | 'set-hp' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | null;
+type ActionMode = 'attack' | 'damage' | 'heal' | 'set-hp' | 'condition' | 'concentration' | 'spell' | 'repeat-effect'
+  | 'standard' | 'reaction' | null;
 
 /** Damage, healing and Set HP: an amount, with a damage type or temporary HP. */
 function HpChangeForm({ target, mode }: { target: EncounterParticipant; mode: 'damage' | 'heal' | 'set-hp' }) {
@@ -163,6 +166,8 @@ function DmSessionView() {
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [actionMode, setActionMode] = useState<ActionMode>(null);
   const [expandedMonsterId, setExpandedMonsterId] = useState<string | null>(null);
+  // The tab the monster panel opens on: Reactions when the Reaction menu sends the DM there (D174)
+  const [monsterTab, setMonsterTab] = useState<MonsterActionTab>('actions');
   const [turnError, setTurnError] = useState('');
   // The participant the DM is asked to confirm removing, and why the removal failed
   const [removeTarget, setRemoveTarget] = useState<EncounterParticipant | null>(null);
@@ -173,6 +178,7 @@ function DmSessionView() {
 
   // Opening another monster's actions, or closing them, starts them afresh: no targets and no result
   function toggleMonsterActions(participantId: string) {
+    setMonsterTab('actions');
     setExpandedMonsterId(expandedMonsterId === participantId ? null : participantId);
   }
 
@@ -384,6 +390,17 @@ function DmSessionView() {
           />
         )}
 
+        {/* Any creature's Actions and Reactions menus: warnings only, since the server never refuses the DM (D174) */}
+        {isActive && actionMode === 'standard' && selectedTarget && (
+          <StandardActionMenu participant={selectedTarget} participants={encounter.participants} asDm
+            onClose={() => { setActionMode(null); setSelectedTargetId(null); }} />
+        )}
+        {isActive && actionMode === 'reaction' && selectedTarget && (
+          <ReactionMenu participant={selectedTarget} participants={encounter.participants} asDm allowManualModifiers
+            onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
+            onOpenMonsterReactions={() => { setMonsterTab('reactions'); setExpandedMonsterId(selectedTarget.id); }} />
+        )}
+
         {/* Repeat spell effect modal */}
         {isActive && actionMode === 'repeat-effect' && selectedTarget && (selectedTarget.concentrationSpell || selectedTarget.activeSpell) && (
           <RepeatEffectModal
@@ -434,7 +451,7 @@ function DmSessionView() {
         )}
 
         {/* Action panel */}
-        {isActive && actionMode !== 'spell' && (
+        {isActive && actionMode !== 'spell' && actionMode !== 'standard' && actionMode !== 'reaction' && (
           <ActionPanel
             selectedTarget={selectedTarget}
             actionMode={actionMode}
@@ -548,6 +565,19 @@ function DmSessionView() {
                               <Sparkles className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
+                          {/* Dash, Dodge, Help and the rest, and object interactions (D174) */}
+                          {isUp && (
+                            <IconButton label={`Actions for ${p.displayName}`} onClick={() => selectTarget(p.id, 'standard')}
+                              className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
+                              <Footprints className="w-3.5 h-3.5" />
+                            </IconButton>
+                          )}
+                          {isUp && (
+                            <IconButton label={`Reactions for ${p.displayName}`} onClick={() => selectTarget(p.id, 'reaction')}
+                              className="p-1.5 bg-cls-rogue/10 hover:bg-cls-rogue/20 text-cls-rogue">
+                              <ShieldAlert className="w-3.5 h-3.5" />
+                            </IconButton>
+                          )}
                         </div>
                       )}
 
@@ -593,13 +623,16 @@ function DmSessionView() {
                     />
                   )}
 
-                  {/* Resource pools (M24.5) */}
-                  <ResourcePoolDisplay pools={p.resourcePoolsCurrent} />
+                  {/* Resource pools (M24.5), which the DM uses for anyone while the encounter is Active (D174) */}
+                  <ResourcePoolDisplay pools={p.resourcePoolsCurrent} participant={p} asDm
+                    onUse={isActive ? poolId => actions.usePool({ participantId: p.id, poolId }) : undefined} />
                 </ParticipantRow>
 
                 {/* M12 Inline monster action panel */}
                 {isActive && expandedMonsterId === p.id && isMonster && (
                   <InlineMonsterActions
+                    key={monsterTab}
+                    initialTab={monsterTab}
                     participant={p}
                     participants={sorted}
                     isLairTurn={isLairTurn}

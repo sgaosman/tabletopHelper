@@ -8,8 +8,9 @@ import { encounterApi } from '../api/encounterApi';
 import { useLiveEncounter } from '../context/liveEncounter';
 import type { CombatLogEntry } from '../types/combat';
 import type {
-  AddParticipantRequest, Encounter, EncounterCreateRequest, EncounterView, SetInitiativeRequest,
+  AddParticipantRequest, Encounter, EncounterCreateRequest, EncounterParticipant, EncounterView, SetInitiativeRequest,
 } from '../types/encounter';
+import { useCharacter } from './characters';
 import { queryKeys } from './keys';
 import { invalidateOnConflict } from './queryClient';
 
@@ -209,6 +210,28 @@ export function useMonsterActionTemplates(participantId: string) {
 }
 
 /**
+ * The names of what a participant has that could let it take Dash, Disengage or Hide as a bonus action (Cunning Action,
+ * Nimble Escape), as the server reads them (D174): a player character's features from its sheet, and for the DM a
+ * monster's traits and bonus actions from its action templates. Null while they load, or when the page can't know
+ * them, such as a monster in the Player View.
+ */
+export function useBonusActionFeatures(participant: EncounterParticipant, { dm }: { dm: boolean }): string[] | null {
+  const { encounterId } = useLiveEncounter();
+  const character = useCharacter(participant.participantType !== 'MONSTER' ? participant.characterId ?? undefined : undefined);
+  const monster = participant.participantType === 'MONSTER' && dm;
+  const templates = useQuery({
+    queryKey: queryKeys.encounters.monsterActions(encounterId, participant.id),
+    queryFn: monster ? async () => (await combatApi.getMonsterActions(encounterId, participant.id)).data : skipToken,
+    staleTime: 0,
+  });
+  if (participant.participantType === 'MONSTER') {
+    if (!templates.data) return null;
+    return [...(templates.data.traits ?? []), ...(templates.data.bonusActions ?? [])].map(entry => entry.name);
+  }
+  return character.data ? (character.data.features ?? []).map(feature => feature.name) : null;
+}
+
+/**
  * A monster's multiattacks and the attacks each makes, for a target per attack; DM only (D157, D165). The stat block
  * doesn't change during an encounter, so they load once.
  */
@@ -314,6 +337,10 @@ export function useEncounterAction() {
       monsterAction: resolve(combatApi.monsterAction),
       // The DM's replacement of a participant's whole turn economy (D174)
       setTurnEconomy: change(combatApi.setTurnEconomy),
+      // A pool used at the table, a standard action and an object interaction, each charged to the turn (D174)
+      usePool: change(combatApi.usePool),
+      standardAction: change(combatApi.standardAction),
+      objectInteraction: change(combatApi.objectInteraction),
     };
   }, [queryClient, encounterId, view, socketMessages]);
 }

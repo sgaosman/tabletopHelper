@@ -6,7 +6,7 @@ import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import {
-  makeMockAttackOption, makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant,
+  makeMockAttackOption, makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant, makeMockResourcePool,
 } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
@@ -192,7 +192,9 @@ describe('Player EncounterSessionPage', () => {
         goblin(),
       ],
     });
-    const ACTIONS: (string | RegExp)[] = ['Add Condition', /Concentration/, 'Cast Spell', 'Attack', /prone/, /level 1 slot/];
+    const ACTIONS: (string | RegExp)[] = [
+      'Add Condition', /Concentration/, 'Cast Spell', 'Attack', 'Actions', 'Reaction', /prone/, /level 1 slot/,
+    ];
 
     it('shows every action while the encounter is Active', async () => {
       server.use(http.get('/api/encounters/:id', () => HttpResponse.json(busyTable('ACTIVE'))));
@@ -521,7 +523,7 @@ describe('Player EncounterSessionPage', () => {
       expect(within(screen.getByRole('group', { name: "Gimli's turn economy" })).queryAllByRole('button')).toHaveLength(0);
     });
 
-    it('offers an opportunity attack off the player\'s turn while their reaction is unused', async () => {
+    it('opens the opportunity attack from the Reaction menu off the player\'s turn, with the reaction\'s cost', async () => {
       let attack: unknown;
       server.use(http.post('/api/encounters/:id/combat/attack', async ({ request }) => {
         attack = await request.json();
@@ -530,22 +532,75 @@ describe('Player EncounterSessionPage', () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click((await screen.findAllByRole('button', { name: 'Opportunity attack' }))[0]);
-      expect(await screen.findByLabelText('Cost')).toHaveValue('REACTION');
-      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+      await screen.findByText('This Turn');
+      // Off the player's turn the rows offer no attack and there is no Actions menu: only the Reaction menu
+      expect(screen.queryByRole('button', { name: 'Attack' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Reaction' }));
+      const menu = await screen.findByRole('dialog', { name: /Reactions/ });
+      await user.selectOptions(within(menu).getByLabelText('Against'), 'Test Goblin');
+      expect(await within(menu).findByLabelText('Cost')).toHaveValue('REACTION');
+      await user.click(within(menu).getByRole('button', { name: 'Roll Attack' }));
 
-      await waitFor(() => expect(attack).toMatchObject({ cost: 'REACTION' }));
+      await waitFor(() => expect(attack).toMatchObject({ cost: 'REACTION', targetId: 'part-goblin' }));
     });
 
-    it('offers no attack off the player\'s turn once their reaction is used', async () => {
+    it('offers no Reaction menu once the player\'s reaction is used', async () => {
       server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
         participants: [legolas(), gimli({ turnEconomy: { ...gimli().turnEconomy!, reactionUsed: true } }), goblin()],
       }))));
       renderPage();
 
       expect(await screen.findByText('This Turn')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Opportunity attack' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reaction' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Attack' })).not.toBeInTheDocument();
+    });
+
+    it('takes a standard action from the Actions menu on the player\'s own turn', async () => {
+      let body: unknown;
+      const table = makeMockEncounter({ participants: [legolas(), gimli({ isCurrentTurn: true }), goblin()] });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(table)),
+        http.post('/api/encounters/:id/combat/standard-action', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(table);
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole('button', { name: 'Actions' }));
+      const menu = await screen.findByRole('dialog', { name: /Actions/ });
+      await user.click(within(menu).getByRole('button', { name: /^Dodge/ }));
+      await user.click(within(menu).getByRole('button', { name: 'Take Dodge' }));
+
+      await waitFor(() => expect(body).toEqual({ participantId: 'part-gimli', action: 'DODGE' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('uses the player\'s own pool at the table, showing what it costs', async () => {
+      let body: unknown;
+      const secondWind = makeMockResourcePool('class:fighter-second-wind', 'Second Wind', {
+        maxUses: 1, currentUses: 1, spendActionType: 'BONUS_ACTION',
+      });
+      const table = makeMockEncounter({
+        participants: [legolas(), gimli({ isCurrentTurn: true, resourcePoolsCurrent: [secondWind] }), goblin()],
+      });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(table)),
+        http.post('/api/encounters/:id/combat/use-pool', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(table);
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      const pools = await screen.findByRole('list', { name: "Gimli's resource pools" });
+      expect(within(pools).getByText('Bonus action')).toBeInTheDocument();
+      await user.click(within(pools).getByRole('button', { name: 'Use Second Wind' }));
+
+      await waitFor(() => expect(body).toEqual({ participantId: 'part-gimli', poolId: 'class:fighter-second-wind' }));
     });
   });
 });
