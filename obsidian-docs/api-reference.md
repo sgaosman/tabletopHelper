@@ -682,6 +682,8 @@ Returns targeting constraints for a spell at a given cast/upcast level. Used by 
 
 `maxTargets` is -1 for unlimited (AOE spells). Upcast scaling is applied automatically based on `targetCountUpcastScaling` in the spell effect template.
 
+An unknown spell, or one without an effect template, answers 404. A spell whose stored template can't be read answers 409 (R7, D155).
+
 ## Items
 
 ### GET /reference/items
@@ -715,6 +717,8 @@ Get a single condition by ID.
 ### GET /reference/quickref
 
 Return the full quick reference data from `bookref-quick.json`. Response is a JSON array of 5 chapter objects, each containing an `entries` array of sections with nested content (text, tables, lists, insets, etc.) using 5e.tools markup format.
+
+If the bundled file can't be read, it answers 409 with `{"error": "The quick reference can't be read"}` (R7, D155).
 
 ### GET /reference/races
 
