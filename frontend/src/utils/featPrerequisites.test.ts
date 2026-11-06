@@ -249,3 +249,163 @@ describe('featPrerequisites', () => {
     });
   });
 });
+
+/*
+ * Feats as GET /api/reference/feats sends them. The server keeps prerequisite, abilityScoreIncrease,
+ * grantsFeatures and effects as JSONB and writes them out raw, so each arrives already parsed (an array or an
+ * object), not as JSON text, although the generated type says string. The values are the ones FeatLoader stores
+ * from data/5etools/feats.json and data/content/feat-effects.json: an ability minimum is a string such as
+ * "Strength 13", a proficiency is a string such as "Armor: medium", and the entries of the prerequisite array are
+ * alternatives, any one of which is enough.
+ */
+function apiFeat(fields: {
+  name: string; source: string; description: string;
+  prerequisite?: unknown; abilityScoreIncrease?: unknown; grantsFeatures?: unknown; effects?: unknown;
+}): Feat {
+  return {
+    id: `feat-${fields.name.toLowerCase().replace(/\W+/g, '-')}`,
+    name: fields.name,
+    source: fields.source,
+    description: fields.description,
+    prerequisite: (fields.prerequisite ?? null) as string | null,
+    abilityScoreIncrease: (fields.abilityScoreIncrease ?? null) as string | null,
+    grantsFeatures: (fields.grantsFeatures ?? null) as string | null,
+    effects: (fields.effects ?? {}) as string,
+  };
+}
+
+const GRAPPLER = apiFeat({
+  name: 'Grappler', source: 'PHB',
+  prerequisite: [{ ability: ['Strength 13'] }],
+  description: "You've developed the skills necessary to hold your own in close-quarters grappling. You gain the "
+    + 'following benefits:\n- You have advantage on attack rolls against a creature you are grappling.\n- You can '
+    + 'use your action to try to pin a creature grappled by you. To do so, make another grapple check. If you '
+    + 'succeed, you and the creature are both restrained until the grapple ends.',
+});
+
+const HEAVILY_ARMORED = apiFeat({
+  name: 'Heavily Armored', source: 'PHB',
+  prerequisite: [{ proficiency: ['Armor: medium'] }],
+  abilityScoreIncrease: [{ STR: 1 }],
+  effects: { armorProficiencies: [{ heavy: true }] },
+  description: 'You have trained to master the use of heavy armor, gaining the following benefits:\n'
+    + '- You gain proficiency with heavy armor.',
+});
+
+// Its two prerequisite entries are alternatives: proficiency with martial weapons, or the Giant Foundling background
+const STRIKE_OF_THE_GIANTS = apiFeat({
+  name: 'Strike of the Giants', source: 'BGG',
+  prerequisite: [{ proficiency: ['Weapon Group: Martial'] }, { background: ['Giant Foundling'] }],
+  description: 'You have absorbed primeval magic that gives you an echo of the might of giants.',
+});
+
+const ELEMENTAL_ADEPT = apiFeat({
+  name: 'Elemental Adept', source: 'PHB',
+  prerequisite: [{ spellcasting: true }],
+  effects: { repeatable: true },
+  description: 'When you gain this feat, choose one of the following damage types: acid, cold, fire, lightning, '
+    + 'or thunder.\nSpells you cast ignore resistance to damage of the chosen type. In addition, when you roll '
+    + 'damage for a spell you cast that deals damage of that type, you can treat any 1 on a damage die as a 2.\n'
+    + 'You can select this feat multiple times. Each time you do so, you must choose a different damage type.',
+});
+
+const LUCKY = apiFeat({
+  name: 'Lucky', source: 'PHB',
+  effects: { resource: { name: 'Luck Points', maxUses: 3, resetOn: 'longRest' } },
+  description: 'You have inexplicable luck that seems to kick in at just the right moment.\nYou have 3 luck points.',
+});
+
+const fighter = (overrides: Partial<PlayerCharacter> = {}) => mockCharacter({
+  armorProficiencies: ['Light Armor', 'Medium Armor', 'Heavy Armor', 'Shields'],
+  weaponProficiencies: ['Simple Weapons', 'Martial Weapons'],
+  background: 'Soldier',
+  ...overrides,
+});
+const wizard = (overrides: Partial<PlayerCharacter> = {}) => mockCharacter({
+  armorProficiencies: [], weaponProficiencies: ['Daggers', 'Quarterstaffs'], background: 'Sage',
+  spellcastingAbility: 'INT', ...overrides,
+});
+
+describe('checkFeatPrerequisites with feats as the API sends them', () => {
+  it.each([
+    ['Grappler, STR 13', GRAPPLER, fighter({ strength: 13 })],
+    ['Heavily Armored, proficient with medium armour', HEAVILY_ARMORED, fighter()],
+    ['Strike of the Giants, proficient with martial weapons', STRIKE_OF_THE_GIANTS, fighter()],
+    ['Strike of the Giants, Giant Foundling background', STRIKE_OF_THE_GIANTS, wizard({ background: 'Giant Foundling' })],
+    ['Lucky, no prerequisite', LUCKY, wizard()],
+  ])('%s: eligible', (_case, feat, character) => {
+    expect(checkFeatPrerequisites(feat, character).eligible).toBe(true);
+  });
+
+  /*
+   * Today's wrong answers, kept so that a change to them shows. Each case asserts today's answer, not the correct
+   * one; the workstream that fixes checkFeatPrerequisites moves each case into the assertions above and empties
+   * this list.
+   */
+  const KNOWN_WRONG: Array<{ name: string; feat: Feat; character: PlayerCharacter; correct: boolean; todays: boolean }> = [
+    { name: 'Grappler, STR 12', feat: GRAPPLER, character: fighter({ strength: 12 }), correct: false, todays: true },
+    {
+      name: 'Heavily Armored, proficient with light armour only', feat: HEAVILY_ARMORED,
+      character: fighter({ armorProficiencies: ['Light Armor'] }), correct: false, todays: true,
+    },
+    {
+      name: 'Strike of the Giants, neither martial weapons nor Giant Foundling', feat: STRIKE_OF_THE_GIANTS,
+      character: wizard(), correct: false, todays: true,
+    },
+    {
+      name: 'Elemental Adept, no spellcasting', feat: ELEMENTAL_ADEPT,
+      character: fighter({ spellcastingAbility: null }), correct: false, todays: true,
+    },
+  ];
+
+  it.each(KNOWN_WRONG)('known wrong today: $name (correct: $correct, today: $todays)', ({ feat, character, correct, todays }) => {
+    expect(todays).not.toBe(correct);
+    expect(checkFeatPrerequisites(feat, character).eligible).toBe(todays);
+  });
+});
+
+describe('isRepeatableFeat with feats as the API sends them', () => {
+  it('is true for Elemental Adept, whose effects say repeatable and whose text says it can be selected multiple times', () => {
+    expect(isRepeatableFeat(ELEMENTAL_ADEPT)).toBe(true);
+  });
+
+  it.each([GRAPPLER, HEAVILY_ARMORED, STRIKE_OF_THE_GIANTS, LUCKY])('is false for $name', feat => {
+    expect(isRepeatableFeat(feat)).toBe(false);
+  });
+});
+
+/*
+ * The same stored values as JSON text, which the API doesn't send but checkFeatPrerequisites expects: the answers
+ * it gives once it no longer fails to parse an array and lets every feat through. An ability minimum, "Strength 13",
+ * is read as an object of ability scores, so it is never checked; "Armor: medium" is looked for as a substring of
+ * "Medium Armor"; and every prerequisite entry must be met, with a background never counted, rather than any one.
+ */
+describe('checkFeatPrerequisites with the stored values as JSON text', () => {
+  const asText = (feat: Feat): Feat => ({ ...feat, prerequisite: JSON.stringify(feat.prerequisite) });
+
+  it('Strike of the Giants, neither martial weapons nor Giant Foundling: ineligible', () => {
+    expect(checkFeatPrerequisites(asText(STRIKE_OF_THE_GIANTS), wizard()).eligible).toBe(false);
+  });
+
+  // Today's wrong answers, asserted as they are; the same workstream fixes them and empties this list
+  const KNOWN_WRONG: Array<{ name: string; feat: Feat; character: PlayerCharacter; correct: boolean; todays: boolean }> = [
+    { name: 'Grappler, STR 12', feat: asText(GRAPPLER), character: fighter({ strength: 12 }), correct: false, todays: true },
+    {
+      name: 'Heavily Armored, proficient with medium armour', feat: asText(HEAVILY_ARMORED),
+      character: fighter(), correct: true, todays: false,
+    },
+    {
+      name: 'Strike of the Giants, proficient with martial weapons', feat: asText(STRIKE_OF_THE_GIANTS),
+      character: fighter(), correct: true, todays: false,
+    },
+    {
+      name: 'Strike of the Giants, Giant Foundling background', feat: asText(STRIKE_OF_THE_GIANTS),
+      character: wizard({ background: 'Giant Foundling' }), correct: true, todays: false,
+    },
+  ];
+
+  it.each(KNOWN_WRONG)('known wrong today: $name (correct: $correct, today: $todays)', ({ feat, character, correct, todays }) => {
+    expect(todays).not.toBe(correct);
+    expect(checkFeatPrerequisites(feat, character).eligible).toBe(todays);
+  });
+});
