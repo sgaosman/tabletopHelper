@@ -266,7 +266,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | challenge_rating | VARCHAR | e.g. "1/2", "5", "30" |
 | experience_points | INTEGER | |
 | traits, actions, reactions, legendary_actions, lair_actions | JSONB | `@JsonRawValue` |
-| action_templates | JSONB | Structured monster action data: actions, legendary and lair actions, spellcasting, innate spellcasting. Seeded by `MonsterActionSeeder` from `monster-action-definitions.json` (V9, D139). |
+| action_templates | JSONB | Structured monster action data: actions, legendary and lair actions, spellcasting, innate spellcasting. Seeded by `MonsterActionSeeder` from `monster-action-definitions.json` (V9, D139). Since R7 workstream F it maps to the typed `monster.MonsterTemplates`, keeping the whole stored JSON; a condition given on a hit may carry an `escapeDC`, and an action a `dmNote` for the DM (D165, D168). |
 | source | VARCHAR | e.g. "MM", "VGM" |
 | is_homebrew | BOOLEAN | |
 | created_at | TIMESTAMPTZ | |
@@ -296,7 +296,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | description, higher_levels | TEXT | |
 | classes | JSONB | `@JsonRawValue` — array including subclass entries like "Cleric (Knowledge)" |
 | damage_type, damage_dice, save_ability | VARCHAR | |
-| effect_template | JSONB | `@JsonRawValue` — structured spell effect definition |
+| effect_template | JSONB | `@JsonRawValue` — structured spell effect definition. Since R7 workstream F it maps to the typed `reference.SpellTemplate`, keeping the whole stored JSON, and `@JsonRawValue` is gone (D168) |
 | source | VARCHAR | |
 | created_at | TIMESTAMPTZ | |
 
@@ -788,6 +788,8 @@ Two maintenance jobs, both dry runs unless `--maintenance.apply=true` is passed:
 **Done (2026-11-06, R7 workstream D):** V27 is applied to the local database, after a backup (`before-r7-v27-20261106T0235Z.sql`) and a `preview-migration` dry run that found no row to change. `preview-content` then found 35 pool rows to change, and the next start loaded them: 4 definitions added and 26 changed, and 4 class mappings added. After another backup (`before-r7-recompute-20261106T0238Z.sql`), `recompute-characters` changed 9 characters' pools, as on the restored copy, and a second dry run found nothing left (D169).
 
 **Done (2026-11-06, R7 workstream E):** V28 is applied to the local database, after a backup (`before-r7-v28-20261106T0316Z.sql`) and a `preview-migration` dry run that found no row to change. The next start changed only Hill Dwarf's and the Draconic Bloodline's effects and Elemental Adept's, and `recompute-characters` found no character to change (D167).
+
+**Done (2026-11-06, R7 workstream F):** after a backup (`before-r7-f-final-20261106T0355Z.sql`) and a `preview-content` dry run, the next start changed the `action_templates` of the 42 corrected monsters and nothing else (D165). F has no migration.
 
 ### R3–R7 — Outline
 
