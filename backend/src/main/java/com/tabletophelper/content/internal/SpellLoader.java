@@ -6,12 +6,8 @@ import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.*;
 
 @Component
@@ -45,36 +41,38 @@ public class SpellLoader implements ContentLoader {
     }
 
     @Override
-    public void load(LoadContext context) throws Exception {
-        Map<String, Set<String>> classMap = loadSpellClassMap();
+    public void load(LoadContext context) {
+        Map<String, Set<String>> classMap = loadSpellClassMap(context);
         log.info("Loaded spell-class associations for {} spells", classMap.size());
-
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        Resource[] resources = resolver.getResources("classpath:data/5etools/spells/spells-*.json");
 
         List<Spell> allSpells = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        for (Resource resource : resources) {
-            String filename = resource.getFilename();
-            if (filename != null && filename.contains("fluff")) continue;
+        for (LoadContext.DataFile file : context.files("data/5etools/spells/spells-*.json")) {
+            String filename = file.name();
+            if (filename != null && filename.contains("fluff")) {
+                context.skip("fluff files");
+                continue;
+            }
 
-            try (InputStream is = resource.getInputStream()) {
-                JsonNode root = objectMapper.readTree(is);
-                JsonNode spells = root.get("spell");
-                if (spells == null || !spells.isArray()) continue;
+            JsonNode root = context.read(file);
+            JsonNode spells = root.get("spell");
+            if (spells == null || !spells.isArray()) {
+                context.skip("files with no spell array");
+                continue;
+            }
 
-                for (JsonNode s : spells) {
-                    if (s.has("_copy")) continue;
-                    String key = s.path("name").asText() + "|" + s.path("source").asText();
-                    if (seen.contains(key)) continue;
-                    seen.add(key);
-
-                    Spell spell = parseSpell(s, classMap);
-                    if (spell != null) allSpells.add(spell);
+            for (JsonNode s : spells) {
+                if (s.has("_copy")) {
+                    context.skip("_copy spells");
+                    continue;
                 }
-            } catch (Exception e) {
-                log.warn("Error parsing {}: {}", filename, e.getMessage());
+                String key = s.path("name").asText() + "|" + s.path("source").asText();
+                if (!seen.add(key)) {
+                    context.skip("spells repeated in another file");
+                    continue;
+                }
+                allSpells.add(LoadContext.reading(filename + ": spell " + key, () -> parseSpell(s, classMap)));
             }
         }
 
@@ -83,88 +81,74 @@ public class SpellLoader implements ContentLoader {
                 spell -> LoadContext.nameAndSource(spell.getName(), spell.getSource()), "effectTemplate");
     }
 
-    private Map<String, Set<String>> loadSpellClassMap() {
+    private Map<String, Set<String>> loadSpellClassMap(LoadContext context) {
         Map<String, Set<String>> map = new HashMap<>();
 
-        try {
-            ClassPathResource sourcesResource = new ClassPathResource("data/5etools/spells/sources.json");
-            try (InputStream is = sourcesResource.getInputStream()) {
-                JsonNode root = objectMapper.readTree(is);
-                Iterator<Map.Entry<String, JsonNode>> sourceEntries = root.fields();
-                while (sourceEntries.hasNext()) {
-                    Map.Entry<String, JsonNode> sourceEntry = sourceEntries.next();
-                    String sourceCode = sourceEntry.getKey();
-                    JsonNode spellsInSource = sourceEntry.getValue();
+        JsonNode sources = context.read("data/5etools/spells/sources.json");
+        Iterator<Map.Entry<String, JsonNode>> sourceEntries = sources.fields();
+        while (sourceEntries.hasNext()) {
+            Map.Entry<String, JsonNode> sourceEntry = sourceEntries.next();
+            String sourceCode = sourceEntry.getKey();
+            JsonNode spellsInSource = sourceEntry.getValue();
 
-                    Iterator<Map.Entry<String, JsonNode>> spellEntries = spellsInSource.fields();
-                    while (spellEntries.hasNext()) {
-                        Map.Entry<String, JsonNode> spellEntry = spellEntries.next();
-                        String spellName = spellEntry.getKey();
-                        JsonNode spellData = spellEntry.getValue();
-                        String key = spellName + "|" + sourceCode;
+            Iterator<Map.Entry<String, JsonNode>> spellEntries = spellsInSource.fields();
+            while (spellEntries.hasNext()) {
+                Map.Entry<String, JsonNode> spellEntry = spellEntries.next();
+                String spellName = spellEntry.getKey();
+                JsonNode spellData = spellEntry.getValue();
+                String key = spellName + "|" + sourceCode;
 
-                        Set<String> classes = map.computeIfAbsent(key, k -> new LinkedHashSet<>());
+                Set<String> classes = map.computeIfAbsent(key, k -> new LinkedHashSet<>());
 
-                        JsonNode classArray = spellData.get("class");
-                        if (classArray != null && classArray.isArray()) {
-                            for (JsonNode c : classArray) {
-                                classes.add(c.path("name").asText());
-                            }
-                        }
-                        JsonNode classVariantArray = spellData.get("classVariant");
-                        if (classVariantArray != null && classVariantArray.isArray()) {
-                            for (JsonNode c : classVariantArray) {
-                                classes.add(c.path("name").asText());
-                            }
-                        }
+                JsonNode classArray = spellData.get("class");
+                if (classArray != null && classArray.isArray()) {
+                    for (JsonNode c : classArray) {
+                        classes.add(c.path("name").asText());
+                    }
+                }
+                JsonNode classVariantArray = spellData.get("classVariant");
+                if (classVariantArray != null && classVariantArray.isArray()) {
+                    for (JsonNode c : classVariantArray) {
+                        classes.add(c.path("name").asText());
                     }
                 }
             }
-        } catch (Exception e) {
-            log.warn("Failed to load spell sources.json: {}", e.getMessage());
         }
 
-        try {
-            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-            Resource[] classFiles = resolver.getResources("classpath:data/5etools/class/class-*.json");
-            for (Resource classFile : classFiles) {
-                String filename = classFile.getFilename();
-                if (filename != null && filename.contains("fluff")) continue;
+        for (LoadContext.DataFile classFile : context.files("data/5etools/class/class-*.json")) {
+            String filename = classFile.name();
+            if (filename != null && filename.contains("fluff")) {
+                context.skip("fluff class files");
+                continue;
+            }
 
-                try (InputStream is = classFile.getInputStream()) {
-                    JsonNode root = objectMapper.readTree(is);
-                    String className = null;
-                    JsonNode classArray = root.get("class");
-                    if (classArray != null && classArray.isArray() && classArray.size() > 0) {
-                        className = classArray.get(0).path("name").asText(null);
-                    }
-                    if (className == null) continue;
+            JsonNode root = context.read(classFile);
+            String className = null;
+            JsonNode classArray = root.get("class");
+            if (classArray != null && classArray.isArray() && classArray.size() > 0) {
+                className = classArray.get(0).path("name").asText(null);
+            }
+            if (className == null) continue;
 
-                    JsonNode subclasses = root.get("subclass");
-                    if (subclasses == null || !subclasses.isArray()) continue;
+            JsonNode subclasses = root.get("subclass");
+            if (subclasses == null || !subclasses.isArray()) continue;
 
-                    for (JsonNode sc : subclasses) {
-                        String subclassName = sc.path("name").asText(null);
-                        if (subclassName == null) continue;
+            for (JsonNode sc : subclasses) {
+                String subclassName = sc.path("name").asText(null);
+                if (subclassName == null) continue;
 
-                        JsonNode additionalSpells = sc.get("additionalSpells");
-                        if (additionalSpells == null || !additionalSpells.isArray()) continue;
+                JsonNode additionalSpells = sc.get("additionalSpells");
+                if (additionalSpells == null || !additionalSpells.isArray()) continue;
 
-                        String label = className + " (" + subclassName + ")";
+                String label = className + " (" + subclassName + ")";
 
-                        for (JsonNode asp : additionalSpells) {
-                            collectSubclassSpells(asp.get("prepared"), label, map);
-                            collectSubclassSpells(asp.get("expanded"), label, map);
-                            collectSubclassSpells(asp.get("known"), label, map);
-                            collectSubclassSpells(asp.get("innate"), label, map);
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("Error reading class file {}: {}", filename, e.getMessage());
+                for (JsonNode asp : additionalSpells) {
+                    collectSubclassSpells(asp.get("prepared"), label, map);
+                    collectSubclassSpells(asp.get("expanded"), label, map);
+                    collectSubclassSpells(asp.get("known"), label, map);
+                    collectSubclassSpells(asp.get("innate"), label, map);
                 }
             }
-        } catch (Exception e) {
-            log.warn("Failed to load class files for spell associations: {}", e.getMessage());
         }
 
         return map;
@@ -191,53 +175,44 @@ public class SpellLoader implements ContentLoader {
         }
     }
 
-    private Spell parseSpell(JsonNode s, Map<String, Set<String>> classMap) {
-        try {
-            String schoolCode = s.path("school").asText("");
-            String school = SCHOOL_MAP.getOrDefault(schoolCode, schoolCode);
-            String spellName = s.path("name").asText();
-            String source = s.path("source").asText(null);
+    private Spell parseSpell(JsonNode s, Map<String, Set<String>> classMap) throws Exception {
+        String schoolCode = s.path("school").asText("");
+        String school = SCHOOL_MAP.getOrDefault(schoolCode, schoolCode);
+        String spellName = s.path("name").asText();
+        String source = s.path("source").asText(null);
 
-            Set<String> spellClasses = new LinkedHashSet<>();
-            String key = spellName + "|" + source;
-            if (classMap.containsKey(key)) {
-                spellClasses.addAll(classMap.get(key));
-            }
-            String wildcardKey = "*" + spellName.toLowerCase();
-            if (classMap.containsKey(wildcardKey)) {
-                spellClasses.addAll(classMap.get(wildcardKey));
-            }
-
-            String classesJson = null;
-            if (!spellClasses.isEmpty()) {
-                try {
-                    classesJson = objectMapper.writeValueAsString(new ArrayList<>(spellClasses));
-                } catch (Exception e) {
-                    log.warn("Failed to serialize classes for spell {}", spellName);
-                }
-            }
-
-            return Spell.builder()
-                    .name(spellName)
-                    .level(s.path("level").asInt(0))
-                    .school(school)
-                    .castingTime(parseCastingTime(s.get("time")))
-                    .rangeDistance(parseRange(s.get("range")))
-                    .components(parseComponents(s.get("components")))
-                    .duration(parseDuration(s.get("duration")))
-                    .concentration(isConcentration(s.get("duration")))
-                    .ritual(s.path("meta").path("ritual").asBoolean(false))
-                    .description(flattenEntries(s.get("entries")))
-                    .higherLevels(flattenEntries(s.get("entriesHigherLevel")))
-                    .damageType(parseDamageType(s.get("damageInflict")))
-                    .saveAbility(parseSaveAbility(s.get("savingThrow")))
-                    .source(source)
-                    .classes(classesJson)
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to parse spell {}: {}", s.path("name").asText("unknown"), e.getMessage());
-            return null;
+        Set<String> spellClasses = new LinkedHashSet<>();
+        String key = spellName + "|" + source;
+        if (classMap.containsKey(key)) {
+            spellClasses.addAll(classMap.get(key));
         }
+        String wildcardKey = "*" + spellName.toLowerCase();
+        if (classMap.containsKey(wildcardKey)) {
+            spellClasses.addAll(classMap.get(wildcardKey));
+        }
+
+        String classesJson = null;
+        if (!spellClasses.isEmpty()) {
+            classesJson = objectMapper.writeValueAsString(new ArrayList<>(spellClasses));
+        }
+
+        return Spell.builder()
+                .name(spellName)
+                .level(s.path("level").asInt(0))
+                .school(school)
+                .castingTime(parseCastingTime(s.get("time")))
+                .rangeDistance(parseRange(s.get("range")))
+                .components(parseComponents(s.get("components")))
+                .duration(parseDuration(s.get("duration")))
+                .concentration(isConcentration(s.get("duration")))
+                .ritual(s.path("meta").path("ritual").asBoolean(false))
+                .description(flattenEntries(s.get("entries")))
+                .higherLevels(flattenEntries(s.get("entriesHigherLevel")))
+                .damageType(parseDamageType(s.get("damageInflict")))
+                .saveAbility(parseSaveAbility(s.get("savingThrow")))
+                .source(source)
+                .classes(classesJson)
+                .build();
     }
 
     private String parseCastingTime(JsonNode timeNode) {
@@ -277,26 +252,22 @@ public class SpellLoader implements ContentLoader {
         return amount + " " + distType;
     }
 
-    private String parseComponents(JsonNode compNode) {
+    private String parseComponents(JsonNode compNode) throws Exception {
         if (compNode == null) return null;
-        try {
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("verbal", compNode.path("v").asBoolean(false));
-            result.put("somatic", compNode.path("s").asBoolean(false));
-            JsonNode material = compNode.get("m");
-            if (material != null) {
-                if (material.isTextual()) {
-                    result.put("material", material.asText());
-                } else if (material.isObject()) {
-                    result.put("material", material.path("text").asText(""));
-                } else {
-                    result.put("material", true);
-                }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("verbal", compNode.path("v").asBoolean(false));
+        result.put("somatic", compNode.path("s").asBoolean(false));
+        JsonNode material = compNode.get("m");
+        if (material != null) {
+            if (material.isTextual()) {
+                result.put("material", material.asText());
+            } else if (material.isObject()) {
+                result.put("material", material.path("text").asText(""));
+            } else {
+                result.put("material", true);
             }
-            return objectMapper.writeValueAsString(result);
-        } catch (Exception e) {
-            return null;
         }
+        return objectMapper.writeValueAsString(result);
     }
 
     private String parseDuration(JsonNode durNode) {

@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -103,5 +104,44 @@ class LoadContextTest {
 
         assertThat(stored.getCharacterClass()).isSameAs(loaded);
         assertThat(context.counts().get(0).unchanged()).isEqualTo(1);
+    }
+
+    // ── Skip rules and failures (D155) ───────────────────────────
+
+    @Test
+    @DisplayName("Each skip rule is counted by its name, in the order the rules were first used")
+    void skipRulesCountedByName() {
+        context.skip("_copy subraces");
+        context.skip("SKIP_FILES");
+        context.skip("_copy subraces");
+
+        assertThat(context.skips()).containsExactly(Map.entry("_copy subraces", 2), Map.entry("SKIP_FILES", 1));
+        assertThat(new LoadContext(new ObjectMapper()).skips()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A row that can't be read fails with the row named before the cause, and a row that can is returned")
+    void readingNamesTheRow() {
+        assertThat(LoadContext.reading("races.json: race Elf|PHB", () -> "Elf")).isEqualTo("Elf");
+
+        assertThatThrownBy(() -> LoadContext.reading("races.json: race Elf|PHB", () -> {
+            throw new java.io.IOException("unexpected end of input");
+        })).isInstanceOf(IllegalStateException.class)
+                .hasMessage("races.json: race Elf|PHB: unexpected end of input")
+                .hasCauseInstanceOf(java.io.IOException.class);
+    }
+
+    @Test
+    @DisplayName("A file without its array of rows, a missing file and a pattern that matches nothing each fail, naming the file")
+    void missingFilesAndArraysFail() throws Exception {
+        var root = new ObjectMapper().readTree("{\"race\": {}}");
+
+        assertThatThrownBy(() -> LoadContext.array(root, "race", "races.json"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("races.json has no \"race\" array");
+        assertThatThrownBy(() -> context.read("data/content/no-such-file.json"))
+                .isInstanceOf(IllegalStateException.class).hasMessageStartingWith("data/content/no-such-file.json");
+        assertThatThrownBy(() -> context.files("data/content/no-such-*.json"))
+                .isInstanceOf(IllegalStateException.class).hasMessage("No file matches data/content/no-such-*.json");
+        assertThat(context.read("data/content/feat-effects.json").isObject()).isTrue();
     }
 }

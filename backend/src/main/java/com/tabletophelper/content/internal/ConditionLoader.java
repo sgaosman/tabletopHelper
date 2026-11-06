@@ -5,16 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Condition;
 import com.tabletophelper.reference.ConditionRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class ConditionLoader implements ContentLoader {
 
     private static final String FILE = "data/5etools/conditionsdiseases.json";
@@ -38,39 +34,28 @@ public class ConditionLoader implements ContentLoader {
     }
 
     @Override
-    public void load(LoadContext context) throws Exception {
-        ClassPathResource resource = new ClassPathResource(FILE);
-        try (InputStream is = resource.getInputStream()) {
-            JsonNode root = objectMapper.readTree(is);
-            JsonNode conditions = root.get("condition");
-            if (conditions == null || !conditions.isArray()) return;
+    public void load(LoadContext context) {
+        JsonNode conditions = LoadContext.array(context.read(FILE), "condition", FILE);
 
-            List<Condition> batch = new ArrayList<>();
-            for (JsonNode c : conditions) {
-                Condition condition = parseCondition(c);
-                if (condition != null) batch.add(condition);
-            }
-
-            // A condition is known by its name alone, as content-snapshot reads it
-            context.upsert("conditions", conditionRepository, batch, Condition::getName);
+        List<Condition> batch = new ArrayList<>();
+        for (JsonNode c : conditions) {
+            batch.add(LoadContext.reading(FILE + ": condition " + c.path("name").asText("?"), () -> parseCondition(c)));
         }
+
+        // A condition is known by its name alone, as content-snapshot reads it
+        context.upsert("conditions", conditionRepository, batch, Condition::getName);
     }
 
-    private Condition parseCondition(JsonNode c) {
-        try {
-            String description = flattenEntries(c.get("entries"));
-            List<String> effects = extractEffects(c.get("entries"));
+    private Condition parseCondition(JsonNode c) throws Exception {
+        String description = flattenEntries(c.get("entries"));
+        List<String> effects = extractEffects(c.get("entries"));
 
-            return Condition.builder()
-                    .name(c.path("name").asText())
-                    .description(description != null ? description : "")
-                    .effects(effects.isEmpty() ? null : objectMapper.writeValueAsString(effects))
-                    .source(c.path("source").asText(null))
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to parse condition {}: {}", c.path("name").asText("unknown"), e.getMessage());
-            return null;
-        }
+        return Condition.builder()
+                .name(c.path("name").asText())
+                .description(description != null ? description : "")
+                .effects(effects.isEmpty() ? null : objectMapper.writeValueAsString(effects))
+                .source(c.path("source").asText(null))
+                .build();
     }
 
     private List<String> extractEffects(JsonNode entries) {

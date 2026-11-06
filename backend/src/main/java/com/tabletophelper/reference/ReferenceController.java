@@ -1,10 +1,13 @@
 package com.tabletophelper.reference;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
+import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
@@ -14,6 +17,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -22,6 +27,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/reference")
 @RequiredArgsConstructor
+@Slf4j
 public class ReferenceController {
 
     private final SpellRepository spellRepository;
@@ -34,6 +40,8 @@ public class ReferenceController {
     private final FeatRepository featRepository;
     private final OptionalFeatureRepository optionalFeatureRepository;
     private final ObjectMapper objectMapper;
+
+    private static final String QUICK_REFERENCE = "data/5etools/generated/bookref-quick.json";
 
     @GetMapping("/spells")
     public Page<Spell> searchSpells(
@@ -77,40 +85,44 @@ public class ReferenceController {
             return ResponseEntity.notFound().build();
         }
 
+        JsonNode template;
         try {
-            JsonNode template = objectMapper.readTree(spellOpt.get().getEffectTemplate());
-            int spellLevel = template.path("spellLevel").asInt(0);
-            JsonNode targetCountNode = template.get("targetCount");
-            Integer baseTargetCount = (targetCountNode != null && !targetCountNode.isNull())
-                    ? targetCountNode.asInt() : null;
-
-            int maxTargets = baseTargetCount != null ? baseTargetCount : Integer.MAX_VALUE;
-            if (baseTargetCount != null && slotLevel > spellLevel) {
-                JsonNode upcastScaling = template.get("targetCountUpcastScaling");
-                if (upcastScaling != null && !upcastScaling.isNull()) {
-                    int additionalPerLevel = upcastScaling.path("additionalTargetsPerLevel").asInt(0);
-                    maxTargets += additionalPerLevel * (slotLevel - spellLevel);
-                }
-            }
-
-            boolean selfOnly = template.path("selfOnly").asBoolean(false);
-            boolean canTargetSelf = template.path("canTargetSelf").asBoolean(false) || selfOnly;
-            boolean canTargetAllies = template.path("canTargetAllies").asBoolean(true);
-            boolean canTargetEnemies = template.path("canTargetEnemies").asBoolean(true);
-            String targetType = template.path("targetType").asText(null);
-            boolean hasRepeatEffect = template.has("repeatEffect") && !template.get("repeatEffect").isNull();
-
-            return ResponseEntity.ok(new SpellTargetingResponse(
-                    baseTargetCount != null ? maxTargets : -1,
-                    selfOnly,
-                    canTargetSelf,
-                    canTargetAllies,
-                    canTargetEnemies,
-                    targetType != null ? targetType : "SINGLE_TARGET",
-                    hasRepeatEffect));
-        } catch (Exception e) {
-            return ResponseEntity.notFound().build();
+            template = objectMapper.readTree(spellOpt.get().getEffectTemplate());
+        } catch (JsonProcessingException e) {
+            // Stored JSON that can't be read is a fault in the content, not a missing spell (D155)
+            log.error("The effect template of spell {} can't be read: {}", spellOpt.get().getName(), e.getMessage());
+            throw new ConflictException("The targeting rules of " + spellOpt.get().getName() + " can't be read");
         }
+
+        int spellLevel = template.path("spellLevel").asInt(0);
+        JsonNode targetCountNode = template.get("targetCount");
+        Integer baseTargetCount = (targetCountNode != null && !targetCountNode.isNull())
+                ? targetCountNode.asInt() : null;
+
+        int maxTargets = baseTargetCount != null ? baseTargetCount : Integer.MAX_VALUE;
+        if (baseTargetCount != null && slotLevel > spellLevel) {
+            JsonNode upcastScaling = template.get("targetCountUpcastScaling");
+            if (upcastScaling != null && !upcastScaling.isNull()) {
+                int additionalPerLevel = upcastScaling.path("additionalTargetsPerLevel").asInt(0);
+                maxTargets += additionalPerLevel * (slotLevel - spellLevel);
+            }
+        }
+
+        boolean selfOnly = template.path("selfOnly").asBoolean(false);
+        boolean canTargetSelf = template.path("canTargetSelf").asBoolean(false) || selfOnly;
+        boolean canTargetAllies = template.path("canTargetAllies").asBoolean(true);
+        boolean canTargetEnemies = template.path("canTargetEnemies").asBoolean(true);
+        String targetType = template.path("targetType").asText(null);
+        boolean hasRepeatEffect = template.has("repeatEffect") && !template.get("repeatEffect").isNull();
+
+        return ResponseEntity.ok(new SpellTargetingResponse(
+                baseTargetCount != null ? maxTargets : -1,
+                selfOnly,
+                canTargetSelf,
+                canTargetAllies,
+                canTargetEnemies,
+                targetType != null ? targetType : "SINGLE_TARGET",
+                hasRepeatEffect));
     }
 
     @Cacheable("spellSchools")
@@ -284,12 +296,13 @@ public class ReferenceController {
 
     @GetMapping("/quickref")
     public ResponseEntity<JsonNode> getQuickReference() {
-        try {
-            ClassPathResource resource = new ClassPathResource("data/5etools/generated/bookref-quick.json");
-            JsonNode root = objectMapper.readTree(resource.getInputStream());
+        try (InputStream in = new ClassPathResource(QUICK_REFERENCE).getInputStream()) {
+            JsonNode root = objectMapper.readTree(in);
             return ResponseEntity.ok(root.path("data").path("bookref-quick"));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+        } catch (IOException e) {
+            // A bundled file that is missing or isn't JSON is a fault in the content (D155)
+            log.error("{} can't be read: {}", QUICK_REFERENCE, e.getMessage());
+            throw new ConflictException("The quick reference can't be read");
         }
     }
 }

@@ -15,12 +15,17 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,15 +59,101 @@ public class LoadContext {
         }
     }
 
+    /** One of a loader's files: the name it is reported by, and where it is read from. */
+    public record DataFile(String name, Resource resource) {
+    }
+
+    /** Reads a row, or a part of one, and may throw. */
+    @FunctionalInterface
+    public interface RowReader<T> {
+        T read() throws Exception;
+    }
+
     private final ObjectMapper objectMapper;
+    private final Function<String, String> location;
+    private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
     private final List<TableCounts> counts = new ArrayList<>();
+    private final Map<String, Integer> skips = new LinkedHashMap<>();
 
     public LoadContext(ObjectMapper objectMapper) {
+        this(objectMapper, path -> "classpath:" + path);
+    }
+
+    /**
+     * @param location where a file or pattern the loaders name, such as {@code data/5etools/spells/spells-*.json},
+     *                 is read from; the bundled files on the classpath unless a test reads others
+     */
+    public LoadContext(ObjectMapper objectMapper, Function<String, String> location) {
         this.objectMapper = objectMapper;
+        this.location = location;
     }
 
     public List<TableCounts> counts() {
         return List.copyOf(counts);
+    }
+
+    /** How many rows each skip rule left out, by the rule's name, in the order the rules were first used. */
+    public Map<String, Integer> skips() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(skips));
+    }
+
+    /**
+     * Counts a row (or file) the data has but the loader leaves out on purpose, under the name of the rule that
+     * leaves it out, such as "_copy subraces". A row that can't be read is never skipped: it fails the load.
+     */
+    public void skip(String rule) {
+        skips.merge(rule, 1, Integer::sum);
+    }
+
+    // ── Reading files ────────────────────────────────────────────
+
+    /** The files matching a pattern, in the order the classpath lists them. A pattern that matches none fails. */
+    public List<DataFile> files(String pattern) {
+        Resource[] resources;
+        try {
+            resources = resolver.getResources(location.apply(pattern));
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not list " + pattern + ": " + e.getMessage(), e);
+        }
+        if (resources.length == 0) {
+            throw new IllegalStateException("No file matches " + pattern);
+        }
+        return Arrays.stream(resources).map(r -> new DataFile(r.getFilename(), r)).toList();
+    }
+
+    /** Reads one file as JSON; a file that is missing or isn't JSON fails the load, naming the file. */
+    public JsonNode read(String file) {
+        return read(new DataFile(file, resolver.getResource(location.apply(file))));
+    }
+
+    /** Reads one of {@link #files}' files as JSON; a file that isn't JSON fails the load, naming the file. */
+    public JsonNode read(DataFile file) {
+        try (InputStream in = file.resource().getInputStream()) {
+            return objectMapper.readTree(in);
+        } catch (IOException e) {
+            throw new IllegalStateException(file.name() + " could not be read: " + e.getMessage(), e);
+        }
+    }
+
+    /** The array a file keeps its rows under; a file without it fails the load. */
+    public static JsonNode array(JsonNode root, String key, String file) {
+        JsonNode rows = root.get(key);
+        if (rows == null || !rows.isArray()) {
+            throw new IllegalStateException(file + " has no \"" + key + "\" array");
+        }
+        return rows;
+    }
+
+    /**
+     * Reads one row, or a part of one. If it throws, the load fails with what was being read named first, such as
+     * {@code spell Fireball|PHB: ...}, so the log says which row of which file couldn't be read.
+     */
+    public static <T> T reading(String what, RowReader<T> reader) {
+        try {
+            return reader.read();
+        } catch (Exception e) {
+            throw new IllegalStateException(what + ": " + e.getMessage(), e);
+        }
     }
 
     /** The rows the data gave, in every table the run wrote. */

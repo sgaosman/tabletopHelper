@@ -60,7 +60,8 @@ public class PreviewContentJob implements MaintenanceJob {
             Connection connection = DataSourceUtils.getConnection(dataSource);
             try {
                 Map<String, Map<String, JsonNode>> before = snapshot(connection);
-                List<ContentLoading.Outcome> outcomes = contentLoading.load();
+                // A failed loader is reported as a warning, even where content.fail-on-error would stop a start
+                List<ContentLoading.Outcome> outcomes = contentLoading.load(false);
                 Map<String, Map<String, JsonNode>> after = snapshot(connection);
 
                 List<String> changes = new ArrayList<>();

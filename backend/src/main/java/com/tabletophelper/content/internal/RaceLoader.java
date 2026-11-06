@@ -10,11 +10,10 @@ import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
@@ -45,6 +44,9 @@ public class RaceLoader implements ContentLoader {
             "Trident", "War Pick", "Warhammer", "Whip",
             "Blowgun", "Hand Crossbow", "Heavy Crossbow", "Longbow", "Net"
     );
+
+    // A whole number, as a level or use count in the additional spells' keys is written
+    private static final Pattern WHOLE_NUMBER = Pattern.compile("[+-]?\\d{1,9}");
 
     private Map<String, Integer> spellLevelLookup = Map.of();
 
@@ -105,111 +107,115 @@ public class RaceLoader implements ContentLoader {
     public void load(LoadContext context) throws Exception {
         buildSpellLevelLookup();
 
-        ClassPathResource resource = new ClassPathResource(FILE);
-        try (InputStream is = resource.getInputStream()) {
-            JsonNode root = objectMapper.readTree(is);
-            JsonNode racesArray = root.get("race");
-            JsonNode subracesArray = root.get("subrace");
+        JsonNode root = context.read(FILE);
+        JsonNode racesArray = LoadContext.array(root, "race", FILE);
+        JsonNode subracesArray = root.get("subrace");
 
-            if (racesArray == null || !racesArray.isArray()) return;
+        Map<String, JsonNode> raceIndex = new HashMap<>();
+        for (JsonNode r : racesArray) {
+            String key = r.path("name").asText() + "|" + r.path("source").asText();
+            raceIndex.put(key, r);
+        }
 
-            Map<String, JsonNode> raceIndex = new HashMap<>();
-            for (JsonNode r : racesArray) {
-                String key = r.path("name").asText() + "|" + r.path("source").asText();
-                raceIndex.put(key, r);
-            }
+        List<Race> batch = new ArrayList<>();
 
-            List<Race> batch = new ArrayList<>();
+        for (JsonNode r : racesArray) {
+            batch.add(LoadContext.reading(FILE + ": race " + r.path("name").asText("?") + "|"
+                    + r.path("source").asText(""), () -> parseRace(r, null, null)));
+        }
 
-            for (JsonNode r : racesArray) {
-                Race race = parseRace(r, null, null);
-                if (race != null) batch.add(race);
-            }
+        if (subracesArray != null && subracesArray.isArray()) {
+            for (JsonNode sr : subracesArray) {
+                if (sr.has("_copy")) {
+                    context.skip("_copy subraces");
+                    continue;
+                }
+                if (!sr.has("raceName")) {
+                    context.skip("subraces with no raceName");
+                    continue;
+                }
 
-            if (subracesArray != null && subracesArray.isArray()) {
-                for (JsonNode sr : subracesArray) {
-                    if (sr.has("_copy")) continue;
-                    if (!sr.has("raceName")) continue;
+                String subName = sr.path("name").asText("");
+                if ("?".equals(subName)) {
+                    context.skip("subraces named ?");
+                    continue;
+                }
 
-                    String subName = sr.path("name").asText("");
-                    if ("?".equals(subName)) continue;
+                String parentKey = sr.path("raceName").asText() + "|" + sr.path("raceSource").asText();
+                JsonNode parent = raceIndex.get(parentKey);
+                if (parent == null) {
+                    log.warn("Subrace '{}' references unknown parent '{}'", subName, parentKey);
+                    context.skip("subraces of a race not in the data");
+                    continue;
+                }
+                String what = FILE + ": subrace " + subName + "|" + sr.path("source").asText("") + " of " + parentKey;
 
-                    String parentKey = sr.path("raceName").asText() + "|" + sr.path("raceSource").asText();
-                    JsonNode parent = raceIndex.get(parentKey);
-                    if (parent == null) {
-                        log.warn("Subrace '{}' references unknown parent '{}'", subName, parentKey);
-                        continue;
-                    }
-
-                    if (subName.isEmpty()) {
-                        String mergedBonuses = resolveAbilityBonuses(sr, parent);
-                        if (!"[]".equals(mergedBonuses)) {
-                            String parentName = sr.path("raceName").asText();
-                            String parentSource = parent.path("source").asText("");
-                            for (Race r : batch) {
-                                if (r.getName().equals(parentName) && r.getSource().equals(parentSource)
-                                        && "[]".equals(r.getAbilityScoreBonuses())) {
-                                    r.setAbilityScoreBonuses(mergedBonuses);
-                                    break;
-                                }
+                if (subName.isEmpty()) {
+                    // A subrace with no name adds its ability bonuses to its race
+                    String mergedBonuses = LoadContext.reading(what, () -> resolveAbilityBonuses(sr, parent));
+                    if (!"[]".equals(mergedBonuses)) {
+                        String parentName = sr.path("raceName").asText();
+                        String parentSource = parent.path("source").asText("");
+                        for (Race r : batch) {
+                            if (r.getName().equals(parentName) && r.getSource().equals(parentSource)
+                                    && "[]".equals(r.getAbilityScoreBonuses())) {
+                                r.setAbilityScoreBonuses(mergedBonuses);
+                                break;
                             }
                         }
-                        continue;
                     }
-
-                    Race race = parseRace(sr, parent, sr.path("raceName").asText());
-                    if (race != null) batch.add(race);
+                    continue;
                 }
-            }
 
-            for (Race race : batch) {
-                fixRaceSpellLevels(race);
+                batch.add(LoadContext.reading(what, () -> parseRace(sr, parent, sr.path("raceName").asText())));
             }
-            context.upsert("races", raceRepository, batch, r -> LoadContext.nameAndSource(r.getName(), r.getSource()));
         }
+
+        for (Race race : batch) {
+            LoadContext.reading(FILE + ": the innate spells of " + race.getName() + "|" + race.getSource(), () -> {
+                fixRaceSpellLevels(race);
+                return null;
+            });
+        }
+        context.upsert("races", raceRepository, batch, r -> LoadContext.nameAndSource(r.getName(), r.getSource()));
     }
 
-    private Race parseRace(JsonNode node, JsonNode parent, String parentRaceName) {
-        try {
-            boolean isSubrace = parent != null;
-            String name;
-            if (isSubrace) {
-                name = node.path("name").asText() + " " + parentRaceName;
-            } else {
-                name = node.path("name").asText();
-            }
-            String source = node.path("source").asText("");
-
-            String size = resolveSize(node, parent);
-            String speed = resolveSpeed(node, parent);
-            String abilityBonuses = resolveAbilityBonuses(node, parent);
-            String creatureType = resolveCreatureType(node, parent);
-            Integer darkvision = resolveDarkvision(node, parent);
-            String traits = resolveTraits(node, parent);
-            String proficiencies = resolveProficiencies(node, parent);
-            String resistances = resolveResistances(node, parent);
-            String description = buildDescription(node, parent);
-
-            return Race.builder()
-                    .name(name)
-                    .source(source)
-                    .size(size)
-                    .speed(speed)
-                    .abilityScoreBonuses(abilityBonuses)
-                    .creatureType(creatureType)
-                    .darkvision(darkvision)
-                    .traits(traits)
-                    .proficiencies(proficiencies)
-                    .resistances(resistances)
-                    .raceChoices(resolveRaceChoices(node, parent))
-                    .additionalSpells(extractAdditionalSpells(node, parent))
-                    .baseRaceName(parentRaceName)
-                    .description(description)
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to parse race {}: {}", node.path("name").asText("unknown"), e.getMessage());
-            return null;
+    private Race parseRace(JsonNode node, JsonNode parent, String parentRaceName) throws Exception {
+        boolean isSubrace = parent != null;
+        String name;
+        if (isSubrace) {
+            name = node.path("name").asText() + " " + parentRaceName;
+        } else {
+            name = node.path("name").asText();
         }
+        String source = node.path("source").asText("");
+
+        String size = resolveSize(node, parent);
+        String speed = resolveSpeed(node, parent);
+        String abilityBonuses = resolveAbilityBonuses(node, parent);
+        String creatureType = resolveCreatureType(node, parent);
+        Integer darkvision = resolveDarkvision(node, parent);
+        String traits = resolveTraits(node, parent);
+        String proficiencies = resolveProficiencies(node, parent);
+        String resistances = resolveResistances(node, parent);
+        String description = buildDescription(node, parent);
+
+        return Race.builder()
+                .name(name)
+                .source(source)
+                .size(size)
+                .speed(speed)
+                .abilityScoreBonuses(abilityBonuses)
+                .creatureType(creatureType)
+                .darkvision(darkvision)
+                .traits(traits)
+                .proficiencies(proficiencies)
+                .resistances(resistances)
+                .raceChoices(resolveRaceChoices(node, parent))
+                .additionalSpells(extractAdditionalSpells(node, parent))
+                .baseRaceName(parentRaceName)
+                .description(description)
+                .build();
     }
 
     private String resolveSize(JsonNode node, JsonNode parent) {
@@ -224,70 +230,62 @@ public class RaceLoader implements ContentLoader {
         return String.join("/", sizes);
     }
 
-    private String resolveSpeed(JsonNode node, JsonNode parent) {
-        try {
-            JsonNode speedNode = node.get("speed");
-            if (speedNode == null && parent != null) speedNode = parent.get("speed");
-            if (speedNode == null) return "{\"walk\":30}";
+    private String resolveSpeed(JsonNode node, JsonNode parent) throws Exception {
+        JsonNode speedNode = node.get("speed");
+        if (speedNode == null && parent != null) speedNode = parent.get("speed");
+        if (speedNode == null) return "{\"walk\":30}";
 
-            if (speedNode.isInt() || speedNode.isNumber()) {
-                ObjectNode obj = objectMapper.createObjectNode();
-                obj.put("walk", speedNode.asInt());
-                return objectMapper.writeValueAsString(obj);
-            }
-            if (speedNode.isObject()) {
-                ObjectNode clean = objectMapper.createObjectNode();
-                speedNode.fields().forEachRemaining(entry -> {
-                    JsonNode v = entry.getValue();
-                    if (v.isInt() || v.isNumber()) {
-                        clean.put(entry.getKey(), v.asInt());
-                    } else if (v.isBoolean() && v.asBoolean()) {
-                        clean.put(entry.getKey(), true);
-                    } else if (v.isObject() && v.has("number")) {
-                        clean.put(entry.getKey(), v.get("number").asInt());
-                    }
-                });
-                return objectMapper.writeValueAsString(clean);
-            }
-            return "{\"walk\":30}";
-        } catch (Exception e) {
-            return "{\"walk\":30}";
+        if (speedNode.isInt() || speedNode.isNumber()) {
+            ObjectNode obj = objectMapper.createObjectNode();
+            obj.put("walk", speedNode.asInt());
+            return objectMapper.writeValueAsString(obj);
         }
+        if (speedNode.isObject()) {
+            ObjectNode clean = objectMapper.createObjectNode();
+            speedNode.fields().forEachRemaining(entry -> {
+                JsonNode v = entry.getValue();
+                if (v.isInt() || v.isNumber()) {
+                    clean.put(entry.getKey(), v.asInt());
+                } else if (v.isBoolean() && v.asBoolean()) {
+                    clean.put(entry.getKey(), true);
+                } else if (v.isObject() && v.has("number")) {
+                    clean.put(entry.getKey(), v.get("number").asInt());
+                }
+            });
+            return objectMapper.writeValueAsString(clean);
+        }
+        return "{\"walk\":30}";
     }
 
-    private String resolveAbilityBonuses(JsonNode node, JsonNode parent) {
-        try {
-            Set<String> overwritten = getOverwriteKeys(node);
-            List<Map<String, Object>> bonuses = new ArrayList<>();
+    private String resolveAbilityBonuses(JsonNode node, JsonNode parent) throws Exception {
+        Set<String> overwritten = getOverwriteKeys(node);
+        List<Map<String, Object>> bonuses = new ArrayList<>();
 
-            if (parent != null && !overwritten.contains("ability")) {
-                addAbilityBonuses(parent.get("ability"), bonuses);
-            }
-            addAbilityBonuses(node.get("ability"), bonuses);
-
-            String lineage = node.path("lineage").asText(null);
-            if (lineage == null && parent != null) lineage = parent.path("lineage").asText(null);
-            if (bonuses.isEmpty() && "VRGR".equals(lineage)) {
-                Map<String, Object> choose1 = new LinkedHashMap<>();
-                choose1.put("ability", "CHOOSE");
-                choose1.put("from", List.of("STR", "DEX", "CON", "INT", "WIS", "CHA"));
-                choose1.put("count", 1);
-                choose1.put("bonus", 2);
-                bonuses.add(choose1);
-
-                Map<String, Object> choose2 = new LinkedHashMap<>();
-                choose2.put("ability", "CHOOSE");
-                choose2.put("from", List.of("STR", "DEX", "CON", "INT", "WIS", "CHA"));
-                choose2.put("count", 1);
-                choose2.put("bonus", 1);
-                bonuses.add(choose2);
-            }
-
-            if (bonuses.isEmpty()) return "[]";
-            return objectMapper.writeValueAsString(bonuses);
-        } catch (Exception e) {
-            return "[]";
+        if (parent != null && !overwritten.contains("ability")) {
+            addAbilityBonuses(parent.get("ability"), bonuses);
         }
+        addAbilityBonuses(node.get("ability"), bonuses);
+
+        String lineage = node.path("lineage").asText(null);
+        if (lineage == null && parent != null) lineage = parent.path("lineage").asText(null);
+        if (bonuses.isEmpty() && "VRGR".equals(lineage)) {
+            Map<String, Object> choose1 = new LinkedHashMap<>();
+            choose1.put("ability", "CHOOSE");
+            choose1.put("from", List.of("STR", "DEX", "CON", "INT", "WIS", "CHA"));
+            choose1.put("count", 1);
+            choose1.put("bonus", 2);
+            bonuses.add(choose1);
+
+            Map<String, Object> choose2 = new LinkedHashMap<>();
+            choose2.put("ability", "CHOOSE");
+            choose2.put("from", List.of("STR", "DEX", "CON", "INT", "WIS", "CHA"));
+            choose2.put("count", 1);
+            choose2.put("bonus", 1);
+            bonuses.add(choose2);
+        }
+
+        if (bonuses.isEmpty()) return "[]";
+        return objectMapper.writeValueAsString(bonuses);
     }
 
     private void addAbilityBonuses(JsonNode abilityArray, List<Map<String, Object>> bonuses) {
@@ -337,37 +335,33 @@ public class RaceLoader implements ContentLoader {
         return null;
     }
 
-    private String resolveTraits(JsonNode node, JsonNode parent) {
-        try {
-            List<Map<String, String>> traits = new ArrayList<>();
-            Set<String> overwritten = getOverwriteKeys(node);
+    private String resolveTraits(JsonNode node, JsonNode parent) throws Exception {
+        List<Map<String, String>> traits = new ArrayList<>();
+        Set<String> overwritten = getOverwriteKeys(node);
 
-            if (parent != null && !overwritten.contains("entries")) {
-                extractTraits(parent.get("entries"), traits);
-            }
+        if (parent != null && !overwritten.contains("entries")) {
+            extractTraits(parent.get("entries"), traits);
+        }
 
-            Set<String> overwriteNames = new HashSet<>();
-            if (node.has("entries") && node.get("entries").isArray()) {
-                for (JsonNode entry : node.get("entries")) {
-                    if (entry.isObject() && entry.has("data")) {
-                        JsonNode data = entry.get("data");
-                        if (data.has("overwrite")) {
-                            overwriteNames.add(data.get("overwrite").asText());
-                        }
+        Set<String> overwriteNames = new HashSet<>();
+        if (node.has("entries") && node.get("entries").isArray()) {
+            for (JsonNode entry : node.get("entries")) {
+                if (entry.isObject() && entry.has("data")) {
+                    JsonNode data = entry.get("data");
+                    if (data.has("overwrite")) {
+                        overwriteNames.add(data.get("overwrite").asText());
                     }
                 }
             }
-            if (!overwriteNames.isEmpty()) {
-                traits.removeIf(t -> overwriteNames.contains(t.get("name")));
-            }
-
-            extractTraits(node.get("entries"), traits);
-
-            if (traits.isEmpty()) return "[]";
-            return objectMapper.writeValueAsString(traits);
-        } catch (Exception e) {
-            return "[]";
         }
+        if (!overwriteNames.isEmpty()) {
+            traits.removeIf(t -> overwriteNames.contains(t.get("name")));
+        }
+
+        extractTraits(node.get("entries"), traits);
+
+        if (traits.isEmpty()) return "[]";
+        return objectMapper.writeValueAsString(traits);
     }
 
     private void extractTraits(JsonNode entries, List<Map<String, String>> traits) {
@@ -405,44 +399,40 @@ public class RaceLoader implements ContentLoader {
         }
     }
 
-    private String resolveProficiencies(JsonNode node, JsonNode parent) {
-        try {
-            Set<String> overwritten = getOverwriteKeys(node);
-            ObjectNode result = objectMapper.createObjectNode();
-            ArrayNode skills = objectMapper.createArrayNode();
-            ArrayNode weapons = objectMapper.createArrayNode();
-            ArrayNode armor = objectMapper.createArrayNode();
-            ArrayNode tools = objectMapper.createArrayNode();
-            ArrayNode languages = objectMapper.createArrayNode();
+    private String resolveProficiencies(JsonNode node, JsonNode parent) throws Exception {
+        Set<String> overwritten = getOverwriteKeys(node);
+        ObjectNode result = objectMapper.createObjectNode();
+        ArrayNode skills = objectMapper.createArrayNode();
+        ArrayNode weapons = objectMapper.createArrayNode();
+        ArrayNode armor = objectMapper.createArrayNode();
+        ArrayNode tools = objectMapper.createArrayNode();
+        ArrayNode languages = objectMapper.createArrayNode();
 
-            if (parent != null) {
-                if (!overwritten.contains("skillProficiencies"))
-                    extractSkillProficiencies(parent.get("skillProficiencies"), skills);
-                if (!overwritten.contains("languageProficiencies"))
-                    extractLanguageProficiencies(parent.get("languageProficiencies"), languages);
-                if (!overwritten.contains("weaponProficiencies"))
-                    extractWeaponProficiencies(parent.get("weaponProficiencies"), weapons);
-                if (!overwritten.contains("armorProficiencies"))
-                    extractArmorProficiencies(parent.get("armorProficiencies"), armor);
-                if (!overwritten.contains("toolProficiencies"))
-                    extractToolProficiencies(parent.get("toolProficiencies"), tools);
-            }
-
-            extractSkillProficiencies(node.get("skillProficiencies"), skills);
-            extractLanguageProficiencies(node.get("languageProficiencies"), languages);
-            extractWeaponProficiencies(node.get("weaponProficiencies"), weapons);
-            extractArmorProficiencies(node.get("armorProficiencies"), armor);
-            extractToolProficiencies(node.get("toolProficiencies"), tools);
-
-            result.set("skills", skills);
-            result.set("weapons", weapons);
-            result.set("armor", armor);
-            result.set("tools", tools);
-            result.set("languages", languages);
-            return objectMapper.writeValueAsString(result);
-        } catch (Exception e) {
-            return "{\"skills\":[],\"weapons\":[],\"armor\":[],\"tools\":[],\"languages\":[]}";
+        if (parent != null) {
+            if (!overwritten.contains("skillProficiencies"))
+                extractSkillProficiencies(parent.get("skillProficiencies"), skills);
+            if (!overwritten.contains("languageProficiencies"))
+                extractLanguageProficiencies(parent.get("languageProficiencies"), languages);
+            if (!overwritten.contains("weaponProficiencies"))
+                extractWeaponProficiencies(parent.get("weaponProficiencies"), weapons);
+            if (!overwritten.contains("armorProficiencies"))
+                extractArmorProficiencies(parent.get("armorProficiencies"), armor);
+            if (!overwritten.contains("toolProficiencies"))
+                extractToolProficiencies(parent.get("toolProficiencies"), tools);
         }
+
+        extractSkillProficiencies(node.get("skillProficiencies"), skills);
+        extractLanguageProficiencies(node.get("languageProficiencies"), languages);
+        extractWeaponProficiencies(node.get("weaponProficiencies"), weapons);
+        extractArmorProficiencies(node.get("armorProficiencies"), armor);
+        extractToolProficiencies(node.get("toolProficiencies"), tools);
+
+        result.set("skills", skills);
+        result.set("weapons", weapons);
+        result.set("armor", armor);
+        result.set("tools", tools);
+        result.set("languages", languages);
+        return objectMapper.writeValueAsString(result);
     }
 
     private void extractSkillProficiencies(JsonNode node, ArrayNode skills) {
@@ -511,22 +501,18 @@ public class RaceLoader implements ContentLoader {
         }
     }
 
-    private String resolveResistances(JsonNode node, JsonNode parent) {
-        try {
-            List<String> resistances = new ArrayList<>();
+    private String resolveResistances(JsonNode node, JsonNode parent) throws Exception {
+        List<String> resistances = new ArrayList<>();
 
-            if (parent != null) {
-                extractResistances(parent.get("resist"), resistances);
-                extractConditionImmunities(parent.get("conditionImmune"), resistances);
-            }
-            extractResistances(node.get("resist"), resistances);
-            extractConditionImmunities(node.get("conditionImmune"), resistances);
-
-            if (resistances.isEmpty()) return "[]";
-            return objectMapper.writeValueAsString(resistances);
-        } catch (Exception e) {
-            return "[]";
+        if (parent != null) {
+            extractResistances(parent.get("resist"), resistances);
+            extractConditionImmunities(parent.get("conditionImmune"), resistances);
         }
+        extractResistances(node.get("resist"), resistances);
+        extractConditionImmunities(node.get("conditionImmune"), resistances);
+
+        if (resistances.isEmpty()) return "[]";
+        return objectMapper.writeValueAsString(resistances);
     }
 
     private void extractResistances(JsonNode resistNode, List<String> resistances) {
@@ -588,56 +574,52 @@ public class RaceLoader implements ContentLoader {
         }
     }
 
-    private String resolveRaceChoices(JsonNode node, JsonNode parent) {
-        try {
-            Set<String> overwritten = getOverwriteKeys(node);
-            ObjectNode choices = objectMapper.createObjectNode();
+    private String resolveRaceChoices(JsonNode node, JsonNode parent) throws Exception {
+        Set<String> overwritten = getOverwriteKeys(node);
+        ObjectNode choices = objectMapper.createObjectNode();
 
-            ArrayNode langChoices = objectMapper.createArrayNode();
-            if (parent != null && !overwritten.contains("languageProficiencies"))
-                extractLanguageChoices(parent.get("languageProficiencies"), langChoices);
-            extractLanguageChoices(node.get("languageProficiencies"), langChoices);
-            if (!langChoices.isEmpty()) choices.set("languages", langChoices);
+        ArrayNode langChoices = objectMapper.createArrayNode();
+        if (parent != null && !overwritten.contains("languageProficiencies"))
+            extractLanguageChoices(parent.get("languageProficiencies"), langChoices);
+        extractLanguageChoices(node.get("languageProficiencies"), langChoices);
+        if (!langChoices.isEmpty()) choices.set("languages", langChoices);
 
-            ArrayNode skillChoices = objectMapper.createArrayNode();
-            if (parent != null && !overwritten.contains("skillProficiencies"))
-                extractSkillChoices(parent.get("skillProficiencies"), skillChoices);
-            extractSkillChoices(node.get("skillProficiencies"), skillChoices);
-            if (!skillChoices.isEmpty()) choices.set("skills", skillChoices);
+        ArrayNode skillChoices = objectMapper.createArrayNode();
+        if (parent != null && !overwritten.contains("skillProficiencies"))
+            extractSkillChoices(parent.get("skillProficiencies"), skillChoices);
+        extractSkillChoices(node.get("skillProficiencies"), skillChoices);
+        if (!skillChoices.isEmpty()) choices.set("skills", skillChoices);
 
-            ArrayNode toolChoices = objectMapper.createArrayNode();
-            if (parent != null && !overwritten.contains("toolProficiencies"))
-                extractToolChoices(parent.get("toolProficiencies"), toolChoices);
-            extractToolChoices(node.get("toolProficiencies"), toolChoices);
-            if (!toolChoices.isEmpty()) choices.set("tools", toolChoices);
+        ArrayNode toolChoices = objectMapper.createArrayNode();
+        if (parent != null && !overwritten.contains("toolProficiencies"))
+            extractToolChoices(parent.get("toolProficiencies"), toolChoices);
+        extractToolChoices(node.get("toolProficiencies"), toolChoices);
+        if (!toolChoices.isEmpty()) choices.set("tools", toolChoices);
 
-            ArrayNode weaponChoices = objectMapper.createArrayNode();
-            if (parent != null && !overwritten.contains("weaponProficiencies"))
-                extractWeaponChoices(parent.get("weaponProficiencies"), weaponChoices);
-            extractWeaponChoices(node.get("weaponProficiencies"), weaponChoices);
-            if (!weaponChoices.isEmpty()) choices.set("weapons", weaponChoices);
+        ArrayNode weaponChoices = objectMapper.createArrayNode();
+        if (parent != null && !overwritten.contains("weaponProficiencies"))
+            extractWeaponChoices(parent.get("weaponProficiencies"), weaponChoices);
+        extractWeaponChoices(node.get("weaponProficiencies"), weaponChoices);
+        if (!weaponChoices.isEmpty()) choices.set("weapons", weaponChoices);
 
-            ArrayNode resistChoices = objectMapper.createArrayNode();
-            if (parent != null && !overwritten.contains("resist"))
-                extractResistanceChoices(parent.get("resist"), resistChoices);
-            extractResistanceChoices(node.get("resist"), resistChoices);
-            if (!resistChoices.isEmpty()) choices.set("resistances", resistChoices);
+        ArrayNode resistChoices = objectMapper.createArrayNode();
+        if (parent != null && !overwritten.contains("resist"))
+            extractResistanceChoices(parent.get("resist"), resistChoices);
+        extractResistanceChoices(node.get("resist"), resistChoices);
+        if (!resistChoices.isEmpty()) choices.set("resistances", resistChoices);
 
-            ArrayNode spellAbility = objectMapper.createArrayNode();
-            extractSpellAbilityChoices(node.get("additionalSpells"), spellAbility);
-            if (spellAbility.isEmpty() && parent != null)
-                extractSpellAbilityChoices(parent.get("additionalSpells"), spellAbility);
-            if (!spellAbility.isEmpty()) choices.set("spellAbility", spellAbility);
+        ArrayNode spellAbility = objectMapper.createArrayNode();
+        extractSpellAbilityChoices(node.get("additionalSpells"), spellAbility);
+        if (spellAbility.isEmpty() && parent != null)
+            extractSpellAbilityChoices(parent.get("additionalSpells"), spellAbility);
+        if (!spellAbility.isEmpty()) choices.set("spellAbility", spellAbility);
 
-            int featCount = extractFeatCount(node.get("feats"));
-            if (featCount == 0 && parent != null) featCount = extractFeatCount(parent.get("feats"));
-            if (featCount > 0) choices.put("feats", featCount);
+        int featCount = extractFeatCount(node.get("feats"));
+        if (featCount == 0 && parent != null) featCount = extractFeatCount(parent.get("feats"));
+        if (featCount > 0) choices.put("feats", featCount);
 
-            if (choices.isEmpty()) return null;
-            return objectMapper.writeValueAsString(choices);
-        } catch (Exception e) {
-            return null;
-        }
+        if (choices.isEmpty()) return null;
+        return objectMapper.writeValueAsString(choices);
     }
 
     private void extractLanguageChoices(JsonNode node, ArrayNode choices) {
@@ -799,82 +781,77 @@ public class RaceLoader implements ContentLoader {
         }
     }
 
-    private String extractAdditionalSpells(JsonNode node, JsonNode parent) {
-        try {
-            JsonNode spellsNode = node.get("additionalSpells");
-            if (spellsNode == null && parent != null) spellsNode = parent.get("additionalSpells");
-            if (spellsNode == null || !spellsNode.isArray() || spellsNode.isEmpty()) return null;
+    private String extractAdditionalSpells(JsonNode node, JsonNode parent) throws Exception {
+        JsonNode spellsNode = node.get("additionalSpells");
+        if (spellsNode == null && parent != null) spellsNode = parent.get("additionalSpells");
+        if (spellsNode == null || !spellsNode.isArray() || spellsNode.isEmpty()) return null;
 
-            ObjectNode result = objectMapper.createObjectNode();
+        ObjectNode result = objectMapper.createObjectNode();
 
-            // Extract ability
-            String ability = null;
-            ArrayNode abilityChoicesArr = null;
-            for (JsonNode entry : spellsNode) {
-                JsonNode abilityNode = entry.get("ability");
-                if (abilityNode == null) continue;
-                if (abilityNode.isTextual()) {
-                    ability = ABILITY_MAP.getOrDefault(abilityNode.asText(), abilityNode.asText().toUpperCase());
-                } else if (abilityNode.isObject() && abilityNode.has("choose")) {
-                    abilityChoicesArr = objectMapper.createArrayNode();
-                    JsonNode choose = abilityNode.get("choose");
-                    if (choose.isArray()) {
-                        for (JsonNode c : choose) {
-                            if (c.isTextual()) {
-                                abilityChoicesArr.add(ABILITY_MAP.getOrDefault(c.asText(), c.asText().toUpperCase()));
-                            } else if (c.isObject() && c.has("from")) {
-                                for (JsonNode f : c.get("from"))
-                                    abilityChoicesArr.add(ABILITY_MAP.getOrDefault(f.asText(), f.asText().toUpperCase()));
-                            }
+        // Extract ability
+        String ability = null;
+        ArrayNode abilityChoicesArr = null;
+        for (JsonNode entry : spellsNode) {
+            JsonNode abilityNode = entry.get("ability");
+            if (abilityNode == null) continue;
+            if (abilityNode.isTextual()) {
+                ability = ABILITY_MAP.getOrDefault(abilityNode.asText(), abilityNode.asText().toUpperCase());
+            } else if (abilityNode.isObject() && abilityNode.has("choose")) {
+                abilityChoicesArr = objectMapper.createArrayNode();
+                JsonNode choose = abilityNode.get("choose");
+                if (choose.isArray()) {
+                    for (JsonNode c : choose) {
+                        if (c.isTextual()) {
+                            abilityChoicesArr.add(ABILITY_MAP.getOrDefault(c.asText(), c.asText().toUpperCase()));
+                        } else if (c.isObject() && c.has("from")) {
+                            for (JsonNode f : c.get("from"))
+                                abilityChoicesArr.add(ABILITY_MAP.getOrDefault(f.asText(), f.asText().toUpperCase()));
                         }
                     }
                 }
-                break;
             }
-            if (ability != null) result.put("ability", ability);
-            else result.putNull("ability");
-            if (abilityChoicesArr != null && !abilityChoicesArr.isEmpty()) result.set("abilityChoices", abilityChoicesArr);
-            else result.putNull("abilityChoices");
+            break;
+        }
+        if (ability != null) result.put("ability", ability);
+        else result.putNull("ability");
+        if (abilityChoicesArr != null && !abilityChoicesArr.isEmpty()) result.set("abilityChoices", abilityChoicesArr);
+        else result.putNull("abilityChoices");
 
-            ArrayNode fixedSpells = objectMapper.createArrayNode();
-            ArrayNode spellChoices = objectMapper.createArrayNode();
-            ObjectNode expandedList = null;
+        ArrayNode fixedSpells = objectMapper.createArrayNode();
+        ArrayNode spellChoices = objectMapper.createArrayNode();
+        ObjectNode expandedList = null;
 
-            boolean multipleOptions = spellsNode.size() > 1 && !spellsNode.get(0).has("expanded");
+        boolean multipleOptions = spellsNode.size() > 1 && !spellsNode.get(0).has("expanded");
 
-            if (multipleOptions) {
-                ArrayNode options = objectMapper.createArrayNode();
-                for (JsonNode entry : spellsNode) {
-                    ArrayNode optionSpells = objectMapper.createArrayNode();
-                    collectFixedSpells(entry, optionSpells);
-                    collectSpellChoices(entry, optionSpells);
-                    options.add(optionSpells);
-                }
-                result.set("options", options);
-            } else {
-                for (JsonNode entry : spellsNode) {
-                    collectFixedSpells(entry, fixedSpells);
-                    collectSpellChoices(entry, spellChoices);
-                    ObjectNode expanded = collectExpandedList(entry);
-                    if (expanded != null) expandedList = expanded;
-                }
+        if (multipleOptions) {
+            ArrayNode options = objectMapper.createArrayNode();
+            for (JsonNode entry : spellsNode) {
+                ArrayNode optionSpells = objectMapper.createArrayNode();
+                collectFixedSpells(entry, optionSpells);
+                collectSpellChoices(entry, optionSpells);
+                options.add(optionSpells);
             }
-
-            result.set("fixedSpells", fixedSpells);
-            result.set("spellChoices", spellChoices);
-            if (expandedList != null) result.set("expandedList", expandedList);
-            else result.putNull("expandedList");
-
-            if (fixedSpells.isEmpty() && spellChoices.isEmpty() && expandedList == null
-                    && !result.has("options") && ability == null && abilityChoicesArr == null) {
-                return null;
+            result.set("options", options);
+        } else {
+            for (JsonNode entry : spellsNode) {
+                collectFixedSpells(entry, fixedSpells);
+                collectSpellChoices(entry, spellChoices);
+                ObjectNode expanded = collectExpandedList(entry);
+                if (expanded != null) expandedList = expanded;
             }
+        }
 
-            return objectMapper.writeValueAsString(result);
-        } catch (Exception e) {
-            log.warn("Failed to parse additionalSpells: {}", e.getMessage());
+        result.set("fixedSpells", fixedSpells);
+        result.set("spellChoices", spellChoices);
+        if (expandedList != null) result.set("expandedList", expandedList);
+        else result.putNull("expandedList");
+
+        if (fixedSpells.isEmpty() && spellChoices.isEmpty() && expandedList == null
+                && !result.has("options") && ability == null && abilityChoicesArr == null) {
             return null;
         }
+
+        return objectMapper.writeValueAsString(result);
     }
 
     private void collectFixedSpells(JsonNode entry, ArrayNode fixedSpells) {
@@ -1102,9 +1079,9 @@ public class RaceLoader implements ContentLoader {
         return sb.toString();
     }
 
+    // The number a key such as "3" gives, or the fallback for a key that isn't one, such as "will" or "daily"
     private int parseIntSafe(String s, int fallback) {
-        try { return Integer.parseInt(s); }
-        catch (NumberFormatException e) { return fallback; }
+        return WHOLE_NUMBER.matcher(s).matches() ? Integer.parseInt(s) : fallback;
     }
 
     private void extractSpellAbilityChoices(JsonNode node, ArrayNode choices) {

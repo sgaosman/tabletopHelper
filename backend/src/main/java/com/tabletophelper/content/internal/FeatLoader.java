@@ -7,11 +7,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -19,7 +16,6 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class FeatLoader implements ContentLoader {
 
     private static final String FEATS_FILE = "data/5etools/feats.json";
@@ -45,45 +41,35 @@ public class FeatLoader implements ContentLoader {
     }
 
     @Override
-    public void load(LoadContext context) throws Exception {
-        context.upsert("feats", featRepository, parseFeatsFile(readEffects()),
+    public void load(LoadContext context) {
+        context.upsert("feats", featRepository, parseFeatsFile(context, readEffects(context)),
                 feat -> LoadContext.nameAndSource(feat.getName(), feat.getSource()));
     }
 
-    private JsonNode readEffects() throws Exception {
-        try (InputStream is = new ClassPathResource(EFFECTS_FILE).getInputStream()) {
-            JsonNode effects = objectMapper.readTree(is);
-            if (!effects.isObject()) {
-                throw new IllegalStateException(EFFECTS_FILE + " is not an object of feat names");
-            }
-            return effects;
+    private JsonNode readEffects(LoadContext context) {
+        JsonNode effects = context.read(EFFECTS_FILE);
+        if (!effects.isObject()) {
+            throw new IllegalStateException(EFFECTS_FILE + " is not an object of feat names");
         }
+        return effects;
     }
 
-    private List<Feat> parseFeatsFile(JsonNode extraEffects) throws Exception {
-        ClassPathResource resource = new ClassPathResource(FEATS_FILE);
-        try (InputStream is = resource.getInputStream()) {
-            JsonNode root = objectMapper.readTree(is);
-            JsonNode feats = root.get("feat");
-            List<Feat> batch = new ArrayList<>();
-            if (feats == null || !feats.isArray()) return batch;
-
-            for (JsonNode feat : feats) {
-                try {
-                    Feat entity = parseFeat(feat, extraEffects);
-                    if (entity != null) batch.add(entity);
-                } catch (Exception e) {
-                    log.warn("Failed to parse feat {}: {}", feat.path("name").asText("unknown"), e.getMessage());
-                }
+    private List<Feat> parseFeatsFile(LoadContext context, JsonNode extraEffects) {
+        JsonNode feats = LoadContext.array(context.read(FEATS_FILE), "feat", FEATS_FILE);
+        List<Feat> batch = new ArrayList<>();
+        for (JsonNode feat : feats) {
+            String name = feat.path("name").asText(null);
+            if (name == null) {
+                context.skip("feats with no name");
+                continue;
             }
-            return batch;
+            batch.add(LoadContext.reading(FEATS_FILE + ": feat " + name + "|" + feat.path("source").asText(""),
+                    () -> parseFeat(name, feat, extraEffects)));
         }
+        return batch;
     }
 
-    private Feat parseFeat(JsonNode feat, JsonNode extraEffects) throws Exception {
-        String name = feat.path("name").asText(null);
-        if (name == null) return null;
-
+    private Feat parseFeat(String name, JsonNode feat, JsonNode extraEffects) throws Exception {
         return Feat.builder()
                 .name(name)
                 .source(feat.path("source").asText(null))

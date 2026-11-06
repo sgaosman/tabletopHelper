@@ -6,16 +6,12 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.OptionalFeatureRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class OptionalFeatureLoader implements ContentLoader {
 
     private static final String FILE = "data/5etools/optionalfeatures.json";
@@ -44,36 +40,36 @@ public class OptionalFeatureLoader implements ContentLoader {
     }
 
     @Override
-    public void load(LoadContext context) throws Exception {
-        ClassPathResource resource = new ClassPathResource(FILE);
-        try (InputStream is = resource.getInputStream()) {
-            JsonNode root = objectMapper.readTree(is);
-            JsonNode features = root.get("optionalfeature");
-            if (features == null || !features.isArray()) return;
+    public void load(LoadContext context) {
+        JsonNode features = LoadContext.array(context.read(FILE), "optionalfeature", FILE);
 
-            List<OptionalFeature> batch = new ArrayList<>();
-            for (JsonNode feature : features) {
-                try {
-                    List<OptionalFeature> entities = parseFeature(feature);
-                    batch.addAll(entities);
-                } catch (Exception e) {
-                    log.warn("Failed to parse optional feature {}: {}",
-                            feature.path("name").asText("unknown"), e.getMessage());
-                }
+        List<OptionalFeature> batch = new ArrayList<>();
+        for (JsonNode feature : features) {
+            String name = feature.path("name").asText(null);
+            JsonNode featureTypes = feature.get("featureType");
+            if (name == null) {
+                context.skip("optional features with no name");
+                continue;
             }
-
-            context.upsert("optional_features", repository, batch,
-                    f -> LoadContext.nameAndSource(f.getName(), f.getSource()));
+            if (featureTypes == null || !featureTypes.isArray()) {
+                context.skip("optional features with no featureType");
+                continue;
+            }
+            List<OptionalFeature> entities = LoadContext.reading(FILE + ": optional feature " + name + "|"
+                    + feature.path("source").asText(""), () -> parseFeature(name, featureTypes, feature));
+            if (entities.isEmpty()) {
+                context.skip("optional features of a type not loaded");
+            }
+            batch.addAll(entities);
         }
+
+        context.upsert("optional_features", repository, batch,
+                f -> LoadContext.nameAndSource(f.getName(), f.getSource()));
     }
 
-    private List<OptionalFeature> parseFeature(JsonNode feature) throws Exception {
-        String name = feature.path("name").asText(null);
-        if (name == null) return List.of();
-
-        JsonNode featureTypes = feature.get("featureType");
-        if (featureTypes == null || !featureTypes.isArray()) return List.of();
-
+    // One row for each of RELEVANT_TYPES the feature has
+    private List<OptionalFeature> parseFeature(String name, JsonNode featureTypes, JsonNode feature)
+            throws Exception {
         // A style listed for several classes (FS:F, FS:R, FS:P) is one Fighting Style, so each type is built once
         List<OptionalFeature> results = new ArrayList<>();
         Set<String> built = new HashSet<>();

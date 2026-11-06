@@ -6,17 +6,12 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class MonsterLoader implements ContentLoader {
 
     private final MonsterRepository monsterRepository;
@@ -58,29 +53,30 @@ public class MonsterLoader implements ContentLoader {
     }
 
     @Override
-    public void load(LoadContext context) throws Exception {
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        Resource[] resources = resolver.getResources("classpath:data/5etools/bestiary/bestiary-*.json");
-
+    public void load(LoadContext context) {
         List<Monster> batch = new ArrayList<>();
 
-        for (Resource resource : resources) {
-            String filename = resource.getFilename();
-            if (filename != null && (filename.contains("fluff") || filename.contains("index"))) continue;
+        for (LoadContext.DataFile file : context.files("data/5etools/bestiary/bestiary-*.json")) {
+            String filename = file.name();
+            if (filename != null && (filename.contains("fluff") || filename.contains("index"))) {
+                context.skip("fluff and index files");
+                continue;
+            }
 
-            try (InputStream is = resource.getInputStream()) {
-                JsonNode root = objectMapper.readTree(is);
-                JsonNode monsters = root.get("monster");
-                if (monsters == null || !monsters.isArray()) continue;
+            JsonNode root = context.read(file);
+            JsonNode monsters = root.get("monster");
+            if (monsters == null || !monsters.isArray()) {
+                context.skip("files with no monster array");
+                continue;
+            }
 
-                for (JsonNode m : monsters) {
-                    if (m.has("_copy")) continue;
-
-                    Monster monster = parseMonster(m);
-                    if (monster != null) batch.add(monster);
+            for (JsonNode m : monsters) {
+                if (m.has("_copy")) {
+                    context.skip("_copy monsters");
+                    continue;
                 }
-            } catch (Exception e) {
-                log.warn("Error reading {}: {}", filename, e.getMessage());
+                batch.add(LoadContext.reading(filename + ": monster " + m.path("name").asText("?") + "|"
+                        + m.path("source").asText(""), () -> parseMonster(m)));
             }
         }
 
@@ -89,55 +85,50 @@ public class MonsterLoader implements ContentLoader {
                 m -> LoadContext.nameAndSource(m.getName(), m.getSource()), "actionTemplates");
     }
 
-    private Monster parseMonster(JsonNode m) {
-        try {
-            String cr = parseCr(m.get("cr"));
-            String size = parseSize(m.get("size"));
-            String type = parseType(m.get("type"));
-            String subtype = parseSubtype(m.get("type"));
+    private Monster parseMonster(JsonNode m) throws Exception {
+        String cr = parseCr(m.get("cr"));
+        String size = parseSize(m.get("size"));
+        String type = parseType(m.get("type"));
+        String subtype = parseSubtype(m.get("type"));
 
-            int ac = parseAc(m.get("ac"));
-            String acType = parseAcType(m.get("ac"));
+        int ac = parseAc(m.get("ac"));
+        String acType = parseAcType(m.get("ac"));
 
-            return Monster.builder()
-                    .name(m.path("name").asText())
-                    .size(size)
-                    .type(type)
-                    .subtype(subtype)
-                    .alignment(parseAlignment(m.get("alignment")))
-                    .armourClass(ac)
-                    .acType(acType)
-                    .hitPoints(m.path("hp").path("average").asInt(0))
-                    .hitDice(m.path("hp").path("formula").asText(null))
-                    .speed(nodeToJson(m.get("speed")))
-                    .strength(m.path("str").asInt(10))
-                    .dexterity(m.path("dex").asInt(10))
-                    .constitution(m.path("con").asInt(10))
-                    .intelligence(m.path("int").asInt(10))
-                    .wisdom(m.path("wis").asInt(10))
-                    .charisma(m.path("cha").asInt(10))
-                    .savingThrows(nodeToJson(m.get("save")))
-                    .skills(nodeToJson(m.get("skill")))
-                    .damageResistances(arrayToJson(m.get("resist")))
-                    .damageImmunities(arrayToJson(m.get("immune")))
-                    .damageVulnerabilities(arrayToJson(m.get("vulnerable")))
-                    .conditionImmunities(arrayToJson(m.get("conditionImmune")))
-                    .senses(parseSenses(m))
-                    .languages(parseLanguages(m.get("languages")))
-                    .challengeRating(cr)
-                    .experiencePoints(cr != null ? CR_TO_XP.getOrDefault(cr, 0) : 0)
-                    .traits(parseEntryList(m.get("trait")))
-                    .actions(parseEntryList(m.get("action")))
-                    .reactions(parseEntryList(m.get("reaction")))
-                    .legendaryActions(parseEntryList(m.get("legendary")))
-                    .lairActions(parseEntryList(m.get("legendaryGroup")))
-                    .source(m.path("source").asText(null))
-                    .isHomebrew(false)
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to parse monster {}: {}", m.path("name").asText("unknown"), e.getMessage());
-            return null;
-        }
+        return Monster.builder()
+                .name(m.path("name").asText())
+                .size(size)
+                .type(type)
+                .subtype(subtype)
+                .alignment(parseAlignment(m.get("alignment")))
+                .armourClass(ac)
+                .acType(acType)
+                .hitPoints(m.path("hp").path("average").asInt(0))
+                .hitDice(m.path("hp").path("formula").asText(null))
+                .speed(nodeToJson(m.get("speed")))
+                .strength(m.path("str").asInt(10))
+                .dexterity(m.path("dex").asInt(10))
+                .constitution(m.path("con").asInt(10))
+                .intelligence(m.path("int").asInt(10))
+                .wisdom(m.path("wis").asInt(10))
+                .charisma(m.path("cha").asInt(10))
+                .savingThrows(nodeToJson(m.get("save")))
+                .skills(nodeToJson(m.get("skill")))
+                .damageResistances(arrayToJson(m.get("resist")))
+                .damageImmunities(arrayToJson(m.get("immune")))
+                .damageVulnerabilities(arrayToJson(m.get("vulnerable")))
+                .conditionImmunities(arrayToJson(m.get("conditionImmune")))
+                .senses(parseSenses(m))
+                .languages(parseLanguages(m.get("languages")))
+                .challengeRating(cr)
+                .experiencePoints(cr != null ? CR_TO_XP.getOrDefault(cr, 0) : 0)
+                .traits(parseEntryList(m.get("trait")))
+                .actions(parseEntryList(m.get("action")))
+                .reactions(parseEntryList(m.get("reaction")))
+                .legendaryActions(parseEntryList(m.get("legendary")))
+                .lairActions(parseEntryList(m.get("legendaryGroup")))
+                .source(m.path("source").asText(null))
+                .isHomebrew(false)
+                .build();
     }
 
     private String parseCr(JsonNode crNode) {
@@ -231,21 +222,17 @@ public class MonsterLoader implements ContentLoader {
         return parts.isEmpty() ? null : String.join(" ", parts);
     }
 
-    private String parseSenses(JsonNode m) {
-        try {
-            Map<String, Object> sensesMap = new LinkedHashMap<>();
-            JsonNode senses = m.get("senses");
-            if (senses != null && senses.isArray()) {
-                List<String> senseList = new ArrayList<>();
-                for (JsonNode s : senses) senseList.add(s.asText());
-                sensesMap.put("special", senseList);
-            }
-            int passive = m.path("passive").asInt(0);
-            if (passive > 0) sensesMap.put("passive_perception", passive);
-            return sensesMap.isEmpty() ? null : objectMapper.writeValueAsString(sensesMap);
-        } catch (Exception e) {
-            return null;
+    private String parseSenses(JsonNode m) throws Exception {
+        Map<String, Object> sensesMap = new LinkedHashMap<>();
+        JsonNode senses = m.get("senses");
+        if (senses != null && senses.isArray()) {
+            List<String> senseList = new ArrayList<>();
+            for (JsonNode s : senses) senseList.add(s.asText());
+            sensesMap.put("special", senseList);
         }
+        int passive = m.path("passive").asInt(0);
+        if (passive > 0) sensesMap.put("passive_perception", passive);
+        return sensesMap.isEmpty() ? null : objectMapper.writeValueAsString(sensesMap);
     }
 
     private String parseLanguages(JsonNode langNode) {
@@ -258,20 +245,16 @@ public class MonsterLoader implements ContentLoader {
         return langNode.asText(null);
     }
 
-    private String parseEntryList(JsonNode entriesNode) {
+    private String parseEntryList(JsonNode entriesNode) throws Exception {
         if (entriesNode == null || !entriesNode.isArray()) return null;
-        try {
-            ArrayNode result = objectMapper.createArrayNode();
-            for (JsonNode entry : entriesNode) {
-                var obj = objectMapper.createObjectNode();
-                obj.put("name", FiveEToolsMarkupParser.parse(entry.path("name").asText("")));
-                obj.put("description", flattenEntries(entry.get("entries")));
-                result.add(obj);
-            }
-            return objectMapper.writeValueAsString(result);
-        } catch (Exception e) {
-            return null;
+        ArrayNode result = objectMapper.createArrayNode();
+        for (JsonNode entry : entriesNode) {
+            var obj = objectMapper.createObjectNode();
+            obj.put("name", FiveEToolsMarkupParser.parse(entry.path("name").asText("")));
+            obj.put("description", flattenEntries(entry.get("entries")));
+            result.add(obj);
         }
+        return objectMapper.writeValueAsString(result);
     }
 
     private String flattenEntries(JsonNode entries) {
@@ -301,29 +284,21 @@ public class MonsterLoader implements ContentLoader {
         return sb.toString();
     }
 
-    private String nodeToJson(JsonNode node) {
+    private String nodeToJson(JsonNode node) throws Exception {
         if (node == null || node.isNull()) return null;
-        try {
-            return objectMapper.writeValueAsString(node);
-        } catch (Exception e) {
-            return null;
-        }
+        return objectMapper.writeValueAsString(node);
     }
 
-    private String arrayToJson(JsonNode node) {
+    private String arrayToJson(JsonNode node) throws Exception {
         if (node == null || !node.isArray()) return null;
-        try {
-            List<String> items = new ArrayList<>();
-            for (JsonNode n : node) {
-                if (n.isTextual()) {
-                    items.add(n.asText());
-                } else if (n.isObject()) {
-                    items.add(objectMapper.writeValueAsString(n));
-                }
+        List<String> items = new ArrayList<>();
+        for (JsonNode n : node) {
+            if (n.isTextual()) {
+                items.add(n.asText());
+            } else if (n.isObject()) {
+                items.add(objectMapper.writeValueAsString(n));
             }
-            return objectMapper.writeValueAsString(items);
-        } catch (Exception e) {
-            return null;
         }
+        return objectMapper.writeValueAsString(items);
     }
 }

@@ -5,16 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class ItemLoader implements ContentLoader {
 
     private final ItemRepository itemRepository;
@@ -65,113 +61,97 @@ public class ItemLoader implements ContentLoader {
     }
 
     @Override
-    public void load(LoadContext context) throws Exception {
+    public void load(LoadContext context) {
         List<Item> allItems = new ArrayList<>();
 
-        seedFromFile("data/5etools/items-base.json", "baseitem", allItems);
-        seedFromFile("data/5etools/items.json", "item", allItems);
+        seedFromFile(context, "data/5etools/items-base.json", "baseitem", allItems);
+        seedFromFile(context, "data/5etools/items.json", "item", allItems);
 
         context.upsert("items", itemRepository, allItems, i -> LoadContext.nameAndSource(i.getName(), i.getSource()));
     }
 
-    private void seedFromFile(String path, String rootKey, List<Item> allItems) {
-        try {
-            ClassPathResource resource = new ClassPathResource(path);
-            try (InputStream is = resource.getInputStream()) {
-                JsonNode root = objectMapper.readTree(is);
-                JsonNode items = root.get(rootKey);
-                if (items == null || !items.isArray()) return;
-
-                for (JsonNode i : items) {
-                    if (i.has("_copy")) continue;
-                    Item item = parseItem(i);
-                    if (item != null) allItems.add(item);
-                }
+    private void seedFromFile(LoadContext context, String path, String rootKey, List<Item> allItems) {
+        JsonNode items = LoadContext.array(context.read(path), rootKey, path);
+        for (JsonNode i : items) {
+            if (i.has("_copy")) {
+                context.skip("_copy items");
+                continue;
             }
-        } catch (Exception e) {
-            log.warn("Error reading {}: {}", path, e.getMessage());
+            allItems.add(LoadContext.reading(path + ": item " + i.path("name").asText("?") + "|"
+                    + i.path("source").asText(""), () -> parseItem(i)));
         }
     }
 
-    private Item parseItem(JsonNode i) {
-        try {
-            String typeCode = i.path("type").asText("");
-            if (typeCode.contains("|")) typeCode = typeCode.split("\\|")[0];
-            String type = TYPE_MAP.getOrDefault(typeCode, typeCode);
-            if (type.isEmpty()) {
-                String altCode = i.path("typeAlt").asText("");
-                if (altCode.contains("|")) altCode = altCode.split("\\|")[0];
-                if (!altCode.isEmpty()) {
-                    type = TYPE_MAP.getOrDefault(altCode, altCode);
-                }
+    private Item parseItem(JsonNode i) throws Exception {
+        String typeCode = i.path("type").asText("");
+        if (typeCode.contains("|")) typeCode = typeCode.split("\\|")[0];
+        String type = TYPE_MAP.getOrDefault(typeCode, typeCode);
+        if (type.isEmpty()) {
+            String altCode = i.path("typeAlt").asText("");
+            if (altCode.contains("|")) altCode = altCode.split("\\|")[0];
+            if (!altCode.isEmpty()) {
+                type = TYPE_MAP.getOrDefault(altCode, altCode);
             }
-            if (type.isEmpty()) {
-                String baseItem = i.path("baseItem").asText("").split("\\|")[0].toLowerCase();
-                if (!baseItem.isEmpty()) {
-                    type = inferTypeFromBaseItem(baseItem);
-                }
-            }
-            if (type.isEmpty()) {
-                if (i.path("wondrous").asBoolean(false)) type = "Wondrous item";
-                else if (i.path("staff").asBoolean(false)) type = "Staff";
-                else if (i.path("weapon").asBoolean(false)) type = "Weapon";
-                else if (i.path("armor").asBoolean(false)) type = "Armor";
-                else if (i.path("poison").asBoolean(false)) type = "Poison";
-            }
-            if (type.isEmpty()) {
-                type = inferTypeFromDescription(i);
-            }
-            String rarity = i.path("rarity").asText("none");
-            if ("none".equals(rarity)) rarity = null;
-
-            String dmgType = i.has("dmgType") ?
-                    DAMAGE_TYPE_MAP.getOrDefault(i.path("dmgType").asText(""), i.path("dmgType").asText("")) : null;
-
-            boolean attunement = i.has("reqAttune") && !i.path("reqAttune").asText("").equals("false");
-            String attunementCondition = null;
-            if (i.has("reqAttune") && i.get("reqAttune").isTextual()) {
-                attunementCondition = i.path("reqAttune").asText();
-            }
-
-            return Item.builder()
-                    .name(i.path("name").asText())
-                    .type(type.isEmpty() ? null : type)
-                    .subtype(i.path("weaponCategory").asText(null))
-                    .rarity(rarity)
-                    .description(flattenEntries(i.get("entries")))
-                    .properties(parseProperties(i))
-                    .requiresAttunement(attunement)
-                    .attunementCondition(attunementCondition)
-                    .weight(i.has("weight") ? i.path("weight").asDouble() : null)
-                    .cost(parseCost(i))
-                    .damageDice(i.path("dmg1").asText(null))
-                    .damageType(dmgType)
-                    .source(i.path("source").asText(null))
-                    .isHomebrew(false)
-                    .build();
-        } catch (Exception e) {
-            log.warn("Failed to parse item {}: {}", i.path("name").asText("unknown"), e.getMessage());
-            return null;
         }
+        if (type.isEmpty()) {
+            String baseItem = i.path("baseItem").asText("").split("\\|")[0].toLowerCase();
+            if (!baseItem.isEmpty()) {
+                type = inferTypeFromBaseItem(baseItem);
+            }
+        }
+        if (type.isEmpty()) {
+            if (i.path("wondrous").asBoolean(false)) type = "Wondrous item";
+            else if (i.path("staff").asBoolean(false)) type = "Staff";
+            else if (i.path("weapon").asBoolean(false)) type = "Weapon";
+            else if (i.path("armor").asBoolean(false)) type = "Armor";
+            else if (i.path("poison").asBoolean(false)) type = "Poison";
+        }
+        if (type.isEmpty()) {
+            type = inferTypeFromDescription(i);
+        }
+        String rarity = i.path("rarity").asText("none");
+        if ("none".equals(rarity)) rarity = null;
+
+        String dmgType = i.has("dmgType") ?
+                DAMAGE_TYPE_MAP.getOrDefault(i.path("dmgType").asText(""), i.path("dmgType").asText("")) : null;
+
+        boolean attunement = i.has("reqAttune") && !i.path("reqAttune").asText("").equals("false");
+        String attunementCondition = null;
+        if (i.has("reqAttune") && i.get("reqAttune").isTextual()) {
+            attunementCondition = i.path("reqAttune").asText();
+        }
+
+        return Item.builder()
+                .name(i.path("name").asText())
+                .type(type.isEmpty() ? null : type)
+                .subtype(i.path("weaponCategory").asText(null))
+                .rarity(rarity)
+                .description(flattenEntries(i.get("entries")))
+                .properties(parseProperties(i))
+                .requiresAttunement(attunement)
+                .attunementCondition(attunementCondition)
+                .weight(i.has("weight") ? i.path("weight").asDouble() : null)
+                .cost(parseCost(i))
+                .damageDice(i.path("dmg1").asText(null))
+                .damageType(dmgType)
+                .source(i.path("source").asText(null))
+                .isHomebrew(false)
+                .build();
     }
 
-    private String parseProperties(JsonNode i) {
-        try {
-            Map<String, Object> props = new LinkedHashMap<>();
-            if (i.has("property")) {
-                List<String> propList = new ArrayList<>();
-                for (JsonNode p : i.get("property")) propList.add(p.asText());
-                props.put("tags", propList);
-            }
-            if (i.has("dmg2")) props.put("versatile_damage", i.path("dmg2").asText());
-            if (i.has("range")) props.put("range", i.path("range").asText());
-            if (i.has("ac")) props.put("ac", i.path("ac").asInt());
-            if (i.has("strength")) props.put("strength_requirement", i.path("strength").asText());
-            if (i.has("stealth")) props.put("stealth_disadvantage", true);
-            return props.isEmpty() ? null : objectMapper.writeValueAsString(props);
-        } catch (Exception e) {
-            return null;
+    private String parseProperties(JsonNode i) throws Exception {
+        Map<String, Object> props = new LinkedHashMap<>();
+        if (i.has("property")) {
+            List<String> propList = new ArrayList<>();
+            for (JsonNode p : i.get("property")) propList.add(p.asText());
+            props.put("tags", propList);
         }
+        if (i.has("dmg2")) props.put("versatile_damage", i.path("dmg2").asText());
+        if (i.has("range")) props.put("range", i.path("range").asText());
+        if (i.has("ac")) props.put("ac", i.path("ac").asInt());
+        if (i.has("strength")) props.put("strength_requirement", i.path("strength").asText());
+        if (i.has("stealth")) props.put("stealth_disadvantage", true);
+        return props.isEmpty() ? null : objectMapper.writeValueAsString(props);
     }
 
     private String parseCost(JsonNode i) {

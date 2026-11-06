@@ -27,3 +27,7 @@ springdoc:
 logging:
   level:
     com.tabletophelper: INFO
+
+# A loader that fails stops startup here, instead of being logged and skipped as in development (D155)
+content:
+  fail-on-error: true

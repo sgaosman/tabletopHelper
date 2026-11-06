@@ -1,6 +1,8 @@
 package com.tabletophelper.content;
 
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.content.internal.ContentLoader;
+import com.tabletophelper.content.internal.ContentVersionRepository;
 import com.tabletophelper.maintenance.MaintenanceReport;
 import com.tabletophelper.maintenance.PreviewContentJob;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +12,9 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+
+import jakarta.persistence.EntityManager;
 
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
@@ -27,7 +32,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The content loaders against PostgreSQL (D169): the full load from the bundled files, a second load that changes
- * nothing, a load of one loader and those that depend on it, the preview-content job, and V26's natural keys.
+ * nothing, a load of one loader and those that depend on it, a loader that fails on a broken file (D155), the
+ * preview-content job, and V26's natural keys.
  */
 class ContentLoadIT extends IntegrationTest {
 
@@ -38,6 +44,24 @@ class ContentLoadIT extends IntegrationTest {
     @Autowired private ContentLoading contentLoading;
     @Autowired private PreviewContentJob previewContentJob;
     @Autowired private DataSource dataSource;
+    @Autowired private List<ContentLoader> loaders;
+    @Autowired private ContentVersionRepository versions;
+    @Autowired private EntityManager entityManager;
+    @Autowired private PlatformTransactionManager transactionManager;
+
+    // The spells' files replaced by one that isn't JSON; every other file is the bundled one
+    private ContentLoading withBrokenSpellsFile(boolean failOnError) {
+        return new ContentLoading(loaders, versions, entityManager, objectMapper, transactionManager, failOnError,
+                path -> path.equals("data/5etools/spells/spells-*.json")
+                        ? "classpath:content-fixtures/broken-spells/spells-*.json" : "classpath:" + path);
+    }
+
+    private Map<String, String> storedHashes() {
+        Map<String, String> hashes = new LinkedHashMap<>();
+        jdbcTemplate.queryForList("SELECT loader, content_hash FROM content_versions ORDER BY loader")
+                .forEach(row -> hashes.put((String) row.get("loader"), (String) row.get("content_hash")));
+        return hashes;
+    }
 
     private static Map<String, ContentLoading.Status> statuses(List<ContentLoading.Outcome> outcomes) {
         Map<String, ContentLoading.Status> statuses = new LinkedHashMap<>();
@@ -114,6 +138,44 @@ class ContentLoadIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT id FROM character_classes WHERE name = 'Fighter' AND source = 'PHB'", UUID.class))
                 .isEqualTo(fighterId);
+    }
+
+    @Test
+    @DisplayName("A broken spells file fails the spells loader, which rolls back and keeps its hash; the loaders that depend on it are skipped and keep theirs; the rest run")
+    void aBrokenFileFailsItsLoaderAndSkipsItsDependents() {
+        contentLoading.load();
+        jdbcTemplate.update("UPDATE content_versions SET content_hash = repeat('0', 64) "
+                + "WHERE loader IN ('spells', 'races', 'feats')");
+        Map<String, String> hashesBefore = storedHashes();
+        Map<String, List<String>> rowsBefore = rows();
+
+        List<ContentLoading.Outcome> outcomes = withBrokenSpellsFile(false).load();
+
+        assertThat(statuses(outcomes)).containsEntry("spells", ContentLoading.Status.FAILED)
+                .containsEntry("spell-effects", ContentLoading.Status.SKIPPED)
+                .containsEntry("races", ContentLoading.Status.SKIPPED)
+                .containsEntry("feats", ContentLoading.Status.LOADED)
+                .containsEntry("conditions", ContentLoading.Status.UNCHANGED);
+        assertThat(outcomes).filteredOn(outcome -> outcome.loader().equals("spells"))
+                .singleElement().satisfies(outcome -> assertThat(outcome.detail()).contains("spells-broken.json"));
+        Map<String, String> hashesAfter = storedHashes();
+        assertThat(hashesAfter).as("only feats stored a new hash")
+                .containsAllEntriesOf(Map.of("spells", hashesBefore.get("spells"),
+                        "spell-effects", hashesBefore.get("spell-effects"), "races", hashesBefore.get("races")));
+        assertThat(hashesAfter.get("feats")).isNotEqualTo(hashesBefore.get("feats"));
+        assertThat(rows()).isEqualTo(rowsBefore);
+    }
+
+    @Test
+    @DisplayName("With content.fail-on-error, as the prod profile sets it, a loader that fails stops the load: it rolls back, and no later loader runs")
+    void failOnErrorStopsTheLoad() {
+        assertThatThrownBy(() -> withBrokenSpellsFile(true).load())
+                .isInstanceOf(ContentLoading.ContentLoadFailedException.class)
+                .hasMessageContaining("spells failed").hasMessageContaining("spells-broken.json");
+
+        assertThat(storedHashes()).containsOnlyKeys("conditions");
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM spells", Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM items", Integer.class)).isZero();
     }
 
     @Test

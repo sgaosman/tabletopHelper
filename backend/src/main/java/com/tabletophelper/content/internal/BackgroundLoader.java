@@ -7,16 +7,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.BackgroundRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import java.io.InputStream;
 import java.util.*;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class BackgroundLoader implements ContentLoader {
 
     private static final String FILE = "data/5etools/backgrounds.json";
@@ -40,38 +36,31 @@ public class BackgroundLoader implements ContentLoader {
     }
 
     @Override
-    public void load(LoadContext context) throws Exception {
-        ClassPathResource resource = new ClassPathResource(FILE);
-        try (InputStream is = resource.getInputStream()) {
-            JsonNode root = objectMapper.readTree(is);
-            JsonNode backgrounds = root.get("background");
-            if (backgrounds == null || !backgrounds.isArray()) return;
+    public void load(LoadContext context) {
+        JsonNode backgrounds = LoadContext.array(context.read(FILE), "background", FILE);
 
-            Map<String, JsonNode> bgIndex = new LinkedHashMap<>();
-            for (JsonNode bg : backgrounds) {
-                String key = bg.path("name").asText("") + "|" + bg.path("source").asText("");
-                bgIndex.put(key, bg);
-            }
-
-            List<Background> batch = new ArrayList<>();
-            for (JsonNode bg : backgrounds) {
-                try {
-                    Background background = parseBackground(bg, bgIndex);
-                    if (background != null) batch.add(background);
-                } catch (Exception e) {
-                    log.warn("Failed to parse background {}: {}", bg.path("name").asText("unknown"), e.getMessage());
-                }
-            }
-
-            context.upsert("backgrounds", backgroundRepository, batch,
-                    b -> LoadContext.nameAndSource(b.getName(), b.getSource()));
+        Map<String, JsonNode> bgIndex = new LinkedHashMap<>();
+        for (JsonNode bg : backgrounds) {
+            String key = bg.path("name").asText("") + "|" + bg.path("source").asText("");
+            bgIndex.put(key, bg);
         }
+
+        List<Background> batch = new ArrayList<>();
+        for (JsonNode bg : backgrounds) {
+            String name = bg.path("name").asText(null);
+            if (name == null) {
+                context.skip("backgrounds with no name");
+                continue;
+            }
+            batch.add(LoadContext.reading(FILE + ": background " + name + "|" + bg.path("source").asText(""),
+                    () -> parseBackground(name, bg, bgIndex)));
+        }
+
+        context.upsert("backgrounds", backgroundRepository, batch,
+                b -> LoadContext.nameAndSource(b.getName(), b.getSource()));
     }
 
-    private Background parseBackground(JsonNode bg, Map<String, JsonNode> bgIndex) throws Exception {
-        String name = bg.path("name").asText(null);
-        if (name == null) return null;
-
+    private Background parseBackground(String name, JsonNode bg, Map<String, JsonNode> bgIndex) throws Exception {
         JsonNode resolved = resolveCopy(bg, bgIndex);
 
         return Background.builder()

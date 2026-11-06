@@ -2,6 +2,7 @@ package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
+import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -126,6 +127,19 @@ class ReferenceControllerTargetingTest {
         var response = controller.getSpellTargeting("SomeSpell", 0);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("An effect template that isn't JSON is a 409 that names the spell, not a 404 (D155)")
+    void unreadableEffectTemplate() {
+        Spell spell = new Spell();
+        spell.setName("Broken Spell");
+        spell.setEffectTemplate("{not json");
+        when(spellRepository.findByNameIgnoreCase("Broken Spell")).thenReturn(Optional.of(spell));
+
+        var thrown = assertThrows(ConflictException.class, () -> controller.getSpellTargeting("Broken Spell", 0));
+
+        assertEquals("The targeting rules of Broken Spell can't be read", thrown.getMessage());
     }
 
     @Test
