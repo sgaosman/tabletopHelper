@@ -2979,3 +2979,27 @@ The full list is settled during R2 planning.
 **Update (2026-11-03, contrast fix):** the player's Adv toggle now uses card-coloured text on the buff background (5.90:1 to 6.82:1), and the Paused banner and chip use the paladin gold with card-coloured text (4.57:1 to 7.00:1), so every control the R5 follow-ups listed below AA now meets it. The Repeat Save prompt still uses the faded monk tint (about 2.2:1 to 2.4:1 in the light themes), and the selected Norm toggle is 4.48:1 in Tavern.
 
 **Update (2026-11-03, R6 review fixes):** three places put monk-gold text on the monk tint, at 2.83:1 in Tourmaline, Parchment and Handbook: the pending-choices banner, the DM's "N choices pending" chip and the wizard's "Choices made on your sheet" box. Their text is now ink on the tint: 16.86:1 in Tourmaline, 17.53:1 in Parchment, 10.11:1 in Tavern and 16.61:1 in Handbook.
+
+## D174: Action Economy
+
+**Date:** 2026-11-06
+**Status:** Accepted — planned (M13)
+
+**Decision:**
+- **Tracked per turn for every participant** (PHB p.189–193, 2014): actions (one, plus one per Action Surge), attacks left in the current Attack action (Extra Attack, p.72), the bonus action, the reaction (back at the start of the creature's own turn, p.190), the free object interaction (p.190), and the bonus-action-spell rule (p.202). Incapacitated creatures take no actions or reactions (p.290).
+- **Enforced for players, never for the DM:** a player's command over budget answers 409 with the reason. The DM's still applies, and for a player character the combat log says it went over.
+- **Advisory only:** movement (speed and Dash or Disengage shown, no feet counter, since there is no map), surprise, Haste and Slow (the DM edits the turn's budget), and the outcomes of Help and Hide.
+- **Costs belong to commands:** an attack opens or continues the Attack action, an off-hand attack is a bonus action and an opportunity attack a reaction; a spell costs its casting time; a repeated spell effect costs what its data says; a monster action costs an action, and its bonus actions and reactions their own (D138). Legendary actions, lair actions and Legendary Resistance stay outside the budget (D163). Only the new pool-use command reads a pool's `spendActionType` (D125), and Action Surge adds an action, once per turn.
+- **Reactions off-turn:** players may take reactions on other creatures' turns; nothing prompts for them automatically.
+- **Storage:** one typed `encounter_participants.turn_economy` record (V30, D168) replaces the unused `action_used`, `bonus_action_used` and `reaction_used` columns, amending D125. The Player View hides monsters' budgets (D157).
+- **Pools at the table:** a new encounter command spends a participant's pool, closing the open item on D127.
+
+**Rationale:** the roadmap's M13 asks for per-turn tracking, reactions and the bonus-action-spell rule, and D138 left monster bonus actions and reactions for it. The three flags already reset at each turn, but nothing set them, and players could not spend pools in an encounter.
+
+**Trade-offs:** features the app doesn't model yet (Martial Arts, Flurry of Blows, Thirsting Blade, Quickened Spell) can put a legitimate player action over budget; the DM's override and budget edit cover them until M17 and M18. Moving the turn marker back doesn't restore a budget (D163). Item charges, automatic reaction prompts and a movement counter are left for later.
+
+**Alternatives considered:**
+- **Track and warn for everyone** — rejected as the default: players could overspend without the DM noticing.
+- **A column per counter** — rejected: one typed record matches D168 and can grow without a migration.
+
+The plan's twelve questions were answered with its recommended answers when the maintainer said to begin; any of them can still change before its workstream.
