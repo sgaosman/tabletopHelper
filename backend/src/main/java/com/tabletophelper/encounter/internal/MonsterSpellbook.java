@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.monster.MonsterTemplates;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

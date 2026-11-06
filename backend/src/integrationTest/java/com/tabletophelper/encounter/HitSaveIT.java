@@ -2,15 +2,21 @@ package com.tabletophelper.encounter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +28,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * A condition a monster's attack gives only on a failed save, end to end. A Dire Wolf, whose seeded bite (MM) records a
  * DC 13 Strength save against prone, bites Aria, a player's character with 40 HP, AC 12, STR 10 and INT 10. A Mind
  * Flayer's seeded tentacles (MM) grapple on a hit and keep their DC 15 Intelligence save against stunning apart from
- * saveDC. The dice are scripted, so each attack hits and Aria's save succeeds or fails as the test needs.
+ * saveDC. A Kraken's bite (MM) is read from the seeded data file itself: its DC 25 Constitution save is the kraken's own,
+ * to regurgitate what it swallowed, so Aria takes the piercing damage and rolls nothing. The dice are scripted, so
+ * each attack hits and Aria's save succeeds or fails as the test needs.
  */
 class HitSaveIT extends IntegrationTest {
 
@@ -51,12 +59,15 @@ class HitSaveIT extends IntegrationTest {
 
     @Autowired private MonsterRepository monsterRepository;
     @Autowired private EncounterParticipantRepository participantRepository;
+    @Autowired private CharacterRepository characterRepository;
 
     private RegisteredUser dm;
     private UUID encounterId;
     private String wolfId;
     private String mindFlayerId;
     private String ariaId;
+    private String krakenId;
+    private UUID ariaCharacterId;
 
     @BeforeEach
     void setUpTable() {
@@ -66,21 +77,28 @@ class HitSaveIT extends IntegrationTest {
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
         UUID aria = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Fighter", 10));
+        ariaCharacterId = aria;
         encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
 
         Monster wolf = monsterRepository.save(Monster.builder().name("Dire Wolf").type("Beast")
                 .challengeRating("1").source("MM").hitPoints(37).armourClass(14)
                 .strength(17).dexterity(15).constitution(15).intelligence(3).wisdom(12).charisma(7)
-                .actionTemplates(DIRE_WOLF).build());
+                .actionTemplates(MonsterTemplates.parse(DIRE_WOLF)).build());
         wolfId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", wolf.getId(), "displayName", "Dire Wolf")), "Dire Wolf");
         Monster mindFlayer = monsterRepository.save(Monster.builder().name("Mind Flayer").type("Aberration")
                 .challengeRating("7").source("MM").hitPoints(71).armourClass(15)
                 .strength(11).dexterity(12).constitution(12).intelligence(19).wisdom(17).charisma(17)
-                .actionTemplates(MIND_FLAYER).build());
+                .actionTemplates(MonsterTemplates.parse(MIND_FLAYER)).build());
         mindFlayerId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", mindFlayer.getId(), "displayName", "Mind Flayer")),
                 "Mind Flayer");
+        Monster kraken = monsterRepository.save(Monster.builder().name("Kraken").type("Monstrosity")
+                .challengeRating("23").source("MM").hitPoints(472).armourClass(18)
+                .strength(30).dexterity(11).constitution(25).intelligence(22).wisdom(18).charisma(20)
+                .actionTemplates(seeded("Kraken", "MM")).build());
+        krakenId = idOf(addParticipant(dm.accessToken(), encounterId,
+                Map.of("participantType", "MONSTER", "monsterId", kraken.getId(), "displayName", "Kraken")), "Kraken");
         ariaId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", aria, "displayName", "Aria")), "Aria");
 
@@ -88,6 +106,7 @@ class HitSaveIT extends IntegrationTest {
                 Map.of("initiatives", List.of(
                         Map.of("participantId", wolfId, "initiative", 20),
                         Map.of("participantId", mindFlayerId, "initiative", 15),
+                        Map.of("participantId", krakenId, "initiative", 12),
                         Map.of("participantId", ariaId, "initiative", 10))),
                 dm.accessToken()));
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/start", null,
@@ -152,13 +171,69 @@ class HitSaveIT extends IntegrationTest {
         assertThat(conditionNames(aria)).containsExactly("grappled", "stunned");
         assertThat(descriptions(dmLog())).containsSubsequence(
                 "Mind Flayer uses Tentacle on Aria: d20(15) + 7 = 22 vs AC 12 — hit, 14 psychic damage, "
-                        + "INT save d20(16) + 0 = 16 vs DC 15 succeeds against stunned, gains grappled.",
+                        + "INT save d20(16) + 0 = 16 vs DC 15 succeeds against stunned, gains grappled (escape DC 15).",
                 "Mind Flayer uses Tentacle on Aria: d20(15) + 7 = 22 vs AC 12 — hit, 14 psychic damage, "
                         + "INT save d20(4) + 0 = 4 vs DC 15 fails, gains stunned.");
         assertThat(dice.remaining()).isZero();
     }
 
+    @Test
+    @DisplayName("A Kraken's bite deals its piercing damage, rolls no Constitution save for Aria and notes the "
+            + "swallowing for the DM")
+    void krakenBiteRollsNoSaveForTheTarget() {
+        // 15 + 17 hits AC 12 for 4 + 4 + 4 + 10; nothing else is rolled
+        dice.script(15, 4, 4, 4);
+        JsonNode result = monsterAction(krakenId, "Bite");
+
+        JsonNode aria = participant(dmView(), ariaId);
+        assertThat(aria.get("hpCurrent").asInt()).isEqualTo(18);
+        assertThat(conditionNames(aria)).isEmpty();
+        assertThat(result.get("conditionsInflicted").isEmpty()).isTrue();
+        assertThat(dice.remaining()).isZero();
+        List<String> log = descriptions(dmLog());
+        assertThat(log).contains("Kraken uses Bite on Aria: d20(15) + 17 = 32 vs AC 12 — hit, 22 piercing damage.");
+        assertThat(log).anyMatch(entry -> entry.startsWith("Kraken uses Bite. Swallowing is applied by hand. On a hit,")
+                && entry.contains("DC 25 Constitution saving throw"));
+        assertThat(log).noneMatch(entry -> entry.contains("CON save"));
+    }
+
+    @Test
+    @DisplayName("Aria, immune to being prone on her sheet, fails the bite's save and stays standing, and the log "
+            + "says she is immune")
+    void conditionImmunityOnTheSheet() {
+        PlayerCharacter character = characterRepository.findById(ariaCharacterId).orElseThrow();
+        character.setConditionImmunities(List.of("prone"));
+        characterRepository.save(character);
+
+        // The hit of saveFails, whose STR save of 12 + 0 misses DC 13
+        dice.script(15, 4, 3, 12);
+        bite();
+
+        JsonNode aria = participant(dmView(), ariaId);
+        assertThat(aria.get("hpCurrent").asInt()).isEqualTo(30);
+        assertThat(conditionNames(aria)).isEmpty();
+        assertThat(descriptions(dmLog())).contains("Dire Wolf uses Bite on Aria: d20(15) + 5 = 20 vs AC 12 — hit, "
+                + "10 piercing damage, STR save d20(12) + 0 = 12 vs DC 13 fails, immune to prone.");
+        assertThat(dice.remaining()).isZero();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    // A monster's templates as the seeded data file holds them
+    private MonsterTemplates seeded(String monster, String source) {
+        try (InputStream in = new ClassPathResource("data/monster-actions/monster-action-definitions.json")
+                .getInputStream()) {
+            for (JsonNode definition : objectMapper.readTree(in)) {
+                if (monster.equals(definition.path("monsterName").asText())
+                        && source.equals(definition.path("source").asText())) {
+                    return MonsterTemplates.of(definition);
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        throw new AssertionError("No seeded templates for " + monster + " (" + source + ")");
+    }
 
     private JsonNode bite() {
         return monsterAction(wolfId, "Bite");

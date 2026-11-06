@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.monster.MonsterTemplates;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
@@ -7,6 +8,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,12 +58,12 @@ class TurnBoundaryIT extends IntegrationTest {
         Monster ghoul = monsterRepository.save(Monster.builder()
                 .name("Ghoul").type("Undead").challengeRating("1").source("MM")
                 .hitPoints(22).armourClass(12).dexterity(15).wisdom(10)
-                .actionTemplates("""
+                .actionTemplates(MonsterTemplates.parse("""
                         {"actions": [{"name": "Claws", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 2,
                           "attackType": "MELEE_WEAPON",
                           "effects": [{"effectType": "DAMAGE", "flatDamage": 1, "damageType": "slashing"},
                                       {"effectType": "CONDITION", "condition": "paralyzed", "durationRounds": 10,
-                                       "saveToEndEachTurn": true, "saveToEndDC": 10, "saveToEndAbility": "CON"}]}]}""")
+                                       "saveToEndEachTurn": true, "saveToEndDC": 10, "saveToEndAbility": "CON"}]}]}"""))
                 .build());
         // Cantrips, so no slot is needed; their conditions are listed as the spell data lists them
         spell("Hideous Laugh", """
@@ -203,7 +205,7 @@ class TurnBoundaryIT extends IntegrationTest {
     // ── Helpers ──────────────────────────────────────────────────
 
     private void spell(String name, String template) {
-        spellRepository.save(Spell.builder().name(name).level(0).source("PHB").effectTemplate(template).build());
+        spellRepository.save(Spell.builder().name(name).level(0).source("PHB").effectTemplate(SpellTemplate.parse(template)).build());
     }
 
     // On Aria's turn the DM passes it to the ghoul, whose claws hit with an 18 and paralyze her

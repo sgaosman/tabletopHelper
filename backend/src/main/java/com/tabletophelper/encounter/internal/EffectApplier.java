@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
  * one per target of an Effect, which the Player View drops for a hidden target (D157).
  *
  * <ul>
+ *   <li>A condition the target is immune to, from its stat block or its sheet, isn't applied, and its entry says
+ *       so; the DM can still add one by hand.</li>
  *   <li>Damage goes through the target's defences and then {@link DamageRules}: temporary hit points, dropping
  *       to 0, massive damage and death saves failed at 0 HP, two on a critical hit.</li>
  *   <li>A PC that drops to 0 falls unconscious and prone, and regaining hit points ends that unconsciousness;
@@ -140,9 +142,12 @@ public class EffectApplier {
         setVitals(target, healingChange.vitals());
         int healed = healingChange.vitals().hp() - damageChange.vitals().hp();
 
-        // A creature the Effect killed gets none of its conditions
+        // A creature the Effect killed gets none of its conditions, and one immune to a condition doesn't get it
+        List<String> immune = target.getLifeState() == LifeState.DEAD ? List.of()
+                : outcome.conditions().stream().filter(name -> stats.immuneToCondition(target, name)).toList();
         List<ConditionEntry> added = target.getLifeState() == LifeState.DEAD ? List.of()
-                : addEffectConditions(encounter, target, outcome.conditions(), use, effect);
+                : addEffectConditions(encounter, target,
+                        outcome.conditions().stream().filter(name -> !immune.contains(name)).toList(), use, effect);
 
         int remaining = legendaryResistanceRemaining(target);
         // A hit's failed save gave only the conditions it guards, and gave nothing to a creature the hit killed
@@ -151,7 +156,7 @@ public class EffectApplier {
         boolean offered = remaining > 0 && (outcome.outcome() == Outcome.SAVE_FAIL
                 || failedHitSave && target.getLifeState() != LifeState.DEAD);
 
-        String description = describe(use, effect, target, outcome, damage, healed, added);
+        String description = describe(use, effect, target, outcome, damage, healed, added, immune);
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
                         combatLog.entry(encounter, use.actionType(), description), use.actor(), target)
                 .rollValue(outcome.d20())
@@ -760,7 +765,7 @@ public class EffectApplier {
     // ── Descriptions ─────────────────────────────────────────────
 
     private String describe(Use use, Effect effect, EncounterParticipant target, Resolver.TargetOutcome outcome,
-                            Defended damage, int healed, List<ConditionEntry> added) {
+                            Defended damage, int healed, List<ConditionEntry> added, List<String> immune) {
         StringBuilder description = new StringBuilder(use.actorName()).append(' ').append(use.action());
         if (target != use.actor()) {
             boolean noPreposition = use.preposition() == null || use.preposition().isBlank();
@@ -807,7 +812,11 @@ public class EffectApplier {
             results.add("regains " + healed + " HP");
         }
         if (!added.isEmpty()) {
-            results.add("gains " + added.stream().map(ConditionEntry::name).collect(Collectors.joining(", ")));
+            results.add("gains " + added.stream().map(condition -> conditionText(effect, condition.name()))
+                    .collect(Collectors.joining(", ")));
+        }
+        if (!immune.isEmpty()) {
+            results.add("immune to " + String.join(", ", immune));
         }
         if (outcome.outcome() == Outcome.SAVE_SUCCESS && results.size() == 1) {
             results.add("no effect");
@@ -817,6 +826,12 @@ public class EffectApplier {
         }
         boolean rolled = effect.delivery() instanceof Effect.Attack || effect.delivery() instanceof Effect.Save;
         return description.append(rolled ? " — " : ": ").append(String.join(", ", results)).append('.').toString();
+    }
+
+    // A condition gained, with the DC that escapes it when the Effect gives one: "grappled (escape DC 14)"
+    private static String conditionText(Effect effect, String name) {
+        Effect.ConditionEnd end = effect.conditionEnds().get(name);
+        return end != null && end.escapeDc() != null ? name + " (escape DC " + end.escapeDc() + ")" : name;
     }
 
     // "STR save d20(8) + 0 = 8 vs DC 13 fails", "... succeeds against prone", or "STR save vs DC 13 fails

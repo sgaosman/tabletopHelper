@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
 import com.tabletophelper.encounter.dto.MultiattackOption;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Outcome;
@@ -62,7 +63,7 @@ public class MonsterActionService {
         if (monsterEntity == null || monsterEntity.getActionTemplates() == null) {
             throw new ValidationException("Monster has no action templates");
         }
-        MonsterTemplates templates = MonsterTemplates.of(objectMapper, monsterEntity);
+        MonsterTemplates templates = MonsterTemplates.of(monsterEntity);
         MonsterTemplates.Action action = templates.find(request.actionSource(), request.actionName())
                 .orElseThrow(() -> new ValidationException("Action '" + request.actionName()
                         + "' not found in monster's action templates (source: " + request.actionSource() + ")"));
@@ -177,7 +178,7 @@ public class MonsterActionService {
         if (participant.getMonster() == null) {
             return List.of();
         }
-        MonsterTemplates templates = MonsterTemplates.of(objectMapper, participant.getMonster());
+        MonsterTemplates templates = MonsterTemplates.of(participant.getMonster());
         return templates.actions().stream()
                 .filter(MonsterTemplates.Action::multiattack)
                 .map(action -> option(monsterEffects.multiattack(action, templates, MonsterEffects.Overrides.NONE)))

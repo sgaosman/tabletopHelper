@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -18,7 +19,8 @@ import java.util.Map;
 /**
  * Writes each spell's effect template from spell-effect-definitions.json, matching a definition to the spell of its
  * name whatever the case. A later definition of the same spell wins, and a spell the file doesn't name keeps the
- * template it has.
+ * template it has. Each definition is stored whole, as the {@link SpellTemplate} the column maps to (D168), and one
+ * whose parts don't fit those records fails the load naming the spell (D155).
  */
 @Component
 @RequiredArgsConstructor
@@ -69,7 +71,7 @@ public class SpellEffectLoader implements ContentLoader {
             }
         }
 
-        Map<Spell, String> templates = new LinkedHashMap<>();
+        Map<Spell, JsonNode> templates = new LinkedHashMap<>();
         int unmatched = 0;
         for (JsonNode definition : definitions) {
             String spellName = definition.path("spellName").asText(null);
@@ -80,13 +82,18 @@ public class SpellEffectLoader implements ContentLoader {
                 log.debug("No spell entity found for effect template: {}", spellName);
                 continue;
             }
-            templates.put(spell, objectMapper.writeValueAsString(definition));
+            if (SpellTemplate.of(definition).unreadable() != null) {
+                throw new IllegalStateException("The effect template of " + spell.getName()
+                        + " doesn't fit the template records: " + SpellTemplate.of(definition).unreadable());
+            }
+            templates.put(spell, definition);
         }
 
         int changed = 0;
         for (var entry : templates.entrySet()) {
-            if (!context.sameJson(entry.getKey().getEffectTemplate(), entry.getValue())) {
-                entry.getKey().setEffectTemplate(entry.getValue());
+            SpellTemplate stored = entry.getKey().getEffectTemplate();
+            if (stored == null || !entry.getValue().equals(stored.json())) {
+                entry.getKey().setEffectTemplate(SpellTemplate.of(entry.getValue()));
                 changed++;
             }
         }

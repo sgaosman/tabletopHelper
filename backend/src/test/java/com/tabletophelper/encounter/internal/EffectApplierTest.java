@@ -14,6 +14,8 @@ import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
+import com.tabletophelper.monster.MonsterTemplates;
+import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
@@ -60,9 +62,9 @@ class EffectApplierTest {
         wizard.setSpellSlotsCurrent(Map.of("1", new SpellSlot(9, 0)));
         ogre = f.monster("Ogre", 59, 11);
         mage = f.monster("Mage", 40, 12);
-        mage.getMonster().setActionTemplates("""
+        mage.getMonster().setActionTemplates(MonsterTemplates.parse("""
                 {"spellcasting": {"ability": "INT", "attackBonus": 5, "saveDC": 15, "slots": {"1": 9},
-                 "spellsByLevel": {"1": ["Test Spell"]}}}""");
+                 "spellsByLevel": {"1": ["Test Spell"]}}}"""));
     }
 
     // ── Paths ────────────────────────────────────────────────────
@@ -243,7 +245,7 @@ class EffectApplierTest {
     }
 
     private void ogreAction(String action) {
-        ogre.getMonster().setActionTemplates("{\"actions\": [" + action + "]}");
+        ogre.getMonster().setActionTemplates(MonsterTemplates.parse("{\"actions\": [" + action + "]}"));
     }
 
     private static String damageEffects(String dice, String type) {
@@ -654,6 +656,92 @@ class EffectApplierTest {
             assertEquals(1, poisoned.duration());
             assertEquals(EndRule.afterRounds(wizard.getId()), poisoned.endRule());
             assertNull(poisoned.repeatSave());
+        }
+    }
+
+    @Nested
+    @DisplayName("Condition immunities (D161)")
+    class ConditionImmunities {
+
+        @Test
+        @DisplayName("A monster immune to a condition doesn't gain it from a monster's action, and its entry says so")
+        void monsterImmuneToAnActionsCondition() {
+            EncounterParticipant golem = f.monster("Golem", 50, 10);
+            golem.getMonster().setConditionImmunities("[\"charmed\", \"frightened\", \"poisoned\"]");
+            ogreAction("""
+                    {"name": "Gaze", "deliveryMethod": "AUTO_HIT", "effects": [
+                       {"effectType": "CONDITION", "condition": "frightened"},
+                       {"effectType": "CONDITION", "condition": "prone"}]}""");
+            f.dice.script();
+
+            f.monsterActions.monsterAction(f.encounterId(), monsterAction("Gaze", golem), f.dmUserId);
+
+            assertEquals(List.of("prone"), CombatFixture.conditionNames(golem));
+            assertTrue(f.descriptions().contains("Ogre uses Gaze on Golem: gains prone, immune to frightened."));
+        }
+
+        @Test
+        @DisplayName("A monster immune to a spell's condition doesn't gain it")
+        void monsterImmuneToASpellsCondition() {
+            EncounterParticipant golem = f.monster("Golem", 50, 10);
+            golem.getMonster().setConditionImmunities("[\"Charmed\"]");
+            f.spell("Test Spell", 1, spellTemplate("AUTO_HIT", null, null, "[\"charmed\"]", ""));
+            f.dice.script();
+
+            cast(Path.SPELL, golem);
+
+            assertEquals(List.of(), CombatFixture.conditionNames(golem));
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.endsWith("Golem: immune to charmed.")));
+        }
+
+        @Test
+        @DisplayName("A conditional immunity in a stat block, such as one while wearing a mask, is the DM's call")
+        void conditionalMonsterImmunityDoesNotCount() {
+            EncounterParticipant severin = f.monster("Severin", 50, 10);
+            severin.getMonster().setConditionImmunities(
+                    "[\"{\\\"conditionImmune\\\":[\\\"frightened\\\"],\\\"preNote\\\":\\\"While wearing the mask:\\\"}\"]");
+            ogreAction("""
+                    {"name": "Gaze", "deliveryMethod": "AUTO_HIT", "effects": [
+                       {"effectType": "CONDITION", "condition": "frightened"}]}""");
+            f.dice.script();
+
+            f.monsterActions.monsterAction(f.encounterId(), monsterAction("Gaze", severin), f.dmUserId);
+
+            assertEquals(List.of("frightened"), CombatFixture.conditionNames(severin));
+        }
+
+        @Test
+        @DisplayName("A player character is immune to the conditions its sheet lists and those its race gives")
+        void playerImmunitiesFromTheSheetAndTheRace() {
+            rogue.getCharacter().setConditionImmunities(List.of("frightened"));
+            rogue.getCharacter().setRaceRef(Race.builder().name("Yuan-ti Pureblood")
+                    .resistances("[\"condition immunity: poisoned\"]").build());
+            ogreAction("""
+                    {"name": "Gaze", "deliveryMethod": "AUTO_HIT", "effects": [
+                       {"effectType": "CONDITION", "condition": "frightened"},
+                       {"effectType": "CONDITION", "condition": "poisoned"},
+                       {"effectType": "CONDITION", "condition": "blinded"}]}""");
+            f.dice.script();
+
+            f.monsterActions.monsterAction(f.encounterId(), monsterAction("Gaze", rogue), f.dmUserId);
+
+            assertEquals(List.of("blinded"), CombatFixture.conditionNames(rogue));
+            assertTrue(f.descriptions().contains(
+                    "Ogre uses Gaze on Rogue: gains blinded, immune to frightened, poisoned."));
+        }
+
+        @Test
+        @DisplayName("The DM can still add a condition by hand to a creature immune to it")
+        void manualConditionIgnoresImmunity() {
+            EncounterParticipant golem = f.monster("Golem", 50, 10);
+            golem.getMonster().setConditionImmunities("[\"frightened\"]");
+            ConditionRequest request = new ConditionRequest();
+            request.setTargetId(golem.getId());
+            request.setCondition("frightened");
+
+            f.conditionService.addCondition(f.encounterId(), request, f.dmUserId);
+
+            assertEquals(List.of("frightened"), CombatFixture.conditionNames(golem));
         }
     }
 

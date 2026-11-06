@@ -15,12 +15,11 @@ import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.EncounterTurns;
 import com.tabletophelper.encounter.internal.MonsterPools;
-import com.tabletophelper.encounter.internal.MonsterTemplates;
-import com.tabletophelper.encounter.internal.StoredJson;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.TurnOrder;
@@ -207,9 +206,8 @@ public class EncounterService {
         if (participant.getMonster() == null || participant.getMonster().getActionTemplates() == null) {
             return Map.of("error", "No action templates available for this monster");
         }
-        JsonNode templatesNode = StoredJson.read(objectMapper, participant.getMonster().getActionTemplates(),
-                participant.getMonster().getName() + "'s action templates");
-        if (!templatesNode.isObject()) {
+        JsonNode templatesNode = participant.getMonster().getActionTemplates().json();
+        if (templatesNode == null || !templatesNode.isObject()) {
             return Map.of("error", "No action templates available for this monster");
         }
         Map<String, Object> templates = objectMapper.convertValue(templatesNode,
@@ -608,7 +606,7 @@ public class EncounterService {
     // Whether the monster's action templates list any lair actions, so it can fight in its lair (D163)
     private boolean hasLairActions(EncounterParticipant participant) {
         Monster monster = participant.getMonster();
-        return monster != null && MonsterTemplates.of(objectMapper, monster).hasLairActions();
+        return monster != null && MonsterTemplates.of(monster).hasLairActions();
     }
 
     /**

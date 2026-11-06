@@ -5,6 +5,7 @@ import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -209,7 +210,7 @@ class TurnOrderIT extends IntegrationTest {
     private String addMonster(UUID encounter, String name, int hitPoints, int dexterity, String actionTemplates) {
         Monster monster = monsterRepository.save(Monster.builder()
                 .name(name).type("Monstrosity").challengeRating("1").source("MM")
-                .hitPoints(hitPoints).armourClass(12).dexterity(dexterity).actionTemplates(actionTemplates)
+                .hitPoints(hitPoints).armourClass(12).dexterity(dexterity).actionTemplates(MonsterTemplates.parse(actionTemplates))
                 .build());
         return idOf(addParticipant(dm.accessToken(), encounter,
                 Map.of("participantType", "MONSTER", "monsterId", monster.getId(), "displayName", name)), name);

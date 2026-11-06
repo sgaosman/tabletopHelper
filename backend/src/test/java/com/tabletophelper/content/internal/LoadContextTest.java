@@ -6,6 +6,7 @@ import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.OptionalFeatureRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -75,7 +76,7 @@ class LoadContextTest {
     void sameJsonAndOwnedColumns() {
         SpellRepository repository = mock(SpellRepository.class);
         Spell stored = Spell.builder().id(UUID.randomUUID()).name("Fireball").source("PHB").level(3)
-                .classes("[\"Sorcerer\", \"Wizard\"]").effectTemplate("{\"spellName\": \"Fireball\"}").build();
+                .classes("[\"Sorcerer\", \"Wizard\"]").effectTemplate(SpellTemplate.parse("{\"spellName\": \"Fireball\"}")).build();
         when(repository.findAll()).thenReturn(List.of(stored));
 
         context.upsert("spells", repository, List.of(Spell.builder().name("Fireball").source("PHB").level(3)
@@ -83,7 +84,7 @@ class LoadContextTest {
                 s -> LoadContext.nameAndSource(s.getName(), s.getSource()), "effectTemplate");
 
         assertThat(stored.getClasses()).isEqualTo("[\"Sorcerer\", \"Wizard\"]");
-        assertThat(stored.getEffectTemplate()).isEqualTo("{\"spellName\": \"Fireball\"}");
+        assertThat(stored.getEffectTemplate()).isEqualTo(SpellTemplate.parse("{\"spellName\": \"Fireball\"}"));
         assertThat(context.counts().get(0).unchanged()).isEqualTo(1);
         verify(repository, never()).saveAll(anyIterable());
     }

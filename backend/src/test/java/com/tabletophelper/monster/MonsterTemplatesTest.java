@@ -1,6 +1,5 @@
-package com.tabletophelper.encounter.internal;
+package com.tabletophelper.monster;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,12 +16,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * read has one JSON type, except two: a legendary action's cost, which is a number or, twice, the text "1-3", and
  * spellcasting's innateSpells, a flag on 750 monsters and an object on 18.
  */
-class MonsterTemplatesTest {
+public class MonsterTemplatesTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     // The Adult Red Dragon's templates, every list and count it has, with its keys as seeded
-    static final String ADULT_RED_DRAGON = """
+    public static final String ADULT_RED_DRAGON = """
             {"source": "MM", "monsterName": "Adult Red Dragon", "challengeRating": "17", "hasLairActions": true,
              "lairGroupName": "Red Dragon", "lairActionInitiative": 20,
              "legendaryActionCount": 3, "legendaryResistanceCount": 3,
@@ -64,7 +62,7 @@ class MonsterTemplatesTest {
              "reactions": [{"name": "Wing Attack (Costs 2 Actions)", "actionType": "REACTION", "automatable": false}]}""";
 
     private MonsterTemplates parse(String json) {
-        return MonsterTemplates.parse(objectMapper, json, "The templates");
+        return MonsterTemplates.parse(json, "The templates");
     }
 
     @Test
@@ -89,12 +87,12 @@ class MonsterTemplatesTest {
         assertEquals(14, bite.attackBonus());
         assertEquals(1, bite.targetCount());
         assertEquals(List.of(
-                new MonsterTemplates.Part("DAMAGE", "2d10+8", "piercing", null, null, null, null, false, null, null),
-                new MonsterTemplates.Part("DAMAGE", "2d6", "fire", null, null, null, null, false, null, null)),
+                new MonsterTemplates.Part("DAMAGE", "2d10+8", "piercing", null, null, null, null, false, null, null, null),
+                new MonsterTemplates.Part("DAMAGE", "2d6", "fire", null, null, null, null, false, null, null, null)),
                 bite.effects());
 
         MonsterTemplates.Part frightened = dragon.actions().get(4).effects().getFirst();
-        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "frightened", null, null, 10, true, 19, "WIS"),
+        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "frightened", null, null, 10, true, 19, "WIS", null),
                 frightened);
         assertEquals("5-6", dragon.actions().get(5).recharge());
     }
@@ -127,9 +125,9 @@ class MonsterTemplatesTest {
                    {"saveDC": 13, "condition": "blinded", "effectType": "CONDITION", "saveAbility": null}],
                   "deliveryMethod": "ATTACK_ROLL"}]}""");
 
-        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "prone", 13, "STR", null, false, null, null),
+        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "prone", 13, "STR", null, false, null, null, null),
                 wolf.actions().getFirst().effects().get(1));
-        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "blinded", 13, null, null, false, null, null),
+        assertEquals(new MonsterTemplates.Part("CONDITION", null, null, "blinded", 13, null, null, false, null, null, null),
                 rug.actions().getFirst().effects().getFirst());
     }
 

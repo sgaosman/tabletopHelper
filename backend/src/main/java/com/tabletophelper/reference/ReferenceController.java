@@ -1,6 +1,5 @@
 package com.tabletophelper.reference;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.ClassTablesResponse;
@@ -91,35 +90,29 @@ public class ReferenceController {
             return ResponseEntity.notFound().build();
         }
 
-        JsonNode template;
-        try {
-            template = objectMapper.readTree(spellOpt.get().getEffectTemplate());
-        } catch (JsonProcessingException e) {
-            // Stored JSON that can't be read is a fault in the content, not a missing spell (D155)
-            log.error("The effect template of spell {} can't be read: {}", spellOpt.get().getName(), e.getMessage());
-            throw new ConflictException("The targeting rules of " + spellOpt.get().getName() + " can't be read");
-        }
+        // A template that isn't an object holds no targeting rules, as one that doesn't fit the records can't (D155)
+        SpellTemplate template = spellOpt.get().getEffectTemplate()
+                .readable("The targeting rules of " + spellOpt.get().getName())
+                .orElseThrow(() -> new ConflictException("The targeting rules of " + spellOpt.get().getName()
+                        + " can't be read"));
 
-        int spellLevel = template.path("spellLevel").asInt(0);
-        JsonNode targetCountNode = template.get("targetCount");
-        Integer baseTargetCount = (targetCountNode != null && !targetCountNode.isNull())
-                ? targetCountNode.asInt() : null;
+        int spellLevel = template.level();
+        Integer baseTargetCount = template.targetCount();
 
         int maxTargets = baseTargetCount != null ? baseTargetCount : Integer.MAX_VALUE;
         if (baseTargetCount != null && slotLevel > spellLevel) {
-            JsonNode upcastScaling = template.get("targetCountUpcastScaling");
-            if (upcastScaling != null && !upcastScaling.isNull()) {
-                int additionalPerLevel = upcastScaling.path("additionalTargetsPerLevel").asInt(0);
-                maxTargets += additionalPerLevel * (slotLevel - spellLevel);
+            SpellTemplate.TargetScaling upcastScaling = template.targetCountUpcastScaling();
+            if (upcastScaling != null && upcastScaling.additionalTargetsPerLevel() != null) {
+                maxTargets += upcastScaling.additionalTargetsPerLevel() * (slotLevel - spellLevel);
             }
         }
 
-        boolean selfOnly = template.path("selfOnly").asBoolean(false);
-        boolean canTargetSelf = template.path("canTargetSelf").asBoolean(false) || selfOnly;
-        boolean canTargetAllies = template.path("canTargetAllies").asBoolean(true);
-        boolean canTargetEnemies = template.path("canTargetEnemies").asBoolean(true);
-        String targetType = template.path("targetType").asText(null);
-        boolean hasRepeatEffect = template.has("repeatEffect") && !template.get("repeatEffect").isNull();
+        boolean selfOnly = Boolean.TRUE.equals(template.selfOnly());
+        boolean canTargetSelf = Boolean.TRUE.equals(template.canTargetSelf()) || selfOnly;
+        boolean canTargetAllies = !Boolean.FALSE.equals(template.canTargetAllies());
+        boolean canTargetEnemies = !Boolean.FALSE.equals(template.canTargetEnemies());
+        String targetType = template.targetType();
+        boolean hasRepeatEffect = template.repeatEffect() != null;
 
         return ResponseEntity.ok(new SpellTargetingResponse(
                 baseTargetCount != null ? maxTargets : -1,

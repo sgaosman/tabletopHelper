@@ -2525,7 +2525,10 @@ export interface components {
         };
         Monster: {
             acType?: string | null;
-            actionTemplates?: string | null;
+            /** @description The monster's action templates as seeded (D030) */
+            actionTemplates?: {
+                [key: string]: unknown;
+            } | null;
             actions?: string | null;
             alignment?: string | null;
             /** Format: int32 */
@@ -2927,7 +2930,10 @@ export interface components {
             damageType?: string | null;
             description?: string | null;
             duration?: string | null;
-            effectTemplate?: string | null;
+            /** @description The spell's effect template as seeded (D030) */
+            effectTemplate?: {
+                [key: string]: unknown;
+            } | null;
             higherLevels?: string | null;
             /** Format: uuid */
             id: string;

@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter;
 
+import com.tabletophelper.monster.MonsterTemplates;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.character.state.KnownSpell;
@@ -12,6 +13,7 @@ import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.reference.ResourcePoolDefinitionRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -80,17 +82,17 @@ class SpellcastingIT extends IntegrationTest {
         ariaId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", character, "displayName", "Aria")), "Aria");
         hagId = addMonster(Monster.builder().name("Night Hag").hitPoints(112).armourClass(17).dexterity(16)
-                .actionTemplates("""
+                .actionTemplates(MonsterTemplates.parse("""
                         {"spellcasting": {"innateSpells": true, "ability": "CHA", "saveDC": 14,
-                         "atWillSpells": ["detect magic"], "dailySpells": {"1e/day": ["thunderwave"]}}}"""));
+                         "atWillSpells": ["detect magic"], "dailySpells": {"1e/day": ["thunderwave"]}}}""")));
         abolethId = addMonster(Monster.builder().name("Aboleth").hitPoints(135).armourClass(17).dexterity(9)
                 .legendaryActions("[{\"name\": \"Tail Swipe\", \"entries\": [\"A legendary action\"]}]")
                 .traits("[{\"name\": \"Amphibious\"}, {\"name\": \"Mucous Cloud\"}]")
-                .actionTemplates("{\"legendaryActionCount\": 3}"));
+                .actionTemplates(MonsterTemplates.parse("{\"legendaryActionCount\": 3}")));
         dragonId = addMonster(Monster.builder().name("Young Dragon").hitPoints(178).armourClass(18).dexterity(10)
                 .legendaryActions("[{\"name\": \"Wing Attack\"}]")
                 .traits("[{\"name\": \"Legendary Resistance (3/Day)\"}]")
-                .actionTemplates("{\"legendaryActionCount\": 3, \"legendaryResistanceCount\": 3}"));
+                .actionTemplates(MonsterTemplates.parse("{\"legendaryActionCount\": 3, \"legendaryResistanceCount\": 3}")));
 
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/initiatives",
                 Map.of("initiatives", List.of(
@@ -232,7 +234,7 @@ class SpellcastingIT extends IntegrationTest {
     // ── Helpers ──────────────────────────────────────────────────
 
     private void spell(String name, int level, String template) {
-        spellRepository.save(Spell.builder().name(name).level(level).source("PHB").effectTemplate(template).build());
+        spellRepository.save(Spell.builder().name(name).level(level).source("PHB").effectTemplate(SpellTemplate.parse(template)).build());
     }
 
     // The monster pool definitions and triggers as V18 leaves them

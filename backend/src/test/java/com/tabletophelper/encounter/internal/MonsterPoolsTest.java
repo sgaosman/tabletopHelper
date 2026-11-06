@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.MonsterPoolTrigger;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
@@ -72,7 +73,7 @@ class MonsterPoolsTest {
     private static Monster monster(String name, String legendaryActions, String traits, String templates) {
         return Monster.builder().id(UUID.randomUUID()).name(name).challengeRating("10")
                 .strength(10).dexterity(10).constitution(10).intelligence(10).wisdom(10).charisma(10)
-                .legendaryActions(legendaryActions).traits(traits).actionTemplates(templates).build();
+                .legendaryActions(legendaryActions).traits(traits).actionTemplates(MonsterTemplates.parse(templates)).build();
     }
 
     private static ResourcePoolEntry pool(List<ResourcePoolEntry> pools, String poolId) {
@@ -261,7 +262,7 @@ class MonsterPoolsTest {
     class Spellbook {
 
         private MonsterSpellbook read(String templates) {
-            return MonsterSpellbook.read(MonsterTemplates.parse(objectMapper, templates, "The templates"));
+            return MonsterSpellbook.read(MonsterTemplates.parse(templates, "The templates"));
         }
 
         @Test

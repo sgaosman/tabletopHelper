@@ -8,6 +8,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -144,11 +145,11 @@ class PlayerViewIT extends IntegrationTest {
     @Test
     @DisplayName("A Fireball that hits the hidden bugbear leaves its name out of the players' log (D157)")
     void fireballOnAHiddenMonster() {
-        spellRepository.save(Spell.builder().name("Fireball").level(3).source("PHB").effectTemplate("""
+        spellRepository.save(Spell.builder().name("Fireball").level(3).source("PHB").effectTemplate(SpellTemplate.parse("""
                 {"spellName": "Fireball", "spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX",
                  "halfOnSave": true, "concentration": false, "components": {"verbal": true},
                  "effects": [{"effectType": "DAMAGE", "damageDice": "8d6", "damageType": "fire"}],
-                 "conditionsInflicted": null}""").build());
+                 "conditionsInflicted": null}""")).build());
         EncounterParticipant aria = participantRepository.findById(UUID.fromString(characterId)).orElseThrow();
         aria.setSpellSlotsCurrent(Map.of("3", new SpellSlot(1, 0)));
         aria.setSpellsKnown(List.of(new KnownSpell(null, "Fireball", 3, "class:Sorcerer", null, null, null, null, null)));

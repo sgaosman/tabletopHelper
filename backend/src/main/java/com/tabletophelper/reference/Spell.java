@@ -85,10 +85,11 @@ public class Spell {
     @Column(length = 100)
     private String source;
 
-    @JsonRawValue
+    // Typed as records with the stored JSON kept whole (D168), which the API returns as it is; OpenApiConfig
+    // describes it
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "effect_template", columnDefinition = "jsonb")
-    private String effectTemplate;
+    private SpellTemplate effectTemplate;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

@@ -1,12 +1,9 @@
 package com.tabletophelper.encounter.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.MissingNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.Effect;
@@ -14,10 +11,10 @@ import com.tabletophelper.rules.combat.RollMode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -34,7 +31,6 @@ public class SpellEffects {
     private static final String NO_TEMPLATE = "No effect template available";
 
     private final SpellRepository spellRepository;
-    private final ObjectMapper objectMapper;
     private final CreatureStats stats;
 
     /**
@@ -66,22 +62,24 @@ public class SpellEffects {
      */
     public SpellPlan forCast(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
                              int attackBonus, int saveDc, Boolean advantage) {
-        JsonNode template = template(spellName);
-        if (template.isMissingNode()) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty()) {
             return manual(spellName, 0, NO_TEMPLATE, false, null, false);
         }
-        int spellLevel = template.path("spellLevel").asInt(0);
-        boolean concentration = template.path("concentration").asBoolean(false);
-        Integer durationRounds = template.path("durationRounds").isNumber()
-                ? template.path("durationRounds").asInt() : null;
-        boolean verbal = template.path("components").path("verbal").asBoolean(false);
+        SpellTemplate template = found.get();
+        int spellLevel = template.level();
+        boolean concentration = Boolean.TRUE.equals(template.concentration());
+        Integer durationRounds = template.durationRounds();
+        boolean verbal = template.verbal();
 
-        if (template.path("requiresManualResolution").asBoolean(false)) {
-            String reason = template.path("manualResolutionReason").asText("Complex spell requires DM adjudication");
+        if (Boolean.TRUE.equals(template.requiresManualResolution())) {
+            String reason = template.manualResolutionReason() != null ? template.manualResolutionReason()
+                    : "Complex spell requires DM adjudication";
             return manual(spellName, spellLevel, reason, concentration, durationRounds, verbal);
         }
-        String deliveryMethod = template.path("deliveryMethod").asText("NONE");
-        Effect.Delivery delivery = delivery(deliveryMethod, template, attackBonus, saveDc, advantage);
+        String deliveryMethod = orNone(template.deliveryMethod());
+        Effect.Delivery delivery = delivery(deliveryMethod, template.spellAttackType(), template.saveAbility(),
+                template.halfOnSave(), attackBonus, saveDc, advantage);
         if (delivery == null) {
             return manual(spellName, spellLevel, "Delivery method '" + deliveryMethod + "' requires DM adjudication",
                     concentration, durationRounds, verbal);
@@ -91,9 +89,10 @@ public class SpellEffects {
         // A spell on its caster heals or gives conditions; any damage in its template is for others to take
         Optional<List<Effect.DamagePart>> damage = delivery instanceof Effect.Self
                 ? Optional.of(List.of())
-                : damage(firstDamageEffect(template.path("effects")), spellLevel, slotLevel, caster, modifier);
-        JsonNode healingNode = template.path("healing");
-        Optional<Healing> healing = healing(healingDice(healingNode), healingNode.path("upcastScaling"),
+                : damage(template.firstDamageEffect(), spellLevel, slotLevel, caster, modifier);
+        SpellTemplate.Healing healingData = template.healing();
+        Optional<Healing> healing = healing(healingData != null ? healingData.anyDice() : null,
+                healingData != null ? healingData.upcastScaling() : null,
                 spellLevel > 0 ? slotLevel - spellLevel : 0, modifier);
         if (damage.isEmpty() || healing.isEmpty()) {
             return manual(spellName, spellLevel, spellName + "'s dice can't be rolled automatically",
@@ -112,33 +111,43 @@ public class SpellEffects {
      */
     public SpellPlan forRepeat(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
                                int attackBonus, int saveDc, Boolean advantage) {
-        JsonNode template = template(spellName);
-        if (template.isMissingNode()) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty()) {
             return manual(spellName, 0, NO_TEMPLATE, false, null, false);
         }
-        int spellLevel = template.path("spellLevel").asInt(0);
-        JsonNode repeat = template.path("repeatEffect");
-        if (!repeat.isObject() && !(repeat.isBoolean() && repeat.asBoolean())) {
+        SpellTemplate template = found.get();
+        int spellLevel = template.level();
+        SpellTemplate.RepeatEffect repeat = template.repeatEffect();
+        if (repeat == null) {
             return manual(spellName, spellLevel, "Spell has no repeatable effect", false, null, false);
         }
         int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
 
-        JsonNode source;
+        // The repeat effect's delivery and save, where it gives them, in place of the spell's
+        String deliveryMethod;
+        String spellAttackType;
+        String saveAbility;
+        Boolean halfOnSave;
         Optional<List<Effect.DamagePart>> damage;
         Optional<Healing> healing;
-        if (repeat.isObject()) {
-            source = merged(repeat, template);
-            JsonNode upcastScaling = repeat.has("upcastScaling") ? repeat.path("upcastScaling")
-                    : firstDamageEffect(template.path("effects")).path("upcastScaling");
-            int levelsAbove = repeat.path("usesUpcastScaling").asBoolean(false) && spellLevel > 0
-                    ? slotLevel - spellLevel : 0;
-            damage = damageParts(repeat.path("damageDice"), repeat.path("damageType"), upcastScaling, levelsAbove,
-                    modifier);
-            healing = healing(repeat.path("healingDice"), MissingNode.getInstance(), 0, modifier);
+        if (repeat.replaces()) {
+            deliveryMethod = orNone(repeat.deliveryMethod() != null ? repeat.deliveryMethod()
+                    : template.deliveryMethod());
+            spellAttackType = repeat.spellAttackType() != null ? repeat.spellAttackType() : template.spellAttackType();
+            saveAbility = repeat.saveAbility() != null ? repeat.saveAbility() : template.saveAbility();
+            halfOnSave = repeat.halfOnSave() != null ? repeat.halfOnSave() : template.halfOnSave();
+            SpellTemplate.Upcast upcastScaling = repeat.upcastScaling() != null ? repeat.upcastScaling()
+                    : template.firstDamageEffect().map(SpellTemplate.Part::upcastScaling).orElse(null);
+            int levelsAbove = repeat.usesUpcastScaling() && spellLevel > 0 ? slotLevel - spellLevel : 0;
+            damage = damageParts(repeat.damageDice(), repeat.damageType(), upcastScaling, levelsAbove, modifier);
+            healing = healing(repeat.healingDice(), null, 0, modifier);
         } else {
-            source = template;
-            damage = damage(firstDamageEffect(template.path("effects")), spellLevel, slotLevel, caster, modifier);
-            healing = healing(healingDice(template.path("healing")), MissingNode.getInstance(), 0, modifier);
+            deliveryMethod = orNone(template.deliveryMethod());
+            spellAttackType = template.spellAttackType();
+            saveAbility = template.saveAbility();
+            halfOnSave = template.halfOnSave();
+            damage = damage(template.firstDamageEffect(), spellLevel, slotLevel, caster, modifier);
+            healing = healing(template.healing() != null ? template.healing().anyDice() : null, null, 0, modifier);
         }
         if (damage.isEmpty() || healing.isEmpty()) {
             return manual(spellName, spellLevel, spellName + "'s dice can't be rolled automatically",
@@ -146,12 +155,12 @@ public class SpellEffects {
         }
 
         Effect.Delivery delivery;
-        String deliveryMethod = source.path("deliveryMethod").asText("NONE");
         if (healing.get().dice() != null && damage.get().isEmpty()) {
             // Healing alone reaches its targets with no roll
             delivery = new Effect.Automatic();
         } else {
-            delivery = delivery(deliveryMethod, source, attackBonus, saveDc, advantage);
+            delivery = delivery(deliveryMethod, spellAttackType, saveAbility, halfOnSave, attackBonus, saveDc,
+                    advantage);
             if (delivery == null || delivery instanceof Effect.Self) {
                 return manual(spellName, spellLevel,
                         "Repeat delivery method '" + deliveryMethod + "' requires DM adjudication", false, null, false);
@@ -167,22 +176,24 @@ public class SpellEffects {
      * level above its own. Empty when the template sets no limit.
      */
     public OptionalInt maxTargets(String spellName, int slotLevel) {
-        JsonNode template = template(spellName);
-        if (!template.path("targetCount").isNumber()) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty() || found.get().targetCount() == null) {
             return OptionalInt.empty();
         }
-        int spellLevel = template.path("spellLevel").asInt(0);
-        int max = template.path("targetCount").asInt();
-        if (slotLevel > spellLevel) {
-            max += template.path("targetCountUpcastScaling").path("additionalTargetsPerLevel").asInt(0)
-                    * (slotLevel - spellLevel);
+        SpellTemplate template = found.get();
+        int spellLevel = template.level();
+        int max = template.targetCount();
+        SpellTemplate.TargetScaling scaling = template.targetCountUpcastScaling();
+        if (slotLevel > spellLevel && scaling != null && scaling.additionalTargetsPerLevel() != null) {
+            max += scaling.additionalTargetsPerLevel() * (slotLevel - spellLevel);
         }
         return OptionalInt.of(max);
     }
 
     /** Whether the spell keeps going without concentration, so its caster can use its effect again. */
     public boolean persistsWithoutConcentration(String spellName) {
-        return template(spellName).path("persistsWithoutConcentration").asBoolean(false);
+        return template(spellName).map(template -> Boolean.TRUE.equals(template.persistsWithoutConcentration()))
+                .orElse(false);
     }
 
     static RollMode rollMode(Boolean advantage) {
@@ -196,14 +207,17 @@ public class SpellEffects {
     private record Healing(Dice dice) {
     }
 
-    private JsonNode template(String spellName) {
+    // The spell's template; empty without one, or when it isn't an object, and a 409 when it doesn't fit the records
+    private Optional<SpellTemplate> template(String spellName) {
         Optional<Spell> spell = spellRepository.findByNameIgnoreCase(spellName);
         if (spell.isEmpty() || spell.get().getEffectTemplate() == null) {
-            return MissingNode.getInstance();
+            return Optional.empty();
         }
-        JsonNode template = StoredJson.read(objectMapper, spell.get().getEffectTemplate(),
-                spell.get().getName() + "'s effect template");
-        return template.isObject() ? template : MissingNode.getInstance();
+        return spell.get().getEffectTemplate().readable(spell.get().getName() + "'s effect template");
+    }
+
+    private static String orNone(String deliveryMethod) {
+        return deliveryMethod != null ? deliveryMethod : "NONE";
     }
 
     private static SpellPlan manual(String spellName, int spellLevel, String reason, boolean concentration,
@@ -212,75 +226,52 @@ public class SpellEffects {
     }
 
     // Null for a delivery the app can't resolve
-    private static Effect.Delivery delivery(String deliveryMethod, JsonNode template, int attackBonus, int saveDc,
-                                            Boolean advantage) {
+    private static Effect.Delivery delivery(String deliveryMethod, String spellAttackType, String saveAbility,
+                                            Boolean halfOnSave, int attackBonus, int saveDc, Boolean advantage) {
         return switch (deliveryMethod) {
             // There is no map, so a melee spell attack counts as within 5 feet and a ranged one as not (D161)
             case "SPELL_ATTACK" -> new Effect.Attack(attackBonus, rollMode(advantage),
-                    "MELEE".equalsIgnoreCase(template.path("spellAttackType").asText("")), false);
-            case "SAVING_THROW" -> new Effect.Save(
-                    Ability.parse(template.path("saveAbility").asText(null)).orElse(null),
-                    saveDc, template.path("halfOnSave").asBoolean(false));
+                    "MELEE".equalsIgnoreCase(spellAttackType != null ? spellAttackType : ""), false);
+            case "SAVING_THROW" -> new Effect.Save(Ability.parse(saveAbility).orElse(null), saveDc,
+                    Boolean.TRUE.equals(halfOnSave));
             case "AUTO_HIT" -> new Effect.Automatic();
             case "SELF" -> new Effect.Self();
             default -> null;
         };
     }
 
-    // The spell's fields with the repeat effect's in their place
-    private static JsonNode merged(JsonNode repeat, JsonNode template) {
-        ObjectNode merged = template.deepCopy();
-        repeat.fields().forEachRemaining(field -> merged.set(field.getKey(), field.getValue()));
-        return merged;
-    }
-
-    // The first effect with damage dice, or a missing node
-    private static JsonNode firstDamageEffect(JsonNode effects) {
-        for (JsonNode effect : effects) {
-            if (effect.path("damageDice").isTextual()) {
-                return effect;
-            }
-        }
-        return MissingNode.getInstance();
-    }
-
-    private static JsonNode healingDice(JsonNode healing) {
-        return healing.path("healingDice").isTextual() ? healing.path("healingDice") : healing.path("dice");
-    }
-
     // The damage effect's parts at this slot level: none without a damage effect, empty when unreadable
-    private Optional<List<Effect.DamagePart>> damage(JsonNode damageEffect, int spellLevel, int slotLevel,
-                                                     EncounterParticipant caster, int modifier) {
-        if (damageEffect.isMissingNode()) {
+    private Optional<List<Effect.DamagePart>> damage(Optional<SpellTemplate.Part> damageEffect, int spellLevel,
+                                                     int slotLevel, EncounterParticipant caster, int modifier) {
+        if (damageEffect.isEmpty()) {
             return Optional.of(List.of());
         }
+        SpellTemplate.Part part = damageEffect.get();
         if (spellLevel == 0) {
-            JsonNode scaled = cantripDice(damageEffect.path("cantripScaling"), stats.level(caster));
-            return damageParts(scaled != null ? scaled : damageEffect.path("damageDice"),
-                    damageEffect.path("damageType"), MissingNode.getInstance(), 0, modifier);
+            String scaled = cantripDice(part.cantripScaling(), stats.level(caster));
+            return damageParts(scaled != null ? scaled : part.damageDice(), part.damageType(), null, 0, modifier);
         }
-        return damageParts(damageEffect.path("damageDice"), damageEffect.path("damageType"),
-                damageEffect.path("upcastScaling"), slotLevel - spellLevel, modifier);
+        return damageParts(part.damageDice(), part.damageType(), part.upcastScaling(), slotLevel - spellLevel,
+                modifier);
     }
 
-    private static Optional<List<Effect.DamagePart>> damageParts(JsonNode diceNode, JsonNode typeNode,
-                                                                 JsonNode upcastScaling, int levelsAbove,
+    private static Optional<List<Effect.DamagePart>> damageParts(String dice, String damageType,
+                                                                 SpellTemplate.Upcast upcastScaling, int levelsAbove,
                                                                  int modifier) {
-        if (!diceNode.isTextual()) {
+        if (dice == null) {
             return Optional.of(List.of());
         }
-        String type = typeNode.isTextual() && !typeNode.asText().isBlank()
-                ? typeNode.asText().trim().toLowerCase() : null;
-        return TemplateDice.read(diceNode.asText(), modifier)
+        String type = damageType != null && !damageType.isBlank() ? damageType.trim().toLowerCase() : null;
+        return TemplateDice.read(dice, modifier)
                 .flatMap(groups -> upcast(groups, upcastScaling, levelsAbove))
-                .map(groups -> groups.stream().map(dice -> new Effect.DamagePart(dice, type)).toList());
+                .map(groups -> groups.stream().map(each -> new Effect.DamagePart(each, type)).toList());
     }
 
     // A cantrip's dice at its caster's level: the entry for the highest of 17, 11 and 5 the level reaches
-    private static JsonNode cantripDice(JsonNode cantripScaling, int casterLevel) {
+    private static String cantripDice(Map<String, String> cantripScaling, int casterLevel) {
         for (int threshold : new int[]{17, 11, 5}) {
-            JsonNode dice = cantripScaling.path(String.valueOf(threshold));
-            if (casterLevel >= threshold && dice.isTextual()) {
+            String dice = cantripScaling.get(String.valueOf(threshold));
+            if (casterLevel >= threshold && dice != null) {
                 return dice;
             }
         }
@@ -288,31 +279,30 @@ public class SpellEffects {
     }
 
     // Upcast dice and flat amounts for each scalingInterval levels above the spell's own; empty when unreadable
-    private static Optional<List<Dice>> upcast(List<Dice> groups, JsonNode upcastScaling, int levelsAbove) {
-        if (!upcastScaling.isObject() || levelsAbove <= 0) {
+    private static Optional<List<Dice>> upcast(List<Dice> groups, SpellTemplate.Upcast upcastScaling,
+                                               int levelsAbove) {
+        if (upcastScaling == null || levelsAbove <= 0) {
             return Optional.of(groups);
         }
-        int levels = levelsAbove / Math.max(1, upcastScaling.path("scalingInterval").asInt(1));
-        JsonNode perLevel = upcastScaling.path("additionalDicePerLevel");
+        int levels = levelsAbove / upcastScaling.interval();
         Dice perLevelDice = null;
-        if (perLevel.isTextual()) {
-            Optional<List<Dice>> read = TemplateDice.read(perLevel.asText());
+        if (upcastScaling.additionalDicePerLevel() != null) {
+            Optional<List<Dice>> read = TemplateDice.read(upcastScaling.additionalDicePerLevel());
             if (read.isEmpty() || read.get().size() != 1) {
                 return Optional.empty();
             }
             perLevelDice = read.get().getFirst();
         }
-        return Optional.of(TemplateDice.upcast(groups, perLevelDice,
-                upcastScaling.path("additionalFlatPerLevel").asInt(0), levels));
+        return Optional.of(TemplateDice.upcast(groups, perLevelDice, upcastScaling.flatPerLevel(), levels));
     }
 
     // The healing at this slot level: null dice for none, empty when unreadable
-    private static Optional<Healing> healing(JsonNode diceNode, JsonNode upcastScaling, int levelsAbove,
+    private static Optional<Healing> healing(String dice, SpellTemplate.Upcast upcastScaling, int levelsAbove,
                                              int modifier) {
-        if (!diceNode.isTextual()) {
+        if (dice == null) {
             return Optional.of(new Healing(null));
         }
-        return TemplateDice.read(diceNode.asText(), modifier)
+        return TemplateDice.read(dice, modifier)
                 .filter(groups -> groups.size() == 1)
                 .flatMap(groups -> upcast(groups, upcastScaling, levelsAbove))
                 .filter(groups -> groups.size() == 1)
@@ -320,15 +310,11 @@ public class SpellEffects {
     }
 
     // Each condition the spell inflicts, listed by name or as an object naming it
-    private static List<String> conditions(JsonNode template) {
-        List<String> conditions = new ArrayList<>();
-        for (JsonNode condition : template.path("conditionsInflicted")) {
-            String name = conditionName(condition);
-            if (name != null) {
-                conditions.add(name);
-            }
-        }
-        return conditions;
+    private static List<String> conditions(SpellTemplate template) {
+        return template.conditionsInflicted().stream()
+                .map(SpellTemplate.ConditionInflicted::name)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     /**
@@ -337,31 +323,24 @@ public class SpellEffects {
      * else the spell's. A repeat save the entry makes conditional, such as Fear's on losing sight of the
      * caster, is left to the DM.
      */
-    private static Map<String, Effect.ConditionEnd> conditionEnds(JsonNode template, int saveDc) {
+    private static Map<String, Effect.ConditionEnd> conditionEnds(SpellTemplate template, int saveDc) {
         Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
-        for (JsonNode condition : template.path("conditionsInflicted")) {
-            String name = conditionName(condition);
-            if (name == null || !condition.isObject()) {
+        for (SpellTemplate.ConditionInflicted condition : template.conditionsInflicted()) {
+            String name = condition.name();
+            if (name == null) {
                 continue;
             }
-            Integer duration = condition.path("durationRounds").isInt() && condition.path("durationRounds").asInt() > 0
-                    ? condition.path("durationRounds").asInt() : null;
             Effect.RepeatSave repeatSave = null;
-            if (condition.path("saveToEndEachTurn").asBoolean(false) && condition.path("saveToEndCondition").isMissingNode()) {
-                repeatSave = Ability.parse(condition.path("saveToEndAbility").asText(null))
-                        .or(() -> Ability.parse(template.path("saveAbility").asText(null)))
+            if (condition.saveToEndEachTurn() && !condition.conditionalSave()) {
+                repeatSave = Ability.parse(condition.saveToEndAbility())
+                        .or(() -> Ability.parse(template.saveAbility()))
                         .map(ability -> new Effect.RepeatSave(ability, saveDc))
                         .orElse(null);
             }
-            if (duration != null || repeatSave != null) {
-                ends.put(name, new Effect.ConditionEnd(duration, repeatSave));
+            if (condition.durationRounds() != null || repeatSave != null) {
+                ends.put(name, new Effect.ConditionEnd(condition.durationRounds(), repeatSave));
             }
         }
         return ends;
-    }
-
-    private static String conditionName(JsonNode condition) {
-        JsonNode name = condition.isObject() ? condition.path("condition") : condition;
-        return name.isTextual() && !name.asText().isBlank() ? name.asText().trim().toLowerCase() : null;
     }
 }

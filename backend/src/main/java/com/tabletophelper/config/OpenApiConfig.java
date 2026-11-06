@@ -1,9 +1,13 @@
 package com.tabletophelper.config;
 
+import com.tabletophelper.monster.MonsterTemplates;
+import com.tabletophelper.reference.SpellTemplate;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +20,21 @@ import java.util.Map;
  */
 @Configuration(proxyBeanMethods = false)
 public class OpenApiConfig {
+
+    // The template columns are typed records on the server, but the API sends their stored JSON as it is, with
+    // whatever keys it has (D168), so the spec describes them as open objects
+    static {
+        SpringDocUtils.getConfig()
+                .replaceWithSchema(MonsterTemplates.class, storedJson("The monster's action templates as seeded (D030)"))
+                .replaceWithSchema(SpellTemplate.class, storedJson("The spell's effect template as seeded (D030)"));
+    }
+
+    private static ObjectSchema storedJson(String description) {
+        ObjectSchema schema = new ObjectSchema();
+        schema.additionalProperties(true);
+        schema.description(description);
+        return schema;
+    }
 
     /** A relative server URL, so the spec doesn't depend on the host or port that served it. */
     @Bean

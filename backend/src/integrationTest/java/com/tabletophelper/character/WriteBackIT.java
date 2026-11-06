@@ -6,6 +6,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -80,7 +81,7 @@ class WriteBackIT extends IntegrationTest {
         goblin = monsterRepository.save(Monster.builder().name("Goblin").type("Humanoid").challengeRating("1/4")
                 .source("MM").hitPoints(30).armourClass(15).dexterity(14).build());
         spellRepository.save(Spell.builder().name("Hellish Rebuke").level(1).source("PHB")
-                .effectTemplate(HELLISH_REBUKE).build());
+                .effectTemplate(SpellTemplate.parse(HELLISH_REBUKE)).build());
         aria = create(Map.of("name", "Aria", "classId", fighterId, "level", 3));
         bram = create(Map.of("name", "Bram", "classId", wizardId, "level", 3, "spellsKnown", List.of(Map.of(
                 "name", "Hellish Rebuke", "level", 1, "source", "race:Tiefling", "usesPerLongRest", 1))));

@@ -7,6 +7,7 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
@@ -32,6 +33,9 @@ public class CreatureStats {
 
     private static final Pattern BONUS = Pattern.compile("^\\s*([+-]?\\d{1,3})\\s*$");
     private static final Pattern WHOLE_RATING = Pattern.compile("^\\s*(\\d{1,2})\\s*$");
+    // How the race data records a condition immunity among its resistances
+    private static final Pattern RACE_CONDITION_IMMUNITY =
+            Pattern.compile("^\\s*condition immunity:\\s*(.+)$", Pattern.CASE_INSENSITIVE);
 
     private final ObjectMapper objectMapper;
 
@@ -133,6 +137,42 @@ public class CreatureStats {
     }
 
     /**
+     * Whether the participant is immune to the condition, so an Effect doesn't give it (D161). Both are read live,
+     * as damage defences are. A monster's immunities are its stat block's, where only plain condition names count: a
+     * conditional entry, such as one while wearing a mask, is the DM's call. A player character's are those its sheet
+     * lists and those its race gives, which the race data records as "condition immunity: poisoned"; disease isn't a
+     * condition, so a race's immunity to it changes nothing here.
+     */
+    public boolean immuneToCondition(EncounterParticipant participant, String condition) {
+        if (condition == null || condition.isBlank()) {
+            return false;
+        }
+        String name = condition.trim();
+        if (participant.getMonster() != null) {
+            Monster monster = participant.getMonster();
+            return lists(monster.getConditionImmunities(), monster.getName() + "'s condition immunities", name);
+        }
+        if (participant.getCharacter() != null) {
+            PlayerCharacter character = participant.getCharacter();
+            List<String> listed = character.getConditionImmunities();
+            if (listed != null && listed.stream().anyMatch(c -> c != null && c.trim().equalsIgnoreCase(name))) {
+                return true;
+            }
+            Race race = character.getRaceRef();
+            if (race != null) {
+                for (JsonNode entry : StoredJson.read(objectMapper, race.getResistances(),
+                        race.getName() + "'s resistances")) {
+                    Matcher immunity = RACE_CONDITION_IMMUNITY.matcher(entry.isTextual() ? entry.asText() : "");
+                    if (immunity.matches() && immunity.group(1).trim().equalsIgnoreCase(name)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * The level that scales a participant's cantrips: a player character's level, or a monster's challenge
      * rating rounded up, at least 1.
      */
@@ -179,10 +219,10 @@ public class CreatureStats {
         return false;
     }
 
-    // Whether a JSON array of damage types names this one, in any case
-    private boolean lists(String json, String what, String damageType) {
+    // Whether a JSON array of names, such as damage types, names this one, in any case
+    private boolean lists(String json, String what, String name) {
         for (JsonNode entry : StoredJson.read(objectMapper, json, what)) {
-            if (entry.isTextual() && entry.asText().trim().equalsIgnoreCase(damageType)) {
+            if (entry.isTextual() && entry.asText().trim().equalsIgnoreCase(name)) {
                 return true;
             }
         }

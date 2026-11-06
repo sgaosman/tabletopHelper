@@ -47,7 +47,7 @@ class ReferenceControllerTargetingTest {
     void basicSingleTarget() {
         Spell spell = new Spell();
         spell.setName("Magic Missile");
-        spell.setEffectTemplate("{\"spellLevel\":1,\"targetCount\":1,\"targetType\":\"SINGLE_TARGET\"}");
+        spell.setEffectTemplate(SpellTemplate.parse("{\"spellLevel\":1,\"targetCount\":1,\"targetType\":\"SINGLE_TARGET\"}"));
         when(spellRepository.findByNameIgnoreCase("Magic Missile")).thenReturn(Optional.of(spell));
 
         var response = controller.getSpellTargeting("Magic Missile", 0);
@@ -63,7 +63,7 @@ class ReferenceControllerTargetingTest {
     void selfOnlySpell() {
         Spell spell = new Spell();
         spell.setName("Shield");
-        spell.setEffectTemplate("{\"spellLevel\":1,\"selfOnly\":true}");
+        spell.setEffectTemplate(SpellTemplate.parse("{\"spellLevel\":1,\"selfOnly\":true}"));
         when(spellRepository.findByNameIgnoreCase("Shield")).thenReturn(Optional.of(spell));
 
         var response = controller.getSpellTargeting("Shield", 0);
@@ -80,8 +80,8 @@ class ReferenceControllerTargetingTest {
     void upcastScaling() {
         Spell spell = new Spell();
         spell.setName("Bless");
-        spell.setEffectTemplate(
-            "{\"spellLevel\":1,\"targetCount\":3,\"targetCountUpcastScaling\":{\"additionalTargetsPerLevel\":1},\"targetType\":\"SINGLE_TARGET\"}");
+        spell.setEffectTemplate(SpellTemplate.parse(
+            "{\"spellLevel\":1,\"targetCount\":3,\"targetCountUpcastScaling\":{\"additionalTargetsPerLevel\":1},\"targetType\":\"SINGLE_TARGET\"}"));
         when(spellRepository.findByNameIgnoreCase("Bless")).thenReturn(Optional.of(spell));
 
         var response = controller.getSpellTargeting("Bless", 3);
@@ -97,7 +97,7 @@ class ReferenceControllerTargetingTest {
     void noTargetCount() {
         Spell spell = new Spell();
         spell.setName("Fireball");
-        spell.setEffectTemplate("{\"spellLevel\":3,\"targetType\":\"AREA\"}");
+        spell.setEffectTemplate(SpellTemplate.parse("{\"spellLevel\":3,\"targetType\":\"AREA\"}"));
         when(spellRepository.findByNameIgnoreCase("Fireball")).thenReturn(Optional.of(spell));
 
         var response = controller.getSpellTargeting("Fireball", 0);
@@ -132,11 +132,11 @@ class ReferenceControllerTargetingTest {
     }
 
     @Test
-    @DisplayName("An effect template that isn't JSON is a 409 that names the spell, not a 404 (D155)")
+    @DisplayName("An effect template that doesn't fit the template records is a 409 that names the spell, not a 404 (D155)")
     void unreadableEffectTemplate() {
         Spell spell = new Spell();
         spell.setName("Broken Spell");
-        spell.setEffectTemplate("{not json");
+        spell.setEffectTemplate(SpellTemplate.parse("{\"spellLevel\": {\"not\": \"a number\"}}"));
         when(spellRepository.findByNameIgnoreCase("Broken Spell")).thenReturn(Optional.of(spell));
 
         var thrown = assertThrows(ConflictException.class, () -> controller.getSpellTargeting("Broken Spell", 0));
@@ -149,7 +149,7 @@ class ReferenceControllerTargetingTest {
     void repeatEffectFlag() {
         Spell spell = new Spell();
         spell.setName("Call Lightning");
-        spell.setEffectTemplate("{\"spellLevel\":3,\"targetCount\":1,\"repeatEffect\":{\"actionType\":\"ACTION\"}}");
+        spell.setEffectTemplate(SpellTemplate.parse("{\"spellLevel\":3,\"targetCount\":1,\"repeatEffect\":{\"actionType\":\"ACTION\"}}"));
         when(spellRepository.findByNameIgnoreCase("Call Lightning")).thenReturn(Optional.of(spell));
 
         var response = controller.getSpellTargeting("Call Lightning", 0);
@@ -165,8 +165,8 @@ class ReferenceControllerTargetingTest {
     void responseJsonMatchesTheFormerMap() throws Exception {
         Spell spell = new Spell();
         spell.setName("Bless");
-        spell.setEffectTemplate(
-            "{\"spellLevel\":1,\"targetCount\":3,\"targetCountUpcastScaling\":{\"additionalTargetsPerLevel\":1}}");
+        spell.setEffectTemplate(SpellTemplate.parse(
+            "{\"spellLevel\":1,\"targetCount\":3,\"targetCountUpcastScaling\":{\"additionalTargetsPerLevel\":1}}"));
         when(spellRepository.findByNameIgnoreCase("Bless")).thenReturn(Optional.of(spell));
 
         var response = controller.getSpellTargeting("Bless", 2);

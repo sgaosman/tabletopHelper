@@ -1,11 +1,15 @@
-package com.tabletophelper.encounter.internal;
+package com.tabletophelper.monster;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tabletophelper.monster.Monster;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.tabletophelper.shared.ConflictException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,28 +26,38 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * A monster's action templates ({@code monsters.action_templates}, D030) read into records where the encounter uses
- * them, rather than walked as JSON: its action lists, the counts that size its legendary pools, and its spellcasting.
- * The column itself keeps its JSON until R7's data files give it a record type (D168), so these records name only
- * the keys the encounter reads and ignore the rest. The seeded data writes each of those keys one way, except a
- * legendary action's cost: a number, or a range such as "1-3", so it is read as text.
+ * A monster's action templates, the {@code monsters.action_templates} column (D030, D168): its action lists, the
+ * counts that size its legendary pools, and its spellcasting, as records. The records name only the keys the encounter
+ * reads; the column's JSON is kept whole beside them, and it is what is stored and what the API returns, so a key the
+ * records don't name, such as a stat block's description or a review note, is never lost. The seeded data writes each
+ * key the records read one way, except a legendary action's cost: a number, or a range such as "1-3", so it is read
+ * as text.
  *
- * @param traits read only for a multiattack's components, which can name an action in any of the lists
+ * @param traits     read only for a multiattack's components, which can name an action in any of the lists
+ * @param json       the column's JSON as stored; null only for {@link #NONE}
+ * @param unreadable why the JSON doesn't fit the records, or null; the records are then empty, and {@link #of}
+ *                   stops a command that needs them with a 409 (D155)
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public record MonsterTemplates(List<Action> actions, List<Action> legendaryActions, List<Action> lairActions,
                                List<Action> bonusActions, List<Action> reactions, List<Action> traits,
                                Integer legendaryActionCount, Integer legendaryResistanceCount,
-                               Spellcasting spellcasting) {
+                               Spellcasting spellcasting, JsonNode json, String unreadable) {
 
     private static final Logger log = LoggerFactory.getLogger(MonsterTemplates.class);
+
+    // Reads the parts into the records. Each record ignores the keys it doesn't name, as the column's mapper does
+    private static final ObjectMapper READER = JsonMapper.builder()
+            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .build();
+    private static final TypeReference<List<Action>> ACTIONS = new TypeReference<>() {
+    };
 
     // A legendary action's cost as a whole number
     private static final Pattern WHOLE = Pattern.compile("^\\s*(\\d{1,2})\\s*$");
 
     /** A monster without templates: no actions, no counts and no spellcasting. */
     public static final MonsterTemplates NONE =
-            new MonsterTemplates(null, null, null, null, null, null, null, null, null);
+            new MonsterTemplates(null, null, null, null, null, null, null, null, null, null, null);
 
     public MonsterTemplates {
         actions = listOf(actions);
@@ -55,33 +69,88 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     }
 
     /**
-     * The monster's templates: a JSON object, or an array whose first entry counts, as before R5; NONE when it has
-     * none. Data that doesn't fit these records stops the command with a 409 naming it, as JSON that doesn't parse
-     * does (D155), and the cause is logged.
+     * The templates of this JSON, which they keep as it is: an object, or an array whose first entry counts, as before
+     * R5. Any other JSON has no actions, counts or spellcasting. JSON whose parts don't fit the records is kept too,
+     * marked unreadable, so the monster still loads and only a command that needs its templates fails.
      */
-    public static MonsterTemplates of(ObjectMapper objectMapper, Monster monster) {
-        return parse(objectMapper, monster.getActionTemplates(), monster.getName() + "'s action templates");
+    @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
+    public static MonsterTemplates of(JsonNode json) {
+        JsonNode root = json != null && json.isArray() ? json.path(0) : json;
+        if (root == null || !root.isObject()) {
+            return new MonsterTemplates(null, null, null, null, null, null, null, null, null, json, null);
+        }
+        try {
+            return new MonsterTemplates(actions(root, "actions"), actions(root, "legendaryActions"),
+                    actions(root, "lairActions"), actions(root, "bonusActions"), actions(root, "reactions"),
+                    actions(root, "traits"), READER.convertValue(root.get("legendaryActionCount"), Integer.class),
+                    READER.convertValue(root.get("legendaryResistanceCount"), Integer.class),
+                    READER.convertValue(root.get("spellcasting"), Spellcasting.class), json, null);
+        } catch (IllegalArgumentException e) {
+            return new MonsterTemplates(null, null, null, null, null, null, null, null, null, json,
+                    e.getMessage() != null ? e.getMessage() : e.toString());
+        }
+    }
+
+    /** The JSON as stored and as the API returns it. */
+    @JsonValue
+    @Override
+    public JsonNode json() {
+        return json;
     }
 
     /**
-     * As {@link #of}, from the column's text.
+     * The monster's templates, NONE when it has none. Templates that don't fit these records stop the command with a
+     * 409 naming them (D155), and the cause is logged.
+     */
+    public static MonsterTemplates of(Monster monster) {
+        return readable(monster.getActionTemplates(), monster.getName() + "'s action templates");
+    }
+
+    /**
+     * The templates of the column's text, as {@link #of(Monster)} reads them: NONE for null or blank text, and a 409
+     * naming the data for text that isn't JSON or doesn't fit the records.
      *
      * @param what names the data for the message, such as "Goblin's action templates"
      */
-    public static MonsterTemplates parse(ObjectMapper objectMapper, String json, String what) {
-        JsonNode root = StoredJson.read(objectMapper, json, what);
-        if (root.isArray()) {
-            root = root.path(0);
-        }
-        if (!root.isObject()) {
+    public static MonsterTemplates parse(String json, String what) {
+        if (json == null || json.isBlank()) {
             return NONE;
         }
         try {
-            return objectMapper.treeToValue(root, MonsterTemplates.class);
-        } catch (JsonProcessingException | IllegalArgumentException e) {
-            log.error("{} don't fit the template records", what, e);
+            return readable(of(READER.readTree(json)), what);
+        } catch (JsonProcessingException e) {
+            log.error("{} are not valid JSON", what, e);
             throw new ConflictException(what + " can't be read");
         }
+    }
+
+    /**
+     * The templates of the column's text as the column holds them, for data the caller knows to be JSON, such as a
+     * test's; null for null.
+     */
+    public static MonsterTemplates parse(String json) {
+        if (json == null) {
+            return null;
+        }
+        try {
+            return of(READER.readTree(json));
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Not JSON: " + json, e);
+        }
+    }
+
+    // The templates, NONE for none or for JSON that holds no object; a 409 when they don't fit the records
+    private static MonsterTemplates readable(MonsterTemplates templates, String what) {
+        JsonNode json = templates != null ? templates.json() : null;
+        JsonNode root = json != null && json.isArray() ? json.path(0) : json;
+        if (root == null || !root.isObject()) {
+            return NONE;
+        }
+        if (templates.unreadable() != null) {
+            log.error("{} don't fit the template records: {}", what, templates.unreadable());
+            throw new ConflictException(what + " can't be read");
+        }
+        return templates;
     }
 
     /** The list an action of this source is in: LEGENDARY and LAIR name theirs, and anything else the actions. */
@@ -134,6 +203,8 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param multiattackNote         the data's review note on a multiattack with an and/or pattern it couldn't
      *                                resolve
      * @param rayCount                how many of its rays an Eye Rays action fires
+     * @param dmNote                  what the DM applies by hand when the action is used, such as how a bite's
+     *                                swallowing works; the combat log shows it
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Action(String name, String description, Boolean automatable, String deliveryMethod,
@@ -143,7 +214,8 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          List<Part> effects, String recharge, String cost,
                          @JsonProperty("isMultiattack") boolean multiattack, List<String> multiattackComponents,
                          String multiattackDescription, @JsonProperty("_multiattackNote") String multiattackNote,
-                         @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays) {
+                         @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,
+                         String dmNote) {
 
         public Action {
             effects = listOf(effects);
@@ -171,12 +243,15 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param saveToEndEachTurn whether the condition's creature repeats a save at the end of each of its turns
      * @param saveToEndDc       that save's DC, when it isn't the condition's or the action's
      * @param saveToEndAbility  that save's ability, when it isn't the condition's or the action's
+     * @param escapeDc          the DC of the check that escapes a grapple, or the restraint that lasts while it does;
+     *                          never a saving throw, so the condition comes with the hit
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Part(String effectType, String damageDice, String damageType, String condition,
                        @JsonProperty("saveDC") Integer saveDc, String saveAbility,
                        Integer durationRounds, boolean saveToEndEachTurn,
-                       @JsonProperty("saveToEndDC") Integer saveToEndDc, String saveToEndAbility) {
+                       @JsonProperty("saveToEndDC") Integer saveToEndDc, String saveToEndAbility,
+                       @JsonProperty("escapeDC") Integer escapeDc) {
     }
 
     /** One ray of an Eye Rays action: a saving throw and its effects. */
@@ -190,7 +265,7 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
     }
 
     /**
-     * A monster's spellcasting block, which {@link MonsterSpellbook} reads.
+     * A monster's spellcasting block, which the encounter's spellbook reads.
      *
      * @param slots         slots by spell level, keyed "1" to "9"
      * @param spellsByLevel spells under their level, "0" for cantrips, or under a daily or at-will key
@@ -226,6 +301,11 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
             }
             return lists;
         }
+    }
+
+    // One of the lists, read into records; null when absent
+    private static List<Action> actions(JsonNode root, String key) {
+        return READER.convertValue(root.get(key), ACTIONS);
     }
 
     // A list without nulls, empty when there is none

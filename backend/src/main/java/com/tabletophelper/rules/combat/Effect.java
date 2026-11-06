@@ -132,8 +132,15 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *
      * @param durationRounds how many rounds the condition lasts; null for as long as the Effect
      * @param repeatSave     the save its creature repeats at the end of each of its turns to end it, or null
+     * @param escapeDc       the DC of the check that escapes it, as a grapple's escape DC, which the combat log
+     *                       shows; never a saving throw, so nothing rolls against it; null for none
      */
-    public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave) {
+    public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc) {
+
+        /** An end with no escape DC. */
+        public ConditionEnd(Integer durationRounds, RepeatSave repeatSave) {
+            this(durationRounds, repeatSave, null);
+        }
     }
 
     /** A saving throw repeated to end a condition: the ability and the DC. */

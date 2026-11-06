@@ -154,10 +154,11 @@ public class Monster {
     @Column(name = "lair_actions", columnDefinition = "jsonb")
     private String lairActions;
 
-    @JsonRawValue
+    // Typed as records with the stored JSON kept whole (D168), which the API returns as it is; OpenApiConfig
+    // describes it
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "action_templates", columnDefinition = "jsonb")
-    private String actionTemplates;
+    private MonsterTemplates actionTemplates;
 
     @Column(length = 100)
     private String source;

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -19,7 +20,9 @@ import java.util.stream.Collectors;
 /**
  * Writes the action_templates JSONB column of the monsters from monster-action-definitions.json, matching each
  * entry to a monster by name and source, whatever their case and surrounding spaces. The first entry for a monster
- * wins, and a monster the file doesn't name keeps the templates it has.
+ * wins, and a monster the file doesn't name keeps the templates it has. Each definition is stored whole, as the
+ * {@link MonsterTemplates} the column maps to (D168), and one whose parts don't fit those records fails the load
+ * naming the monster (D155). A monster whose stored JSON is the definition's isn't written.
  */
 @Component
 @RequiredArgsConstructor
@@ -89,11 +92,16 @@ public class MonsterActionLoader implements ContentLoader {
                 continue;
             }
             Monster monster = monsterEntry.getValue();
-            String json = objectMapper.writeValueAsString(definition);
-            if (context.sameJson(monster.getActionTemplates(), json)) {
+            MonsterTemplates templates = MonsterTemplates.of(definition);
+            if (templates.unreadable() != null) {
+                throw new IllegalStateException("The action templates of " + monster.getName() + " ("
+                        + monster.getSource() + ") don't fit the template records: " + templates.unreadable());
+            }
+            MonsterTemplates stored = monster.getActionTemplates();
+            if (stored != null && definition.equals(stored.json())) {
                 unchanged++;
             } else {
-                monster.setActionTemplates(json);
+                monster.setActionTemplates(templates);
                 changed++;
             }
         }

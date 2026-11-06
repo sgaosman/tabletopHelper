@@ -21,6 +21,7 @@ import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Resolver;
@@ -1314,8 +1315,8 @@ class EncounterServiceTest {
         EncounterParticipant aria = fighting("Aria", ParticipantType.PLAYER, 15, 14, 2);
         EncounterParticipant ogre = fighting("Ogre", ParticipantType.MONSTER, 22, 8, 3);
         EncounterParticipant dragon = fighting("Dragon", ParticipantType.MONSTER, 10, 10, 4);
-        dragon.getMonster().setActionTemplates("""
-                {"actions": [], "lairActions": [{"name": "Tremor"}]}""");
+        dragon.getMonster().setActionTemplates(MonsterTemplates.parse("""
+                {"actions": [], "lairActions": [{"name": "Tremor"}]}"""));
         rogue.setHpCurrent(0);
         rogue.setLifeState(com.tabletophelper.rules.combat.LifeState.DYING);
         rogue.setDeathSaveDue(true);

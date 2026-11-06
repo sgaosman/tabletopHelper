@@ -17,6 +17,7 @@ import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.SpellSource;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -759,9 +760,9 @@ class SpellcastingServiceTest {
         @DisplayName("A monster's concentration spell spends a slot and starts its Concentration Instance (D162)")
         void monsterConcentrationSpell() {
             EncounterParticipant mage = f.monster("Mage", 40, 12);
-            mage.getMonster().setActionTemplates("""
+            mage.getMonster().setActionTemplates(MonsterTemplates.parse("""
                     {"spellcasting": {"ability": "INT", "attackBonus": 6, "saveDC": 14, "slots": {"2": 3},
-                     "spellsByLevel": {"2": ["Hold Person"]}}}""");
+                     "spellsByLevel": {"2": ["Hold Person"]}}}"""));
             f.spell("Hold Person", 2, HOLD_PERSON);
 
             f.dice.script(4);
@@ -782,9 +783,9 @@ class SpellcastingServiceTest {
         @DisplayName("An innate spell spends a daily use, never a slot; at will costs nothing; none left is a 400")
         void innateSpells() {
             EncounterParticipant djinni = f.monster("Djinni", 161, 17);
-            djinni.getMonster().setActionTemplates("""
+            djinni.getMonster().setActionTemplates(MonsterTemplates.parse("""
                     {"spellcasting": {"innateSpells": true, "ability": "CHA", "saveDC": 17,
-                     "atWillSpells": ["Detect Evil"], "dailySpells": {"3e/day each": ["Thunderwave"]}}}""");
+                     "atWillSpells": ["Detect Evil"], "dailySpells": {"3e/day each": ["Thunderwave"]}}}"""));
             f.spell("Thunderwave", 1, """
                     {"spellLevel": 1, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "halfOnSave": true,
                      "effects": [{"effectType": "DAMAGE", "damageDice": "2d8", "damageType": "thunder"}]}""");
@@ -820,9 +821,9 @@ class SpellcastingServiceTest {
         void monsterUsesItsAbilityModifier() {
             EncounterParticipant priest = f.monster("Priest", 27, 13);
             priest.getMonster().setWisdom(16);
-            priest.getMonster().setActionTemplates("""
+            priest.getMonster().setActionTemplates(MonsterTemplates.parse("""
                     {"spellcasting": {"ability": "WIS", "attackBonus": 9, "saveDC": 13, "slots": {"1": 4},
-                     "spellsByLevel": {"1": ["Cure Wounds"]}}}""");
+                     "spellsByLevel": {"1": ["Cure Wounds"]}}}"""));
             f.spell("Cure Wounds", 1, CURE_WOUNDS);
             goblin.setHpCurrent(5);
 
@@ -838,8 +839,8 @@ class SpellcastingServiceTest {
         @DisplayName("A monster can't cast a spell its stat block doesn't list, or a levelled spell without a slot")
         void monsterRefusals() {
             EncounterParticipant mage = f.monster("Mage", 40, 12);
-            mage.getMonster().setActionTemplates("""
-                    {"spellcasting": {"saveDC": 14, "slots": {"1": 4}, "spellsByLevel": {"1": ["Thunderwave"]}}}""");
+            mage.getMonster().setActionTemplates(MonsterTemplates.parse("""
+                    {"spellcasting": {"saveDC": 14, "slots": {"1": 4}, "spellsByLevel": {"1": ["Thunderwave"]}}}"""));
             f.spell("Thunderwave", 1, "{\"spellLevel\": 1, \"deliveryMethod\": \"NONE\", \"effects\": []}");
             f.spell("Fireball", 3, FIREBALL);
 

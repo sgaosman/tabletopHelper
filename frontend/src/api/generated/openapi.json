@@ -7069,7 +7069,9 @@
             "nullable": true
           },
           "actionTemplates": {
-            "type": "string",
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The monster's action templates as seeded (D030)",
             "nullable": true
           },
           "actions": {
@@ -8476,7 +8478,9 @@
             "nullable": true
           },
           "effectTemplate": {
-            "type": "string",
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The spell's effect template as seeded (D030)",
             "nullable": true
           },
           "higherLevels": {

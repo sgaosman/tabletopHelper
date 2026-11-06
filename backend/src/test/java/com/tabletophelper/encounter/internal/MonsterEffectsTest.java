@@ -1,6 +1,8 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.monster.MonsterTemplates;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.monster.MonsterTemplatesTest;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.Effect;
@@ -30,7 +32,7 @@ class MonsterEffectsTest {
     private final UUID cass = UUID.randomUUID();
 
     private MonsterTemplates templates(String json) {
-        return MonsterTemplates.parse(objectMapper, json, "The templates");
+        return MonsterTemplates.parse(json, "The templates");
     }
 
     // The action, read as the only one in a monster's actions
@@ -89,7 +91,7 @@ class MonsterEffectsTest {
     }
 
     @Test
-    @DisplayName("A condition keeps its rounds and its Repeat Save, whose DC and ability default to the action's (D162)")
+    @DisplayName("A condition keeps its rounds and its Repeat Save, whose DC and ability default to the action's (D162), and a grapple its escape DC")
     void conditionEnds() {
         var plan = plan("""
                 {"name": "Chilling Gaze", "deliveryMethod": "SAVING_THROW", "saveDC": 18, "saveAbility": "CON",
@@ -106,7 +108,8 @@ class MonsterEffectsTest {
         assertEquals(new Effect.ConditionEnd(10, new Effect.RepeatSave(Ability.WIS, 15)),
                 effect.conditionEnds().get("frightened"));
         assertEquals(new Effect.ConditionEnd(1, null), effect.conditionEnds().get("stunned"));
-        assertFalse(effect.conditionEnds().containsKey("grappled"));
+        // A grapple's escape DC is shown, never rolled against
+        assertEquals(new Effect.ConditionEnd(null, null, 14), effect.conditionEnds().get("grappled"));
     }
 
     @Test

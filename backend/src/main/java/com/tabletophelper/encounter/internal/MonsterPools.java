@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.MonsterPoolTrigger;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.ResourcePoolDefinition;
@@ -292,6 +293,6 @@ public class MonsterPools {
     }
 
     private MonsterTemplates templates(Monster monster) {
-        return MonsterTemplates.of(objectMapper, monster);
+        return MonsterTemplates.of(monster);
     }
 }

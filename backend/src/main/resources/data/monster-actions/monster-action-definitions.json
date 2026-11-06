@@ -19950,12 +19950,12 @@
         "attackType": "RANGED_WEAPON",
         "attackBonus": 13,
         "reach": 120,
-        "saveDC": 18,
         "halfOnSave": false,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 18
           }
         ]
       },
@@ -20010,7 +20010,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 5,
         "reach": 10,
-        "saveDC": 13,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -20026,7 +20025,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 13
           }
         ]
       }
@@ -26644,7 +26644,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 5,
         "reach": 5,
-        "saveDC": 13,
         "halfOnSave": false,
         "effects": [
           {
@@ -32554,7 +32553,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 7,
         "reach": 20,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -32565,11 +32563,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 15
           }
         ]
       },
@@ -40281,7 +40281,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 6,
         "reach": 10,
-        "saveDC": 14,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -40292,11 +40291,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 14
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 14
           }
         ]
       }
@@ -42018,7 +42019,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 8,
         "reach": 10,
-        "saveDC": 16,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -42029,15 +42029,18 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 16
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 16
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 16
           }
         ]
       },
@@ -43623,7 +43626,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 6,
         "reach": 10,
-        "saveDC": 14,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -43634,7 +43636,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 14
           }
         ]
       }
@@ -46913,9 +46916,7 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "blinded",
-            "saveDC": 13,
-            "saveAbility": null
+            "condition": "blinded"
           }
         ]
       },
@@ -48593,7 +48594,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 4,
         "reach": 10,
-        "saveDC": 14,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -48604,11 +48604,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 14
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 14
           }
         ]
       }
@@ -68084,12 +68086,12 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 5,
         "reach": 5,
-        "saveDC": 12,
         "halfOnSave": false,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 12
           }
         ]
       }
@@ -70813,7 +70815,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 8,
         "reach": 30,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -70824,7 +70825,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           }
         ]
       }
@@ -73155,38 +73157,15 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 12,
         "reach": 5,
-        "saveAbility": "CON",
-        "saveDC": 20,
-        "halfOnSave": false,
-        "targetType": "AOE_SPHERE",
-        "aoeSize": 10,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "damageDice": "3d10 + 7",
+            "damageType": "piercing"
           }
-        ]
+        ],
+        "dmNote": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to three creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 25 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which land prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -73195,7 +73174,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 12,
         "reach": 20,
-        "saveDC": 20,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -73206,7 +73184,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 20
           }
         ]
       },
@@ -73320,31 +73299,9 @@
             "effectType": "DAMAGE",
             "damageDice": "3d10 + 6",
             "damageType": "piercing"
-          },
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded",
-            "saveDC": 20,
-            "saveAbility": "CON"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained",
-            "saveDC": 20,
-            "saveAbility": "CON"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "saveDC": 20,
-            "saveAbility": "CON"
           }
-        ]
+        ],
+        "dmNote": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to two creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -73441,31 +73398,9 @@
             "effectType": "DAMAGE",
             "damageDice": "3d10 + 6",
             "damageType": "piercing"
-          },
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded",
-            "durationText": null,
-            "durationRounds": null
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained",
-            "durationText": null,
-            "durationRounds": null
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": null,
-            "durationRounds": null
           }
-        ]
+        ],
+        "dmNote": "Swallowing is applied by hand. On a hit, a Medium or smaller target is swallowed, and the gullet holds up to two creatures. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the froghemoth, and takes 10 (3d6) acid damage at the start of each of the froghemoth's turns. If the froghemoth takes 20 damage or more on a single turn from a creature inside it, the froghemoth must succeed on a DC 20 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the froghemoth dies, a swallowed creature can escape from the corpse using 10 feet of movement, exiting prone."
       },
       {
         "name": "Tongue",
@@ -75524,7 +75459,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 8,
         "reach": 5,
-        "saveDC": 16,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -75535,7 +75469,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 16
           }
         ]
       },
@@ -92125,12 +92060,12 @@
         "deliveryMethod": "ATTACK_ROLL",
         "attackType": "RANGED_WEAPON",
         "attackBonus": 5,
-        "saveDC": 17,
         "halfOnSave": false,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 17
           }
         ]
       },
@@ -95194,7 +95129,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 3,
         "reach": 5,
-        "saveDC": 11,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -95205,7 +95139,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 11
           }
         ]
       }
@@ -95493,7 +95428,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 6,
         "reach": 30,
-        "saveDC": 14,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -95504,11 +95438,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 14
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 14
           }
         ]
       }
@@ -96174,7 +96110,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 7,
         "reach": 10,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -96185,7 +96120,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           }
         ]
       }
@@ -97885,7 +97821,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 3,
         "reach": 5,
-        "saveDC": 11,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -97896,7 +97831,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 11
           }
         ]
       }
@@ -99916,7 +99852,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 9,
         "reach": 15,
-        "saveDC": 17,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -99927,7 +99862,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 17
           }
         ]
       }
@@ -102383,12 +102319,12 @@
         "deliveryMethod": "ATTACK_ROLL",
         "attackType": "RANGED_WEAPON",
         "attackBonus": 5,
-        "saveDC": 17,
         "halfOnSave": false,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 17
           }
         ]
       },
@@ -104090,20 +104026,22 @@
         "deliveryMethod": "ATTACK_ROLL",
         "attackType": "RANGED_WEAPON",
         "attackBonus": 6,
-        "saveDC": 13,
         "halfOnSave": false,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 13
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 13
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 13
           }
         ]
       }
@@ -108279,40 +108217,14 @@
         "attackBonus": 17,
         "reach": 5,
         "targetCount": 1,
-        "secondarySaveDC": 25,
-        "secondarySaveAbility": "CON",
         "effects": [
           {
             "effectType": "DAMAGE",
             "damageDice": "3d8+10",
             "damageType": "piercing"
-          },
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "12d6",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "grappled",
-            "durationText": "until escape",
-            "durationRounds": null
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": "knocked prone",
-            "durationRounds": null
           }
-        ]
+        ],
+        "dmNote": "Swallowing is applied by hand. On a hit, a Large or smaller creature the kraken has grappled is swallowed by this bite, and the grapple ends. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside the kraken, and takes 42 (12d6) acid damage at the start of each of the kraken's turns. If the kraken takes 50 damage or more on a single turn from a creature inside it, the kraken must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If the kraken dies, a swallowed creature can escape from the corpse using 15 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -116974,12 +116886,12 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 4,
         "reach": 5,
-        "saveDC": 12,
         "halfOnSave": false,
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 12
           }
         ]
       }
@@ -119927,7 +119839,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 5,
         "reach": 5,
-        "saveDC": 13,
         "halfOnSave": false,
         "effects": [
           {
@@ -119937,11 +119848,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 13
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 13
           }
         ]
       }
@@ -122884,8 +122797,7 @@
           {
             "effectType": "CONDITION",
             "condition": "grappled",
-            "saveDC": 13,
-            "saveAbility": "INT"
+            "escapeDC": 13
           },
           {
             "effectType": "CONDITION",
@@ -128752,7 +128664,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 6,
         "reach": 10,
-        "saveDC": 14,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -128763,7 +128674,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 14
           }
         ]
       },
@@ -130318,7 +130230,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 7,
         "reach": 20,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -130329,7 +130240,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           }
         ]
       },
@@ -137105,7 +137017,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 7,
         "reach": 10,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -137116,11 +137027,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 15
           }
         ]
       },
@@ -147283,8 +147196,7 @@
           {
             "effectType": "CONDITION",
             "condition": "blinded",
-            "saveDC": 13,
-            "saveAbility": null
+            "escapeDC": 13
           }
         ]
       }
@@ -150097,7 +150009,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 7,
         "reach": 10,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -150108,7 +150019,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           }
         ]
       },
@@ -158128,42 +158040,15 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 17,
         "reach": 5,
-        "saveAbility": "CON",
-        "saveDC": 25,
-        "halfOnSave": false,
-        "targetType": "AOE_SPHERE",
-        "aoeSize": 10,
+        "targetCount": 1,
         "effects": [
           {
             "effectType": "DAMAGE",
             "damageDice": "3d8 + 10",
-            "damageType": "acid"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "grappled"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "restrained"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone"
+            "damageType": "piercing"
           }
-        ]
+        ],
+        "dmNote": "Swallowing is applied by hand. On a hit, a Large or smaller creature Slarkrethel has grappled is swallowed by this bite, and the grapple ends. A swallowed creature is blinded and restrained, has total cover against attacks and other effects outside Slarkrethel, and takes 42 (12d6) acid damage at the start of each of Slarkrethel's turns. If Slarkrethel takes 50 damage or more on a single turn from a creature inside it, Slarkrethel must succeed on a DC 25 Constitution saving throw at the end of that turn or regurgitate all swallowed creatures, which fall prone within 10 feet of it. If Slarkrethel dies, a swallowed creature can escape from the corpse using 15 feet of movement, exiting prone."
       },
       {
         "name": "Tentacle",
@@ -158172,7 +158057,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 17,
         "reach": 30,
-        "saveDC": 18,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -158183,11 +158067,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 18
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 18
           }
         ]
       },
@@ -160627,7 +160513,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 2,
         "reach": 5,
-        "saveDC": 11,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -160638,11 +160523,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 11
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 11
           }
         ]
       }
@@ -164875,7 +164762,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 9,
         "reach": 5,
-        "saveDC": 18,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -164886,7 +164772,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 18
           }
         ]
       },
@@ -170284,7 +170171,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 9,
         "reach": 10,
-        "saveDC": 17,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -170300,11 +170186,13 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 17
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 17
           },
           {
             "effectType": "CONDITION",
@@ -178023,13 +177911,12 @@
           {
             "effectType": "CONDITION",
             "condition": "grappled",
-            "saveDC": 14,
-            "saveAbility": "INT"
+            "escapeDC": 14
           },
           {
             "effectType": "CONDITION",
             "condition": "stunned",
-            "saveDC": 14,
+            "saveDC": 17,
             "saveAbility": "INT"
           }
         ]
@@ -180996,7 +180883,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 7,
         "reach": 5,
-        "saveDC": 15,
         "halfOnSave": false,
         "effects": [
           {
@@ -181006,7 +180892,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           }
         ]
       },
@@ -189765,7 +189652,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 8,
         "reach": 20,
-        "saveDC": 16,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -189776,15 +189662,18 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 16
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 16
           },
           {
             "effectType": "CONDITION",
-            "condition": "restrained"
+            "condition": "restrained",
+            "escapeDC": 16
           }
         ]
       }
@@ -190198,7 +190087,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 7,
         "reach": 10,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -190209,7 +190097,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           }
         ]
       },
@@ -192757,7 +192646,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 8,
         "reach": 20,
-        "saveDC": 15,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -192768,7 +192656,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 15
           }
         ]
       },
@@ -197440,7 +197329,6 @@
         "attackType": "MELEE_WEAPON",
         "attackBonus": 12,
         "reach": 20,
-        "saveDC": 20,
         "halfOnSave": false,
         "targetCount": 1,
         "effects": [
@@ -197451,7 +197339,8 @@
           },
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 20
           }
         ]
       },

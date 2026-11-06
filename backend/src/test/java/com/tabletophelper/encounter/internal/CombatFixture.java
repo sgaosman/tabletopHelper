@@ -33,6 +33,7 @@ import com.tabletophelper.reference.ItemRepository;
 import com.tabletophelper.reference.MonsterPoolTriggerRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Rng;
@@ -81,7 +82,7 @@ class CombatFixture {
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final CombatAccess access = new CombatAccess(
             new EncounterCommands(encounterRepository, accessPolicy, eventPublisher), accessPolicy);
-    final SpellEffects spellEffects = new SpellEffects(spellRepository, objectMapper, stats);
+    final SpellEffects spellEffects = new SpellEffects(spellRepository, stats);
     final SpellCaster spellCaster = new SpellCaster(spellEffects, resolver, effectApplier, stats);
     final MonsterEffects monsterEffects = new MonsterEffects(dice);
     final MonsterPools monsterPools = new MonsterPools(monsterPoolTriggerRepository, spellRepository, objectMapper);
@@ -246,7 +247,7 @@ class CombatFixture {
 
     /** Makes the spell repository return the spell with this effect template, for its name in any case. */
     Spell spell(String name, int level, String template) {
-        Spell spell = Spell.builder().id(UUID.randomUUID()).name(name).level(level).effectTemplate(template).build();
+        Spell spell = Spell.builder().id(UUID.randomUUID()).name(name).level(level).effectTemplate(SpellTemplate.parse(template)).build();
         lenient().when(spellRepository.findByNameIgnoreCase(argThat(name::equalsIgnoreCase)))
                 .thenReturn(Optional.of(spell));
         return spell;

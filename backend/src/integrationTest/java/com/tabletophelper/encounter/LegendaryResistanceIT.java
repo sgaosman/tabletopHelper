@@ -9,6 +9,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
+import com.tabletophelper.reference.SpellTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,11 +50,11 @@ class LegendaryResistanceIT extends IntegrationTest {
                 Map.of("inviteCode", campaign.get("inviteCode").asText()), player.accessToken()));
         UUID character = createCharacter(player.accessToken(), insertRace("Human"), insertClass("Wizard", 6));
         encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asText()));
-        spellRepository.save(Spell.builder().name("Fireball").level(3).source("PHB").effectTemplate("""
+        spellRepository.save(Spell.builder().name("Fireball").level(3).source("PHB").effectTemplate(SpellTemplate.parse("""
                 {"spellName": "Fireball", "spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX",
                  "halfOnSave": true, "concentration": false, "components": {"verbal": true},
                  "effects": [{"effectType": "DAMAGE", "damageDice": "8d6", "damageType": "fire"}],
-                 "conditionsInflicted": null}""").build());
+                 "conditionsInflicted": null}""")).build());
         Monster dragon = monsterRepository.save(Monster.builder()
                 .name("Adult Blue Dragon").type("Dragon").challengeRating("16").source("MM")
                 .hitPoints(200).armourClass(19).dexterity(10)

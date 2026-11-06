@@ -7,6 +7,7 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
 import com.tabletophelper.encounter.dto.MultiattackOption;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -41,7 +42,7 @@ class MonsterActionServiceTest {
         f = new CombatFixture();
         fighter = f.player("Fighter", 40, 18);
         dragon = f.monster("Young Dragon", 150, 18);
-        dragon.getMonster().setActionTemplates("""
+        dragon.getMonster().setActionTemplates(MonsterTemplates.parse("""
                 {"actions": [
                    {"name": "Bite", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 10, "attackType": "MELEE_WEAPON",
                     "effects": [{"effectType": "DAMAGE", "damageDice": "2d10 + 6", "damageType": "piercing"},
@@ -57,7 +58,7 @@ class MonsterActionServiceTest {
                     "saveAbility": "DEX", "effects": [{"effectType": "CONDITION", "condition": "prone"}]}],
                  "lairActions": [
                    {"name": "Tremor", "deliveryMethod": "SAVING_THROW", "saveDC": 15, "saveAbility": "DEX",
-                    "effects": [{"effectType": "CONDITION", "condition": "prone"}]}]}""");
+                    "effects": [{"effectType": "CONDITION", "condition": "prone"}]}]}"""));
         List<ResourcePoolEntry> pools = new ArrayList<>(List.of(
                 new ResourcePoolEntry("monster:legendary-actions", "Legendary Actions", "MONSTER", "Young Dragon",
                         3, "3", 3, "turn", null, null, "FREE", "zap", null),
@@ -202,9 +203,9 @@ class MonsterActionServiceTest {
     @Test
     @DisplayName("A multiattack the stat block doesn't let the server read is the DM's, and takes no targets per attack")
     void unreadableMultiattack() {
-        dragon.getMonster().setActionTemplates("""
+        dragon.getMonster().setActionTemplates(MonsterTemplates.parse("""
                 {"actions": [{"name": "Multiattack", "isMultiattack": true, "multiattackComponents": [],
-                  "multiattackDescription": "The dragon makes two melee attacks."}]}""");
+                  "multiattackDescription": "The dragon makes two melee attacks."}]}"""));
 
         MonsterActionResponse response = act("Multiattack", "ACTION", List.of(fighter));
         ValidationException perAttack = assertThrows(ValidationException.class,
@@ -351,7 +352,7 @@ class MonsterActionServiceTest {
 
     private EncounterParticipant direWolf() {
         EncounterParticipant wolf = f.monster("Dire Wolf", 37, 14);
-        wolf.getMonster().setActionTemplates(WOLF_AND_GRELL);
+        wolf.getMonster().setActionTemplates(MonsterTemplates.parse(WOLF_AND_GRELL));
         return wolf;
     }
 
@@ -395,14 +396,14 @@ class MonsterActionServiceTest {
     @DisplayName("A mind flayer's tentacles grapple on every hit, and stun only on a failed Intelligence save (MM)")
     void mindFlayerGrapplesAndStunsOnAFailedSave() {
         EncounterParticipant mindFlayer = f.monster("Mind Flayer", 71, 15);
-        mindFlayer.getMonster().setActionTemplates("""
+        mindFlayer.getMonster().setActionTemplates(MonsterTemplates.parse("""
                 {"actions": [{"name": "Tentacle", "reach": 5, "effects": [
                    {"damageDice": "2d10+4", "damageType": "psychic", "effectType": "DAMAGE"},
                    {"escapeDC": 15, "condition": "grappled", "effectType": "CONDITION", "durationText": "until escape",
                     "durationRounds": null},
                    {"condition": "stunned", "effectType": "CONDITION"}],
                  "actionType": "ACTION", "attackType": "MELEE_WEAPON", "attackBonus": 7, "targetCount": 1,
-                 "deliveryMethod": "ATTACK_ROLL", "secondarySaveDC": 15, "secondarySaveAbility": "INT"}]}""");
+                 "deliveryMethod": "ATTACK_ROLL", "secondarySaveDC": 15, "secondarySaveAbility": "INT"}]}"""));
         EncounterParticipant rogue = f.player("Rogue", 30, 14);
 
         // Each hits: 15 + 7 against AC 18 and 14, for 5 + 5 + 4. The Fighter's INT save of 16 + 0 makes DC 15;
@@ -413,10 +414,10 @@ class MonsterActionServiceTest {
         assertEquals(List.of("grappled"), CombatFixture.conditionNames(fighter));
         assertEquals(List.of("grappled", "stunned"), CombatFixture.conditionNames(rogue));
         assertEquals("Mind Flayer uses Tentacle on Fighter: d20(15) + 7 = 22 vs AC 18 — hit, 14 psychic damage, "
-                + "INT save d20(16) + 0 = 16 vs DC 15 succeeds against stunned, gains grappled.",
+                + "INT save d20(16) + 0 = 16 vs DC 15 succeeds against stunned, gains grappled (escape DC 15).",
                 f.entriesAbout(fighter).getFirst().getDescription());
         assertEquals("Mind Flayer uses Tentacle on Rogue: d20(15) + 7 = 22 vs AC 14 — hit, 14 psychic damage, "
-                + "INT save d20(4) + 0 = 4 vs DC 15 fails, gains grappled, stunned.",
+                + "INT save d20(4) + 0 = 4 vs DC 15 fails, gains grappled (escape DC 15), stunned.",
                 f.entriesAbout(rogue).getFirst().getDescription());
         assertEquals(0, f.dice.remaining());
     }

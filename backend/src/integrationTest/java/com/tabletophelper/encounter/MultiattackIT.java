@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,7 @@ class MultiattackIT extends IntegrationTest {
 
         Monster owlbear = monsterRepository.save(Monster.builder().name("Owlbear").type("Monstrosity")
                 .challengeRating("3").source("MM").hitPoints(59).armourClass(13).dexterity(12)
-                .actionTemplates(OWLBEAR).build());
+                .actionTemplates(MonsterTemplates.parse(OWLBEAR)).build());
         owlbearId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", owlbear.getId(), "displayName", "Owlbear")), "Owlbear");
         ariaId = idOf(addParticipant(dm.accessToken(), encounterId,

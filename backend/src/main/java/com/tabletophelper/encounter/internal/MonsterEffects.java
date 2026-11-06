@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.Rng;
@@ -220,7 +221,13 @@ public class MonsterEffects {
                     : "non-automatable";
             return Read.manual("Action contains " + effectType + " effect type requiring DM adjudication");
         }
-        List<String> notes = parts.healing() ? List.of(name + "'s healing is left to the DM.") : List.of();
+        List<String> notes = new ArrayList<>();
+        if (parts.healing()) {
+            notes.add(name + "'s healing is left to the DM.");
+        }
+        if (action.dmNote() != null && !action.dmNote().isBlank()) {
+            notes.add(sentence(action.dmNote()));
+        }
 
         int attackBonus = overrides.attackBonus() != null ? overrides.attackBonus() : orZero(action.attackBonus());
         Effect.Delivery delivery;
@@ -251,7 +258,7 @@ public class MonsterEffects {
             }
         }
         return new Read(new Effect(name, delivery, parts.damage(), null, conditions, false, null,
-                parts.conditionEnds()), null, notes);
+                parts.conditionEnds()), null, List.copyOf(notes));
     }
 
     // rayCount rays chosen at random, each a saving throw against the next target in turn
@@ -310,7 +317,8 @@ public class MonsterEffects {
      * of the DC, else the effect's own DC, else the action's, in the effect's ability or else the action's. An
      * attack's hit calls for it only when both its ability and DC are known; one without either can't be read, so
      * its condition comes with the hit, as before. A grapple comes with the hit too unless its own effect records the
-     * save: in the 2014 stat blocks a grapple on a hit is automatic, and its DC is for escaping it. A condition lasts
+     * save: in the 2014 stat blocks a grapple on a hit is automatic, and its DC is for escaping it, which the data
+     * records as the effect's escape DC and the combat log shows; nothing rolls against it. A condition lasts
      * the rounds its effect gives, and one its creature saves to end at the end of each of its turns gets that Repeat
      * Save (D162): against the DM's override of the DC, else the effect's own repeat DC, else the condition's save, in
      * the effect's repeat ability or else the condition's save's.
@@ -363,7 +371,7 @@ public class MonsterEffects {
         return new Parts(damage, conditions, conditionEnds, conditionSaves, healing, other);
     }
 
-    // Null when the effect gives the condition neither a duration nor a Repeat Save
+    // Null when the effect gives the condition no duration, Repeat Save or escape DC
     private static Effect.ConditionEnd conditionEnd(MonsterTemplates.Part effect, Integer overrideSaveDc,
                                                     int saveDc, Optional<Ability> saveAbility) {
         Integer duration = effect.durationRounds() != null && effect.durationRounds() > 0
@@ -378,7 +386,9 @@ public class MonsterEffects {
                     .map(ability -> new Effect.RepeatSave(ability, dc))
                     .orElse(null);
         }
-        return duration != null || repeatSave != null ? new Effect.ConditionEnd(duration, repeatSave) : null;
+        Integer escapeDc = effect.escapeDc() != null && effect.escapeDc() > 0 ? effect.escapeDc() : null;
+        return duration != null || repeatSave != null || escapeDc != null
+                ? new Effect.ConditionEnd(duration, repeatSave, escapeDc) : null;
     }
 
     // There is no map, so a melee attack counts as within 5 feet and a ranged one as not (D161)
