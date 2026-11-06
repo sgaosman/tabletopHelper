@@ -18,6 +18,8 @@ import com.tabletophelper.reference.ResourcePoolDefinition;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Expression;
 import com.tabletophelper.rules.ExpressionException;
+import com.tabletophelper.shared.ConflictException;
+import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -192,12 +194,67 @@ public class ResourcePoolService {
     // ── Pool mutation (in-combat) ─────────────────────────────────
 
     /**
+     * The pools after spending uses of one, on a character sheet or a participant: one rule for both (D127, D169). An
+     * unlimited pool, such as Rage at Barbarian 20, is never refused and keeps its uses. A pool that recovers another,
+     * such as a Psi Warrior's Psionic Recovery, gives that one a use back for each it spends.
+     *
+     * @param owner whose pools they are, for the refusals
+     * @throws ValidationException for a pool they don't have
+     * @throws ConflictException   when the pool hasn't that many uses left, or the pool it recovers hasn't that many
+     *                             spent
+     */
+    public static List<ResourcePoolEntry> spend(List<ResourcePoolEntry> pools, String poolId, int uses, String owner) {
+        List<ResourcePoolEntry> updated = new ArrayList<>(pools != null ? pools : List.of());
+        ResourcePoolEntry spent = find(updated, poolId, owner);
+        if (spent.unlimited()) return updated;
+        if (spent.currentUses() < uses) {
+            throw new ConflictException(spent.displayName() + " has " + spent.currentUses() + " of "
+                    + spent.maxUses() + " uses left, not " + uses);
+        }
+        if (spent.recovers() != null) {
+            ResourcePoolEntry recovered = find(updated, spent.recovers(), owner);
+            if (!recovered.unlimited() && recovered.currentUses() + uses > recovered.maxUses()) {
+                throw new ConflictException(recovered.displayName() + " has " + recovered.currentUses() + " of "
+                        + recovered.maxUses() + " left, so " + spent.displayName() + " has nothing to regain");
+            }
+            replace(updated, recovered.withCurrentUses(Math.min(recovered.maxUses(), recovered.currentUses() + uses)));
+        }
+        replace(updated, spent.withCurrentUses(spent.currentUses() - uses));
+        return updated;
+    }
+
+    private static ResourcePoolEntry find(List<ResourcePoolEntry> pools, String poolId, String owner) {
+        return pools.stream().filter(pool -> pool != null && poolId.equals(pool.poolId())).findFirst()
+                .orElseThrow(() -> new ValidationException(owner + " has no pool " + poolId));
+    }
+
+    // Replaces the first pool with the same ID
+    private static void replace(List<ResourcePoolEntry> pools, ResourcePoolEntry changed) {
+        for (int i = 0; i < pools.size(); i++) {
+            if (pools.get(i) != null && changed.poolId().equals(pools.get(i).poolId())) {
+                pools.set(i, changed);
+                return;
+            }
+        }
+    }
+
+    /**
      * Decrements currentUses on the participant's pool. Clamped at 0. An unlimited pool always succeeds and keeps its
-     * uses.
+     * uses. A pool that recovers another, such as a Psi Warrior's Psionic Recovery, follows the sheet's rule through
+     * {@link #spend}: it gives the other pool a use back, and is refused with a 409 when that pool has none spent,
+     * so Write-back carries the regained use to the sheet (D166).
      *
      * @return true if the spend succeeded (pool exists and had enough uses)
+     * @throws ConflictException when a pool that recovers another can't be spent
      */
     public boolean spendPool(EncounterParticipant participant, String poolId, int amount) {
+        ResourcePoolEntry named = participantPools(participant).stream()
+                .filter(pool -> pool != null && poolId.equals(pool.poolId())).findFirst().orElse(null);
+        if (named != null && named.recovers() != null) {
+            participant.setResourcePoolsCurrent(spend(participantPools(participant), poolId, amount,
+                    participant.getDisplayName()));
+            return true;
+        }
         boolean found = false;
         boolean hadEnough = false;
         List<ResourcePoolEntry> updated = new ArrayList<>();

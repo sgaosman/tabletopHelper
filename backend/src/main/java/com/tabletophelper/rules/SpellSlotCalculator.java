@@ -1,28 +1,27 @@
 package com.tabletophelper.rules;
 
+import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 
 /** Spell slots for a character's classes under the 2014 rules, from the class tables' slot rows (D153, D167). */
 public class SpellSlotCalculator {
 
-    /** Subclasses that give a class without Spellcasting its own spell slots from 3rd level. */
-    public static final Set<String> THIRD_CASTER_SUBCLASSES = Set.of("Eldritch Knight", "Arcane Trickster");
-
     /**
      * The progression a class casts with, from its name, its isSpellcaster and isPactMagic flags and its
-     * subclass: "pact", "artificer", "half", "third", "full", or "none" for a class without spell slots.
+     * subclass: "pact", "artificer", "half", "full", the caster type the class tables give a subclass of a class
+     * without Spellcasting ("third" for an Eldritch Knight or Arcane Trickster), or "none" for a class without spell
+     * slots.
      */
-    public static String casterType(String className, boolean isSpellcaster, boolean isPactMagic, String subclassName) {
+    public static String casterType(ClassTables tables, String className, boolean isSpellcaster, boolean isPactMagic,
+                                    String subclassName) {
         if (isPactMagic) return "pact";
         if ("Artificer".equals(className)) return "artificer";
         if ("Paladin".equals(className) || "Ranger".equals(className)) return "half";
-        if (!isSpellcaster && subclassName != null && THIRD_CASTER_SUBCLASSES.contains(subclassName)) return "third";
         if (isSpellcaster) return "full";
-        return "none";
+        return ClassProgression.subclassCasterType(tables, className, subclassName).orElse("none");
     }
 
     public static Map<String, Integer> calculateSlots(ClassTables tables, Map<String, ClassEntry> classEntries) {

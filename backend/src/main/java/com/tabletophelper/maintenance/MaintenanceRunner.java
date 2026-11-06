@@ -23,7 +23,7 @@ import java.util.List;
  * <p>
  * Local example, on a random free port (the error handler needs the web server's settings, so
  * {@code --spring.main.web-application-type=none} doesn't start):
- * {@code ./gradlew bootRun --args="--maintenance.job=recompute-spell-slots --server.port=0"}
+ * {@code ./gradlew bootRun --args="--maintenance.job=recompute-characters --server.port=0"}
  */
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE)

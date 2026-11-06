@@ -6,5 +6,13 @@
     "react/exhaustive-deps": "error",
     "no-unused-vars": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/test/**", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    }
+  ]
 }

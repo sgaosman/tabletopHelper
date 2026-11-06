@@ -47,11 +47,21 @@ public class AccessPolicy {
      * owner included. {@code campaignId} is null when the character belongs to no campaign, and then it has no DM.
      */
     public void requireCharacterDm(UUID campaignId, UUID userId) {
+        requireCharacterDm(campaignId, userId, "adjust");
+    }
+
+    /**
+     * As {@link #requireCharacterDm(UUID, UUID)}, for any of the DM's commands on a character, such as reviving it
+     * (D166).
+     *
+     * @param doing what the command does to the character, as in "adjust" or "revive", for the refusal
+     */
+    public void requireCharacterDm(UUID campaignId, UUID userId, String doing) {
         if (campaignId == null) {
-            throw new ForbiddenException("This character isn't in a campaign, so it has no DM to adjust it");
+            throw new ForbiddenException("This character isn't in a campaign, so it has no DM to " + doing + " it");
         }
         if (!isDm(campaignId, userId)) {
-            throw new ForbiddenException("Only the DM of this character's campaign can adjust it");
+            throw new ForbiddenException("Only the DM of this character's campaign can " + doing + " it");
         }
     }
 

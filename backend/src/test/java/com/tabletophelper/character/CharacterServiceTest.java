@@ -326,6 +326,67 @@ class CharacterServiceTest {
         }
 
         @Test
+        @DisplayName("A Fighter levelling into a first Wizard level stores INT, recorded on that level, which levelling "
+                + "down out of the Wizard clears")
+        void levellingIntoAFirstCastingClass() {
+            CharacterCreateRequest req = request("Kel", f.fighter, f.human);
+            req.setIntelligence(13);
+            PlayerCharacter pc = created(req);
+            assertThat(pc.getSpellcastingAbility()).isNull();
+
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
+            assertThat(pc.getLevelHistory().get(1).className()).isEqualTo("Wizard");
+            assertThat(pc.getLevelHistory().get(1).choices().setsSpellcastingAbility()).isTrue();
+            f.levelUp(pc, f.fighter);
+            assertThat(pc.getLevelHistory().get(2).choices() == null
+                    || pc.getLevelHistory().get(2).choices().setsSpellcastingAbility() == null).isTrue();
+
+            f.levelDown(pc);
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
+            f.levelDown(pc);
+            assertThat(pc.getSpellcastingAbility()).isNull();
+            assertThat(pc.getSpellSaveDc()).isNull();
+        }
+
+        @Test
+        @DisplayName("A character that levelled into a Wizard before the rule finds the Wizard's INT missing, and "
+                + "storing it records it on Wizard 1; one with an ability or no casting class finds nothing")
+        void missingAbilityForTheJob() {
+            CharacterCreateRequest req = request("Kel", f.fighter, f.human);
+            req.setIntelligence(13);
+            PlayerCharacter pc = created(req);
+            f.levelUp(pc, f.wizard);
+            // As levelling up stored nothing before the rule
+            pc.setSpellcastingAbility(null);
+            CharacterUpdates.recordChoices(pc, 1, c -> c.withSetsSpellcastingAbility(null));
+
+            assertThat(f.service.missingSpellcastingAbility(pc)).contains(
+                    new CharacterService.MissingSpellcastingAbility("INT", "Wizard", 1, true));
+            assertThat(f.service.storeMissingSpellcastingAbility(pc)).isTrue();
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("INT");
+            assertThat(pc.getLevelHistory().get(1).choices().setsSpellcastingAbility()).isTrue();
+            assertThat(f.service.missingSpellcastingAbility(pc)).isEmpty();
+            assertThat(f.service.missingSpellcastingAbility(created(request("Bram", f.fighter, f.human)))).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Levelling up leaves an ability already stored, such as the race's choice")
+        void levellingUpKeepsAStoredAbility() {
+            CharacterCreateRequest req = request("Fae", f.fighter, f.human);
+            req.setIntelligence(13);
+            req.setSpellcastingAbility("CHA");
+            PlayerCharacter pc = created(req);
+
+            f.levelUp(pc, f.wizard);
+
+            assertThat(pc.getSpellcastingAbility()).isEqualTo("CHA");
+            assertThat(pc.getLevelHistory().get(1).choices() == null
+                    || pc.getLevelHistory().get(1).choices().setsSpellcastingAbility() == null).isTrue();
+        }
+
+        @Test
         @DisplayName("An Eldritch Knight 3 created with its subclass stores INT, which levelling down past the subclass clears")
         void eldritchKnightAtCreation() {
             CharacterCreateRequest req = request("Kel", f.fighter, f.human);

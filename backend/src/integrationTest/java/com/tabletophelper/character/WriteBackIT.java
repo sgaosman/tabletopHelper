@@ -230,7 +230,7 @@ class WriteBackIT extends IntegrationTest {
 
         // The player can't revive their own character, and nobody can revive one alive
         assertThat(error(exchange(HttpMethod.POST, "/api/characters/" + aria + "/revive", null, player.accessToken()),
-                HttpStatus.FORBIDDEN)).isEqualTo("Only the DM of this character's campaign can adjust it");
+                HttpStatus.FORBIDDEN)).isEqualTo("Only the DM of this character's campaign can revive it");
         JsonNode revived = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/characters/" + aria + "/revive",
                 null, dm.accessToken()));
         assertThat(revived.get("dead").asBoolean()).isFalse();

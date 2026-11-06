@@ -54,6 +54,18 @@ class WriteBackTest {
     }
 
     @Test
+    @DisplayName("A Psionic Energy die regained in combat through Psionic Recovery reaches the sheet as a gain since "
+            + "joining, and a die spent and regained changes nothing (D127)")
+    void aDieRegainedInCombat() {
+        // The dice: the sheet stands at 1 of 4 as the participant joined with 1, which ended with 2
+        assertEquals(2, WriteBack.total(1, 4, 1, 2));
+        // The recovery: joined with 1 of 1, ended with 0
+        assertEquals(0, WriteBack.total(1, 1, 1, 0));
+        // Joined with every die, spent one and regained it: nothing changes, and the sheet stays at its maximum
+        assertEquals(4, WriteBack.total(4, 4, 4, 4));
+    }
+
+    @Test
     @DisplayName("A character who ended alive gets the change in its hit points and the temporary hit points it had left")
     void alive() {
         assertEquals(new WriteBack.Outcome(new Totals(32, 45, 4), false),

@@ -181,7 +181,7 @@ class SpellSlotsEveryClassGoldenTest {
     @DisplayName("Each class's spell slots match its class table at levels 1–20")
     void slotsAtEveryLevel(String label, String className, boolean isSpellcaster, boolean isPactMagic,
                            String subclassName, List<Map<String, Integer>> phbSlots) {
-        String casterType = SpellSlotCalculator.casterType(className, isSpellcaster, isPactMagic, subclassName);
+        String casterType = SpellSlotCalculator.casterType(TABLES, className, isSpellcaster, isPactMagic, subclassName);
         Stream<Executable> levels = IntStream.rangeClosed(1, 20).mapToObj(level -> () ->
                 assertEquals(phbSlots.get(level), slotsAt(className, casterType, level), label + " " + level));
         assertAll(levels);

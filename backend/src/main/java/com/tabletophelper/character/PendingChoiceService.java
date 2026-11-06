@@ -33,7 +33,6 @@ import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.Ability;
-import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.shared.ConflictException;
@@ -353,7 +352,8 @@ public class PendingChoiceService {
         // An Eldritch Knight or Arcane Trickster stores its Intelligence when the character has no spellcasting
         // ability yet, so a feat taken later that chooses another doesn't replace it (D159)
         if (isBlank(character.getSpellcastingAbility())
-                && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(subclass.getName())) {
+                && ClassProgression.subclassCasterType(classTables, choice.className(), subclass.getName())
+                .isPresent()) {
             storeClassSpellcastingAbility(character);
         }
 
@@ -565,24 +565,44 @@ public class PendingChoiceService {
      * Stores the spellcasting ability of the character's first casting class (D159), and records it on the level that
      * gives the class its spellcasting: the class's 1st level, or for an Eldritch Knight or Arcane Trickster the
      * subclass's level, so levelling down past that level works it out again. Creation calls this when the race
-     * chose no ability, and choosing an Eldritch Knight or Arcane Trickster when the character has none. Stores
-     * nothing for a character whose classes don't cast.
+     * chose no ability, levelling up when the character has none, as when it first takes a casting class, and
+     * choosing an Eldritch Knight or Arcane Trickster when the character has none. Stores nothing for a character
+     * whose classes don't cast.
      *
      * @return whether it stored one
      */
     boolean storeClassSpellcastingAbility(PlayerCharacter character) {
+        ClassSpellcastingAbility found = classSpellcastingAbility(character);
+        if (found == null) return false;
+        character.setSpellcastingAbility(found.ability());
+        if (found.levelIndex() >= 0) {
+            CharacterUpdates.recordChoices(character, found.levelIndex(), c -> c.withSetsSpellcastingAbility(true));
+        }
+        return true;
+    }
+
+    /**
+     * What {@link #storeClassSpellcastingAbility} would store and on which level it would record it; changes
+     * nothing. Null for a character whose classes don't cast.
+     */
+    ClassSpellcastingAbility classSpellcastingAbility(PlayerCharacter character) {
         String ability = characterStats.classSpellcastingAbility(character);
-        if (ability == null) return false;
-        character.setSpellcastingAbility(ability);
+        if (ability == null) return null;
         ClassEntry entry = characterStats.classSpellcastingEntry(character);
         CharacterClass characterClass = characterClass(entry.classId(), entry.className());
         int givingLevel = Boolean.TRUE.equals(characterClass.getIsSpellcaster()) ? 1 : subclassLevel(characterClass);
         int index = historyIndexOf(character, entry.classId(), entry.className(), givingLevel);
-        if (index >= 0) {
-            CharacterUpdates.recordChoices(character, index, c -> c.withSetsSpellcastingAbility(true));
-        }
-        return true;
+        return new ClassSpellcastingAbility(ability, characterClass.getName(), givingLevel, index);
     }
+
+    /**
+     * A class's spellcasting ability as the character would store it.
+     *
+     * @param className   the first of the character's classes that casts
+     * @param classLevel  the class level that gives it its spellcasting
+     * @param levelIndex  the index of that level's history entry, or -1 when the history has none
+     */
+    record ClassSpellcastingAbility(String ability, String className, int classLevel, int levelIndex) {}
 
     /**
      * Works the spellcasting ability out again once levelling down has removed the level that stored its class's,

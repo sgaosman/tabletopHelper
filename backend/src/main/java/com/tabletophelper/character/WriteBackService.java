@@ -89,7 +89,7 @@ public class WriteBackService {
      */
     @Transactional
     public CharacterResponse revive(UUID characterId, UUID userId) {
-        PlayerCharacter character = characterCommands.beginAsDm(characterId, userId);
+        PlayerCharacter character = characterCommands.beginAsDm(characterId, userId, "revive");
         if (!character.isDead()) {
             throw new ConflictException(character.getName() + " isn't dead");
         }

@@ -19,7 +19,6 @@ import com.tabletophelper.identity.UserService;
 import com.tabletophelper.reference.*;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
-import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.character.HitPoints;
 import com.tabletophelper.shared.ConflictException;
@@ -321,6 +320,11 @@ public class CharacterService {
                 HitPoints.fixedHitDieResult(newCharLevel, levelClass.getHitDice()), newFeatures, proficienciesGained,
                 abilityIncreases);
         pendingChoices.owedAtLevelUp(character, levelClass, newCharLevel, newClassLevel);
+        // Levelling into a first casting class stores its ability, marked on its level, so levelling down past that
+        // level clears it again and a feat taken later doesn't replace it (D159)
+        if (character.getSpellcastingAbility() == null || character.getSpellcastingAbility().isBlank()) {
+            pendingChoices.storeClassSpellcastingAbility(character);
+        }
 
         int oldHpMax = character.getHpMax();
         DerivedStats stats = characterStats.apply(character);
@@ -460,12 +464,38 @@ public class CharacterService {
     // ── Derived Stats for other modules ──────────────────────────
 
     /**
-     * The calculator entries for each of the character's casting classes, read from its class entries. Shared by the
-     * recompute-spell-slots maintenance job (D153).
+     * The spellcasting ability a character with none stored would store from its first casting class (D159), as
+     * creation and levelling up store it, with the level it would be recorded on; changes nothing. Empty when the
+     * character stores an ability already or none of its classes casts.
      */
-    public Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries(PlayerCharacter character) {
-        return characterStats.spellSlotEntries(character);
+    public Optional<MissingSpellcastingAbility> missingSpellcastingAbility(PlayerCharacter character) {
+        if (character.getSpellcastingAbility() != null && !character.getSpellcastingAbility().isBlank()) {
+            return Optional.empty();
+        }
+        PendingChoiceService.ClassSpellcastingAbility found = pendingChoices.classSpellcastingAbility(character);
+        return Optional.ofNullable(found).map(f -> new MissingSpellcastingAbility(f.ability(), f.className(),
+                f.classLevel(), f.levelIndex() >= 0));
     }
+
+    /**
+     * Stores the ability {@link #missingSpellcastingAbility} finds, recorded on its level when the history has it,
+     * for the recompute-characters job; the caller saves the character.
+     *
+     * @return whether it stored one
+     */
+    public boolean storeMissingSpellcastingAbility(PlayerCharacter character) {
+        if (missingSpellcastingAbility(character).isEmpty()) return false;
+        return pendingChoices.storeClassSpellcastingAbility(character);
+    }
+
+    /**
+     * A spellcasting ability a character would store from a class.
+     *
+     * @param className  the first of its classes that casts
+     * @param classLevel the class level that gives the class its spellcasting
+     * @param recorded   whether its level history has that level, so levelling down past it clears the ability
+     */
+    public record MissingSpellcastingAbility(String ability, String className, int classLevel, boolean recorded) {}
 
     /** What the rules give the character now, beside what its sheet stores; changes nothing (D167). */
     public DerivedStats derivedStats(PlayerCharacter character) {

@@ -20,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -29,7 +30,10 @@ import java.util.function.Function;
  * attack bonus, and the resource pools, innate uses included (D165). Each character that would change is reported
  * with each stat before and after, and what the sheet already has beyond the rules, such as more cantrips than its
  * class knows, is a warning that changes nothing, as is each feat the character has whose prerequisite it wouldn't
- * meet now, which it keeps (D159). A character whose sheet can't be worked out is skipped with a warning. Dry run by default; {@code --maintenance.apply=true} writes.
+ * meet now, which it keeps (D159). A character with no stored spellcasting ability whose classes cast gets its first
+ * casting class's, recorded on the level that gave the class its spellcasting when the level history has it, as
+ * levelling into a first casting class now does (D159). A character whose sheet can't be worked out is skipped with
+ * a warning. Dry run by default; {@code --maintenance.apply=true} writes.
  */
 @Component
 @RequiredArgsConstructor
@@ -67,15 +71,36 @@ public class RecomputeCharactersJob implements MaintenanceJob {
             featEligibility.heldFeatsUnmet(pc).forEach(feat -> warnings.add(who + ": has the feat " + feat
                     + ", which it wouldn't qualify for now; kept"));
 
-            List<String> diffs = differences(pc, derived);
+            List<String> diffs = new ArrayList<>();
+            Optional<CharacterService.MissingSpellcastingAbility> ability;
+            try {
+                ability = characterService.missingSpellcastingAbility(pc);
+            } catch (RuntimeException e) {
+                warnings.add(who + ": spellcasting ability skipped (" + (e instanceof ConflictException ? ""
+                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+                ability = Optional.empty();
+            }
+            ability.ifPresent(found -> diffs.add(spellcastingAbility(found)));
+            diffs.addAll(differences(pc, derived));
             if (diffs.isEmpty()) continue;
             changes.add(who + String.join("", diffs.stream().map(diff -> "\n      " + diff).toList()));
             if (apply) {
+                if (ability.isPresent()) {
+                    characterService.storeMissingSpellcastingAbility(pc);
+                }
                 characterService.recalculate(pc);
                 characterRepository.save(pc);
             }
         }
         return new MaintenanceReport(name(), apply, "characters", characters.size(), changes, warnings);
+    }
+
+    private static String spellcastingAbility(CharacterService.MissingSpellcastingAbility found) {
+        String level = found.className() + " " + found.classLevel();
+        return "spellcasting ability: none → " + found.ability() + " (" + found.className() + "'s, "
+                + (found.recorded() ? "recorded on " + level
+                        : "not recorded: the level history has no " + level + ", so levelling down won't clear it")
+                + ")";
     }
 
     private static String describe(PlayerCharacter pc) {

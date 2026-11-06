@@ -74,8 +74,9 @@ public class CharacterStats {
     private static final int DEFAULT_SPEED = 30;
     // A character created without a class has always had d8 levels
     private static final int CLASSLESS_HIT_DIE = 8;
-    // The Eldritch Knight and Arcane Trickster cast with Intelligence (PHB p.75, p.98)
-    private static final String THIRD_CASTER_ABILITY = "INT";
+    // The subclasses that give a class Spellcasting, the Eldritch Knight and Arcane Trickster, cast with Intelligence
+    // (PHB p.75, p.98)
+    private static final String SUBCLASS_CASTER_ABILITY = "INT";
 
     private final CharacterClassRepository classRepository;
     private final SubclassRepository subclassRepository;
@@ -210,14 +211,6 @@ public class CharacterStats {
     public static boolean primalChampion(PlayerCharacter character) {
         return orEmpty(character.getMulticlassEntries()).stream()
                 .anyMatch(entry -> BARBARIAN.equals(entry.className()) && entry.level() >= PRIMAL_CHAMPION_LEVEL);
-    }
-
-    /**
-     * The calculator's entry for each class that has spell slots, read from the class entries: shared with the
-     * recompute-spell-slots maintenance job (D153).
-     */
-    public Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries(PlayerCharacter character) {
-        return spellSlotEntries(classes(character));
     }
 
     /**
@@ -369,13 +362,14 @@ public class CharacterStats {
 
     // ── Spell slots and Hit Dice ─────────────────────────────────
 
-    private static Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries(List<ClassLevel> classes) {
+    private Map<String, SpellSlotCalculator.ClassEntry> spellSlotEntries(List<ClassLevel> classes) {
         Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
         for (ClassLevel c : classes) {
             CharacterClass cc = c.characterClass();
             if (castingAbility(c) == null) continue;
-            String casterType = SpellSlotCalculator.casterType(cc.getName(), Boolean.TRUE.equals(cc.getIsSpellcaster()),
-                    Boolean.TRUE.equals(cc.getIsPactMagic()), c.entry().subclassName());
+            String casterType = SpellSlotCalculator.casterType(classTables, cc.getName(),
+                    Boolean.TRUE.equals(cc.getIsSpellcaster()), Boolean.TRUE.equals(cc.getIsPactMagic()),
+                    c.entry().subclassName());
             if (!"none".equals(casterType)) {
                 entries.put(cc.getName(), new SpellSlotCalculator.ClassEntry(c.entry().level(), casterType));
             }
@@ -461,16 +455,15 @@ public class CharacterStats {
         return spellcasting;
     }
 
-    // The class's spellcasting ability: its own, or Intelligence for an Eldritch Knight or Arcane Trickster from 3rd
-    // level; null for a class that doesn't cast
-    private static String castingAbility(ClassLevel c) {
+    // The class's spellcasting ability: its own, or Intelligence for a subclass the class tables give Spellcasting,
+    // an Eldritch Knight or Arcane Trickster, from the subclass's level; null for a class that doesn't cast
+    private String castingAbility(ClassLevel c) {
         if (Boolean.TRUE.equals(c.characterClass().getIsSpellcaster())) {
             return c.characterClass().getSpellcastingAbility();
         }
-        String subclass = c.entry().subclassName();
-        boolean thirdCaster = subclass != null && SpellSlotCalculator.THIRD_CASTER_SUBCLASSES.contains(subclass)
-                && c.entry().level() >= 3;
-        return thirdCaster ? THIRD_CASTER_ABILITY : null;
+        boolean subclassCasts = ClassProgression.subclassCasterType(classTables, c.name(), c.entry().subclassName())
+                .isPresent() && c.entry().level() >= classTables.subclassLevel(c.name());
+        return subclassCasts ? SUBCLASS_CASTER_ABILITY : null;
     }
 
     // The ability chosen at creation for race and feat spells, or else the first casting class's

@@ -147,6 +147,16 @@ class AccessPolicyTest {
                     () -> accessPolicy.requireCharacterDm(null, dmId));
             verifyNoInteractions(campaignRepository, campaignMemberRepository);
         }
+
+        @Test
+        @DisplayName("Another DM command, such as a revival, is refused in its own words")
+        void otherCommandsUseTheirOwnWords() {
+            assertDoesNotThrow(() -> accessPolicy.requireCharacterDm(campaignId, dmId, "revive"));
+            assertForbidden("Only the DM of this character's campaign can revive it",
+                    () -> accessPolicy.requireCharacterDm(campaignId, playerId, "revive"));
+            assertForbidden("This character isn't in a campaign, so it has no DM to revive it",
+                    () -> accessPolicy.requireCharacterDm(null, dmId, "revive"));
+        }
     }
 
     @Nested

@@ -55,16 +55,25 @@ class CharacterCommands {
      * under the lock, in case the owner moved the character while the command waited for it.
      */
     PlayerCharacter beginAsDm(UUID characterId, UUID userId) {
+        return beginAsDm(characterId, userId, "adjust");
+    }
+
+    /**
+     * As {@link #beginAsDm(UUID, UUID)}, refusing in the command's own words.
+     *
+     * @param doing what the command does to the character, as in "revive", for the refusal
+     */
+    PlayerCharacter beginAsDm(UUID characterId, UUID userId, String doing) {
         UUID campaignId = characterRepository.findCampaignOfCharacterById(characterId)
                 .orElseThrow(() -> new NotFoundException("Character not found"))
                 .getCampaignId();
-        accessPolicy.requireCharacterDm(campaignId, userId);
+        accessPolicy.requireCharacterDm(campaignId, userId, doing);
         characterRepository.limitLockWaits();
         PlayerCharacter character = characterRepository.lockById(characterId)
                 .orElseThrow(() -> new NotFoundException("Character not found"));
         UUID lockedCampaignId = character.getCampaign() != null ? character.getCampaign().getId() : null;
         if (!Objects.equals(lockedCampaignId, campaignId)) {
-            accessPolicy.requireCharacterDm(lockedCampaignId, userId);
+            accessPolicy.requireCharacterDm(lockedCampaignId, userId, doing);
         }
         // Creating a campaign makes its creator the DM, so an owner could otherwise adjust or revive their own
         // character by moving it into one of their own campaigns

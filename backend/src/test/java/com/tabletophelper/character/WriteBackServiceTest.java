@@ -216,7 +216,7 @@ class WriteBackServiceTest {
                 totals(0, 0, Map.of(), Map.of()), LifeState.DEAD)));
         assertThatThrownBy(() -> f.writeBack.revive(aria.getId(), f.userId))
                 .isInstanceOf(ForbiddenException.class)
-                .hasMessage("Only the DM of this character's campaign can adjust it");
+                .hasMessage("Only the DM of this character's campaign can revive it");
 
         CharacterResponse revived = f.writeBack.revive(aria.getId(), dmId);
 

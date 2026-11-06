@@ -15788,49 +15788,8 @@
         "name": "Roar",
         "actionType": "ACTION",
         "usesPerDay": 3,
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 18,
-        "saveAbility": null,
-        "halfOnSave": false,
-        "effects": [
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "8d10",
-            "damageType": "thunder"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "frightened",
-            "durationText": "1 minute",
-            "durationRounds": 10,
-            "saveToEndEachTurn": true,
-            "saveToEndDC": 18
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "deafened",
-            "durationText": "1 minute",
-            "durationRounds": 10,
-            "saveToEndEachTurn": true,
-            "saveToEndDC": 18
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "paralyzed",
-            "durationText": "1 minute",
-            "durationRounds": 10,
-            "saveToEndEachTurn": true,
-            "saveToEndDC": 18
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "prone",
-            "durationText": "1 minute",
-            "durationRounds": 10,
-            "saveToEndEachTurn": true,
-            "saveToEndDC": 18
-          }
-        ]
+        "automatable": false,
+        "dmNote": "The roar is applied by hand. Each creature within 500 feet that can hear it makes a DC 18 saving throw, and each roar before the sphinx finishes a long rest is different. First roar: a Wisdom save or frightened for 1 minute. Second roar: a Wisdom save or deafened and frightened for 1 minute, and paralyzed while frightened. A frightened creature repeats the save at the end of each of its turns, ending the effect on a success. Third roar: a Constitution save, taking 44 (8d10) thunder damage and knocked prone on a failure, or half as much damage and not prone on a success."
       }
     ],
     "legendaryActions": [
@@ -18486,68 +18445,8 @@
       {
         "name": "Ring of Winter",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": null,
-        "saveDC": 17,
-        "halfOnSave": false,
-        "targetType": "AOE_SPHERE",
-        "aoeSize": 120,
-        "effects": [
-          {
-            "effectType": "CONDITION",
-            "condition": "petrified",
-            "durationText": "24 hours",
-            "durationRounds": null,
-            "saveToEndEachTurn": false,
-            "saveToEndAbility": null,
-            "saveToEndDC": 17
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "paralyzed",
-            "durationText": "24 hours",
-            "durationRounds": null,
-            "saveToEndEachTurn": false,
-            "saveToEndAbility": null,
-            "saveToEndDC": 17
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "frightened",
-            "durationText": "24 hours",
-            "durationRounds": null,
-            "saveToEndEachTurn": false,
-            "saveToEndAbility": null,
-            "saveToEndDC": 17
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "poisoned",
-            "durationText": "24 hours",
-            "durationRounds": null,
-            "saveToEndEachTurn": false,
-            "saveToEndAbility": null,
-            "saveToEndDC": 17
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "charmed",
-            "durationText": "24 hours",
-            "durationRounds": null,
-            "saveToEndEachTurn": false,
-            "saveToEndAbility": null,
-            "saveToEndDC": 17
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "exhaustion",
-            "durationText": "24 hours",
-            "durationRounds": null,
-            "saveToEndEachTurn": false,
-            "saveToEndAbility": null,
-            "saveToEndDC": 17
-          }
-        ]
+        "automatable": false,
+        "dmNote": "The ring's properties are applied by hand. Artus spends its charges (12, regained at dawn) to chill a 120-foot-radius sphere; to cast Bigby's hand, cone of cold, flesh to stone, ice storm, Otiluke's freezing sphere, sleet storm, spike growth or wall of ice with spell save DC 17, each spell calling for its own saving throw; or to create an ice object or creature."
       }
     ],
     "traits": [
@@ -20796,12 +20695,9 @@
         "name": "Nullify Spell (3/Day)",
         "actionType": "REACTION",
         "usesPerDay": 3,
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": null,
-        "saveDC": 10,
-        "halfOnSave": false,
         "description": "The null utters a magical word of cancellation to interrupt a creature it can see that is casting a spell. If the spell is 3rd level or lower, it fails and has no effect. If the spell is 4th level or higher, the null makes an Intelligence check (10 + the spell's level). On a successful check, the spell fails and has no effect.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
+        "automatable": false,
+        "dmNote": "No saving throw: a spell of 3rd level or lower fails, and for 4th level or higher the null makes an Intelligence check (DC 10 + the spell's level), the spell failing on a success."
       }
     ],
     "traits": [
@@ -22833,17 +22729,16 @@
       {
         "name": "Adhesive Filament",
         "actionType": "BONUS_ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 20,
-        "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
+        "deliveryMethod": "AUTO_HIT",
         "effects": [
           {
             "effectType": "CONDITION",
-            "condition": "grappled"
+            "condition": "grappled",
+            "escapeDC": 20
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "dmNote": "No saving throw. The filament extends 90 feet in a line, and only a Huge or smaller creature it adheres to is grappled, with disadvantage on checks to escape. The filament has AC 16 and 25 hit points and is immune to poison and psychic damage; a weapon that fails to sever it sticks to it until a DC 20 Strength check, made as an action, pulls it free."
       }
     ],
     "legendaryActions": [
@@ -32856,11 +32751,12 @@
         "cost": 2,
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 12,
+        "saveAbility": "WIS",
         "halfOnSave": false,
         "targetType": "AOE_SPHERE",
         "aoeSize": 15,
         "automatable": true,
-        "notes": "REVIEW: Could not identify save ability"
+        "dmNote": "Each creature that starts its turn in the sphere is treated as if targeted by confusion (save DC 12, Wisdom), whose effects the DM applies by hand. The sphere lasts while Bol'bara concentrates, up to 1 minute."
       }
     ],
     "spellcasting": {
@@ -39473,10 +39369,6 @@
       {
         "name": "Fiery Counterspell",
         "actionType": "REACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 10,
-        "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
         "effects": [
           {
             "effectType": "DAMAGE",
@@ -39485,7 +39377,7 @@
           }
         ],
         "automatable": false,
-        "description": "REVIEW: Could not identify save ability from text"
+        "dmNote": "No saving throw: a spell of 4th level or lower fails, and for 5th level or higher Charmayne makes an Intelligence check (DC 10 + the spell's level), the spell failing on a success. Whatever its level, the caster takes 10 (3d6) fire damage if the spell fails."
       }
     ],
     "spellcasting": {
@@ -46445,11 +46337,8 @@
       {
         "name": "Illusory Appearance",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 20,
-        "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
-        "automatable": true
+        "automatable": false,
+        "dmNote": "No saving throw: a DC 20 Intelligence (Investigation) check exposes the disguise."
       },
       {
         "name": "Invisible Passage",
@@ -59671,11 +59560,8 @@
       {
         "name": "Catch me if you can!",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 15,
-        "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
-        "automatable": true
+        "automatable": false,
+        "dmNote": "No saving throw: a creature must succeed on a DC 15 Dexterity check before it can attack a Dum-Dum Goblin."
       },
       {
         "name": "Scimitar",
@@ -65996,18 +65882,12 @@
         "recharge": "SHORT_REST",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 14,
+        "saveAbility": "WIS",
         "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
         "targetCount": 1,
-        "effects": [
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded",
-            "durationText": "until the end of her next turn",
-            "durationRounds": 1
-          }
-        ],
-        "automatable": true
+        "effects": [],
+        "automatable": true,
+        "dmNote": "Ezmerelda casts animal friendship, charm person or hold person on the target (save DC 14, each a Wisdom save), and the DM applies the chosen spell's effect by hand. If the target succeeds, Ezmerelda is blinded until the end of her next turn, and the target is immune to the Evil Eye of all Vistani for 24 hours."
       }
     ],
     "spellcasting": {
@@ -66146,10 +66026,6 @@
       {
         "name": "Baleful Counterspell",
         "actionType": "REACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 10,
-        "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
         "effects": [
           {
             "effectType": "DAMAGE",
@@ -66158,7 +66034,7 @@
           }
         ],
         "automatable": false,
-        "description": "REVIEW: Could not identify save ability from text"
+        "dmNote": "No saving throw: a spell of 4th level or lower fails, and for 5th level or higher Skall makes an Intelligence check (DC 10 + the spell's level), the spell failing on a success. Whatever its level, the caster takes 10 (3d6) necrotic damage if the spell fails."
       },
       {
         "name": "Near-Death Experience",
@@ -83429,11 +83305,12 @@
         "cost": 2,
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 25,
+        "saveAbility": "WIS",
         "halfOnSave": false,
         "targetType": "AOE_SPHERE",
         "aoeSize": 30,
         "automatable": true,
-        "notes": "REVIEW: Could not identify save ability"
+        "dmNote": "Glasya casts confusion in a 30-foot radius (spell save DC 25, Wisdom), lasting only until the end of her next turn; the DM applies its effects by hand."
       },
       {
         "name": "Call Underling (Costs 3 Actions)",
@@ -91522,8 +91399,8 @@
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 14,
+        "saveAbility": "CON",
         "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
         "effects": [
           {
             "effectType": "CONDITION",
@@ -92990,12 +92867,9 @@
       {
         "name": "Counter Magic",
         "actionType": "REACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": null,
-        "saveDC": 10,
-        "halfOnSave": false,
         "description": "The hexton attempts to interrupt a creature it can see that is casting a spell. If the spell is 3rd level or lower, it fails and has no effect. If the spell is 4th level or higher, the hexton makes an Intelligence check (10 + the spell's level). On a success, the spell fails and has no effect.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
+        "automatable": false,
+        "dmNote": "No saving throw: a spell of 3rd level or lower fails, and for 4th level or higher the hexton makes an Intelligence check (DC 10 + the spell's level), the spell failing on a success."
       },
       {
         "name": "Lightning Rebuke",
@@ -115020,12 +114894,9 @@
         "name": "Arcane Stasis (2/Day)",
         "actionType": "REACTION",
         "usesPerDay": 2,
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": null,
-        "saveDC": 15,
-        "halfOnSave": false,
         "description": "When a creature the professor can see within 60 feet of it casts a spell, the professor can magically lock the casting in the moment before completion. The spellcaster must succeed on a 15 saving throw using the spell's spellcasting ability, or the spell fails and is wasted.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
+        "automatable": false,
+        "dmNote": "The spellcaster makes a DC 15 saving throw with the spell's own spellcasting ability, which the DM rolls by hand; on a failure the spell fails and is wasted."
       }
     ],
     "spellcasting": {
@@ -115619,18 +115490,12 @@
         "recharge": "SHORT_REST",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 17,
+        "saveAbility": "WIS",
         "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
         "targetCount": 1,
-        "effects": [
-          {
-            "effectType": "CONDITION",
-            "condition": "blinded",
-            "durationText": "until the end of her next turn",
-            "durationRounds": 1
-          }
-        ],
-        "automatable": true
+        "effects": [],
+        "automatable": true,
+        "dmNote": "Madam Eva casts animal friendship, charm person or hold person on the target (save DC 17, each a Wisdom save), and the DM applies the chosen spell's effect by hand. If the target succeeds, Madam Eva is blinded until the end of her next turn, and the target is immune to the Evil Eye of all Vistani for 24 hours."
       }
     ],
     "spellcasting": {
@@ -122977,7 +122842,9 @@
             "effectType": "CONDITION",
             "condition": "stunned",
             "durationText": null,
-            "durationRounds": null
+            "durationRounds": null,
+            "saveDC": 13,
+            "saveAbility": "INT"
           }
         ]
       },
@@ -141969,12 +141836,9 @@
         "name": "Divide by Zero (2/Day)",
         "actionType": "REACTION",
         "usesPerDay": 2,
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": null,
-        "saveDC": 15,
-        "halfOnSave": false,
         "description": "When the professor sees another creature within 60 feet of itself casting a spell, the professor can try to nullify the spell's formation. The creature must succeed on a 15 saving throw using the spell's spellcasting ability, or the spell fails and is wasted.",
-        "notes": "REVIEW: Save-based action with no parsed mechanical effects. Inspect description for debuffs or conditions not tagged with ."
+        "automatable": false,
+        "dmNote": "The spellcaster makes a DC 15 saving throw with the spell's own spellcasting ability, which the DM rolls by hand; on a failure the spell fails and is wasted."
       }
     ],
     "spellcasting": {
@@ -145059,16 +144923,15 @@
       {
         "name": "Scything Shrapnel",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 15,
-        "halfOnSave": false,
+        "deliveryMethod": "AUTO_HIT",
         "effects": [
           {
             "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "necrotic"
+            "damageDice": "4d6",
+            "damageType": "slashing"
           }
-        ]
+        ],
+        "dmNote": "The wound is applied by hand: at the start of each of its turns the target takes 10 (3d6) necrotic damage, until it regains any hit points or a creature uses an action to stanch the wound with a DC 15 Wisdom (Medicine) check."
       }
     ],
     "legendaryActions": [
@@ -151928,12 +151791,10 @@
       {
         "name": "Illusory Appearance",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 16,
-        "halfOnSave": false,
         "targetCount": 1,
         "description": "The hag covers herself and anything she is wearing or carrying with a magical illusion that makes her look like an ugly creature of her general size and humanoid shape. The effect ends if the hag takes a bonus action to end it or if she dies. The changes wrought by this effect fail to hold up to physical inspection. For example, the hag could appear to have no claws, but someone touching her hand might feel the claws. Otherwise, a creature must take an action to visually inspect the illusion and succeed on a 16 Intelligence (Investigation) check to discern that the hag is disguised.",
-        "automatable": false
+        "automatable": false,
+        "dmNote": "No saving throw: a creature that takes an action to inspect the illusion sees through it with a DC 16 Intelligence (Investigation) check, and physical inspection reveals it."
       }
     ]
   },
@@ -154194,21 +154055,16 @@
         "name": "Fell Counterspell (3/Day)",
         "actionType": "REACTION",
         "usesPerDay": 3,
-        "deliveryMethod": "SAVING_THROW",
-        "saveAbility": null,
-        "saveDC": 10,
-        "halfOnSave": false,
         "effects": [
           {
             "effectType": "CONDITION",
             "condition": "poisoned",
             "durationText": "until end of next turn",
-            "durationRounds": 1,
-            "saveToEndEachTurn": false,
-            "saveToEndAbility": null,
-            "saveToEndDC": 10
+            "durationRounds": 1
           }
-        ]
+        ],
+        "automatable": false,
+        "dmNote": "No saving throw: a spell of 5th level or lower fails, and for 6th level or higher Shemeshka makes an Intelligence check (DC 10 + the spell's level), the spell failing on a success. Whatever its level, the caster is poisoned until the end of its next turn."
       }
     ],
     "spellcasting": {
@@ -161054,11 +160910,8 @@
       {
         "name": "Absorb Attack",
         "actionType": "REACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 12,
-        "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
-        "automatable": true
+        "automatable": false,
+        "dmNote": "No saving throw: the triggering melee weapon attack is negated, and the weapon is stuck until the creature uses an action and succeeds on a DC 12 Strength (Athletics) check; a natural weapon pulls free at the end of the attacker's turn."
       }
     ],
     "traits": [
@@ -170188,17 +170041,9 @@
             "effectType": "CONDITION",
             "condition": "grappled",
             "escapeDC": 17
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "grappled",
-            "escapeDC": 17
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "unconscious"
           }
-        ]
+        ],
+        "dmNote": "Only a Large or smaller target is grappled, and the vine vanishes when the target is no longer grappled or when the Gardener wills it. A creature reduced to 0 hit points by the vine is unconscious but stable instead of dying, which the DM applies by hand."
       },
       {
         "name": "Breath of Tranquility",
@@ -178034,7 +177879,9 @@
             "effectType": "CONDITION",
             "condition": "stunned",
             "durationText": null,
-            "durationRounds": null
+            "durationRounds": null,
+            "saveDC": 17,
+            "saveAbility": "INT"
           }
         ]
       },
@@ -179975,9 +179822,8 @@
       {
         "name": "Vampiric Glamer",
         "actionType": "ACTION",
-        "deliveryMethod": "SAVING_THROW",
-        "saveDC": 20,
-        "halfOnSave": false
+        "automatable": false,
+        "dmNote": "No saving throw: a creature that can see the vampire can take an action to inspect it, seeing its true form with a DC 20 Wisdom (Perception) check."
       },
       {
         "name": "Aura of Silence",
@@ -190705,8 +190551,8 @@
         "actionType": "ACTION",
         "deliveryMethod": "SAVING_THROW",
         "saveDC": 16,
-        "halfOnSave": false,
-        "notes": "REVIEW: Could not identify save ability from text",
+        "saveAbility": "DEX",
+        "halfOnSave": true,
         "effects": [
           {
             "effectType": "DAMAGE",
@@ -190714,7 +190560,8 @@
             "damageType": "piercing"
           }
         ],
-        "automatable": true
+        "automatable": true,
+        "dmNote": "A creature that fails the save also has disadvantage on attack rolls until the start of Xenk's next turn."
       },
       {
         "name": "Cleansing Touch (1/Day)",

@@ -193,6 +193,10 @@ public class MonsterEffects {
     // What a single action does, or why the DM resolves it
     private Read read(String name, MonsterTemplates.Action action, Overrides overrides) {
         if (Boolean.FALSE.equals(action.automatable())) {
+            // The DM's note says what to apply by hand, so it comes before the stat block's wording
+            if (action.dmNote() != null && !action.dmNote().isBlank()) {
+                return Read.manual(sentence(action.dmNote()));
+            }
             return Read.manual(action.description() != null ? action.description()
                     : "Non-automatable action requires DM adjudication.");
         }

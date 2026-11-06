@@ -461,6 +461,51 @@ class ResourcePoolServiceTest {
     }
 
     @Test
+    @DisplayName("A participant's Psionic Recovery regains one expended Psionic Energy die, as on the sheet, and is a "
+            + "409 with none expended (D127)")
+    void participantPsionicRecovery() {
+        ResourcePoolEntry dice = entry("subclass:psi-warrior-psionic-energy", 4, 2, "longRest", null);
+        ResourcePoolEntry recovery = new ResourcePoolEntry("subclass:psi-warrior-psionic-recovery",
+                "Psionic Recovery", "CLASS", "Fighter", 1, "1", 1, "shortRest", null, null, "BONUS_ACTION", null,
+                Map.of("recovers", "subclass:psi-warrior-psionic-energy"));
+        EncounterParticipant psiWarrior = EncounterParticipant.builder().displayName("Kel")
+                .resourcePoolsCurrent(List.of(dice, recovery)).build();
+
+        assertTrue(service.spendPool(psiWarrior, "subclass:psi-warrior-psionic-recovery", 1));
+
+        assertEquals(3, findPool(psiWarrior.getResourcePoolsCurrent(), "subclass:psi-warrior-psionic-energy")
+                .currentUses());
+        assertEquals(0, findPool(psiWarrior.getResourcePoolsCurrent(), "subclass:psi-warrior-psionic-recovery")
+                .currentUses());
+
+        EncounterParticipant full = EncounterParticipant.builder().displayName("Kel")
+                .resourcePoolsCurrent(List.of(dice.withCurrentUses(4), recovery)).build();
+        com.tabletophelper.shared.ConflictException refused = assertThrows(
+                com.tabletophelper.shared.ConflictException.class,
+                () -> service.spendPool(full, "subclass:psi-warrior-psionic-recovery", 1));
+        assertEquals("subclass:psi-warrior-psionic-energy has 4 of 4 left, so Psionic Recovery has nothing to regain",
+                refused.getMessage());
+        assertEquals(1, findPool(full.getResourcePoolsCurrent(), "subclass:psi-warrior-psionic-recovery")
+                .currentUses());
+    }
+
+    @Test
+    @DisplayName("spend, the rule sheets and participants share, refuses a pool that isn't there or hasn't the uses, "
+            + "and leaves an unlimited pool's uses")
+    void sharedSpendRule() {
+        List<ResourcePoolEntry> pools = List.of(entry("ki", 5, 1, "shortRest", null),
+                new ResourcePoolEntry("rage", "Rage", "CLASS", "Barbarian", 6, null, 0, "longRest", null, null,
+                        "BONUS_ACTION", null, Map.of("unlimited", true)));
+
+        assertEquals(0, findPool(ResourcePoolService.spend(pools, "ki", 1, "Kel"), "ki").currentUses());
+        assertEquals("ki has 1 of 5 uses left, not 2", assertThrows(com.tabletophelper.shared.ConflictException.class,
+                () -> ResourcePoolService.spend(pools, "ki", 2, "Kel")).getMessage());
+        assertEquals("Kel has no pool sorcery", assertThrows(com.tabletophelper.shared.ValidationException.class,
+                () -> ResourcePoolService.spend(pools, "sorcery", 1, "Kel")).getMessage());
+        assertEquals(pools, ResourcePoolService.spend(pools, "rage", 3, "Kel"));
+    }
+
+    @Test
     @DisplayName("recoverPool gives uses back up to the maximum; a participant without pools recovers nothing")
     void recoverPoolStopsAtTheMaximum() {
         EncounterParticipant monk = EncounterParticipant.builder()

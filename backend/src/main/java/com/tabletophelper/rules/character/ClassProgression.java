@@ -137,6 +137,15 @@ public final class ClassProgression {
         return spellcasting(tables, className, subclassName).map(Spellcasting::spellList);
     }
 
+    /**
+     * The caster type a subclass gives a class without Spellcasting, as "third" for an Eldritch Knight or Arcane
+     * Trickster (PHB p.75, p.98); empty for a subclass whose tables give it no Spellcasting of its own.
+     */
+    public static Optional<String> subclassCasterType(ClassTables tables, String className, String subclassName) {
+        return tables.subclassTable(className, subclassName).map(SubclassTable::spellcasting)
+                .map(Spellcasting::casterType);
+    }
+
     // A subclass's Spellcasting, as an Eldritch Knight's for a fighter, or else the class's own
     private static Optional<Spellcasting> spellcasting(ClassTables tables, String className, String subclassName) {
         Optional<Spellcasting> subclass = tables.subclassTable(className, subclassName)

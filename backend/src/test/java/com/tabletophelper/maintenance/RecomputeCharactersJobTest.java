@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -162,5 +163,33 @@ class RecomputeCharactersJobTest {
         verify(characterService).recalculate(wild);
         verify(characterRepository).save(wild);
         verify(characterService, never()).recalculate(settled);
+    }
+
+    @Test
+    @DisplayName("A character with no stored spellcasting ability whose classes cast gains its first casting class's, "
+            + "reported with the level it is recorded on, or why it isn't, and stored only with apply (D159)")
+    void backfillsTheSpellcastingAbility() {
+        PlayerCharacter recorded = barbarian("Multi");
+        PlayerCharacter unrecorded = barbarian("Old");
+        when(characterRepository.findAll()).thenReturn(List.of(recorded, unrecorded));
+        when(characterService.derivedStats(any())).thenReturn(derived(65, 2, List.of(RAGE), List.of()));
+        when(characterService.missingSpellcastingAbility(recorded)).thenReturn(Optional.of(
+                new CharacterService.MissingSpellcastingAbility("INT", "Wizard", 1, true)));
+        when(characterService.missingSpellcastingAbility(unrecorded)).thenReturn(Optional.of(
+                new CharacterService.MissingSpellcastingAbility("WIS", "Cleric", 1, false)));
+
+        MaintenanceReport dryRun = job().run(false);
+
+        assertThat(dryRun.changes()).hasSize(2);
+        assertThat(dryRun.changes().get(0)).contains("spellcasting ability: none → INT (Wizard's, recorded on Wizard 1)");
+        assertThat(dryRun.changes().get(1)).contains("spellcasting ability: none → WIS (Cleric's, not recorded: the "
+                + "level history has no Cleric 1, so levelling down won't clear it)");
+        verify(characterService, never()).storeMissingSpellcastingAbility(any());
+
+        job().run(true);
+
+        verify(characterService).storeMissingSpellcastingAbility(recorded);
+        verify(characterService).storeMissingSpellcastingAbility(unrecorded);
+        verify(characterRepository).save(recorded);
     }
 }

@@ -27,8 +27,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * restraint's escape DC is an escapeDC, never a save. The bites whose DC is the monster's own save to regurgitate what
  * it swallowed, the Kraken's (MM), the Froghemoth's (VGM, MPMM), the Froghemoth Elder's (QftIS) and Slarkrethel's
  * (SKT), deal their piercing damage with no save for the target and leave the swallowing to the DM in a note. The
- * Mindwitness's and Ulitharid's tentacles (MPMM) grapple on every hit, and only the restraint or the stun waits for
- * the Intelligence save their text gives.
+ * Mindwitness's and Ulitharid's tentacles (VGM and MPMM) grapple on every hit, and only the restraint or the stun
+ * waits for the Intelligence save their text gives. No saving throw records a DC without its ability: where the text
+ * names no single ability, or calls for a check rather than a save, the action is the DM's, with a note.
  */
 class MonsterActionDataTest {
 
@@ -89,6 +90,52 @@ class MonsterActionDataTest {
         assertEquals(List.of(), found);
     }
 
+    @Test
+    @DisplayName("No saving throw records a DC without an ability")
+    void noSaveHasADcWithoutAnAbility() {
+        List<String> found = new ArrayList<>();
+        for (JsonNode definition : definitions) {
+            for (String list : LISTS) {
+                for (JsonNode action : definition.path(list)) {
+                    if ("SAVING_THROW".equals(action.path("deliveryMethod").asString())
+                            && action.path("saveDC").isNumber() && !action.path("saveAbility").isString()) {
+                        found.add(name(definition) + " " + list + " " + action.path("name").asString());
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), found);
+    }
+
+    @Test
+    @DisplayName("The Gardener's Vine grapples once on a hit, and its 0 hit point rule is the DM's note")
+    void gardenersVine() {
+        JsonNode vine = action("The Gardener", "QftIS", "Vine");
+        MonsterTemplates templates = MonsterTemplates.of(definition("The Gardener", "QftIS"));
+        MonsterEffects.MonsterAction plan = monsterEffects.plan(templates.find("ACTION", "Vine").orElseThrow(),
+                templates, List.of(UUID.randomUUID()), MonsterEffects.Overrides.NONE);
+
+        Effect effect = plan.steps().getFirst().effect();
+        Effect.Attack attack = assertInstanceOf(Effect.Attack.class, effect.delivery());
+        assertNull(attack.hitSave());
+        assertEquals(List.of("grappled"), effect.conditions());
+        assertEquals(17, effect.conditionEnds().get("grappled").escapeDc());
+        assertTrue(vine.path("dmNote").asString().contains("reduced to 0 hit points"));
+        assertEquals(List.of(vine.path("dmNote").asString()), plan.notes());
+    }
+
+    @Test
+    @DisplayName("An action left to the DM gives its note as the reason")
+    void manualActionGivesItsNote() {
+        JsonNode roar = action("Androsphinx", "MM", "Roar");
+        MonsterTemplates templates = MonsterTemplates.of(definition("Androsphinx", "MM"));
+        MonsterEffects.MonsterAction plan = monsterEffects.plan(templates.find("ACTION", "Roar").orElseThrow(),
+                templates, List.of(UUID.randomUUID()), MonsterEffects.Overrides.NONE);
+
+        assertEquals(List.of(), plan.steps());
+        assertEquals(roar.path("dmNote").asString(), plan.manualReason());
+    }
+
     @ParameterizedTest(name = "{0} ({1})")
     @CsvSource({"Kraken, MM, 3d8+10", "Froghemoth, VGM, 3d10 + 6", "Froghemoth, MPMM, 3d10 + 6",
             "Froghemoth Elder, QftIS, 3d10 + 7", "Slarkrethel, SKT, 3d8 + 10"})
@@ -115,12 +162,13 @@ class MonsterActionDataTest {
         assertEquals(List.of(bite.path("dmNote").asString()), plan.notes());
     }
 
-    @ParameterizedTest(name = "{0}")
-    @CsvSource({"Mindwitness, 13, restrained, 13", "Ulitharid, 14, stunned, 17"})
-    @DisplayName("An MPMM tentacle grapples on a hit with its escape DC, and only its other condition waits for an "
+    @ParameterizedTest(name = "{0} ({1})")
+    @CsvSource({"Mindwitness, MPMM, 13, restrained, 13", "Ulitharid, MPMM, 14, stunned, 17",
+            "Mindwitness, VGM, 13, stunned, 13", "Ulitharid, VGM, 14, stunned, 17"})
+    @DisplayName("A tentacle grapples on a hit with its escape DC, and only its other condition waits for an "
             + "Intelligence save")
-    void tentacles(String monster, int escapeDc, String condition, int saveDc) {
-        MonsterTemplates templates = MonsterTemplates.of(definition(monster, "MPMM"));
+    void tentacles(String monster, String source, int escapeDc, String condition, int saveDc) {
+        MonsterTemplates templates = MonsterTemplates.of(definition(monster, source));
         MonsterEffects.MonsterAction plan = monsterEffects.plan(templates.find("ACTION", "Tentacle").orElseThrow(),
                 templates, List.of(UUID.randomUUID()), MonsterEffects.Overrides.NONE);
 
