@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronDown, User } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { THEMES, useTheme } from '../../hooks/useTheme';
 import { useDismiss } from '../../hooks/useDismiss';
 

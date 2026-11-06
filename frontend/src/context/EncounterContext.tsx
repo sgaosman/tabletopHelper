@@ -6,7 +6,7 @@ import { liveCombatLogQuery, liveEncounterQuery } from '../queries/encounters';
 import { queryKeys } from '../queries/keys';
 import type { CombatLogEntry } from '../types/combat';
 import type { EncounterView } from '../types/encounter';
-import { LiveEncounterContext, useLiveEncounter, type EncounterContextType, type LiveEncounter } from './liveEncounter';
+import { LiveEncounterContext, type LiveEncounter } from './liveEncounter';
 
 const NO_LOG: CombatLogEntry[] = [];
 
@@ -53,8 +53,4 @@ export function EncounterProvider({ encounterId, view = 'player', children }: { 
       {children}
     </LiveEncounterContext.Provider>
   );
-}
-
-export function useEncounter(): EncounterContextType {
-  return useLiveEncounter();
 }

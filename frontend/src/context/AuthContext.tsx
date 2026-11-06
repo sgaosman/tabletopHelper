@@ -1,8 +1,9 @@
-import { createContext, useContext, useReducer, useCallback, useEffect, type ReactNode } from 'react';
+import { useReducer, useCallback, useEffect, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../api/authApi';
 import { clearAccessToken, refreshAccessToken, setAccessToken } from '../api/tokenStore';
-import type { AuthState, AuthStatus, AuthUser, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
+import type { AuthStatus, AuthUser, LoginRequest, RegisterRequest, AuthResponse } from '../types/auth';
+import { AuthContext } from './authSession';
 
 type AuthAction =
   | { type: 'LOGIN_SUCCESS'; payload: AuthResponse }
@@ -33,14 +34,6 @@ function authReducer(state: SessionState, action: AuthAction): SessionState {
       return state;
   }
 }
-
-interface AuthContextType extends AuthState {
-  login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
-  logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
@@ -102,12 +95,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 }

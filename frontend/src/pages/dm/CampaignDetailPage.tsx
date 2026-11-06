@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Copy, Check, Users, ScrollText, Settings, SlidersHorizontal, HeartPulse } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { useCampaign, useUpdateCampaignSettings } from '../../queries/campaigns';
 import { useCampaignCharacters, useReviveCharacter } from '../../queries/characters';
 import NavBar from '../../components/common/NavBar';

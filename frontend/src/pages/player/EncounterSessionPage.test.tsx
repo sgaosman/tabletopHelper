@@ -66,6 +66,7 @@ describe('Player EncounterSessionPage', () => {
     expect(await screen.findByText('Live')).toBeInTheDocument();
   });
 
+  // The row's left edge carries the colour, as on the DM's page (R8 D)
   it('shows each player character in its class colour, and a monster in the monster colour', async () => {
     server.use(
       http.get('/api/encounters/:id', () =>
@@ -74,8 +75,8 @@ describe('Player EncounterSessionPage', () => {
     );
     renderPage();
 
-    expect((await screen.findByText('Legolas')).getAttribute('style')).toContain('var(--color-cls-ranger)');
-    expect(screen.getByText('Test Goblin').getAttribute('style')).toContain('var(--color-monster)');
+    expect((await screen.findByText('Legolas')).closest('[style]')?.getAttribute('style')).toContain('var(--color-cls-ranger)');
+    expect(screen.getByText('Test Goblin').closest('[style]')?.getAttribute('style')).toContain('var(--color-monster)');
   });
 
   it('shows exact monster HP when the DM allows it', async () => {
@@ -232,7 +233,7 @@ describe('Player EncounterSessionPage', () => {
       renderPage();
 
       expect(await screen.findByText('You are dying!')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Roll Death Save' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Roll' })).toBeInTheDocument();
       expect(screen.getByText('Dying')).toBeInTheDocument();
       // A character at 0 HP takes no actions
       expect(screen.queryByRole('button', { name: 'Add Condition' })).not.toBeInTheDocument();
@@ -245,7 +246,7 @@ describe('Player EncounterSessionPage', () => {
       renderPage();
 
       expect(await screen.findByText(/You are stable/)).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Roll Death Save' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Roll' })).not.toBeInTheDocument();
       expect(screen.getByText('Stable')).toBeInTheDocument();
       expect(screen.getByText('Dead')).toBeInTheDocument();
     });
@@ -456,7 +457,7 @@ describe('Player EncounterSessionPage', () => {
       renderPage();
 
       expect(await screen.findByText('Your turn has started: roll your death saving throw.')).toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: 'Roll Death Save' }));
+      await user.click(screen.getByRole('button', { name: 'Roll' }));
 
       await waitFor(() => expect(screen.queryByText(/Your turn has started/)).not.toBeInTheDocument());
       expect(requests).toEqual([{ participantId: 'part-gimli' }]);
@@ -493,7 +494,7 @@ describe('Player EncounterSessionPage', () => {
       }))));
       renderPage();
 
-      expect(await screen.findByText('paralyzed x')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'paralyzed' })).toBeInTheDocument();
       expect(screen.queryByText(/Repeat your/)).not.toBeInTheDocument();
     });
   });

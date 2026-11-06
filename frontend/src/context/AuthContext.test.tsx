@@ -8,7 +8,8 @@ import { makeCampaign, makeMockCharacter } from '../test/mocks/handlers';
 import { createTestQueryClient, setupAuthToken } from '../test/test-utils';
 import { getAccessToken } from '../api/tokenStore';
 import { queryKeys } from '../queries/keys';
-import { AuthProvider, useAuth } from './AuthContext';
+import { AuthProvider } from './AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 function AuthProbe() {
   const { status, user, isAuthenticated, login, register, logout } = useAuth();

@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns } from '../../queries/campaigns';
 import { useCampaignCharacters } from '../../queries/characters';

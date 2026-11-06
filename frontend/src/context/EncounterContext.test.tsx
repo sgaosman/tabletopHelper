@@ -11,7 +11,8 @@ import { createTestQueryClient, setupAuthToken, TEST_SESSION } from '../test/tes
 import { useCombatLog, useEncounterAction } from '../queries/encounters';
 import { queryKeys } from '../queries/keys';
 import type { Encounter, EncounterView } from '../types/encounter';
-import { EncounterProvider, useEncounter } from './EncounterContext';
+import { EncounterProvider } from './EncounterContext';
+import { useEncounter } from '../hooks/useEncounter';
 
 const STATE_TOPIC = '/topic/encounter/enc-001/state';
 const LOG_TOPIC = '/topic/encounter/enc-001/log';
