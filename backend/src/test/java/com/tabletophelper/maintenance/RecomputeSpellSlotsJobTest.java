@@ -5,6 +5,7 @@ import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.rules.SpellSlotCalculator;
+import com.tabletophelper.rules.character.TestClassTables;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +27,7 @@ class RecomputeSpellSlotsJobTest {
     @Mock CharacterService characterService;
 
     private RecomputeSpellSlotsJob job() {
-        return new RecomputeSpellSlotsJob(characterRepository, characterService);
+        return new RecomputeSpellSlotsJob(characterRepository, characterService, TestClassTables.load());
     }
 
     private static PlayerCharacter character(String name, Map<String, SpellSlot> spellSlots) {

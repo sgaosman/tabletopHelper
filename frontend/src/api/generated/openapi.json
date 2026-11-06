@@ -3036,6 +3036,26 @@
         ]
       }
     },
+    "/api/reference/class-tables": {
+      "get": {
+        "operationId": "getClassTables",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassTablesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
     "/api/reference/classes": {
       "get": {
         "operationId": "getAllClasses",
@@ -5573,6 +5593,108 @@
           "subclassName": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "ClassTableResponse": {
+        "required": [
+          "asiLevels",
+          "expertise",
+          "fightingStyleLevels",
+          "fightingStyles",
+          "subclassLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "asiLevels": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "expertise": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "fightingStyleLevels": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "fightingStyles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "spellbook": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpellbookResponse"
+              }
+            ]
+          },
+          "spellcasting": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpellcastingResponse"
+              }
+            ]
+          },
+          "subclassLevel": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ClassTablesResponse": {
+        "required": [
+          "classes",
+          "proficiencyBonus",
+          "spellSlots",
+          "subclasses"
+        ],
+        "type": "object",
+        "properties": {
+          "classes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ClassTableResponse"
+            }
+          },
+          "proficiencyBonus": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "spellSlots": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              }
+            }
+          },
+          "subclasses": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SubclassTableResponse"
+            }
           }
         }
       },
@@ -8522,6 +8644,54 @@
           }
         }
       },
+      "SpellbookResponse": {
+        "required": [
+          "firstLevel",
+          "laterLevels"
+        ],
+        "type": "object",
+        "properties": {
+          "firstLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "laterLevels": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SpellcastingResponse": {
+        "required": [
+          "cantripsKnown",
+          "casterType",
+          "preparing",
+          "spellsKnown"
+        ],
+        "type": "object",
+        "properties": {
+          "cantripsKnown": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "casterType": {
+            "type": "string"
+          },
+          "preparing": {
+            "type": "string"
+          },
+          "spellsKnown": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
       "SpellsLearned": {
         "required": [
           "learned"
@@ -8611,6 +8781,33 @@
           },
           "subclassName": {
             "type": "string"
+          }
+        }
+      },
+      "SubclassTableResponse": {
+        "required": [
+          "className",
+          "fightingStyleLevels"
+        ],
+        "type": "object",
+        "properties": {
+          "className": {
+            "type": "string"
+          },
+          "fightingStyleLevels": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "spellcasting": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SpellcastingResponse"
+              }
+            ]
           }
         }
       },

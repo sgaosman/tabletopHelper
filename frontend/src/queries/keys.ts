@@ -63,6 +63,7 @@ export const queryKeys = {
     itemFilterOptions: (filter: 'types' | 'rarities' | 'sources') => ['reference', 'items', 'filters', filter] as const,
     conditions: () => ['reference', 'conditions'] as const,
     quickReference: () => ['reference', 'quick-reference'] as const,
+    classTables: () => ['reference', 'class-tables'] as const,
     races: (source?: string) => ['reference', 'races', 'list', source ?? 'all'] as const,
     raceSources: () => ['reference', 'races', 'filters', 'sources'] as const,
     classes: () => ['reference', 'classes'] as const,

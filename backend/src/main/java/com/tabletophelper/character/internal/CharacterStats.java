@@ -18,12 +18,15 @@ import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.Subclass;
+import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
 import com.tabletophelper.rules.character.AbilityScores;
 import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.rules.character.HitPoints;
 import com.tabletophelper.shared.ConflictException;
@@ -36,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.UUID;
 import java.util.function.Function;
 
 /**
@@ -50,18 +54,21 @@ import java.util.function.Function;
  * adjusted scores; the other STAT adjustments are added to the hit point maximum, initiative, speed and every spell
  * save DC and attack bonus, each class's and the main ones. Feats count whether a level took one in place of an
  * Ability Score Improvement, the race or background gave it at creation (D159) or the DM granted it: Alert's
- * initiative, Mobile's speed and feats' pools come from each, and so does Tough, whose feature each adds. Tough, the
- * Hill Dwarf and the Draconic Bloodline are matched by name until R7's data files hold their effects.
+ * initiative, Mobile's speed and feats' pools come from each, and so do Tough's hit points. Hit points for every level
+ * come from the effects in the data (R7): a feat's recorded {@code hpPerLevel}, such as Tough's, and the race's
+ * {@code hpPerLevel}, such as the Hill Dwarf's, for every character level, and a subclass's {@code hpPerClassLevel},
+ * such as the Draconic Bloodline's, for every level in its class. The class tables come from the content module.
  */
 @Component
 @RequiredArgsConstructor
 public class CharacterStats {
 
-    // Matched by name until R7's data files hold them (D167)
-    static final String TOUGH = "Tough";
-    static final String HILL_DWARF = "Hill Dwarf";
-    static final String DRACONIC_BLOODLINE = "Draconic Bloodline";
     static final String BARBARIAN = "Barbarian";
+
+    // The effects that add hit points for every level: a race's for every character level, a subclass's for every
+    // level in its class
+    static final String HP_PER_LEVEL = "hpPerLevel";
+    static final String HP_PER_CLASS_LEVEL = "hpPerClassLevel";
 
     private static final int PRIMAL_CHAMPION_LEVEL = 20;
     private static final int DEFAULT_SPEED = 30;
@@ -71,8 +78,10 @@ public class CharacterStats {
     private static final String THIRD_CASTER_ABILITY = "INT";
 
     private final CharacterClassRepository classRepository;
+    private final SubclassRepository subclassRepository;
     private final ResourcePoolService resourcePoolService;
     private final ObjectMapper objectMapper;
+    private final ClassTables classTables;
 
     /** One of the character's classes: its class entry and the class it names. */
     private record ClassLevel(ClassEntry entry, CharacterClass characterClass) {
@@ -185,8 +194,9 @@ public class CharacterStats {
 
     /**
      * The hit point maximum some of the character's levels give, such as the first few of a character being created:
-     * each one's hit die result plus the current Constitution modifier, and the per-level bonuses of Tough, the Hill
-     * Dwarf and the Draconic Bloodline (D167). The DM's hit point adjustments aren't the levels', so aren't included.
+     * each one's hit die result plus the current Constitution modifier, and the per-level bonuses the feats', race's
+     * and subclasses' effects give, such as Tough's, the Hill Dwarf's and the Draconic Bloodline's (D167). The DM's
+     * hit point adjustments aren't the levels', so aren't included.
      *
      * @throws ConflictException for no levels
      */
@@ -245,15 +255,27 @@ public class CharacterStats {
             levels.add(new HitPoints.Level(entry.className(), result));
         }
         List<HitPoints.PerLevelBonus> bonuses = new ArrayList<>();
-        if (orEmpty(character.getFeatures()).stream().anyMatch(f -> TOUGH.equalsIgnoreCase(trimmed(f.name())))) {
-            bonuses.add(HitPoints.TOUGH);
+        int featHitPoints = featBonus(character, AppliedFeatEffects::hpPerLevel);
+        if (featHitPoints != 0) {
+            bonuses.add(HitPoints.PerLevelBonus.everyLevel(featHitPoints));
         }
         Race race = character.getRaceRef();
-        if (race != null && HILL_DWARF.equalsIgnoreCase(trimmed(race.getName()))) {
-            bonuses.add(HitPoints.DWARVEN_TOUGHNESS);
+        if (race != null) {
+            int raceHitPoints = effect(race.getEffects(), HP_PER_LEVEL, "race " + race.getName());
+            if (raceHitPoints != 0) {
+                bonuses.add(HitPoints.PerLevelBonus.everyLevel(raceHitPoints));
+            }
         }
-        if (classes.stream().anyMatch(c -> DRACONIC_BLOODLINE.equals(c.entry().subclassName()))) {
-            bonuses.add(HitPoints.DRACONIC_RESILIENCE);
+        for (ClassLevel c : classes) {
+            UUID subclassId = c.entry().subclassId();
+            if (subclassId == null) continue;
+            Subclass subclass = subclassRepository.findById(subclassId)
+                    .orElseThrow(() -> new ConflictException("The subclass " + c.entry().subclassName()
+                            + " that the character has can't be found"));
+            int subclassHitPoints = effect(subclass.getEffects(), HP_PER_CLASS_LEVEL, "subclass " + subclass.getName());
+            if (subclassHitPoints != 0) {
+                bonuses.add(HitPoints.PerLevelBonus.perClassLevel(c.name(), subclassHitPoints));
+            }
         }
         return HitPoints.maximum(levels, Ability.modifier(DmAdjustments.abilityScore(character, Ability.CON)), bonuses,
                 adjustment);
@@ -272,6 +294,21 @@ public class CharacterStats {
                 .map(CharacterClass::getHitDice)
                 .orElseThrow(() -> new ConflictException("The class " + entry.className() + " of level "
                         + entry.characterLevel() + " can't be found"));
+    }
+
+    // A whole-number effect in a race's or subclass's effects, such as {"hpPerLevel": 1}; 0 for none
+    private int effect(String effects, String name, String of) {
+        if (effects == null || effects.isBlank()) {
+            return 0;
+        }
+        try {
+            JsonNode value = objectMapper.readTree(effects).get(name);
+            if (value == null || value.isNull()) return 0;
+            if (value.isIntegralNumber() && value.canConvertToInt()) return value.asInt();
+        } catch (JsonProcessingException e) {
+            // Falls through to the 409 below
+        }
+        throw new ConflictException("The effects of the " + of + " can't be read: " + effects);
     }
 
     // ── Initiative and speed ─────────────────────────────────────
@@ -322,9 +359,10 @@ public class CharacterStats {
      * Each slot's maximum, keeping the used count up to it, so levelling restores no slot (D168). Pact slots that
      * change level on a warlock's level keep their used count too. Null for no slots.
      */
-    private static Map<String, SpellSlot> spellSlots(PlayerCharacter character, List<ClassLevel> classes) {
+    private Map<String, SpellSlot> spellSlots(PlayerCharacter character, List<ClassLevel> classes) {
         Map<String, SpellSlotCalculator.ClassEntry> entries = spellSlotEntries(classes);
-        Map<String, Integer> maximums = entries.isEmpty() ? Map.of() : SpellSlotCalculator.calculateSlots(entries);
+        Map<String, Integer> maximums = entries.isEmpty() ? Map.of()
+                : SpellSlotCalculator.calculateSlots(classTables, entries);
         if (maximums.isEmpty()) {
             return null;
         }
@@ -365,8 +403,8 @@ public class CharacterStats {
     // ── Spellcasting ─────────────────────────────────────────────
 
     // Each casting class's numbers, with the DM's spell save DC and attack bonus adjustments, which apply to every class
-    private static List<ClassSpellcasting> spellcasting(PlayerCharacter character, List<ClassLevel> classes,
-                                                        Map<Ability, Integer> scores, int proficiencyBonus) {
+    private List<ClassSpellcasting> spellcasting(PlayerCharacter character, List<ClassLevel> classes,
+                                                 Map<Ability, Integer> scores, int proficiencyBonus) {
         int saveDcAdjustment = DmAdjustments.total(character, Stat.SPELL_SAVE_DC);
         int attackBonusAdjustment = DmAdjustments.total(character, Stat.SPELL_ATTACK_BONUS);
         List<ClassSpellcasting> spellcasting = new ArrayList<>();
@@ -385,10 +423,10 @@ public class CharacterStats {
                     ability.name(),
                     8 + proficiencyBonus + modifier + saveDcAdjustment,
                     proficiencyBonus + modifier + attackBonusAdjustment,
-                    ClassProgression.highestSpellLevel(c.name(), subclass, classLevel),
-                    ClassProgression.cantripsKnown(c.name(), subclass, classLevel),
-                    boxed(ClassProgression.spellsKnown(c.name(), subclass, classLevel)),
-                    boxed(ClassProgression.preparedSpells(c.name(), classLevel, modifier)),
+                    ClassProgression.highestSpellLevel(classTables, c.name(), subclass, classLevel),
+                    ClassProgression.cantripsKnown(classTables, c.name(), subclass, classLevel),
+                    boxed(ClassProgression.spellsKnown(classTables, c.name(), subclass, classLevel)),
+                    boxed(ClassProgression.preparedSpells(classTables, c.name(), classLevel, modifier)),
                     Boolean.TRUE.equals(c.characterClass().getIsPactMagic())));
         }
         return spellcasting;
@@ -458,10 +496,6 @@ public class CharacterStats {
 
     private static Integer boxed(OptionalInt value) {
         return value.isPresent() ? value.getAsInt() : null;
-    }
-
-    private static String trimmed(String text) {
-        return text != null ? text.trim() : null;
     }
 
     private static <T> List<T> orEmpty(List<T> list) {

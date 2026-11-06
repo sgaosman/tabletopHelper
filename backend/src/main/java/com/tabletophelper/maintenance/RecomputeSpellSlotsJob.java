@@ -5,6 +5,7 @@ import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.rules.SpellSlotCalculator;
+import com.tabletophelper.rules.character.ClassTables;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ public class RecomputeSpellSlotsJob implements MaintenanceJob {
 
     private final CharacterRepository characterRepository;
     private final CharacterService characterService;
+    private final ClassTables classTables;
 
     @Override
     public String name() {
@@ -46,7 +48,7 @@ public class RecomputeSpellSlotsJob implements MaintenanceJob {
                     continue;
                 }
 
-                Map<String, Integer> maximums = SpellSlotCalculator.calculateSlots(entries);
+                Map<String, Integer> maximums = SpellSlotCalculator.calculateSlots(classTables, entries);
                 Map<String, SpellSlot> current = pc.getSpellSlots() != null ? pc.getSpellSlots() : Map.of();
 
                 Map<String, SpellSlot> updated = new LinkedHashMap<>();

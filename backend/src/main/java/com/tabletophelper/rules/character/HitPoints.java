@@ -8,7 +8,7 @@ import java.util.Objects;
  * The hit point maximum under the 2014 rules (D167), worked out afresh from what each level recorded: each level's
  * hit die result plus the current Constitution modifier, at least 1 a level (PHB p.15), so a changed modifier counts
  * as though the character had it from 1st level (PHB p.177); then the bonuses some races, subclasses and feats give
- * for every level, and any flat adjustments.
+ * for every level, which their effects in the data hold (R7), and any flat adjustments.
  */
 public final class HitPoints {
 
@@ -45,18 +45,6 @@ public final class HitPoints {
             return amount * (int) counted;
         }
     }
-
-    /**
-     * Tough: twice the character's level when taken, and 2 more at every level after, so 2 for every level
-     * (PHB p.170).
-     */
-    public static final PerLevelBonus TOUGH = PerLevelBonus.everyLevel(2);
-
-    /** The Hill Dwarf's Dwarven Toughness: 1 at 1st level and 1 more at every level after (PHB p.20). */
-    public static final PerLevelBonus DWARVEN_TOUGHNESS = PerLevelBonus.everyLevel(1);
-
-    /** The Draconic Bloodline's Draconic Resilience: 1 for every sorcerer level (PHB p.102). */
-    public static final PerLevelBonus DRACONIC_RESILIENCE = PerLevelBonus.perClassLevel("Sorcerer", 1);
 
     private HitPoints() {}
 

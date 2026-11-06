@@ -23,6 +23,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class HitPointsGoldenTest {
 
+    // The bonuses as the data's effects give them: Tough's 2 a level (PHB p.170; feat-effects.json), the Hill Dwarf's
+    // 1 a level (p.20; race-effects.json) and the Draconic Bloodline's 1 a sorcerer level (p.102; subclass-effects.json)
+    private static final PerLevelBonus TOUGH = PerLevelBonus.everyLevel(2);
+    private static final PerLevelBonus DWARVEN_TOUGHNESS = PerLevelBonus.everyLevel(1);
+    private static final PerLevelBonus DRACONIC_RESILIENCE = PerLevelBonus.perClassLevel("Sorcerer", 1);
+
     @ParameterizedTest(name = "d{0}: {1} at character level 1, {2} after")
     @CsvSource({"6, 6, 4", "8, 8, 5", "10, 10, 6", "12, 12, 7"})
     @DisplayName("A level's fixed hit die result is the die's maximum at character level 1 and its average, rounded up, after that")
@@ -55,7 +61,7 @@ class HitPointsGoldenTest {
         // later level 2 more on top of the usual 8
         int[] expected = {12, 20, 28, 44, 54, 64, 74, 84};
         for (int level = 1; level <= 8; level++) {
-            List<PerLevelBonus> bonuses = level >= 4 ? List.of(HitPoints.TOUGH) : List.of();
+            List<PerLevelBonus> bonuses = level >= 4 ? List.of(TOUGH) : List.of();
             assertEquals(expected[level - 1],
                     HitPoints.maximum(levels("Fighter", 10, level), 2, bonuses, 0), "level " + level);
         }
@@ -68,7 +74,7 @@ class HitPointsGoldenTest {
         int[] expected = {11, 19, 27, 35, 43};
         for (int level = 1; level <= 5; level++) {
             assertEquals(expected[level - 1], HitPoints.maximum(levels("Cleric", 8, level), 2,
-                    List.of(HitPoints.DWARVEN_TOUGHNESS), 0), "level " + level);
+                    List.of(DWARVEN_TOUGHNESS), 0), "level " + level);
         }
     }
 
@@ -79,12 +85,12 @@ class HitPointsGoldenTest {
         int[] expected = {8, 14, 20, 26, 32};
         for (int level = 1; level <= 5; level++) {
             assertEquals(expected[level - 1], HitPoints.maximum(levels("Sorcerer", 6, level), 1,
-                    List.of(HitPoints.DRACONIC_RESILIENCE), 0), "level " + level);
+                    List.of(DRACONIC_RESILIENCE), 0), "level " + level);
         }
 
         // Fighter 2 then Sorcerer 1: 10 + 1, 6 + 1, then 4 + 1 + 1 for the one sorcerer level
         assertEquals(24, HitPoints.maximum(levels("Fighter", 10, 2, "Sorcerer", 6, 1), 1,
-                List.of(HitPoints.DRACONIC_RESILIENCE), 0));
+                List.of(DRACONIC_RESILIENCE), 0));
     }
 
     @Test
@@ -93,7 +99,7 @@ class HitPointsGoldenTest {
         // A Hill Dwarf draconic sorcerer 4 with Tough and CON 14 (+2): 8, then three levels of 4 + 2, so 26; plus 4
         // from Dwarven Toughness, 4 from Draconic Resilience and 8 from Tough
         assertEquals(42, HitPoints.maximum(levels("Sorcerer", 6, 4), 2,
-                List.of(HitPoints.DWARVEN_TOUGHNESS, HitPoints.DRACONIC_RESILIENCE, HitPoints.TOUGH), 0));
+                List.of(DWARVEN_TOUGHNESS, DRACONIC_RESILIENCE, TOUGH), 0));
     }
 
     @Test
@@ -123,7 +129,7 @@ class HitPointsGoldenTest {
         assertEquals(2, HitPoints.maximum(levels("Wizard", 6, 2), -5, List.of(), 0));
 
         // A Hill Dwarf with CON 3: the 1 from Dwarven Toughness comes on top of each level's minimum of 1
-        assertEquals(5, HitPoints.maximum(levels("Wizard", 6, 2), -4, List.of(HitPoints.DWARVEN_TOUGHNESS), 0));
+        assertEquals(5, HitPoints.maximum(levels("Wizard", 6, 2), -4, List.of(DWARVEN_TOUGHNESS), 0));
     }
 
     @Test

@@ -296,7 +296,7 @@ class DmAdjustmentIT extends IntegrationTest {
     void repeatableFeats() {
         UUID adept = feat("Elemental Adept", "Spells you cast ignore resistance to damage of the chosen type. You can "
                 + "select this feat multiple times. Each time you do so, you must choose a different damage type.",
-                null, "{}");
+                null, "{\"repeatable\": true}");
 
         adjust(aria, grant(Map.of("featId", adept), "Gift of the fire primordial"));
         JsonNode twice = adjust(aria, grant(Map.of("featId", adept), "Gift of the frost primordial"));

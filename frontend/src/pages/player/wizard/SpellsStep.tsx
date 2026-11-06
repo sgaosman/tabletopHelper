@@ -3,7 +3,10 @@ import { Check, Search, X } from 'lucide-react';
 import type { CharacterClassRef, Spell } from '../../../types/reference';
 import { searchSpells } from '../../../api/referenceApi';
 import { useTypeAhead } from '../../../hooks/useTypeAhead';
-import { CANTRIPS_KNOWN, SPELLS_KNOWN, maxSpellLevel, wizardSpellbookCount } from '../../../utils/spellConstants';
+import { useClassTables } from '../../../queries/reference';
+import {
+  type ClassTables, cantripsKnown, highestSpellLevel, spellbookSize, spellsKnown,
+} from '../../../utils/classTables';
 import type { ClassEntry } from './types';
 
 // The wizard chooses the 1st level's spells; every later level's are Pending Choices made on the sheet (D159)
@@ -43,11 +46,19 @@ export default function SpellsStep({
   spellSearch, setSpellSearch,
 }: SpellsStepProps) {
   const later = level > 1 || classEntries.length > 1;
+  const { data: tables, isError } = useClassTables();
+  if (!tables) {
+    return (
+      <p className="font-body text-[15px] font-semibold text-muted">
+        {isError ? 'The class tables could not be loaded. Reload the page to try again.' : 'Loading the class tables…'}
+      </p>
+    );
+  }
   return (
     <div className="space-y-8">
       {selectedClass?.isSpellcaster && (() => {
-        const maxLvl = maxSpellLevel(selectedClass.name, FIRST_LEVEL);
-        const cantrips = CANTRIPS_KNOWN[selectedClass.name]?.[FIRST_LEVEL] ?? 0;
+        const maxLvl = highestSpellLevel(tables, selectedClass.name, FIRST_LEVEL);
+        const cantrips = cantripsKnown(tables, selectedClass.name, FIRST_LEVEL);
         if (maxLvl === 0 && cantrips === 0) {
           return (
             <div className="bg-card border border-rule p-4">
@@ -63,6 +74,7 @@ export default function SpellsStep({
         }
         return (
           <SpellSelectionSection
+            tables={tables}
             selectedClass={selectedClass}
             level={FIRST_LEVEL}
             selectedCantrips={selectedCantrips}
@@ -92,10 +104,10 @@ export default function SpellsStep({
       {(() => {
         const warnings: string[] = [];
         if (selectedClass?.isSpellcaster) {
-          const cantripsAllowed = CANTRIPS_KNOWN[selectedClass.name]?.[FIRST_LEVEL] ?? 0;
+          const cantripsAllowed = cantripsKnown(tables, selectedClass.name, FIRST_LEVEL);
           const isWiz = selectedClass.name === 'Wizard';
-          const spellsAllowed = isWiz ? wizardSpellbookCount(FIRST_LEVEL)
-            : selectedClass.isKnownCaster ? (SPELLS_KNOWN[selectedClass.name]?.[FIRST_LEVEL] ?? 0) : 0;
+          const spellsAllowed = isWiz ? spellbookSize(tables, selectedClass.name, FIRST_LEVEL)
+            : selectedClass.isKnownCaster ? spellsKnown(tables, selectedClass.name, FIRST_LEVEL) : 0;
           if (cantripsAllowed > 0 && selectedCantrips.length < cantripsAllowed) {
             warnings.push(`${selectedClass.name}: ${selectedCantrips.length}/${cantripsAllowed} cantrips selected`);
           }
@@ -120,7 +132,7 @@ export default function SpellsStep({
 }
 
 function SpellSelectionSection({
-  selectedClass, level,
+  tables, selectedClass, level,
   selectedCantrips, setSelectedCantrips,
   selectedSpells, setSelectedSpells,
   cantripResults, setCantripResults,
@@ -129,6 +141,7 @@ function SpellSelectionSection({
   spellSearch, setSpellSearch,
   title,
 }: {
+  tables: ClassTables;
   selectedClass: CharacterClassRef;
   level: number;
   selectedCantrips: Spell[];
@@ -145,15 +158,16 @@ function SpellSelectionSection({
   setSpellSearch: (s: string) => void;
   title?: string;
 }) {
-  const cantripsAllowed = CANTRIPS_KNOWN[selectedClass.name]?.[level] ?? 0;
+  const cantripsAllowed = cantripsKnown(tables, selectedClass.name, level);
   const isWizard = selectedClass.name === 'Wizard';
+  const spellbook = spellbookSize(tables, selectedClass.name, level);
   const spellsAllowed = isWizard
-    ? wizardSpellbookCount(level)
+    ? spellbook
     : selectedClass.isKnownCaster
-    ? (SPELLS_KNOWN[selectedClass.name]?.[level] ?? 0)
+    ? spellsKnown(tables, selectedClass.name, level)
     : 0;
   const isPrepared = selectedClass.isPreparedCaster && !isWizard;
-  const maxLevel = maxSpellLevel(selectedClass.name, level);
+  const maxLevel = highestSpellLevel(tables, selectedClass.name, level);
 
   useEffect(() => {
     if (cantripsAllowed > 0 && cantripResults.length === 0) {
@@ -222,7 +236,7 @@ function SpellSelectionSection({
       <h2 className="font-heading text-[17px] font-semibold text-ink">{title ?? 'Choose Spells'}</h2>
       <p className="font-body text-[15px] font-semibold text-muted">
         {isWizard
-          ? `Select spells for your starting spellbook. You begin with ${wizardSpellbookCount(level)} spells.`
+          ? `Select spells for your starting spellbook. You begin with ${spellbook} spells.`
           : `Select your starting ${selectedClass.name} spells.`}
       </p>
 

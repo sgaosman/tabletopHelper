@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useState } from 'react';
 import { http, HttpResponse } from 'msw';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '../../../../test/test-utils';
 import userEvent from '@testing-library/user-event';
 import { server } from '../../../../test/mocks/server';
 import { setupAuthToken } from '../../../../test/test-utils';

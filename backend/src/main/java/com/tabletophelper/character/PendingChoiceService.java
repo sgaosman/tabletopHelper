@@ -34,6 +34,7 @@ import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -86,6 +87,7 @@ public class PendingChoiceService {
     private final FeatRepository featRepository;
     private final OptionalFeatureRepository optionalFeatureRepository;
     private final ObjectMapper objectMapper;
+    private final ClassTables classTables;
 
     // ── Making a choice ──────────────────────────────────────────
 
@@ -357,8 +359,9 @@ public class PendingChoiceService {
                     .map(f -> new Feature(f.name(), f.description(), f.source()))
                     .toList());
             int characterLevel = character.getLevelHistory().get(levelIndex).characterLevel();
-            brought.addAll(PendingChoices.owedBySubclass(characterLevel, new PendingChoices.ClassLevel(classId,
-                    choice.className(), level, subclass.getName(), subclassLevel, List.of()), choice.source()));
+            brought.addAll(PendingChoices.owedBySubclass(classTables, characterLevel,
+                    new PendingChoices.ClassLevel(classId, choice.className(), level, subclass.getName(),
+                            subclassLevel, List.of()), choice.source()));
         }
         return brought;
     }
@@ -403,7 +406,7 @@ public class PendingChoiceService {
             throw new ValidationException("A Fighting Style choice needs the style");
         }
         List<String> options = choice.options() != null ? choice.options()
-                : ClassProgression.fightingStyles(choice.className());
+                : ClassProgression.fightingStyles(classTables, choice.className());
         String chosen = options.stream().filter(option -> option.equalsIgnoreCase(style.trim())).findFirst()
                 .orElseThrow(() -> new ValidationException("A " + choice.className()
                         + " chooses its Fighting Style from " + String.join(", ", options) + ", not " + style.trim()));
@@ -471,7 +474,7 @@ public class PendingChoiceService {
         for (LevelHistoryEntry level : orEmpty(character.getLevelHistory())) {
             CharacterClass characterClass = level.classId() != null ? classes.get(level.classId()) : null;
             if (characterClass == null) continue;
-            owed.addAll(PendingChoices.owedAt(level.characterLevel(),
+            owed.addAll(PendingChoices.owedAt(classTables, level.characterLevel(),
                     classLevel(character, characterClass, level.classLevel()), Source.CREATION));
         }
         owed = expertiseCovered(character, owed, request.getSkillExpertises());
@@ -484,8 +487,8 @@ public class PendingChoiceService {
     /** Adds the choices a level just gained owes. */
     void owedAtLevelUp(PlayerCharacter character, CharacterClass levelClass, int characterLevel, int classLevel) {
         List<PendingChoice> pending = copy(character.getPendingChoices());
-        pending.addAll(PendingChoices.owedAt(characterLevel, classLevel(character, levelClass, classLevel),
-                Source.LEVEL_UP));
+        pending.addAll(PendingChoices.owedAt(classTables, characterLevel,
+                classLevel(character, levelClass, classLevel), Source.LEVEL_UP));
         pending.sort(PendingChoices.ORDER);
         character.setPendingChoices(pending);
     }
@@ -561,7 +564,8 @@ public class PendingChoiceService {
         List<LevelHistoryEntry> history = orEmpty(character.getLevelHistory());
         List<PendingChoice> missed = new ArrayList<>();
         for (LevelHistoryEntry level : history) {
-            if (level.className() == null || !ClassProgression.isAsiLevel(level.className(), level.classLevel())) {
+            if (level.className() == null
+                    || !ClassProgression.isAsiLevel(classTables, level.className(), level.classLevel())) {
                 continue;
             }
             boolean recorded = level.choices() != null && level.choices().asi() != null;
@@ -584,7 +588,7 @@ public class PendingChoiceService {
         int unrecorded = unrecordedExpertise(character);
         for (LevelHistoryEntry level : history) {
             int count = level.className() != null
-                    ? ClassProgression.expertiseChoices(level.className(), level.classLevel()) : 0;
+                    ? ClassProgression.expertiseChoices(classTables, level.className(), level.classLevel()) : 0;
             boolean recorded = level.choices() != null && level.choices().expertise() != null;
             if (count == 0 || recorded || isPending(pending, Type.EXPERTISE, level.characterLevel())) continue;
             int covered = Math.min(count, unrecorded);

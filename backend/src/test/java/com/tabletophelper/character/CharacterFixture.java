@@ -30,6 +30,8 @@ import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Rng;
+import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.character.TestClassTables;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -86,9 +88,11 @@ class CharacterFixture {
     };
 
     final ObjectMapper objectMapper = new ObjectMapper();
+    final ClassTables classTables = TestClassTables.load();
     final AccessPolicy accessPolicy = new AccessPolicy(campaignRepository, campaignMemberRepository);
     final ResourcePoolService resourcePoolService = new ResourcePoolService(featurePoolRepository);
-    final CharacterStats characterStats = new CharacterStats(classRepository, resourcePoolService, objectMapper);
+    final CharacterStats characterStats = new CharacterStats(classRepository, subclassRepository,
+            resourcePoolService, objectMapper, classTables);
     final CharacterMapper mapper = new CharacterMapper(objectMapper, subclassRepository, characterStats, liveEncounters);
     final CharacterCommands commands = new CharacterCommands(characterRepository, accessPolicy, liveEncounters,
             characterStats, mapper);
@@ -98,10 +102,10 @@ class CharacterFixture {
             objectMapper);
     final PendingChoiceService choices = new PendingChoiceService(commands, characterStats, spells,
             featEffectResolver, classRepository, subclassRepository, featRepository, optionalFeatureRepository,
-            objectMapper);
+            objectMapper, classTables);
     final CharacterService service = new CharacterService(characterRepository, userService, campaignRepository,
             raceRepository, classRepository, subclassRepository, backgroundRepository, mapper, objectMapper,
-            accessPolicy, characterStats, commands, liveEncounters, inventoryChecks, choices);
+            accessPolicy, characterStats, commands, liveEncounters, inventoryChecks, choices, classTables);
     final CharacterSheetService sheet = new CharacterSheetService(commands, campaignRepository, accessPolicy,
             inventoryChecks);
     final RestService rests = new RestService(commands, resourcePoolService, rng);
@@ -176,7 +180,8 @@ class CharacterFixture {
             .build();
 
     final Race human = Race.builder().id(UUID.randomUUID()).name("Human").speed("{\"walk\": 30}").build();
-    final Race hillDwarf = Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}").build();
+    final Race hillDwarf = Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}")
+            .effects("{\"hpPerLevel\": 1}").build();
 
     final ResourcePoolDefinition actionSurge = ResourcePoolDefinition.builder().poolId("class:fighter-action-surge")
             .displayName("Action Surge").sourceType("CLASS").maxUsesFormula("1").resetOn("shortRest").build();

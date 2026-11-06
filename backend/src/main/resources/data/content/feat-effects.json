@@ -4,5 +4,6 @@
   "Observant": { "passivePerceptionBonus": 5, "passiveInvestigationBonus": 5 },
   "Mobile": { "speedBonus": 10 },
   "Squat Nimbleness": { "speedBonus": 5 },
-  "Lucky": { "resource": { "name": "Luck Points", "maxUses": 3, "resetOn": "longRest" } }
+  "Lucky": { "resource": { "name": "Luck Points", "maxUses": 3, "resetOn": "longRest" } },
+  "Elemental Adept": { "repeatable": true }
 }

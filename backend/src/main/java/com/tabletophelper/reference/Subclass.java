@@ -1,6 +1,7 @@
 package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
@@ -62,6 +63,13 @@ public class Subclass {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "additional_proficiencies", columnDefinition = "jsonb")
     private String additionalProficiencies;
+
+    // Mechanical effects the 5etools data doesn't give, such as {"hpPerClassLevel": 1}, from the effects overlay the
+    // content loader applies (V28); null for none. Character rules read it, and it isn't part of the API
+    @JsonIgnore
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private String effects;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

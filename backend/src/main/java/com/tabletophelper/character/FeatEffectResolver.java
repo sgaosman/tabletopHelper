@@ -24,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -34,8 +33,9 @@ public class FeatEffectResolver {
     /** The source of a feat's entry among the character's features, whatever granted the feat. */
     static final String FEAT_SOURCE = "Feat";
 
-    // "You can select this feat multiple times", as Elemental Adept puts it
-    private static final Pattern REPEATABLE = Pattern.compile("(?i)\\b(?:select|take) this feat multiple times\\b");
+    // The feat data's flag for a feat that can be taken more than once
+    private static final String REPEATABLE = "repeatable";
+    private static final ObjectMapper EFFECTS_READER = new ObjectMapper();
 
     private final ObjectMapper objectMapper;
     private final SpellRepository spellRepository;
@@ -738,11 +738,25 @@ public class FeatEffectResolver {
     }
 
     /**
-     * Whether a character may take the feat more than once: its text says it can be selected or taken multiple times,
-     * as Elemental Adept's does (PHB p.166). The feat data records nothing else that says so.
+     * Whether a character may take the feat more than once: its effects in the feat data say {@code "repeatable":
+     * true}, as only Elemental Adept's do (PHB p.166; feat-effects.json).
+     *
+     * @throws ConflictException when the feat's data can't be read (D155)
      */
     public static boolean repeatable(Feat feat) {
-        return feat.getDescription() != null && REPEATABLE.matcher(feat.getDescription()).find();
+        if (feat.getEffects() == null || feat.getEffects().isBlank()) return false;
+        JsonNode flag;
+        try {
+            flag = EFFECTS_READER.readTree(feat.getEffects()).path(REPEATABLE);
+        } catch (JsonProcessingException e) {
+            throw new ConflictException("The effects of the feat " + feat.getName() + " can't be read");
+        }
+        if (flag.isMissingNode() || flag.isNull()) return false;
+        if (!flag.isBoolean()) {
+            throw new ConflictException("The effects of the feat " + feat.getName() + " can't be read: repeatable is "
+                    + flag);
+        }
+        return flag.asBoolean();
     }
 
     // --- Helpers ---

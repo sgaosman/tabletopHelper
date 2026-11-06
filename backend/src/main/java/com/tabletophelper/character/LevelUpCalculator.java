@@ -6,6 +6,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.rules.character.ClassProgression;
+import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.character.HitPoints;
 import com.tabletophelper.shared.ConflictException;
 
@@ -74,7 +75,7 @@ public class LevelUpCalculator {
     }
 
     public static List<LevelGain> buildProgression(
-            int targetLevel, UUID classId, String className,
+            ClassTables tables, int targetLevel, UUID classId, String className,
             int hitDice,
             String classFeatureJson, String subclassFeatureJson,
             String subclassName, int subclassLevel) {
@@ -93,7 +94,7 @@ public class LevelUpCalculator {
             progression.add(new LevelGain(
                     lvl, classId, className, lvl,
                     HitPoints.fixedHitDieResult(lvl, hitDice), features,
-                    className != null && ClassProgression.isAsiLevel(className, lvl), lvl == subclassLevel));
+                    className != null && ClassProgression.isAsiLevel(tables, className, lvl), lvl == subclassLevel));
         }
 
         return progression;
@@ -107,7 +108,7 @@ public class LevelUpCalculator {
      * Each class's levels in the order given, so only the first class's first level is character level 1, with the
      * die's maximum; every other class's first level has the average (PHB p.163).
      */
-    public static List<LevelGain> buildMulticlassProgression(List<ClassInput> classInputs) {
+    public static List<LevelGain> buildMulticlassProgression(ClassTables tables, List<ClassInput> classInputs) {
         List<LevelGain> progression = new ArrayList<>();
         int characterLevel = 0;
 
@@ -126,7 +127,7 @@ public class LevelUpCalculator {
                 progression.add(new LevelGain(
                         characterLevel, ci.classId(), ci.className(), clsLvl,
                         HitPoints.fixedHitDieResult(characterLevel, ci.hitDice()), features,
-                        ClassProgression.isAsiLevel(ci.className(), clsLvl), clsLvl == ci.subclassLevel()));
+                        ClassProgression.isAsiLevel(tables, ci.className(), clsLvl), clsLvl == ci.subclassLevel()));
             }
         }
 

@@ -28,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class ClassProgressionGoldenTest {
 
+    private static final ClassTables TABLES = TestClassTables.load();
+
     // One value per class level, 1st to 20th
     //                                                1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
     private static final int[] NOTHING            = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -142,7 +144,7 @@ class ClassProgressionGoldenTest {
     @DisplayName("Ability Score Improvements: 4th, 8th, 12th, 16th and 19th level, plus 6th and 14th for a fighter and 10th for a rogue")
     void abilityScoreImprovements(ClassTable table) {
         assertAll(everyLevel(level -> assertEquals(table.asi().contains(level),
-                ClassProgression.isAsiLevel(table.className(), level), table + " " + level)));
+                ClassProgression.isAsiLevel(TABLES, table.className(), level), table + " " + level)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -150,7 +152,7 @@ class ClassProgressionGoldenTest {
     @DisplayName("Expertise: two proficiencies at Rogue 1st and 6th level and Bard 3rd and 10th")
     void expertise(ClassTable table) {
         assertAll(everyLevel(level -> assertEquals(table.expertise().getOrDefault(level, 0),
-                ClassProgression.expertiseChoices(table.className(), level), table + " " + level)));
+                ClassProgression.expertiseChoices(TABLES, table.className(), level), table + " " + level)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -158,7 +160,7 @@ class ClassProgressionGoldenTest {
     @DisplayName("Fighting Styles: Fighter 1st level, Paladin and Ranger 2nd, and a Champion's second at 10th")
     void fightingStyles(ClassTable table) {
         assertAll(everyLevel(level -> assertEquals(table.fightingStyles().contains(level),
-                ClassProgression.isFightingStyleLevel(table.className(), table.subclass(), level),
+                ClassProgression.isFightingStyleLevel(TABLES, table.className(), table.subclass(), level),
                 table + " " + level)));
     }
 
@@ -167,7 +169,7 @@ class ClassProgressionGoldenTest {
     @DisplayName("Cantrips known match each class table")
     void cantripsKnown(ClassTable table) {
         assertAll(everyLevel(level -> assertEquals(table.cantrips()[level - 1],
-                ClassProgression.cantripsKnown(table.className(), table.subclass(), level), table + " " + level)));
+                ClassProgression.cantripsKnown(TABLES, table.className(), table.subclass(), level), table + " " + level)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -176,7 +178,7 @@ class ClassProgressionGoldenTest {
     void spellsKnown(ClassTable table) {
         assertAll(everyLevel(level -> assertEquals(
                 table.spellsKnown() == null ? OptionalInt.empty() : OptionalInt.of(table.spellsKnown()[level - 1]),
-                ClassProgression.spellsKnown(table.className(), table.subclass(), level), table + " " + level)));
+                ClassProgression.spellsKnown(TABLES, table.className(), table.subclass(), level), table + " " + level)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -185,7 +187,7 @@ class ClassProgressionGoldenTest {
     void spellsPrepared(ClassTable table) {
         assertAll(everyLevel(level -> assertEquals(
                 table.prepared() == null ? OptionalInt.empty() : OptionalInt.of(table.prepared()[level - 1]),
-                ClassProgression.preparedSpells(table.className(), level, MODIFIER), table + " " + level)));
+                ClassProgression.preparedSpells(TABLES, table.className(), level, MODIFIER), table + " " + level)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -193,30 +195,30 @@ class ClassProgressionGoldenTest {
     @DisplayName("The highest spell level each class can learn or prepare is its own table's highest slot")
     void highestSpellLevel(ClassTable table) {
         assertAll(everyLevel(level -> assertEquals(table.highestSpellLevel()[level - 1],
-                ClassProgression.highestSpellLevel(table.className(), table.subclass(), level),
+                ClassProgression.highestSpellLevel(TABLES, table.className(), table.subclass(), level),
                 table + " " + level)));
     }
 
     @Test
     @DisplayName("A class prepares at least one spell however low its modifier, once it has Spellcasting")
     void preparedSpellsAreAtLeastOne() {
-        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells("Cleric", 1, -2));
-        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells("Wizard", 2, -3));
-        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells("Druid", 1, -1));
-        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells("Paladin", 2, -1));
-        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells("Artificer", 1, -1));
+        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells(TABLES, "Cleric", 1, -2));
+        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells(TABLES, "Wizard", 2, -3));
+        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells(TABLES, "Druid", 1, -1));
+        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells(TABLES, "Paladin", 2, -1));
+        assertEquals(OptionalInt.of(1), ClassProgression.preparedSpells(TABLES, "Artificer", 1, -1));
         // A 1st-level paladin has no Spellcasting yet
-        assertEquals(OptionalInt.of(0), ClassProgression.preparedSpells("Paladin", 1, 3));
+        assertEquals(OptionalInt.of(0), ClassProgression.preparedSpells(TABLES, "Paladin", 1, 3));
     }
 
     @Test
     @DisplayName("A fighter or rogue of another subclass casts nothing, and only the Champion gains a second Fighting Style")
     void otherSubclassesGainNoSpellsOrStyles() {
-        assertEquals(0, ClassProgression.cantripsKnown("Fighter", "Battle Master", 10));
-        assertEquals(OptionalInt.empty(), ClassProgression.spellsKnown("Rogue", "Thief", 10));
-        assertEquals(0, ClassProgression.highestSpellLevel("Rogue", null, 20));
-        assertFalse(ClassProgression.isFightingStyleLevel("Fighter", null, 10));
-        assertFalse(ClassProgression.isFightingStyleLevel("Paladin", "Champion", 10));
+        assertEquals(0, ClassProgression.cantripsKnown(TABLES, "Fighter", "Battle Master", 10));
+        assertEquals(OptionalInt.empty(), ClassProgression.spellsKnown(TABLES, "Rogue", "Thief", 10));
+        assertEquals(0, ClassProgression.highestSpellLevel(TABLES, "Rogue", null, 20));
+        assertFalse(ClassProgression.isFightingStyleLevel(TABLES, "Fighter", null, 10));
+        assertFalse(ClassProgression.isFightingStyleLevel(TABLES, "Paladin", "Champion", 10));
     }
 
     @Test
@@ -224,50 +226,50 @@ class ClassProgressionGoldenTest {
     void fightingStylesByClass() {
         assertEquals(List.of("Archery", "Defense", "Dueling", "Great Weapon Fighting", "Protection",
                 "Two-Weapon Fighting", "Blind Fighting", "Interception", "Superior Technique", "Thrown Weapon Fighting",
-                "Unarmed Fighting"), ClassProgression.fightingStyles("Fighter"));
+                "Unarmed Fighting"), ClassProgression.fightingStyles(TABLES, "Fighter"));
         assertEquals(List.of("Defense", "Dueling", "Great Weapon Fighting", "Protection", "Blessed Warrior",
-                "Blind Fighting", "Interception"), ClassProgression.fightingStyles("Paladin"));
+                "Blind Fighting", "Interception"), ClassProgression.fightingStyles(TABLES, "Paladin"));
         assertEquals(List.of("Archery", "Defense", "Dueling", "Two-Weapon Fighting", "Blind Fighting",
-                "Druidic Warrior", "Thrown Weapon Fighting"), ClassProgression.fightingStyles("Ranger"));
-        assertEquals(List.of(), ClassProgression.fightingStyles("Wizard"));
-        assertEquals(List.of(), ClassProgression.fightingStyles(null));
+                "Druidic Warrior", "Thrown Weapon Fighting"), ClassProgression.fightingStyles(TABLES, "Ranger"));
+        assertEquals(List.of(), ClassProgression.fightingStyles(TABLES, "Wizard"));
+        assertEquals(List.of(), ClassProgression.fightingStyles(TABLES, null));
     }
 
     @Test
     @DisplayName("A wizard's spellbook gains six spells at 1st level and two at each level after (PHB p.114); no other class has one")
     void spellbookSpells() {
-        assertEquals(6, ClassProgression.spellbookSpells("Wizard", 1));
+        assertEquals(6, ClassProgression.spellbookSpells(TABLES, "Wizard", 1));
         IntStream.rangeClosed(2, 20).forEach(level ->
-                assertEquals(2, ClassProgression.spellbookSpells("Wizard", level), "Wizard " + level));
-        assertEquals(0, ClassProgression.spellbookSpells("Wizard", 0));
-        assertEquals(0, ClassProgression.spellbookSpells("Sorcerer", 3));
-        assertEquals(0, ClassProgression.spellbookSpells("Fighter", 3));
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.spellbookSpells("Wizard", 21));
+                assertEquals(2, ClassProgression.spellbookSpells(TABLES, "Wizard", level), "Wizard " + level));
+        assertEquals(0, ClassProgression.spellbookSpells(TABLES, "Wizard", 0));
+        assertEquals(0, ClassProgression.spellbookSpells(TABLES, "Sorcerer", 3));
+        assertEquals(0, ClassProgression.spellbookSpells(TABLES, "Fighter", 3));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.spellbookSpells(TABLES, "Wizard", 21));
     }
 
     @Test
     @DisplayName("Class level 0, before a character has any levels in the class, gains nothing")
     void classLevelZeroGainsNothing() {
-        assertFalse(ClassProgression.isAsiLevel("Fighter", 0));
-        assertEquals(0, ClassProgression.expertiseChoices("Rogue", 0));
-        assertFalse(ClassProgression.isFightingStyleLevel("Fighter", null, 0));
-        assertEquals(0, ClassProgression.cantripsKnown("Sorcerer", null, 0));
-        assertEquals(OptionalInt.of(0), ClassProgression.spellsKnown("Sorcerer", null, 0));
-        assertEquals(OptionalInt.of(0), ClassProgression.preparedSpells("Cleric", 0, 3));
-        assertEquals(0, ClassProgression.highestSpellLevel("Wizard", null, 0));
+        assertFalse(ClassProgression.isAsiLevel(TABLES, "Fighter", 0));
+        assertEquals(0, ClassProgression.expertiseChoices(TABLES, "Rogue", 0));
+        assertFalse(ClassProgression.isFightingStyleLevel(TABLES, "Fighter", null, 0));
+        assertEquals(0, ClassProgression.cantripsKnown(TABLES, "Sorcerer", null, 0));
+        assertEquals(OptionalInt.of(0), ClassProgression.spellsKnown(TABLES, "Sorcerer", null, 0));
+        assertEquals(OptionalInt.of(0), ClassProgression.preparedSpells(TABLES, "Cleric", 0, 3));
+        assertEquals(0, ClassProgression.highestSpellLevel(TABLES, "Wizard", null, 0));
     }
 
     @ParameterizedTest(name = "Class level {0}")
     @ValueSource(ints = {-1, 21})
     @DisplayName("A class level outside 0–20 is refused")
     void classLevelOutOfRange(int level) {
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.isAsiLevel("Fighter", level));
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.expertiseChoices("Rogue", level));
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.isFightingStyleLevel("Fighter", null, level));
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.cantripsKnown("Wizard", null, level));
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.spellsKnown("Bard", null, level));
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.preparedSpells("Cleric", level, 3));
-        assertThrows(IllegalArgumentException.class, () -> ClassProgression.highestSpellLevel("Wizard", null, level));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.isAsiLevel(TABLES, "Fighter", level));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.expertiseChoices(TABLES, "Rogue", level));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.isFightingStyleLevel(TABLES, "Fighter", null, level));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.cantripsKnown(TABLES, "Wizard", null, level));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.spellsKnown(TABLES, "Bard", null, level));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.preparedSpells(TABLES, "Cleric", level, 3));
+        assertThrows(IllegalArgumentException.class, () -> ClassProgression.highestSpellLevel(TABLES, "Wizard", null, level));
     }
 
     private static Stream<Executable> everyLevel(IntConsumer check) {

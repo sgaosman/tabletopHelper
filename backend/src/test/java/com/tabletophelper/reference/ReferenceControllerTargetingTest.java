@@ -2,6 +2,7 @@ package com.tabletophelper.reference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
+import com.tabletophelper.rules.character.TestClassTables;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +38,8 @@ class ReferenceControllerTargetingTest {
         objectMapper = new ObjectMapper();
         controller = new ReferenceController(spellRepository, conditionRepository, itemRepository,
                 raceRepository, characterClassRepository, subclassRepository,
-                backgroundRepository, featRepository, optionalFeatureRepository, objectMapper);
+                backgroundRepository, featRepository, optionalFeatureRepository, objectMapper,
+                TestClassTables.load());
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.tabletophelper.rules;
 
+import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.character.TestClassTables;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,9 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Every class at levels 1–20, from its class row and subclass through {@link SpellSlotCalculator#casterType}
  * to {@link SpellSlotCalculator#calculateSlots}. The expected slots are typed out here from the PHB 2014 class
- * tables (the Artificer's from Tasha's Cauldron of Everything), independently of {@link SpellSlotTables}.
+ * tables (the Artificer's from Tasha's Cauldron of Everything), independently of the class tables in data/content/class-tables.json.
  */
 class SpellSlotsEveryClassGoldenTest {
+
+    private static final ClassTables TABLES = TestClassTables.load();
 
     // Slots by spell level (1st first), one row per class level; row 0 unused.
     // Bard, Cleric, Druid, Sorcerer and Wizard share this table.
@@ -189,7 +193,7 @@ class SpellSlotsEveryClassGoldenTest {
         if (!"none".equals(casterType)) {
             entries.put(className, new SpellSlotCalculator.ClassEntry(level, casterType));
         }
-        return SpellSlotCalculator.calculateSlots(entries);
+        return SpellSlotCalculator.calculateSlots(TABLES, entries);
     }
 
     // Expected slots indexed by class level, keyed as the calculator keys them: "1".."9" and "pact_N"

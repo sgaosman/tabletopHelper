@@ -1,0 +1,261 @@
+{
+  "spellSlots": {
+    "full": [
+      [],
+      [2],
+      [3],
+      [4, 2],
+      [4, 3],
+      [4, 3, 2],
+      [4, 3, 3],
+      [4, 3, 3, 1],
+      [4, 3, 3, 2],
+      [4, 3, 3, 3, 1],
+      [4, 3, 3, 3, 2],
+      [4, 3, 3, 3, 2, 1],
+      [4, 3, 3, 3, 2, 1],
+      [4, 3, 3, 3, 2, 1, 1],
+      [4, 3, 3, 3, 2, 1, 1],
+      [4, 3, 3, 3, 2, 1, 1, 1],
+      [4, 3, 3, 3, 2, 1, 1, 1],
+      [4, 3, 3, 3, 2, 1, 1, 1, 1],
+      [4, 3, 3, 3, 3, 1, 1, 1, 1],
+      [4, 3, 3, 3, 3, 2, 1, 1, 1],
+      [4, 3, 3, 3, 3, 2, 2, 1, 1]
+    ],
+    "half": [
+      [],
+      [],
+      [2],
+      [3],
+      [3],
+      [4, 2],
+      [4, 2],
+      [4, 3],
+      [4, 3],
+      [4, 3, 2],
+      [4, 3, 2],
+      [4, 3, 3],
+      [4, 3, 3],
+      [4, 3, 3, 1],
+      [4, 3, 3, 1],
+      [4, 3, 3, 2],
+      [4, 3, 3, 2],
+      [4, 3, 3, 3, 1],
+      [4, 3, 3, 3, 1],
+      [4, 3, 3, 3, 2],
+      [4, 3, 3, 3, 2]
+    ],
+    "artificer": [
+      [],
+      [2],
+      [2],
+      [3],
+      [3],
+      [4, 2],
+      [4, 2],
+      [4, 3],
+      [4, 3],
+      [4, 3, 2],
+      [4, 3, 2],
+      [4, 3, 3],
+      [4, 3, 3],
+      [4, 3, 3, 1],
+      [4, 3, 3, 1],
+      [4, 3, 3, 2],
+      [4, 3, 3, 2],
+      [4, 3, 3, 3, 1],
+      [4, 3, 3, 3, 1],
+      [4, 3, 3, 3, 2],
+      [4, 3, 3, 3, 2]
+    ],
+    "third": [
+      [],
+      [],
+      [],
+      [2],
+      [3],
+      [3],
+      [3],
+      [4, 2],
+      [4, 2],
+      [4, 2],
+      [4, 3],
+      [4, 3],
+      [4, 3],
+      [4, 3, 2],
+      [4, 3, 2],
+      [4, 3, 2],
+      [4, 3, 3],
+      [4, 3, 3],
+      [4, 3, 3],
+      [4, 3, 3, 1],
+      [4, 3, 3, 1]
+    ],
+    "pact": [
+      [],
+      [1],
+      [2],
+      [0, 2],
+      [0, 2],
+      [0, 0, 2],
+      [0, 0, 2],
+      [0, 0, 0, 2],
+      [0, 0, 0, 2],
+      [0, 0, 0, 0, 2],
+      [0, 0, 0, 0, 2],
+      [0, 0, 0, 0, 3],
+      [0, 0, 0, 0, 3],
+      [0, 0, 0, 0, 3],
+      [0, 0, 0, 0, 3],
+      [0, 0, 0, 0, 3],
+      [0, 0, 0, 0, 3],
+      [0, 0, 0, 0, 4],
+      [0, 0, 0, 0, 4],
+      [0, 0, 0, 0, 4],
+      [0, 0, 0, 0, 4]
+    ]
+  },
+  "defaults": {
+    "subclassLevel": 3,
+    "asiLevels": [4, 8, 12, 16, 19]
+  },
+  "classes": {
+    "Artificer": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "spellcasting": {
+        "casterType": "artificer",
+        "cantripsKnown": [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4],
+        "preparing": "HALF_LEVEL"
+      }
+    },
+    "Barbarian": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 8, 12, 16, 19]
+    },
+    "Bard": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "expertise": { "3": 2, "10": 2 },
+      "spellcasting": {
+        "casterType": "full",
+        "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        "spellsKnown": [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 15, 16, 18, 19, 19, 20, 22, 22, 22],
+        "preparing": "NONE"
+      }
+    },
+    "Cleric": {
+      "subclassLevel": 1,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "spellcasting": {
+        "casterType": "full",
+        "cantripsKnown": [0, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+        "preparing": "LEVEL"
+      }
+    },
+    "Druid": {
+      "subclassLevel": 2,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "spellcasting": {
+        "casterType": "full",
+        "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        "preparing": "LEVEL"
+      }
+    },
+    "Fighter": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 6, 8, 12, 14, 16, 19],
+      "fightingStyleLevels": [1],
+      "fightingStyles": ["Archery", "Defense", "Dueling", "Great Weapon Fighting", "Protection",
+        "Two-Weapon Fighting", "Blind Fighting", "Interception", "Superior Technique", "Thrown Weapon Fighting",
+        "Unarmed Fighting"]
+    },
+    "Monk": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 8, 12, 16, 19]
+    },
+    "Paladin": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "fightingStyleLevels": [2],
+      "fightingStyles": ["Defense", "Dueling", "Great Weapon Fighting", "Protection", "Blessed Warrior",
+        "Blind Fighting", "Interception"],
+      "spellcasting": {
+        "casterType": "half",
+        "preparing": "HALF_LEVEL"
+      }
+    },
+    "Ranger": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "fightingStyleLevels": [2],
+      "fightingStyles": ["Archery", "Defense", "Dueling", "Two-Weapon Fighting", "Blind Fighting",
+        "Druidic Warrior", "Thrown Weapon Fighting"],
+      "spellcasting": {
+        "casterType": "half",
+        "spellsKnown": [0, 0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11],
+        "preparing": "NONE"
+      }
+    },
+    "Rogue": {
+      "subclassLevel": 3,
+      "asiLevels": [4, 8, 10, 12, 16, 19],
+      "expertise": { "1": 2, "6": 2 }
+    },
+    "Sorcerer": {
+      "subclassLevel": 1,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "spellcasting": {
+        "casterType": "full",
+        "cantripsKnown": [0, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
+        "spellsKnown": [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15],
+        "preparing": "NONE"
+      }
+    },
+    "Warlock": {
+      "subclassLevel": 1,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "spellcasting": {
+        "casterType": "pact",
+        "cantripsKnown": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        "spellsKnown": [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15],
+        "preparing": "NONE"
+      }
+    },
+    "Wizard": {
+      "subclassLevel": 2,
+      "asiLevels": [4, 8, 12, 16, 19],
+      "spellcasting": {
+        "casterType": "full",
+        "cantripsKnown": [0, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+        "preparing": "LEVEL"
+      },
+      "spellbook": { "firstLevel": 6, "laterLevels": 2 }
+    }
+  },
+  "subclasses": {
+    "Champion": {
+      "className": "Fighter",
+      "fightingStyleLevels": [10]
+    },
+    "Eldritch Knight": {
+      "className": "Fighter",
+      "spellcasting": {
+        "casterType": "third",
+        "cantripsKnown": [0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+        "spellsKnown": [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
+        "preparing": "NONE"
+      }
+    },
+    "Arcane Trickster": {
+      "className": "Rogue",
+      "spellcasting": {
+        "casterType": "third",
+        "cantripsKnown": [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        "spellsKnown": [0, 0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13],
+        "preparing": "NONE"
+      }
+    }
+  }
+}

@@ -7,7 +7,9 @@ import IconButton from '../../../components/ui/IconButton';
 import type { PlayerCharacter } from '../../../types/character';
 import type { SpellSlot } from '../../../types/encounter';
 import type { Spell } from '../../../types/reference';
-import { THIRD_CASTER_SUBCLASSES, spellListClass } from '../../../utils/spellConstants';
+import { useClassTables } from '../../../queries/reference';
+import { isThirdCasterSubclass } from '../../../utils/classTables';
+import { spellListClass } from '../../../utils/spellConstants';
 import { formatMod } from '../../../utils/dndRules';
 import type { RunCommand, SpellEntry } from './types';
 import StatCard from './StatCard';
@@ -30,6 +32,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
   const spendSlotCommand = useSpendSlot();
   const restoreSlotCommand = useRestoreSlot();
   const setPrepared = useSetPreparedSpells();
+  const { data: tables } = useClassTables();
   const [detailSpell, setDetailSpell] = useState<Spell | null>(null);
   const [loadingSpell, setLoadingSpell] = useState(false);
   const [manageModal, setManageModal] = useState<{ type: ManageType; className: string } | null>(null);
@@ -141,8 +144,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
   // A class the server gives no spellcasting still lists the spells the sheet has from it, with no limits
   function getClassCasterInfo(className: string) {
     const casting = classCasting.find(c => c.className === className);
-    const thirdCasterSubclass = casting?.subclassName && THIRD_CASTER_SUBCLASSES.has(casting.subclassName)
-      ? casting.subclassName : null;
+    const thirdCasterSubclass = tables && casting?.subclassName
+      && isThirdCasterSubclass(tables, className, casting.subclassName) ? casting.subclassName : null;
     return {
       casting,
       isPrepared: casting?.preparedSpells != null,

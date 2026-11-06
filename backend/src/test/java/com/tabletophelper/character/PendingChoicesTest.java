@@ -1,5 +1,7 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.character.TestClassTables;
 import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.PendingChoice.Source;
 import com.tabletophelper.character.state.PendingChoice.Type;
@@ -32,6 +34,8 @@ import static org.assertj.core.api.Assertions.tuple;
  * A level not listed owes nothing.
  */
 class PendingChoicesTest {
+
+    private static final ClassTables TABLES = TestClassTables.load();
 
     private static final List<String> SUBCLASSES = List.of("First Path", "Second Path");
 
@@ -129,7 +133,7 @@ class PendingChoicesTest {
     }
 
     private static List<String> owed(PendingChoices.ClassLevel level) {
-        return described(PendingChoices.owedAt(level.classLevel(), level, Source.LEVEL_UP));
+        return described(PendingChoices.owedAt(TABLES, level.classLevel(), level, Source.LEVEL_UP));
     }
 
     // Each choice as its type, ×count for more than one, and "swap" when it offers one
@@ -170,22 +174,22 @@ class PendingChoicesTest {
     @Test
     @DisplayName("A subclass chosen after its level brings only the choices it adds: an Eldritch Knight's spells, a Champion's style")
     void choicesASubclassBrings() {
-        assertThat(described(PendingChoices.owedBySubclass(3, level("Fighter", "Eldritch Knight", 3, 3),
+        assertThat(described(PendingChoices.owedBySubclass(TABLES, 3, level("Fighter", "Eldritch Knight", 3, 3),
                 Source.CREATION))).containsExactly("CANTRIPS×2", "SPELLS×3");
-        assertThat(described(PendingChoices.owedBySubclass(4, level("Fighter", "Eldritch Knight", 4, 3),
+        assertThat(described(PendingChoices.owedBySubclass(TABLES, 4, level("Fighter", "Eldritch Knight", 4, 3),
                 Source.CREATION))).containsExactly("SPELLS swap");
-        assertThat(described(PendingChoices.owedBySubclass(10, level("Fighter", "Champion", 10, 3),
+        assertThat(described(PendingChoices.owedBySubclass(TABLES, 10, level("Fighter", "Champion", 10, 3),
                 Source.LEVEL_UP))).containsExactly("FIGHTING_STYLE");
-        assertThat(PendingChoices.owedBySubclass(3, level("Fighter", "Champion", 3, 3), Source.LEVEL_UP)).isEmpty();
+        assertThat(PendingChoices.owedBySubclass(TABLES, 3, level("Fighter", "Champion", 3, 3), Source.LEVEL_UP)).isEmpty();
         // A cleric's domain changes none of the class's own choices
-        assertThat(PendingChoices.owedBySubclass(4, level("Cleric", "Life Domain", 4, 1), Source.LEVEL_UP)).isEmpty();
+        assertThat(PendingChoices.owedBySubclass(TABLES, 4, level("Cleric", "Life Domain", 4, 1), Source.LEVEL_UP)).isEmpty();
     }
 
     @Test
     @DisplayName("Each choice records its level, class, options, highest spell level and source")
     void whatAChoiceRecords() {
         UUID sorcererId = UUID.randomUUID();
-        List<PendingChoice> owed = PendingChoices.owedAt(7, new PendingChoices.ClassLevel(sorcererId, "Sorcerer", 5,
+        List<PendingChoice> owed = PendingChoices.owedAt(TABLES, 7, new PendingChoices.ClassLevel(sorcererId, "Sorcerer", 5,
                 null, 1, SUBCLASSES), Source.CREATION);
 
         assertThat(owed).singleElement().satisfies(spells -> {
@@ -199,16 +203,16 @@ class PendingChoicesTest {
             assertThat(spells.maxSpellLevel()).isEqualTo(3);
             assertThat(spells.options()).isNull();
         });
-        PendingChoice subclass = PendingChoices.owedAt(3, level("Fighter", null, 3, 3), Source.LEVEL_UP).getFirst();
+        PendingChoice subclass = PendingChoices.owedAt(TABLES, 3, level("Fighter", null, 3, 3), Source.LEVEL_UP).getFirst();
         assertThat(subclass.options()).isEqualTo(SUBCLASSES);
-        PendingChoice style = PendingChoices.owedAt(2, level("Paladin", null, 2, 3), Source.LEVEL_UP).getFirst();
+        PendingChoice style = PendingChoices.owedAt(TABLES, 2, level("Paladin", null, 2, 3), Source.LEVEL_UP).getFirst();
         assertThat(style.options()).containsExactly("Defense", "Dueling", "Great Weapon Fighting", "Protection",
                 "Blessed Warrior", "Blind Fighting", "Interception");
-        PendingChoice cantrips = PendingChoices.owedAt(4, level("Wizard", null, 4, 2), Source.LEVEL_UP).get(1);
+        PendingChoice cantrips = PendingChoices.owedAt(TABLES, 4, level("Wizard", null, 4, 2), Source.LEVEL_UP).get(1);
         assertThat(cantrips.maxSpellLevel()).isZero();
-        assertThat(PendingChoices.owedAt(5, level("Warlock", null, 5, 1), Source.LEVEL_UP).getFirst().maxSpellLevel())
+        assertThat(PendingChoices.owedAt(TABLES, 5, level("Warlock", null, 5, 1), Source.LEVEL_UP).getFirst().maxSpellLevel())
                 .isEqualTo(3);
-        assertThat(PendingChoices.owedAt(3, level("Wizard", null, 3, 2), Source.LEVEL_UP).getFirst().maxSpellLevel())
+        assertThat(PendingChoices.owedAt(TABLES, 3, level("Wizard", null, 3, 2), Source.LEVEL_UP).getFirst().maxSpellLevel())
                 .isEqualTo(2);
     }
 
@@ -217,17 +221,17 @@ class PendingChoicesTest {
     void nothingOwed() {
         assertThat(owed(new PendingChoices.ClassLevel(UUID.randomUUID(), "Fighter", 3, null, 3, List.of())))
                 .isEmpty();
-        assertThat(PendingChoices.owedAt(1, new PendingChoices.ClassLevel(null, null, 1, null, 3, SUBCLASSES),
+        assertThat(PendingChoices.owedAt(TABLES, 1, new PendingChoices.ClassLevel(null, null, 1, null, 3, SUBCLASSES),
                 Source.CREATION)).isEmpty();
-        assertThat(PendingChoices.owedAt(1, level("Wizard", null, 0, 2), Source.CREATION)).isEmpty();
+        assertThat(PendingChoices.owedAt(TABLES, 1, level("Wizard", null, 0, 2), Source.CREATION)).isEmpty();
     }
 
     @Test
     @DisplayName("Choices are made a level at a time, oldest first, and a subclass first within a level")
     void order() {
         List<PendingChoice> choices = new ArrayList<>();
-        choices.addAll(PendingChoices.owedAt(4, level("Wizard", null, 4, 2), Source.LEVEL_UP));
-        choices.addAll(PendingChoices.owedAt(2, level("Wizard", null, 2, 2), Source.LEVEL_UP));
+        choices.addAll(PendingChoices.owedAt(TABLES, 4, level("Wizard", null, 4, 2), Source.LEVEL_UP));
+        choices.addAll(PendingChoices.owedAt(TABLES, 2, level("Wizard", null, 2, 2), Source.LEVEL_UP));
         choices.sort(PendingChoices.ORDER);
 
         assertThat(choices).extracting(PendingChoice::characterLevel, PendingChoice::type).containsExactly(

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { keepPreviousData, queryOptions, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
-  getAllConditions, getItemRarities, getItemSources, getItemTypes, getOptionalFeatures, getQuickReference,
+  getAllConditions, getClassTables, getItemRarities, getItemSources, getItemTypes, getOptionalFeatures, getQuickReference,
   getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses, getSpellTargeting, getSubclasses, searchItems,
   searchSpells,
 } from '../api/referenceApi';
@@ -120,6 +120,18 @@ export function useConditions() {
 }
 
 /** The chapters of the quick rules reference, as 5etools entries. */
+/**
+ * The class tables the server's rules use (D167, D169), for the creation wizard's and the sheet's numbers. They
+ * change only with a release, so they are fetched once.
+ */
+export function useClassTables() {
+  return useQuery({
+    queryKey: queryKeys.reference.classTables(),
+    queryFn: getClassTables,
+    staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
 export function useQuickReference() {
   return useQuery({
     queryKey: queryKeys.reference.quickReference(),

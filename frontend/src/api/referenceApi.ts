@@ -1,4 +1,5 @@
 import api from './axiosConfig';
+import type { ClassTables } from '../utils/classTables';
 import type { Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature, SpellTargetingInfo } from '../types/reference';
 
 export const searchSpells = async (params: SpellSearchParams): Promise<PageResponse<Spell>> => {
@@ -58,6 +59,12 @@ export const getItemRarities = async (): Promise<string[]> => {
 
 export const getItemSources = async (): Promise<string[]> => {
   const response = await api.get('/reference/items/filters/sources');
+  return response.data;
+};
+
+/** The class tables the server's rules use (D169): spell slots, cantrips and spells known, and more. */
+export const getClassTables = async (): Promise<ClassTables> => {
+  const response = await api.get('/reference/class-tables');
   return response.data;
 };
 

@@ -1,5 +1,6 @@
 package com.tabletophelper.reference;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
@@ -81,6 +82,13 @@ public class Race {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "additional_spells", columnDefinition = "jsonb")
     private String additionalSpells;
+
+    // Mechanical effects the 5etools data doesn't give, such as {"hpPerLevel": 1}, from the effects overlay the
+    // content loader applies (V28); null for none. Character rules read it, and it isn't part of the API
+    @JsonIgnore
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private String effects;
 
     @Column(name = "base_race_name", length = 200)
     private String baseRaceName;

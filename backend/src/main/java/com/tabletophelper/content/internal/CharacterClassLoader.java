@@ -8,7 +8,7 @@ import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
-import com.tabletophelper.rules.SpellSlotTables;
+import com.tabletophelper.rules.character.ClassTables;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,20 +23,18 @@ public class CharacterClassLoader implements ContentLoader {
     private final CharacterClassRepository classRepository;
     private final SubclassRepository subclassRepository;
     private final ObjectMapper objectMapper;
+    private final ClassTables classTables;
+
+    // The effects the 5etools data doesn't give, such as the Draconic Bloodline's hit points, by the subclass's
+    // natural key (V28)
+    static final String SUBCLASS_EFFECTS_FILE = "data/content/subclass-effects.json";
+    static final Set<String> SUBCLASS_EFFECTS = Set.of("hpPerClassLevel");
 
     // Class files we don't load: Mystic is unofficial playtest material, and sidekicks aren't player classes
     private static final Set<String> SKIP_FILES = Set.of("class-mystic.json", "class-sidekick.json");
 
     private static final Set<String> PREPARED_CASTERS = Set.of("Cleric", "Druid", "Paladin", "Wizard", "Artificer");
     private static final Set<String> KNOWN_CASTERS = Set.of("Bard", "Ranger", "Sorcerer", "Warlock");
-
-    private static final Map<String, Integer> SUBCLASS_LEVELS = Map.ofEntries(
-            Map.entry("Cleric", 1), Map.entry("Sorcerer", 1), Map.entry("Warlock", 1),
-            Map.entry("Druid", 2), Map.entry("Wizard", 2),
-            Map.entry("Artificer", 3), Map.entry("Barbarian", 3), Map.entry("Bard", 3),
-            Map.entry("Fighter", 3), Map.entry("Monk", 3), Map.entry("Paladin", 3),
-            Map.entry("Ranger", 3), Map.entry("Rogue", 3)
-    );
 
     @Override
     public String name() {
@@ -45,13 +43,14 @@ public class CharacterClassLoader implements ContentLoader {
 
     @Override
     public List<String> files() {
-        return List.of("data/5etools/class/class-*.json");
+        return List.of("data/5etools/class/class-*.json", ClassTablesFile.PATH, SUBCLASS_EFFECTS_FILE);
     }
 
-    // Version 1 also writes the spell slot tables of rules/SpellSlotTables, so a change to them raises it
+    // The slot progressions and subclass levels come from the class tables, which files() lists; version 2 writes
+    // the subclass effects overlay
     @Override
     public int version() {
-        return 1;
+        return 2;
     }
 
     /** Loads the classes, then the subclasses under them. */
@@ -114,6 +113,11 @@ public class CharacterClassLoader implements ContentLoader {
                     () -> parseSubclass(scd, parent)));
         }
 
+        EffectsOverlay effects = EffectsOverlay.read(context, objectMapper, SUBCLASS_EFFECTS_FILE, SUBCLASS_EFFECTS);
+        for (Subclass subclass : allSubclasses) {
+            subclass.setEffects(effects.effectsOf(subclassKey(subclass)));
+        }
+        effects.requireEveryRowFound();
         context.upsert("subclasses", subclassRepository, allSubclasses, CharacterClassLoader::subclassKey);
     }
 
@@ -174,7 +178,7 @@ public class CharacterClassLoader implements ContentLoader {
                 .spellSlotProgression(spellSlotProgression)
                 .features(features)
                 .startingEquipment(startingEquipment)
-                .subclassLevel(SUBCLASS_LEVELS.getOrDefault(name, 3))
+                .subclassLevel(classTables.subclassLevel(name))
                 .multiclassRequirements(multiclassRequirements)
                 .multiclassProficiencies(multiclassProficiencies)
                 .build();
@@ -572,10 +576,11 @@ public class CharacterClassLoader implements ContentLoader {
 
     private String buildSpellSlotProgression(String className, String casterProgression) throws Exception {
         if (casterProgression == null) return null;
-        // Shared with SpellSlotCalculator (D153); 5etools names the half-caster progression "1/2"
+        // The class tables' slots, which SpellSlotCalculator reads too (D153); 5etools names the half-caster
+        // progression "1/2"
         Map<String, Map<String, Integer>> table = switch (casterProgression) {
-            case "full", "pact", "artificer" -> SpellSlotTables.progression(casterProgression);
-            case "1/2" -> SpellSlotTables.progression("half");
+            case "full", "pact", "artificer" -> classTables.slotProgression(casterProgression);
+            case "1/2" -> classTables.slotProgression("half");
             default -> null;
         };
         if (table == null) return null;

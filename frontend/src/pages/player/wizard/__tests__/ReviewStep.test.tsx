@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../../../test/test-utils';
 import ReviewStep, { type ReviewStepProps } from '../ReviewStep';
 import type { CharacterClassRef } from '../../../../types/reference';
 
@@ -52,6 +52,12 @@ describe('ReviewStep', () => {
       'Your Fighting Style',
       'The choices of your levels above the 1st, such as Ability Score Improvements and spells',
     ]);
+  });
+
+  it('shows the proficiency bonus from the class tables the server serves', async () => {
+    renderStep({ level: 5, classEntries: [{ cls: fighter, level: 5, subclass: null, subclasses: [] }] });
+
+    expect(await screen.findByText('+3')).toBeInTheDocument();
   });
 
   it('lists nothing for a level 1 character whose 1st-level choices the steps made', () => {

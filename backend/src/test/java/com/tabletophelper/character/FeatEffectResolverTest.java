@@ -573,18 +573,20 @@ class FeatEffectResolverTest {
     }
 
     @Test
-    @DisplayName("6.24 A feat can be taken again when its text says it can be selected multiple times, as Elemental Adept's does")
+    @DisplayName("6.24 A feat can be taken again when its effects in the feat data say repeatable, as only Elemental Adept's do; its text doesn't count")
     void repeatableFeats() {
-        Feat adept = buildFeat("Elemental Adept", null, "{}", null);
-        adept.setDescription("Spells you cast ignore resistance to the chosen type. You can select this feat multiple "
-                + "times. Each time you do so, you must choose a different damage type.");
+        Feat adept = buildFeat("Elemental Adept", null, "{\"repeatable\": true}", null);
         Feat lucky = buildFeat("Lucky", null, "{}", null);
-        Feat blank = buildFeat("Blank", null, "{}", null);
-        blank.setDescription(null);
+        lucky.setDescription("You can select this feat multiple times.");
+        Feat notRepeatable = buildFeat("Alert", null, "{\"repeatable\": false}", null);
+        Feat blank = buildFeat("Blank", null, null, null);
+        Feat unreadable = buildFeat("Odd", null, "{\"repeatable\": \"yes\"}", null);
 
         assertTrue(FeatEffectResolver.repeatable(adept));
         assertFalse(FeatEffectResolver.repeatable(lucky));
+        assertFalse(FeatEffectResolver.repeatable(notRepeatable));
         assertFalse(FeatEffectResolver.repeatable(blank));
+        assertThrows(ConflictException.class, () -> FeatEffectResolver.repeatable(unreadable));
     }
 
     // --- 6.25 to 6.27 The race and feat spellcasting ability (D159) and unknown spells ---

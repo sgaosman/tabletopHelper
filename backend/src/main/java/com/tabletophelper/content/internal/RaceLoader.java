@@ -21,6 +21,9 @@ import java.util.regex.Pattern;
 public class RaceLoader implements ContentLoader {
 
     private static final String FILE = "data/5etools/races.json";
+    // The effects the 5etools data doesn't give, such as the Hill Dwarf's hit points, by natural key (V28)
+    static final String EFFECTS_FILE = "data/content/race-effects.json";
+    static final Set<String> EFFECTS = Set.of("hpPerLevel");
 
     private final RaceRepository raceRepository;
     private final SpellRepository spellRepository;
@@ -89,12 +92,13 @@ public class RaceLoader implements ContentLoader {
 
     @Override
     public List<String> files() {
-        return List.of(FILE);
+        return List.of(FILE, EFFECTS_FILE);
     }
 
+    // Version 2 writes the effects overlay
     @Override
     public int version() {
-        return 1;
+        return 2;
     }
 
     // The innate spells' levels come from the spells table
@@ -177,6 +181,11 @@ public class RaceLoader implements ContentLoader {
                 return null;
             });
         }
+        EffectsOverlay effects = EffectsOverlay.read(context, objectMapper, EFFECTS_FILE, EFFECTS);
+        for (Race race : batch) {
+            race.setEffects(effects.effectsOf(LoadContext.nameAndSource(race.getName(), race.getSource())));
+        }
+        effects.requireEveryRowFound();
         context.upsert("races", raceRepository, batch, r -> LoadContext.nameAndSource(r.getName(), r.getSource()));
     }
 

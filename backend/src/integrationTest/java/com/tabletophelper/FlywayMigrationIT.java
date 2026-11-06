@@ -44,13 +44,13 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V27 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V28 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28");
     }
 
     @Test
@@ -59,6 +59,16 @@ class FlywayMigrationIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
                 + "WHERE table_name = 'resource_pool_definitions' AND column_name = 'level_table'"))
                 .isEqualTo(Map.of("data_type", "jsonb", "is_nullable", "YES"));
+    }
+
+    @Test
+    @DisplayName("V28 adds races.effects and subclasses.effects, nullable JSONB columns")
+    void effectsColumns() {
+        for (String table : List.of("races", "subclasses")) {
+            assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                    + "WHERE table_name = ? AND column_name = 'effects'", table))
+                    .as(table).isEqualTo(Map.of("data_type", "jsonb", "is_nullable", "YES"));
+        }
     }
 
     @Test

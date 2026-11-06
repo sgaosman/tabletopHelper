@@ -1,7 +1,8 @@
 import type { CharacterClassRef, Race, Spell } from '../../../types/reference';
 import { ABILITIES, abilityMod, formatMod, safeJsonParse, ABILITY_ABBR as ABILITY_LABELS } from '../../../utils/dndRules';
 import { firstLevelSheetChoices } from '../../../utils/pendingChoices';
-import { proficiencyBonusForLevel } from '../../../utils/spellConstants';
+import { useClassTables } from '../../../queries/reference';
+import { proficiencyBonus } from '../../../utils/classTables';
 import type { AbilityScores, ClassEntry } from './types';
 
 export interface ReviewStepProps {
@@ -42,6 +43,7 @@ export default function ReviewStep({
 }: ReviewStepProps) {
   // The first class's 1st-level choices these steps don't make, such as a Fighter's Fighting Style (D159)
   const firstLevelChoices = firstLevelSheetChoices(classEntries[0]?.cls.name ?? selectedClass?.name);
+  const { data: tables } = useClassTables();
   return (
     <div className="space-y-6">
       <h2 className="font-heading text-[17px] font-semibold text-ink">Review Your Character</h2>
@@ -61,7 +63,7 @@ export default function ReviewStep({
             <ReviewField key={e.cls.id} label={classEntries.length > 1 ? `${e.cls.name} Subclass` : 'Subclass'} value={e.subclass!.name} />
           ))}
           <ReviewField label="Background" value={selectedBackground?.name || '—'} />
-          <ReviewField label="Proficiency Bonus" value={`+${proficiencyBonusForLevel(level)}`} />
+          <ReviewField label="Proficiency Bonus" value={tables ? `+${proficiencyBonus(tables, level)}` : '…'} />
           <ReviewField label="Hit Points" value="Worked out when the character is created" />
           <ReviewField label="Speed" value={(() => {
             const sp = safeJsonParse<Record<string, number | boolean>>(selectedRace?.speed ?? null, { walk: 30 });

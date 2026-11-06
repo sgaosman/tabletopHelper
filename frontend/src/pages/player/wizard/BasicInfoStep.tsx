@@ -1,5 +1,6 @@
 import NumberStepper from '../../../components/common/NumberStepper';
-import { proficiencyBonusForLevel } from '../../../utils/spellConstants';
+import { useClassTables } from '../../../queries/reference';
+import { proficiencyBonus } from '../../../utils/classTables';
 import { ALIGNMENTS } from './types';
 
 export interface BasicInfoStepProps {
@@ -14,6 +15,7 @@ export interface BasicInfoStepProps {
 export default function BasicInfoStep({
   name, setName, alignment, setAlignment, level, setLevel,
 }: BasicInfoStepProps) {
+  const { data: tables } = useClassTables();
   return (
     <div className="space-y-6">
       <h2 className="font-heading text-[17px] font-semibold text-ink">Basic Information</h2>
@@ -60,7 +62,7 @@ export default function BasicInfoStep({
           <NumberStepper value={level} min={1} max={20} onChange={setLevel} label="Starting level" />
         </div>
         <p className="font-body text-[13px] font-semibold text-faint mt-1">
-          Proficiency bonus: +{proficiencyBonusForLevel(level)}
+          Proficiency bonus: {tables ? `+${proficiencyBonus(tables, level)}` : '…'}
           {level > 1 && ` · HP, features, and spell slots auto-calculated`}
         </p>
       </div>

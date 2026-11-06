@@ -37,7 +37,7 @@ class FeatLoaderTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    @DisplayName("A first load gives every feat an effects object, empty when the feat has no effect keys, and Tough's from feat-effects.json")
+    @DisplayName("A first load gives every feat an effects object, empty when the feat has no effect keys, Tough's from feat-effects.json, and repeatable to Elemental Adept only")
     void firstLoadGivesEveryFeatEffects() throws Exception {
         when(featRepository.findAll()).thenReturn(List.of());
 
@@ -51,6 +51,11 @@ class FeatLoaderTest {
         assertThat(gwm.getEffects()).isEqualTo("{}");
         Feat tough = saved.getValue().stream().filter(f -> f.getName().equals("Tough")).findFirst().orElseThrow();
         assertThat(objectMapper.readTree(tough.getEffects()).path("hpPerLevel").asInt()).isEqualTo(2);
+        assertThat(saved.getValue()).filteredOn(f -> f.getEffects().contains("repeatable"))
+                .extracting(Feat::getName).containsOnly("Elemental Adept");
+        Feat adept = saved.getValue().stream().filter(f -> f.getName().equals("Elemental Adept")).findFirst()
+                .orElseThrow();
+        assertThat(objectMapper.readTree(adept.getEffects()).path("repeatable").asBoolean()).isTrue();
         Feat lucky = saved.getValue().stream().filter(f -> f.getName().equals("Lucky")).findFirst().orElseThrow();
         assertThat(objectMapper.readTree(lucky.getEffects()).path("resource").toString())
                 .isEqualTo("{\"name\":\"Luck Points\",\"maxUses\":3,\"resetOn\":\"longRest\"}");

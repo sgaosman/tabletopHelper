@@ -18,6 +18,7 @@ import com.tabletophelper.character.state.SubclassChosen;
 import com.tabletophelper.reference.Background;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Feat;
+import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.OptionalFeature;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.reference.Spell;
@@ -69,7 +70,7 @@ class PendingChoiceServiceTest {
     private final Feat tough = Feat.builder().id(UUID.randomUUID()).name("Tough").description("Hit points")
             .effects("{\"hpPerLevel\": 2}").build();
     private final Feat elementalAdept = Feat.builder().id(UUID.randomUUID()).name("Elemental Adept")
-            .description("You can select this feat multiple times.").effects("{}").build();
+            .description("You can select this feat multiple times.").effects("{\"repeatable\": true}").build();
 
     private final Race variantHuman = Race.builder().id(UUID.randomUUID()).name("Variant Human")
             .speed("{\"walk\": 30}").raceChoices("{\"feats\": 1, \"skills\": [{\"any\": 1}]}").build();
@@ -617,7 +618,10 @@ class PendingChoiceServiceTest {
         void subclassAdditionsCount() {
             PlayerCharacter pc = warlock();
             ClassEntry entry = pc.getMulticlassEntries().getFirst();
-            pc.setMulticlassEntries(List.of(entry.withSubclass(UUID.randomUUID(), "The Hexblade")));
+            Subclass hexblade = Subclass.builder().id(UUID.randomUUID()).name("The Hexblade")
+                    .characterClass(f.warlock).build();
+            when(f.subclassRepository.findById(hexblade.getId())).thenReturn(Optional.of(hexblade));
+            pc.setMulticlassEntries(List.of(entry.withSubclass(hexblade.getId(), "The Hexblade")));
 
             f.choose(pc, f.pending(pc, Type.SPELLS), request -> request.setSpells(List.of("Shield", "Hex")));
 

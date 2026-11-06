@@ -1,5 +1,7 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.character.TestClassTables;
 import com.tabletophelper.character.state.LevelChoices;
 import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.shared.ConflictException;
@@ -19,11 +21,13 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class LevelUpCalculatorTest {
 
+    private static final ClassTables TABLES = TestClassTables.load();
+
     @Test
     @DisplayName("Build single-class progression: the die's maximum at level 1 and its fixed average after")
     void singleClassProgressionHitDieResults() {
         UUID classId = UUID.randomUUID();
-        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
+        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(TABLES, 
                 5, classId, "Fighter", 10,
                 null, null, null, 99
         );
@@ -41,9 +45,9 @@ class LevelUpCalculatorTest {
     @Test
     @DisplayName("Hit Die Results with a d6 and a d12: 6 then 4, and 12 then 7")
     void d6AndD12HitDieResults() {
-        List<LevelUpCalculator.LevelGain> wizard = LevelUpCalculator.buildProgression(
+        List<LevelUpCalculator.LevelGain> wizard = LevelUpCalculator.buildProgression(TABLES, 
                 2, UUID.randomUUID(), "Wizard", 6, null, null, null, 2);
-        List<LevelUpCalculator.LevelGain> barbarian = LevelUpCalculator.buildProgression(
+        List<LevelUpCalculator.LevelGain> barbarian = LevelUpCalculator.buildProgression(TABLES, 
                 2, UUID.randomUUID(), "Barbarian", 12, null, null, null, 3);
 
         assertEquals(List.of(6, 4), wizard.stream().map(LevelUpCalculator.LevelGain::hitDieResult).toList());
@@ -103,7 +107,7 @@ class LevelUpCalculatorTest {
         );
 
         List<LevelUpCalculator.LevelGain> progression =
-                LevelUpCalculator.buildMulticlassProgression(classInputs);
+                LevelUpCalculator.buildMulticlassProgression(TABLES, classInputs);
         assertEquals(4, progression.size());
 
         // Fighter level 1 (character level 1): the d10's maximum
@@ -155,7 +159,7 @@ class LevelUpCalculatorTest {
     @DisplayName("buildProgression total levels matches input")
     void buildProgressionTotalLevelsMatchInput() {
         UUID classId = UUID.randomUUID();
-        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(
+        List<LevelUpCalculator.LevelGain> progression = LevelUpCalculator.buildProgression(TABLES, 
                 5, classId, "Fighter", 10,
                 null, null, null, 99);
         assertEquals(5, progression.size());
@@ -171,7 +175,7 @@ class LevelUpCalculatorTest {
     @DisplayName("levelHistory records each level's Hit Die Result with no choices, its hit points to be filled in")
     void levelHistoryRecordsHitDieResults() {
         UUID classId = UUID.randomUUID();
-        List<LevelHistoryEntry> history = LevelUpCalculator.levelHistory(LevelUpCalculator.buildProgression(
+        List<LevelHistoryEntry> history = LevelUpCalculator.levelHistory(LevelUpCalculator.buildProgression(TABLES, 
                 2, classId, "Fighter", 10, null, null, null, 3));
 
         assertEquals(List.of(10, 6), history.stream().map(LevelHistoryEntry::hitDieResult).toList());

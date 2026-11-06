@@ -3,7 +3,9 @@ package com.tabletophelper.reference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tabletophelper.reference.dto.ClassTablesResponse;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
+import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +16,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -40,7 +44,9 @@ public class ReferenceController {
     private final FeatRepository featRepository;
     private final OptionalFeatureRepository optionalFeatureRepository;
     private final ObjectMapper objectMapper;
+    private final ClassTables classTables;
 
+    private static final Duration CLASS_TABLES_MAX_AGE = Duration.ofHours(1);
     private static final String QUICK_REFERENCE = "data/5etools/generated/bookref-quick.json";
 
     @GetMapping("/spells")
@@ -292,6 +298,18 @@ public class ReferenceController {
             return optionalFeatureRepository.findByFeatureTypeOrderByNameAsc(type);
         }
         return optionalFeatureRepository.findAll();
+    }
+
+    /**
+     * The class tables the character rules use (D167, D169): spell slots, cantrips and spells known, and the
+     * subclass, ASI, Expertise and Fighting Style levels. They change only with a release, so the browser may keep
+     * them for an hour; they are read once at startup, so need no server cache.
+     */
+    @GetMapping("/class-tables")
+    public ResponseEntity<ClassTablesResponse> getClassTables() {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(CLASS_TABLES_MAX_AGE).cachePrivate())
+                .body(ClassTablesResponse.of(classTables));
     }
 
     @GetMapping("/quickref")

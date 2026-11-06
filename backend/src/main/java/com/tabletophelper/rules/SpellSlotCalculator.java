@@ -1,9 +1,12 @@
 package com.tabletophelper.rules;
 
+import com.tabletophelper.rules.character.ClassTables;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+/** Spell slots for a character's classes under the 2014 rules, from the class tables' slot rows (D153, D167). */
 public class SpellSlotCalculator {
 
     /** Subclasses that give a class without Spellcasting its own spell slots from 3rd level. */
@@ -22,7 +25,7 @@ public class SpellSlotCalculator {
         return "none";
     }
 
-    public static Map<String, Integer> calculateSlots(Map<String, ClassEntry> classEntries) {
+    public static Map<String, Integer> calculateSlots(ClassTables tables, Map<String, ClassEntry> classEntries) {
         int multiclassCasterLevel = 0;
         int spellcastingClasses = 0;
         ClassEntry onlySpellcastingClass = null;
@@ -46,8 +49,8 @@ public class SpellSlotCalculator {
         // PHB p.164: the multiclass table applies only with two or more Spellcasting classes;
         // a single one uses its own progression (D153)
         int[] row = spellcastingClasses == 1
-                ? SpellSlotTables.ownTable(onlySpellcastingClass.casterType(), onlySpellcastingClass.level())
-                : SpellSlotTables.multiclassRow(multiclassCasterLevel);
+                ? tables.slotRow(onlySpellcastingClass.casterType(), onlySpellcastingClass.level())
+                : tables.multiclassRow(multiclassCasterLevel);
 
         Map<String, Integer> slots = new LinkedHashMap<>();
         for (int i = 0; i < row.length; i++) {
@@ -56,7 +59,7 @@ public class SpellSlotCalculator {
             }
         }
 
-        int[] pactRow = SpellSlotTables.pactMagicRow(warlockLevel);
+        int[] pactRow = tables.pactMagicRow(warlockLevel);
         for (int i = 0; i < pactRow.length; i++) {
             if (pactRow[i] > 0) {
                 slots.put("pact_" + (i + 1), pactRow[i]);

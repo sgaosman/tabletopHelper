@@ -21,9 +21,12 @@ import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.Race;
+import com.tabletophelper.reference.Subclass;
+import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.character.HitPoints;
+import com.tabletophelper.rules.character.TestClassTables;
 import com.tabletophelper.rules.combat.DamageRules;
 import com.tabletophelper.shared.ConflictException;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,8 +44,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * The one derivation of a character's Derived Stats (D158, D167). The expected values are worked out by hand from the
@@ -53,9 +58,10 @@ import static org.mockito.Mockito.mock;
 class CharacterStatsTest {
 
     private final CharacterClassRepository classRepository = mock(CharacterClassRepository.class);
+    private final SubclassRepository subclassRepository = mock(SubclassRepository.class);
     private final ClassFeaturePoolRepository featurePools = mock(ClassFeaturePoolRepository.class);
-    private final CharacterStats stats = new CharacterStats(classRepository, new ResourcePoolService(featurePools),
-            new ObjectMapper());
+    private final CharacterStats stats = new CharacterStats(classRepository, subclassRepository,
+            new ResourcePoolService(featurePools), new ObjectMapper(), TestClassTables.load());
 
     private final CharacterClass fighter = caster("Fighter", 10, null, false);
     private final CharacterClass wizard = caster("Wizard", 6, "INT", false);
@@ -77,6 +83,9 @@ class CharacterStatsTest {
         for (CharacterClass c : List.of(fighter, wizard, cleric, sorcerer, paladin, warlock, barbarian)) {
             lenient().when(classRepository.findById(c.getId())).thenReturn(Optional.of(c));
         }
+        // A subclass a test names by ID only is one without effects
+        lenient().when(subclassRepository.findById(any())).thenAnswer(call -> Optional.of(
+                Subclass.builder().id(call.getArgument(0)).name("A subclass").build()));
     }
 
     /** The class levels in the order taken, as pairs of a class and a count, each level at its fixed hit die result. */
@@ -147,26 +156,66 @@ class CharacterStatsTest {
         }
 
         @Test
-        @DisplayName("Tough, matched by its feature's name, adds 2 for every level, those before it was taken included")
+        @DisplayName("Tough, from the hpPerLevel its feat data recorded, adds 2 for every level, those before it was taken included")
         void tough() {
             PlayerCharacter pc = character(fighter, 4);
             pc.setFeatures(List.of(new Feature("Tough", "Feat", "Feat")));
+            AppliedFeatEffects tough = new AppliedFeatEffects(null, null, null, null, null, null, null, null, null,
+                    null, null, 2, null, null, null, null, "Tough");
+            List<LevelHistoryEntry> history = new ArrayList<>(pc.getLevelHistory());
+            history.set(3, history.get(3).withChoices(LevelChoices.NONE.withAsi(
+                    new AbilityScoreImprovement("feat", null, "Tough", null, null, tough, null))));
+            pc.setLevelHistory(history);
 
             assertThat(stats.derive(pc).hpMax()).isEqualTo(36 + 8);
         }
 
         @Test
-        @DisplayName("A Hill Dwarf adds 1 a level, and the Draconic Bloodline 1 a sorcerer level only")
+        @DisplayName("A Hill Dwarf adds 1 a level, and the Draconic Bloodline 1 a sorcerer level only, from their effects")
         void hillDwarfAndDraconicBloodline() {
             PlayerCharacter dwarf = character(fighter, 2);
-            dwarf.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}").build());
+            dwarf.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}")
+                    .effects("{\"hpPerLevel\": 1}").build());
             PlayerCharacter dragon = character(fighter, 2, sorcerer, 3);
+            Subclass draconic = Subclass.builder().id(UUID.randomUUID()).name("Draconic Bloodline")
+                    .characterClass(sorcerer).effects("{\"hpPerClassLevel\": 1}").build();
+            when(subclassRepository.findById(draconic.getId())).thenReturn(Optional.of(draconic));
             dragon.setMulticlassEntries(List.of(new ClassEntry(fighter.getId(), "Fighter", null, null, 2),
-                    new ClassEntry(sorcerer.getId(), "Sorcerer", UUID.randomUUID(), "Draconic Bloodline", 3)));
+                    new ClassEntry(sorcerer.getId(), "Sorcerer", draconic.getId(), "Draconic Bloodline", 3)));
 
             assertThat(stats.derive(dwarf).hpMax()).isEqualTo(12 + 8 + 2);
             // 12 + 8, then three sorcerer levels of 4 + 2, with 1 each from Draconic Resilience
             assertThat(stats.derive(dragon).hpMax()).isEqualTo(20 + 18 + 3);
+        }
+
+        @Test
+        @DisplayName("A race or subclass gets its hit points from its effects, whatever its name: a renamed race with the effect has them, a Hill Dwarf without it none")
+        void effectsNotNames() {
+            PlayerCharacter renamed = character(fighter, 2);
+            renamed.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Dwarf (Hill)").speed("{\"walk\": 25}")
+                    .effects("{\"hpPerLevel\": 1}").build());
+            PlayerCharacter unmarked = character(fighter, 2);
+            unmarked.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}")
+                    .build());
+            PlayerCharacter sorcererByName = character(sorcerer, 3);
+            sorcererByName.setMulticlassEntries(List.of(
+                    new ClassEntry(sorcerer.getId(), "Sorcerer", UUID.randomUUID(), "Draconic Bloodline", 3)));
+
+            assertThat(stats.derive(renamed).hpMax()).isEqualTo(12 + 8 + 2);
+            assertThat(stats.derive(unmarked).hpMax()).isEqualTo(12 + 8);
+            // 6 + 2, then 4 + 2 twice: the subclass named Draconic Bloodline here has no effects
+            assertThat(stats.derive(sorcererByName).hpMax()).isEqualTo(20);
+        }
+
+        @Test
+        @DisplayName("A race whose effects can't be read is a 409, not a missing bonus")
+        void unreadableEffectsAreConflict() {
+            PlayerCharacter pc = character(fighter, 1);
+            pc.setRaceRef(Race.builder().id(UUID.randomUUID()).name("Hill Dwarf").speed("{\"walk\": 25}")
+                    .effects("{\"hpPerLevel\": \"one\"}").build());
+
+            assertThatThrownBy(() -> stats.derive(pc)).isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("The effects of the race Hill Dwarf can't be read");
         }
 
         @Test

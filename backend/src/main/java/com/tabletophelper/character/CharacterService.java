@@ -20,6 +20,7 @@ import com.tabletophelper.reference.*;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.SpellSlotCalculator;
+import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.rules.character.HitPoints;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
@@ -67,6 +68,7 @@ public class CharacterService {
     private final LiveEncounters liveEncounters;
     private final InventoryChecks inventoryChecks;
     private final PendingChoiceService pendingChoices;
+    private final ClassTables classTables;
 
     // ── Creating ─────────────────────────────────────────────────
 
@@ -166,13 +168,13 @@ public class CharacterService {
                         mcSubclassRef != null ? mcSubclassRef.getId() : null, mcSubName, mcLevel));
             }
 
-            progression = LevelUpCalculator.buildMulticlassProgression(classInputs);
+            progression = LevelUpCalculator.buildMulticlassProgression(classTables, classInputs);
             multiclassEntries = mcEntryList;
             characterClassName = classInputs.stream()
                     .map(LevelUpCalculator.ClassInput::className)
                     .reduce((a, b) -> a + " / " + b).orElse(className);
         } else {
-            progression = LevelUpCalculator.buildProgression(
+            progression = LevelUpCalculator.buildProgression(classTables,
                     level, classRef != null ? classRef.getId() : null, className,
                     classRef != null ? classRef.getHitDice() : 8,
                     classRef != null ? classRef.getFeatures() : null,

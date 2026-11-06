@@ -423,7 +423,7 @@ class LevelProgressionTest {
         @DisplayName("An Eldritch Knight learns a spell of up to 1st level as a Fighter 4, and may swap one it knows")
         void eldritchKnightIsPromptedForSpells() {
             PlayerCharacter pc = fighter(3);
-            pc.setMulticlassEntries(List.of(new ClassEntry(f.fighter.getId(), "Fighter", UUID.randomUUID(),
+            pc.setMulticlassEntries(List.of(new ClassEntry(f.fighter.getId(), "Fighter", f.eldritchKnight.getId(),
                     "Eldritch Knight", 3)));
 
             f.levelUp(pc, f.fighter);

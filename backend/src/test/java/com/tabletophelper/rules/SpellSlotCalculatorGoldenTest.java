@@ -1,5 +1,7 @@
 package com.tabletophelper.rules;
 
+import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.character.TestClassTables;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -12,9 +14,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Checks every caster type at every level against the PHB 2014 tables, typed out here
- * independently of {@link SpellSlotTables} (D153).
+ * independently of the class tables in data/content/class-tables.json (D153).
  */
 class SpellSlotCalculatorGoldenTest {
+
+    private static final ClassTables TABLES = TestClassTables.load();
 
     // Slots by spell level (1st first), indexed by class level; row 0 unused
     private static final int[][] PHB_FULL = {
@@ -119,7 +123,7 @@ class SpellSlotCalculatorGoldenTest {
     }
 
     private static Map<String, Integer> single(String name, int level, String casterType) {
-        return SpellSlotCalculator.calculateSlots(Map.of(name, new SpellSlotCalculator.ClassEntry(level, casterType)));
+        return SpellSlotCalculator.calculateSlots(TABLES, Map.of(name, new SpellSlotCalculator.ClassEntry(level, casterType)));
     }
 
     private static Map<String, Integer> multi(String nameA, SpellSlotCalculator.ClassEntry a,
@@ -127,7 +131,7 @@ class SpellSlotCalculatorGoldenTest {
         Map<String, SpellSlotCalculator.ClassEntry> entries = new LinkedHashMap<>();
         entries.put(nameA, a);
         entries.put(nameB, b);
-        return SpellSlotCalculator.calculateSlots(entries);
+        return SpellSlotCalculator.calculateSlots(TABLES, entries);
     }
 
     private static Map<String, Integer> expected(int[] row) {

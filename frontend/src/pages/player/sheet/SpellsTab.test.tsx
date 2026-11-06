@@ -75,7 +75,7 @@ describe('SpellsTab', () => {
     expect(within(box('Paladin Spells')).getByText('Prepared (0/0)')).toBeInTheDocument();
   });
 
-  it("reads an Eldritch Knight's known spells and cantrips from the server", () => {
+  it("reads an Eldritch Knight's known spells and cantrips from the server", async () => {
     const char = {
       ...makeMockCharacter('char-003', 'Gwen', 'Fighter', 4),
       spellsKnown: [
@@ -88,6 +88,8 @@ describe('SpellsTab', () => {
 
     renderTab(char);
 
+    // The subclass is named once the class tables, served by the mocked endpoint, say it is a third caster
+    await screen.findByRole('heading', { name: 'Fighter (Eldritch Knight) Spells' });
     const knight = box('Fighter (Eldritch Knight) Spells');
     expect(within(knight).getByText('Cantrips (1/2)')).toBeInTheDocument();
     expect(within(knight).getByText('Known Spells (1/4)')).toBeInTheDocument();

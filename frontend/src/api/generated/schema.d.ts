@@ -1236,6 +1236,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reference/class-tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getClassTables"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reference/classes": {
         parameters: {
             query?: never;
@@ -2098,6 +2114,30 @@ export interface components {
             spellsKnown?: number | null;
             subclassName?: string | null;
         };
+        ClassTableResponse: {
+            asiLevels: number[];
+            expertise: {
+                [key: string]: number;
+            };
+            fightingStyleLevels: number[];
+            fightingStyles: string[];
+            spellbook?: components["schemas"]["SpellbookResponse"] | null;
+            spellcasting?: components["schemas"]["SpellcastingResponse"] | null;
+            /** Format: int32 */
+            subclassLevel: number;
+        };
+        ClassTablesResponse: {
+            classes: {
+                [key: string]: components["schemas"]["ClassTableResponse"];
+            };
+            proficiencyBonus: number[];
+            spellSlots: {
+                [key: string]: number[][];
+            };
+            subclasses: {
+                [key: string]: components["schemas"]["SubclassTableResponse"];
+            };
+        };
         CombatLogResponse: {
             /** @enum {string} */
             actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE";
@@ -2937,6 +2977,18 @@ export interface components {
         SpellbookRequest: {
             spells: string[];
         };
+        SpellbookResponse: {
+            /** Format: int32 */
+            firstLevel: number;
+            /** Format: int32 */
+            laterLevels: number;
+        };
+        SpellcastingResponse: {
+            cantripsKnown: number[];
+            casterType: string;
+            preparing: string;
+            spellsKnown: number[];
+        };
         SpellsLearned: {
             learned: string[];
             replaced?: components["schemas"]["KnownSpell"] | null;
@@ -2961,6 +3013,11 @@ export interface components {
             /** Format: uuid */
             subclassId: string;
             subclassName: string;
+        };
+        SubclassTableResponse: {
+            className: string;
+            fightingStyleLevels: number[];
+            spellcasting?: components["schemas"]["SpellcastingResponse"] | null;
         };
         TargetOutcome: {
             /** Format: int32 */
@@ -4996,6 +5053,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Background"];
+                };
+            };
+        };
+    };
+    getClassTables: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassTablesResponse"];
                 };
             };
         };
