@@ -4,7 +4,7 @@
 
 > **Note (2026-11-06, R8):** the refactor phase (R1–R8, [[decisions-log#D150]]) is implemented, each step committed locally and not yet pushed. The local database takes V29 and R8's content changes at its next start, followed by the `json-roundtrip`, `recompute-characters` dry run and load checks. Feature milestones resume with M13 after that. HTTPS and automated backups wait for the Hosting step (D154).
 
-> **Note (2026-11-06, M13):** the local database has since taken V29 and R8, and R7 and R8 are pushed. M13 (action economy, [[decisions-log#D174]]) is implemented as local commits, not yet pushed; the local database takes V30 and M13's content changes at the backend's next restart.
+> **Note (2026-11-06, M13):** the local database has since taken V29 and R8, and R7 and R8 are pushed. M13 (action economy, [[decisions-log#D174]]) is implemented as local commits, not yet pushed; the local database took V30 and M13's content changes on 2026-11-07.
 
 ## Milestone Status
 
@@ -24,7 +24,7 @@
 | 24 | UI Redesign: Tourmaline Theme | Complete | Light mode, square corners, Cinzel + Cormorant Garamond fonts, tourmaline gradient nav accent, class-colored accents, warm parchment surfaces |
 | 12 | Monster Actions, Legendary Actions & Resistance | Complete | All CRs, lair actions, structured action data, DM action panel, legendary action pool, combat-log-based legendary resistance undo, recharge logging, lair action cards |
 | 12.5 | CR 11-15 Monster Data Expansion | Eliminated — merged into M12 (D129) | Extend structured monster actions from CR 10 to CR 15, required for M6 release trigger |
-| 13 | Enhanced Action Economy | Implemented (2026-11-06) | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, bonus-action-spell rule, pools in encounters (D174); 2,096 backend unit, 235 integration and 851 frontend tests. Item use moved out; the local database takes V30 at its next restart |
+| 13 | Enhanced Action Economy | Implemented (2026-11-06) | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, bonus-action-spell rule, pools in encounters (D174); 2,096 backend unit, 235 integration and 851 frontend tests. Item use moved out; V30 applied to the local database on 2026-11-07 |
 | 14 | Undo System | Not started | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
@@ -476,7 +476,7 @@ Phase 3 — Multiclass at creation:
 
 **Goal:** Full D&D 5e action economy tracking with reactions, bonus actions, and non-attack actions.
 
-**Status (2026-11-06):** implemented as workstreams A–G, local commits not yet pushed ([[decisions-log#D174]]). The local database takes V30 and M13's content changes at the backend's next restart. The plan of record replaced some tasks below; the notes say how.
+**Status (2026-11-06):** implemented as workstreams A–G, local commits not yet pushed ([[decisions-log#D174]]). The local database took V30 and M13's content changes on 2026-11-07. The plan of record replaced some tasks below; the notes say how.
 
 **Backend tasks:**
 - [x] Action economy tracking per turn: action used, bonus action used, reaction used (reset on turn start) — one `turn_economy` record (V30) with actions, attacks left in the Attack action, bonus action, reaction, object interaction and the bonus-action-spell flags; enforced for players with a 409, the DM never refused
