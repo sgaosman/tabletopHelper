@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -235,6 +237,59 @@ class EncounterBroadcasterTest {
                 EncounterBroadcaster.stateDestination(encounterId),
                 EncounterBroadcaster.dmLogDestination(encounterId),
                 EncounterBroadcaster.logDestination(encounterId)), sentDestinations());
+    }
+
+    @Test
+    @DisplayName("A join read before a change commits is published before that change's broadcast, never after it, "
+            + "so clients don't end on the older state")
+    void joinNeverPublishesAfterANewerChange() throws Exception {
+        EncounterResponse before = dmView(false);
+        before.setRoundNumber(1);
+        Encounter committed = Encounter.builder().id(encounterId).build();
+        EncounterResponse after = dmView(false);
+        after.setRoundNumber(2);
+        when(encounterRepository.findById(encounterId)).thenReturn(Optional.of(committed));
+        when(encounterService.toResponse(committed)).thenReturn(after);
+        CountDownLatch joinRead = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        Thread join = new Thread(() -> broadcaster.publishOnJoin(encounterId, () -> {
+            joinRead.countDown();
+            await(release);
+            return before;
+        }));
+        join.start();
+        assertTrue(joinRead.await(5, TimeUnit.SECONDS));
+        Thread change = new Thread(() -> broadcaster.encounterChanged(new EncounterChanged(encounterId)));
+        change.start();
+        // The change's broadcast either waits for the join or, without the wait, publishes first
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (change.getState() != Thread.State.BLOCKED && change.isAlive() && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        release.countDown();
+        join.join(5000);
+        change.join(5000);
+
+        var destinations = ArgumentCaptor.forClass(String.class);
+        var payloads = ArgumentCaptor.forClass(Object.class);
+        verify(messagingTemplate, times(8)).convertAndSend(destinations.capture(), payloads.capture());
+        Object lastDmState = null;
+        for (int i = 0; i < destinations.getAllValues().size(); i++) {
+            if (destinations.getAllValues().get(i).equals(EncounterBroadcaster.dmStateDestination(encounterId))) {
+                lastDmState = payloads.getAllValues().get(i);
+            }
+        }
+        assertSame(after, lastDmState);
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(5, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test

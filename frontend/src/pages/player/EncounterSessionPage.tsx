@@ -54,11 +54,10 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
       </div>
 
       {/* The weapons and numbers come from the server, with Manual Modifiers while the campaign allows them (D164).
-          Off their turn a player's only attack is an opportunity attack, their reaction (D174) */}
+          The cost follows the turn: off their turn a player's only attack is an opportunity attack, their reaction (D174) */}
       {actionMode === 'attack' && (
         <WeaponAttackForm attacker={myCharacter} target={target}
-          allowManualModifiers={encounter.allowPlayerManualModifiers} onDone={onClose}
-          defaultCost={myCharacter.isCurrentTurn ? 'ACTION' : 'REACTION'} />
+          allowManualModifiers={encounter.allowPlayerManualModifiers} onDone={onClose} />
       )}
       {actionMode === 'condition' && (
         <ConditionForm onSubmit={async (condition, duration) => {

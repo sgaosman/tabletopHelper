@@ -1,6 +1,5 @@
 package com.tabletophelper.encounter;
 
-import com.tabletophelper.encounter.dto.EncounterResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -24,8 +23,8 @@ public class EncounterWebSocketController {
             @DestinationVariable UUID encounterId,
             SimpMessageHeaderAccessor headerAccessor) {
         UUID userId = extractUserId(headerAccessor);
-        EncounterResponse state = encounterService.getEncounter(encounterId, userId);
-        broadcaster.publish(state);
+        // Read and published in order with the changes' broadcasts, so a join never sends an older state last
+        broadcaster.publishOnJoin(encounterId, () -> encounterService.getEncounter(encounterId, userId));
     }
 
     private UUID extractUserId(SimpMessageHeaderAccessor accessor) {

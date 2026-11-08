@@ -30,9 +30,19 @@ const COSTS: { value: AttackCost; label: string }[] = [
   { value: 'REACTION', label: 'Opportunity attack (reaction)' },
 ];
 
+/**
+ * The cost an attack starts on (D174): on the attacker's turn the Attack action while it can pay, then an off-hand
+ * attack, and off its turn an opportunity attack. When nothing can pay, Attack on its turn, so the row says why.
+ */
+function automaticCost(attacker: EncounterParticipant): AttackCost {
+  const candidates: AttackCost[] = attacker.isCurrentTurn ? ['ACTION', 'BONUS_ACTION'] : ['REACTION'];
+  return candidates.find(cost => chargeBlock(attacker, { cost, attack: true }) === null) ?? candidates[0];
+}
+
 /** One attack the player rolls: a weapon from their attack options, or numbers entered by hand. */
 interface AttackRow {
-  cost: AttackCost;
+  /** The cost the player picked, or null to follow the turn's budget as it changes (automaticCost). */
+  cost: AttackCost | null;
   weapon: string;
   powerAttack: boolean;
   advantage: boolean | null;
@@ -47,7 +57,7 @@ interface AttackRow {
 }
 
 // A ranged weapon attacks from beyond 5 feet unless the player says otherwise; there is no map (D161)
-function newRow(option: AttackOption | undefined, cost: AttackCost): AttackRow {
+function newRow(option: AttackOption | undefined, cost: AttackCost | null): AttackRow {
   return {
     cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, advantage: null, within5Ft: !(option?.ranged ?? false),
     forceCrit: false, extraAttackBonus: '', extraDamageDice: '', extraDamageType: '',
@@ -71,7 +81,7 @@ function summary(option: AttackOption, powerAttack: boolean) {
  * The request for a row, or null for an attack entered by hand without both numbers. Manual Modifiers are sent only
  * while the campaign allows them; the server refuses them otherwise (D164).
  */
-function attackRequest(row: AttackRow, option: AttackOption | undefined, targetId: string,
+function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOption | undefined, targetId: string,
   allowManualModifiers: boolean): AttackRollRequest | null {
   const common = {
     targetId,
@@ -105,11 +115,12 @@ function attackRequest(row: AttackRow, option: AttackOption | undefined, targetI
  * the server works out, and Great Weapon Master's or Sharpshooter's trade where the character may take it. While the
  * campaign allows Manual Modifiers, the player may add a magic weapon's bonus or other extra damage, force a critical
  * hit, or enter a whole attack by hand for a weapon the server doesn't know. Up to five attacks roll in one go.
- * Each attack has a cost (D174), `defaultCost` unless the player picks another: an attack of the Attack action, an
- * off-hand attack or an opportunity attack. Where the attacker's turn can't pay for it the row says why, and a
- * refusal from the server shows its reason.
+ * Each attack has a cost (D174): an attack of the Attack action, an off-hand attack or an opportunity attack. It is
+ * `defaultCost` when one is given; otherwise it follows the attacker's turn (automaticCost), moving on to an off-hand
+ * attack once the Attack action is spent, until the player picks a cost, which then stays. Where the attacker's turn
+ * can't pay for it the row says why, and a refusal from the server shows its reason.
  */
-export default function WeaponAttackForm({ attacker, target, allowManualModifiers, onDone, defaultCost = 'ACTION' }: {
+export default function WeaponAttackForm({ attacker, target, allowManualModifiers, onDone, defaultCost }: {
   attacker: EncounterParticipant;
   target: EncounterParticipant;
   allowManualModifiers: boolean;
@@ -130,7 +141,9 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   }
   const options = optionsQuery.data;
   const optionFor = (weapon: string) => options.find(o => o.weapon === weapon);
-  const current = rows ?? [newRow(options[0], defaultCost)];
+  const current = rows ?? [newRow(options[0], defaultCost ?? null)];
+  const followed = automaticCost(attacker);
+  const costOf = (row: AttackRow): AttackCost => row.cost ?? followed;
 
   function update(index: number, change: Partial<AttackRow>) {
     setRows(current.map((row, i) => i === index ? { ...row, ...change } : row));
@@ -143,7 +156,7 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
   }
 
   function addRow() {
-    if (current.length < 5) setRows([...current, newRow(options[0], defaultCost)]);
+    if (current.length < 5) setRows([...current, newRow(options[0], defaultCost ?? null)]);
   }
 
   function cloneRow(index: number) {
@@ -158,7 +171,7 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
     e.preventDefault();
     if (rolling) return;
     const requests = current
-      .map(row => attackRequest(row, optionFor(row.weapon), target.id, allowManualModifiers))
+      .map(row => attackRequest({ ...row, cost: costOf(row) }, optionFor(row.weapon), target.id, allowManualModifiers))
       .filter((request): request is AttackRollRequest => request !== null);
     if (requests.length === 0) return;
     setRolling(true);
@@ -181,12 +194,13 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
         const option = optionFor(row.weapon);
         const entered = row.weapon === ENTERED;
         // Why the attacker's turn can't pay for this attack, as far as the page can tell; the server decides (D174)
-        const blocked = chargeBlock(attacker, { cost: row.cost, attack: true });
+        const cost = costOf(row);
+        const blocked = chargeBlock(attacker, { cost, attack: true });
         return (
           <div key={i} role="group" aria-label={`Attack ${i + 1}`} className="flex flex-wrap items-end gap-2 pb-3 border-b border-rule-light last:border-0">
             <div className="w-56">
               <label htmlFor={`cost-${i}`} className={LABEL}>Cost</label>
-              <select id={`cost-${i}`} value={row.cost} onChange={e => update(i, { cost: e.target.value as AttackCost })}
+              <select id={`cost-${i}`} value={cost} onChange={e => update(i, { cost: e.target.value as AttackCost })}
                 className={`${FIELD} h-[42px]`}>
                 {COSTS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>

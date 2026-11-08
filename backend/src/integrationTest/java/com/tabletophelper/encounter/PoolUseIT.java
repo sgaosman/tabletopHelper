@@ -1,6 +1,7 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.CharacterClass;
@@ -47,6 +48,7 @@ class PoolUseIT extends IntegrationTest {
     @Autowired private ResourcePoolDefinitionRepository poolDefinitionRepository;
     @Autowired private ClassFeaturePoolRepository classFeaturePoolRepository;
     @Autowired private MonsterRepository monsterRepository;
+    @Autowired private EncounterParticipantRepository participantRepository;
 
     private RegisteredUser dm;
     private RegisteredUser player;
@@ -172,6 +174,32 @@ class PoolUseIT extends IntegrationTest {
         nextTurn();
         assertThat(usePool(vexId, ACTION_SURGE, player.accessToken()).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("A second Action Surge on the same turn is a 409 even with a use left, and spends nothing (PHB p.72)")
+    void actionSurgeOncePerTurn() {
+        // Two uses, as a Fighter 17 has
+        EncounterParticipant fighter = participantRepository.findById(UUID.fromString(vexId)).orElseThrow();
+        fighter.setResourcePoolsCurrent(new ArrayList<>(fighter.getResourcePoolsCurrent().stream()
+                .map(entry -> entry.poolId().equals(ACTION_SURGE) ? new ResourcePoolEntry(entry.poolId(),
+                        entry.displayName(), entry.sourceType(), entry.sourceName(), 2, "2", 2, entry.resetOn(),
+                        entry.resetAmount(), entry.resetCheck(), entry.spendActionType(), entry.icon(),
+                        entry.metadata()) : entry)
+                .toList()));
+        participantRepository.save(fighter);
+
+        expect(HttpStatus.OK, usePool(vexId, ACTION_SURGE, player.accessToken()));
+        ResponseEntity<String> second = usePool(vexId, ACTION_SURGE, player.accessToken());
+
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(json(second).get("error").asString())
+                .isEqualTo("It has already used Action Surge this turn; it can only once on the same turn");
+        JsonNode after = participant(dmView(), vexId);
+        assertThat(pool(after, ACTION_SURGE).get("currentUses").asInt()).isEqualTo(1);
+        assertThat(after.get("turnEconomy").get("actions").asInt()).isEqualTo(2);
+        assertThat(descriptions(logEntries("POOL_USE")))
+                .containsExactly("Vex uses Action Surge and takes an additional action; 1/2 left");
     }
 
     @Test

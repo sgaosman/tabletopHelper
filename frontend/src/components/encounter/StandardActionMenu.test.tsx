@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import type { ComponentProps } from 'react';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCharacter, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
+import { makeMockCharacter, makeMockCondition, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
 import type { EncounterParticipant } from '../../types/encounter';
 import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
@@ -184,6 +184,37 @@ describe('StandardActionMenu', () => {
 
       expect(within(menu).getByRole('button', { name: /^Use an Object/ })).toHaveAttribute('aria-pressed', 'true');
       expect(within(menu).getByLabelText('Note (optional)')).toHaveValue('Opens the chest');
+    });
+
+    it('greys Interact for a player once the free one is used and no action is left, offering no Use an Object', async () => {
+      const { menu, user } = await renderMenu({
+        participant: vex({ turnEconomy: { ...FRESH, objectInteractionUsed: true, actionsUsed: 1 } }),
+      });
+
+      await user.type(within(menu).getByLabelText(/Object interaction/), 'Opens the chest');
+      const interact = within(menu).getByRole('button', { name: 'Interact' });
+      expect(interact).toBeDisabled();
+      expect(interact).toHaveAccessibleDescription(
+        'The free object interaction is used this turn; another needs the Use an Object action, and no action is left this turn');
+      expect(within(menu).queryByRole('button', { name: 'Take the Use an Object action instead' })).not.toBeInTheDocument();
+    });
+
+    it('greys Interact for a player whose creature is incapacitated, with the reason', async () => {
+      const { menu, user } = await renderMenu({ participant: vex({ activeConditions: [makeMockCondition('stunned')] }) });
+
+      await user.type(within(menu).getByLabelText(/Object interaction/), 'Draws a dagger');
+      const interact = within(menu).getByRole('button', { name: 'Interact' });
+      expect(interact).toBeDisabled();
+      expect(interact).toHaveAccessibleDescription('Stunned, so no actions, reactions or object interactions');
+    });
+
+    it("only warns the DM about an incapacitated creature's interaction", async () => {
+      const { menu, user } = await renderMenu({ asDm: true, participant: vex({ activeConditions: [makeMockCondition('stunned')] }) });
+
+      await user.type(within(menu).getByLabelText(/Object interaction/), 'Draws a dagger');
+      const interact = within(menu).getByRole('button', { name: 'Interact' });
+      expect(interact).toBeEnabled();
+      expect(interact).toHaveAccessibleDescription('Over the action economy: Stunned, so no actions, reactions or object interactions');
     });
 
     it('only warns the DM about a second, and shows the server\'s refusal', async () => {

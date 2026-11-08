@@ -3,11 +3,14 @@ package com.tabletophelper.encounter.internal;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.dto.AttackCost;
 import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
+import com.tabletophelper.encounter.dto.StandardActionRequest;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.StandardActions;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.ValidationException;
@@ -557,6 +560,22 @@ class AttackServiceTest {
     }
 
     @Test
+    @DisplayName("After the encounter ends, a player's attack off their turn is refused because it ended (D166)")
+    void playerAttackAfterEncounterEnded() {
+        EncounterParticipant fighter = f.player("Fighter", 30, 16);
+        f.turnOf(fighter);
+        UUID playerUserId = f.playerControlling(rogue);
+        EncounterParticipant goblin = f.monster("Goblin", 7, 15);
+        f.encounter.setStatus(EncounterStatus.COMPLETED);
+
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> f.attacks.rollAttack(f.encounterId(), weaponRequest(goblin, "Unarmed Strike"), rogue.getId(),
+                        playerUserId));
+
+        assertEquals("The encounter has ended", ex.getMessage());
+    }
+
+    @Test
     @DisplayName("A player may attack on their own turn (D028)")
     void playerAttackOnTurnIsAllowed() {
         UUID playerUserId = f.playerControlling(rogue);
@@ -627,6 +646,46 @@ class AttackServiceTest {
             assertTrue(f.descriptions().contains("Rogue's attack is over the action economy: it has no attacks left "
                     + "in its Attack action and no action left this turn"));
             assertEquals(2, rogue.getTurnEconomy().actionsUsed());
+        }
+
+        @Test
+        @DisplayName("The DM's attack over budget gives no attacks back: the player's next attack is still a 409")
+        void dmOverBudgetGrantsNoAttacks() {
+            rogue.getCharacter().setFeatures(List.of(new Feature("Extra Attack", null, null)));
+            UUID playerUserId = f.playerControlling(rogue);
+            EncounterParticipant goblin = f.monster("Goblin", 40, 15);
+            for (int i = 0; i < 2; i++) {
+                f.dice.script(15, 3);
+                f.attacks.rollAttack(f.encounterId(), request(goblin, 5, "1d6"), rogue.getId(), playerUserId);
+            }
+
+            attack(request(goblin, 5, "1d6"), 15, 3);
+
+            assertEquals(0, rogue.getTurnEconomy().attacksLeft());
+            assertEquals(2, rogue.getTurnEconomy().actionsUsed());
+            assertTrue(f.descriptions().contains("Rogue's attack is over the action economy: it has no attacks left "
+                    + "in its Attack action and no action left this turn"));
+            ConflictException ex = assertThrows(ConflictException.class, () -> f.attacks.rollAttack(f.encounterId(),
+                    request(goblin, 5, "1d6"), rogue.getId(), playerUserId));
+            assertEquals("It has no attacks left in its Attack action and no action left this turn", ex.getMessage());
+            assertEquals(40 - 9, goblin.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("The DM's attack after the action went elsewhere opens no attacks for the player either")
+        void dmOverBudgetAfterAnotherActionGrantsNoAttacks() {
+            rogue.getCharacter().setFeatures(List.of(new Feature("Extra Attack", null, null)));
+            UUID playerUserId = f.playerControlling(rogue);
+            EncounterParticipant goblin = f.monster("Goblin", 40, 15);
+            f.standardActions.standardAction(f.encounterId(), new StandardActionRequest(rogue.getId(),
+                    StandardActions.Action.DASH, null, null, null), playerUserId);
+
+            attack(request(goblin, 5, "1d6"), 15, 3);
+
+            assertEquals(0, rogue.getTurnEconomy().attacksLeft());
+            assertEquals(2, rogue.getTurnEconomy().actionsUsed());
+            assertThrows(ConflictException.class, () -> f.attacks.rollAttack(f.encounterId(),
+                    request(goblin, 5, "1d6"), rogue.getId(), playerUserId));
         }
 
         @Test

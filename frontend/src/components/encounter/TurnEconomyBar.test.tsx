@@ -99,4 +99,27 @@ describe('TurnEconomyBar', () => {
     await user.click(screen.getByRole('button', { name: 'Object interaction available' }));
     expect(onEdit).toHaveBeenLastCalledWith({ ...economy, objectInteractionUsed: true });
   });
+  it('labels each pip with a short visible name and a tooltip, so it reads without colour', () => {
+    render(<TurnEconomyBar participant={fighter({ actions: 2, actionsUsed: 1, reactionUsed: true })} variant="row" />);
+
+    const first = screen.getByRole('img', { name: 'Action 1 used' });
+    expect(first).toHaveTextContent('A');
+    expect(first).toHaveAttribute('title', 'Action 1 — used');
+    expect(screen.getByRole('img', { name: 'Action 2 available' })).toHaveTextContent('A');
+    expect(screen.getByRole('img', { name: 'Bonus action available' })).toHaveTextContent('BA');
+    expect(screen.getByRole('img', { name: 'Bonus action available' })).toHaveAttribute('title', 'Bonus action — available');
+    expect(screen.getByRole('img', { name: 'Reaction used' })).toHaveTextContent('R');
+    expect(screen.getByRole('img', { name: 'Object interaction available' })).toHaveTextContent('Obj');
+  });
+
+  it("labels the DM's pip buttons the same way, the tooltip saying what a click does", () => {
+    render(<TurnEconomyBar participant={fighter({ bonusActionUsed: true })} variant="row" onEdit={vi.fn()} />);
+
+    const action = screen.getByRole('button', { name: 'Action available' });
+    expect(action).toHaveTextContent('A');
+    expect(action).toHaveAttribute('title', 'Action — available (click to mark used)');
+    const bonus = screen.getByRole('button', { name: 'Bonus action used' });
+    expect(bonus).toHaveTextContent('BA');
+    expect(bonus).toHaveAttribute('title', 'Bonus action — used (click to restore)');
+  });
 });

@@ -15,6 +15,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -36,8 +37,9 @@ public class EncounterBroadcaster {
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
-    // An encounter's listeners hold its stripe from the reload to the last message, so two commits close
-    // together publish in the order they reloaded and an older state never follows a newer one
+    // An encounter's listeners and joins hold its stripe from the reload to the last message, so two commits
+    // close together, or a commit and a join, publish in the order they read and an older state never follows a
+    // newer one
     private final Object[] publishStripes = Stream.generate(Object::new).limit(PUBLISH_STRIPES).toArray();
 
     public static String stateDestination(UUID encounterId) {
@@ -68,7 +70,7 @@ public class EncounterBroadcaster {
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void encounterChanged(EncounterChanged event) {
         UUID encounterId = event.encounterId();
-        synchronized (publishStripes[Math.floorMod(encounterId.hashCode(), PUBLISH_STRIPES)]) {
+        synchronized (stripe(encounterId)) {
             // Empty once the encounter is deleted, which leaves nothing to show
             Optional<EncounterResponse> dmView = encounterRepository.findById(encounterId)
                     .map(encounterService::toResponse);
@@ -81,6 +83,21 @@ public class EncounterBroadcaster {
                 log.error("Could not broadcast encounter {} after its change committed", encounterId, e);
             }
         }
+    }
+
+    /**
+     * Publishes the encounter for a client that has just joined (D157, D171), read by {@code read} while holding
+     * the encounter's stripe, as a change's broadcast does: a join read before a change commits is published before
+     * that change's broadcast, never after it, so no client is left showing the older state.
+     */
+    public void publishOnJoin(UUID encounterId, Supplier<EncounterResponse> read) {
+        synchronized (stripe(encounterId)) {
+            publish(read.get());
+        }
+    }
+
+    private Object stripe(UUID encounterId) {
+        return publishStripes[Math.floorMod(encounterId.hashCode(), PUBLISH_STRIPES)];
     }
 
     public void publish(EncounterResponse dmView) {

@@ -136,7 +136,8 @@ public class SpellcastingService {
     public CastSpellResponse repeatSpellEffect(UUID encounterId, RepeatSpellEffectRequest request,
                                                UUID actorParticipantId, UUID userId) {
         // Every repeat cost, nothing included, is taken on the caster's turn
-        Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId);
+        Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId,
+                CombatAccess.OFF_TURN_SPELL_EFFECT);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));

@@ -99,8 +99,9 @@ public class StandardActionService {
             overReason = granted.isPresent() ? null : StandardActions.bonusActionRefusal(action);
         }
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, participant.getId());
+        // The log names the cost, as an attack's or a spell's entry does
         String costNote = cost == ActionCost.BONUS_ACTION
-                ? " (bonus action" + (grant != null ? ", " + grant : "") + ")" : "";
+                ? " (bonus action" + (grant != null ? ", " + grant : "") + ")" : " (action)";
         economy.charge(encounter, participant, Charge.of(cost, ownTurn), overReason, userId,
                 new ActionEconomyKeeper.Command(CombatActionType.STANDARD_ACTION,
                         participant.getDisplayName() + "'s " + action.label() + costNote));
@@ -127,22 +128,24 @@ public class StandardActionService {
             case HIDE -> hide(encounter, participant, taken);
             case READY -> log(encounter, taken + ", waiting for: " + note
                     + ". Its response will take its reaction.", participant, null);
-            case SEARCH -> log(encounter, taken + suffix(note) + ".", participant, null);
-            case USE_OBJECT -> log(encounter, taken + suffix(note) + ".", participant, null);
+            case SEARCH, USE_OBJECT -> log(encounter, taken + (note != null ? ": " + note : "") + ".", participant,
+                    null);
         }
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
     /**
      * An object interaction: the first each turn is free (PHB p.190). Another needs the Use an Object action, so a
-     * player's is refused with a 409 saying so, and the DM's is applied and logged as over the action economy.
+     * player's is refused with a 409 saying so, as is an incapacitated player's, and the DM's is applied and logged as
+     * over the action economy.
      */
     @Transactional
     public EncounterResponse objectInteraction(UUID encounterId, ObjectInteractionRequest request, UUID userId) {
         Encounter encounter = access.beginOnTurnForAction(encounterId, request.participantId(), userId);
         EncounterParticipant participant = CombatAccess.participant(encounter, request.participantId());
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, participant.getId());
-        String overReason = ActionEconomy.objectInteractionCheck(budget(participant)).orElse(null);
+        String overReason = ActionEconomy.objectInteractionCheck(budget(participant), conditionNames(participant))
+                .orElse(null);
         economy.charge(encounter, participant, Charge.of(ActionCost.FREE, ownTurn), overReason, userId,
                 new ActionEconomyKeeper.Command(CombatActionType.OBJECT_INTERACTION,
                         participant.getDisplayName() + "'s object interaction"));
@@ -150,6 +153,11 @@ public class StandardActionService {
         log(encounter, CombatActionType.OBJECT_INTERACTION, participant.getDisplayName() + " interacts with an object: "
                 + request.description().trim(), participant, null);
         return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    private static List<String> conditionNames(EncounterParticipant participant) {
+        List<ConditionEntry> conditions = participant.getActiveConditions();
+        return conditions == null ? List.of() : conditions.stream().map(ConditionEntry::name).toList();
     }
 
     // The creature Help names, which it must; no other action names one

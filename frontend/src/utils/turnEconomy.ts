@@ -177,16 +177,19 @@ export function bonusActionRefusal(action: StandardAction): string {
 }
 
 /**
- * Why the participant can't have an object interaction now, or null when it can: only on its own turn, and only the
- * first each turn is free; another needs the Use an Object action (PHB p.190).
+ * Why the participant can't have an object interaction now, or null when it can: not while it is incapacitated (the
+ * server refuses it too), only on its own turn, and only the first each turn is free; another needs the Use an Object
+ * action (PHB p.190), which the reason says is out of reach too when no action is left.
  */
 export function objectInteractionBlock(participant: EncounterParticipant): string | null {
   const economy = participant.turnEconomy;
   if (!economy) return null;
+  const incapacitated = incapacitatingCondition(participant);
+  if (incapacitated) return `${capitalise(incapacitated)}, so no actions, reactions or object interactions`;
   if (!participant.isCurrentTurn) return "Not this creature's turn: object interactions happen on its own turn";
-  return economy.objectInteractionUsed
-    ? 'The free object interaction is used this turn; another needs the Use an Object action'
-    : null;
+  if (!economy.objectInteractionUsed) return null;
+  const used = 'The free object interaction is used this turn; another needs the Use an Object action';
+  return budgetBlock(economy, { cost: 'ACTION' }) ? `${used}, and no action is left this turn` : used;
 }
 
 /** What using a pool costs, from its spendActionType (D125); a pool without one costs nothing. */

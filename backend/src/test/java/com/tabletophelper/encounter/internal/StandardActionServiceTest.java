@@ -4,6 +4,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.ObjectInteractionRequest;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -99,7 +101,7 @@ class StandardActionServiceTest {
             assertEquals(1, economy(rogue).actionsUsed());
             assertTrue(economy(rogue).dashed());
             assertFalse(economy(rogue).bonusActionUsed());
-            assertEquals(List.of("Rogue takes the Dash action, gaining extra movement equal to its speed this turn."),
+            assertEquals(List.of("Rogue takes the Dash action (action), gaining extra movement equal to its speed this turn."),
                     standardEntries());
         }
 
@@ -223,6 +225,22 @@ class StandardActionServiceTest {
             assertEquals("You do not have permission to perform this action", notTheirs.getMessage());
             assertTrue(f.log.isEmpty());
         }
+
+        @Test
+        @DisplayName("After the encounter ends, a player's action off their turn is refused because it ended, not "
+                + "because of the turn")
+        void encounterEnded() {
+            f.encounter.setStatus(EncounterStatus.COMPLETED);
+
+            ConflictException offTurn = assertThrows(ConflictException.class,
+                    () -> act(fighter, Action.DASH, player));
+            ConflictException interaction = assertThrows(ConflictException.class,
+                    () -> interact(fighter, "draws a sword", player));
+
+            assertEquals("The encounter has ended", offTurn.getMessage());
+            assertEquals("The encounter has ended", interaction.getMessage());
+            assertThrows(ForbiddenException.class, () -> act(goblin, Action.DASH, player));
+        }
     }
 
     @Nested
@@ -247,7 +265,7 @@ class StandardActionServiceTest {
             assertEquals("Dodge", dodging.sourceSpellName());
             assertEquals(rogue.getId(), dodging.sourceParticipantId());
             assertEquals(1, economy(rogue).actionsUsed());
-            assertEquals(List.of("Rogue takes the Dodge action until the start of its next turn: attacks against it "
+            assertEquals(List.of("Rogue takes the Dodge action (action) until the start of its next turn: attacks against it "
                     + "have disadvantage and it has advantage on Dexterity saves."), standardEntries());
         }
 
@@ -336,7 +354,7 @@ class StandardActionServiceTest {
             act(rogue, Action.HELP, null, fighter.getId(), "distracting the goblin", player);
 
             CombatLog entry = f.entries(CombatActionType.STANDARD_ACTION).getFirst();
-            assertEquals("Rogue takes the Help action for Fighter (distracting the goblin): the advantage it gives is "
+            assertEquals("Rogue takes the Help action (action) for Fighter (distracting the goblin): the advantage it gives is "
                     + "declared on the roll it helps.", entry.getDescription());
             assertEquals(fighter.getId(), entry.getTargetId());
             assertEquals(1, economy(rogue).actionsUsed());
@@ -393,7 +411,7 @@ class StandardActionServiceTest {
             act(rogue, Action.READY, null, null, "the goblin steps through the door", player);
 
             assertEquals(1, economy(rogue).actionsUsed());
-            assertEquals(List.of("Rogue takes the Ready action, waiting for: the goblin steps through the door. Its "
+            assertEquals(List.of("Rogue takes the Ready action (action), waiting for: the goblin steps through the door. Its "
                     + "response will take its reaction."), standardEntries());
             assertFalse(economy(rogue).reactionUsed());
         }
@@ -405,8 +423,8 @@ class StandardActionServiceTest {
             CombatFixture.newTurn(rogue);
             act(rogue, Action.USE_OBJECT, null, null, "drinks a potion of healing", player);
 
-            assertEquals(List.of("Rogue takes the Search action.",
-                    "Rogue takes the Use an Object action (drinks a potion of healing)."), standardEntries());
+            assertEquals(List.of("Rogue takes the Search action (action).",
+                    "Rogue takes the Use an Object action (action): drinks a potion of healing."), standardEntries());
         }
     }
 
@@ -452,6 +470,31 @@ class StandardActionServiceTest {
             advance();
 
             assertFalse(economy(rogue).objectInteractionUsed());
+        }
+
+        @Test
+        @DisplayName("A stunned player's free interaction is a 409 with the incapacitated reason, and nothing changes")
+        void incapacitatedRefused() {
+            rogue.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("stunned", null, 1))));
+
+            ConflictException refused = assertThrows(ConflictException.class,
+                    () -> interact(rogue, "draws a dagger", player));
+
+            assertEquals("It is stunned, so it can't take actions or reactions", refused.getMessage());
+            assertFalse(economy(rogue).objectInteractionUsed());
+            assertTrue(f.entries(CombatActionType.OBJECT_INTERACTION).isEmpty());
+        }
+
+        @Test
+        @DisplayName("The DM's interaction for a stunned creature applies and is logged as over the action economy")
+        void incapacitatedDmLogged() {
+            rogue.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("stunned", null, 1))));
+
+            interact(rogue, "draws a dagger", f.dmUserId);
+
+            assertTrue(economy(rogue).objectInteractionUsed());
+            assertEquals(List.of("Rogue's object interaction is over the action economy: it is stunned, so it can't "
+                    + "take actions or reactions", "Rogue interacts with an object: draws a dagger"), f.descriptions());
         }
 
         @Test

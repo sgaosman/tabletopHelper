@@ -989,7 +989,8 @@ class SpellcastingServiceTest {
             assertTrue(wizard.getTurnEconomy().reactionUsed());
             assertEquals(3, wizard.getSpellSlotsCurrent().get("1").remaining());
             assertEquals("It has already taken its reaction; it comes back at the start of its turn", ex.getMessage());
-            assertEquals("You can only attack on your turn", offTurn.getMessage());
+            assertEquals("You can only cast a spell on your turn; off your turn only a reaction can be taken",
+                    offTurn.getMessage());
             assertTrue(f.descriptions().contains("Wizard casts Shield (reaction)."));
         }
 

@@ -105,4 +105,57 @@ describe('WeaponAttackForm', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('It has already taken its bonus action this turn');
     expect(onDone).not.toHaveBeenCalled();
   });
+  describe('the default cost (D174)', () => {
+    const SPENT_ATTACK = { ...FRESH, actionsUsed: 1, attackActionTaken: true, attacksLeft: 0 };
+
+    it('starts on an off-hand attack once the Attack action has no attacks or actions left and the bonus action is free', async () => {
+      const bodies = attackRequests();
+      const { onDone, user } = await renderForm({ attacker: rogue({ turnEconomy: SPENT_ATTACK }) });
+
+      expect(await screen.findByLabelText('Cost')).toHaveValue('BONUS_ACTION');
+      expect(screen.queryByText(/No attacks left/)).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(bodies[0]).toMatchObject({ cost: 'BONUS_ACTION' });
+    });
+
+    it('keeps the Attack action while an attack of it is left', async () => {
+      await renderForm({ attacker: rogue({ turnEconomy: { ...SPENT_ATTACK, attacksLeft: 1 } }) });
+
+      expect(await screen.findByLabelText('Cost')).toHaveValue('ACTION');
+    });
+
+    it('stays on Attack, with the reason, when nothing on the turn can pay', async () => {
+      await renderForm({ attacker: rogue({ turnEconomy: { ...SPENT_ATTACK, bonusActionUsed: true } }) });
+
+      expect(await screen.findByLabelText('Cost')).toHaveValue('ACTION');
+      expect(screen.getByText('No attacks left in the Attack action and no action left this turn')).toBeInTheDocument();
+    });
+
+    it("starts on an opportunity attack off the attacker's turn", async () => {
+      await renderForm({ attacker: rogue({ isCurrentTurn: false }) });
+
+      expect(await screen.findByLabelText('Cost')).toHaveValue('REACTION');
+    });
+
+    it('follows the turn as it is spent, but never overrides a cost the player picked', async () => {
+      const ui = (attacker: EncounterParticipant) => (
+        <EncounterProvider encounterId="enc-001">
+          <WeaponAttackForm attacker={attacker} target={goblin} allowManualModifiers={false} onDone={vi.fn()} />
+        </EncounterProvider>
+      );
+      const { rerender } = render(ui(rogue({ turnEconomy: FRESH })));
+      const user = userEvent.setup();
+      expect(await screen.findByLabelText('Cost')).toHaveValue('ACTION');
+
+      rerender(ui(rogue({ turnEconomy: SPENT_ATTACK })));
+      expect(screen.getByLabelText('Cost')).toHaveValue('BONUS_ACTION');
+
+      await user.selectOptions(screen.getByLabelText('Cost'), 'ACTION');
+      rerender(ui(rogue({ turnEconomy: { ...SPENT_ATTACK, actionsUsed: 0, attackActionTaken: false } })));
+      rerender(ui(rogue({ turnEconomy: SPENT_ATTACK })));
+      expect(screen.getByLabelText('Cost')).toHaveValue('ACTION');
+    });
+  });
 });

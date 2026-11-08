@@ -100,7 +100,8 @@ public final class ActionEconomy {
 
     /**
      * The budget after paying the charge. It never refuses: a charge over budget (the DM's) is recorded as spent
-     * all the same, the actions taken counting past those it has.
+     * all the same, the actions taken counting past those it has, and it gives nothing back: an attack with no
+     * action left opens no further attacks.
      */
     public static TurnBudget spend(TurnBudget budget, Charge charge) {
         int actionsUsed = budget.actionsUsed();
@@ -117,9 +118,12 @@ public final class ActionEconomy {
                     if (attackActionTaken && attacksLeft > 0) {
                         attacksLeft--;
                     } else {
+                        // An Attack action taken over budget (the DM's) uses no action the creature has, so it
+                        // leaves no attacks behind for later
+                        boolean actionLeft = budget.actionLeft();
                         actionsUsed++;
                         attackActionTaken = true;
-                        attacksLeft = charge.attacksPerAction() - 1;
+                        attacksLeft = actionLeft ? charge.attacksPerAction() - 1 : 0;
                     }
                 } else {
                     actionsUsed++;
@@ -192,9 +196,17 @@ public final class ActionEconomy {
 
     /**
      * Why the creature can't interact with an object for free now, or empty when it can: one interaction a turn
-     * comes free with its move or action, and another needs the Use an Object action (PHB p.190).
+     * comes free with its move or action, and another needs the Use an Object action (PHB p.190); an incapacitated
+     * creature has neither (p.290).
+     *
+     * @param conditions the names of the creature's conditions
      */
-    public static Optional<String> objectInteractionCheck(TurnBudget budget) {
+    public static Optional<String> objectInteractionCheck(TurnBudget budget, Collection<String> conditions) {
+        // The free interaction comes with a move or an action, which an incapacitated creature can't take (p.290)
+        Optional<String> incapacitating = incapacitatingCondition(conditions);
+        if (incapacitating.isPresent()) {
+            return Optional.of("It is " + incapacitating.get() + ", so it can't take actions or reactions");
+        }
         return budget.objectInteractionUsed()
                 ? Optional.of("It has already had its free object interaction this turn; another needs the Use an "
                 + "Object action")

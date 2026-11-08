@@ -122,6 +122,8 @@ describe('standard actions and object interactions', () => {
     expect(objectInteractionBlock(caster())).toBeNull();
     expect(objectInteractionBlock(caster({ objectInteractionUsed: true }))).toMatch(/needs the Use an Object action$/);
     expect(objectInteractionBlock(caster({}, { isCurrentTurn: false }))).toMatch(/^Not this creature's turn/);
+    expect(objectInteractionBlock(caster({}, { activeConditions: [makeMockCondition('Paralyzed')] })))
+      .toBe('Paralyzed, so no actions, reactions or object interactions');
   });
 });
 

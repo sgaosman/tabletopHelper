@@ -107,7 +107,7 @@ class StandardActionIT extends IntegrationTest {
         assertThat(conditionNames(participant(round2, vexId))).isEmpty();
         assertThat(descriptions(logEntries("CONDITION_REMOVE")))
                 .containsExactly("dodging ends on Vex (start of Vex's turn)");
-        assertThat(descriptions(logEntries("STANDARD_ACTION"))).containsExactly("Vex takes the Dodge action until "
+        assertThat(descriptions(logEntries("STANDARD_ACTION"))).containsExactly("Vex takes the Dodge action (action) until "
                 + "the start of its next turn: attacks against it have disadvantage and it has advantage on Dexterity "
                 + "saves.");
     }
