@@ -72,6 +72,17 @@ export default function useSpellFlow<S extends string = never>(
     setStep('target');
   }, []);
 
+  /**
+   * Goes straight to confirm with no targets and no lookup: for a summoning spell (D182), whose creatures are chosen in
+   * its own step and which targets no creature.
+   */
+  const skipTargets = useCallback(() => {
+    setTargetingInfo(null);
+    setTargetingLoaded(true);
+    setSelectedTargets([]);
+    setStep('confirm');
+  }, []);
+
   // A target is added only while the spell's limit allows
   const toggleTarget = useCallback((id: string) => {
     setSelectedTargets(prev => {
@@ -109,7 +120,7 @@ export default function useSpellFlow<S extends string = never>(
   return {
     step, setStep,
     targetingInfo: shownTargeting, targetingLoading: !targetingLoaded, takesNoTargets: takesNoTargets(targetingInfo), lookUpTargeting,
-    chooseFreely,
+    chooseFreely, skipTargets,
     selectedTargets, toggleTarget, setExtraTargets,
     advantage, setAdvantage,
     overrideAttackBonus, setOverrideAttackBonus, overrideSaveDC, setOverrideSaveDC, overrides,

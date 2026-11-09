@@ -272,7 +272,8 @@ export default function SpellCastModal({
               onBack={backBeforeSummon}
               onContinue={() => {
                 if (draftProblem(summonOptions.data, summonDraft)) return;
-                flow.lookUpTargeting(selectedSpell!.name, choice!.level);
+                // A summoning targets no creature: its creatures were just chosen
+                flow.skipTargets();
               }}
             />
           ) : (

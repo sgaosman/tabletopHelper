@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import type { ComponentProps } from 'react';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCastSpellResponse, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
+import { makeMockCastSpellResponse, makeMockEncounter, makeMockParticipant, makeMockSpiritOptions } from '../../test/mocks/handlers';
 import type { SpellOption } from '../../types/combat';
 import type { SpellTargetingInfo } from '../../types/reference';
 import { EncounterProvider } from '../../context/EncounterContext';
@@ -161,6 +161,30 @@ describe('SpellCastModal', () => {
     }]);
     // The encounter state in the result replaces the cached one
     expect(cachedEncounter()).toEqual(encounterState);
+  });
+
+  it('casts a summoning spell from its creature step straight to confirm, with no targets (D182)', async () => {
+    spellOptions([{ name: 'Summon Beast', level: 2, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [3] }] }]);
+    const lookups = targeting();
+    server.use(http.get('/api/encounters/:id/combat/summon-options', () =>
+      HttpResponse.json(makeMockSpiritOptions({ slotLevel: 3 }))));
+    const requests = castRequests(makeMockCastSpellResponse({ spellName: 'Summon Beast', slotLevelUsed: 3,
+      spellSource: 'SLOT', resultSummary: 'Elminster casts Summon Beast — summons Bestial Spirit (Land)', targets: [] }));
+    const { user } = await renderModal();
+
+    await user.click(await screen.findByRole('button', { name: /Summon Beast/ }));
+    await user.click(screen.getByRole('button', { name: /^Level 3/ }));
+    await user.click(await screen.findByRole('radio', { name: 'Land' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    // No target step: the spell targets no creature
+    expect(screen.queryByText(/Select target/)).not.toBeInTheDocument();
+    expect(lookups).toEqual([]);
+    await user.click(await screen.findByRole('button', { name: 'Cast Spell' }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({ spellName: 'Summon Beast', slotLevel: 3, targetIds: [],
+      summon: { variant: 'Land' } });
   });
 
   it('shows a spell whose sources are all spent, but not as one to pick', async () => {

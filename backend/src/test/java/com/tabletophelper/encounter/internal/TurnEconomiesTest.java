@@ -4,6 +4,8 @@ import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.state.SummonLink;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.shared.JacksonDefaults;
@@ -73,6 +75,21 @@ class TurnEconomiesTest {
 
         assertEquals(Map.of("walk", 20, "fly", 60, "swim", 30), speeds);
         assertEquals("walk", speeds.keySet().iterator().next());
+    }
+
+    @Test
+    @DisplayName("A summoned spirit moves only as its form allows: the Land Bestial Spirit walks and climbs (TCE p.109)")
+    void spiritSpeedByForm() {
+        EncounterParticipant spirit = monster("{\"walk\": 30, \"climb\": {\"number\": 30, \"condition\": \"(land only)\"}, "
+                + "\"fly\": {\"number\": 60, \"condition\": \"(air only)\"}, "
+                + "\"swim\": {\"number\": 30, \"condition\": \"(water only)\"}}");
+        spirit.setSummon(new SummonLink(UUID.randomUUID(), "Summon Beast", 4, SummonRules.Kind.SPIRIT,
+                SummonRules.InitiativeMode.FOLLOWS_CASTER, null, "Land", null, true, false, false, null));
+
+        assertEquals(Map.of("walk", 30, "climb", 30), TurnEconomies.speed(spirit, objectMapper));
+
+        spirit.setSummon(null);
+        assertEquals(Map.of("walk", 30, "climb", 30, "fly", 60, "swim", 30), TurnEconomies.speed(spirit, objectMapper));
     }
 
     @Test

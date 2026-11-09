@@ -15,6 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * What a participant's turn economy needs from its sheet or stat block (D174): the attacks one Attack action gives
@@ -66,14 +68,22 @@ public final class TurnEconomies {
             }
             return speeds;
         }
-        return speed(participant.getMonster(), objectMapper);
+        // A summoned spirit moves only as its form allows, such as the Land Bestial Spirit's climb (TCE p.109)
+        String variant = participant.getSummon() != null ? participant.getSummon().variant() : null;
+        return speed(participant.getMonster(), objectMapper, variant);
+    }
+
+    /** As {@link #speed(Monster, ObjectMapper, String)} with no form. */
+    public static Map<String, Integer> speed(Monster monster, ObjectMapper objectMapper) {
+        return speed(monster, objectMapper, null);
     }
 
     /**
      * A monster's speeds in feet by kind from its stat block, walking first (a speed with a condition, such as
-     * "(hover)", by its number); empty for none or none that can be read.
+     * "(hover)", by its number); empty for none or none that can be read. With a form (a summoned spirit's variant),
+     * a speed limited to other forms, such as "(air only)" for a Land spirit, is left out.
      */
-    public static Map<String, Integer> speed(Monster monster, ObjectMapper objectMapper) {
+    public static Map<String, Integer> speed(Monster monster, ObjectMapper objectMapper, String form) {
         Map<String, Integer> speeds = new LinkedHashMap<>();
         if (monster == null || monster.getSpeed() == null || monster.getSpeed().isBlank()) {
             return speeds;
@@ -94,12 +104,24 @@ public final class TurnEconomies {
         }
         for (Map.Entry<String, JsonNode> entry : stats.properties()) {
             Integer feet = feet(entry.getValue());
-            if (!entry.getKey().equals(WALK) && feet != null) {
+            if (!entry.getKey().equals(WALK) && feet != null && forForm(entry.getValue(), form)) {
                 speeds.put(entry.getKey(), feet);
             }
         }
         return speeds;
     }
+
+    // A speed whose condition limits it to forms, such as "(air only; hover)", counts only for those forms
+    private static boolean forForm(JsonNode value, String form) {
+        JsonNode condition = value.get("condition");
+        if (form == null || condition == null || !condition.isString()) {
+            return true;
+        }
+        Matcher only = ONLY.matcher(condition.asString());
+        return !only.find() || only.group(1).trim().equalsIgnoreCase(form.trim());
+    }
+
+    private static final Pattern ONLY = Pattern.compile("\\(([^;)]+?) only", Pattern.CASE_INSENSITIVE);
 
     // A speed is a number, or an object with its number and a condition; anything else (canHover) isn't one
     private static Integer feet(JsonNode value) {
