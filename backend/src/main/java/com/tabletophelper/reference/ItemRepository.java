@@ -49,6 +49,18 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     @Query("SELECT i FROM Item i WHERE i.armourCategory IS NOT NULL AND LOWER(i.name) IN :names")
     List<Item> findArmourByLowerNames(@Param("names") Collection<String> names);
 
+    /** The items with one of these names, lower case, of any source: starting equipment names its items. */
+    @Query("SELECT i FROM Item i WHERE LOWER(i.name) IN :names")
+    List<Item> findByLowerNames(@Param("names") Collection<String> names);
+
+    /**
+     * The PHB's mundane items of a type, such as "Instrument" or "Artisan's Tools", by name: the list a background's
+     * "a musical instrument of your choice" picks from.
+     */
+    @Query("SELECT i FROM Item i WHERE i.type = :type AND UPPER(i.source) = 'PHB' "
+            + "AND (i.rarity IS NULL OR i.rarity IN ('none', 'unknown')) ORDER BY i.name")
+    List<Item> findPhbMundaneOfType(@Param("type") String type);
+
     @Query("SELECT DISTINCT i.type FROM Item i WHERE i.type IS NOT NULL ORDER BY i.type")
     List<String> findDistinctTypes();
 

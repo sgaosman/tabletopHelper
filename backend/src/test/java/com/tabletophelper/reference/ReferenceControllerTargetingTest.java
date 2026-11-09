@@ -42,7 +42,9 @@ class ReferenceControllerTargetingTest {
         controller = new ReferenceController(spellRepository, conditionRepository, itemRepository,
                 raceRepository, characterClassRepository, subclassRepository,
                 backgroundRepository, featRepository, optionalFeatureRepository, objectMapper,
-                TestClassTables.load(), new Glossary(List.of()));
+                TestClassTables.load(), new Glossary(List.of()),
+                new StartingEquipmentOptions(characterClassRepository, backgroundRepository, itemRepository,
+                        objectMapper));
     }
 
     @Test

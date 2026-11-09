@@ -24,15 +24,17 @@ const STANDARD = { strength: 15, dexterity: 14, constitution: 13, intelligence: 
 
 describe('wizardSteps', () => {
   it('has a Spells step only when the first class casts', () => {
-    expect(wizardSteps(initialWizardState)).toEqual(['Basic Info', 'Race', 'Ability Scores', 'Class', 'Background', 'Review']);
+    expect(wizardSteps(initialWizardState))
+      .toEqual(['Basic Info', 'Race', 'Ability Scores', 'Class', 'Background', 'Equipment', 'Review']);
     expect(wizardSteps(withClass(wizard))).toContain('Spells');
     expect(wizardSteps(reduce(withClass(fighter, 3), { type: 'addMulticlass', cls: wizard, subclasses: [] })))
       .not.toContain('Spells');
   });
 
   it('names the current step from the steps the class leaves', () => {
-    expect(currentStepName({ ...withClass(fighter), step: 5 })).toBe('Review');
-    expect(currentStepName({ ...withClass(wizard), step: 5 })).toBe('Spells');
+    expect(currentStepName({ ...withClass(fighter), step: 5 })).toBe('Equipment');
+    expect(currentStepName({ ...withClass(fighter), step: 6 })).toBe('Review');
+    expect(currentStepName({ ...withClass(wizard), step: 6 })).toBe('Spells');
   });
 });
 

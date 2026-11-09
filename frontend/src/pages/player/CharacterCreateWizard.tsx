@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft } from 'lucide-react';
 import { characterApi } from '../../api/characterApi';
 import {
-  backgroundsQuery, classesQuery, racesQuery, subclassesQuery, useBackgrounds, useClasses, useRaces,
+  backgroundsQuery, classesQuery, racesQuery, subclassesQuery, useBackgrounds, useClasses, useRaces, useStartingEquipment,
 } from '../../queries/reference';
 import type { CharacterClassRef } from '../../types/reference';
 import { initialWizardState, wizardReducer, type WizardDraft } from './wizard/wizardReducer';
@@ -15,6 +15,8 @@ import RaceStep from './wizard/RaceStep';
 import AbilityScoresStep from './wizard/AbilityScoresStep';
 import ClassStep from './wizard/ClassStep';
 import BackgroundStep from './wizard/BackgroundStep';
+import EquipmentStep from './wizard/EquipmentStep';
+import { EMPTY_KIT, type WizardKits } from './wizard/startingEquipment';
 import SpellsStep from './wizard/SpellsStep';
 import ReviewStep from './wizard/ReviewStep';
 
@@ -41,9 +43,9 @@ function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
 }
 
 /**
- * Creates a character in seven steps, with a draft kept in the browser. It makes most of the choices of the 1st level:
+ * Creates a character in eight steps, with a draft kept in the browser. It makes most of the choices of the 1st level:
  * the first class's skills, its subclass where that comes at 1st level, as a cleric's does, a rogue's Expertise, and
- * the first class's cantrips and spells. A 1st-level choice it doesn't ask for, such as a Fighter's Fighting Style,
+ * the first class's cantrips and spells, and its starting equipment and the background's (PHB p.143). A 1st-level choice it doesn't ask for, such as a Fighter's Fighting Style,
  * every choice of a later level, of another class, and the feat a race or background gives are Pending Choices the
  * server adds, made on the sheet, where the player lands after creation (D159). The server works out hit points,
  * speed, slots, spell DCs and Hit Dice (D167).
@@ -62,6 +64,14 @@ export default function CharacterCreateWizard() {
   const races = useRaces().data ?? [];
   const classes = useClasses().data ?? [];
   const backgrounds = useBackgrounds().data ?? [];
+
+  // The chosen class's and background's starting equipment; one that can't load counts as none, so creation goes on
+  const classKit = useStartingEquipment('classes', state.selectedClass?.id);
+  const backgroundKit = useStartingEquipment('backgrounds', state.selectedBackground?.id);
+  const kits: WizardKits = {
+    cls: classKit.isError ? EMPTY_KIT : classKit.data,
+    background: backgroundKit.isError ? EMPTY_KIT : backgroundKit.data,
+  };
 
   const steps = wizardSteps(state);
   const stepName = currentStepName(state);
@@ -127,7 +137,7 @@ export default function CharacterCreateWizard() {
   // ── Character creation ──
 
   async function handleCreate() {
-    const request = buildCreateRequest(state);
+    const request = buildCreateRequest(state, kits);
     if (!request) return;
     setSubmitting(true); setError('');
     try {
@@ -194,15 +204,18 @@ export default function CharacterCreateWizard() {
           />
         )}
         {stepName === 'Background' && <BackgroundStep backgrounds={backgrounds} state={state} dispatch={dispatch} />}
+        {stepName === 'Equipment' && (
+          <EquipmentStep state={state} dispatch={dispatch} kits={kits} failed={classKit.isError || backgroundKit.isError} />
+        )}
         {stepName === 'Spells' && <SpellsStep state={state} dispatch={dispatch} />}
-        {stepName === 'Review' && <ReviewStep state={state} error={error} />}
+        {stepName === 'Review' && <ReviewStep state={state} error={error} kits={kits} />}
 
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-rule">
           <button onClick={() => step > 0 ? dispatch({ type: 'setStep', step: step - 1 }) : navigate('/player')} className="flex items-center gap-2 px-4 py-2 font-body text-[16px] font-semibold text-muted hover:text-ink transition-colors">
             <ArrowLeft className="w-4 h-4" /> {step > 0 ? 'Previous' : 'Cancel'}
           </button>
           {step < steps.length - 1 ? (
-            <button onClick={() => dispatch({ type: 'setStep', step: step + 1 })} disabled={!canAdvance(state)} className="flex items-center gap-2 px-5 py-2 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            <button onClick={() => dispatch({ type: 'setStep', step: step + 1 })} disabled={!canAdvance(state, kits)} className="flex items-center gap-2 px-5 py-2 bg-ink text-card font-body text-[16px] font-semibold border border-ink hover:bg-muted hover:border-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               Next <ArrowRight className="w-4 h-4" />
             </button>
           ) : (

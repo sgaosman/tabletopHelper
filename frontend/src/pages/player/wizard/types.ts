@@ -1,7 +1,7 @@
 import type { CharacterClassRef, Subclass } from '../../../types/reference';
 import { ABILITIES, safeJsonParse, ABILITY_FROM_ABBR } from '../../../utils/dndRules';
 
-export const ALL_STEPS = ['Basic Info', 'Race', 'Ability Scores', 'Class', 'Background', 'Spells', 'Review'] as const;
+export const ALL_STEPS = ['Basic Info', 'Race', 'Ability Scores', 'Class', 'Background', 'Equipment', 'Spells', 'Review'] as const;
 
 // ── Shared types ──
 

@@ -1,6 +1,6 @@
 import api from './axiosConfig';
 import type { ClassTables } from '../utils/classTables';
-import type { GlossaryEntry, Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature, SpellTargetingInfo } from '../types/reference';
+import type { StartingEquipment, GlossaryEntry, Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature, SpellTargetingInfo } from '../types/reference';
 
 export const searchSpells = async (params: SpellSearchParams): Promise<PageResponse<Spell>> => {
   const response = await api.get('/reference/spells', { params });
@@ -116,5 +116,15 @@ export const getOptionalFeatures = async (type?: string): Promise<OptionalFeatur
 
 export const getSpellTargeting = async (name: string, slotLevel: number): Promise<SpellTargetingInfo> => {
   const response = await api.get('/reference/spells/targeting', { params: { name, slotLevel } });
+  return response.data;
+};
+
+export const getClassStartingEquipment = async (classId: string): Promise<StartingEquipment> => {
+  const response = await api.get(`/reference/classes/${classId}/starting-equipment`);
+  return response.data;
+};
+
+export const getBackgroundStartingEquipment = async (backgroundId: string): Promise<StartingEquipment> => {
+  const response = await api.get(`/reference/backgrounds/${backgroundId}/starting-equipment`);
   return response.data;
 };

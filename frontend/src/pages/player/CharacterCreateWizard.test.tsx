@@ -67,6 +67,9 @@ describe('CharacterCreateWizard', () => {
     await next();
     await user.click(await screen.findByRole('button', { name: /Acolyte/ }));
     await next();
+    // Starting equipment: none in the mocks, so Next opens once it has loaded
+    await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
+    await next();
     await user.click(screen.getByRole('button', { name: /Create Character/ }));
 
     expect(await screen.findByText('Character sheet')).toBeInTheDocument();
@@ -99,6 +102,8 @@ describe('CharacterCreateWizard', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
     await next();
     await user.click(await screen.findByRole('button', { name: /Acolyte/ }));
+    await next();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
     await next();
     await next();
     await user.click(screen.getByRole('button', { name: /Create Character/ }));
@@ -143,7 +148,10 @@ describe('CharacterCreateWizard drafts', () => {
     });
   }
 
-  /** Goes back to the Class step and on again, which the restored class must allow, then creates the character. */
+  /**
+   * Goes back to the Class step and on again, which the restored class must allow, then on through the Equipment step
+   * and creates the character.
+   */
   async function checkClassAndCreate(user: ReturnType<typeof userEvent.setup>) {
     expect(await screen.findByText('Choose a Background')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Acolyte/ })).toHaveClass('border-ink');
@@ -151,6 +159,8 @@ describe('CharacterCreateWizard drafts', () => {
     expect(screen.getByRole('button', { name: /^Fighter/ })).toHaveClass('border-ink');
     await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: /Next/ }));
+    await user.click(screen.getByRole('button', { name: /Next/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Next/ })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: /Next/ }));
     await user.click(screen.getByRole('button', { name: /Create Character/ }));
     expect(await screen.findByText('Character sheet')).toBeInTheDocument();

@@ -148,6 +148,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/armour-class-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewArmourClass"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/campaign/{campaignId}": {
         parameters: {
             query?: never;
@@ -1444,6 +1460,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reference/backgrounds/{id}/starting-equipment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getBackgroundStartingEquipment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reference/class-tables": {
         parameters: {
             query?: never;
@@ -1484,6 +1516,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getCharacterClass"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reference/classes/{id}/starting-equipment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getClassStartingEquipment"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2646,6 +2694,33 @@ export interface components {
             /** Format: uuid */
             participantId: string;
         };
+        EquipmentCandidate: {
+            /** Format: uuid */
+            itemId: string;
+            name: string;
+        };
+        EquipmentEntry: {
+            /** @enum {string|null} */
+            armourCategory?: "LIGHT" | "MEDIUM" | "HEAVY" | "SHIELD" | null;
+            candidates: components["schemas"]["EquipmentCandidate"][];
+            /** Format: int32 */
+            coinsCp: number;
+            /** Format: uuid */
+            itemId?: string | null;
+            /** @enum {string} */
+            kind: "ITEM" | "COINS" | "PICK";
+            name: string;
+            /** Format: int32 */
+            quantity: number;
+        };
+        EquipmentGroup: {
+            choice: boolean;
+            options: components["schemas"]["EquipmentOption"][];
+        };
+        EquipmentOption: {
+            entries: components["schemas"]["EquipmentEntry"][];
+            key: string;
+        };
         Feat: {
             /** @description The feat's ability score increases, each fixed or a choice */
             abilityScoreIncrease?: ({
@@ -3595,6 +3670,18 @@ export interface components {
             /** Format: uuid */
             targetId?: string | null;
         };
+        StartingEquipmentResponse: {
+            goldAlternative?: components["schemas"]["StartingGold"] | null;
+            groups: components["schemas"]["EquipmentGroup"][];
+        };
+        StartingGold: {
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            multiplier: number;
+            /** Format: int32 */
+            sides: number;
+        };
         StunningStrikeRequest: {
             /** Format: uuid */
             attackLogId?: string | null;
@@ -4011,6 +4098,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
+    previewArmourClass: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArmourClassBreakdown"];
                 };
             };
         };
@@ -6075,6 +6186,28 @@ export interface operations {
             };
         };
     };
+    getBackgroundStartingEquipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartingEquipmentResponse"];
+                };
+            };
+        };
+    };
     getClassTables: {
         parameters: {
             query?: never;
@@ -6133,6 +6266,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CharacterClass"];
+                };
+            };
+        };
+    };
+    getClassStartingEquipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartingEquipmentResponse"];
                 };
             };
         };

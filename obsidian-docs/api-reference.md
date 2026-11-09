@@ -700,6 +700,10 @@ An unknown spell, or one without an effect template, answers 404. A spell whose 
 
 The glossary (M19, D180): each term's `name`, `category` (condition, action, sense, skill, damage type, rule, spellcasting), `aliases`, `summary`, the full rules text where the data has it, its `source` and page, and `seeAlso`. Built at startup; cached by the browser for an hour.
 
+### GET /reference/classes/{id}/starting-equipment, /reference/backgrounds/{id}/starting-equipment
+
+The PHB starting equipment (D175 update): lines that are always given and (a)/(b)/(c) choices, each entry linked to an item where one exists and marked as armour or a shield, plus the class's starting wealth. `POST /characters/armour-class-preview` takes a create request and returns the AC breakdown the character would have, without saving.
+
 ## Items
 
 ### GET /reference/items

@@ -8,6 +8,7 @@ import {
 } from './types';
 import type { AbilityScores, ProfEntry, RaceChoiceReq, ChoiceReq } from './types';
 import type { WizardDraft, WizardState } from './wizardReducer';
+import { equipmentComplete, startingInventory, type WizardKits } from './startingEquipment';
 
 // The values the creation wizard works out from its state, and the request it sends
 
@@ -304,8 +305,11 @@ export function pointBuyTotal(scores: AbilityScores): number {
 
 // ── Navigation ──
 
-/** Whether the current step's choices let the player go on. */
-export function canAdvance(state: WizardState): boolean {
+/**
+ * Whether the current step's choices let the player go on. The Equipment step needs the chosen class's and
+ * background's starting equipment, `kits`.
+ */
+export function canAdvance(state: WizardState, kits: WizardKits = {}): boolean {
   switch (currentStepName(state)) {
     case 'Basic Info': return state.name.trim().length > 0;
     case 'Race': {
@@ -328,6 +332,7 @@ export function canAdvance(state: WizardState): boolean {
       if (state.abilityMethod === 'pointbuy') return pointBuyTotal(state.scores) <= 27;
       return true;
     case 'Background': return state.selectedBackground !== null && bgChoicesComplete(state);
+    case 'Equipment': return equipmentComplete(state, kits);
     default: return true;
   }
 }
@@ -363,9 +368,10 @@ export function spellsKnown(state: WizardState): SpellEntry[] | undefined {
 
 /**
  * The create request, or null until a race, class and background are chosen. It sends choices only: hit points,
- * speed, armour class, initiative, Hit Dice, slots and spell DCs are the server's to work out (D167).
+ * speed, armour class, initiative, Hit Dice, slots and spell DCs are the server's to work out (D167). With the
+ * class's and background's `kits` it carries the starting equipment and coins chosen from them.
  */
-export function buildCreateRequest(state: WizardState): CharacterCreateRequest | null {
+export function buildCreateRequest(state: WizardState, kits?: WizardKits): CharacterCreateRequest | null {
   const { selectedRace, selectedClass, selectedBackground, classEntries } = state;
   if (!selectedRace || !selectedClass || !selectedBackground) return null;
   const raceChoices = resolvedRaceChoices(state);
@@ -417,5 +423,15 @@ export function buildCreateRequest(state: WizardState): CharacterCreateRequest |
     spellcastingAbility,
     spellsKnown: spellsKnown(state),
     multiclassClassEntries,
+    ...(kits ? kitFields(state, kits) : {}),
+  };
+}
+
+// The starting equipment and coins, each left out when there is none
+function kitFields(state: WizardState, kits: WizardKits): Pick<CharacterCreateRequest, 'equipment' | 'currency'> {
+  const { equipment, currency } = startingInventory(state, kits);
+  return {
+    ...(equipment.length > 0 ? { equipment } : {}),
+    ...(Object.values(currency).some(coins => coins > 0) ? { currency } : {}),
   };
 }

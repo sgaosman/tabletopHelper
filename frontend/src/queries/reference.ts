@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { keepPreviousData, queryOptions, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
-  getAllConditions, getBackgrounds, getClasses, getClassTables, getFeats, getGlossary, getItemRarities, getItemSources, getItemTypes,
+  getAllConditions, getBackgroundStartingEquipment, getBackgrounds, getClassStartingEquipment, getClasses, getClassTables, getFeats, getGlossary, getItemRarities, getItemSources, getItemTypes,
   getOptionalFeatures, getQuickReference, getRaces, getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses,
   getSpellTargeting, getSubclasses, searchItems, searchSpells,
 } from '../api/referenceApi';
@@ -268,5 +268,18 @@ export function useOptionalFeatures(type: string) {
     queryKey: queryKeys.reference.optionalFeatures(type),
     queryFn: () => getOptionalFeatures(type),
     staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+/**
+ * The starting equipment of a class (with its starting wealth) or a background (PHB p.143). With no ID nothing is
+ * fetched.
+ */
+export function useStartingEquipment(owner: 'classes' | 'backgrounds', id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.reference.startingEquipment(owner, id ?? ''),
+    queryFn: () => owner === 'classes' ? getClassStartingEquipment(id ?? '') : getBackgroundStartingEquipment(id ?? ''),
+    staleTime: REFERENCE_STALE_TIME,
+    enabled: !!id,
   });
 }

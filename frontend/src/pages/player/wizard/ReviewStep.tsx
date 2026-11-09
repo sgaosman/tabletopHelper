@@ -3,6 +3,7 @@ import { firstLevelSheetChoices } from '../../../utils/pendingChoices';
 import { useClassTables } from '../../../queries/reference';
 import { proficiencyBonus } from '../../../utils/classTables';
 import type { WizardState } from './wizardReducer';
+import { inventoryLabel, startingInventory, type WizardKits } from './startingEquipment';
 import {
   bgFeatNames as featNamesOf, finalScores as finalScoresOf, raceFeats as raceFeatsOf,
   resolvedBgProfs as bgProfsOf, resolvedRaceChoices as raceChoicesOf,
@@ -12,9 +13,11 @@ export interface ReviewStepProps {
   state: WizardState;
   /** Why the last create failed, if it did */
   error: string;
+  /** The class's and background's starting equipment, whose chosen items the review lists */
+  kits?: WizardKits;
 }
 
-export default function ReviewStep({ state, error }: ReviewStepProps) {
+export default function ReviewStep({ state, error, kits }: ReviewStepProps) {
   const {
     name, alignment, selectedRace, selectedClass, classEntries, level, selectedBackground,
     selectedClassSkills, selectedCantrips, selectedSpells,
@@ -110,6 +113,23 @@ export default function ReviewStep({ state, error }: ReviewStepProps) {
             </div>
           </div>
         )}
+
+        {kits && (() => {
+          const { equipment, currency } = startingInventory(state, kits);
+          const coins = (['pp', 'gp', 'ep', 'sp', 'cp'] as const).filter(c => currency[c] > 0).map(c => `${currency[c]} ${c}`);
+          if (equipment.length === 0 && coins.length === 0) return null;
+          return (
+            <div className="border-t border-rule pt-4">
+              <h3 className="font-heading text-[13px] font-semibold tracking-[0.06em] uppercase text-faint mb-3">Starting Equipment</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {equipment.length > 0 && (
+                  <ReviewField label="Items" value={equipment.map(inventoryLabel).join(', ')} />
+                )}
+                {coins.length > 0 && <ReviewField label="Coins" value={coins.join(', ')} />}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Feats, the 1st level's choices the wizard doesn't make and the choices of later levels are Pending Choices,
             made on the sheet so they apply (D159) */}

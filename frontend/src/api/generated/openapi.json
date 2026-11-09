@@ -327,6 +327,36 @@
         ]
       }
     },
+    "/api/characters/armour-class-preview": {
+      "post": {
+        "operationId": "previewArmourClass",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArmourClassBreakdown"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
     "/api/characters/campaign/{campaignId}": {
       "get": {
         "operationId": "getCharactersInCampaign",
@@ -3562,6 +3592,37 @@
         ]
       }
     },
+    "/api/reference/backgrounds/{id}/starting-equipment": {
+      "get": {
+        "operationId": "getBackgroundStartingEquipment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartingEquipmentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
     "/api/reference/class-tables": {
       "get": {
         "operationId": "getClassTables",
@@ -3625,6 +3686,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CharacterClass"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
+    "/api/reference/classes/{id}/starting-equipment": {
+      "get": {
+        "operationId": "getClassStartingEquipment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartingEquipmentResponse"
                 }
               }
             },
@@ -7272,6 +7364,110 @@
           }
         }
       },
+      "EquipmentCandidate": {
+        "required": [
+          "itemId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "EquipmentEntry": {
+        "required": [
+          "candidates",
+          "coinsCp",
+          "kind",
+          "name",
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "armourCategory": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "LIGHT",
+              "MEDIUM",
+              "HEAVY",
+              "SHIELD"
+            ]
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquipmentCandidate"
+            }
+          },
+          "coinsCp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ITEM",
+              "COINS",
+              "PICK"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EquipmentGroup": {
+        "required": [
+          "choice",
+          "options"
+        ],
+        "type": "object",
+        "properties": {
+          "choice": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquipmentOption"
+            }
+          }
+        }
+      },
+      "EquipmentOption": {
+        "required": [
+          "entries",
+          "key"
+        ],
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquipmentEntry"
+            }
+          },
+          "key": {
+            "type": "string"
+          }
+        }
+      },
       "Feat": {
         "required": [
           "id",
@@ -10789,6 +10985,50 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          }
+        }
+      },
+      "StartingEquipmentResponse": {
+        "required": [
+          "groups"
+        ],
+        "type": "object",
+        "properties": {
+          "goldAlternative": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StartingGold"
+              }
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquipmentGroup"
+            }
+          }
+        }
+      },
+      "StartingGold": {
+        "required": [
+          "count",
+          "multiplier",
+          "sides"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "multiplier": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sides": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

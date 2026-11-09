@@ -1,6 +1,6 @@
 import api from './axiosConfig';
 import type {
-  PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse, FeatOptionResponse,
+  ArmourClassBreakdown, PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse, FeatOptionResponse,
   CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest, FontOfMagicRequest,
   ShortRestRequest, ShortRestResponse, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
 } from '../types/character';
@@ -13,6 +13,11 @@ import type {
 export const characterApi = {
   create(data: CharacterCreateRequest) {
     return api.post<PlayerCharacter>('/characters', data);
+  },
+
+  /** The armour class a create request would give, worked out by the server and saved nowhere. */
+  previewArmourClass(data: CharacterCreateRequest) {
+    return api.post<ArmourClassBreakdown>('/characters/armour-class-preview', data);
   },
 
   getMine() {

@@ -517,7 +517,7 @@ Phase 3 — Multiclass at creation:
 
 ## Milestone 13.5: Armour and Armour Class
 
-**Status (2026-11-09):** implemented ([[decisions-log#D175]]). The local database takes V31 and the item reload at its next start, followed by a `recompute-characters` dry run. The wizard AC preview was dropped because the wizard sends no starting equipment; everything else below is done.
+**Status (2026-11-09):** implemented ([[decisions-log#D175]]). The local database takes V31 and the item reload at its next start, followed by a `recompute-characters` dry run. Everything below is done; the wizard's AC preview came with a later Equipment step that sends the PHB starting equipment.
 
 **Goal:** a player character's AC comes from what they wear, not a fixed value set at creation. Today AC is 10 + DEX from creation plus DM Adjustments, because armour isn't modelled ([[decisions-log#D158]]). Scheduled before M14 because every attack against a player character reads AC, and M6's trigger counts the DM setting AC by hand as a manual ruling.
 

@@ -73,6 +73,21 @@ public class CharacterService {
 
     @Transactional
     public CharacterResponse createCharacter(CharacterCreateRequest request, UUID userId) {
+        PlayerCharacter character = characterRepository.save(newCharacter(request, userId));
+        return characterMapper.toResponse(character);
+    }
+
+    /**
+     * How the armour class of the character a create request describes would add up, its starting equipment's armour
+     * and shield included, worked out as creation works it out and saved nowhere: the creation wizard's preview.
+     */
+    @Transactional(readOnly = true)
+    public ArmourClassBreakdown previewArmourClass(CharacterCreateRequest request, UUID userId) {
+        return characterStats.armourClassBreakdown(newCharacter(request, userId));
+    }
+
+    // The character a create request describes, its Pending Choices added and its Derived Stats worked out, unsaved
+    private PlayerCharacter newCharacter(CharacterCreateRequest request, UUID userId) {
         User user = userService.getUser(userId);
 
         Campaign campaign = null;
@@ -236,8 +251,7 @@ public class CharacterService {
             pendingChoices.storeClassSpellcastingAbility(character);
         }
         characterStats.apply(character);
-        character = characterRepository.save(character);
-        return characterMapper.toResponse(character);
+        return character;
     }
 
     // The ability the race lets the player choose for its spells, abbreviated; null for none

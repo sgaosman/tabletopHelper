@@ -25,6 +25,14 @@ export type Item = Omit<Schemas['Item'], 'properties'> & {
   properties?: Record<string, unknown> | null;
 };
 
+/**
+ * A class's or background's starting equipment (PHB p.143), its items linked to the item list, and a class's starting
+ * wealth; the server reads it from the 5etools data.
+ */
+export type StartingEquipment = Schemas['StartingEquipmentResponse'];
+export type StartingEquipmentGroup = Schemas['EquipmentGroup'];
+export type StartingEquipmentEntry = Schemas['EquipmentEntry'];
+
 /** Who a spell can target, read from its effect template; a spell without one has no targeting. */
 export type SpellTargetingInfo = Schemas['SpellTargetingResponse'];
 

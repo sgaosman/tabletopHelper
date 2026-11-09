@@ -40,6 +40,15 @@ public class CharacterController {
                 .body(characterService.createCharacter(request, userId));
     }
 
+    /** The armour class the character a create request describes would have, for the wizard; nothing is saved. */
+    @PostMapping("/armour-class-preview")
+    public ResponseEntity<ArmourClassBreakdown> previewArmourClass(
+            @Valid @RequestBody CharacterCreateRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(characterService.previewArmourClass(request, userId));
+    }
+
     @GetMapping
     public ResponseEntity<List<CharacterResponse>> getMyCharacters(Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();

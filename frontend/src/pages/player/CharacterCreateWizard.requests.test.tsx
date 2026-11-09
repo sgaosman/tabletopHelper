@@ -6,7 +6,10 @@ import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import { makeMockCharacter, makeMockRace } from '../../test/mocks/handlers';
-import type { Background, CharacterClassRef, PageResponse, Race, Spell, Subclass } from '../../types/reference';
+import type { CharacterCreateRequest } from '../../types/character';
+import type {
+  Background, CharacterClassRef, PageResponse, Race, Spell, StartingEquipment, StartingEquipmentEntry, Subclass,
+} from '../../types/reference';
 import CharacterCreateWizard from './CharacterCreateWizard';
 
 /*
@@ -102,6 +105,47 @@ const acolyte = {
   id: 'bg-acolyte', name: 'Acolyte', source: 'PHB', feats: null,
   skillProficiencies: '["Insight","Religion"]', toolProficiencies: null, languageProficiencies: '[{"anyStandard":2}]',
 } satisfies Background;
+
+// ── Starting equipment, as StartingEquipmentOptions reads the PHB's Fighter and Soldier ──
+
+function item(name: string, itemId: string, armourCategory: StartingEquipmentEntry['armourCategory'] = null, quantity = 1,
+  coinsCp = 0): StartingEquipmentEntry {
+  return { kind: 'ITEM', name, quantity, itemId, armourCategory, coinsCp, candidates: [] };
+}
+
+const FIGHTER_KIT: StartingEquipment = {
+  groups: [
+    { choice: true, options: [
+      { key: 'a', entries: [item('Chain Mail', 'item-chain-mail', 'HEAVY')] },
+      { key: 'b', entries: [item('Leather Armor', 'item-leather', 'LIGHT'), item('Longbow', 'item-longbow')] },
+    ] },
+    { choice: true, options: [
+      { key: 'a', entries: [
+        { kind: 'PICK', name: 'Martial weapon', quantity: 1, coinsCp: 0, candidates: [
+          { name: 'Longsword', itemId: 'item-longsword' }, { name: 'Warhammer', itemId: 'item-warhammer' },
+        ] },
+        item('Shield', 'item-shield', 'SHIELD'),
+      ] },
+      { key: 'b', entries: [{ kind: 'PICK', name: 'Martial weapon', quantity: 2, coinsCp: 0, candidates: [] }] },
+    ] },
+  ],
+  goldAlternative: { count: 5, sides: 4, multiplier: 10 },
+};
+
+const SOLDIER_KIT: StartingEquipment = {
+  groups: [
+    { choice: false, options: [{ key: '_', entries: [
+      { kind: 'ITEM', name: 'Insignia of rank', quantity: 1, coinsCp: 0, candidates: [] },
+      item('Common Clothes', 'item-common-clothes'),
+      item('Pouch', 'item-pouch', null, 1, 1000),
+    ] }] },
+    { choice: true, options: [
+      { key: 'a', entries: [item('Bone dice set', 'item-dice-set')] },
+      { key: 'b', entries: [item('Playing Card Set', 'item-playing-card-set')] },
+    ] },
+  ],
+  goldAlternative: null,
+};
 
 // ── Spells ──
 
@@ -213,6 +257,17 @@ async function create(user: UserEvent) {
 // Each flow clicks through every step, which can take longer than the default 5 s while the whole suite runs
 describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
   it('Fighter 1: a Human soldier', async () => {
+    server.use(
+      http.get('/api/reference/classes/cls-fighter/starting-equipment', () => HttpResponse.json(FIGHTER_KIT)),
+      http.get('/api/reference/backgrounds/bg-soldier/starting-equipment', () => HttpResponse.json(SOLDIER_KIT)),
+      // The server's AC: Chain Mail 16 and a Shield 2 when both are worn
+      http.post('/api/characters/armour-class-preview', async ({ request }) => {
+        const worn = ((await request.json()) as CharacterCreateRequest).equipment?.filter(e => e.equipped).length ?? 0;
+        return HttpResponse.json(worn === 2
+          ? { total: 18, parts: [{ label: 'Chain Mail', amount: 16 }, { label: 'Shield', amount: 2 }], warnings: [], armourEntries: [0, 2] }
+          : { total: 12, parts: [{ label: 'Unarmoured', amount: 10 }, { label: 'DEX', amount: 2 }], warnings: [], armourEntries: [] });
+      }),
+    );
     const user = userEvent.setup();
     renderWizard();
 
@@ -227,6 +282,15 @@ describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
     await clickAll(user, ['Acrobatics', 'Perception']);
     await next(user);
     await user.click(await screen.findByRole('button', { name: /^Soldier/ }));
+    await next(user);
+
+    // Starting equipment (PHB p.143): (a) chain mail, (a) a martial weapon and a shield, and the Soldier's kit
+    expect(await screen.findByText('Starting Equipment')).toBeInTheDocument();
+    await user.click(await screen.findByRole('radio', { name: '(a) Chain Mail' }));
+    await user.click(screen.getByRole('radio', { name: '(a) Martial weapon of your choice, Shield' }));
+    await user.selectOptions(screen.getByLabelText('Martial weapon'), 'item-longsword');
+    await user.click(screen.getByRole('radio', { name: '(b) Playing Card Set' }));
+    expect(await screen.findByText('Armour Class 18')).toBeInTheDocument();
     await next(user);
     expect(screen.queryByText('Choose Spells')).not.toBeInTheDocument();
 
@@ -244,7 +308,57 @@ describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
         "charisma": 11,
         "classId": "cls-fighter",
         "constitution": 15,
+        "currency": {
+          "cp": 0,
+          "ep": 0,
+          "gp": 10,
+          "pp": 0,
+          "sp": 0,
+        },
         "dexterity": 14,
+        "equipment": [
+          {
+            "equipped": true,
+            "itemId": "item-chain-mail",
+            "name": "Chain Mail",
+            "quantity": 1,
+          },
+          {
+            "equipped": false,
+            "itemId": "item-longsword",
+            "name": "Longsword",
+            "quantity": 1,
+          },
+          {
+            "equipped": true,
+            "itemId": "item-shield",
+            "name": "Shield",
+            "quantity": 1,
+          },
+          {
+            "equipped": false,
+            "name": "Insignia of rank",
+            "quantity": 1,
+          },
+          {
+            "equipped": false,
+            "itemId": "item-common-clothes",
+            "name": "Common Clothes",
+            "quantity": 1,
+          },
+          {
+            "equipped": false,
+            "itemId": "item-pouch",
+            "name": "Pouch",
+            "quantity": 1,
+          },
+          {
+            "equipped": false,
+            "itemId": "item-playing-card-set",
+            "name": "Playing Card Set",
+            "quantity": 1,
+          },
+        ],
         "intelligence": 9,
         "languageProficiencies": [
           "Common",
@@ -318,6 +432,7 @@ describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
     await user.click(await screen.findByRole('button', { name: /^Sage/ }));
     await clickAll(user, ['Draconic', 'Dwarvish']);
     await next(user);
+    await next(user); // Starting equipment: none for this class and background
 
     expect(await screen.findByText('Choose Spells')).toBeInTheDocument();
     for (const name of ['Fire Bolt', 'Mage Hand', 'Prestidigitation']) {
@@ -456,6 +571,7 @@ describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
     await user.click(await screen.findByRole('button', { name: /^Acolyte/ }));
     await clickAll(user, ['Celestial', 'Elvish']);
     await next(user);
+    await next(user); // Starting equipment: none for this class and background
 
     expect(await screen.findByText('Choose Spells')).toBeInTheDocument();
     for (const name of ['Guidance', 'Sacred Flame', 'Thaumaturgy']) {
@@ -560,6 +676,7 @@ describe('CharacterCreateWizard requests', { timeout: 20_000 }, () => {
     await next(user);
     await user.click(await screen.findByRole('button', { name: /^Soldier/ }));
     await next(user);
+    await next(user); // Starting equipment: none for this class and background
     // The first class casts no spells, so there is no Spells step
     expect(screen.queryByText('Choose Spells')).not.toBeInTheDocument();
 

@@ -1,7 +1,7 @@
-import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { keepPreviousData, skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { characterApi } from '../api/characterApi';
 import type {
-  ApplyChoicesRequest, CharacterDetailsRequest, DmAdjustmentRequest, HitPointChangeRequest, InventoryRequest,
+  ApplyChoicesRequest, CharacterCreateRequest, CharacterDetailsRequest, DmAdjustmentRequest, HitPointChangeRequest, InventoryRequest,
   FontOfMagicRequest, PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
 } from '../types/character';
 import { queryKeys } from './keys';
@@ -54,6 +54,20 @@ export function useFeatOptions(characterId: string) {
   return useQuery({
     queryKey: queryKeys.characters.featOptions(characterId),
     queryFn: async () => (await characterApi.getFeatOptions(characterId)).data,
+  });
+}
+
+/**
+ * The armour class the creation wizard's request would give the character (M13.5's rules, worked out by the server
+ * from the equipped armour and shield, the class, race and scores). With no request nothing is fetched; the last
+ * preview stays on screen while the next loads.
+ */
+export function useArmourClassPreview(request: CharacterCreateRequest | null) {
+  return useQuery({
+    queryKey: queryKeys.characters.armourClassPreview(request),
+    queryFn: request ? async () => (await characterApi.previewArmourClass(request)).data : skipToken,
+    placeholderData: keepPreviousData,
+    retry: false,
   });
 }
 

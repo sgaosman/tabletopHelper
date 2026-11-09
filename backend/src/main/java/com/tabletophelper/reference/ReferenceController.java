@@ -7,6 +7,7 @@ import com.tabletophelper.reference.dto.ClassTablesResponse;
 import com.tabletophelper.reference.dto.GlossaryEntry;
 import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
+import com.tabletophelper.reference.dto.StartingEquipmentResponse;
 import com.tabletophelper.rules.character.ClassTables;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
@@ -48,6 +49,7 @@ public class ReferenceController {
     private final ObjectMapper objectMapper;
     private final ClassTables classTables;
     private final Glossary glossary;
+    private final StartingEquipmentOptions startingEquipmentOptions;
 
     private static final Duration BUNDLED_DATA_MAX_AGE = Duration.ofHours(1);
     private static final String QUICK_REFERENCE = "data/5etools/generated/bookref-quick.json";
@@ -263,6 +265,13 @@ public class ReferenceController {
         return subclassRepository.findByCharacterClassIdOrderByNameAsc(id);
     }
 
+    /** The class's starting equipment (PHB p.143), its items linked, and its starting wealth. */
+    @Cacheable(value = "classStartingEquipment", key = "#id")
+    @GetMapping("/classes/{id}/starting-equipment")
+    public StartingEquipmentResponse getClassStartingEquipment(@PathVariable UUID id) {
+        return startingEquipmentOptions.forClass(id);
+    }
+
     @Cacheable("backgrounds")
     @GetMapping("/backgrounds")
     public List<Background> getAllBackgrounds() {
@@ -274,6 +283,13 @@ public class ReferenceController {
         return backgroundRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** The background's starting equipment (PHB p.143), its items linked. */
+    @Cacheable(value = "backgroundStartingEquipment", key = "#id")
+    @GetMapping("/backgrounds/{id}/starting-equipment")
+    public StartingEquipmentResponse getBackgroundStartingEquipment(@PathVariable UUID id) {
+        return startingEquipmentOptions.forBackground(id);
     }
 
     @Cacheable("feats")

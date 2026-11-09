@@ -21,6 +21,8 @@ export const queryKeys = {
     detail: (characterId: string) => ['characters', characterId] as const,
     eligibleClasses: (characterId: string) => ['characters', characterId, 'eligible-classes'] as const,
     featOptions: (characterId: string) => ['characters', characterId, 'feat-options'] as const,
+    /** The armour class a creation request would give, for the wizard (nothing is saved). */
+    armourClassPreview: (request: unknown) => ['characters', 'armour-class-preview', request] as const,
   },
   encounters: {
     /** Everything cached for one encounter, in both views. */
@@ -72,6 +74,8 @@ export const queryKeys = {
     classes: () => ['reference', 'classes'] as const,
     subclasses: (classId: string) => ['reference', 'classes', classId, 'subclasses'] as const,
     backgrounds: () => ['reference', 'backgrounds'] as const,
+    startingEquipment: (owner: 'classes' | 'backgrounds', id: string) =>
+      ['reference', owner, id, 'starting-equipment'] as const,
     feats: () => ['reference', 'feats'] as const,
     optionalFeatures: (type?: string) => ['reference', 'optional-features', type ?? 'all'] as const,
   },

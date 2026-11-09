@@ -4,7 +4,7 @@ import { GLOSSARY } from './glossary';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type {
-  DmAdjustment, EligibleClassResponse, FeatOptionResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse,
+  ArmourClassBreakdown, DmAdjustment, EligibleClassResponse, FeatOptionResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse,
 } from '../../types/character';
 import type {
   AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
@@ -17,7 +17,7 @@ import type {
 import type { Monster } from '../../types/monster';
 import type {
   Background, CharacterClassRef, Condition, Feat, Item, OptionalFeature, PageResponse, Race, Spell, SpellTargetingInfo,
-  Subclass,
+  StartingEquipment, Subclass,
 } from '../../types/reference';
 
 const BASE = '/api';
@@ -102,6 +102,13 @@ export const characterHandlers = [
 
   http.post(`${BASE}/characters`, async () => {
     return HttpResponse.json(makeMockCharacter('char-new', 'New Character', 'Ranger', 1));
+  }),
+
+  // The creation wizard's AC preview: 10 + DEX 2 without armour
+  http.post(`${BASE}/characters/armour-class-preview`, async () => {
+    return HttpResponse.json({
+      total: 12, parts: [{ label: 'Unarmoured', amount: 10 }, { label: 'DEX', amount: 2 }], warnings: [], armourEntries: [],
+    } satisfies ArmourClassBreakdown);
   }),
 
   // The sheet's intent commands (D158), each answering with the character
@@ -431,6 +438,13 @@ export const referenceHandlers = [
   }),
   http.get(`${BASE}/reference/backgrounds`, async () => {
     return HttpResponse.json([] satisfies Background[]);
+  }),
+  // Starting equipment: none, unless a test serves some
+  http.get(`${BASE}/reference/classes/:classId/starting-equipment`, async () => {
+    return HttpResponse.json({ groups: [], goldAlternative: null } satisfies StartingEquipment);
+  }),
+  http.get(`${BASE}/reference/backgrounds/:backgroundId/starting-equipment`, async () => {
+    return HttpResponse.json({ groups: [], goldAlternative: null } satisfies StartingEquipment);
   }),
   http.get(`${BASE}/reference/feats`, async () => {
     return HttpResponse.json([] satisfies Feat[]);

@@ -41,6 +41,19 @@ export interface WizardState {
   bgProfChoices: Record<string, string[]>;
   bgSetChoices: Record<string, number | null>;
 
+  /**
+   * The starting equipment's choices (PHB p.143): the option chosen on each line that offers a choice, by
+   * `class:<line>` or `background:<line>`.
+   */
+  equipmentOptions: Record<string, string>;
+  /**
+   * The items picked for an entry such as "a martial weapon", by `<owner>:<line>:<option>:<entry>`, one item ID per
+   * pick ('' for one not yet made).
+   */
+  equipmentPicks: Record<string, string[]>;
+  /** The gold pieces taken in place of the class's and background's equipment, or null to take the equipment. */
+  startingGold: number | null;
+
   selectedCantrips: Spell[];
   selectedSpells: Spell[];
 }
@@ -91,6 +104,9 @@ export const initialWizardState: WizardState = {
   selectedBackground: null,
   bgProfChoices: {},
   bgSetChoices: {},
+  equipmentOptions: {},
+  equipmentPicks: {},
+  startingGold: null,
   selectedCantrips: [],
   selectedSpells: [],
 };
@@ -121,6 +137,9 @@ export type WizardAction =
   | { type: 'selectBackground'; background: Background | null }
   | { type: 'toggleBgProfChoice'; key: string; value: string; count: number }
   | { type: 'toggleBgSetChoice'; key: string; index: number }
+  | { type: 'chooseEquipmentOption'; key: string; option: string }
+  | { type: 'pickEquipment'; key: string; index: number; count: number; itemId: string }
+  | { type: 'setStartingGold'; gold: number | null }
   | { type: 'toggleCantrip'; spell: Spell; max: number }
   | { type: 'toggleSpell'; spell: Spell; max: number }
   | { type: 'restoreDraft'; draft: Partial<WizardDraft>; refs: WizardRefs };
@@ -159,6 +178,11 @@ function toggleUpTo<T>(current: T[], value: T, max: number, same: (a: T, b: T) =
 
 const sameSpell = (a: Spell, b: Spell) => a.id === b.id;
 
+/** Drops the equipment choices of a class or background, whose keys start with its owner. */
+function withoutOwner<T>(choices: Record<string, T>, owner: 'class' | 'background'): Record<string, T> {
+  return Object.fromEntries(Object.entries(choices).filter(([key]) => !key.startsWith(`${owner}:`)));
+}
+
 /**
  * Brings the class levels to the character's level after it changes. The first class takes up the difference;
  * if that would leave it below 1, the classes are kept in order, each at its level or what is left, until the
@@ -195,7 +219,7 @@ function keepMulticlassSkills(selections: Record<string, string[]>, entries: Cla
 /**
  * The wizard's state changes. Each action makes its own resets: a new race clears the race's choices and
  * re-seeds its bonuses, a new class clears its subclass, skills, Expertise and spells, a new background clears
- * the background's choices, and a new character level rebalances the class levels.
+ * the background's choices, each with its starting equipment's, and a new character level rebalances the class levels.
  */
 export function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
@@ -256,6 +280,9 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         ...state, selectedClass: action.cls, classEntries: [],
         selectedClassSkills: [], mcSkillSelections: {}, selectedExpertise: [],
         selectedCantrips: [], selectedSpells: [],
+        equipmentOptions: withoutOwner(state.equipmentOptions, 'class'),
+        equipmentPicks: withoutOwner(state.equipmentPicks, 'class'),
+        startingGold: null,
       };
     case 'primaryClassLoaded':
       // Subclasses that arrive after another class was chosen are dropped
@@ -307,7 +334,11 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     case 'setBackgroundSearch':
       return { ...state, bgSearch: action.search };
     case 'selectBackground':
-      return { ...state, selectedBackground: action.background, bgProfChoices: {}, bgSetChoices: {} };
+      return {
+        ...state, selectedBackground: action.background, bgProfChoices: {}, bgSetChoices: {},
+        equipmentOptions: withoutOwner(state.equipmentOptions, 'background'),
+        equipmentPicks: withoutOwner(state.equipmentPicks, 'background'),
+      };
     case 'toggleBgProfChoice':
       return {
         ...state,
@@ -321,6 +352,16 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
         ...state,
         bgSetChoices: { ...state.bgSetChoices, [action.key]: state.bgSetChoices[action.key] === action.index ? null : action.index },
       };
+
+    case 'chooseEquipmentOption':
+      return { ...state, equipmentOptions: { ...state.equipmentOptions, [action.key]: action.option } };
+    case 'pickEquipment': {
+      const picks = Array.from({ length: action.count }, (_, i) => state.equipmentPicks[action.key]?.[i] ?? '');
+      picks[action.index] = action.itemId;
+      return { ...state, equipmentPicks: { ...state.equipmentPicks, [action.key]: picks } };
+    }
+    case 'setStartingGold':
+      return { ...state, startingGold: action.gold };
 
     case 'toggleCantrip':
       return { ...state, selectedCantrips: toggleUpTo(state.selectedCantrips, action.spell, action.max, sameSpell) };
