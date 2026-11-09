@@ -31,6 +31,7 @@ import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.identity.User;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.reference.ClassFeaturePoolRepository;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.ItemRepository;
@@ -84,6 +85,7 @@ class CombatFixture {
     final SubclassRepository subclassRepository = mock(SubclassRepository.class);
     final MonsterPoolTriggerRepository monsterPoolTriggerRepository = mock(MonsterPoolTriggerRepository.class);
     final ItemRepository itemRepository = mock(ItemRepository.class);
+    final MonsterRepository monsterRepository = mock(MonsterRepository.class);
     // A class spell's numbers come from the character module; unstubbed, a spell uses the caster's main numbers
     final CharacterService characterService = mock(CharacterService.class);
 
@@ -123,12 +125,17 @@ class CombatFixture {
     final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
             encounterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
-            stats, effectApplier, economy, resourcePoolService, objectMapper, encounterRepository, encounterService);
+            stats, effectApplier, economy, resourcePoolService, objectMapper, monsterRepository, encounterRepository,
+            encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatCommandRepository, combatLog, encounterRepository,
             encounterService);
     final ChannelDivinityEffects channelDivinity = new ChannelDivinityEffects(effectApplier, stats, resolver);
-    final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice, channelDivinity);
+    final WildShapeEffects wildShapeEffects = new WildShapeEffects(monsterRepository, objectMapper, effectApplier);
+    final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice, channelDivinity,
+            wildShapeEffects);
+    final WildShapeService wildShape = new WildShapeService(access, accessPolicy, economy, effectApplier,
+            wildShapeEffects, dice, encounterRepository, encounterService);
     final BardicInspirationService bardicInspiration = new BardicInspirationService(access, combatLog, dice,
             encounterRepository, encounterService);
     final PoolUseService poolUse = new PoolUseService(access, economy, combatLog, featureEffects, encounterRepository,

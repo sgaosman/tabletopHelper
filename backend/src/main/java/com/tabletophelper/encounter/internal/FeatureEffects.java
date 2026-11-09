@@ -51,6 +51,8 @@ import java.util.UUID;
  *   <li>{@value #BARDIC_INSPIRATION} (Bard 1, PHB p.53–54): a bonus action giving one other creature a Bardic
  *       Inspiration die, d6 to d12 by the bard's level, which it holds for 10 minutes and adds to one attack roll, saving
  *       throw or ability check. One creature holds one die at a time.</li>
+ *   <li>{@value WildShapeEffects#EFFECT} (Druid 2, PHB p.66–67): the request's beastId names the beast the druid
+ *       becomes, as {@link WildShapeEffects} carries it out; "end" reverts early as a bonus action.</li>
  *   <li>{@value #ARCANE_RECOVERY} (Wizard 1, PHB p.115): used only when finishing a short rest, on the character
  *       sheet, so the table refuses it.</li>
  * </ul>
@@ -81,6 +83,7 @@ public class FeatureEffects {
     private final CreatureStats stats;
     private final Rng rng;
     private final ChannelDivinityEffects channelDivinity;
+    private final WildShapeEffects wildShape;
 
     /**
      * A use, checked and ready.
@@ -112,8 +115,11 @@ public class FeatureEffects {
 
     /** The effect a pool's metadata names, such as "rage", or null. */
     public static String effectOf(ResourcePoolEntry pool) {
-        return pool.metadata() instanceof Map<?, ?> map && map.get("effect") instanceof String effect
-                ? effect.trim().toLowerCase(Locale.ROOT) : null;
+        if (pool.metadata() instanceof Map<?, ?> map && map.get("effect") instanceof String effect) {
+            return effect.trim().toLowerCase(Locale.ROOT);
+        }
+        // A Wild Shape pool copied before its definition named the effect is still Wild Shape
+        return WildShapeEffects.POOL_ID.equals(pool.poolId()) ? WildShapeEffects.EFFECT : null;
     }
 
     /**
@@ -133,13 +139,19 @@ public class FeatureEffects {
         boolean targeted = request.targetIds() != null && !request.targetIds().isEmpty();
         int uses = request.uses() != null ? request.uses() : 1;
         if (effect == null) {
-            if (option != null || targeted) {
-                throw new ValidationException(pool.displayName() + " takes no option or target");
+            if (option != null || targeted || request.beastId() != null) {
+                throw new ValidationException(pool.displayName() + " takes no option, target or beast");
             }
             return new Plan(null, null, poolCost, uses, user, "");
         }
+        if (request.beastId() != null && !WildShapeEffects.EFFECT.equals(effect)) {
+            throw new ValidationException(pool.displayName() + " takes no beast");
+        }
         if (ChannelDivinityEffects.EFFECT.equals(effect)) {
             return channelDivinity.plan(encounter, user, pool, request, option, uses, userId, poolCost);
+        }
+        if (WildShapeEffects.EFFECT.equals(effect)) {
+            return wildShape.plan(user, pool, request, option, uses);
         }
         if (request.amounts() != null) {
             throw new ValidationException(pool.displayName() + " takes no amounts");
@@ -196,6 +208,7 @@ public class FeatureEffects {
                 }
             }
             case ChannelDivinityEffects.EFFECT -> channelDivinity.apply(encounter, user, plan);
+            case WildShapeEffects.EFFECT -> wildShape.apply(encounter, user, plan);
             case BARDIC_INSPIRATION -> {
                 int sides = ClassFeatures.bardicInspirationDie(Math.max(1, Math.min(20,
                         classLevel(user.getCharacter(), BARD))));

@@ -2,18 +2,23 @@ import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { EncounterParticipant } from '../../types/encounter';
 import { getParticipantColour } from '../../utils/classColours';
+import WildShapeStatus from './WildShapeStatus';
 
 /**
  * A participant's row in the initiative list: the left edge in its class colour (or the monster colour), the turn
  * marker, its initiative and name, with slots for what each page adds. `highlighted` rings the row, as the DM's
  * chosen target or the player's own character. A participant that is down is dimmed, and the dead are struck through.
+ * A druid in Wild Shape shows the beast it has become, with the beast's and its own HP and AC (PHB p.66).
  *
  * @param leading after the initiative, such as the DM's tie arrows
  * @param badges after the name, on the same line
  * @param children under the name: conditions, spells, death saves and pools
  * @param trailing at the right: HP and AC, labels and buttons
+ * @param onEndWildShape ends the druid's Wild Shape, for whoever may: the DM, or the druid's player
  */
-export default function ParticipantRow({ participant: p, current, highlighted = false, leading, badges, children, trailing }: {
+export default function ParticipantRow({
+  participant: p, current, highlighted = false, leading, badges, children, trailing, onEndWildShape,
+}: {
   participant: EncounterParticipant;
   current: boolean;
   highlighted?: boolean;
@@ -21,6 +26,7 @@ export default function ParticipantRow({ participant: p, current, highlighted = 
   badges?: ReactNode;
   children?: ReactNode;
   trailing?: ReactNode;
+  onEndWildShape?: () => void;
 }) {
   const isMonster = p.participantType === 'MONSTER';
   return (
@@ -51,6 +57,7 @@ export default function ParticipantRow({ participant: p, current, highlighted = 
             </span>
             {badges}
           </div>
+          <WildShapeStatus participant={p} onEnd={onEndWildShape} />
           {children}
         </div>
 

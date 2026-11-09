@@ -193,3 +193,15 @@ export interface MonsterTrait {
   combatRelevant?: boolean;
   mechanicType?: string;
 }
+
+/**
+ * The beasts a druid can become with Wild Shape now, by the Beast Shapes limits of its level, with Circle Forms for a
+ * Circle of the Moon druid (PHB p.66, p.69). Whether the druid has seen the beast is the DM's call.
+ */
+export type WildShapeOptions = Schemas['WildShapeOptions'];
+
+/** A beast Wild Shape can turn the druid into; its monsterId is the use-pool request's beastId. */
+export type WildShapeBeast = Schemas['Beast'];
+
+/** A Circle of the Moon druid's Combat Wild Shape healing: a spell slot for 1d8 HP per level (PHB p.69). */
+export type WildShapeHealRequest = Schemas['WildShapeHealRequest'];

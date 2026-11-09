@@ -2826,6 +2826,87 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/wild-shape-heal": {
+      "post": {
+        "operationId": "wildShapeHeal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WildShapeHealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/wild-shape-options": {
+      "get": {
+        "operationId": "getWildShapeOptions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WildShapeOptions"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/end": {
       "post": {
         "operationId": "endEncounter",
@@ -5308,6 +5389,52 @@
           }
         }
       },
+      "Beast": {
+        "required": [
+          "armourClass",
+          "hitPoints",
+          "monsterId",
+          "name",
+          "speed"
+        ],
+        "type": "object",
+        "properties": {
+          "armourClass": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "challengeRating": {
+            "type": "string",
+            "nullable": true
+          },
+          "hitPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "monsterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "speed": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
       "BulkInitiativeRequest": {
         "required": [
           "initiatives"
@@ -6923,6 +7050,14 @@
           "sourceSpellName": {
             "type": "string",
             "nullable": true
+          },
+          "wildShape": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WildShapeForm"
+              }
+            ]
           }
         }
       },
@@ -9800,6 +9935,14 @@
                 "$ref": "#/components/schemas/TurnEconomy"
               }
             ]
+          },
+          "wildShape": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WildShapeForm"
+              }
+            ]
           }
         }
       },
@@ -11531,6 +11674,11 @@
               "format": "int32"
             }
           },
+          "beastId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "option": {
             "type": "string",
             "nullable": true
@@ -11623,6 +11771,198 @@
           },
           "weapon": {
             "type": "string"
+          }
+        }
+      },
+      "WildShapeForm": {
+        "required": [
+          "armourClass",
+          "beastName",
+          "constitution",
+          "dexterity",
+          "druidLevel",
+          "hpMax",
+          "monsterId",
+          "normalArmourClass",
+          "normalHpCurrent",
+          "normalHpMax",
+          "strength"
+        ],
+        "type": "object",
+        "properties": {
+          "armourClass": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "beastName": {
+            "type": "string"
+          },
+          "challengeRating": {
+            "type": "string",
+            "nullable": true
+          },
+          "conditionImmunities": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "constitution": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "damageImmunities": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "damageResistances": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "damageVulnerabilities": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "dexterity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "druidLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hpMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "monsterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "normalArmourClass": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "normalHpCurrent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "normalHpMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "saves": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "senses": {
+            "type": "string",
+            "nullable": true
+          },
+          "skills": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "speed": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "strength": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "WildShapeHealRequest": {
+        "required": [
+          "participantId",
+          "slotLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "pactSlot": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "WildShapeOptions": {
+        "required": [
+          "beasts",
+          "circleOfTheMoon",
+          "druidLevel",
+          "durationHours",
+          "flyingAllowed",
+          "swimmingAllowed"
+        ],
+        "type": "object",
+        "properties": {
+          "beasts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Beast"
+            }
+          },
+          "circleOfTheMoon": {
+            "type": "boolean"
+          },
+          "cost": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentForm": {
+            "type": "string",
+            "nullable": true
+          },
+          "druidLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "durationHours": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "flyingAllowed": {
+            "type": "boolean"
+          },
+          "maxChallengeRating": {
+            "type": "string",
+            "nullable": true
+          },
+          "swimmingAllowed": {
+            "type": "boolean"
           }
         }
       }

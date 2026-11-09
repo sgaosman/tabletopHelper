@@ -13,8 +13,10 @@ import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
@@ -170,10 +172,11 @@ public class EffectApplier {
                             ConcentrationCheck hitCheck) {
         EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
         Vitals before = vitals(target);
+        int armourClass = target.getArmourClass() != null ? target.getArmourClass() : 0;
 
         Defended damage = defended(target, outcome.damage());
-        VitalsChange damageChange = DamageRules.takeDamage(before, damage.total(), outcome.outcome() == Outcome.CRITICAL);
-        setVitals(target, damageChange.vitals());
+        Taken taken = takeDamage(target, damage.total(), outcome.outcome() == Outcome.CRITICAL);
+        VitalsChange damageChange = taken.change();
 
         VitalsChange healingChange = DamageRules.heal(damageChange.vitals(), outcome.healing());
         setVitals(target, healingChange.vitals());
@@ -200,7 +203,7 @@ public class EffectApplier {
                 spendInspiration(holder);
             }
         }
-        String description = describe(use, effect, target, outcome, damage, healed, added, immune);
+        String description = describe(use, effect, target, armourClass, outcome, damage, healed, added, immune);
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
                         combatLog.entry(encounter, use.actionType(), description), use.actor(), target)
                 .rollValue(outcome.d20())
@@ -217,8 +220,10 @@ public class EffectApplier {
                     .lrConditionIds(fromSave.stream().map(ConditionEntry::id).toList());
         }
         CombatLog saved = combatLog.save(entry);
+        logReverted(encounter, target, taken);
 
-        ConcentrationCheck check = afterDamage(encounter, target, before, damageChange, damage.total(), hitCheck);
+        ConcentrationCheck check = afterDamage(encounter, target, taken.before(), damageChange, damage.total(),
+                hitCheck);
         afterHealing(encounter, target, healingChange);
         afterConditions(encounter, target, added);
 
@@ -236,16 +241,17 @@ public class EffectApplier {
     public void damage(Encounter encounter, EncounterParticipant actor, String actorName, EncounterParticipant target,
                        int amount, String damageType) {
         String type = damageType != null && !damageType.isBlank() ? damageType.trim().toLowerCase() : null;
-        Vitals before = vitals(target);
         Set<Defence> defences = stats.defences(target, type);
         int total = DamageRules.applyDefences(amount, defences);
-        VitalsChange change = DamageRules.takeDamage(before, total, false);
-        setVitals(target, change.vitals());
+        Taken taken = takeDamage(target, total, false);
+        Vitals before = taken.before();
+        VitalsChange change = taken.change();
 
         String description = actorName + " deals " + total + " damage to " + target.getDisplayName()
                 + (type != null ? " (" + type + defenceNote(defences) + ")" : "");
         combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, CombatActionType.DAMAGE, description),
                 actor, target).damageDealt(total));
+        logReverted(encounter, target, taken);
         afterDamage(encounter, target, before, change, total, null);
     }
 
@@ -290,6 +296,16 @@ public class EffectApplier {
      * the same consequences as damage, except massive damage.
      */
     public void setHp(Encounter encounter, EncounterParticipant target, int hp, Integer tempHp) {
+        // A druid's beast form set to 0 reverts, leaving the druid's own hit points as they were (PHB p.67)
+        if (hp <= 0 && WildShapeForm.of(target).isPresent() && target.getLifeState() == LifeState.ALIVE) {
+            combatLog.write(encounter, CombatActionType.HP_SET, "DM sets " + target.getDisplayName()
+                    + "'s beast form to 0 HP", null, target);
+            endWildShape(encounter, target, "its beast form drops to 0 HP");
+            if (tempHp != null) {
+                target.setHpTemp(Math.max(0, tempHp));
+            }
+            return;
+        }
         Vitals before = vitals(target);
         VitalsChange change = DamageRules.setHp(before, hp);
         Vitals after = tempHp == null ? change.vitals() : withTempHp(change.vitals(), Math.max(0, tempHp));
@@ -387,6 +403,7 @@ public class EffectApplier {
         }
         if (UNCONSCIOUS.equals(name)) {
             endRage(encounter, target, UNCONSCIOUS);
+            endWildShape(encounter, target, "falls unconscious");
         }
     }
 
@@ -396,6 +413,11 @@ public class EffectApplier {
      */
     public void removeCondition(Encounter encounter, EncounterParticipant target, String condition) {
         String name = condition.trim().toLowerCase();
+        // Removing a Wild Shape's entry ends the Wild Shape, with the druid's own hit points and AC back
+        if (BeastShapes.ENTRY.equals(name) && WildShapeForm.of(target).isPresent()) {
+            endWildShape(encounter, target, "removed by hand");
+            return;
+        }
         List<ConditionEntry> conditions = conditions(target);
         if (!conditions.removeIf(c -> c.name().equalsIgnoreCase(name))) {
             return;
@@ -823,6 +845,93 @@ public class EffectApplier {
     }
 
     /**
+     * The druid becomes the beast (PHB p.66): its {@link BeastShapes#ENTRY} entry holds the form, with the druid's own
+     * hit points, maximum and AC, and the participant takes the beast's hit points, maximum and AC. Its concentration
+     * continues; temporary hit points stay. The caller logs the use.
+     */
+    public void startWildShape(Encounter encounter, EncounterParticipant druid, WildShapeForm form) {
+        List<ConditionEntry> conditions = conditions(druid);
+        conditions.removeIf(c -> BeastShapes.ENTRY.equalsIgnoreCase(c.name()));
+        conditions.add(new ConditionEntry(UUID.randomUUID(), BeastShapes.ENTRY, null, encounter.getRoundNumber(),
+                "Wild Shape", druid.getId(), null, null, EndRule.MANUAL, null, null, form));
+        druid.setActiveConditions(conditions);
+        druid.setHpMax(form.hpMax());
+        druid.setHpCurrent(form.hpMax());
+        druid.setArmourClass(form.armourClass());
+    }
+
+    /**
+     * Ends the druid's Wild Shape, if it is transformed (PHB p.67): it takes back the hit points, maximum and AC it had
+     * when it transformed, and the entry says why, as in "Vex reverts from Wolf form to normal form (bonus action)".
+     * Nothing happens when it isn't transformed.
+     *
+     * @return the form it left, or empty
+     */
+    public Optional<WildShapeForm> endWildShape(Encounter encounter, EncounterParticipant druid, String why) {
+        Optional<WildShapeForm> form = revert(druid);
+        form.ifPresent(beast -> writeReverted(encounter, druid, beast, why));
+        return form;
+    }
+
+    // The druid's own form back, without a log entry
+    private static Optional<WildShapeForm> revert(EncounterParticipant druid) {
+        Optional<WildShapeForm> form = WildShapeForm.of(druid);
+        if (form.isEmpty()) {
+            return form;
+        }
+        List<ConditionEntry> conditions = conditions(druid);
+        conditions.removeIf(c -> BeastShapes.ENTRY.equalsIgnoreCase(c.name()));
+        druid.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        WildShapeForm beast = form.get();
+        druid.setHpMax(beast.normalHpMax());
+        druid.setHpCurrent(Math.min(beast.normalHpCurrent(), beast.normalHpMax()));
+        druid.setArmourClass(beast.normalArmourClass());
+        return form;
+    }
+
+    private void writeReverted(Encounter encounter, EncounterParticipant druid, WildShapeForm beast, String why) {
+        combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, druid.getDisplayName() + " reverts from "
+                + beast.beastName() + " form to normal form (" + why + "), with " + druid.getHpCurrent() + "/"
+                + druid.getHpMax() + " HP and AC " + druid.getArmourClass(), null, druid);
+    }
+
+    /**
+     * Damage taken, which a druid's beast form takes first (PHB p.67): damage that drops the form to 0 ends the Wild
+     * Shape, and what is left carries over to the druid's normal form, which drops to 0 only if that brings it there.
+     *
+     * @param before  the hit points the damage met: the normal form's when the form dropped
+     * @param change  what the damage did to them
+     * @param form    the beast form that dropped, or null
+     * @param carried the damage that carried over to the normal form
+     */
+    private record Taken(Vitals before, VitalsChange change, WildShapeForm form, int carried) {
+    }
+
+    private static Taken takeDamage(EncounterParticipant target, int damage, boolean critical) {
+        Vitals before = vitals(target);
+        if (before.lifeState() == LifeState.ALIVE && WildShapeForm.of(target).isPresent()
+                && BeastShapes.dropsForm(damage, before.hp(), before.tempHp())) {
+            int carried = BeastShapes.carriedOver(damage, before.hp(), before.tempHp());
+            target.setHpTemp(0);
+            WildShapeForm form = revert(target).orElseThrow();
+            Vitals normal = vitals(target);
+            VitalsChange change = DamageRules.takeDamage(normal, carried, critical);
+            setVitals(target, change.vitals());
+            return new Taken(normal, change, form, carried);
+        }
+        VitalsChange change = DamageRules.takeDamage(before, damage, critical);
+        setVitals(target, change.vitals());
+        return new Taken(before, change, null, 0);
+    }
+
+    private void logReverted(Encounter encounter, EncounterParticipant target, Taken taken) {
+        if (taken.form() != null) {
+            writeReverted(encounter, target, taken.form(), "its beast form drops to 0 HP"
+                    + (taken.carried() > 0 ? "; " + taken.carried() + " damage carries over" : ""));
+        }
+    }
+
+    /**
      * A monster destroyed outright, as an undead failing its save against a cleric's Turn Undead is by Destroy Undead
      * (PHB p.59): it drops to 0 hit points and dies, with what follows a death, and the entry says what destroyed it.
      * Nothing happens to a creature already dead or to a player character.
@@ -970,6 +1079,7 @@ public class EffectApplier {
         if (added.stream().anyMatch(c -> UNCONSCIOUS.equalsIgnoreCase(c.name()))) {
             endRage(encounter, target, UNCONSCIOUS);
             endSacredWeapon(encounter, target, UNCONSCIOUS);
+            endWildShape(encounter, target, "falls unconscious");
         }
     }
 
@@ -1137,7 +1247,8 @@ public class EffectApplier {
 
     // ── Descriptions ─────────────────────────────────────────────
 
-    private String describe(Use use, Effect effect, EncounterParticipant target, Resolver.TargetOutcome outcome,
+    private String describe(Use use, Effect effect, EncounterParticipant target, int armourClass,
+                            Resolver.TargetOutcome outcome,
                             Defended damage, int healed, List<ConditionEntry> added, List<String> immune) {
         StringBuilder description = new StringBuilder(use.actorName()).append(' ').append(use.action());
         if (target != use.actor()) {
@@ -1151,7 +1262,7 @@ public class EffectApplier {
                 description.append(": ").append(rolls(outcome)).append(signed(attack.bonus()))
                         .append(inspirationText(outcome))
                         .append(outcome.guidedStrike() ? " + Guided Strike 10" : "")
-                        .append(" = ").append(outcome.total()).append(" vs AC ").append(target.getArmourClass());
+                        .append(" = ").append(outcome.total()).append(" vs AC ").append(armourClass);
                 results.add(switch (outcome.outcome()) {
                     case CRITICAL -> attack.forcedCritical() ? "critical hit (forced)" : "critical hit";
                     case MISS -> outcome.d20() == 1 ? "natural 1, miss" : "miss";

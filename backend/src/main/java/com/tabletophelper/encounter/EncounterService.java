@@ -24,6 +24,7 @@ import com.tabletophelper.encounter.internal.SpellEffects;
 import com.tabletophelper.encounter.internal.TurnEconomies;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.monster.MonsterTemplates;
@@ -208,23 +209,37 @@ public class EncounterService {
     @Transactional(readOnly = true)
     public Map<String, Object> getMonsterActionTemplates(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = loadEncounter(encounterId);
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
+        UUID campaignId = encounter.getCampaign().getId();
+        // A druid in Wild Shape takes its beast's actions, which its player reads too (PHB p.67); a monster's are the
+        // DM's alone (D157)
+        Optional<EncounterParticipant> druid = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId) && p.getMonster() == null
+                        && WildShapeForm.of(p).isPresent())
+                .findFirst();
+        if (druid.isPresent()) {
+            accessPolicy.requireControls(campaignId, druid.get().getControlledByUserId(), userId);
+        } else {
+            accessPolicy.requireDm(campaignId, userId);
+        }
 
         EncounterParticipant participant = encounter.getParticipants().stream()
                 .filter(p -> p.getId().equals(participantId))
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Participant not found"));
 
-        if (participant.getMonster() == null || participant.getMonster().getActionTemplates() == null) {
+        Monster monster = druid.isPresent()
+                ? monsterRepository.findById(WildShapeForm.of(participant).orElseThrow().monsterId()).orElse(null)
+                : participant.getMonster();
+        if (monster == null || monster.getActionTemplates() == null) {
             return Map.of("error", "No action templates available for this monster");
         }
-        JsonNode templatesNode = participant.getMonster().getActionTemplates().json();
+        JsonNode templatesNode = monster.getActionTemplates().json();
         if (templatesNode == null || !templatesNode.isObject()) {
             return Map.of("error", "No action templates available for this monster");
         }
         Map<String, Object> templates = objectMapper.convertValue(templatesNode,
                 new TypeReference<LinkedHashMap<String, Object>>() {});
-        markLimitedUses(templates, participant.getMonster().getActionTemplates());
+        markLimitedUses(templates, monster.getActionTemplates());
 
         // Attach current resource pool states
         List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent() != null
@@ -589,6 +604,7 @@ public class EncounterService {
                         .spellcastingAbility(p.getSpellcastingAbility())
                         .spellsKnown(p.getSpellsKnown())
                         .resourcePoolsCurrent(p.getResourcePoolsCurrent())
+                        .wildShape(WildShapeForm.of(p).orElse(null))
                         .turnEconomy(p.getTurnEconomy())
                         .attacksPerAction(TurnEconomies.attacksPerAction(p))
                         .speed(TurnEconomies.speed(p, objectMapper))

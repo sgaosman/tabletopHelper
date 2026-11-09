@@ -9,6 +9,7 @@ import com.tabletophelper.encounter.HealthStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Metamagic;
@@ -182,6 +183,10 @@ public class EncounterResponse {
         private String spellcastingAbility;
         private List<KnownSpell> spellsKnown;
         private List<ResourcePoolEntry> resourcePoolsCurrent;
+
+        // The beast a druid has become through Wild Shape (PHB p.66), with its own hit points, maximum and AC kept
+        // while hpCurrent, hpMax and armourClass are the beast's; null when it isn't transformed
+        private WildShapeForm wildShape;
 
         // What it has spent of its turn (D174); null in the Player View for a monster (D157)
         private TurnEconomy turnEconomy;

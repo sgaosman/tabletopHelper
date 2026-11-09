@@ -15,6 +15,7 @@ import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WeaponHit;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
@@ -248,7 +249,8 @@ public class AttackService {
         EncounterParticipant participant = CombatAccess.target(encounter, participantId, userId);
         accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
         PlayerCharacter character = participant.getCharacter();
-        if (character == null) {
+        // A druid in beast form attacks with the beast's actions, not its weapons (PHB p.67)
+        if (character == null || WildShapeForm.of(participant).isPresent()) {
             return List.of();
         }
         AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(participant));
@@ -405,6 +407,11 @@ public class AttackService {
         if (actor == null || actor.getCharacter() == null) {
             throw new ValidationException("Only a player character attacks with a weapon from their inventory");
         }
+        // A druid in beast form fights with the beast's attacks; its weapons merge into the form (PHB p.67)
+        WildShapeForm.of(actor).ifPresent(form -> {
+            throw new ConflictException(actor.getDisplayName() + " is in Wild Shape as a " + form.beastName()
+                    + ": attack with the beast's actions");
+        });
         PlayerCharacter character = actor.getCharacter();
         CharacterWeapons.Held held = characterWeapons.find(character, request.getWeapon())
                 .orElseThrow(() -> new ValidationException(actor.getDisplayName() + " has no "

@@ -1,17 +1,17 @@
-import type { ConditionEntry, EncounterParticipant, ResourcePoolEntry } from '../types/encounter';
+import type { ConditionEntry, EncounterParticipant, ResourcePoolEntry, WildShapeForm } from '../types/encounter';
 import type { UsePoolRequest, WeaponHit } from '../types/combat';
 import { chargeBlock, poolMetadata, type EconomyCost } from './turnEconomy';
 
 /**
  * The class features a pool's use does more than spend (M17), as the server names them in the pool's metadata.effect:
- * Rage, Second Wind, Lay on Hands, Ki, Channel Divinity, Bardic Inspiration and Arcane Recovery (used only on a short
- * rest). The server decides what each use does; this only words and offers it.
+ * Rage, Second Wind, Lay on Hands, Ki, Channel Divinity, Bardic Inspiration, Arcane Recovery (used only on a short
+ * rest) and Wild Shape. The server decides what each use does; this only words and offers it.
  */
 export type PoolEffect = 'rage' | 'second-wind' | 'lay-on-hands' | 'ki' | 'channel-divinity' | 'bardic-inspiration'
-  | 'arcane-recovery';
+  | 'arcane-recovery' | 'wild-shape';
 
 const POOL_EFFECTS: PoolEffect[] = ['rage', 'second-wind', 'lay-on-hands', 'ki', 'channel-divinity',
-  'bardic-inspiration', 'arcane-recovery'];
+  'bardic-inspiration', 'arcane-recovery', 'wild-shape'];
 
 /** What a pool use sends besides the participant and the pool: its uses, option and target. */
 export type PoolUseOptions = Omit<UsePoolRequest, 'participantId' | 'poolId'>;
@@ -25,14 +25,31 @@ export const RAGE_TEXT = '+Rage Damage on melee weapon attacks using Strength, r
   + 'and slashing damage, advantage on Strength checks and saving throws; no spellcasting or concentration. Ends early '
   + 'if a turn ends without attacking or taking damage since the last, or when knocked unconscious.';
 
+/** The entry Wild Shape leaves among the druid's conditions while it lasts, holding the beast form (PHB p.66). */
+export const WILD_SHAPE = 'wild shape';
+
+/** What Wild Shape changes while it lasts (PHB p.67). */
+export const WILD_SHAPE_TEXT = "The beast's HP, AC, speeds, Strength, Dexterity and Constitution, with your own "
+  + 'Intelligence, Wisdom and Charisma; no spellcasting, though concentration continues. At 0 HP you revert, and '
+  + 'damage left over carries to your normal form.';
+
+/** The beast form the participant has taken with Wild Shape, or null. */
+export function wildShapeOf(participant: Pick<EncounterParticipant, 'wildShape'>): WildShapeForm | null {
+  return participant.wildShape ?? null;
+}
+
 /** What Reckless Attack does until the start of the barbarian's next turn (PHB p.48). */
 export const RECKLESS_TEXT = 'Advantage on melee weapon attacks using Strength this turn; attacks against it have '
   + 'advantage until its next turn.';
 
+/** The Wild Shape pool's ID, which names its effect where a pool copied before the effect was added doesn't. */
+export const WILD_SHAPE_POOL = 'class:druid-wild-shape';
+
 /** The feature a pool's use sets off, or null for a pool that only spends. */
-export function poolEffect(pool: Pick<ResourcePoolEntry, 'metadata'>): PoolEffect | null {
+export function poolEffect(pool: Pick<ResourcePoolEntry, 'metadata'> & Partial<Pick<ResourcePoolEntry, 'poolId'>>):
+  PoolEffect | null {
   const effect = poolMetadata(pool).effect;
-  return POOL_EFFECTS.find(known => known === effect) ?? null;
+  return POOL_EFFECTS.find(known => known === effect) ?? (pool.poolId === WILD_SHAPE_POOL ? 'wild-shape' : null);
 }
 
 function hasCondition(participant: EncounterParticipant, name: string): boolean {
@@ -53,10 +70,15 @@ export function isReckless(participant: EncounterParticipant): boolean {
  * How a feature's entry among the conditions reads, with what it does, or null for an ordinary condition: "Raging" and
  * "Reckless" are a class feature's state, not conditions of appendix A.
  */
-export function featureMarker(condition: Pick<ConditionEntry, 'name'> & Partial<Pick<ConditionEntry, 'heldDie'>>):
+export function featureMarker(condition: Pick<ConditionEntry, 'name'>
+  & Partial<Pick<ConditionEntry, 'heldDie' | 'wildShape'>>):
   { label: string; description: string } | null {
   switch (condition.name.trim().toLowerCase()) {
     case RAGING: return { label: 'Raging', description: RAGE_TEXT };
+    case WILD_SHAPE: return {
+      label: `Wild Shape${condition.wildShape ? `: ${condition.wildShape.beastName}` : ''}`,
+      description: WILD_SHAPE_TEXT,
+    };
     case RECKLESS: return { label: 'Reckless', description: RECKLESS_TEXT };
     case INSPIRED: return {
       label: `Inspired${condition.heldDie ? ` (d${condition.heldDie.sides})` : ''}`,
@@ -99,6 +121,7 @@ export function poolEffectText(effect: PoolEffect | null): string | null {
     case 'channel-divinity': return 'pick an option below, or Use alone for one the app does not model';
     case 'bardic-inspiration': return 'give another creature an inspiration die for 10 minutes';
     case 'arcane-recovery': return 'used when finishing a short rest, on the character sheet';
+    case 'wild-shape': return 'become a beast you have seen, for up to half your druid level in hours';
     default: return null;
   }
 }
@@ -342,4 +365,10 @@ export function arcaneRecoveryLevels(choice: ArcaneRecoveryChoice): number[] {
   return Object.entries(choice)
     .flatMap(([level, count]) => Array.from({ length: count }, () => Number(level)))
     .sort((a, b) => a - b);
+}
+
+/** The participant's Wild Shape pool's ID, as its pools name it, or the content data's (PHB p.66). */
+export function wildShapePoolId(participant: Pick<EncounterParticipant, 'resourcePoolsCurrent'>): string {
+  const pool = (participant.resourcePoolsCurrent ?? []).find(entry => poolEffect(entry) === 'wild-shape');
+  return pool?.poolId ?? WILD_SHAPE_POOL;
 }

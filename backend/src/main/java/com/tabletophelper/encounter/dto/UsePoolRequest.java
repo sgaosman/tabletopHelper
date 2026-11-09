@@ -17,14 +17,16 @@ import java.util.UUID;
  * @param participantId whose pool it is
  * @param poolId        the pool, as the participant names it, such as "class:barbarian-rage"
  * @param uses          how many uses; 1 when left out. For Lay on Hands, the hit points spent from the pool
- * @param option        what the feature does, where it does more than one thing: "end" to end a Rage; "heal" (the
- *                      default) or "cure" for Lay on Hands; "patient-defense", "step-of-the-wind-dash" or
+ * @param option        what the feature does, where it does more than one thing: "end" to end a Rage or a Wild Shape;
+ *                      "heal" (the default) or "cure" for Lay on Hands; "patient-defense", "step-of-the-wind-dash" or
  *                      "step-of-the-wind-disengage" for Ki; the Channel Divinity option, such as "turn-undead" or
  *                      "preserve-life" (left out, Channel Divinity only spends)
  * @param targetIds     the creatures a feature that reaches others is used on: Lay on Hands' and Bardic Inspiration's
  *                      one creature (Lay on Hands' the user itself when left out), or those a Channel Divinity option
  *                      affects, such as the undead Turn Undead is used on
  * @param amounts       Preserve Life's hit points for each of targetIds, in the same order; only for Preserve Life
+ * @param beastId       the beast Wild Shape turns the druid into, a monster from the wild-shape options; only for
+ *                      Wild Shape without an option
  */
 public record UsePoolRequest(
         @NotNull UUID participantId,
@@ -32,16 +34,28 @@ public record UsePoolRequest(
         @Min(1) @Max(100) Integer uses,
         String option,
         @Size(max = 20) List<UUID> targetIds,
-        @Size(max = 20) List<@NotNull @Min(1) Integer> amounts
+        @Size(max = 20) List<@NotNull @Min(1) Integer> amounts,
+        UUID beastId
 ) {
 
     /** Uses of a pool with no option and no target. */
     public UsePoolRequest(UUID participantId, String poolId, Integer uses) {
-        this(participantId, poolId, uses, null, null, null);
+        this(participantId, poolId, uses, null, null, null, null);
     }
 
     /** Uses of a pool with an option and targets, and no amounts. */
     public UsePoolRequest(UUID participantId, String poolId, Integer uses, String option, List<UUID> targetIds) {
-        this(participantId, poolId, uses, option, targetIds, null);
+        this(participantId, poolId, uses, option, targetIds, null, null);
+    }
+
+    /** Uses of a pool with an option, targets and amounts, and no beast. */
+    public UsePoolRequest(UUID participantId, String poolId, Integer uses, String option, List<UUID> targetIds,
+                          List<Integer> amounts) {
+        this(participantId, poolId, uses, option, targetIds, amounts, null);
+    }
+
+    /** Wild Shape into the beast. */
+    public static UsePoolRequest wildShape(UUID participantId, String poolId, UUID beastId) {
+        return new UsePoolRequest(participantId, poolId, 1, null, null, null, beastId);
     }
 }

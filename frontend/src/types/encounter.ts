@@ -85,3 +85,9 @@ export type CombatResultPreview = Schemas['CombatResultPreview'];
  * and Dash and Disengage. The Player View leaves it out for monsters (D157).
  */
 export type TurnEconomy = Schemas['TurnEconomy'];
+
+/**
+ * The beast a druid has become through Wild Shape (PHB p.66), on the participant while it lasts: the participant's HP,
+ * maximum and AC are the beast's, and the druid's own are kept here.
+ */
+export type WildShapeForm = Schemas['WildShapeForm'];

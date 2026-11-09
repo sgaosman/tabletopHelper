@@ -22,6 +22,8 @@ import type {
   TurnEconomyRequest,
   UndoRequest,
   UsePoolRequest,
+  WildShapeHealRequest,
+  WildShapeOptions,
 } from '../types/combat';
 
 export const combatApi = {
@@ -161,6 +163,18 @@ export const combatApi = {
   // turn (D174)
   usePool(encounterId: string, request: UsePoolRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/use-pool`, request);
+  },
+
+  // The beasts a druid can become with Wild Shape now (PHB p.66): the DM's for anyone, a player's for their own
+  // character. Wild Shape itself is a use-pool request with the beast's ID
+  getWildShapeOptions(encounterId: string, participantId: string) {
+    return api.get<WildShapeOptions>(`/encounters/${encounterId}/combat/wild-shape-options`, { params: { participantId } });
+  },
+
+  // A Circle of the Moon druid's Combat Wild Shape healing, a bonus action while transformed: a spell slot for 1d8 HP
+  // per level (PHB p.69)
+  wildShapeHeal(encounterId: string, request: WildShapeHealRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/wild-shape-heal`, request);
   },
 
   // A sorcerer's Flexible Casting, a bonus action on their turn: a slot for sorcery points, or points for a slot

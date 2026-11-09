@@ -15,6 +15,7 @@ import com.tabletophelper.encounter.internal.StandardActionService;
 import com.tabletophelper.encounter.internal.TurnEconomyEditService;
 import com.tabletophelper.encounter.internal.TurnService;
 import com.tabletophelper.encounter.internal.UndoService;
+import com.tabletophelper.encounter.internal.WildShapeService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ public class CombatController {
     private final HitFollowUpService hitFollowUpService;
     private final BardicInspirationService bardicInspirationService;
     private final FontOfMagicService fontOfMagicService;
+    private final WildShapeService wildShapeService;
     private final UndoService undoService;
     private final EncounterService encounterService;
 
@@ -340,6 +342,29 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = fontOfMagicService.use(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // The beasts a druid can become with Wild Shape now (PHB p.66): the DM's for anyone, a player's for their own
+    // character; Wild Shape itself is used through use-pool with the beast's ID
+    @GetMapping("/wild-shape-options")
+    public ResponseEntity<WildShapeOptions> getWildShapeOptions(
+            @PathVariable UUID encounterId,
+            @RequestParam UUID participantId,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(wildShapeService.options(encounterId, participantId, userId));
+    }
+
+    // A Circle of the Moon druid's Combat Wild Shape healing, a bonus action while transformed that expends a spell
+    // slot for 1d8 HP per level (PHB p.69): the DM for anyone, a player for their own participant
+    @PostMapping("/wild-shape-heal")
+    public ResponseEntity<EncounterResponse> wildShapeHeal(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody WildShapeHealRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = wildShapeService.heal(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

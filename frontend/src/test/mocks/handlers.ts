@@ -8,7 +8,7 @@ import type {
 } from '../../types/character';
 import type {
   AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
-  SpellOption,
+  SpellOption, WildShapeOptions,
 } from '../../types/combat';
 import type {
   CombatResultPreview, ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, SpellEffect,
@@ -338,6 +338,9 @@ export const combatHandlers = [
   // The DM's undo (M14): the encounter as it was, with nothing left to undo in the mock
   http.post(`${BASE}/encounters/:id/combat/undo`, async () => HttpResponse.json(makeMockEncounter({ undo: null }))),
   http.post(`${BASE}/encounters/:id/combat/use-pool`, async () => HttpResponse.json(makeMockEncounter())),
+  // A Druid 2's Wild Shape options (PHB p.66): a wolf, up to CR 1/4 with no flying or swimming speed
+  http.get(`${BASE}/encounters/:id/combat/wild-shape-options`, async () => HttpResponse.json(makeMockWildShapeOptions())),
+  http.post(`${BASE}/encounters/:id/combat/wild-shape-heal`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/standard-action`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/object-interaction`, async () => HttpResponse.json(makeMockEncounter())),
   http.put(`${BASE}/encounters/:id/combat/turn-economy`, async () => HttpResponse.json(makeMockEncounter())),
@@ -580,6 +583,19 @@ export function makeMockCondition(name: string, overrides: Partial<ConditionEntr
     concentrationInstanceId: null, endRule: { type: 'MANUAL', participantId: null }, repeatSave: null,
   } satisfies ConditionEntry;
   return { ...condition, ...overrides };
+}
+
+/** A Druid 2's Wild Shape options (PHB p.66): the wolf, up to CR 1/4, as an action. */
+export function makeMockWildShapeOptions(overrides: Partial<WildShapeOptions> = {}): WildShapeOptions {
+  return {
+    druidLevel: 2, circleOfTheMoon: false, maxChallengeRating: '1/4', flyingAllowed: false, swimmingAllowed: false,
+    cost: 'ACTION', currentForm: null, durationHours: 1,
+    beasts: [{
+      monsterId: 'monster-wolf', name: 'Wolf', challengeRating: '1/4', hitPoints: 11, armourClass: 13,
+      speed: { walk: 40 }, size: 'M', source: 'MM',
+    }],
+    ...overrides,
+  };
 }
 
 /** A full pool of three uses that a long rest restores. */

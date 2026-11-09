@@ -28,6 +28,8 @@ import ReactionMenu from '../../components/encounter/ReactionMenu';
 import HitFollowUps from '../../components/encounter/HitFollowUps';
 import InspirationControls from '../../components/encounter/InspirationControls';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
+import InlineMonsterActions from '../../components/encounter/InlineMonsterActions';
+import { wildShapePoolId } from '../../utils/classFeatures';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
 import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, Footprints, ShieldAlert } from 'lucide-react';
@@ -91,6 +93,8 @@ function PlayerSessionView() {
   // The player's Spell Effect in use, while its pop-up is open, and why a use or an end failed (M15)
   const [effectInUseId, setEffectInUseId] = useState<string | null>(null);
   const [effectError, setEffectError] = useState('');
+  // The beast's actions of the player's character in Wild Shape, shown on request (PHB p.67)
+  const [showBeastActions, setShowBeastActions] = useState(false);
 
   if (!encounter) {
     return (
@@ -247,6 +251,9 @@ function PlayerSessionView() {
               ? (poolId, options) => actions.usePool({ participantId: myCharacter.id, poolId, ...options }) : undefined}
             onFlexibleCasting={isActive && myCharacter.lifeState === 'ALIVE'
               ? (direction, slotLevel) => actions.fontOfMagic({ participantId: myCharacter.id, direction, slotLevel })
+              : undefined}
+            onWildShapeHeal={isActive && myCharacter.lifeState === 'ALIVE'
+              ? (slotLevel, pactSlot) => actions.wildShapeHeal({ participantId: myCharacter.id, slotLevel, pactSlot })
               : undefined} />
         )}
 
@@ -274,12 +281,27 @@ function PlayerSessionView() {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-warlock/30">
               <Swords className="w-3.5 h-3.5" /> {myCharacter.concentrationSpell ? 'Change' : 'Set'} Concentration
             </button>
+            {/* A druid in Wild Shape attacks with the beast's actions (PHB p.67) */}
+            {myCharacter.wildShape && (
+              <button onClick={() => setShowBeastActions(shown => !shown)} aria-expanded={showBeastActions}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-monster/10 hover:bg-monster/20 text-monster font-heading text-[11px] font-semibold tracking-[0.02em] border border-monster/30">
+                <Swords className="w-3.5 h-3.5" /> {myCharacter.wildShape.beastName} actions
+              </button>
+            )}
             {myCharacter.spellsKnown && (
               <button onClick={() => selectSelfAction('spell')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-ink/10 hover:bg-ink/20 text-ink font-heading text-[11px] font-semibold tracking-[0.02em] border border-ink/30">
                 <Sparkles className="w-3.5 h-3.5" /> Cast Spell
               </button>
             )}
+          </div>
+        )}
+
+        {/* The beast's actions, bonus actions and reactions of the player's character in Wild Shape (PHB p.67) */}
+        {isActive && showBeastActions && myCharacter?.wildShape && myCharacter.lifeState === 'ALIVE' && (
+          <div className="mb-4 border border-rule bg-card">
+            <InlineMonsterActions participant={myCharacter} participants={encounter.participants} isLairTurn={false}
+              inLair={false} />
           </div>
         )}
 
@@ -343,6 +365,9 @@ function PlayerSessionView() {
                 participant={p}
                 current={turn.current}
                 highlighted={isOwn}
+                onEndWildShape={isOwn && isActive && p.wildShape
+                  ? () => { void effectCommand(() => actions.usePool({ participantId: p.id, poolId: wildShapePoolId(p), option: 'end' })); }
+                  : undefined}
                 badges={(
                   <>
                     {isOwn && <span className="px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 text-ink">You</span>}

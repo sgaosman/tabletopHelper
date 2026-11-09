@@ -11,7 +11,9 @@ import com.tabletophelper.encounter.EncounterService;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.MonsterActionResponse;
 import com.tabletophelper.encounter.dto.MultiattackOption;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.combat.ActionCost;
@@ -30,6 +32,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -55,6 +58,9 @@ import java.util.stream.Collectors;
  * logged for the DM (D137). Nothing prompts for a reaction, so one that changes a result already resolved, such as
  * Parry raising AC against a hit or Uncanny Dodge halving its damage, is logged with its data's note, and the DM
  * adjusts the result by hand.
+ * <p>
+ * A druid in Wild Shape takes its beast's actions, bonus actions and reactions the same way (PHB p.67): its player may,
+ * on its turn unless the action is a reaction, and the DM for it, each charged to its turn economy as a player's are.
  */
 @Service
 @RequiredArgsConstructor
@@ -69,14 +75,18 @@ public class MonsterActionService {
     private final ActionEconomyKeeper economy;
     private final ResourcePoolService resourcePoolService;
     private final ObjectMapper objectMapper;
+    private final MonsterRepository monsterRepository;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
     @Transactional
     public MonsterActionResponse monsterAction(UUID encounterId, MonsterActionRequest request, UUID userId) {
-        Encounter encounter = access.beginAsDm(encounterId, userId);
+        // A monster is the DM's; a druid in Wild Shape is its player's too, on its turn unless the action is a reaction
+        ActionCost sourceCost = costOf(request.actionSource());
+        Encounter encounter = access.beginForCost(encounterId, request.monsterParticipantId(), userId,
+                sourceCost != null ? sourceCost : ActionCost.FREE);
         EncounterParticipant monster = monsterParticipant(encounter, request.monsterParticipantId());
-        Monster monsterEntity = monster.getMonster();
+        Monster monsterEntity = actingForm(monster, request.actionSource());
         if (monsterEntity == null || monsterEntity.getActionTemplates() == null) {
             throw new ValidationException("Monster has no action templates");
         }
@@ -216,12 +226,24 @@ public class MonsterActionService {
     public List<MultiattackOption> multiattackOptions(UUID encounterId, UUID participantId, UUID userId) {
         Encounter encounter = encounterRepository.findById(encounterId)
                 .orElseThrow(() -> new NotFoundException("Encounter not found"));
-        accessPolicy.requireDm(encounter.getCampaign().getId(), userId);
-        EncounterParticipant participant = CombatAccess.participant(encounter, participantId);
-        if (participant.getMonster() == null) {
+        UUID campaignId = encounter.getCampaign().getId();
+        // A druid in Wild Shape's beast attacks are its player's to read too (PHB p.67)
+        Optional<EncounterParticipant> druid = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(participantId) && p.getMonster() == null
+                        && WildShapeForm.of(p).isPresent())
+                .findFirst();
+        Monster monsterEntity;
+        if (druid.isPresent()) {
+            accessPolicy.requireControls(campaignId, druid.get().getControlledByUserId(), userId);
+            monsterEntity = beastOf(druid.get());
+        } else {
+            accessPolicy.requireDm(campaignId, userId);
+            monsterEntity = CombatAccess.participant(encounter, participantId).getMonster();
+        }
+        if (monsterEntity == null) {
             return List.of();
         }
-        MonsterTemplates templates = MonsterTemplates.of(participant.getMonster());
+        MonsterTemplates templates = MonsterTemplates.of(monsterEntity);
         return templates.actions().stream()
                 .filter(MonsterTemplates.Action::multiattack)
                 .map(action -> option(monsterEffects.multiattack(action, templates, MonsterEffects.Overrides.NONE)))
@@ -328,6 +350,32 @@ public class MonsterActionService {
                 throw new ConflictException(monster.getDisplayName() + " isn't fighting in its lair");
             }
         }
+    }
+
+    /**
+     * The stat block whose actions the participant takes: a monster's own, or for a druid in Wild Shape the beast's
+     * (PHB p.67), which has no legendary or lair actions to take. Any other participant has none, a 400.
+     */
+    private Monster actingForm(EncounterParticipant participant, String source) {
+        if (participant.getMonster() != null) {
+            return participant.getMonster();
+        }
+        if (WildShapeForm.of(participant).isEmpty()) {
+            throw new ValidationException(participant.getDisplayName() + " has no monster actions: only a monster, or "
+                    + "a druid in Wild Shape, takes them");
+        }
+        if ("LEGENDARY".equals(source) || "LAIR".equals(source)) {
+            throw new ValidationException("A druid in Wild Shape takes the beast's actions, bonus actions and "
+                    + "reactions, not legendary or lair actions");
+        }
+        return beastOf(participant);
+    }
+
+    // The beast a druid in Wild Shape has become
+    private Monster beastOf(EncounterParticipant druid) {
+        WildShapeForm form = WildShapeForm.of(druid).orElseThrow();
+        return monsterRepository.findById(form.monsterId())
+                .orElseThrow(() -> new ConflictException(form.beastName() + "'s stat block is gone"));
     }
 
     private static EncounterParticipant monsterParticipant(Encounter encounter, UUID participantId) {

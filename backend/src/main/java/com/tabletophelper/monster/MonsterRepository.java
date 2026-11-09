@@ -56,4 +56,7 @@ public interface MonsterRepository extends JpaRepository<Monster, UUID> {
     java.util.List<String> findDistinctChallengeRatings();
 
     Optional<Monster> findByNameIgnoreCaseAndSource(String name, String source);
+
+    // Every monster of the type, such as the beasts Wild Shape picks from (PHB p.66)
+    List<Monster> findByTypeIgnoreCase(String type);
 }

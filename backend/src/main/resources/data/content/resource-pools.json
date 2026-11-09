@@ -107,6 +107,9 @@
       "resetCheck": null,
       "spendActionType": "ACTION",
       "description": "Transform into a beast you have seen before. Regains uses on a short or long rest. Archdruid (20th level): an unlimited number of times.",
+      "metadata": {
+        "effect": "wild-shape"
+      },
       "icon": "paw-print",
       "levelTable": {
         "levelOf": "Druid",

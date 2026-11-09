@@ -29,7 +29,7 @@
 | 14 | Undo System | Implemented (2026-11-09) | Before-state snapshots on every combat action, DM-only rollback with cascade support |
 | 15 | Persistent Spell Effects as Companion Participants | Implemented (2026-11-09) | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
-| 17 | Class Feature Automation | Implemented (2026-11-09; Wild Shape deferred) | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
+| 17 | Class Feature Automation | Implemented (2026-11-09, Wild Shape included) | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
 | 18 | Sorcerer Metamagic | Implemented (2026-11-09) | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 | 19 | Glossary Tooltips | Implemented (2026-11-09) | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
 | 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |

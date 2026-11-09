@@ -25,6 +25,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                                    null when there is none (D162)
  * @param heldDie                     the die the entry gives its creature to roll, as Bardic Inspiration's does
  *                                    (M17); null for any other entry
+ * @param wildShape                   the beast a druid has become, on its {@code wild shape} entry (PHB p.66); null
+ *                                    for any other entry
  */
 public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) UUID id,
@@ -37,10 +39,19 @@ public record ConditionEntry(
         UUID concentrationInstanceId,
         @Schema(requiredMode = REQUIRED) EndRule endRule,
         RepeatSave repeatSave,
-        HeldDie heldDie
+        HeldDie heldDie,
+        WildShapeForm wildShape
 ) {
 
-    /** An entry with no held die. */
+    /** An entry with no beast form. */
+    public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
+                          UUID sourceParticipantId, Boolean sourceRequiresConcentration, UUID concentrationInstanceId,
+                          EndRule endRule, RepeatSave repeatSave, HeldDie heldDie) {
+        this(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration,
+                concentrationInstanceId, endRule, repeatSave, heldDie, null);
+    }
+
+    /** An entry with no held die and no beast form. */
     public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
                           UUID sourceParticipantId, Boolean sourceRequiresConcentration, UUID concentrationInstanceId,
                           EndRule endRule, RepeatSave repeatSave) {
@@ -95,11 +106,11 @@ public record ConditionEntry(
 
     public ConditionEntry withRepeatSave(RepeatSave save) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
-                sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie);
+                sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie, wildShape);
     }
 
     public ConditionEntry withHeldDie(HeldDie die) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
-                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die);
+                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die, wildShape);
     }
 }

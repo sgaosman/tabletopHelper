@@ -21,6 +21,7 @@ import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SpellSource;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.rules.combat.Charge;
@@ -134,8 +135,11 @@ public class SpellcastingService {
     }
 
     // Why the caster can't cast spells at all, or null: it rages (PHB p.48), or wears armour or a shield without
-    // proficiency (PHB p.144)
+    // proficiency (PHB p.144), or it is in Wild Shape, where concentration on a spell it cast before continues (PHB p.67)
     private String castingBan(EncounterParticipant caster) {
+        if (WildShapeForm.of(caster).isPresent()) {
+            return caster.getDisplayName() + " can't cast spells in Wild Shape";
+        }
         if (ClassFeatures.raging(CreatureStats.conditionNames(caster))) {
             return caster.getDisplayName() + " can't cast spells while raging";
         }

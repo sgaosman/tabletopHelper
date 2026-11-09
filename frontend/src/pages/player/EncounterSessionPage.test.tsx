@@ -660,3 +660,41 @@ describe('Player EncounterSessionPage', () => {
     });
   });
 });
+
+describe('Player EncounterSessionPage in Wild Shape (PHB p.66–67)', () => {
+  const wolf = {
+    monsterId: 'monster-wolf', beastName: 'Wolf', challengeRating: '1/4', hpMax: 11, armourClass: 13, strength: 12,
+    dexterity: 15, constitution: 12, saves: {}, skills: {}, speed: { walk: 40 }, senses: null, damageResistances: [],
+    damageImmunities: [], damageVulnerabilities: [], conditionImmunities: [], normalHpCurrent: 30, normalHpMax: 30,
+    normalArmourClass: 16, druidLevel: 2,
+  };
+
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(
+      http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+        participants: [goblin(), gimli({ isCurrentTurn: true, hpCurrent: 11, hpMax: 11, armourClass: 13, wildShape: wolf,
+          activeConditions: [makeMockCondition('wild shape', { wildShape: wolf })] })],
+      }))),
+    );
+  });
+
+  it("offers the wolf's actions, and ends the Wild Shape with the pool's end option", async () => {
+    const requests: unknown[] = [];
+    server.use(http.post('/api/encounters/:id/combat/use-pool', async ({ request }) => {
+      requests.push(await request.json());
+      return HttpResponse.json(makeMockEncounter());
+    }));
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole('status', { name: "Gimli's Wild Shape" })).toHaveTextContent('Own HP 30/30, AC 16');
+    await user.click(screen.getByRole('button', { name: 'Wolf actions' }));
+    expect(await screen.findByRole('button', { name: /Scimitar/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: "End Gimli's Wild Shape" }));
+    await waitFor(() => expect(requests).toEqual([
+      { participantId: 'part-gimli', poolId: 'class:druid-wild-shape', option: 'end' },
+    ]));
+  });
+});

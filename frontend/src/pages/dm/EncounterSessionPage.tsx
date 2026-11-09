@@ -35,6 +35,7 @@ import HitFollowUps from '../../components/encounter/HitFollowUps';
 import InspirationControls from '../../components/encounter/InspirationControls';
 import { FIELD_INPUT, FIELD_LABEL, SUBMIT_BUTTON } from '../../components/encounter/formStyles';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
+import { wildShapePoolId } from '../../utils/classFeatures';
 import Button from '../../components/ui/Button';
 import IconButton from '../../components/ui/IconButton';
 import Modal from '../../components/ui/Modal';
@@ -563,6 +564,9 @@ function DmSessionView() {
                   participant={p}
                   current={turn.current}
                   highlighted={p.id === selectedTargetId}
+                  onEndWildShape={isActive && p.wildShape
+                    ? () => { void attemptTurnChange(() => actions.usePool({ participantId: p.id, poolId: wildShapePoolId(p), option: 'end' })); }
+                    : undefined}
                   leading={isActive && (
                     // The DM's order among participants tied on initiative and DEX (D163)
                     <TieOrderArrows
@@ -600,10 +604,10 @@ function DmSessionView() {
                       {/* Quick action buttons */}
                       {isActive && (
                         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                          {/* Monster actions toggle (M12) */}
-                          {isMonster && (
+                          {/* Monster actions toggle (M12), and a druid in Wild Shape's beast actions (PHB p.67) */}
+                          {(isMonster || p.wildShape) && (
                             <IconButton
-                              label="Monster actions"
+                              label={isMonster ? 'Monster actions' : 'Beast actions'}
                               onClick={() => toggleMonsterActions(p.id)}
                               aria-expanded={expandedMonsterId === p.id}
                               className={`p-1.5 ${expandedMonsterId === p.id ? 'bg-monster/20 text-monster' : 'bg-monster/10 hover:bg-monster/20 text-monster'}`}
@@ -724,11 +728,14 @@ function DmSessionView() {
                     onUse={isActive ? (poolId, options) => actions.usePool({ participantId: p.id, poolId, ...options }) : undefined}
                     onFlexibleCasting={isActive
                       ? (direction, slotLevel) => actions.fontOfMagic({ participantId: p.id, direction, slotLevel })
+                      : undefined}
+                    onWildShapeHeal={isActive
+                      ? (slotLevel, pactSlot) => actions.wildShapeHeal({ participantId: p.id, slotLevel, pactSlot })
                       : undefined} />
                 </ParticipantRow>
 
                 {/* M12 Inline monster action panel */}
-                {isActive && expandedMonsterId === p.id && isMonster && (
+                {isActive && expandedMonsterId === p.id && (isMonster || p.wildShape) && (
                   <InlineMonsterActions
                     key={monsterTab}
                     initialTab={monsterTab}

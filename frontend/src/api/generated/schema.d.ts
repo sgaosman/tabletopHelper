@@ -1124,6 +1124,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/wild-shape-heal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["wildShapeHeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/wild-shape-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getWildShapeOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/end": {
         parameters: {
             query?: never;
@@ -2131,6 +2163,21 @@ export interface components {
             /** Format: int32 */
             wisdom: number;
         };
+        Beast: {
+            /** Format: int32 */
+            armourClass: number;
+            challengeRating?: string | null;
+            /** Format: int32 */
+            hitPoints: number;
+            /** Format: uuid */
+            monsterId: string;
+            name: string;
+            size?: string | null;
+            source?: string | null;
+            speed: {
+                [key: string]: number;
+            };
+        };
         BulkInitiativeRequest: {
             initiatives: components["schemas"]["SetInitiativeRequest"][];
         };
@@ -2566,6 +2613,7 @@ export interface components {
             sourceParticipantId?: string | null;
             sourceRequiresConcentration?: boolean | null;
             sourceSpellName?: string | null;
+            wildShape?: components["schemas"]["WildShapeForm"] | null;
         };
         ConditionRequest: {
             condition: string;
@@ -3350,6 +3398,7 @@ export interface components {
             spellcastingAbility?: string | null;
             spellsKnown?: components["schemas"]["KnownSpell"][] | null;
             turnEconomy?: components["schemas"]["TurnEconomy"] | null;
+            wildShape?: components["schemas"]["WildShapeForm"] | null;
         };
         PendingChoice: {
             /** Format: int32 */
@@ -3822,6 +3871,8 @@ export interface components {
         };
         UsePoolRequest: {
             amounts?: number[] | null;
+            /** Format: uuid */
+            beastId?: string | null;
             option?: string | null;
             /** Format: uuid */
             participantId: string;
@@ -3846,6 +3897,64 @@ export interface components {
             targetId: string;
             turn: string;
             weapon: string;
+        };
+        WildShapeForm: {
+            /** Format: int32 */
+            armourClass: number;
+            beastName: string;
+            challengeRating?: string | null;
+            conditionImmunities?: string[] | null;
+            /** Format: int32 */
+            constitution: number;
+            damageImmunities?: string[] | null;
+            damageResistances?: string[] | null;
+            damageVulnerabilities?: string[] | null;
+            /** Format: int32 */
+            dexterity: number;
+            /** Format: int32 */
+            druidLevel: number;
+            /** Format: int32 */
+            hpMax: number;
+            /** Format: uuid */
+            monsterId: string;
+            /** Format: int32 */
+            normalArmourClass: number;
+            /** Format: int32 */
+            normalHpCurrent: number;
+            /** Format: int32 */
+            normalHpMax: number;
+            saves?: {
+                [key: string]: number;
+            } | null;
+            senses?: string | null;
+            skills?: {
+                [key: string]: number;
+            } | null;
+            speed?: {
+                [key: string]: number;
+            } | null;
+            /** Format: int32 */
+            strength: number;
+        };
+        WildShapeHealRequest: {
+            pactSlot?: boolean | null;
+            /** Format: uuid */
+            participantId: string;
+            /** Format: int32 */
+            slotLevel: number;
+        };
+        WildShapeOptions: {
+            beasts: components["schemas"]["Beast"][];
+            circleOfTheMoon: boolean;
+            cost?: string | null;
+            currentForm?: string | null;
+            /** Format: int32 */
+            druidLevel: number;
+            /** Format: int32 */
+            durationHours: number;
+            flyingAllowed: boolean;
+            maxChallengeRating?: string | null;
+            swimmingAllowed: boolean;
         };
     };
     responses: never;
@@ -5695,6 +5804,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    wildShapeHeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WildShapeHealRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    getWildShapeOptions: {
+        parameters: {
+            query: {
+                participantId: string;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WildShapeOptions"];
                 };
             };
         };

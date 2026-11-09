@@ -5,6 +5,7 @@ import com.tabletophelper.character.CombatResults.CharacterResult;
 import com.tabletophelper.character.WriteBackService;
 import com.tabletophelper.character.dto.CombatResultPreview;
 import com.tabletophelper.character.state.CombatTotals;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -68,8 +69,11 @@ class EncounterResults {
         return new CombatResults(encounter.getId(), characters);
     }
 
+    // A druid still in Wild Shape ends with its own hit points, which the beast form left alone: the beast's are never
+    // written back (PHB p.67)
     private static CombatTotals endedWith(EncounterParticipant participant) {
-        return CombatTotals.of(participant.getHpCurrent(), participant.getHpTemp() != null ? participant.getHpTemp() : 0,
+        int hp = WildShapeForm.of(participant).map(WildShapeForm::normalHpCurrent).orElse(participant.getHpCurrent());
+        return CombatTotals.of(hp, participant.getHpTemp() != null ? participant.getHpTemp() : 0,
                 participant.getSpellSlotsCurrent(), participant.getResourcePoolsCurrent());
     }
 }

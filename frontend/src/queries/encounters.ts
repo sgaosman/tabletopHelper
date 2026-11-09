@@ -270,6 +270,18 @@ export function useSpellOptions(participantId: string) {
   });
 }
 
+/**
+ * The beasts a participant can become with Wild Shape now (PHB p.66), by its druid level; loaded only while `enabled`,
+ * as when its Wild Shape pool is shown and it isn't transformed.
+ */
+export function useWildShapeOptions(participantId: string, enabled: boolean) {
+  const { encounterId, view } = useLiveEncounter();
+  return useQuery({
+    queryKey: queryKeys.encounters.wildShapeOptions(encounterId, view, participantId),
+    queryFn: enabled ? async () => (await combatApi.getWildShapeOptions(encounterId, participantId)).data : skipToken,
+  });
+}
+
 /** An API call that changes an encounter, minus the encounter's ID, which the session page supplies. */
 type EncounterRequest<A extends unknown[], T> = (encounterId: string, ...args: A) => Promise<AxiosResponse<T>>;
 
@@ -345,6 +357,8 @@ export function useEncounterAction() {
       usePool: change(combatApi.usePool),
       // A sorcerer's Flexible Casting, a bonus action (M18)
       fontOfMagic: change(combatApi.fontOfMagic),
+      // A Circle of the Moon druid's Combat Wild Shape healing, a bonus action (PHB p.69)
+      wildShapeHeal: change(combatApi.wildShapeHeal),
       standardAction: change(combatApi.standardAction),
       objectInteraction: change(combatApi.objectInteraction),
       // What follows a melee weapon hit, and the Protection reaction (M17)

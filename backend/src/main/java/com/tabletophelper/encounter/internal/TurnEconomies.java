@@ -3,6 +3,7 @@ package com.tabletophelper.encounter.internal;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.rules.combat.ActionEconomy;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * What a participant's turn economy needs from its sheet or stat block (D174): the attacks one Attack action gives
@@ -45,11 +47,18 @@ public final class TurnEconomies {
 
     /**
      * The participant's speeds in feet by kind, walking first: a player character's walking speed from its sheet,
-     * and a monster's speeds from its stat block (a speed with a condition, such as "(hover)", by its number).
+     * a monster's speeds from its stat block (a speed with a condition, such as "(hover)", by its number), and a
+     * druid's in beast form the beast's.
      * Empty when neither has one.
      */
     public static Map<String, Integer> speed(EncounterParticipant participant, ObjectMapper objectMapper) {
         Map<String, Integer> speeds = new LinkedHashMap<>();
+        // A druid in beast form moves at the beast's speeds (PHB p.67)
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent()) {
+            speeds.putAll(form.get().speed());
+            return speeds;
+        }
         PlayerCharacter character = participant.getCharacter();
         if (character != null) {
             if (character.getSpeed() != null) {
@@ -57,7 +66,15 @@ public final class TurnEconomies {
             }
             return speeds;
         }
-        Monster monster = participant.getMonster();
+        return speed(participant.getMonster(), objectMapper);
+    }
+
+    /**
+     * A monster's speeds in feet by kind from its stat block, walking first (a speed with a condition, such as
+     * "(hover)", by its number); empty for none or none that can be read.
+     */
+    public static Map<String, Integer> speed(Monster monster, ObjectMapper objectMapper) {
+        Map<String, Integer> speeds = new LinkedHashMap<>();
         if (monster == null || monster.getSpeed() == null || monster.getSpeed().isBlank()) {
             return speeds;
         }

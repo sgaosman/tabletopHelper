@@ -4,9 +4,10 @@ import type { FontOfMagicRequest } from '../../types/character';
 import { apiErrorMessage } from '../../api/errors';
 import { chargeBlock, poolBudgetBlock, poolCostLabel, poolRecoveryText, poolRefusal } from '../../utils/turnEconomy';
 import {
-  channelOptions, heldInspiration, isRaging, KI_OPTIONS, poolEffect, poolEffectText, RAGE_TEXT, type PoolEffect,
-  type PoolUseOptions,
+  channelOptions, heldInspiration, isRaging, KI_OPTIONS, poolEffect, poolEffectText, RAGE_TEXT, WILD_SHAPE_TEXT,
+  wildShapeOf, type PoolEffect, type PoolUseOptions,
 } from '../../utils/classFeatures';
+import { useWildShapeOptions } from '../../queries/encounters';
 import IconButton from '../ui/IconButton';
 import FlexibleCastingControls from './FlexibleCastingControls';
 import { SORCERY_POINTS } from '../../utils/metamagic';
@@ -40,6 +41,11 @@ interface ResourcePoolDisplayProps {
   onFlexibleCasting?: (direction: FontOfMagicRequest['direction'], slotLevel: number) => Promise<unknown>;
   /** The sheet's spell slots, for Flexible Casting out of combat. */
   spellSlots?: Record<string, SpellSlot> | null;
+  /**
+   * A Circle of the Moon druid's Combat Wild Shape healing at the table (PHB p.69): a spell slot of the level, as a
+   * bonus action while transformed. Offered beside the Wild Shape pool.
+   */
+  onWildShapeHeal?: (slotLevel: number, pactSlot: boolean) => Promise<unknown>;
 }
 
 export default function ResourcePoolDisplay({
@@ -54,6 +60,7 @@ export default function ResourcePoolDisplay({
   targets,
   onFlexibleCasting,
   spellSlots,
+  onWildShapeHeal,
 }: ResourcePoolDisplayProps) {
   const entries = pools ?? [];
   const filtered = filterSourceType
@@ -64,7 +71,7 @@ export default function ResourcePoolDisplay({
 
   if (onUse && participant) {
     return <EncounterPools pools={filtered} participant={participant} onUse={onUse} asDm={asDm} targets={targets}
-      onFlexibleCasting={onFlexibleCasting} />;
+      onFlexibleCasting={onFlexibleCasting} onWildShapeHeal={onWildShapeHeal} />;
   }
 
   const points = filtered.find(entry => entry.poolId === SORCERY_POINTS);
@@ -135,7 +142,7 @@ export default function ResourcePoolDisplay({
 
 // The pools whose use their own controls send, with the points, option or target it needs; Arcane Recovery is used on a
 // short rest, not at the table (M17)
-const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-recovery'];
+const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-recovery', 'wild-shape'];
 
 const USE_BUTTON = 'ml-1 px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 hover:bg-ink/20 '
   + 'text-ink disabled:opacity-40 disabled:hover:bg-ink/10';
@@ -147,15 +154,17 @@ const SMALL_FIELD = 'px-1 py-0.5 bg-page-alt border border-rule font-body text-[
  * to regain, can't be used by anyone; one the turn can't pay for is greyed for a player with the reason, and only
  * warned about for the DM. The server's refusal shows too. A class feature's pool (M17) also offers what its feature
  * does: Rage shows while it lasts what it gives and can be ended, Lay on Hands takes its points, use and target, and Ki
- * offers Patient Defense and Step of the Wind.
+ * offers Patient Defense and Step of the Wind. Wild Shape (PHB p.66) offers the beasts the druid can become, and while it
+ * lasts can be ended, with Combat Wild Shape's healing for a Circle of the Moon druid (PHB p.69).
  */
-function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCasting }: {
+function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCasting, onWildShapeHeal }: {
   pools: ResourcePoolEntry[];
   participant: EncounterParticipant;
   onUse: (poolId: string, options?: PoolUseOptions) => Promise<unknown>;
   asDm: boolean;
   targets?: EncounterParticipant[];
   onFlexibleCasting?: (direction: FontOfMagicRequest['direction'], slotLevel: number) => Promise<unknown>;
+  onWildShapeHeal?: (slotLevel: number, pactSlot: boolean) => Promise<unknown>;
 }) {
   const [using, setUsing] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -182,13 +191,16 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
           const die = poolDie(entry);
           const effect = poolEffect(entry);
           const raging = effect === 'rage' && isRaging(participant);
-          const refusal = raging ? null : poolRefusal(entry, all);
-          // Ending a rage costs a bonus action whatever the pool says (PHB p.48)
-          const budget = raging ? chargeBlock(participant, { cost: 'BONUS_ACTION' }) : poolBudgetBlock(participant, entry);
+          const form = effect === 'wild-shape' ? wildShapeOf(participant) : null;
+          // A rage or a Wild Shape in force can be ended, which spends no use
+          const endable = raging || form !== null;
+          const refusal = endable ? null : poolRefusal(entry, all);
+          // Ending a rage or a Wild Shape costs a bonus action whatever the pool says (PHB p.48, p.67)
+          const budget = endable ? chargeBlock(participant, { cost: 'BONUS_ACTION' }) : poolBudgetBlock(participant, entry);
           const disabled = refusal !== null || (budget !== null && !asDm) || using !== null;
           const reason = refusal ?? (budget ? (asDm ? `Over the action economy: ${budget}` : budget) : null);
           const recovery = poolRecoveryText(entry, all);
-          const effectText = raging ? null : poolEffectText(effect);
+          const effectText = endable ? null : poolEffectText(effect);
           const reasonId = `pool-reason-${participant.id}-${entry.poolId}`;
           return (
             <li key={entry.poolId}
@@ -202,7 +214,7 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
                     {entry.currentUses}/{entry.maxUses}
                   </span>
                 )}
-                {raging ? (
+                {endable ? (
                   <button type="button" disabled={disabled} onClick={() => { void use(entry.poolId, { option: 'end' }); }}
                     aria-label={`End ${entry.displayName}`} aria-describedby={reason ? reasonId : undefined}
                     className={USE_BUTTON}>
@@ -216,10 +228,12 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
                   </button>
                 )}
               </div>
-              {raging ? (
+              {endable ? (
                 <p role="status" className="max-w-xs text-[11px] text-ink">
-                  <span className="mr-1 px-1 font-heading font-semibold text-card bg-buff">Raging</span>
-                  {RAGE_TEXT} Ending it early: bonus action.
+                  <span className="mr-1 px-1 font-heading font-semibold text-card bg-buff">
+                    {form ? `Wild Shape: ${form.beastName}` : 'Raging'}
+                  </span>
+                  {form ? WILD_SHAPE_TEXT : RAGE_TEXT} Ending it early: bonus action.
                 </p>
               ) : (
                 <span className="text-[11px] text-muted">
@@ -229,6 +243,11 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
               <FeatureControls effect={effect} entry={entry} participant={participant} targets={targets}
                 blocked={refusal !== null || using !== null} asDm={asDm}
                 onUse={options => { void use(entry.poolId, options); }} />
+              {effect === 'wild-shape' && (
+                <WildShapeControls entry={entry} participant={participant} asDm={asDm}
+                  blocked={refusal !== null || using !== null}
+                  onUse={options => { void use(entry.poolId, options); }} onHeal={onWildShapeHeal} />
+              )}
               {entry.poolId === SORCERY_POINTS && onFlexibleCasting && (
                 <FlexibleCastingControls points={entry} slots={participant.spellSlotsCurrent} asDm={asDm}
                   blocked={chargeBlock(participant, { cost: 'BONUS_ACTION' })} onExchange={onFlexibleCasting} />
@@ -284,6 +303,108 @@ function FeatureControls({ effect, entry, participant, targets, blocked, asDm, o
           {option.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Wild Shape (PHB p.66–67): before transforming, the beasts the druid can become by its level, as the server lists them,
+ * and the action (a bonus action for the Circle of the Moon) it costs; while transformed, a Circle of the Moon druid's
+ * Combat Wild Shape healing, a spell slot for 1d8 HP per level as a bonus action (PHB p.69). Whether the druid has seen
+ * the beast is the DM's call; the server checks the rest.
+ */
+function WildShapeControls({ entry, participant, blocked, asDm, onUse, onHeal }: {
+  entry: ResourcePoolEntry;
+  participant: EncounterParticipant;
+  blocked: boolean;
+  asDm: boolean;
+  onUse: (options: PoolUseOptions) => void;
+  onHeal?: (slotLevel: number, pactSlot: boolean) => Promise<unknown>;
+}) {
+  const form = wildShapeOf(participant);
+  const options = useWildShapeOptions(participant.id, true);
+  const [beastId, setBeastId] = useState('');
+  const [slotKey, setSlotKey] = useState('');
+  const [healing, setHealing] = useState(false);
+  const [healError, setHealError] = useState('');
+  const base = `ws-${participant.id}`;
+  if (options.isPending) return <span className="text-[11px] text-muted">Loading beasts...</span>;
+  if (options.isError) return <span role="alert" className="text-[11px] text-debuff">{apiErrorMessage(options.error)}</span>;
+  const data = options.data;
+
+  if (form) {
+    if (!data.circleOfTheMoon || !onHeal) return null;
+    // The slots with one left, spell slots by level and pact slots (PHB p.69)
+    const slots = Object.entries(participant.spellSlotsCurrent ?? {})
+      .filter(([, slot]) => slot.max + (slot.created ?? 0) - slot.used > 0)
+      .map(([key]) => ({ key, level: Number.parseInt(key.replace('pact_', ''), 10), pact: key.startsWith('pact_') }))
+      .filter(slot => Number.isInteger(slot.level))
+      .sort((a, b) => a.level - b.level);
+    if (slots.length === 0) return null;
+    const chosen = slots.find(slot => slot.key === slotKey) ?? slots[0];
+    const budget = chargeBlock(participant, { cost: 'BONUS_ACTION' });
+    const disabled = blocked || healing || (budget !== null && !asDm);
+    const heal = async () => {
+      setHealing(true);
+      setHealError('');
+      try {
+        await onHeal(chosen.level, chosen.pact);
+      } catch (err: unknown) {
+        setHealError(apiErrorMessage(err));
+      } finally {
+        setHealing(false);
+      }
+    };
+    return (
+      <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Combat Wild Shape healing">
+        <label htmlFor={`${base}-slot`} className="sr-only">Spell slot for Combat Wild Shape</label>
+        <select id={`${base}-slot`} value={chosen.key} onChange={e => setSlotKey(e.target.value)} className={SMALL_FIELD}>
+          {slots.map(slot => (
+            <option key={slot.key} value={slot.key}>
+              {slot.pact ? `Pact slot ${slot.level}` : `Level ${slot.level} slot`}: {slot.level}d8 HP
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={disabled} onClick={() => { void heal(); }} className={USE_BUTTON}>
+          {healing ? '...' : 'Heal (bonus action)'}
+        </button>
+        {budget && <span className="text-[11px] text-muted">{budget}</span>}
+        {healError && <span role="alert" className="text-[11px] font-semibold text-debuff">{healError}</span>}
+      </div>
+    );
+  }
+
+  if (!data.maxChallengeRating) {
+    return <span className="text-[11px] text-muted">Wild Shape comes at druid level 2.</span>;
+  }
+  const beast = data.beasts.find(b => b.monsterId === beastId) ?? data.beasts[0];
+  const cost = data.cost === 'BONUS_ACTION' ? 'BONUS_ACTION' : 'ACTION';
+  const budget = chargeBlock(participant, { cost });
+  const disabled = blocked || !beast || (budget !== null && !asDm);
+  const limits = [`up to CR ${data.maxChallengeRating}`];
+  if (!data.swimmingAllowed) limits.push('no swimming speed');
+  if (!data.flyingAllowed) limits.push('no flying speed');
+  return (
+    <div className="flex flex-col gap-1" role="group" aria-label={`${entry.displayName}: beast`}>
+      <div className="flex flex-wrap items-center gap-1">
+        <label htmlFor={`${base}-beast`} className="sr-only">Beast</label>
+        <select id={`${base}-beast`} value={beast?.monsterId ?? ''} onChange={e => setBeastId(e.target.value)}
+          className={SMALL_FIELD} disabled={data.beasts.length === 0}>
+          {data.beasts.length === 0 && <option value="">No beast within the limits</option>}
+          {data.beasts.map(b => (
+            <option key={b.monsterId} value={b.monsterId}>
+              {b.name} (CR {b.challengeRating}, {b.hitPoints} HP, AC {b.armourClass}){b.source && b.source !== 'MM' ? ` [${b.source}]` : ''}
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={disabled} aria-label={`Use ${entry.displayName}`}
+          onClick={() => { if (beast) onUse({ beastId: beast.monsterId }); }} className={USE_BUTTON}>
+          Transform ({cost === 'BONUS_ACTION' ? 'bonus action' : 'action'})
+        </button>
+      </div>
+      <span className="max-w-xs text-[11px] text-muted">
+        A beast you have seen, {limits.join(', ')}, for up to {data.durationHours} hour{data.durationHours === 1 ? '' : 's'}.
+      </span>
     </div>
   );
 }

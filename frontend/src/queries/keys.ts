@@ -45,6 +45,9 @@ export const queryKeys = {
     /** A monster's multiattacks and the attacks each makes, which only the DM may read (D157, D165). */
     multiattackOptions: (encounterId: string, participantId: string) =>
       ['encounters', encounterId, 'dm', 'participants', participantId, 'multiattack-options'] as const,
+    /** The beasts a druid can become with Wild Shape now: the DM's for anyone, a player's for their own (PHB p.66). */
+    wildShapeOptions: (encounterId: string, view: EncounterView, participantId: string) =>
+      ['encounters', encounterId, view, 'participants', participantId, 'wild-shape-options'] as const,
   },
   monsters: {
     all: () => ['monsters'] as const,

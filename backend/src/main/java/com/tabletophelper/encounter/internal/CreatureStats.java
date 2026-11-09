@@ -7,10 +7,12 @@ import com.tabletophelper.character.EquippedArmour;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
+import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.Effect;
@@ -20,6 +22,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -76,11 +80,13 @@ public class CreatureStats {
 
     /**
      * The armour a player character wears, read live from its sheet; nothing for a monster, whose stat block's AC
-     * already counts its armour.
+     * already counts its armour. A druid in beast form wears nothing: its equipment merges into the new form (PHB
+     * p.67), so its armour gives neither AC nor penalties.
      */
     public EquippedArmour.Worn armour(EncounterParticipant participant) {
         PlayerCharacter character = participant.getCharacter();
-        return character != null ? equippedArmour.of(character) : EquippedArmour.Worn.nothing();
+        return character != null && WildShapeForm.of(participant).isEmpty() ? equippedArmour.of(character)
+                : EquippedArmour.Worn.nothing();
     }
 
     /**
@@ -96,14 +102,36 @@ public class CreatureStats {
         return participants.stream().map(participant -> target(participant, effect)).toList();
     }
 
-    /** An ability score, 10 when the participant has no sheet or stat block, or the score is missing. */
+    /**
+     * An ability score, 10 when the participant has no sheet or stat block, or the score is missing. A druid in beast
+     * form has the beast's Strength, Dexterity and Constitution and keeps its own Intelligence, Wisdom and Charisma
+     * (PHB p.67).
+     */
     public int abilityScore(EncounterParticipant participant, Ability ability) {
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent()) {
+            switch (ability) {
+                case STR -> {
+                    return form.get().strength();
+                }
+                case DEX -> {
+                    return form.get().dexterity();
+                }
+                case CON -> {
+                    return form.get().constitution();
+                }
+                default -> {
+                    // Its own mental scores
+                }
+            }
+        }
         return score(participant, ability);
     }
 
     /**
      * As {@link #abilityScore}, for callers without the component, such as the turn order. A player character's is
-     * read live from its sheet, with the DM's adjustments to it (D158).
+     * read live from its sheet, with the DM's adjustments to it (D158); a druid in beast form keeps its own here, so its
+     * place in the turn order doesn't move when it transforms.
      */
     public static int score(EncounterParticipant participant, Ability ability) {
         if (participant.getCharacter() != null) {
@@ -127,10 +155,12 @@ public class CreatureStats {
         if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
             int modifier = Ability.modifier(abilityScore(participant, ability));
-            if (!proficientInSave(character, ability)) {
-                return modifier;
-            }
-            return modifier + (character.getProficiencyBonus() != null ? character.getProficiencyBonus() : 2);
+            int own = !proficientInSave(character, ability) ? modifier
+                    : modifier + (character.getProficiencyBonus() != null ? character.getProficiencyBonus() : 2);
+            // In beast form, the beast's listed save bonus when it is higher (PHB p.67)
+            return WildShapeForm.of(participant)
+                    .map(form -> BeastShapes.bonus(own, form.saves().get(ability.name().toLowerCase(Locale.ROOT))))
+                    .orElse(own);
         }
         if (participant.getMonster() != null) {
             Monster monster = participant.getMonster();
@@ -155,10 +185,16 @@ public class CreatureStats {
         if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
             int proficiency = character.getProficiencyBonus() != null ? character.getProficiencyBonus() : 2;
+            int own;
             if (names(character.getSkillExpertises(), skill)) {
-                return modifier + 2 * proficiency;
+                own = modifier + 2 * proficiency;
+            } else {
+                own = names(character.getSkillProficiencies(), skill) ? modifier + proficiency : modifier;
             }
-            return names(character.getSkillProficiencies(), skill) ? modifier + proficiency : modifier;
+            // In beast form, the beast's listed skill bonus when it is higher (PHB p.67)
+            return WildShapeForm.of(participant)
+                    .map(form -> BeastShapes.bonus(own, form.skills().get(skill.toLowerCase(Locale.ROOT))))
+                    .orElse(own);
         }
         if (participant.getMonster() != null) {
             Monster monster = participant.getMonster();
@@ -201,6 +237,18 @@ public class CreatureStats {
             }
         } else if (participant.getCharacter() != null) {
             defences.addAll(DmAdjustments.defences(participant.getCharacter(), type));
+            // A druid in beast form has the beast's defences, and keeps those its own race and features give (PHB p.67)
+            WildShapeForm.of(participant).ifPresent(form -> {
+                if (names(form.damageResistances(), type)) {
+                    defences.add(Defence.RESISTANCE);
+                }
+                if (names(form.damageImmunities(), type)) {
+                    defences.add(Defence.IMMUNITY);
+                }
+                if (names(form.damageVulnerabilities(), type)) {
+                    defences.add(Defence.VULNERABILITY);
+                }
+            });
         }
         // A raging creature resists bludgeoning, piercing and slashing damage (PHB p.48); resistances don't stack
         if (ClassFeatures.raging(conditionNames(participant)) && ClassFeatures.rageResists(type)) {
@@ -227,6 +275,9 @@ public class CreatureStats {
         }
         if (participant.getCharacter() != null) {
             PlayerCharacter character = participant.getCharacter();
+            if (WildShapeForm.of(participant).filter(form -> names(form.conditionImmunities(), name)).isPresent()) {
+                return true;
+            }
             List<String> listed = character.getConditionImmunities();
             if (listed != null && listed.stream().anyMatch(c -> c != null && c.trim().equalsIgnoreCase(name))) {
                 return true;
