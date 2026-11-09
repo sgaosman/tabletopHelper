@@ -15,7 +15,7 @@
 | 3 | 5e.tools Data Import & Reference Browsing | Complete | Bestiary, spells, items, conditions, quick rules reference |
 | 4 | Encounter Builder & WebSocket Setup | Complete | Encounter CRUD, participant management, WebSocket real-time sync, multiselect filters |
 | 5 | Combat Engine | Complete | Full combat: damage, healing, conditions (with duration tracking), death saves, concentration, attack rolls, spell slot tracking, turn-based auto-expiry |
-| 6 | Polish, Mobile & Deployment | Deferred | Trigger: full session playable with L5 chars vs CR15 monsters, M12/M12.5/M13 complete |
+| 6 | Polish, Mobile & Deployment | Frontend polish implemented (2026-11-09); deployment in the Hosting step | Trigger: full session playable with L5 chars vs CR15 monsters, M12/M12.5/M13 complete |
 | 7 | Data Gathering & Spell Effect Schema | Complete | 288 spells, 104 items, 2,357 monsters, class/race analysis — data files and review docs produced |
 | 8 | Spell Effect Data Population & Review Cycle | Complete | All data files validated and approved — 2 critical, 2 moderate, 48 markup fixes applied |
 | 9 | Character Builder Overhaul | Complete | Reference data entities, 5etools seeders, 6-step creation wizard, 6-tab character sheet, rest mechanics, proficiency display, character deletion, campaign assignment |
@@ -154,6 +154,8 @@
 - [x] Per-row clone button for multi-attack (copies all filled values)
 
 ## Milestone 6: Polish, Mobile & Deployment (DEFERRED)
+
+**Status (2026-11-09):** the frontend tasks are implemented ([[decisions-log#D181]]): toasts, WebSocket connection state with reconnect, pending states on async controls, and phone-width fixes to the encounter screens. Dockerfiles and the production compose file were done in R1; deploying and testing on real devices wait for the Hosting step.
 
 **Status:** Deferred — trigger is when the DM and players can play a full session of D&D with up to 5th level characters (and up to CR 15 monsters) at minimum, with any combination of character classes and enemies and only occasionally (fewer than 5 unique instances per combat session) have to manually adjudicate rulings. Requires M12 (CR 0-10 monsters), M12.5 (CR 11-15 expansion), and M13 (action economy for reactions) at minimum before the combat UI is stable enough to polish.
 

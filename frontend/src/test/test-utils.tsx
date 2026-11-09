@@ -5,6 +5,7 @@ import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { AuthProvider } from '../context/AuthContext';
 import { GlossaryProvider } from '../context/GlossaryContext';
+import { ToastProvider } from '../context/ToastContext';
 import { clearAccessToken, setAccessToken } from '../api/tokenStore';
 import { createQueryClient } from '../queries/queryClient';
 import type { AuthResponse } from '../types/auth';
@@ -27,7 +28,9 @@ function customRender(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            {children}
+            <ToastProvider>
+              {children}
+            </ToastProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

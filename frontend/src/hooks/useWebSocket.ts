@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
-import { Client, type IMessage } from '@stomp/stompjs';
+import { Client, ReconnectionTimeMode, type IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { refreshAccessToken } from '../api/tokenStore';
 import type { CombatLogEntry } from '../types/combat';
@@ -24,15 +24,34 @@ interface UseWebSocketOptions {
 
 type Callbacks = Pick<UseWebSocketOptions, 'onStateUpdate' | 'onLogUpdate' | 'onReconnect' | 'onError'>;
 
+/**
+ * Where the page's live connection stands: opening for the first time, live, trying again after it dropped, or
+ * offline, because the browser has no network or the client has stopped (the session ended).
+ */
+export type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'offline';
+
+/** The first retry waits a second; each later one waits twice as long, up to half a minute. */
+export const RECONNECT_DELAY_MS = 1000;
+export const MAX_RECONNECT_DELAY_MS = 30_000;
+
+function browserOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
 export function useWebSocket({ encounterId, view = 'player', enabled = true, ...callbacks }: UseWebSocketOptions) {
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const clientRef = useRef<Client | null>(null);
+  // Starts the client again at once, without waiting out the backoff; set while a client exists
+  const restartRef = useRef<(() => void) | null>(null);
 
   // The client reads the latest callbacks from here, so a new callback never opens a new connection
   const callbacksRef = useRef<Callbacks>(callbacks);
   useEffect(() => {
     callbacksRef.current = callbacks;
   });
+
+  /** Tries to connect again now, such as from a "Retry now" button. */
+  const reconnect = useCallback(() => restartRef.current?.(), []);
 
   const sendMessage = useCallback((destination: string, body: unknown) => {
     if (clientRef.current?.connected) {
@@ -48,6 +67,12 @@ export function useWebSocket({ encounterId, view = 'player', enabled = true, ...
 
     const topics = view === 'dm' ? { state: 'dm-state', log: 'dm-log' } : { state: 'state', log: 'log' };
     let connectedBefore = false;
+    let disposed = false;
+    // The socket closed or failed: an active client is trying again, a stopped one is not
+    const markDown = () => {
+      if (disposed) return;
+      setConnectionState(client.active && !browserOffline() ? 'reconnecting' : 'offline');
+    };
 
     const client = new Client({
       webSocketFactory: () => new SockJS(`/ws`),
@@ -62,17 +87,21 @@ export function useWebSocket({ encounterId, view = 'player', enabled = true, ...
           if (axios.isAxiosError(err) && err.response?.status === 401) {
             // The session is over, so retrying cannot succeed
             await client.deactivate();
+            if (!disposed) setConnectionState('offline');
             callbacksRef.current.onError?.('Your session has ended. Please sign in again.');
           }
           // Otherwise the server could not be reached: this attempt fails and the client tries again
         }
       },
-      reconnectDelay: 5000,
+      // Truncated exponential backoff, reset by each successful connect
+      reconnectDelay: RECONNECT_DELAY_MS,
+      reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
+      maxReconnectDelay: MAX_RECONNECT_DELAY_MS,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
 
       onConnect: () => {
-        setIsConnected(true);
+        setConnectionState('connected');
 
         client.subscribe(`/topic/encounter/${encounterId}/${topics.state}`, (message: IMessage) => {
           const state: Encounter = JSON.parse(message.body);
@@ -97,25 +126,50 @@ export function useWebSocket({ encounterId, view = 'player', enabled = true, ...
         connectedBefore = true;
       },
 
-      onDisconnect: () => {
-        setIsConnected(false);
-      },
+      onDisconnect: markDown,
+      // A dropped network closes the socket without a DISCONNECT frame, so this is what notices it
+      onWebSocketClose: markDown,
 
       onStompError: (frame) => {
         callbacksRef.current.onError?.(frame.body || 'WebSocket error');
-        setIsConnected(false);
+        markDown();
       },
     });
 
+    const restart = () => {
+      if (disposed) return;
+      // The socket outlived a short loss of network
+      if (client.connected) {
+        setConnectionState('connected');
+        return;
+      }
+      setConnectionState(browserOffline() ? 'offline' : 'reconnecting');
+      void client.deactivate().then(() => {
+        if (!disposed) client.activate();
+      });
+    };
+    // The browser knows when the network goes and comes back: say so at once, and retry as soon as it returns
+    // instead of waiting out the backoff
+    const handleOffline = () => {
+      if (!disposed) setConnectionState('offline');
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', restart);
+
     clientRef.current = client;
+    restartRef.current = restart;
+    setConnectionState('connecting');
     client.activate();
 
     return () => {
-      client.deactivate();
+      disposed = true;
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', restart);
+      void client.deactivate();
       clientRef.current = null;
-      setIsConnected(false);
+      restartRef.current = null;
     };
   }, [encounterId, view, enabled]);
 
-  return { isConnected, sendMessage };
+  return { isConnected: connectionState === 'connected', connectionState, reconnect, sendMessage };
 }

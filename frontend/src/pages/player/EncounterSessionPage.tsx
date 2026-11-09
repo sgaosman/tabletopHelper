@@ -20,7 +20,7 @@ import SpellSlotPips from '../../components/encounter/SpellSlotPips';
 import TurnEconomyBar from '../../components/encounter/TurnEconomyBar';
 import HpReadout from '../../components/encounter/HpReadout';
 import CombatLog from '../../components/encounter/CombatLog';
-import ConnectionStatus from '../../components/encounter/ConnectionStatus';
+import ConnectionStatus, { ConnectionBanner } from '../../components/encounter/ConnectionStatus';
 import ConditionForm from '../../components/encounter/ConditionForm';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
@@ -34,6 +34,9 @@ import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
 import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, Footprints, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
+
+// The player's own action buttons, each at least 44px tall for a phone
+const SELF_ACTION = 'flex items-center gap-1.5 min-h-11 px-3 py-1.5 font-heading text-[13px] font-semibold tracking-[0.02em] border';
 
 type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'standard' | 'reaction' | null;
 
@@ -82,7 +85,7 @@ function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClo
 }
 
 function PlayerSessionView() {
-  const { encounter, isConnected, error } = useEncounter();
+  const { encounter, connectionState, reconnect, error } = useEncounter();
   // The server sends the players' log after every change, without entries about hidden monsters (D157, D171)
   const logs = useCombatLog();
   const actions = useEncounterAction();
@@ -164,9 +167,9 @@ function PlayerSessionView() {
 
   return (
     <div className="min-h-screen bg-page">
-      <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <button onClick={() => navigate('/player')} className="flex items-center gap-2 text-muted hover:text-ink transition-colors font-body text-[15px] font-semibold">
+      <header className="sticky top-0 z-10 bg-page border-b border-rule">
+        <div className="flex flex-wrap items-center justify-between gap-2 max-w-4xl mx-auto px-4 sm:px-6 py-3">
+          <button onClick={() => navigate('/player')} className="flex items-center gap-2 min-h-11 text-muted hover:text-ink transition-colors font-body text-[15px] font-semibold">
             <ArrowLeft className="w-4 h-4" /> Dashboard
           </button>
           <div className="flex items-center gap-3">
@@ -177,12 +180,13 @@ function PlayerSessionView() {
             {encounter.status === 'PAUSED' && (
               <span className="px-2.5 py-1 bg-cls-paladin text-card font-heading text-[11px] font-semibold tracking-[0.02em]">Paused</span>
             )}
-            <ConnectionStatus isConnected={isConnected} />
+            <ConnectionStatus state={connectionState} />
           </div>
         </div>
+        <ConnectionBanner state={connectionState} onRetry={reconnect} />
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-4">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
         {error && <p className="text-debuff font-body text-[15px] font-semibold mb-4">{error}</p>}
 
         <div className="mb-4">
@@ -238,7 +242,7 @@ function PlayerSessionView() {
           <SpellSlotPips
             slots={myCharacter.spellSlotsCurrent}
             variant="card"
-            onUse={isActive ? level => { void actions.spendSpellSlot(myCharacter.id, level); } : undefined}
+            onUse={isActive ? level => actions.spendSpellSlot(myCharacter.id, level) : undefined}
           />
         )}
 
@@ -263,34 +267,34 @@ function PlayerSessionView() {
             {/* The standard actions and object interactions are for the player's own turn (D174) */}
             {isMyTurn && (
               <button onClick={() => selectSelfAction('standard')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-fighter/30">
+                className={`${SELF_ACTION} bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter border-cls-fighter/30`}>
                 <Footprints className="w-3.5 h-3.5" /> Actions
               </button>
             )}
             {canReact && (
               <button onClick={() => selectSelfAction('reaction')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-rogue/10 hover:bg-cls-rogue/20 text-cls-rogue font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-rogue/30">
+                className={`${SELF_ACTION} bg-cls-rogue/10 hover:bg-cls-rogue/20 text-cls-rogue border-cls-rogue/30`}>
                 <ShieldAlert className="w-3.5 h-3.5" /> Reaction
               </button>
             )}
             <button onClick={() => selectSelfAction('condition')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-monk/30">
+              className={`${SELF_ACTION} bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk border-cls-monk/30`}>
               <Zap className="w-3.5 h-3.5" /> Add Condition
             </button>
             <button onClick={() => selectSelfAction('concentration')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-warlock/30">
+              className={`${SELF_ACTION} bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock border-cls-warlock/30`}>
               <Swords className="w-3.5 h-3.5" /> {myCharacter.concentrationSpell ? 'Change' : 'Set'} Concentration
             </button>
             {/* A druid in Wild Shape attacks with the beast's actions (PHB p.67) */}
             {myCharacter.wildShape && (
               <button onClick={() => setShowBeastActions(shown => !shown)} aria-expanded={showBeastActions}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-monster/10 hover:bg-monster/20 text-monster font-heading text-[11px] font-semibold tracking-[0.02em] border border-monster/30">
+                className={`${SELF_ACTION} bg-monster/10 hover:bg-monster/20 text-monster border-monster/30`}>
                 <Swords className="w-3.5 h-3.5" /> {myCharacter.wildShape.beastName} actions
               </button>
             )}
             {myCharacter.spellsKnown && (
               <button onClick={() => selectSelfAction('spell')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-ink/10 hover:bg-ink/20 text-ink font-heading text-[11px] font-semibold tracking-[0.02em] border border-ink/30">
+                className={`${SELF_ACTION} bg-ink/10 hover:bg-ink/20 text-ink border-ink/30`}>
                 <Sparkles className="w-3.5 h-3.5" /> Cast Spell
               </button>
             )}
@@ -375,7 +379,7 @@ function PlayerSessionView() {
                   </>
                 )}
                 trailing={isOwn ? <HpReadout participant={p} /> : (
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
                     <span className="text-faint font-body text-[15px] font-semibold">{isMonster ? 'Monster' : 'Player'}</span>
                     {monsterHealth && (
                       <span className="font-heading text-[13px] font-semibold text-muted">{monsterHealth}</span>
@@ -384,7 +388,7 @@ function PlayerSessionView() {
                         in their Reaction menu (D174) */}
                     {isActive && isMyTurn && p.lifeState !== 'DEAD' && (
                       <IconButton label="Attack" onClick={() => selectAttackTarget(p.id)}
-                        className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
+                        className="inline-flex items-center justify-center size-11 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
                         <Crosshair className="w-3.5 h-3.5" />
                       </IconButton>
                     )}
@@ -395,7 +399,7 @@ function PlayerSessionView() {
                 <ConditionChips
                   participant={p}
                   roundNumber={encounter.roundNumber}
-                  onRemove={isOwn && isActive ? c => { void actions.removeCondition(p.id, c.name); } : undefined}
+                  onRemove={isOwn && isActive ? c => actions.removeCondition(p.id, c.name) : undefined}
                 />
                 {/* The player directs their own Spell Effects on their turn, and may end them on any (M15) */}
                 <ActiveSpells

@@ -3264,3 +3264,24 @@ The plan's twelve questions were answered with its recommended answers when the 
 - **Backfill checks each choice on its own:** a choice now counts as made only if one of its own options is recorded, so an existing Kensei who picked a tool is still owed the weapon choices. `ProficiencyLists.weaponCategory` covers every PHB weapon, so martial weapon proficiency now counts for a longbow.
 - **Left open:** save proficiencies that fall back to another save (Samurai 7, Gloom Stalker 7), Scout's Expertise, the Nature Domain and Arcane Archer cantrips, and Purple Dragon Knight's Royal Envoy.
 - **Tests:** new `ConditionalGrants` and `Kensei` cases in `PendingChoiceServiceTest`, kensei lists in `ProficiencyListsTest` and `AttackFeaturesTest`, conditional and kensei cases in `PendingChoicesIT` (backfill included); 2,565 backend unit, 294 integration and 1,006 frontend. Not checked in a browser.
+
+## D181: Toasts, Connection State and Pending Controls (M6 polish)
+
+**Date:** 2026-11-09
+**Status:** Accepted — implemented (M6's frontend tasks); deployment stays in the Hosting step ([[#D154]])
+
+**Decision:** M6's three frontend tasks are done without new libraries.
+- **Toasts.** An in-house `ToastProvider` (`context/ToastContext.tsx`) inside `AuthProvider`, with `useToast()` giving show, error, success, info, dismiss and `errorFrom(err)` (through `apiErrorMessage`). Toasts stack at the bottom (full width on a phone), above dialogs through a portal, in theme tokens only ([[#D173]]); errors are `role="alert"` and stay 7 seconds, others `role="status"` for 4; at most four, and a repeated message restarts its timer. Rule: inline errors stay where they work; toasts are for failures that had nowhere to show (the encounter pages' damage, healing, conditions, concentration, death saves, slots, pause and Legendary Resistance; clipboard copies) and for successes with no visible change.
+- **Connection state.** `useWebSocket` reports connecting, connected, reconnecting or offline and offers `reconnect()`. It now notices the socket closing (the pages used to say "Live" after the network dropped), retries from 1 second doubling to 30, goes offline at once on the browser's `offline` event and reconnects on `online`, and stops for an ended session. Both encounter pages show the state in the header and a `ConnectionBanner` with "Retry now". Refetching the encounter after a reconnect and a fresh token per reconnect were already in place and gained tests. A failed combat log load now shows as an error.
+- **Pending controls.** A shared `Spinner`, a loading `Button`, and `usePending` (one request at a time, error left to the caller). Turn controls, pause, end, undo, Legendary Resistance, slot pips, condition chips, Protection, lair actions, Level Down, the hit-point form, the prepare toggle and the encounter builder's buttons wait for their answer, so a double click can't advance two turns or send two level-downs. The wizard's race, class and background steps show loading and errors with "Try again".
+- **Phone width.** Headers and control bars wrap, participant rows move HP and buttons to a second line, primary combat controls are at least 44px tall on phones, and dialogs fit `90dvh`.
+
+**Rationale:** M6's trigger (a full session at 5th level against CR 15 with little manual adjudication) is met by M13–M19; these were the remaining non-hosting tasks.
+
+**Trade-offs:** the resource pool buttons don't wait for their answer yet; deleting an encounter has no confirmation; checked by component tests and layout reading only, not on a real phone.
+
+**Key files:** `context/toast.ts`, `context/ToastContext.tsx`, `hooks/useToast.ts`, `hooks/usePending.ts`, `hooks/useWebSocket.ts`, `components/ui/Spinner.tsx`, `components/encounter/ConnectionStatus.tsx`, both `EncounterSessionPage.tsx`
+
+**Related:** D154, D171, D173
+
+**Tests:** new `ToastContext.test.tsx`, `EncounterConnection.test.tsx` and `PendingControls.test.tsx`, with cases on the DM session page, wizard and Button; 1,041 frontend tests after merging with the rules gaps. No backend change.

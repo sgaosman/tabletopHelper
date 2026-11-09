@@ -1,4 +1,5 @@
 import { createContext, useContext, type RefObject } from 'react';
+import type { ConnectionState } from '../hooks/useWebSocket';
 import type { CombatLogEntry } from '../types/combat';
 import type { Encounter, EncounterView } from '../types/encounter';
 
@@ -6,6 +7,10 @@ import type { Encounter, EncounterView } from '../types/encounter';
 export interface EncounterContextType {
   encounter: Encounter | null;
   isConnected: boolean;
+  /** Connected, or connecting for the first time, or trying again after a drop, or offline. */
+  connectionState: ConnectionState;
+  /** Tries to connect again now instead of waiting for the next retry. */
+  reconnect: () => void;
   error: string | null;
   sendMessage: (destination: string, body: unknown) => void;
 }

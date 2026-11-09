@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Copy, Check, Users, ScrollText, Settings, SlidersHorizontal, HeartPulse } from 'lucide-react';
 import { apiErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../hooks/useToast';
 import { useCampaign, useUpdateCampaignSettings } from '../../queries/campaigns';
 import { useCampaignCharacters, useReviveCharacter } from '../../queries/characters';
 import NavBar from '../../components/common/NavBar';
@@ -25,6 +26,7 @@ export default function CampaignDetailPage() {
   const updateSettings = useUpdateCampaignSettings();
   const revive = useReviveCharacter();
   const { user } = useAuth();
+  const toast = useToast();
   const [copiedCode, setCopiedCode] = useState(false);
   // The character whose DM Adjustments are open, read from the list so the dialog shows each change (D158)
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
@@ -32,26 +34,35 @@ export default function CampaignDetailPage() {
   const characters = charactersQuery.data;
   const adjusting = characters?.find(c => c.id === adjustingId);
 
-  function copyInviteCode() {
+  async function copyInviteCode() {
     if (!campaign) return;
-    navigator.clipboard.writeText(campaign.inviteCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+    try {
+      await navigator.clipboard.writeText(campaign.inviteCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      // The browser refused the clipboard: the code is still on screen to copy by hand
+      toast.error(`Could not copy the invite code. It is ${campaign.inviteCode}.`);
+    }
+  }
+
+  // A setting takes effect in the campaign's encounters, out of sight, so saving it says so; a failure shows under
+  // the settings
+  function saveSetting(settings: Parameters<typeof updateSettings.mutate>[0]['settings']) {
+    if (!campaign) return;
+    updateSettings.mutate({ campaignId: campaign.id, settings }, { onSuccess: () => toast.success('Campaign settings saved') });
   }
 
   function handleShowExactMonsterHp(showExactMonsterHp: boolean) {
-    if (!campaign) return;
-    updateSettings.mutate({ campaignId: campaign.id, settings: { showExactMonsterHp } });
+    saveSetting({ showExactMonsterHp });
   }
 
   function handlePromptPlayerRepeatSaves(promptPlayerRepeatSaves: boolean) {
-    if (!campaign) return;
-    updateSettings.mutate({ campaignId: campaign.id, settings: { promptPlayerRepeatSaves } });
+    saveSetting({ promptPlayerRepeatSaves });
   }
 
   function handleAllowPlayerManualModifiers(allowPlayerManualModifiers: boolean) {
-    if (!campaign) return;
-    updateSettings.mutate({ campaignId: campaign.id, settings: { allowPlayerManualModifiers } });
+    saveSetting({ allowPlayerManualModifiers });
   }
 
   function handleRevive(characterId: string) {
@@ -71,7 +82,7 @@ export default function CampaignDetailPage() {
     <div className="min-h-screen bg-page">
       <NavBar />
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-8">
           <h1 className="font-heading text-[19px] font-semibold tracking-[0.02em] text-ink mb-1">{campaign.name}</h1>
           {campaign.description && <p className="font-body text-[15px] font-semibold text-muted">{campaign.description}</p>}

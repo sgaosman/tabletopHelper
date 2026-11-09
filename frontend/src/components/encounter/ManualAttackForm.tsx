@@ -4,6 +4,7 @@ import type { AttackRollRequest } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
 import { DAMAGE_TYPES } from '../../utils/conditions';
 import IconButton from '../ui/IconButton';
+import { useToast } from '../../hooks/useToast';
 import { FIELD_LABEL } from './formStyles';
 
 // A new attack row: within 5 feet by default, since there is no map (D161). The DM's numbers entered by hand are
@@ -19,7 +20,7 @@ const TOGGLE_OFF = 'bg-page-alt text-muted border border-rule';
 /**
  * The DM's attacks entered by hand: up to five rows of attack bonus, damage dice and type, each with advantage,
  * a forced critical and whether it is made from within 5 feet. `onRoll` sends each complete row in turn; the rows
- * empty once they have all been sent.
+ * empty once they have all been sent. A failure shows as a toast and keeps the rows, so they can be sent again.
  */
 export default function ManualAttackForm({ target, onRoll }: {
   target: EncounterParticipant;
@@ -27,6 +28,7 @@ export default function ManualAttackForm({ target, onRoll }: {
 }) {
   const [attacks, setAttacks] = useState<AttackRow[]>([{ ...NEW_ATTACK }]);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   function updateAttack<K extends keyof AttackRow>(index: number, field: K, value: AttackRow[K]) {
     setAttacks(prev => prev.map((a, i) => i === index ? { ...a, [field]: value } : a));
@@ -63,16 +65,18 @@ export default function ManualAttackForm({ target, onRoll }: {
         }
       }
       setAttacks([{ ...NEW_ATTACK }]);
+    } catch (err: unknown) {
+      toast.errorFrom(err);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
       <div className="flex-1 space-y-2">
         {attacks.map((atk, i) => (
-          <div key={i} className="flex items-end gap-2">
+          <div key={i} className="flex flex-wrap items-end gap-2">
             <div className="w-20">
               {i === 0 && <label className={FIELD_LABEL}>Attack +</label>}
               <input type="number" value={atk.attackBonus} onChange={e => updateAttack(i, 'attackBonus', e.target.value)}

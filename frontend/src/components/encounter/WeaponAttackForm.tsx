@@ -416,7 +416,7 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
 
             {/* A magic weapon's bonus or other extra damage is a Manual Modifier, which the combat log notes (D164) */}
             {allowManualModifiers && !entered && (
-              <div className="flex items-end gap-2">
+              <div className="flex flex-wrap items-end gap-2">
                 <div className="w-20">
                   <label htmlFor={`extra-bonus-${i}`} className={LABEL}>Extra +</label>
                   <input id={`extra-bonus-${i}`} type="number" value={row.extraAttackBonus}

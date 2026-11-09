@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Check, ChevronLeft } from 'lucide-react';
 import { characterApi } from '../../api/characterApi';
+import { apiErrorMessage } from '../../api/errors';
+import Spinner from '../../components/ui/Spinner';
 import {
   backgroundsQuery, classesQuery, racesQuery, subclassesQuery, useBackgrounds, useClasses, useRaces, useStartingEquipment,
 } from '../../queries/reference';
@@ -61,9 +63,12 @@ export default function CharacterCreateWizard() {
   const [error, setError] = useState('');
   const [showDraftBanner, setShowDraftBanner] = useState(hasSavedDraft);
 
-  const races = useRaces().data ?? [];
-  const classes = useClasses().data ?? [];
-  const backgrounds = useBackgrounds().data ?? [];
+  const racesList = useRaces();
+  const classesList = useClasses();
+  const backgroundsList = useBackgrounds();
+  const races = racesList.data ?? [];
+  const classes = classesList.data ?? [];
+  const backgrounds = backgroundsList.data ?? [];
 
   // The chosen class's and background's starting equipment; one that can't load counts as none, so creation goes on
   const classKit = useStartingEquipment('classes', state.selectedClass?.id);
@@ -75,6 +80,11 @@ export default function CharacterCreateWizard() {
 
   const steps = wizardSteps(state);
   const stepName = currentStepName(state);
+  // The reference list the step picks from, which says while it loads or why it failed rather than show an empty list
+  const stepList = stepName === 'Race' ? { query: racesList, name: 'races' }
+    : stepName === 'Class' ? { query: classesList, name: 'classes' }
+    : stepName === 'Background' ? { query: backgroundsList, name: 'backgrounds' }
+    : null;
   const meaningful = hasMeaningfulData(state);
 
   // ── Draft persistence ──
@@ -194,6 +204,17 @@ export default function CharacterCreateWizard() {
       </div>
 
       <main className="max-w-3xl mx-auto px-6 py-8">
+        {stepList?.query.isPending && (
+          <div className="mb-4"><Spinner size="md" label={`Loading ${stepList.name}...`} /></div>
+        )}
+        {stepList?.query.isError && (
+          <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 bg-debuff-bg border border-debuff text-debuff px-4 py-3 font-body text-[15px] font-semibold">
+            <span className="flex-1 min-w-0">The {stepList.name} could not be loaded. {apiErrorMessage(stepList.query.error)}</span>
+            <button type="button" onClick={() => void stepList.query.refetch()} className="min-h-11 px-3 underline underline-offset-2 hover:no-underline">
+              Try again
+            </button>
+          </div>
+        )}
         {stepName === 'Basic Info' && <BasicInfoStep state={state} dispatch={dispatch} />}
         {stepName === 'Race' && <RaceStep races={races} state={state} dispatch={dispatch} />}
         {stepName === 'Ability Scores' && <AbilityScoresStep state={state} dispatch={dispatch} />}

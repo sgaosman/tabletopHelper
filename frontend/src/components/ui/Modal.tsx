@@ -47,7 +47,7 @@ export default function Modal({ title, subtitle, onClose, dismissible = true, si
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={`bg-card border border-rule w-full ${WIDTHS[size]} max-h-[90vh] flex flex-col shadow-lg focus:outline-none`}
+        className={`bg-card border border-rule w-full ${WIDTHS[size]} max-h-[90dvh] flex flex-col shadow-lg focus:outline-none`}
         onClick={e => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-rule flex items-center justify-between gap-3 shrink-0">

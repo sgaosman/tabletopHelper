@@ -46,6 +46,8 @@ export class MockStompClient {
   onConnect: frameCallbackType = () => {};
   onDisconnect: frameCallbackType = () => {};
   onStompError: frameCallbackType = () => {};
+  /** Runs whenever an open socket closes, however it closed, as the real client's does. */
+  onWebSocketClose: (event: CloseEvent) => void = () => {};
 
   connected = false;
   active = false;
@@ -76,7 +78,10 @@ export class MockStompClient {
     const wasConnected = this.connected;
     this.active = false;
     this.closeConnection();
-    if (wasConnected) this.onDisconnect(makeFrame('RECEIPT', {}, ''));
+    if (wasConnected) {
+      this.onDisconnect(makeFrame('RECEIPT', {}, ''));
+      this.socketClosed();
+    }
   }
 
   subscribe(destination: string, callback: messageCallbackType, headers: StompHeaders = {}): StompSubscription {
@@ -124,8 +129,26 @@ export class MockStompClient {
    * reconnects at once, and the promise settles when that attempt has finished.
    */
   async drop(): Promise<void> {
-    this.closeConnection();
+    this.goDown();
     if (this.active) await this.connect();
+  }
+
+  /**
+   * Closes the socket without a DISCONNECT and leaves it closed, as while the real client waits out its backoff
+   * before the next attempt. reconnectNow() makes that attempt.
+   */
+  goDown(): void {
+    this.closeConnection();
+    this.socketClosed();
+  }
+
+  /** The attempt after goDown(): an active client connects again, running beforeConnect first. */
+  async reconnectNow(): Promise<void> {
+    if (this.active && !this.connected) await this.connect();
+  }
+
+  private socketClosed() {
+    this.onWebSocketClose({ code: 1006, reason: '', wasClean: false } as CloseEvent);
   }
 
   private closeConnection() {

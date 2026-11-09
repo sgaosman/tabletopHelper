@@ -270,7 +270,8 @@ export default function CharacterSheetPage() {
   const hitPointAmountValid = hitPointValue !== undefined && !Number.isNaN(hitPointValue) && hitPointValue >= 1;
 
   async function handleHitPoints() {
-    if (!char || !hitPointDialog || !hitPointAmountValid || hitPointValue === undefined) return;
+    // Enter in the field sends too, so a change already on its way stops a second one
+    if (!char || !hitPointDialog || !hitPointAmountValid || hitPointValue === undefined || changeHitPoints.isPending) return;
     if (await runCommand(changeHitPoints.mutateAsync({
       characterId: char.id, change: { kind: hitPointDialog, amount: hitPointValue },
     }))) {
@@ -321,14 +322,16 @@ export default function CharacterSheetPage() {
   const currentChoice = choiceRun ? char.pendingChoices.find(choice => choice.id === choiceRun.current) : undefined;
 
   async function handleLevelDown() {
-    if (!characterId || !char) return;
-    setLevelDownConfirm(false);
+    if (!characterId || !char || levelDown.isPending) return;
     setError('');
     try {
+      // The dialog stays open, its button busy, until the level is gone
       const reverted = await levelDown.mutateAsync(characterId);
+      setLevelDownConfirm(false);
       setSuccess(`Reverted to level ${reverted.level}`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
+      setLevelDownConfirm(false);
       setError(apiErrorMessage(err));
     }
   }
@@ -351,7 +354,7 @@ export default function CharacterSheetPage() {
             <IconButton
               label="Level Down"
               onClick={() => setLevelDownConfirm(true)}
-              disabled={char.level <= 1 || waitingForEncounter || dead}
+              disabled={char.level <= 1 || waitingForEncounter || dead || levelDown.isPending}
               className="p-2 text-debuff hover:bg-page-alt transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronDown className="w-4 h-4" />
@@ -473,6 +476,8 @@ export default function CharacterSheetPage() {
             aria-label="Campaign"
             value={char.campaignId ?? ''}
             onChange={e => handleCampaignChange(e.target.value)}
+            disabled={setCampaign.isPending}
+            aria-busy={setCampaign.isPending || undefined}
             className="ml-2 px-2 py-1.5 bg-page-alt border border-rule font-body text-[14px] font-semibold text-muted focus:outline-none focus:border-muted shrink-0"
           >
             <option value="">No campaign</option>
@@ -546,10 +551,12 @@ export default function CharacterSheetPage() {
           title="Level Down"
           size="sm"
           onClose={() => setLevelDownConfirm(false)}
+          dismissible={!levelDown.isPending}
           footer={(
             <>
-              <Button variant="secondary" className="flex-1" onClick={() => setLevelDownConfirm(false)}>Cancel</Button>
-              <Button variant="danger" className="flex-1" onClick={handleLevelDown}>Remove Level</Button>
+              <Button variant="secondary" className="flex-1" onClick={() => setLevelDownConfirm(false)}
+                disabled={levelDown.isPending}>Cancel</Button>
+              <Button variant="danger" className="flex-1" onClick={handleLevelDown} loading={levelDown.isPending}>Remove Level</Button>
             </>
           )}
         >

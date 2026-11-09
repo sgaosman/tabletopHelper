@@ -213,7 +213,8 @@ export default function InlineMonsterActions({ participant, participants, isLair
                 onClick={() => {
                   if (!lairReady) return;
                   if (manual) {
-                    void execute(a.name, 'LAIR');
+                    // One lair action at a time, as the other execute buttons
+                    if (!executing) void execute(a.name, 'LAIR');
                   } else {
                     setSelectedAction(selectedAction?.name === a.name ? null : a);
                   }

@@ -18,6 +18,8 @@ import NavBar from '../../components/common/NavBar';
 import TieOrderArrows from '../../components/encounter/TieOrderArrows';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
 import IconButton from '../../components/ui/IconButton';
+import Spinner from '../../components/ui/Spinner';
+import { useToast } from '../../hooks/useToast';
 import { getClassColour, getParticipantColour } from '../../utils/classColours';
 import { formatClasses } from '../../utils/dndRules';
 
@@ -31,6 +33,7 @@ const STATUS_STYLES: Record<string, { text: string; bg: string; border: string }
 export default function EncounterBuilderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const campaignsQuery = useCampaigns();
   // null until the DM picks a campaign; a DM with only one starts on it
@@ -207,12 +210,23 @@ export default function EncounterBuilderPage() {
     if (deleted) setSelectedEncounterId(current => (current === encounter.id ? null : current));
   }
 
-  function copySessionCode() {
-    if (!selectedEncounter?.sessionCode) return;
-    navigator.clipboard.writeText(selectedEncounter.sessionCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+  async function copySessionCode() {
+    const code = selectedEncounter?.sessionCode;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      // The browser refused the clipboard: the code is still on screen to copy by hand
+      toast.error(`Could not copy the code. It is ${code}.`);
+    }
   }
+
+  // The builder's buttons wait while one of its changes is on its way, so a double click doesn't add, roll, start or
+  // delete twice
+  const builderBusy = addParticipant.isPending || removeParticipant.isPending || rollInitiatives.isPending
+    || startEncounter.isPending || deleteEncounter.isPending;
 
   const addedCharacterIds = new Set(
     selectedEncounter?.participants
@@ -363,7 +377,8 @@ export default function EncounterBuilderPage() {
                           <IconButton
                             label="Delete encounter"
                             onClick={() => handleDeleteEncounter(selectedEncounter)}
-                            className="p-2 text-faint hover:text-debuff transition-colors"
+                            disabled={builderBusy}
+                            className="p-2 text-faint hover:text-debuff transition-colors disabled:opacity-50"
                           >
                             <Trash2 className="w-4 h-4" />
                           </IconButton>
@@ -407,7 +422,7 @@ export default function EncounterBuilderPage() {
                                       </div>
                                       <button
                                         onClick={() => handleAddPlayer(c)}
-                                        disabled={unavailable}
+                                        disabled={unavailable || builderBusy}
                                         title={c.dead && !added ? 'Dead until you revive them on the campaign page' : undefined}
                                         className={`px-2.5 py-1 font-heading text-[11px] font-semibold tracking-[0.02em] border transition-colors ${
                                           unavailable
@@ -467,7 +482,8 @@ export default function EncounterBuilderPage() {
                                     />
                                     <button
                                       onClick={() => handleAddMonster(m)}
-                                      className="px-2.5 py-1 text-card font-heading text-[11px] font-semibold tracking-[0.02em]"
+                                      disabled={builderBusy}
+                                      className="px-2.5 py-1 text-card font-heading text-[11px] font-semibold tracking-[0.02em] disabled:opacity-50 disabled:cursor-wait"
                                       style={{ backgroundColor: 'var(--color-monster)' }}
                                     >
                                       Add
@@ -484,17 +500,19 @@ export default function EncounterBuilderPage() {
                           <div className="flex items-center gap-3 mb-6">
                             <button
                               onClick={handleRollInitiative}
-                              className="flex items-center gap-2 px-4 py-2 bg-page border border-rule font-body text-[15px] font-semibold text-ink hover:border-muted transition-colors"
+                              disabled={builderBusy}
+                              className="flex items-center gap-2 px-4 py-2 bg-page border border-rule font-body text-[15px] font-semibold text-ink hover:border-muted transition-colors disabled:opacity-50 disabled:cursor-wait"
                             >
-                              <Dice5 className="w-4 h-4 text-muted" /> Roll All Initiative
+                              {rollInitiatives.isPending ? <Spinner /> : <Dice5 className="w-4 h-4 text-muted" />} Roll All Initiative
                             </button>
                             <button
                               onClick={handleStartEncounter}
-                              disabled={!allHaveInitiative}
+                              disabled={!allHaveInitiative || builderBusy}
+                              aria-busy={startEncounter.isPending || undefined}
                               className="flex items-center gap-2 px-4 py-2 font-body text-[15px] font-semibold text-card transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               style={{ backgroundColor: 'var(--color-buff)' }}
                             >
-                              <Play className="w-4 h-4" /> Start Encounter
+                              {startEncounter.isPending ? <Spinner /> : <Play className="w-4 h-4" />} Start Encounter
                             </button>
                             {!allHaveInitiative && hasParticipants && (
                               <span className="font-body text-[14px] font-semibold" style={{ color: 'var(--color-hp-wounded)' }}>Set initiative for all participants before starting</span>
@@ -626,7 +644,8 @@ export default function EncounterBuilderPage() {
                                         <IconButton
                                           label={`Remove ${p.displayName}`}
                                           onClick={() => handleRemoveParticipant(p.id)}
-                                          className="text-faint hover:text-debuff transition-colors"
+                                          disabled={builderBusy}
+                                          className="text-faint hover:text-debuff transition-colors disabled:opacity-50"
                                         >
                                           <Trash2 className="w-4 h-4" />
                                         </IconButton>

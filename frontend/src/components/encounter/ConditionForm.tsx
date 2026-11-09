@@ -1,10 +1,11 @@
 import { useId, useState, type FormEvent } from 'react';
 import { ALL_CONDITIONS } from '../../utils/conditions';
+import { useToast } from '../../hooks/useToast';
 import { FIELD_LABEL, FIELD_INPUT, SUBMIT_BUTTON } from './formStyles';
 
 /**
  * Adds a condition, for a number of rounds or until removed. `onSubmit` sends it; the form empties once it
- * succeeds, and choosing no condition sends nothing.
+ * succeeds, and choosing no condition sends nothing. A failure shows as a toast and keeps what was chosen.
  */
 export default function ConditionForm({ onSubmit }: {
   onSubmit: (condition: string, durationRounds?: number) => Promise<unknown>;
@@ -13,6 +14,7 @@ export default function ConditionForm({ onSubmit }: {
   const [condition, setCondition] = useState('');
   const [duration, setDuration] = useState('');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -22,14 +24,16 @@ export default function ConditionForm({ onSubmit }: {
       await onSubmit(condition, duration ? parseInt(duration) : undefined);
       setCondition('');
       setDuration('');
+    } catch (err: unknown) {
+      toast.errorFrom(err);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-3">
-      <div className="flex-1">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
+      <div className="flex-1 min-w-40">
         <label htmlFor={`${id}-condition`} className={FIELD_LABEL}>Condition</label>
         <select id={`${id}-condition`} value={condition} onChange={e => setCondition(e.target.value)} className={FIELD_INPUT} autoFocus>
           <option value="">Select condition...</option>

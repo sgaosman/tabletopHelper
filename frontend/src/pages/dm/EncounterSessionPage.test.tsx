@@ -1163,3 +1163,67 @@ describe('DM EncounterSessionPage', () => {
     });
   });
 });
+
+describe('DM EncounterSessionPage while a change is on its way', () => {
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(encounterWith())));
+  });
+
+  it('sends Next Turn once for a double click, the controls waiting until it answers', async () => {
+    let advances = 0;
+    let answer!: () => void;
+    server.use(http.post('/api/encounters/:id/combat/turn/next', async () => {
+      advances += 1;
+      await new Promise<void>(resolve => { answer = resolve; });
+      return HttpResponse.json(makeMockEncounter({ roundNumber: 2, participants: [gimli(), goblin({ isCurrentTurn: true }), bugbear()] }));
+    }));
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    const next = screen.getByRole('button', { name: /Next Turn/ });
+    await user.dblClick(next);
+
+    await waitFor(() => expect(next).toBeDisabled());
+    expect(next).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: /Pause/ })).toBeDisabled();
+    expect(advances).toBe(1);
+
+    act(() => answer());
+    expect(await screen.findByText('Round 2 · 3/3 alive')).toBeInTheDocument();
+    expect(next).toBeEnabled();
+    expect(advances).toBe(1);
+  });
+
+  it('shows why Pause failed as a toast', async () => {
+    server.use(http.post('/api/encounters/:id/pause', () =>
+      HttpResponse.json({ error: 'The encounter is not active' }, { status: 409 })));
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    await user.click(screen.getByRole('button', { name: /Pause/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The encounter is not active');
+  });
+
+  it('shows why damage failed as a toast and keeps the amount', async () => {
+    server.use(http.post('/api/encounters/:id/combat/damage', () =>
+      HttpResponse.json({ error: 'Test Goblin is not in this encounter' }, { status: 400 })));
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    await user.click(screen.getAllByRole('button', { name: 'Deal damage' })[0]);
+    await user.type(screen.getByRole('spinbutton'), '4');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Test Goblin is not in this encounter');
+    expect(screen.getByRole('spinbutton')).toHaveValue(4);
+  });
+
+  it('gives the quick actions a 44px target on a phone', async () => {
+    await renderLoaded();
+    for (const button of screen.getAllByRole('button', { name: 'Deal damage' })) {
+      expect(button).toHaveClass('size-11', 'sm:size-auto');
+    }
+  });
+});

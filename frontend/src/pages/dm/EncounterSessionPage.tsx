@@ -24,7 +24,7 @@ import SpellSlotPips from '../../components/encounter/SpellSlotPips';
 import TurnEconomyBar from '../../components/encounter/TurnEconomyBar';
 import HpReadout from '../../components/encounter/HpReadout';
 import CombatLog from '../../components/encounter/CombatLog';
-import ConnectionStatus from '../../components/encounter/ConnectionStatus';
+import ConnectionStatus, { ConnectionBanner } from '../../components/encounter/ConnectionStatus';
 import ConditionForm from '../../components/encounter/ConditionForm';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import ManualAttackForm from '../../components/encounter/ManualAttackForm';
@@ -47,6 +47,14 @@ import {
   Plus, Minus, X, Zap, Crosshair, Sparkles, Trash2, Footprints, ShieldAlert, Undo2
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { usePending } from '../../hooks/usePending';
+import { useToast } from '../../hooks/useToast';
+
+// The row's quick actions: a 44px target on a phone, compact beside the row on a wider screen
+const QUICK_ACTION = 'inline-flex items-center justify-center size-11 sm:size-auto sm:p-1.5';
+
+// The encounter controls in the bar under the header, each at least 44px tall for a phone
+const CONTROL = 'flex items-center min-h-11 font-body text-[16px] font-semibold disabled:opacity-50 disabled:cursor-wait';
 
 type ActionMode = 'attack' | 'damage' | 'heal' | 'set-hp' | 'condition' | 'concentration' | 'spell'
   | 'standard' | 'reaction' | null;
@@ -66,7 +74,9 @@ function HpChangeForm({ target, mode }: { target: EncounterParticipant; mode: 'd
   const [damageType, setDamageType] = useState('');
   const [tempHp, setTempHp] = useState('');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
+  // A failure shows as a toast and keeps the amount, so it can be sent again
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (loading) return;
@@ -82,16 +92,18 @@ function HpChangeForm({ target, mode }: { target: EncounterParticipant; mode: 'd
       setAmount('');
       setDamageType('');
       setTempHp('');
+    } catch (err: unknown) {
+      toast.errorFrom(err);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
       {mode === 'set-hp' ? (
         <>
-          <div className="flex-1">
+          <div className="flex-1 min-w-32">
             <label htmlFor="set-hp-current" className={FIELD_LABEL}>HP (of {target.hpMax})</label>
             <input id="set-hp-current" type="number" min="0" max={target.hpMax ?? undefined} value={amount}
               onChange={e => setAmount(e.target.value)} className={FIELD_INPUT} autoFocus />
@@ -104,12 +116,12 @@ function HpChangeForm({ target, mode }: { target: EncounterParticipant; mode: 'd
         </>
       ) : (
         <>
-          <div className="flex-1">
+          <div className="flex-1 min-w-24">
             <label className={FIELD_LABEL}>Amount</label>
             <input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} className={FIELD_INPUT} autoFocus />
           </div>
           {mode === 'damage' && (
-            <div className="flex-1">
+            <div className="flex-1 min-w-32">
               <label className={FIELD_LABEL}>Type</label>
               <select value={damageType} onChange={e => setDamageType(e.target.value)} className={FIELD_INPUT}>
                 <option value="">&#8212;</option>
@@ -171,9 +183,13 @@ function ActionPanel({
 // ── DmSessionView ──────────────────────────────────────────────────────
 
 function DmSessionView() {
-  const { encounter, isConnected, error } = useEncounter();
+  const { encounter, connectionState, reconnect, error } = useEncounter();
   const logs = useCombatLog();
   const actions = useEncounterAction();
+  const toast = useToast();
+  // The turn and status controls send one change at a time, so a double click can't advance two turns
+  const controls = usePending();
+  const legendary = usePending();
   const navigate = useNavigate();
   const [copiedCode, setCopiedCode] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
@@ -209,19 +225,24 @@ function DmSessionView() {
     );
   }
 
-  function copySessionCode() {
+  async function copySessionCode() {
     if (!encounter?.sessionCode) return;
-    navigator.clipboard.writeText(encounter.sessionCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+    try {
+      await navigator.clipboard.writeText(encounter.sessionCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      // The browser refused the clipboard, such as on a page without permission: the code is still on screen
+      toast.error(`Could not copy the code. It is ${encounter.sessionCode}.`);
+    }
   }
 
-  async function handlePause() {
-    await actions.pause();
+  function handlePause() {
+    controls.run(() => actions.pause()).catch(toast.errorFrom);
   }
 
-  async function handleResume() {
-    await actions.resume();
+  function handleResume() {
+    controls.run(() => actions.resume()).catch(toast.errorFrom);
   }
 
   // Ending asks first, previewing what each character sheet takes (D166)
@@ -239,12 +260,12 @@ function DmSessionView() {
     }
   }
 
-  async function handleNextTurn() {
-    await attemptTurnChange(() => actions.nextTurn());
+  function handleNextTurn() {
+    void controls.run(() => attemptTurnChange(() => actions.nextTurn()));
   }
 
-  async function handlePrevTurn() {
-    await attemptTurnChange(() => actions.previousTurn());
+  function handlePrevTurn() {
+    void controls.run(() => attemptTurnChange(() => actions.previousTurn()));
   }
 
   async function handleSetVisibility(participantId: string, visible: boolean) {
@@ -325,8 +346,9 @@ function DmSessionView() {
   const legendaryResistance = (log: CombatLogEntry) =>
     isActive && log.legendaryResistanceEligible && !log.lrResolved && log.lrSuccessDamage != null && (
       <button
-        className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[11px] font-semibold tracking-[0.02em]"
-        onClick={() => { void actions.spendLegendaryResistance(log.id); }}
+        className="ml-2 px-2 py-0.5 bg-cls-monk hover:bg-cls-monk/90 text-card font-heading text-[11px] font-semibold tracking-[0.02em] disabled:opacity-50 disabled:cursor-wait"
+        disabled={legendary.pending}
+        onClick={() => { legendary.run(() => actions.spendLegendaryResistance(log.id)).catch(toast.errorFrom); }}
       >
         Use Legendary Resistance
       </button>
@@ -361,12 +383,12 @@ function DmSessionView() {
 
   return (
     <div className="min-h-screen bg-page">
-      <header className="sticky top-0 z-10 bg-page border-b border-rule px-6 py-3">
-        <div className="flex items-center justify-between">
-          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 text-muted hover:text-ink transition-colors font-body text-[16px] font-semibold">
+      <header className="sticky top-0 z-10 bg-page border-b border-rule">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3">
+          <button onClick={() => navigate('/dm/encounters')} className="flex items-center gap-2 min-h-11 text-muted hover:text-ink transition-colors font-body text-[16px] font-semibold">
             <ArrowLeft className="w-4 h-4" /> Builder
           </button>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {encounter.sessionCode && (
               <div className="flex items-center gap-2 bg-card border border-rule px-3 py-1.5">
                 <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted">Code:</span>
@@ -376,31 +398,32 @@ function DmSessionView() {
                 </IconButton>
               </div>
             )}
-            <ConnectionStatus isConnected={isConnected} />
+            <ConnectionStatus state={connectionState} />
           </div>
         </div>
+        <ConnectionBanner state={connectionState} onRetry={reconnect} />
       </header>
 
-      <main className="px-6 py-4">
+      <main className="px-4 sm:px-6 py-4">
         {error && <p className="text-debuff font-body text-[15px] font-semibold mb-4">{error}</p>}
 
         {/* Encounter info + controls bar */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="min-w-0">
             <h1 className="font-heading text-[20px] font-bold tracking-[0.02em] text-ink">{encounter.name}</h1>
             <p className="text-muted font-body text-[15px] font-semibold">
               Round {encounter.roundNumber} &middot; {encounter.participants.filter(p => p.lifeState !== 'DEAD').length}/{encounter.participants.length} alive
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isActive && (
               <>
                 {/* Undo takes back the newest command after asking; after Next Turn it restores what Previous can't */}
                 <IconButton
                   label={undo ? `Undo: ${undo.summary}` : 'Nothing to undo'}
                   onClick={() => setUndoSteps(1)}
-                  disabled={!undo}
-                  className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!undo || controls.pending}
+                  className={`${CONTROL} gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted disabled:cursor-not-allowed`}
                 >
                   <Undo2 className="w-4 h-4" />
                 </IconButton>
@@ -409,11 +432,13 @@ function DmSessionView() {
                     ? 'Previous turn (moves the marker only; Undo restores the turn Next Turn ended)'
                     : 'Previous turn'}
                   onClick={handlePrevTurn}
-                  className="flex items-center gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted font-body text-[16px] font-semibold"
+                  disabled={controls.pending}
+                  className={`${CONTROL} gap-1 px-3 py-2 bg-page-alt hover:bg-rule text-muted`}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </IconButton>
-                <button onClick={handleNextTurn} className="flex items-center gap-1.5 px-4 py-2 bg-ink hover:bg-ink/90 text-card font-body text-[16px] font-semibold">
+                <button onClick={handleNextTurn} disabled={controls.pending} aria-busy={controls.pending || undefined}
+                  className={`${CONTROL} gap-1.5 px-4 py-2 bg-ink hover:bg-ink/90 text-card`}>
                   Next Turn <ChevronRight className="w-4 h-4" />
                 </button>
               </>
@@ -421,17 +446,20 @@ function DmSessionView() {
             {/* Gold dark enough for the light text in every theme; the hover darkens, since fading the gold would not
                 read (WCAG AA) */}
             {encounter.status === 'ACTIVE' && (
-              <button onClick={handlePause} className="flex items-center gap-1.5 px-3 py-2 bg-cls-paladin hover:bg-cls-fighter text-card font-body text-[16px] font-semibold">
+              <button onClick={handlePause} disabled={controls.pending}
+                className={`${CONTROL} gap-1.5 px-3 py-2 bg-cls-paladin hover:bg-cls-fighter text-card`}>
                 <Pause className="w-4 h-4" /> Pause
               </button>
             )}
             {encounter.status === 'PAUSED' && (
-              <button onClick={handleResume} className="flex items-center gap-1.5 px-3 py-2 bg-buff hover:bg-buff/90 text-card font-body text-[16px] font-semibold">
+              <button onClick={handleResume} disabled={controls.pending}
+                className={`${CONTROL} gap-1.5 px-3 py-2 bg-buff hover:bg-buff/90 text-card`}>
                 <Play className="w-4 h-4" /> Resume
               </button>
             )}
             {(encounter.status === 'ACTIVE' || encounter.status === 'PAUSED') && (
-              <button onClick={handleEnd} className="flex items-center gap-1.5 px-3 py-2 bg-debuff hover:bg-debuff/90 text-card font-body text-[16px] font-semibold">
+              <button onClick={handleEnd} disabled={controls.pending}
+                className={`${CONTROL} gap-1.5 px-3 py-2 bg-debuff hover:bg-debuff/90 text-card`}>
                 <Flag className="w-4 h-4" /> End
               </button>
             )}
@@ -603,14 +631,14 @@ function DmSessionView() {
 
                       {/* Quick action buttons */}
                       {isActive && (
-                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        <div className="flex flex-wrap items-center gap-1 flex-shrink-0 sm:ml-2">
                           {/* Monster actions toggle (M12), and a druid in Wild Shape's beast actions (PHB p.67) */}
                           {(isMonster || p.wildShape) && (
                             <IconButton
                               label={isMonster ? 'Monster actions' : 'Beast actions'}
                               onClick={() => toggleMonsterActions(p.id)}
                               aria-expanded={expandedMonsterId === p.id}
-                              className={`p-1.5 ${expandedMonsterId === p.id ? 'bg-monster/20 text-monster' : 'bg-monster/10 hover:bg-monster/20 text-monster'}`}
+                              className={`${QUICK_ACTION} ${expandedMonsterId === p.id ? 'bg-monster/20 text-monster' : 'bg-monster/10 hover:bg-monster/20 text-monster'}`}
                             >
                               <Swords className="w-3.5 h-3.5" />
                             </IconButton>
@@ -618,52 +646,52 @@ function DmSessionView() {
                           {/* The dead can't be attacked, damaged or healed; Set HP / revive brings them back (D161) */}
                           {!isDead && (
                             <IconButton label="Attack roll" onClick={() => selectTarget(p.id, 'attack')}
-                              className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
+                              className={`${QUICK_ACTION} bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter`}>
                               <Crosshair className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
                           {!isDead && (
                             <IconButton label="Deal damage" onClick={() => selectTarget(p.id, 'damage')}
-                              className="p-1.5 bg-debuff/10 hover:bg-debuff/20 text-debuff">
+                              className={`${QUICK_ACTION} bg-debuff/10 hover:bg-debuff/20 text-debuff`}>
                               <Minus className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
                           {!isDead && (
                             <IconButton label="Heal" onClick={() => selectTarget(p.id, 'heal')}
-                              className="p-1.5 bg-buff/10 hover:bg-buff/20 text-buff">
+                              className={`${QUICK_ACTION} bg-buff/10 hover:bg-buff/20 text-buff`}>
                               <Plus className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
                           <IconButton label="Set HP / revive" onClick={() => selectTarget(p.id, 'set-hp')}
-                            className="p-1.5 bg-buff/10 hover:bg-buff/20 text-buff">
+                            className={`${QUICK_ACTION} bg-buff/10 hover:bg-buff/20 text-buff`}>
                             <HeartPulse className="w-3.5 h-3.5" />
                           </IconButton>
                           <IconButton label="Add condition" onClick={() => selectTarget(p.id, 'condition')}
-                            className="p-1.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk">
+                            className={`${QUICK_ACTION} bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk`}>
                             <Zap className="w-3.5 h-3.5" />
                           </IconButton>
                           {isUp && (
                             <IconButton label="Set concentration" onClick={() => selectTarget(p.id, 'concentration')}
-                              className="p-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock">
+                              className={`${QUICK_ACTION} bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock`}>
                               <Swords className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
                           {isUp && (
                             <IconButton label="Cast spell" onClick={() => selectTarget(p.id, 'spell')}
-                              className="p-1.5 bg-ink/10 hover:bg-ink/20 text-ink">
+                              className={`${QUICK_ACTION} bg-ink/10 hover:bg-ink/20 text-ink`}>
                               <Sparkles className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
                           {/* Dash, Dodge, Help and the rest, and object interactions (D174) */}
                           {isUp && (
                             <IconButton label={`Actions for ${p.displayName}`} onClick={() => selectTarget(p.id, 'standard')}
-                              className="p-1.5 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter">
+                              className={`${QUICK_ACTION} bg-cls-fighter/10 hover:bg-cls-fighter/20 text-cls-fighter`}>
                               <Footprints className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
                           {isUp && (
                             <IconButton label={`Reactions for ${p.displayName}`} onClick={() => selectTarget(p.id, 'reaction')}
-                              className="p-1.5 bg-cls-rogue/10 hover:bg-cls-rogue/20 text-cls-rogue">
+                              className={`${QUICK_ACTION} bg-cls-rogue/10 hover:bg-cls-rogue/20 text-cls-rogue`}>
                               <ShieldAlert className="w-3.5 h-3.5" />
                             </IconButton>
                           )}
@@ -675,7 +703,7 @@ function DmSessionView() {
                         <IconButton
                           label={`Remove ${p.displayName}`}
                           onClick={() => askToRemove(p)}
-                          className="p-1.5 flex-shrink-0 text-faint hover:text-debuff hover:bg-debuff/10"
+                          className={`${QUICK_ACTION} flex-shrink-0 text-faint hover:text-debuff hover:bg-debuff/10`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </IconButton>
@@ -698,7 +726,7 @@ function DmSessionView() {
                   <ConditionChips
                     participant={p}
                     roundNumber={encounter.roundNumber}
-                    onRemove={isActive ? c => { void actions.removeCondition(p.id, c.name); } : undefined}
+                    onRemove={isActive ? c => actions.removeCondition(p.id, c.name) : undefined}
                     showRepeatSave={isActive}
                   />
                   <ActiveSpells
@@ -718,8 +746,8 @@ function DmSessionView() {
                     <SpellSlotPips
                       slots={p.spellSlotsCurrent}
                       variant="row"
-                      onUse={isActive ? level => { void actions.spendSpellSlot(p.id, level); } : undefined}
-                      onRestore={isActive ? level => { void actions.restoreSpellSlot(p.id, level); } : undefined}
+                      onUse={isActive ? level => actions.spendSpellSlot(p.id, level) : undefined}
+                      onRestore={isActive ? level => actions.restoreSpellSlot(p.id, level) : undefined}
                     />
                   )}
 

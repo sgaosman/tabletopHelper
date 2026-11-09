@@ -2,6 +2,8 @@ import { Sparkles } from 'lucide-react';
 import type { EncounterParticipant } from '../../types/encounter';
 import IconButton from '../ui/IconButton';
 import { slotsLeft, slotTotal } from '../../utils/metamagic';
+import { usePending } from '../../hooks/usePending';
+import { useToast } from '../../hooks/useToast';
 
 type SpellSlots = NonNullable<EncounterParticipant['spellSlotsCurrent']>;
 
@@ -10,20 +12,31 @@ type SpellSlots = NonNullable<EncounterParticipant['spellSlotsCurrent']>;
  * initiative row (the DM's) or 'card' for a card of its own (the player's character). With `onUse` an unspent pip
  * spends its slot, and with `onRestore` a spent one restores it; pages pass them only while the encounter is Active,
  * and the slots are read-only otherwise (D166). Slots a sorcerer created with Flexible Casting (PHB p.101, M18) count
- * with the level's, and the total says how many were created.
+ * with the level's, and the total says how many were created. While a spend or restore is being sent the pips wait,
+ * so a second tap sends nothing, and a failure shows as a toast. On the card each pip is a 44px target for a phone.
  */
 export default function SpellSlotPips({ slots, variant, onUse, onRestore }: {
   slots: SpellSlots | null | undefined;
   variant: 'row' | 'card';
-  onUse?: (level: number) => void;
-  onRestore?: (level: number) => void;
+  onUse?: (level: number) => unknown;
+  onRestore?: (level: number) => unknown;
 }) {
+  const { pending, run } = usePending();
+  const toast = useToast();
   if (!slots) return null;
+
+  const send = (change: (level: number) => unknown, level: number) => {
+    run(async () => { await change(level); }).catch(toast.errorFrom);
+  };
   const levels = Object.keys(slots).sort((a, b) => parseInt(a) - parseInt(b));
   if (levels.length === 0) return null;
 
   const isCard = variant === 'card';
   const pipSize = isCard ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5';
+  // The card's pips sit in a 44px target; the DM's row keeps them small
+  const target = isCard ? 'size-11 -my-3 flex items-center justify-center' : `${pipSize} rounded-full border transition-colors`;
+  const pip = (look: string) => isCard ? <span aria-hidden="true" className={`${pipSize} rounded-full border transition-colors ${look}`} /> : null;
+  const rowLook = (look: string) => isCard ? '' : look;
 
   const list = levels.map(lvl => {
     const s = slots[lvl];
@@ -36,7 +49,7 @@ export default function SpellSlotPips({ slots, variant, onUse, onRestore }: {
         {isCard
           ? <span className="font-heading text-[12px] font-semibold tracking-[0.1em] uppercase text-muted w-6">Lv{lvl}</span>
           : <span className="font-heading text-[12px] font-semibold tracking-[0.1em] text-faint">{lvl}:</span>}
-        <div className={`flex ${isCard ? 'gap-1' : 'gap-0.5'}`}>
+        <div className={`flex ${isCard ? '' : 'gap-0.5'}`}>
           {Array.from({ length: total }).map((_, i) => {
             const unspent = i < remaining;
             if (!onUse) {
@@ -44,16 +57,22 @@ export default function SpellSlotPips({ slots, variant, onUse, onRestore }: {
             }
             if (unspent) {
               return (
-                <IconButton key={i} label={`Use level ${lvl} slot`} onClick={() => onUse(level)}
-                  className={`${pipSize} rounded-full border transition-colors bg-ink border-ink hover:bg-ink/80`} />
+                <IconButton key={i} label={`Use level ${lvl} slot`} onClick={() => send(onUse, level)} disabled={pending}
+                  className={`group ${target} ${rowLook('bg-ink border-ink hover:bg-ink/80 disabled:opacity-50')}`}>
+                  {pip('bg-ink border-ink group-hover:bg-ink/80 group-disabled:opacity-50')}
+                </IconButton>
               );
             }
             return onRestore ? (
-              <IconButton key={i} label={`Restore level ${lvl} slot`} onClick={() => onRestore(level)}
-                className={`${pipSize} rounded-full border transition-colors border-rule-light hover:border-ink`} />
+              <IconButton key={i} label={`Restore level ${lvl} slot`} onClick={() => send(onRestore, level)} disabled={pending}
+                className={`group ${target} ${rowLook('border-rule-light hover:border-ink disabled:opacity-50')}`}>
+                {pip('border-rule-light group-hover:border-ink group-disabled:opacity-50')}
+              </IconButton>
             ) : (
               <IconButton key={i} label={`Level ${lvl} slot used`} disabled
-                className={`${pipSize} rounded-full border transition-colors border-rule-light cursor-default`} />
+                className={`${target} ${rowLook('border-rule-light')} cursor-default`}>
+                {pip('border-rule-light')}
+              </IconButton>
             );
           })}
           {!onUse && !isCard && <span className="sr-only">{`${remaining} of ${total} left`}</span>}

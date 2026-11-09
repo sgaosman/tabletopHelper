@@ -15,6 +15,8 @@ import WildShapeStatus from './WildShapeStatus';
  * @param children under the name: conditions, spells, death saves and pools
  * @param trailing at the right: HP and AC, labels and buttons
  * @param onEndWildShape ends the druid's Wild Shape, for whoever may: the DM, or the druid's player
+ *
+ * On a phone the trailing part moves to a line of its own when it does not fit beside the name.
  */
 export default function ParticipantRow({
   participant: p, current, highlighted = false, leading, badges, children, trailing, onEndWildShape,
@@ -32,14 +34,14 @@ export default function ParticipantRow({
   return (
     <div
       aria-current={current ? 'step' : undefined}
-      className={`bg-card border border-l-[3px] px-4 py-3 transition-all ${
+      className={`bg-card border border-l-[3px] px-3 sm:px-4 py-3 transition-all ${
         current ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
         highlighted ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
         'border-t-rule border-r-rule border-b-rule'
       } ${p.lifeState !== 'ALIVE' ? 'opacity-60' : ''}`}
       style={{ borderLeftColor: getParticipantColour(isMonster, p.characterClass) }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2">
         <div className="w-5 flex-shrink-0">
           {current && <ChevronRight className="w-5 h-5 text-cls-fighter" />}
         </div>
@@ -50,8 +52,8 @@ export default function ParticipantRow({
 
         {leading}
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="grow shrink basis-48 min-w-0 sm:flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             <span className={`font-heading text-[15px] font-semibold tracking-[0.01em] text-ink ${p.lifeState === 'DEAD' ? 'line-through' : ''}`}>
               {p.displayName}
             </span>

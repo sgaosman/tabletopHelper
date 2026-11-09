@@ -108,13 +108,17 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
     .filter(([k]) => k.startsWith('pact_'))
     .sort((a, b) => parseInt(a[0].replace('pact_', '')) - parseInt(b[0].replace('pact_', '')));
 
+  // One slot change at a time, so a quick second tap can't spend or restore twice
+  const slotBusy = spendSlotCommand.isPending || restoreSlotCommand.isPending;
+
   function spendSlot(level: string) {
     const slot = spellSlots[level];
-    if (!slot || slotsLeft(slot) <= 0) return;
+    if (!slot || slotsLeft(slot) <= 0 || slotBusy) return;
     void runCommand(spendSlotCommand.mutateAsync({ characterId: char.id, slot: level }));
   }
 
   function restoreSlot(level: string) {
+    if (slotBusy) return;
     void runCommand(restoreSlotCommand.mutateAsync({ characterId: char.id, slot: level }));
   }
 
@@ -125,7 +129,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
   // Prepares or unprepares one of a class's spells, with the rest of the class's prepared spells as they are; the
   // server holds the class to its limit
   function togglePrepared(spell: SpellEntry) {
-    if (spell.alwaysPrepared || spell.level === 0 || !spell.source?.startsWith('class:')) return;
+    // The command sends the whole prepared list, so a second toggle waits for the first rather than overwrite it
+    if (spell.alwaysPrepared || spell.level === 0 || !spell.source?.startsWith('class:') || setPrepared.isPending) return;
     const prepared = taggedSpells
       .filter(s => s.source === spell.source && s.level > 0 && s.prepared && !s.alwaysPrepared && s.name !== spell.name)
       .map(s => s.name);
@@ -162,7 +167,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
             <IconButton
               label={spell.prepared ? `Unprepare ${spell.name}` : `Prepare ${spell.name}`}
               onClick={(e) => { e.stopPropagation(); togglePrepared(spell); }}
-              className={`w-3 h-3 rounded-full flex-shrink-0 border ${
+              disabled={setPrepared.isPending}
+              className={`w-3 h-3 rounded-full flex-shrink-0 border disabled:opacity-50 ${
                 spell.prepared ? 'bg-buff border-buff' : 'bg-transparent border-rule'
               }`}
             />
@@ -190,7 +196,9 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
               <div key={level} className="relative">
                 <button
                   onClick={() => spendSlot(level)}
-                  className="w-full bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors"
+                  disabled={slotBusy}
+                  aria-busy={slotBusy || undefined}
+                  className="w-full bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors disabled:opacity-60 disabled:cursor-wait"
                 >
                   <p className="font-heading text-[11px] font-semibold text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
                   <p className="font-heading text-[17px] font-bold text-ink">{slotsLeft(slot)}/{slotTotal(slot)}</p>
@@ -202,7 +210,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
                   <IconButton
                     label={`Get back a ${label === 'Pact Slots' ? 'pact' : `level ${displayLevel}`} slot`}
                     onClick={() => restoreSlot(level)}
-                    className="absolute top-1 right-1 p-0.5 text-faint hover:text-ink"
+                    disabled={slotBusy}
+                    className="absolute top-0 right-0 p-2 text-faint hover:text-ink disabled:opacity-50"
                   >
                     <Undo2 className="w-3 h-3" />
                   </IconButton>

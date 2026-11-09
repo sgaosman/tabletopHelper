@@ -5,6 +5,8 @@ import type { GlossaryEntry } from '../../types/reference';
 import RepeatSavePrompt from './RepeatSavePrompt';
 import { featureMarker } from '../../utils/classFeatures';
 import { useGlossary } from '../../hooks/useGlossary';
+import { usePending } from '../../hooks/usePending';
+import { useToast } from '../../hooks/useToast';
 
 const CHIP_BASE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5';
 const CHIP = `${CHIP_BASE} text-debuff bg-debuff-bg border border-debuff`;
@@ -16,14 +18,17 @@ const FEATURE_CHIP = `${CHIP_BASE} text-buff bg-buff-bg border border-buff`;
  * a button that removes its condition. `showRepeatSave` adds the DM's compact roll beside a condition whose Repeat
  * Save waits on a player (D162). A class feature in force, Raging or Reckless (M17), shows in the buff colours with
  * what it does. Without `onRemove`, a condition the Glossary defines is a button that opens its definition (M19).
+ * While a removal is being sent the chips wait, and a failed one shows as a toast.
  */
 export default function ConditionChips({ participant, roundNumber, onRemove, showRepeatSave = false }: {
   participant: EncounterParticipant;
   roundNumber: number;
-  onRemove?: (condition: ConditionEntry) => void;
+  onRemove?: (condition: ConditionEntry) => unknown;
   showRepeatSave?: boolean;
 }) {
   const glossary = useGlossary();
+  const { pending, run } = usePending();
+  const toast = useToast();
   const conditions = participant.activeConditions ?? [];
   if (conditions.length === 0) return null;
 
@@ -43,8 +48,9 @@ export default function ConditionChips({ participant, roundNumber, onRemove, sho
           <Fragment key={c.id}>
             {onRemove ? (
               <button
-                onClick={() => onRemove(c)}
-                className={`${chip} hover:opacity-75 cursor-pointer`}
+                onClick={() => { run(async () => { await onRemove(c); }).catch(toast.errorFrom); }}
+                disabled={pending}
+                className={`${chip} hover:opacity-75 cursor-pointer disabled:opacity-50 disabled:cursor-wait`}
                 title={`Click to remove ${c.name}${remaining != null ? ` (${remaining} rounds left)` : ''}${saveEnds}`}
               >
                 {label} <X className="w-2.5 h-2.5 inline" />

@@ -44,15 +44,19 @@ export default function ReactionMenu({
   const protects = (participant.fightingStyles ?? []).includes('Protection');
   const [protectedId, setProtectedId] = useState('');
   const [protectionError, setProtectionError] = useState('');
+  const [protecting, setProtecting] = useState(false);
 
   async function protect() {
-    if (!protectedId) return;
+    if (!protectedId || protecting) return;
     setProtectionError('');
+    setProtecting(true);
     try {
       await actions.protection({ participantId: participant.id, protectedId });
       onClose();
     } catch (err: unknown) {
       setProtectionError(apiErrorMessage(err));
+    } finally {
+      setProtecting(false);
     }
   }
 
@@ -103,8 +107,8 @@ export default function ReactionMenu({
             <p className="font-body text-[13px] font-semibold text-muted">
               With a shield, give disadvantage to an attack against a creature within 5 ft of you; the DM rolls it so.
             </p>
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-40">
                 <label htmlFor="protection-target" className={FIELD_LABEL}>Protect</label>
                 <select id="protection-target" value={protectedId} disabled={refused}
                   onChange={e => setProtectedId(e.target.value)} className={FIELD_INPUT}>
@@ -112,8 +116,9 @@ export default function ReactionMenu({
                   {targets.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}
                 </select>
               </div>
-              <button type="button" onClick={() => { void protect(); }} disabled={refused || !protectedId}
-                className="px-3 py-2 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-ink font-heading text-[12px] font-semibold tracking-[0.02em] border border-cls-fighter/30 disabled:opacity-50">
+              <button type="button" onClick={() => { void protect(); }} disabled={refused || !protectedId || protecting}
+                aria-busy={protecting || undefined}
+                className="min-h-11 px-3 py-2 bg-cls-fighter/10 hover:bg-cls-fighter/20 text-ink font-heading text-[12px] font-semibold tracking-[0.02em] border border-cls-fighter/30 disabled:opacity-50">
                 Use Protection
               </button>
             </div>

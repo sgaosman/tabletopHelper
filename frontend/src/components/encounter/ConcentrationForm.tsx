@@ -1,9 +1,10 @@
 import { useId, useState, type FormEvent } from 'react';
 import { FIELD_LABEL, FIELD_INPUT, SUBMIT_BUTTON } from './formStyles';
+import { useToast } from '../../hooks/useToast';
 
 /**
  * Sets the spell a participant concentrates on, or clears it when left blank. `onSubmit` sends it; the form empties
- * once it succeeds.
+ * once it succeeds. A failure shows as a toast.
  */
 export default function ConcentrationForm({ onSubmit }: {
   onSubmit: (spellName: string | null) => Promise<unknown>;
@@ -11,6 +12,7 @@ export default function ConcentrationForm({ onSubmit }: {
   const id = useId();
   const [spellName, setSpellName] = useState('');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -19,6 +21,8 @@ export default function ConcentrationForm({ onSubmit }: {
     try {
       await onSubmit(spellName || null);
       setSpellName('');
+    } catch (err: unknown) {
+      toast.errorFrom(err);
     } finally {
       setLoading(false);
     }

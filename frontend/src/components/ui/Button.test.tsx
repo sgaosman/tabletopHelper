@@ -51,6 +51,14 @@ describe('Button', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it('shows a spinner beside its label only while loading', () => {
+    const { container, rerender } = render(<Button loading>Saving...</Button>);
+    expect(container.querySelector('svg.animate-spin')).toBeInTheDocument();
+
+    rerender(<Button>Save</Button>);
+    expect(container.querySelector('svg.animate-spin')).not.toBeInTheDocument();
+  });
+
   it('is neither busy nor disabled when idle', () => {
     render(<Button>Save</Button>);
 

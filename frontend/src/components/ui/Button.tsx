@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react';
+import Spinner from './Spinner';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -35,6 +36,7 @@ export default function Button({
   type = 'button',
   disabled,
   className = '',
+  children,
   ...props
 }: ButtonProps) {
   return (
@@ -44,6 +46,9 @@ export default function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={`inline-flex items-center justify-center gap-2 border font-body font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
-    />
+    >
+      {loading && <Spinner />}
+      {children}
+    </button>
   );
 }

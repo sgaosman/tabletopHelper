@@ -22,7 +22,7 @@ export function EncounterProvider({ encounterId, view = 'player', children }: { 
   const encounterQuery = useQuery(liveEncounterQuery(encounterId, view, socketMessages));
   const logQuery = useQuery(liveCombatLogQuery(encounterId, view, socketMessages));
 
-  const { isConnected, sendMessage } = useWebSocket({
+  const { isConnected, connectionState, reconnect, sendMessage } = useWebSocket({
     encounterId,
     view,
     onStateUpdate: encounter => {
@@ -42,10 +42,13 @@ export function EncounterProvider({ encounterId, view = 'player', children }: { 
 
   const encounter = encounterQuery.data ?? null;
   const log = logQuery.data ?? NO_LOG;
-  const error = socketError ?? (encounterQuery.error ? apiErrorMessage(encounterQuery.error) : null);
+  // A combat log that failed to load would otherwise just look empty
+  const error = socketError
+    ?? (encounterQuery.error ? apiErrorMessage(encounterQuery.error) : null)
+    ?? (logQuery.error ? `The combat log could not be loaded. ${apiErrorMessage(logQuery.error)}` : null);
   const value = useMemo<LiveEncounter>(
-    () => ({ encounter, log, isConnected, error, sendMessage, encounterId, view, socketMessages }),
-    [encounter, log, isConnected, error, sendMessage, encounterId, view],
+    () => ({ encounter, log, isConnected, connectionState, reconnect, error, sendMessage, encounterId, view, socketMessages }),
+    [encounter, log, isConnected, connectionState, reconnect, error, sendMessage, encounterId, view],
   );
 
   return (

@@ -202,6 +202,44 @@ describe('CharacterCreateWizard drafts', () => {
     expect(created).toEqual(RESTORED_REQUEST);
   });
 
+  it('says while the races load, rather than show an empty list', async () => {
+    let release = () => {};
+    const loaded = new Promise<void>(resolve => { release = resolve; });
+    server.use(http.get('/api/reference/races', async () => {
+      await loaded;
+      return HttpResponse.json([human]);
+    }));
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.type(screen.getByPlaceholderText('Enter character name'), 'Pip');
+    await user.click(screen.getByRole('button', { name: /Next/ }));
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading races...');
+    release();
+    expect(await screen.findByRole('button', { name: /Human/ })).toBeInTheDocument();
+    expect(screen.queryByText('Loading races...')).not.toBeInTheDocument();
+  });
+
+  it('says why the races failed to load, and loads them again on request', async () => {
+    let attempts = 0;
+    server.use(http.get('/api/reference/races', () => {
+      attempts += 1;
+      return attempts === 1
+        ? HttpResponse.json({ error: 'Races are unavailable' }, { status: 503 })
+        : HttpResponse.json([human]);
+    }));
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.type(screen.getByPlaceholderText('Enter character name'), 'Pip');
+    await user.click(screen.getByRole('button', { name: /Next/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The races could not be loaded.');
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: /Human/ })).toBeInTheDocument();
+  });
+
   it('forgets the draft when it is discarded', async () => {
     const user = userEvent.setup();
     renderWizard();
