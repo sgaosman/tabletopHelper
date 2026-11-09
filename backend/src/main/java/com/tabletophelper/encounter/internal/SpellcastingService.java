@@ -4,6 +4,7 @@ import com.tabletophelper.campaign.AccessPolicy;
 import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.ClassSpellcasting;
+import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
@@ -450,14 +451,19 @@ public class SpellcastingService {
 
     /**
      * The numbers a spell is cast with (D164): a player character's class spell uses that class's, worked out from
-     * the live sheet as saves and resistances are; a race or feat spell, and a monster's, the caster's main ones,
-     * with its race and feat spellcasting ability or the monster's spellcasting ability.
+     * the live sheet as saves and resistances are, and a cantrip its subclass taught, such as a Nature Domain cleric's
+     * druid cantrip (PHB p.61), the subclass's class's when that class casts; a race or feat spell, a subclass cantrip
+     * of a class that doesn't cast, and a monster's, the caster's main ones, with its race and feat spellcasting
+     * ability or the monster's spellcasting ability.
      */
     private SpellNumbers numbers(EncounterParticipant caster, String origin) {
         PlayerCharacter character = caster.getCharacter();
-        if (character != null && origin != null && origin.startsWith(CLASS_ORIGIN)) {
-            Optional<ClassSpellcasting> casting =
-                    characterService.classSpellcasting(character, origin.substring(CLASS_ORIGIN.length()));
+        if (character != null && origin != null
+                && (origin.startsWith(CLASS_ORIGIN) || origin.startsWith(KnownSpell.SUBCLASS_SOURCE))) {
+            Optional<ClassSpellcasting> casting = origin.startsWith(CLASS_ORIGIN)
+                    ? characterService.classSpellcasting(character, origin.substring(CLASS_ORIGIN.length()))
+                    : characterService.subclassSpellcasting(character,
+                            origin.substring(KnownSpell.SUBCLASS_SOURCE.length()));
             if (casting.isPresent()) {
                 return new SpellNumbers(casting.get().spellAttackBonus(), casting.get().spellSaveDc(),
                         casting.get().ability());

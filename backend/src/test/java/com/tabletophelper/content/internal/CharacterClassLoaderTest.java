@@ -217,4 +217,73 @@ class CharacterClassLoaderTest {
                         + "\"tools\": [\"*artisan's tools\"]}}]")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("has level, which isn't one of");
     }
+
+    @Test
+    @DisplayName("The file's later grants, saving throws, Expertise and cantrips: a Samurai's and a Gloom Stalker's "
+            + "Wisdom saves or Intelligence or Charisma at 7th level (XGE p.31, p.41), a Purple Dragon Knight's "
+            + "Persuasion with Expertise at 7th (SCAG p.128), a Scout's Expertise (XGE p.47), and the cantrips of the "
+            + "Arcane Archer (XGE p.28), Path of the Giant (BGG p.11), Nature Domain (PHB p.61) and Circle of the "
+            + "Land (PHB p.68)")
+    void laterGrantsExpertiseAndCantrips() {
+        var rows = loader.subclassProficiencies(new LoadContext(objectMapper));
+
+        for (String key : new String[]{"Fighter|PHB|Samurai|XGE", "Ranger|PHB|Gloom Stalker|XGE"}) {
+            JsonNode conditional = json(rows.get(key)).path("conditional").get(0);
+            assertThat(conditional).isEqualTo(json(
+                    "{\"saves\": [\"WIS\"], \"level\": 7, \"otherwise\": {\"count\": 1, \"saves\": [\"INT\", \"CHA\"]}}"));
+        }
+        JsonNode envoy = json(rows.get("Fighter|PHB|Purple Dragon Knight (Banneret)|SCAG")).path("conditional").get(0);
+        assertThat(envoy.path("skills")).isEqualTo(json("[\"Persuasion\"]"));
+        assertThat(envoy.path("expertise").asBoolean()).isTrue();
+        assertThat(envoy.path("level").asInt()).isEqualTo(7);
+        assertThat(envoy.path("otherwise").path("skills")).hasSize(4);
+        JsonNode scout = json(rows.get("Rogue|PHB|Scout|XGE"));
+        assertThat(scout.path("expertise")).isEqualTo(json("[\"Nature\", \"Survival\"]"));
+
+        assertThat(json(rows.get("Fighter|PHB|Arcane Archer|XGE")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 1, \"spells\": [\"Prestidigitation\", \"Druidcraft\"]}]"));
+        assertThat(json(rows.get("Barbarian|PHB|Path of the Giant|BGG")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 1, \"spells\": [\"Druidcraft\", \"Thaumaturgy\"]}]"));
+        assertThat(json(rows.get("Cleric|PHB|Nature Domain|PHB")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 1, \"spellList\": \"Druid\"}]"));
+        assertThat(json(rows.get("Druid|PHB|Circle of the Land|PHB")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 1, \"spellList\": \"Druid\"}]"));
+    }
+
+    @Test
+    @DisplayName("A saving throw not abbreviated as the class data has it, Expertise in a skill the row doesn't grant "
+            + "or on a conditional language, a conditional level past 20, and a cantrip choice without a count or "
+            + "with both spells and a spell list are refused")
+    void badLaterGrantsExpertiseAndCantrips() {
+        assertThatThrownBy(() -> loader.conditionals("Key", json(
+                "[{\"saves\": [\"Wisdom\"], \"otherwise\": {\"count\": 1, \"saves\": [\"INT\"]}}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("names Wisdom, which isn't one of");
+        assertThatThrownBy(() -> loader.choices("Key", json("[{\"count\": 1, \"saves\": [\"int\"]}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("names int, which isn't one of");
+        assertThatThrownBy(() -> loader.expertise("Key", json("[\"Stealth\"]"), json("[\"Nature\"]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's expertise names Stealth, which isn't among the row's skills");
+        assertThatThrownBy(() -> loader.conditionals("Key", json(
+                "[{\"languages\": [\"Giant\"], \"expertise\": true, \"otherwise\": {\"count\": 1, "
+                        + "\"languages\": [\"*languages\"]}}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("expertise is true or false, and only for a skill");
+        assertThatThrownBy(() -> loader.conditionals("Key", json(
+                "[{\"saves\": [\"WIS\"], \"level\": 21, \"otherwise\": {\"count\": 1, \"saves\": [\"INT\"]}}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's conditional grant 1's level is a class level from 1 to 20");
+        assertThatThrownBy(() -> loader.cantrips("Key", json("[{\"spells\": [\"Druidcraft\"]}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's cantrip choice 1 has no count of 1 or more");
+        assertThatThrownBy(() -> loader.cantrips("Key", json(
+                "[{\"count\": 1, \"spells\": [\"Druidcraft\"], \"spellList\": \"Druid\"}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's cantrip choice 1 names either its spells or its spellList");
+        assertThatThrownBy(() -> loader.cantrips("Key", json("[{\"count\": 1}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's cantrip choice 1 names either its spells or its spellList");
+        assertThatThrownBy(() -> loader.cantrips("Key", json("[{\"count\": 1, \"spellList\": \"Druid\", "
+                + "\"level\": 3}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("has level, which isn't count");
+    }
 }

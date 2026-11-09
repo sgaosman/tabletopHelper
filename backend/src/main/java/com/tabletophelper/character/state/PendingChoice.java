@@ -24,15 +24,17 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param count          how many to choose: skills for Expertise, Metamagic options, proficiencies, cantrips, or
  *                       spells; 1 for the others
  * @param options        the fixed list it is chosen from, where it has one: the subclasses, the Fighting Styles, the
- *                       Metamagic options, or the feats a background offers; null for any, as an Ability Score Improvement's feat is
- * @param maxSpellLevel  for CANTRIPS 0, and for SPELLS the highest level of spell the class could learn at that class
+ *                       Metamagic options, the feats a background offers, or a SUBCLASS_CANTRIP's cantrips; null for
+ *                       any, as an Ability Score Improvement's feat is
+ * @param maxSpellLevel  for CANTRIPS and SUBCLASS_CANTRIP 0, and for SPELLS the highest level of spell the class could learn at that class
  *                       level, from its own table (PHB p.164)
  * @param swap           for SPELLS, true when the class may also replace one spell it knows with another, as a bard,
  *                       ranger, sorcerer, warlock, Eldritch Knight or Arcane Trickster may on gaining a level in the
  *                       class
  * @param spellList      for CANTRIPS and SPELLS, the spell list the class learns from, as the spells table names it:
  *                       the class's own, or "Wizard" for an Eldritch Knight or Arcane Trickster; null on a choice
- *                       made before R8, where it is the class's own unless the class is one of those two
+ *                       made before R8, where it is the class's own unless the class is one of those two; for a
+ *                       SUBCLASS_CANTRIP without options, the list its cantrip is chosen from, such as "Druid"
  * @param proficiencyOptions for PROFICIENCY, what may be chosen, by kind: the College of Lore's 18 skills (PHB p.54),
  *                       or the Cavalier's five skills and the languages (XGE p.30)
  * @param expertise      for PROFICIENCY, true when the skills chosen gain Expertise too, as the Knowledge Domain's do
@@ -91,6 +93,13 @@ public record PendingChoice(
          * on a later class level, as a Way of the Kensei monk's further kensei weapons (XGE p.34)
          */
         PROFICIENCY,
+        /**
+         * A cantrip a subclass lets the player choose when it is taken, owed on the level that records the subclass:
+         * from the choice's {@code options}, as an Arcane Archer's prestidigitation or druidcraft (XGE p.28), or from
+         * its {@code spellList}, as a Nature Domain cleric's druid cantrip (PHB p.61). Learned with the source
+         * "subclass:" and the subclass's name, it doesn't count against the class's cantrips known
+         */
+        SUBCLASS_CANTRIP,
         /** An Ability Score Improvement: +2 to one score or +1 to two, or a feat in its place */
         ASI,
         /** A feat a race or background gives at creation, such as a Variant Human's */

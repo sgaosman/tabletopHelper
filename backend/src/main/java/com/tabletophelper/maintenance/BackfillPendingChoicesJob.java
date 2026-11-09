@@ -18,7 +18,10 @@ import java.util.List;
  * level that gives it and records none, less the Expertise the sheet has that no level records, and a sorcerer's
  * Metamagic options at Sorcerer 3rd, 10th and 17th level when the level records none (M18), less the Metamagic
  * features the sheet has that no level records, and the bonus proficiencies a subclass lets the player choose, such
- * as the College of Lore's three skills (PHB p.54), when the level that records the subclass records none chosen.
+ * as the College of Lore's three skills (PHB p.54), when the level that records the subclass records none chosen, the
+ * choice owed instead of a conditional grant the sheet has that its level didn't give, such as a Fighter 7 Samurai's
+ * Intelligence or Charisma saving throws (XGE p.31), and a subclass's cantrip of the player's choice, such as an Arcane
+ * Archer's (XGE p.28), when the level records none.
  * Fighting Styles and known spells aren't backfilled. Each character that would gain choices is reported with each
  * choice, and one whose classes or subclasses can't be found is skipped with a warning. A second run adds nothing,
  * since the choices it added are pending. Dry run by default; {@code --maintenance.apply=true} writes.

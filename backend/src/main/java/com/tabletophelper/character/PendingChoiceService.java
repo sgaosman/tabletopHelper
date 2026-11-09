@@ -82,6 +82,7 @@ public class PendingChoiceService {
     private static final String FIGHTING_STYLE_FEATURES = "FightingStyle";
     private static final String FIGHTING_STYLE = "Fighting Style: ";
     private static final String METAMAGIC_FEATURES = "Metamagic";
+    private static final ProficienciesGained NO_PROFICIENCIES = new ProficienciesGained(null, null, null, null, null);
 
     private final CharacterCommands characterCommands;
     private final CharacterStats characterStats;
@@ -131,6 +132,7 @@ public class PendingChoiceService {
             case FIGHTING_STYLE -> applyFightingStyle(character, choice, index, request.getFightingStyle());
             case METAMAGIC -> applyMetamagic(character, choice, index, request.getMetamagic());
             case PROFICIENCY -> applyProficiencies(character, choice, index, request.getProficiencies());
+            case SUBCLASS_CANTRIP -> applySubclassCantrip(character, choice, index, request.getSpells());
             case CANTRIPS -> {
                 List<String> learned = spellService.learnCantrips(character, choice, request.getSpells());
                 CharacterUpdates.recordChoices(character, index, c -> c.withCantrips(
@@ -171,7 +173,7 @@ public class PendingChoiceService {
             case FIGHTING_STYLE -> List.of("fightingStyle");
             case METAMAGIC -> List.of("metamagic");
             case PROFICIENCY -> List.of("proficiencies");
-            case CANTRIPS -> List.of("spells");
+            case SUBCLASS_CANTRIP, CANTRIPS -> List.of("spells");
             case SPELLS -> List.of("spells", "swap");
         };
         given.forEach((field, value) -> {
@@ -360,7 +362,9 @@ public class PendingChoiceService {
         }
         CharacterUpdates.recordChoices(character, index, c -> c.withSubclass(
                 new SubclassChosen(classId, subclass.getId(), subclass.getName())));
-        List<SubclassProficiencies.Choice> otherwise = grantSubclassProficiencies(character, subclass, index);
+        int subclassLevel = subclassLevel(characterClass);
+        List<SubclassProficiencies.Choice> otherwise = grantSubclassProficiencies(character, subclass, subclassLevel,
+                index);
         // An Eldritch Knight or Arcane Trickster stores its Intelligence when the character has no spellcasting
         // ability yet, so a feat taken later that chooses another doesn't replace it (D159)
         if (isBlank(character.getSpellcastingAbility())
@@ -369,16 +373,19 @@ public class PendingChoiceService {
             storeClassSpellcastingAbility(character);
         }
 
-        int subclassLevel = subclassLevel(characterClass);
         int classLevel = MulticlassValidator.classLevels(character.getMulticlassEntries()).getOrDefault(classId, 0);
         List<PendingChoice> brought = new ArrayList<>(proficiencyChoices(otherwise, choice.characterLevel(), classId,
                 choice.className(), choice.classLevel(), choice.source()));
+        brought.addAll(cantripChoices(SubclassProficiencies.cantrips(objectMapper, subclass), choice.characterLevel(),
+                classId, choice.className(), choice.classLevel(), choice.source()));
         for (int level = Math.max(1, subclassLevel); level <= classLevel; level++) {
             int levelIndex = historyIndexOf(character, classId, choice.className(), level);
             if (levelIndex < 0) continue;
             int levelCharacterLevel = character.getLevelHistory().get(levelIndex).characterLevel();
             brought.addAll(proficiencyChoices(SubclassProficiencies.choicesAt(objectMapper, subclass, level,
                     subclassLevel), levelCharacterLevel, classId, choice.className(), level, choice.source()));
+            brought.addAll(proficiencyChoices(grantLaterProficiencies(character, subclass, level, subclassLevel,
+                    levelIndex), levelCharacterLevel, classId, choice.className(), level, choice.source()));
             List<LevelUpCalculator.FeatureEntry> features = LevelUpCalculator.collectFeaturesForLevel(objectMapper,
                     null, subclass.getFeatures(), level, choice.className(), subclass.getName());
             CharacterUpdates.appendFeatures(character, features);
@@ -609,6 +616,49 @@ public class PendingChoiceService {
                 .toList();
     }
 
+    // ── A subclass's cantrips of the player's choice ─────────────
+
+    /**
+     * A cantrip the subclass lets the player choose, such as an Arcane Archer's prestidigitation or druidcraft (XGE
+     * p.28), a Path of the Giant barbarian's druidcraft or thaumaturgy (BGG p.11), or a Nature Domain cleric's druid
+     * cantrip (PHB p.61), learned with the source "subclass:" and the subclass's name, so it doesn't count against the
+     * class's cantrips known, and recorded on the level's {@code subclassCantrips}, so levelling down forgets it.
+     */
+    private void applySubclassCantrip(PlayerCharacter character, PendingChoice choice, int index, List<String> picked) {
+        String subclassName = subclassNameOf(character, choice.classId());
+        if (subclassName == null) {
+            throw new ConflictException(character.getName() + "'s " + choice.className()
+                    + " has no subclass, so can't learn its cantrip");
+        }
+        List<String> learned = spellService.learnSubclassCantrips(character, choice, picked, subclassName);
+        CharacterUpdates.recordChoices(character, index, c -> c.withSubclassCantrips(
+                List.copyOf(CharacterUpdates.merged(c.subclassCantrips(), learned))));
+    }
+
+    // The subclass the character's class has, by name; null for none
+    private static String subclassNameOf(PlayerCharacter character, UUID classId) {
+        if (classId == null) return null;
+        for (ClassEntry entry : orEmpty(character.getMulticlassEntries())) {
+            if (entry != null && classId.equals(entry.classId()) && entry.subclassName() != null) {
+                return entry.subclassName();
+            }
+        }
+        if (character.getClassRef() != null && classId.equals(character.getClassRef().getId())) {
+            return character.getSubclass();
+        }
+        return null;
+    }
+
+    /** The SUBCLASS_CANTRIP choices owed for a subclass's cantrips of the player's choice, on the level given. */
+    private static List<PendingChoice> cantripChoices(List<SubclassProficiencies.CantripChoice> cantrips,
+                                                      int characterLevel, UUID classId, String className,
+                                                      Integer classLevel, Source source) {
+        return cantrips.stream()
+                .map(c -> new PendingChoice(UUID.randomUUID(), Type.SUBCLASS_CANTRIP, source, characterLevel, classId,
+                        className, classLevel, c.count(), c.spells(), 0, null, c.spellList()))
+                .toList();
+    }
+
     // ── The choices levels bring ─────────────────────────────────
 
     /**
@@ -641,16 +691,25 @@ public class PendingChoiceService {
             }
             Subclass subclass = subclassRepository.findById(entry.subclassId())
                     .orElseThrow(() -> new ValidationException("Subclass not found: " + entry.subclassId()));
-            List<SubclassProficiencies.Choice> otherwise = grantSubclassProficiencies(character, subclass, index);
+            List<SubclassProficiencies.Choice> otherwise = grantSubclassProficiencies(character, subclass,
+                    subclassLevel, index);
             if (index >= 0) {
-                owed.addAll(proficiencyChoices(otherwise, character.getLevelHistory().get(index).characterLevel(),
-                        entry.classId(), characterClass.getName(), subclassLevel, Source.CREATION));
+                int subclassCharacterLevel = character.getLevelHistory().get(index).characterLevel();
+                owed.addAll(proficiencyChoices(otherwise, subclassCharacterLevel, entry.classId(),
+                        characterClass.getName(), subclassLevel, Source.CREATION));
+                owed.addAll(cantripChoices(SubclassProficiencies.cantrips(objectMapper, subclass),
+                        subclassCharacterLevel, entry.classId(), characterClass.getName(), subclassLevel,
+                        Source.CREATION));
             }
             for (int level = Math.max(1, subclassLevel); level <= entry.level(); level++) {
                 int levelIndex = historyIndexOf(character, entry.classId(), characterClass.getName(), level);
                 if (levelIndex < 0) continue;
+                int levelCharacterLevel = character.getLevelHistory().get(levelIndex).characterLevel();
                 owed.addAll(proficiencyChoices(SubclassProficiencies.choicesAt(objectMapper, subclass, level,
-                                subclassLevel), character.getLevelHistory().get(levelIndex).characterLevel(),
+                                subclassLevel), levelCharacterLevel,
+                        entry.classId(), characterClass.getName(), level, Source.CREATION));
+                owed.addAll(proficiencyChoices(grantLaterProficiencies(character, subclass, level, subclassLevel,
+                                levelIndex), levelCharacterLevel,
                         entry.classId(), characterClass.getName(), level, Source.CREATION));
             }
         }
@@ -671,7 +730,8 @@ public class PendingChoiceService {
     /**
      * Adds the choices a level just gained owes, and the bonus proficiencies the class's subclass lets the player
      * choose at that class level after its subclass level, as a Way of the Kensei monk's kensei weapon at Monk 6, 11
-     * and 17 (XGE p.34).
+     * and 17 (XGE p.34). The subclass's conditional grants of that class level are given, recorded on the level, or
+     * owe their choice otherwise, as a Samurai's Wisdom saving throws at Fighter 7 (XGE p.31).
      */
     void owedAtLevelUp(PlayerCharacter character, CharacterClass levelClass, int characterLevel, int classLevel) {
         List<PendingChoice> pending = copy(character.getPendingChoices());
@@ -686,6 +746,9 @@ public class PendingChoiceService {
             pending.addAll(proficiencyChoices(SubclassProficiencies.choicesAt(objectMapper, subclass, classLevel,
                     subclassLevel), characterLevel, levelClass.getId(), levelClass.getName(), classLevel,
                     Source.LEVEL_UP));
+            pending.addAll(proficiencyChoices(grantLaterProficiencies(character, subclass, classLevel, subclassLevel,
+                    CharacterUpdates.historyIndex(character, characterLevel)), characterLevel, levelClass.getId(),
+                    levelClass.getName(), classLevel, Source.LEVEL_UP));
         }
         pending.sort(PendingChoices.ORDER);
         character.setPendingChoices(pending);
@@ -704,7 +767,8 @@ public class PendingChoiceService {
 
     // Reverses what a level's choices recorded: Expertise, the Ability Score Improvement by the amount applied (or,
     // for one recorded before R6, the amount requested), the feats a race or background gave, the cantrips and spells
-    // learned, and the subclass. A Fighting Style's feature goes with the level's features gained.
+    // learned, a subclass's cantrips, and the subclass. A Fighting Style's feature goes with the level's features
+    // gained.
     private void reverse(PlayerCharacter character, LevelHistoryEntry level) {
         LevelChoices choices = level.choices();
         if (choices == null) return;
@@ -736,6 +800,7 @@ public class PendingChoiceService {
         if (level.className() != null) {
             CharacterSpellService.forget(character, level.className(), choices.cantrips(), choices.spells());
         }
+        CharacterSpellService.forgetSubclassCantrips(character, choices.subclassCantrips());
         if (choices.subclass() != null) {
             UUID classId = choices.subclass().classId();
             CharacterUpdates.clearClassEntrySubclass(character, classId);
@@ -812,73 +877,162 @@ public class PendingChoiceService {
     // ── A subclass's bonus proficiencies ─────────────────────────
 
     /**
-     * Gives the character the bonus proficiencies the subclass grants that it lacks, such as a Life Domain's heavy
-     * armour (PHB p.60), and each conditional grant it lacks, such as an Alchemist's alchemist's supplies (TCE p.14),
-     * recorded on the level history entry at the index, the level that records the subclass, so levelling down past it
-     * takes them away with the subclass; recorded nowhere for an index below 0.
+     * Gives the character the bonus proficiencies the subclass grants on its subclass level that it lacks, such as a
+     * Life Domain's heavy armour (PHB p.60), each conditional grant of that level it lacks, such as an Alchemist's
+     * alchemist's supplies (TCE p.14), and Expertise in the skills it gives Expertise in, such as a Scout's Nature and
+     * Survival (XGE p.47), recorded on the level history entry at the index, the level that records the subclass, so
+     * levelling down past it takes them away with the subclass; recorded nowhere for an index below 0.
      *
      * @return the choices owed instead of the conditional grants the character has already, such as one other type of
      *         artisan's tools (TCE p.14) or one other language for a Path of the Giant barbarian who knows Giant (BGG
      *         p.11)
      */
     private List<SubclassProficiencies.Choice> grantSubclassProficiencies(PlayerCharacter character,
-                                                                          Subclass subclass, int index) {
+                                                                          Subclass subclass, int subclassLevel,
+                                                                          int index) {
+        return grant(character, SubclassProficiencies.of(objectMapper, subclass),
+                SubclassProficiencies.conditionalsAt(objectMapper, subclass, subclassLevel, subclassLevel),
+                SubclassProficiencies.expertise(objectMapper, subclass), index);
+    }
+
+    /**
+     * Gives the character the conditional grants the subclass gives at a class level after its subclass level that it
+     * lacks, such as a Samurai's Wisdom saving throws at Fighter 7 (XGE p.31) or a Purple Dragon Knight's Persuasion,
+     * with Expertise in Persuasion either way (SCAG p.128), recorded on the level history entry at the index, that class
+     * level's, so levelling down past it takes them away; nothing at the subclass level itself.
+     *
+     * @return the choices owed instead of the grants the character has already, such as Intelligence or Charisma
+     *         saving throws for a Samurai with Wisdom saving throws
+     */
+    private List<SubclassProficiencies.Choice> grantLaterProficiencies(PlayerCharacter character, Subclass subclass,
+                                                                       int classLevel, int subclassLevel, int index) {
+        if (classLevel == subclassLevel) return List.of();
+        return grant(character, NO_PROFICIENCIES,
+                SubclassProficiencies.conditionalsAt(objectMapper, subclass, classLevel, subclassLevel), List.of(),
+                index);
+    }
+
+    private static List<SubclassProficiencies.Choice> grant(PlayerCharacter character, ProficienciesGained fixed,
+                                                            List<SubclassProficiencies.Conditional> conditionals,
+                                                            List<String> expertise, int index) {
         ProficienciesGained held = SubclassProficiencies.sheet(character);
         List<SubclassProficiencies.Option> conditionalGrants = new ArrayList<>();
         List<SubclassProficiencies.Choice> otherwise = new ArrayList<>();
-        for (SubclassProficiencies.Conditional conditional : SubclassProficiencies.conditionals(objectMapper, subclass)) {
+        List<String> expert = new ArrayList<>(expertise);
+        for (SubclassProficiencies.Conditional conditional : conditionals) {
             if (SubclassProficiencies.holds(held, conditional.grant())) {
                 otherwise.add(conditional.otherwise());
             } else {
                 conditionalGrants.add(conditional.grant());
             }
+            if (conditional.expertise()) expert.add(conditional.grant().name());
         }
-        ProficienciesGained grants = SubclassProficiencies.plus(SubclassProficiencies.of(objectMapper, subclass),
+        ProficienciesGained grants = SubclassProficiencies.plus(fixed,
                 SubclassProficiencies.grants(conditionalGrants));
         CharacterUpdates.addProficiencies(character, index, SubclassProficiencies.missing(held, grants));
+        grantExpertise(character, index, expert);
         return otherwise;
     }
 
     /**
+     * Expertise in each of the skills that the character is proficient in and has no Expertise in yet, recorded on the
+     * level at the index as an EXPERTISE choice's is, so levelling down takes it away; recorded nowhere for an index
+     * below 0.
+     */
+    private static void grantExpertise(PlayerCharacter character, int index, List<String> skills) {
+        List<String> added = missingExpertise(character.getSkillProficiencies(), character.getSkillExpertises(),
+                skills);
+        if (added.isEmpty()) return;
+        character.setSkillExpertises(CharacterUpdates.merged(character.getSkillExpertises(), added));
+        if (index >= 0) CharacterUpdates.recordExpertise(character, index, added);
+    }
+
+    // The skills, as the proficiencies spell them, that are among the proficiencies and not the Expertise
+    private static List<String> missingExpertise(List<String> proficient, List<String> expert, List<String> skills) {
+        List<String> missing = new ArrayList<>();
+        for (String skill : distinct(skills)) {
+            String proficiency = orEmpty(proficient).stream()
+                    .filter(p -> p != null && p.trim().equalsIgnoreCase(skill)).findFirst().orElse(null);
+            if (proficiency == null || containsIgnoringCase(orEmpty(expert), skill)) continue;
+            missing.add(proficiency);
+        }
+        return missing;
+    }
+
+    /**
      * The bonus proficiencies the character's subclasses grant that its sheet lacks, as characters given a subclass
-     * before they were granted lack them, for the recompute-characters job; one entry per subclass with any missing.
-     * Changes nothing.
+     * before they were granted lack them, for the recompute-characters job: one entry per subclass with any missing on
+     * its subclass level, and one per later class level the character has whose conditional grants it lacks, such as a
+     * Fighter 7 Samurai's Wisdom saving throws (XGE p.31). The Expertise a subclass gives, such as a Scout's (XGE p.47)
+     * or a Purple Dragon Knight's Persuasion (SCAG p.128), is among them when a level records it, as levelling down
+     * takes it away there. Changes nothing.
      *
      * @throws ConflictException when a subclass the character has can't be found or read
      */
     public List<MissingSubclassProficiencies> missingSubclassProficiencies(PlayerCharacter character) {
         List<MissingSubclassProficiencies> found = new ArrayList<>();
         ProficienciesGained held = SubclassProficiencies.sheet(character);
+        List<String> expert = new ArrayList<>(orEmpty(character.getSkillExpertises()));
         for (ClassEntry entry : subclassEntries(character)) {
             Subclass subclass = subclassRepository.findById(entry.subclassId())
                     .orElseThrow(() -> new ConflictException("The subclass " + entry.subclassName() + " of "
                             + character.getName() + "'s " + entry.className() + " can't be found"));
+            Integer subclassLevel = subclass.getCharacterClass() != null
+                    ? subclassLevel(subclass.getCharacterClass()) : null;
             // A conditional grant the sheet lacks is granted too; one it has owes a choice instead, which the
-            // backfill-pending-choices job adds, so it is never granted twice over
-            List<SubclassProficiencies.Option> conditionalGrants = SubclassProficiencies
-                    .conditionals(objectMapper, subclass).stream()
-                    .map(SubclassProficiencies.Conditional::grant)
-                    .toList();
-            ProficienciesGained missing = SubclassProficiencies.missing(held, SubclassProficiencies.plus(
-                    SubclassProficiencies.of(objectMapper, subclass), SubclassProficiencies.grants(conditionalGrants)));
-            if (!CharacterUpdates.addedAny(missing)) continue;
-            held = SubclassProficiencies.plus(held, missing);
-            int index = subclassRecordIndex(character, entry.classId());
-            LevelHistoryEntry level = index >= 0 ? character.getLevelHistory().get(index) : null;
-            found.add(new MissingSubclassProficiencies(subclass.getName(), missing,
-                    SubclassProficiencies.describe(missing), level != null ? level.className() : null,
-                    level != null ? level.classLevel() : 0, index));
+            // backfill-pending-choices job adds, so it is never granted twice over. The subclass level's are under
+            // 0, and a later class level's under that level, when the character has it
+            Map<Integer, List<SubclassProficiencies.Conditional>> byLevel = new LinkedHashMap<>();
+            byLevel.put(0, new ArrayList<>());
+            for (SubclassProficiencies.Conditional conditional : SubclassProficiencies.conditionals(objectMapper,
+                    subclass)) {
+                boolean atSubclassLevel = conditional.level() == null || conditional.level().equals(subclassLevel);
+                if (!atSubclassLevel && conditional.level() > entry.level()) continue;
+                byLevel.computeIfAbsent(atSubclassLevel ? 0 : conditional.level(), level -> new ArrayList<>())
+                        .add(conditional);
+            }
+            for (Map.Entry<Integer, List<SubclassProficiencies.Conditional>> level : byLevel.entrySet()) {
+                boolean atSubclassLevel = level.getKey() == 0;
+                List<SubclassProficiencies.Conditional> conditionals = level.getValue();
+                ProficienciesGained fixed = atSubclassLevel ? SubclassProficiencies.of(objectMapper, subclass)
+                        : NO_PROFICIENCIES;
+                ProficienciesGained missing = SubclassProficiencies.missing(held, SubclassProficiencies.plus(fixed,
+                        SubclassProficiencies.grants(conditionals.stream()
+                                .map(SubclassProficiencies.Conditional::grant).toList())));
+                int index = atSubclassLevel ? subclassRecordIndex(character, entry.classId())
+                        : historyIndexOf(character, entry.classId(), entry.className(), level.getKey());
+                List<String> skills = new ArrayList<>(atSubclassLevel
+                        ? SubclassProficiencies.expertise(objectMapper, subclass) : List.of());
+                conditionals.stream().filter(SubclassProficiencies.Conditional::expertise)
+                        .forEach(conditional -> skills.add(conditional.grant().name()));
+                // Expertise only where a level records it, as the backfill would otherwise count it against a
+                // class's own Expertise choices
+                List<String> expertise = index >= 0 ? missingExpertise(SubclassProficiencies.plus(held,
+                        missing).skills(), expert, skills) : List.of();
+                if (!CharacterUpdates.addedAny(missing) && expertise.isEmpty()) continue;
+                held = SubclassProficiencies.plus(held, missing);
+                expert.addAll(expertise);
+                LevelHistoryEntry recorded = index >= 0 ? character.getLevelHistory().get(index) : null;
+                String description = SubclassProficiencies.describe(missing);
+                if (!expertise.isEmpty()) {
+                    description += (description.isEmpty() ? "" : "; ") + "expertise " + String.join(", ", expertise);
+                }
+                found.add(new MissingSubclassProficiencies(subclass.getName(), missing, description,
+                        recorded != null ? recorded.className() : null, recorded != null ? recorded.classLevel() : 0,
+                        index, expertise));
+            }
         }
         return found;
     }
 
     /**
-     * Gives the character what {@link #missingSubclassProficiencies} finds, each recorded on the level that records
-     * its subclass when the history has one, for the recompute-characters job; the caller saves the character.
+     * Gives the character what {@link #missingSubclassProficiencies} finds, each recorded on its level when the history
+     * has one, for the recompute-characters job; the caller saves the character.
      */
     public void storeMissingSubclassProficiencies(PlayerCharacter character) {
         for (MissingSubclassProficiencies missing : missingSubclassProficiencies(character)) {
             CharacterUpdates.addProficiencies(character, missing.levelIndex(), missing.missing());
+            grantExpertise(character, missing.levelIndex(), missing.expertise());
         }
     }
 
@@ -892,9 +1046,17 @@ public class PendingChoiceService {
      * @param classLevel   that level's class level; 0 when no level records the subclass
      * @param levelIndex   that level's place in the level history; below 0 when none, so levelling down won't take
      *                     them away
+     * @param expertise    the skills the sheet lacks Expertise in, given only when a level records them
      */
     public record MissingSubclassProficiencies(String subclassName, ProficienciesGained missing, String description,
-                                               String className, int classLevel, int levelIndex) {
+                                               String className, int classLevel, int levelIndex,
+                                               List<String> expertise) {
+
+        /** Missing proficiencies with no Expertise. */
+        public MissingSubclassProficiencies(String subclassName, ProficienciesGained missing, String description,
+                                            String className, int classLevel, int levelIndex) {
+            this(subclassName, missing, description, className, classLevel, levelIndex, List.of());
+        }
 
         /** Whether a level records them, so levelling down past it takes them away. */
         public boolean recorded() {
@@ -1014,7 +1176,8 @@ public class PendingChoiceService {
             List<SubclassProficiencies.Choice> choices = SubclassProficiencies.choices(objectMapper, subclass);
             List<SubclassProficiencies.Conditional> conditionals =
                     SubclassProficiencies.conditionals(objectMapper, subclass);
-            if (choices.isEmpty() && conditionals.isEmpty()) continue;
+            List<SubclassProficiencies.CantripChoice> cantrips = SubclassProficiencies.cantrips(objectMapper, subclass);
+            if (choices.isEmpty() && conditionals.isEmpty() && cantrips.isEmpty()) continue;
             Integer subclassLevel = subclass.getCharacterClass() != null
                     ? subclassLevel(subclass.getCharacterClass()) : null;
             int recordIndex = subclassRecordIndex(character, entry.classId());
@@ -1025,14 +1188,13 @@ public class PendingChoiceService {
                 for (SubclassProficiencies.Choice choice : choices) {
                     if (choice.level() == null) missed.addAll(missedProficiencyChoice(level, choice, pending));
                 }
+                missed.addAll(missedCantripChoices(level, cantrips, pending));
             }
             if (recordIndex >= 0) {
                 LevelHistoryEntry level = history.get(recordIndex);
-                ProficienciesGained given = level.proficienciesGained();
                 for (SubclassProficiencies.Conditional conditional : conditionals) {
-                    boolean givenThere = given != null && SubclassProficiencies.holds(given, conditional.grant());
-                    if (SubclassProficiencies.holds(held, conditional.grant()) && !givenThere) {
-                        missed.addAll(missedProficiencyChoice(level, conditional.otherwise(), pending));
+                    if (conditional.level() == null || conditional.level().equals(subclassLevel)) {
+                        missed.addAll(missedOtherwise(level, conditional, held, pending));
                     }
                 }
             }
@@ -1045,9 +1207,38 @@ public class PendingChoiceService {
                         missed.addAll(missedProficiencyChoice(history.get(levelIndex), choice, pending));
                     }
                 }
+                // A later class level's grant: the level is that class level's, so it is told apart either way
+                for (SubclassProficiencies.Conditional conditional : conditionals) {
+                    if (conditional.level() != null && conditional.level() == classLevel) {
+                        missed.addAll(missedOtherwise(history.get(levelIndex), conditional, held, pending));
+                    }
+                }
             }
         }
         return missed;
+    }
+
+    // The choice owed instead of a conditional grant the sheet has that the level didn't give
+    private static List<PendingChoice> missedOtherwise(LevelHistoryEntry level,
+                                                       SubclassProficiencies.Conditional conditional,
+                                                       ProficienciesGained held, List<PendingChoice> pending) {
+        ProficienciesGained given = level.proficienciesGained();
+        boolean givenThere = given != null && SubclassProficiencies.holds(given, conditional.grant());
+        if (!SubclassProficiencies.holds(held, conditional.grant()) || givenThere) return List.of();
+        return missedProficiencyChoice(level, conditional.otherwise(), pending);
+    }
+
+    // The subclass's cantrip choices owed on the level, unless the level records its cantrips chosen or one is pending
+    // there
+    private static List<PendingChoice> missedCantripChoices(LevelHistoryEntry level,
+                                                            List<SubclassProficiencies.CantripChoice> cantrips,
+                                                            List<PendingChoice> pending) {
+        boolean made = level.choices() != null && level.choices().subclassCantrips() != null;
+        if (cantrips.isEmpty() || made || isPending(pending, Type.SUBCLASS_CANTRIP, level.characterLevel())) {
+            return List.of();
+        }
+        return cantripChoices(cantrips, level.characterLevel(), level.classId(), level.className(),
+                level.classLevel(), Source.LEVEL_UP);
     }
 
     // The choice owed on the level, unless the level records one of its options chosen or it is pending there

@@ -254,6 +254,9 @@ final class CharacterUpdates {
         if (gained.languages() != null && !gained.languages().isEmpty()) {
             character.setLanguageProficiencies(without(character.getLanguageProficiencies(), gained.languages()));
         }
+        if (gained.saves() != null && !gained.saves().isEmpty()) {
+            character.setSavingThrowProficiencies(without(character.getSavingThrowProficiencies(), gained.saves()));
+        }
     }
 
     /**
@@ -270,6 +273,9 @@ final class CharacterUpdates {
         character.setToolProficiencies(merged(character.getToolProficiencies(), orEmpty(added.tools())));
         character.setSkillProficiencies(merged(character.getSkillProficiencies(), orEmpty(added.skills())));
         character.setLanguageProficiencies(merged(character.getLanguageProficiencies(), orEmpty(added.languages())));
+        if (nonEmpty(added.saves()) != null) {
+            character.setSavingThrowProficiencies(merged(character.getSavingThrowProficiencies(), added.saves()));
+        }
         if (index < 0) {
             return;
         }
@@ -281,7 +287,8 @@ final class CharacterUpdates {
                 nonEmpty(merged(recorded.weapons(), orEmpty(added.weapons()))),
                 nonEmpty(merged(recorded.tools(), orEmpty(added.tools()))),
                 nonEmpty(merged(recorded.skills(), orEmpty(added.skills()))),
-                nonEmpty(merged(recorded.languages(), orEmpty(added.languages()))));
+                nonEmpty(merged(recorded.languages(), orEmpty(added.languages()))),
+                nonEmpty(merged(recorded.saves(), orEmpty(added.saves()))));
         history.set(index, entry.withProficienciesGained(combined));
         character.setLevelHistory(history);
     }
@@ -397,7 +404,7 @@ final class CharacterUpdates {
     static boolean addedAny(ProficienciesGained gained) {
         return gained != null && (nonEmpty(gained.armor()) != null || nonEmpty(gained.weapons()) != null
                 || nonEmpty(gained.tools()) != null || nonEmpty(gained.skills()) != null
-                || nonEmpty(gained.languages()) != null);
+                || nonEmpty(gained.languages()) != null || nonEmpty(gained.saves()) != null);
     }
 
     static <T> List<T> copy(List<T> list) {

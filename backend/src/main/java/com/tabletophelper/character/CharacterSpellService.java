@@ -46,6 +46,7 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
 public class CharacterSpellService {
 
     private static final String WIZARD = "Wizard";
+    private static final String SUBCLASS_SOURCE = KnownSpell.SUBCLASS_SOURCE;
     private static final TypeReference<List<String>> CLASS_LISTS = new TypeReference<>() {};
 
     private final CharacterCommands characterCommands;
@@ -286,6 +287,76 @@ public class CharacterSpellService {
             }
         }
         character.setSpellsKnown(known);
+    }
+
+    /**
+     * Learns the cantrips a SUBCLASS_CANTRIP choice owes: as many as it counts, each one of its options, or for a
+     * choice without options one on its spell list, such as a Nature Domain cleric's druid cantrip (PHB p.61), that the
+     * character doesn't know already from any source, or with fewer such options left than the count, all of those.
+     * They are known with the source "subclass:" and the subclass's name, so they don't count against the class's
+     * cantrips known. The caller records them on the choice's level, so levelling down past it forgets them.
+     *
+     * @return the cantrips learned, by name
+     * @throws ValidationException for another number of cantrips, or one the choice doesn't offer
+     */
+    List<String> learnSubclassCantrips(PlayerCharacter character, PendingChoice choice, List<String> names,
+                                       String subclassName) {
+        List<String> chosen = distinct(orEmpty(names));
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        List<Spell> cantrips = new ArrayList<>();
+        for (String name : chosen) {
+            Spell spell = spellRepository.findByNameIgnoreCase(name.trim())
+                    .orElseThrow(() -> new ValidationException("There is no spell called " + name.trim()));
+            if (spell.getLevel() != 0) {
+                throw new ValidationException(spell.getName() + " is a level " + spell.getLevel()
+                        + " spell, not a cantrip");
+            }
+            if (choice.options() != null) {
+                if (choice.options().stream().noneMatch(option -> key(option).equals(key(spell.getName())))) {
+                    throw new ValidationException("Choose from " + String.join(", ", choice.options()) + ", not "
+                            + spell.getName());
+                }
+            } else if (choice.spellList() != null && !classLists(spell).contains(choice.spellList())) {
+                throw new ValidationException(spell.getName() + " isn't on the " + choice.spellList() + " spell list");
+            }
+            if (knows(known, spell.getName())) {
+                throw new ValidationException(character.getName() + " already knows " + spell.getName());
+            }
+            cantrips.add(spell);
+        }
+        int needed = choice.options() != null
+                ? (int) Math.min(choice.count(), choice.options().stream().filter(o -> !knows(known, o)).count())
+                : choice.count();
+        if (cantrips.size() != needed) {
+            throw new ValidationException("Choose " + needed + " cantrip" + (needed == 1 ? "" : "s") + ", not "
+                    + cantrips.size());
+        }
+        String source = SUBCLASS_SOURCE + subclassName;
+        cantrips.forEach(spell -> known.add(new KnownSpell(null, spell.getName(), 0, source, null, null, null, null,
+                null)));
+        character.setSpellsKnown(known);
+        return cantrips.stream().map(Spell::getName).toList();
+    }
+
+    /**
+     * Forgets the cantrips a level's SUBCLASS_CANTRIP choices taught, as levelling down past the level does: the
+     * subclass entries of those names.
+     */
+    static void forgetSubclassCantrips(PlayerCharacter character, List<String> cantrips) {
+        if (cantrips == null || cantrips.isEmpty()) {
+            return;
+        }
+        List<String> keys = cantrips.stream().filter(Objects::nonNull).map(CharacterSpellService::key).toList();
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        known.removeIf(spell -> spell.source() != null && spell.source().startsWith(SUBCLASS_SOURCE)
+                && spell.level() == 0 && spell.name() != null && keys.contains(key(spell.name())));
+        character.setSpellsKnown(known);
+    }
+
+    // Whether the character knows a spell of that name, from any source
+    private static boolean knows(List<KnownSpell> known, String name) {
+        String wanted = key(name);
+        return known.stream().anyMatch(spell -> spell.name() != null && key(spell.name()).equals(wanted));
     }
 
     /**

@@ -116,4 +116,28 @@ describe('ProficiencyChoiceModal', () => {
     await user.click(screen.getByRole('button', { name: 'Skip' }));
     expect(onSkip).toHaveBeenCalled();
   });
+
+  it("offers a Samurai with Wisdom saves Intelligence or Charisma by name, sending the abbreviation (XGE p.31)", async () => {
+    let applied: unknown;
+    server.use(http.post('/api/characters/:id/apply-choices', async ({ request }) => {
+      applied = await request.json();
+      return HttpResponse.json({ ...character, pendingChoices: [] });
+    }));
+    const samurai = { ...character, savingThrowProficiencies: ['STR', 'CON', 'WIS'] };
+    const courtier = makeMockPendingChoice({
+      id: 'choice-courtier', type: 'PROFICIENCY', className: 'Fighter', classLevel: 7, characterLevel: 7,
+      proficiencyOptions: { saves: ['INT', 'CHA'] },
+    });
+    const onComplete = vi.fn();
+    render(<ProficiencyChoiceModal character={samurai} choice={courtier} onComplete={onComplete} onSkip={() => {}}
+      onClose={() => {}} />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('heading', { name: 'Saving Throws' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Charisma/ }));
+    await user.click(screen.getByRole('button', { name: 'Confirm (1/1)' }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    expect(applied).toEqual({ choiceId: 'choice-courtier', proficiencies: ['CHA'] });
+  });
 });

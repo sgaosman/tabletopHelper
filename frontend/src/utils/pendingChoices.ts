@@ -6,6 +6,7 @@ const TITLES: Record<PendingChoiceType, string> = {
   FIGHTING_STYLE: 'Fighting Style',
   METAMAGIC: 'Metamagic',
   PROFICIENCY: 'Proficiencies',
+  SUBCLASS_CANTRIP: 'Subclass Cantrip',
   ASI: 'Ability Score Improvement',
   FEAT: 'Feat',
   EXPERTISE: 'Expertise',
@@ -29,7 +30,7 @@ export function isSpellbookChoice(choice: PendingChoice): boolean {
 }
 
 /** A kind of proficiency a subclass's PROFICIENCY choice offers, as the server names it. */
-export type ProficiencyKind = 'skills' | 'languages' | 'tools' | 'weapons' | 'armor';
+export type ProficiencyKind = 'skills' | 'languages' | 'tools' | 'weapons' | 'armor' | 'saves';
 
 /** One proficiency a PROFICIENCY choice offers. */
 export interface ProficiencyOption {
@@ -37,11 +38,29 @@ export interface ProficiencyOption {
   name: string;
 }
 
-const KIND_ORDER: ProficiencyKind[] = ['skills', 'languages', 'tools', 'weapons', 'armor'];
+const KIND_ORDER: ProficiencyKind[] = ['skills', 'languages', 'tools', 'weapons', 'armor', 'saves'];
 
 const KIND_TITLES: Record<ProficiencyKind, string> = {
-  skills: 'Skills', languages: 'Languages', tools: 'Tools', weapons: 'Weapons', armor: 'Armour',
+  skills: 'Skills', languages: 'Languages', tools: 'Tools', weapons: 'Weapons', armor: 'Armour', saves: 'Saving Throws',
 };
+
+// The abilities by the abbreviations the class data gives saving throws, as "WIS"
+const ABILITY_NAMES: Record<string, string> = {
+  STR: 'Strength', DEX: 'Dexterity', CON: 'Constitution', INT: 'Intelligence', WIS: 'Wisdom', CHA: 'Charisma',
+};
+
+// A saving throw's ability, abbreviated, whether the sheet spells it out or not
+function saveAbility(name: string): string {
+  const wanted = name.trim().toLowerCase();
+  const found = Object.entries(ABILITY_NAMES)
+    .find(([abbreviation, full]) => abbreviation.toLowerCase() === wanted || full.toLowerCase() === wanted);
+  return found ? found[0] : wanted;
+}
+
+/** What an option is called on the sheet: a saving throw by its ability's full name, as "Wisdom". */
+export function proficiencyOptionLabel(option: ProficiencyOption): string {
+  return option.kind === 'saves' ? ABILITY_NAMES[saveAbility(option.name)] ?? option.name : option.name;
+}
 
 /** What a kind of proficiency is called, such as "Languages". */
 export function proficiencyKindTitle(kind: ProficiencyKind): string {
@@ -68,13 +87,18 @@ const SHEET_LISTS: Record<ProficiencyKind, (c: PlayerCharacter) => string[] | nu
   tools: c => c.toolProficiencies,
   weapons: c => c.weaponProficiencies,
   armor: c => c.armorProficiencies,
+  saves: c => c.savingThrowProficiencies,
 };
 
 /**
  * Whether the character has the proficiency already, in any case, as the server judges it: a weapon also when the
- * sheet has it in the plural or its whole category, simple or martial (PHB p.149).
+ * sheet has it in the plural or its whole category, simple or martial (PHB p.149), and a saving throw by its ability,
+ * abbreviated or not.
  */
 export function hasProficiency(character: PlayerCharacter, option: ProficiencyOption): boolean {
+  if (option.kind === 'saves') {
+    return (character.savingThrowProficiencies ?? []).some(save => saveAbility(save) === saveAbility(option.name));
+  }
   const wanted = option.name.trim().toLowerCase();
   const category = option.kind !== 'weapons' ? null
     : SIMPLE_WEAPONS.includes(wanted) ? 'simple' : MARTIAL_WEAPONS.includes(wanted) ? 'martial' : null;

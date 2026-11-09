@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { makeMockCharacter, makeMockPendingChoice } from '../test/mocks/handlers';
 import {
-  choiceLabel, choicesPending, choicesToMake, choiceTitle, hasProficiency, isSpellbookChoice, proficiencyOptions,
-  proficiencyTaken,
+  choiceLabel, choicesPending, choicesToMake, choiceTitle, hasProficiency, isSpellbookChoice, proficiencyOptionLabel,
+  proficiencyOptions, proficiencyTaken,
 } from './pendingChoices';
 
 describe('pendingChoices', () => {
@@ -75,5 +75,24 @@ describe('pendingChoices', () => {
     expect(proficiencyTaken(monk, kensei, { kind: 'weapons', name: 'Longsword' })).toBe(false);
     expect(choiceTitle(kensei)).toBe('Kensei Weapon');
     expect(choiceLabel(kensei)).toBe('Kensei Weapon (Monk 6)');
+  });
+
+  it("offers a Samurai's saving throws by the ability's name and judges one held in either spelling (XGE p.31)", () => {
+    const samurai = { ...makeMockCharacter('char-006', 'Kaito', 'Fighter', 7), savingThrowProficiencies: ['STR', 'Wisdom'] };
+    const saves = makeMockPendingChoice({ type: 'PROFICIENCY', classLevel: 7, characterLevel: 7,
+      proficiencyOptions: { saves: ['INT', 'CHA'] } });
+    expect(choiceLabel(saves)).toBe('Saving Throws (Fighter 7)');
+    expect(proficiencyOptions(saves)).toEqual([{ kind: 'saves', name: 'INT' }, { kind: 'saves', name: 'CHA' }]);
+    expect(proficiencyOptionLabel({ kind: 'saves', name: 'CHA' })).toBe('Charisma');
+    expect(proficiencyOptionLabel({ kind: 'skills', name: 'Insight' })).toBe('Insight');
+    expect(hasProficiency(samurai, { kind: 'saves', name: 'WIS' })).toBe(true);
+    expect(hasProficiency(samurai, { kind: 'saves', name: 'str' })).toBe(true);
+    expect(hasProficiency(samurai, { kind: 'saves', name: 'INT' })).toBe(false);
+  });
+
+  it("names a subclass's cantrip choice (XGE p.28)", () => {
+    const cantrip = makeMockPendingChoice({ type: 'SUBCLASS_CANTRIP', classLevel: 3, characterLevel: 3,
+      options: ['Prestidigitation', 'Druidcraft'], maxSpellLevel: 0 });
+    expect(choiceLabel(cantrip)).toBe('Subclass Cantrip (Fighter 3)');
   });
 });

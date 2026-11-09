@@ -17,6 +17,8 @@ import java.util.List;
  * @param tools     tool proficiencies, such as "smith's tools"
  * @param skills    skill proficiencies a subclass gives, such as "Arcana"
  * @param languages languages a subclass teaches, such as "Giant"
+ * @param saves     saving throw proficiencies a subclass gives, by the ability's abbreviation as the class data has
+ *                  them, such as a Samurai's "WIS" at Fighter 7 (XGE p.31)
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -25,11 +27,18 @@ public record ProficienciesGained(
         List<String> weapons,
         List<String> tools,
         List<String> skills,
-        List<String> languages
+        List<String> languages,
+        List<String> saves
 ) {
+
+    /** No saving throws. */
+    public ProficienciesGained(List<String> armor, List<String> weapons, List<String> tools, List<String> skills,
+                               List<String> languages) {
+        this(armor, weapons, tools, skills, languages, null);
+    }
 
     /** Armour, weapon and tool proficiencies only, as multiclassing grants them. */
     public ProficienciesGained(List<String> armor, List<String> weapons, List<String> tools) {
-        this(armor, weapons, tools, null, null);
+        this(armor, weapons, tools, null, null, null);
     }
 }

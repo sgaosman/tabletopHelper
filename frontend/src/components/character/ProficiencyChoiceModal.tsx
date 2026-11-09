@@ -4,7 +4,8 @@ import { apiErrorMessage } from '../../api/errors';
 import { useApplyChoices } from '../../queries/characters';
 import type { PendingChoice, PlayerCharacter } from '../../types/character';
 import {
-  hasProficiency, proficiencyKindTitle, proficiencyOptions, proficiencyTaken, type ProficiencyKind, type ProficiencyOption,
+  hasProficiency, proficiencyKindTitle, proficiencyOptionLabel, proficiencyOptions, proficiencyTaken, type ProficiencyKind,
+  type ProficiencyOption,
 } from '../../utils/pendingChoices';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
@@ -22,7 +23,8 @@ interface Props {
 /**
  * The bonus proficiencies a subclass lets the player choose when it is taken, such as the College of Lore's three
  * skills (PHB p.54), the Knowledge Domain's two languages and two skills with Expertise (PHB p.59), or the Cavalier's
- * skill or language (XGE p.30), or a Way of the Kensei monk's kensei weapons (XGE p.34). The options are grouped by
+ * skill or language (XGE p.30), a Way of the Kensei monk's kensei weapons (XGE p.34), or the saving throws a Samurai
+ * takes at Fighter 7 when it has Wisdom saves already (XGE p.31), shown by the ability's name. The options are grouped by
  * kind; one the character has already can't be chosen, except that a Knowledge Domain's skill it is proficient in may
  * still gain Expertise, and a weapon it is proficient with may still become a kensei weapon, gaining no proficiency.
  * With fewer options left than the count, the rest are taken. The server records the choice on the level that owes it,
@@ -118,7 +120,7 @@ export default function ProficiencyChoiceModal({ character, choice, onComplete, 
                     <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${isSelected ? 'bg-ink' : 'bg-page-alt'}`}>
                       {isSelected && <Check className="w-3.5 h-3.5 text-card" />}
                     </div>
-                    <span className="font-body text-[15px] font-semibold text-ink">{option.name}</span>
+                    <span className="font-body text-[15px] font-semibold text-ink">{proficiencyOptionLabel(option)}</span>
                     {already && (
                       <span className="font-body text-[13px] font-semibold text-faint ml-auto">{takenLabel}</span>
                     )}

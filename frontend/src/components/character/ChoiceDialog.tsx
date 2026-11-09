@@ -5,6 +5,7 @@ import FightingStyleModal from './FightingStyleModal';
 import ManageSpellsModal from './ManageSpellsModal';
 import MetamagicModal from './MetamagicModal';
 import ProficiencyChoiceModal from './ProficiencyChoiceModal';
+import SubclassCantripModal from './SubclassCantripModal';
 import SubclassModal from './SubclassModal';
 
 interface Props {
@@ -20,8 +21,8 @@ interface Props {
 
 /**
  * The dialog that makes one Pending Choice (D159), by its type: an Ability Score Improvement or a feat, a subclass,
- * Expertise, a Fighting Style, a sorcerer's Metamagic options (M18), the bonus proficiencies a subclass lets the player
- * choose, or the cantrips and spells a class learns, through the spells dialog's SpellPicker,
+ * Expertise, a Fighting Style, a sorcerer's Metamagic options (M18), the bonus proficiencies or the cantrip a subclass
+ * lets the player choose, or the cantrips and spells a class learns, through the spells dialog's SpellPicker,
  * from the spell list the choice names. Each dialog applies the choice itself, and each can be skipped, leaving the
  * choice on the sheet's banner.
  */
@@ -40,6 +41,8 @@ export default function ChoiceDialog({ character, choice, onComplete, onSkip, on
       return <MetamagicModal character={character} choice={choice} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />;
     case 'PROFICIENCY':
       return <ProficiencyChoiceModal character={character} choice={choice} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />;
+    case 'SUBCLASS_CANTRIP':
+      return <SubclassCantripModal character={character} choice={choice} onComplete={onComplete} onSkip={onSkip} onClose={onClose} />;
     case 'CANTRIPS':
     case 'SPELLS': {
       const className = choice.className ?? '';

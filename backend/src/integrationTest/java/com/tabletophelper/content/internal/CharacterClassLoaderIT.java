@@ -152,14 +152,15 @@ class CharacterClassLoaderIT extends IntegrationTest {
         load();
 
         assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getAdditionalProficiencies() != null)
-                .hasSize(38);
+                .hasSize(41);
         assertThat(proficienciesOf("Life Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
         assertThat(proficienciesOf("War Domain")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
         assertThat(proficienciesOf("Tempest Domain")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
         assertThat(proficienciesOf("Nature Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"], "
-                + "\"choices\": [{\"count\": 1, \"skills\": [\"Animal Handling\", \"Nature\", \"Survival\"]}]}"));
+                + "\"choices\": [{\"count\": 1, \"skills\": [\"Animal Handling\", \"Nature\", \"Survival\"]}], "
+                + "\"cantrips\": [{\"count\": 1, \"spellList\": \"Druid\"}]}"));
         assertThat(proficienciesOf("Knowledge Domain").path("choices").get(0).path("languages")).hasSize(16);
         assertThat(proficienciesOf("College of Valor")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"medium\", \"shields\"], \"weapons\": [\"martial\"]}"));
@@ -196,6 +197,27 @@ class CharacterClassLoaderIT extends IntegrationTest {
         assertThat(kensei.get(2).path("weapons")).hasSize(7);
         assertThat(kensei.get(5).path("level").asInt()).isEqualTo(17);
         assertThat(kensei.get(5).path("weapons")).hasSize(28);
+    }
+
+    @Test
+    @DisplayName("After loading, the Samurai and Gloom Stalker gain Wisdom saves, or Intelligence or Charisma, at 7th "
+            + "level (XGE p.31, p.41), the Purple Dragon Knight Persuasion with Expertise at 7th (SCAG p.128), the Scout "
+            + "Expertise in Nature and Survival (XGE p.47), and the Arcane Archer, Path of the Giant and Circle of the "
+            + "Land a cantrip of the player's choice (XGE p.28, BGG p.11, PHB p.68)")
+    void laterGrantsExpertiseAndCantrips() {
+        load();
+
+        assertThat(proficienciesOf("Samurai").path("conditional").get(0)).isEqualTo(objectMapper.readTree(
+                "{\"saves\": [\"WIS\"], \"level\": 7, \"otherwise\": {\"count\": 1, \"saves\": [\"INT\", \"CHA\"]}}"));
+        assertThat(proficienciesOf("Gloom Stalker").path("conditional").get(0).path("level").asInt()).isEqualTo(7);
+        var envoy = proficienciesOf("Purple Dragon Knight (Banneret)").path("conditional").get(0);
+        assertThat(envoy.path("skills").toString()).isEqualTo("[\"Persuasion\"]");
+        assertThat(envoy.path("expertise").asBoolean()).isTrue();
+        assertThat(proficienciesOf("Scout").path("expertise").toString()).isEqualTo("[\"Nature\",\"Survival\"]");
+        assertThat(proficienciesOf("Arcane Archer").path("cantrips").get(0).path("spells")).hasSize(2);
+        assertThat(proficienciesOf("Path of the Giant").path("cantrips").get(0).path("spells")).hasSize(2);
+        assertThat(proficienciesOf("Circle of the Land").path("cantrips").get(0).path("spellList").asString())
+                .isEqualTo("Druid");
     }
 
     @Test

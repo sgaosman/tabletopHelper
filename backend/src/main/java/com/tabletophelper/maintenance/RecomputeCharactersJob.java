@@ -41,7 +41,8 @@ import java.util.regex.Pattern;
  * too: the armour class now counts the armour worn and Defense (M17), so the adjustment may count it twice. A character
  * whose subclass grants bonus proficiencies its sheet lacks, such as a Life Domain cleric's heavy armour (PHB p.60),
  * gets them, recorded on the level that records the subclass when the level history has one, as choosing a subclass now
- * does. A class or subclass feature whose text on the sheet differs from the class data's takes the data's, as the
+ * does, and those of a later class level, such as a Fighter 7 Samurai's Wisdom saving throws (XGE p.31), recorded on
+ * that level; so does the Expertise a subclass gives, such as a Scout's (XGE p.47), where a level records it. A class or subclass feature whose text on the sheet differs from the class data's takes the data's, as the
  * features nested inside another, such as the Life Domain's Disciple of Life (PHB p.60), reach the data only from the
  * class loader's version 4; names, sources and order stay, so levelling down still removes them. Dry run by default;
  * {@code --maintenance.apply=true} writes.

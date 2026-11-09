@@ -516,6 +516,63 @@ class PendingChoicesIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("A Samurai gains Wisdom saving throws at Fighter 7, or owes Intelligence or Charisma when it has "
+            + "them (XGE p.31); levelling down past Fighter 7 takes them away")
+    void laterConditionalSave() {
+        UUID samuraiId = subclassRepository.save(Subclass.builder().name("Samurai").source("XGE")
+                .characterClass(characterClassRepository.findById(fighterId).orElseThrow())
+                .features("[{\"level\":7,\"name\":\"Elegant Courtier\",\"description\":\"Wisdom saves\"}]")
+                .additionalProficiencies("{\"conditional\":[{\"saves\":[\"WIS\"],\"level\":7,\"otherwise\":"
+                        + "{\"count\":1,\"saves\":[\"INT\",\"CHA\"]}}]}")
+                .build()).getId();
+
+        JsonNode lacking = create(Map.of("level", 7, "subclassId", samuraiId,
+                "savingThrowProficiencies", List.of("STR", "CON")));
+        assertThat(lacking.get("savingThrowProficiencies").toString()).isEqualTo("[\"STR\",\"CON\",\"WIS\"]");
+        assertThat(lacking.get("levelHistory").get(6).get("proficienciesGained").toString())
+                .isEqualTo("{\"saves\":[\"WIS\"]}");
+        JsonNode down = levelDown(lacking.get("id").asString());
+        assertThat(down.get("savingThrowProficiencies").toString()).isEqualTo("[\"STR\",\"CON\"]");
+
+        JsonNode holding = create(Map.of("level", 7, "subclassId", samuraiId,
+                "savingThrowProficiencies", List.of("STR", "CON", "WIS")));
+        JsonNode other = choice(holding, "PROFICIENCY", 7);
+        assertThat(other.get("proficiencyOptions").toString()).isEqualTo("{\"saves\":[\"INT\",\"CHA\"]}");
+        JsonNode made = applied(holding.get("id").asString(), Map.of("choiceId", other.get("id").asString(),
+                "proficiencies", List.of("INT")));
+        assertThat(made.get("savingThrowProficiencies").toString()).isEqualTo("[\"STR\",\"CON\",\"WIS\",\"INT\"]");
+    }
+
+    @Test
+    @DisplayName("An Arcane Archer owes prestidigitation or druidcraft on Fighter 3 (XGE p.28), learned as the "
+            + "subclass's cantrip apart from any class's; levelling down forgets it")
+    void subclassCantrip() {
+        UUID archerId = subclassRepository.save(Subclass.builder().name("Arcane Archer").source("XGE")
+                .characterClass(characterClassRepository.findById(fighterId).orElseThrow())
+                .features("[{\"level\":3,\"name\":\"Arcane Archer Lore\",\"description\":\"A cantrip\"}]")
+                .additionalProficiencies("{\"cantrips\":[{\"count\":1,\"spells\":[\"Prestidigitation\","
+                        + "\"Druidcraft\"]}]}")
+                .build()).getId();
+
+        JsonNode created = create(Map.of("level", 3, "subclassId", archerId));
+        String aria = created.get("id").asString();
+        JsonNode owed = choice(created, "SUBCLASS_CANTRIP", 3);
+        assertThat(owed.get("options").toString()).isEqualTo("[\"Prestidigitation\",\"Druidcraft\"]");
+        assertThat(error(apply(aria, Map.of("choiceId", owed.get("id").asString(), "spells", List.of("Fire Bolt"))),
+                HttpStatus.BAD_REQUEST)).isEqualTo("Choose from Prestidigitation, Druidcraft, not Fire Bolt");
+
+        JsonNode made = applied(aria, Map.of("choiceId", owed.get("id").asString(),
+                "spells", List.of("Prestidigitation")));
+        assertThat(names(made, "subclass:Arcane Archer")).containsExactly("Prestidigitation");
+        assertThat(made.get("levelHistory").get(2).get("choices").get("subclassCantrips").toString())
+                .isEqualTo("[\"Prestidigitation\"]");
+        assertThat(described(made)).doesNotContain("3 SUBCLASS_CANTRIP");
+        assertThat(names(get(aria), "subclass:Arcane Archer")).containsExactly("Prestidigitation");
+
+        assertThat(names(levelDown(aria), "subclass:Arcane Archer")).isEmpty();
+    }
+
+    @Test
     @DisplayName("A kensei chooses a melee and a ranged kensei weapon on Monk 3 and another on Monk 6 (XGE p.34), "
             + "gaining proficiency only with those it lacked; the sheet lists them, and levelling down takes the "
             + "Monk 6 weapon away")

@@ -3229,6 +3229,7 @@ export interface components {
             setsSpellcastingAbility?: boolean | null;
             spells?: components["schemas"]["SpellsLearned"] | null;
             subclass?: components["schemas"]["SubclassChosen"] | null;
+            subclassCantrips?: string[] | null;
         };
         LevelHistoryEntry: {
             abilityIncreases?: components["schemas"]["AbilityBonus"][] | null;
@@ -3570,7 +3571,7 @@ export interface components {
             spellList?: string | null;
             swap?: boolean | null;
             /** @enum {string} */
-            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
+            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "SUBCLASS_CANTRIP" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
         };
         PlaceSummonRequest: {
             creatureType?: string | null;
@@ -3622,6 +3623,7 @@ export interface components {
         ProficienciesGained: {
             armor?: string[] | null;
             languages?: string[] | null;
+            saves?: string[] | null;
             skills?: string[] | null;
             tools?: string[] | null;
             weapons?: string[] | null;

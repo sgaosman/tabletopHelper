@@ -39,12 +39,21 @@ public class CharacterClassLoader implements ContentLoader {
     // choice of skills whether they gain Expertise too, for a choice owed after the subclass level the class level that
     // owes it, and for a Way of the Kensei monk's kensei weapons (XGE p.34) that they are; those granted unless the
     // character has them already, when another is chosen instead, such as an Alchemist's alchemist's supplies (TCE
-    // p.14), under "conditional", each with the one proficiency and the choice "otherwise"
+    // p.14), under "conditional", each with the one proficiency and the choice "otherwise", and for one granted after
+    // the subclass level, as a Samurai's Wisdom saving throws at Fighter 7 (XGE p.31), its class level, and for a skill
+    // that gains Expertise either way, as a Purple Dragon Knight's Persuasion (SCAG p.128), "expertise"; the skills of
+    // its fixed grants that gain Expertise too, as a Scout's Nature and Survival (XGE p.47), under "expertise"; and the
+    // cantrips the player chooses, as an Arcane Archer's prestidigitation or druidcraft (XGE p.28), under "cantrips",
+    // each with how many and the spells by name or the spell list they come from
     static final String SUBCLASS_PROFICIENCIES_FILE = "data/content/subclass-proficiencies.json";
-    static final Set<String> PROFICIENCY_KINDS = Set.of("armor", "weapons", "tools", "skills", "languages");
+    static final Set<String> PROFICIENCY_KINDS = Set.of("armor", "weapons", "tools", "skills", "languages", "saves");
     static final String CHOICES = "choices";
     static final String CONDITIONAL = "conditional";
     static final String OTHERWISE = "otherwise";
+    static final String EXPERTISE = "expertise";
+    static final String CANTRIPS = "cantrips";
+    // The saving throws, as the class data abbreviates them
+    static final List<String> SAVES = List.of("STR", "DEX", "CON", "INT", "WIS", "CHA");
     // What a choice says besides its count and options
     private static final Set<String> CHOICE_FLAGS = Set.of("expertise", "kensei", "level");
 
@@ -70,10 +79,11 @@ public class CharacterClassLoader implements ContentLoader {
     // features nested inside another, such as the Life Domain's Disciple of Life, version 5 the bonus
     // proficiencies a subclass lets the player choose, and version 6 the conditional grants, the choices owed after
     // the subclass level, the kensei weapons and the Draconic Bloodline's, Storm Sorcery's and Circle of the
-    // Shepherd's languages
+    // Shepherd's languages, and version 7 saving throws, conditional grants after the subclass level and with
+    // Expertise, the Scout's Expertise and the subclass cantrips
     @Override
     public int version() {
-        return 6;
+        return 7;
     }
 
     // The 5etools entries that place another feature's text inside a feature, such as the Life Domain's Bonus
@@ -176,8 +186,11 @@ public class CharacterClassLoader implements ContentLoader {
      * choice of skills alone, {@code kensei} only for a choice of weapons alone, and {@code level}, the class level
      * from 1 to 20 that owes it when that isn't the subclass level, and {@value #CONDITIONAL}, a list of grants each of
      * one proficiency of one kind, given unless the character has it, and the choice {@value #OTHERWISE} owed when it
-     * does, with a count and options alone. A choice's list names, such as {@code *languages}, are written out as their
-     * lists.
+     * does, with a count and options alone; such a grant may name its {@code level} after the subclass level and, for a
+     * skill, {@code expertise}. {@value #EXPERTISE} lists skills of the row's own that gain Expertise too, and
+     * {@value #CANTRIPS} the cantrips the player chooses, each with its count and either {@code spells}, a list of
+     * names, or {@code spellList}, a class's list. Saving throws ({@code saves}) are abbreviated as the class data has
+     * them, such as "WIS". A choice's list names, such as {@code *languages}, are written out as their lists.
      *
      * @throws IllegalStateException for a row that isn't one
      */
@@ -203,13 +216,70 @@ public class CharacterClassLoader implements ContentLoader {
                     stored.set(CONDITIONAL, conditionals(row.getKey(), kind.getValue()));
                     continue;
                 }
+                if (EXPERTISE.equals(kind.getKey())) {
+                    stored.set(EXPERTISE, expertise(row.getKey(), kind.getValue(), value.path("skills")));
+                    continue;
+                }
+                if (CANTRIPS.equals(kind.getKey())) {
+                    stored.set(CANTRIPS, cantrips(row.getKey(), kind.getValue()));
+                    continue;
+                }
                 requireKind(row.getKey(), kind.getKey());
                 requireNames(row.getKey() + "'s " + kind.getKey(), kind.getValue());
+                requireSaves(row.getKey() + "'s " + kind.getKey(), kind.getKey(), kind.getValue());
                 stored.set(kind.getKey(), kind.getValue());
             }
             rows.put(row.getKey(), objectMapper.writeValueAsString(stored));
         }
         return rows;
+    }
+
+    // A row's skills that gain Expertise, each one of the row's own skills
+    JsonNode expertise(String key, JsonNode expertise, JsonNode skills) {
+        String what = key + "'s expertise";
+        requireNames(what, expertise);
+        for (JsonNode skill : expertise) {
+            boolean granted = false;
+            for (JsonNode own : skills) {
+                granted |= own.asString("").trim().equalsIgnoreCase(skill.asString("").trim());
+            }
+            if (!granted) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " names "
+                        + skill.asString("") + ", which isn't among the row's skills");
+            }
+        }
+        return expertise;
+    }
+
+    // A row's cantrip choices, each with its count and either spells by name or a spell list
+    ArrayNode cantrips(String key, JsonNode cantrips) {
+        if (!cantrips.isArray() || cantrips.isEmpty()) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + key + "'s cantrips are not a list");
+        }
+        ArrayNode stored = objectMapper.createArrayNode();
+        for (JsonNode cantrip : cantrips) {
+            String what = key + "'s cantrip choice " + (stored.size() + 1);
+            if (!cantrip.isObject() || !cantrip.path("count").isInt() || cantrip.path("count").asInt() < 1) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + " has no count of 1 or more");
+            }
+            for (Map.Entry<String, JsonNode> field : cantrip.properties()) {
+                if (!Set.of("count", "spells", "spellList").contains(field.getKey())) {
+                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " has "
+                            + field.getKey() + ", which isn't count, spells or spellList");
+                }
+            }
+            boolean spells = cantrip.has("spells");
+            boolean spellList = cantrip.path("spellList").isString()
+                    && !cantrip.path("spellList").asString("").isBlank();
+            if (spells == spellList || (cantrip.has("spellList") && !spellList)) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + " names either its spells or its spellList");
+            }
+            if (spells) requireNames(what + "'s spells", cantrip.get("spells"));
+            stored.add(cantrip);
+        }
+        return stored;
     }
 
     // A row's choices, each checked, with its list names written out
@@ -240,9 +310,13 @@ public class CharacterClassLoader implements ContentLoader {
             }
             ObjectNode written = objectMapper.createObjectNode();
             for (Map.Entry<String, JsonNode> field : conditional.properties()) {
-                if (field.getKey().equals(OTHERWISE)) continue;
+                if (field.getKey().equals(OTHERWISE) || field.getKey().equals("level")
+                        || field.getKey().equals(EXPERTISE)) {
+                    continue;
+                }
                 requireKind(what, field.getKey());
                 requireNames(what + "'s " + field.getKey(), field.getValue());
+                requireSaves(what + "'s " + field.getKey(), field.getKey(), field.getValue());
                 if (field.getValue().size() != 1 || field.getValue().get(0).asString("")
                         .startsWith(ProficiencyLists.LIST_PREFIX)) {
                     throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
@@ -253,6 +327,22 @@ public class CharacterClassLoader implements ContentLoader {
             if (written.size() != 1) {
                 throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
                         + " grants one proficiency by name");
+            }
+            JsonNode expertise = conditional.path(EXPERTISE);
+            if (!expertise.isMissingNode()) {
+                if (!expertise.isBoolean() || !written.has("skills")) {
+                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                            + "'s expertise is true or false, and only for a skill");
+                }
+                if (expertise.asBoolean()) written.put(EXPERTISE, true);
+            }
+            JsonNode level = conditional.path("level");
+            if (!level.isMissingNode()) {
+                if (!level.isInt() || level.asInt() < 1 || level.asInt() > 20) {
+                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                            + "'s level is a class level from 1 to 20");
+                }
+                written.put("level", level.asInt());
             }
             written.set(OTHERWISE, choice(what + "'s choice otherwise", conditional.get(OTHERWISE), false));
             stored.add(written);
@@ -274,6 +364,7 @@ public class CharacterClassLoader implements ContentLoader {
             if (full && CHOICE_FLAGS.contains(field.getKey())) continue;
             requireKind(what, field.getKey());
             requireNames(what + "'s " + field.getKey(), field.getValue());
+            requireSaves(what + "'s " + field.getKey(), field.getKey(), field.getValue());
             List<String> names = new ArrayList<>();
             field.getValue().forEach(name -> names.add(name.asString("")));
             List<String> options;
@@ -320,6 +411,17 @@ public class CharacterClassLoader implements ContentLoader {
         if (!PROFICIENCY_KINDS.contains(kind)) {
             throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " has " + kind
                     + ", which isn't one of " + PROFICIENCY_KINDS);
+        }
+    }
+
+    // Saving throws are abbreviated as the class data has them, such as "WIS"
+    private static void requireSaves(String what, String kind, JsonNode items) {
+        if (!"saves".equals(kind)) return;
+        for (JsonNode item : items) {
+            if (!SAVES.contains(item.asString(""))) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " names "
+                        + item.asString("") + ", which isn't one of " + SAVES);
+            }
         }
     }
 

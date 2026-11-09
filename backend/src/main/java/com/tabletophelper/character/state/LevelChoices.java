@@ -32,6 +32,9 @@ import java.util.List;
  *                      PROFICIENCY choices that make them, at Monk 3, 6, 11 and 17; those it wasn't proficient with are
  *                      among the level's {@code proficienciesGained}. The character's kensei weapons are those its
  *                      levels record, so levelling down takes them away
+ * @param subclassCantrips the cantrips chosen at this level, the subclass's level, from its SUBCLASS_CANTRIP choices,
+ *                      such as an Arcane Archer's prestidigitation or druidcraft (XGE p.28), known with the source
+ *                      "subclass:" and the subclass's name; levelling down forgets them
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -46,12 +49,22 @@ public record LevelChoices(
         Boolean setsSpellcastingAbility,
         List<String> metamagic,
         List<String> proficiencies,
-        List<String> kenseiWeapons
+        List<String> kenseiWeapons,
+        List<String> subclassCantrips
 ) {
 
     /** No choices, as each level starts. */
     public static final LevelChoices NONE = new LevelChoices(null, null, null, null, null, null, null, null, null,
-            null, null);
+            null, null, null);
+
+    /** Choices with no subclass cantrips. */
+    public LevelChoices(AbilityScoreImprovement asi, List<String> expertise, SubclassChosen subclass,
+                        String fightingStyle, List<String> cantrips, SpellsLearned spells, List<FeatTaken> feats,
+                        Boolean setsSpellcastingAbility, List<String> metamagic, List<String> proficiencies,
+                        List<String> kenseiWeapons) {
+        this(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, setsSpellcastingAbility, metamagic,
+                proficiencies, kenseiWeapons, null);
+    }
 
     /** Choices with no kensei weapons. */
     public LevelChoices(AbilityScoreImprovement asi, List<String> expertise, SubclassChosen subclass,
@@ -83,56 +96,61 @@ public record LevelChoices(
 
     public LevelChoices withAsi(AbilityScoreImprovement newAsi) {
         return new LevelChoices(newAsi, expertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withExpertise(List<String> newExpertise) {
         return new LevelChoices(asi, newExpertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withSubclass(SubclassChosen newSubclass) {
         return new LevelChoices(asi, expertise, newSubclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withFightingStyle(String newFightingStyle) {
         return new LevelChoices(asi, expertise, subclass, newFightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withCantrips(List<String> newCantrips) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, newCantrips, spells, feats,
-                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withSpells(SpellsLearned newSpells) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, newSpells, feats,
-                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withFeats(List<FeatTaken> newFeats) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, newFeats,
-                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withSetsSpellcastingAbility(Boolean sets) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, sets, metamagic,
-                proficiencies, kenseiWeapons);
+                proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withMetamagic(List<String> newMetamagic) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, newMetamagic, proficiencies, kenseiWeapons);
+                setsSpellcastingAbility, newMetamagic, proficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withProficiencies(List<String> newProficiencies) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic, newProficiencies, kenseiWeapons);
+                setsSpellcastingAbility, metamagic, newProficiencies, kenseiWeapons, subclassCantrips);
     }
 
     public LevelChoices withKenseiWeapons(List<String> newKenseiWeapons) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic, proficiencies, newKenseiWeapons);
+                setsSpellcastingAbility, metamagic, proficiencies, newKenseiWeapons, subclassCantrips);
+    }
+
+    public LevelChoices withSubclassCantrips(List<String> newSubclassCantrips) {
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility, metamagic, proficiencies, kenseiWeapons, newSubclassCantrips);
     }
 }

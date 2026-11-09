@@ -658,6 +658,17 @@ public class CharacterService {
     }
 
     /**
+     * The spellcasting numbers of the class whose subclass this is, for a cantrip the subclass taught, such as a Nature
+     * Domain cleric's druid cantrip, cast with Wisdom as the cleric's (PHB p.61); empty when that class doesn't cast,
+     * as an Arcane Archer fighter's doesn't.
+     */
+    public Optional<ClassSpellcasting> subclassSpellcasting(PlayerCharacter character, String subclassName) {
+        return characterStats.spellcasting(character).stream()
+                .filter(c -> c.subclassName() != null && c.subclassName().equals(subclassName))
+                .findFirst();
+    }
+
+    /**
      * The ability the character's race and feat spells are cast with: the one chosen for them, or else its first
      * casting class's (D164); null for a character without one.
      */

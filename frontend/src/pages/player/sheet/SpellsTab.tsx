@@ -83,6 +83,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
   const classGroups: Array<{ source: string; className: string; spells: SpellEntry[] }> = [];
   const raceGroups: Array<{ source: string; raceName: string; spells: SpellEntry[] }> = [];
   const featGroups: Array<{ source: string; featName: string; spells: SpellEntry[] }> = [];
+  // A subclass's cantrip of the player's choice, such as an Arcane Archer's (XGE p.28)
+  const subclassGroups: Array<{ source: string; subclassName: string; spells: SpellEntry[] }> = [];
 
   for (const [source, spells] of sourceGroups) {
     if (source.startsWith('class:')) {
@@ -91,6 +93,8 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
       raceGroups.push({ source, raceName: source.slice(5), spells });
     } else if (source.startsWith('feat:')) {
       featGroups.push({ source, featName: source.slice(5), spells });
+    } else if (source.startsWith('subclass:')) {
+      subclassGroups.push({ source, subclassName: source.slice(9), spells });
     }
   }
 
@@ -392,6 +396,16 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
           <div className="flex items-center gap-2">
             <h3 className="font-heading text-[16px] font-semibold text-ink">{featName}</h3>
             <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-cls-cleric-border">Feat</span>
+          </div>
+          <div className="space-y-0.5">{spells.map(s => renderSpellRow(s, false))}</div>
+        </div>
+      ))}
+
+      {subclassGroups.map(({ subclassName, spells }) => (
+        <div key={subclassName} className="bg-card border border-rule p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <h3 className="font-heading text-[16px] font-semibold text-ink">{subclassName}</h3>
+            <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-2 py-0.5 border text-cls-cleric bg-cls-cleric-bg border-cls-cleric-border">Subclass</span>
           </div>
           <div className="space-y-0.5">{spells.map(s => renderSpellRow(s, false))}</div>
         </div>

@@ -9281,6 +9281,13 @@
                 "$ref": "#/components/schemas/SubclassChosen"
               }
             ]
+          },
+          "subclassCantrips": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -10519,6 +10526,7 @@
               "FIGHTING_STYLE",
               "METAMAGIC",
               "PROFICIENCY",
+              "SUBCLASS_CANTRIP",
               "ASI",
               "FEAT",
               "EXPERTISE",
@@ -10736,6 +10744,13 @@
             }
           },
           "languages": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "saves": {
             "type": "array",
             "nullable": true,
             "items": {

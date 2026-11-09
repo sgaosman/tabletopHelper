@@ -17,8 +17,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                        lacks the spell
  * @param name            the spell's name
  * @param level           the spell's level, 0 for a cantrip
- * @param source          where it comes from, such as "class:Wizard", "race:Tiefling", "feat:Magic Initiate"
- *                        or "monster"
+ * @param source          where it comes from, such as "class:Wizard", "race:Tiefling", "feat:Magic Initiate",
+ *                        "subclass:Arcane Archer" or "monster"
  * @param prepared        true when a prepared caster has it prepared
  * @param alwaysPrepared  true when it is always prepared
  * @param atWill          true when it is cast without a slot
@@ -38,6 +38,12 @@ public record KnownSpell(
         Integer usesPerLongRest,
         Integer unlocksAtLevel
 ) {
+
+    /**
+     * What the source of a cantrip a subclass taught starts with, before the subclass's name, such as "subclass:Nature
+     * Domain" for a Nature Domain cleric's druid cantrip (PHB p.61); it doesn't count against a class's cantrips known.
+     */
+    public static final String SUBCLASS_SOURCE = "subclass:";
 
     /** A spell read from a monster's stat block. */
     public static KnownSpell monster(UUID id, String name, int level) {

@@ -636,6 +636,31 @@ class SpellcastingServiceTest {
         }
 
         @Test
+        @DisplayName("A cantrip a subclass taught uses its subclass's class's save DC, as a Nature Domain cleric's druid "
+                + "cantrip uses the cleric's (PHB p.61)")
+        void subclassCantripUsesItsClassDc() {
+            f.spell("Frostbite", 0, """
+                    {"spellLevel": 0, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "halfOnSave": false,
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "1d6", "damageType": "cold"}]}""");
+            EncounterParticipant acolyte = f.player("Acolyte", 30, 12);
+            acolyte.setSpellSaveDc(15);
+            f.knows(acolyte, new KnownSpell(null, "Frostbite", 0, "subclass:Nature Domain", null, null, null, null,
+                    null));
+            when(f.characterService.subclassSpellcasting(acolyte.getCharacter(), "Nature Domain")).thenReturn(
+                    Optional.of(new ClassSpellcasting("Cleric", "Nature Domain", "Cleric", 3, "WIS", 13, 5, 2, 3, null,
+                            4, false)));
+            int before = goblin.getHpCurrent();
+
+            f.dice.script(4, 13);
+            f.spellcasting.castSpell(f.encounterId(), request("Frostbite", 0, List.of(goblin)), acolyte.getId(),
+                    f.dmUserId);
+
+            // 13 saves against the Cleric's DC 13, though it would fail against the main DC 15
+            assertEquals(before, goblin.getHpCurrent());
+            verify(f.characterService, never()).classSpellcasting(any(), any());
+        }
+
+        @Test
         @DisplayName("A class spell's healing adds the modifier of its class's ability score, not the attack bonus less proficiency")
         void healingAddsTheAbilityModifier() {
             EncounterParticipant cleric = clericWithAdjustedAttack();
