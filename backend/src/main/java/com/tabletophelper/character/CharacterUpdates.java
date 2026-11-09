@@ -248,6 +248,42 @@ final class CharacterUpdates {
         if (gained.tools() != null && !gained.tools().isEmpty()) {
             character.setToolProficiencies(without(character.getToolProficiencies(), gained.tools()));
         }
+        if (gained.skills() != null && !gained.skills().isEmpty()) {
+            character.setSkillProficiencies(without(character.getSkillProficiencies(), gained.skills()));
+        }
+        if (gained.languages() != null && !gained.languages().isEmpty()) {
+            character.setLanguageProficiencies(without(character.getLanguageProficiencies(), gained.languages()));
+        }
+    }
+
+    /**
+     * Gives the sheet the proficiencies each kind adds, after those it has, and records them on the level history entry
+     * at the index, beside any that level recorded already, so levelling down past it takes them away; recorded nowhere
+     * for an index below 0.
+     */
+    static void addProficiencies(PlayerCharacter character, int index, ProficienciesGained added) {
+        if (!addedAny(added)) {
+            return;
+        }
+        character.setArmorProficiencies(merged(character.getArmorProficiencies(), orEmpty(added.armor())));
+        character.setWeaponProficiencies(merged(character.getWeaponProficiencies(), orEmpty(added.weapons())));
+        character.setToolProficiencies(merged(character.getToolProficiencies(), orEmpty(added.tools())));
+        character.setSkillProficiencies(merged(character.getSkillProficiencies(), orEmpty(added.skills())));
+        character.setLanguageProficiencies(merged(character.getLanguageProficiencies(), orEmpty(added.languages())));
+        if (index < 0) {
+            return;
+        }
+        List<LevelHistoryEntry> history = copy(character.getLevelHistory());
+        LevelHistoryEntry entry = history.get(index);
+        ProficienciesGained recorded = entry.proficienciesGained();
+        ProficienciesGained combined = recorded == null ? added : new ProficienciesGained(
+                nonEmpty(merged(recorded.armor(), orEmpty(added.armor()))),
+                nonEmpty(merged(recorded.weapons(), orEmpty(added.weapons()))),
+                nonEmpty(merged(recorded.tools(), orEmpty(added.tools()))),
+                nonEmpty(merged(recorded.skills(), orEmpty(added.skills()))),
+                nonEmpty(merged(recorded.languages(), orEmpty(added.languages()))));
+        history.set(index, entry.withProficienciesGained(combined));
+        character.setLevelHistory(history);
     }
 
     // ── Level history ────────────────────────────────────────────
@@ -358,9 +394,10 @@ final class CharacterUpdates {
 
     // ── Helpers ──────────────────────────────────────────────────
 
-    private static boolean addedAny(ProficienciesGained gained) {
+    static boolean addedAny(ProficienciesGained gained) {
         return gained != null && (nonEmpty(gained.armor()) != null || nonEmpty(gained.weapons()) != null
-                || nonEmpty(gained.tools()) != null);
+                || nonEmpty(gained.tools()) != null || nonEmpty(gained.skills()) != null
+                || nonEmpty(gained.languages()) != null);
     }
 
     static <T> List<T> copy(List<T> list) {

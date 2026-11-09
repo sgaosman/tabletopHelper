@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.BardicInspirationRequest;
 import com.tabletophelper.encounter.dto.CastSpellRequest;
@@ -72,6 +73,13 @@ class ChannelDivinityEffectsTest {
         f.weapons(weapon("Rapier", "Melee Weapon", "martial", "1d8", "piercing", "F"));
         CombatFixture.carries(vex, List.of("simple", "martial"), "Rapier");
         CombatFixture.carries(aria, List.of("simple", "martial"), "Rapier");
+    }
+
+    private AttackOption rapierOption(EncounterParticipant pc) {
+        return f.attacks.attackOptions(f.encounterId(), pc.getId(), f.dmUserId).stream()
+                .filter(option -> option.weapon().equals("Rapier"))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static void classes(EncounterParticipant pc, String className, int level, String subclass) {
@@ -394,10 +402,14 @@ class ChannelDivinityEffectsTest {
             assertNotNull(entry(vex, ChannelDivinity.WAR_GODS_BLESSING));
 
             f.turnOf(vex);
+            AttackOption blessed = rapierOption(vex);
+            assertEquals(12, blessed.attackBonus());
+            assertTrue(blessed.features().contains("War God's Blessing +10"));
             attack(vex, rapierAt(goblin), 3, 4);
 
             assertTrue(descriptions(CombatActionType.ATTACK).getLast().contains("d20(3) + 12 = 15"));
             assertNull(entry(vex, ChannelDivinity.WAR_GODS_BLESSING));
+            assertEquals(2, rapierOption(vex).attackBonus());
         }
     }
 
@@ -423,6 +435,21 @@ class ChannelDivinityEffectsTest {
             String attackEntry = descriptions(CombatActionType.ATTACK).getLast();
             assertTrue(attackEntry.contains("Sacred Weapon +3"));
             assertTrue(attackEntry.contains("d20(10) + 5 = 15"));
+        }
+
+        @Test
+        @DisplayName("The attack options show Sacred Weapon in the attack bonus the attack rolls")
+        void sacredWeaponInAttackOptions() {
+            paladin("Oath of Devotion");
+            AttackOption before = rapierOption(aria);
+
+            channel(aria, PALADIN_CD, "sacred-weapon");
+
+            AttackOption after = rapierOption(aria);
+            assertEquals(before.attackBonus() + 3, after.attackBonus());
+            assertEquals(5, after.attackBonus());
+            assertTrue(after.features().contains("Sacred Weapon +3"));
+            assertFalse(before.features().contains("Sacred Weapon +3"));
         }
 
         @Test
@@ -568,28 +595,101 @@ class ChannelDivinityEffectsTest {
         }
     }
 
-    @Test
-    @DisplayName("Disciple of Life adds 2 + the slot's level to a Life cleric's healing spell (PHB p.60)")
-    void discipleOfLife() {
-        classes(tam, "Cleric", 1, "Life Domain");
-        tam.getCharacter().setFeatures(List.of(new Feature(ClassFeatures.DISCIPLE_OF_LIFE, null, "Life Domain")));
-        tam.setSpellSlotsCurrent(new HashMap<>(Map.of("1", new SpellSlot(2, 0), "2", new SpellSlot(1, 0))));
-        f.spell("Cure Wounds", 1, """
-                {"spellName": "Cure Wounds", "spellLevel": 1, "deliveryMethod": "AUTO_HIT", "effects": [],
-                 "healing": {"healingDice": "1d8", "upcastScaling": {"additionalDicePerLevel": "1d8"}}}""");
-        f.knows(tam, new KnownSpell(null, "Cure Wounds", 1, "class:Cleric", true, null, null, null, null));
-        vex.setHpCurrent(5);
-        f.turnOf(tam);
-        CastSpellRequest request = new CastSpellRequest();
-        request.setSpellName("Cure Wounds");
-        request.setSlotLevel(2);
-        request.setTargetIds(List.of(vex.getId()));
-        f.dice.script(3, 4);
+    @Nested
+    @DisplayName("Disciple of Life (PHB p.60)")
+    class DiscipleOfLife {
 
-        f.spellcasting.castSpell(f.encounterId(), request, tam.getId(), f.dmUserId);
+        // The features a Life Domain cleric's sheet gets from the subclass data at 1st level: only one, named after
+        // the subclass; no feature is named Disciple of Life
+        private static final Feature LIFE_DOMAIN_FEATURE = new Feature("Life Domain",
+                "The Life domain focuses on the vibrant positive energy...", "Life Domain");
 
-        // 2d8 (3 + 4) + 2 + 2
-        assertEquals(16, vex.getHpCurrent());
-        assertTrue(descriptions(CombatActionType.SPELL_CAST).getFirst().contains("(Disciple of Life +4)"));
+        @BeforeEach
+        void cureWounds() {
+            tam.setSpellSlotsCurrent(new HashMap<>(Map.of("1", new SpellSlot(2, 0), "2", new SpellSlot(1, 0))));
+            f.spell("Cure Wounds", 1, """
+                    {"spellName": "Cure Wounds", "spellLevel": 1, "deliveryMethod": "AUTO_HIT", "effects": [],
+                     "healing": {"healingDice": "1d8", "upcastScaling": {"additionalDicePerLevel": "1d8"}}}""");
+            f.knows(tam, new KnownSpell(null, "Cure Wounds", 1, "class:Cleric", true, null, null, null, null));
+            vex.setHpCurrent(5);
+            f.turnOf(tam);
+        }
+
+        private void cast(int slotLevel) {
+            CastSpellRequest request = new CastSpellRequest();
+            request.setSpellName("Cure Wounds");
+            request.setSlotLevel(slotLevel);
+            request.setTargetIds(List.of(vex.getId()));
+            f.spellcasting.castSpell(f.encounterId(), request, tam.getId(), f.dmUserId);
+        }
+
+        @Test
+        @DisplayName("A Life Domain cleric's sheet as the subclass data builds it adds 2 + the slot's level")
+        void lifeDomainClericAsTheDataBuildsIt() {
+            classes(tam, "Cleric", 1, "Life Domain");
+            tam.getCharacter().setFeatures(List.of(LIFE_DOMAIN_FEATURE));
+            f.dice.script(3, 4);
+
+            cast(2);
+
+            // 2d8 (3 + 4) + 2 + 2
+            assertEquals(16, vex.getHpCurrent());
+            assertTrue(descriptions(CombatActionType.SPELL_CAST).getFirst().contains("(Disciple of Life +4)"));
+        }
+
+        @Test
+        @DisplayName("A Life Domain cleric multiclassed with a fighter counts its cleric levels")
+        void multiclassedLifeCleric() {
+            tam.getCharacter().setMulticlassEntries(List.of(
+                    new ClassEntry(UUID.randomUUID(), "Fighter", null, null, 2),
+                    new ClassEntry(UUID.randomUUID(), "Cleric", UUID.randomUUID(), "Life Domain", 1)));
+            tam.getCharacter().setLevel(3);
+            tam.getCharacter().setFeatures(List.of(LIFE_DOMAIN_FEATURE));
+            f.dice.script(6);
+
+            cast(1);
+
+            // 1d8 (6) + 2 + 1
+            assertEquals(14, vex.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("A single-class sheet without class entries is read from its class, subclass and level")
+        void singleClassWithoutEntries() {
+            tam.getCharacter().setMulticlassEntries(List.of());
+            tam.getCharacter().setCharacterClass("Cleric");
+            tam.getCharacter().setSubclass("Life Domain");
+            tam.getCharacter().setLevel(1);
+            f.dice.script(6);
+
+            cast(1);
+
+            assertEquals(14, vex.getHpCurrent());
+        }
+
+        @Test
+        @DisplayName("Another domain's cleric heals without the bonus")
+        void otherDomain() {
+            classes(tam, "Cleric", 1, "Light Domain");
+            tam.getCharacter().setFeatures(List.of(new Feature("Light Domain", "", "Light Domain")));
+            f.dice.script(6);
+
+            cast(1);
+
+            assertEquals(11, vex.getHpCurrent());
+            assertFalse(descriptions(CombatActionType.SPELL_CAST).getFirst().contains("Disciple of Life"));
+        }
+
+        @Test
+        @DisplayName("A feature named Disciple of Life, as a DM may enter it, still counts")
+        void featureByName() {
+            classes(tam, "Cleric", 1, null);
+            tam.getCharacter().setFeatures(List.of(new Feature(ClassFeatures.DISCIPLE_OF_LIFE, null, "Life Domain")));
+            f.dice.script(6);
+
+            cast(1);
+
+            assertEquals(14, vex.getHpCurrent());
+        }
     }
 }

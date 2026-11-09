@@ -412,7 +412,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | features | JSONB | `@JsonRawValue` — [{level, name, description}] |
 | always_prepared_spells | JSONB | `@JsonRawValue` |
 | expanded_spell_list | JSONB | `@JsonRawValue` |
-| additional_proficiencies | JSONB | `@JsonRawValue` |
+| additional_proficiencies | JSONB | `@JsonRawValue`. Filled since 2026-11-09 (D178) from `data/content/subclass-proficiencies.json`, the fixed grants of 23 subclasses such as Life Domain's heavy armour (the 5etools data has them only in feature text); choice-based grants are left out. Granted when the subclass is chosen and recorded on that level's `proficienciesGained` |
 | effects | JSONB | What the subclass changes in the rules, from `subclass-effects.json` (V28, R7, D167): `{"hpPerClassLevel": 1}` for the Draconic Bloodline. NULL for most. Not sent by the API |
 | created_at | TIMESTAMPTZ | |
 

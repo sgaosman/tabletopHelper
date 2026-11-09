@@ -23,7 +23,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param featuresGained      the features the level brought, and those its choices added since: a Fighting Style's,
  *                            and a subclass's at its class level, even when the subclass was chosen later (D159)
  * @param choices             what was chosen at this level; empty when nothing was
- * @param proficienciesGained the proficiencies multiclassing into the class added
+ * @param proficienciesGained the proficiencies multiclassing into the class added, and those a subclass gives at the
+ *                            level that records it
  * @param abilityIncreases    increases the level itself applied, spelled out ("strength"), at the amount actually
  *                            applied: Primal Champion's at Barbarian 20th level
  */
@@ -50,6 +51,11 @@ public record LevelHistoryEntry(
     public LevelHistoryEntry withFeaturesGained(List<Feature> newFeaturesGained) {
         return new LevelHistoryEntry(characterLevel, classId, className, classLevel, hpGained, hitDieResult,
                 newFeaturesGained, choices, proficienciesGained, abilityIncreases);
+    }
+
+    public LevelHistoryEntry withProficienciesGained(ProficienciesGained newProficienciesGained) {
+        return new LevelHistoryEntry(characterLevel, classId, className, classLevel, hpGained, hitDieResult,
+                featuresGained, choices, newProficienciesGained, abilityIncreases);
     }
 
     public LevelHistoryEntry withHpGained(int newHpGained) {

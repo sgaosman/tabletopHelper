@@ -369,6 +369,32 @@ public class FeatureEffects {
         return single && character.getLevel() != null ? character.getLevel() : 0;
     }
 
+    /**
+     * The character's level in the class when that class has the subclass, from its class entries, or its single class,
+     * level and subclass when it has none; 0 otherwise. The subclass data gives a subclass's first level one feature
+     * named after the subclass, such as "Life Domain", and the features that level brings, such as Disciple of Life,
+     * aren't features of their own, so such a feature is found through the subclass and the class level rather than by
+     * its name.
+     */
+    public static int subclassLevel(PlayerCharacter character, String className, String subclassName) {
+        if (character == null) {
+            return 0;
+        }
+        List<ClassEntry> entries = character.getMulticlassEntries();
+        if (entries != null && !entries.isEmpty()) {
+            return entries.stream()
+                    .filter(entry -> entry != null && entry.className() != null && entry.subclassName() != null
+                            && entry.className().trim().equalsIgnoreCase(className)
+                            && entry.subclassName().trim().equalsIgnoreCase(subclassName))
+                    .mapToInt(ClassEntry::level)
+                    .sum();
+        }
+        boolean single = character.getCharacterClass() != null && character.getSubclass() != null
+                && character.getCharacterClass().trim().equalsIgnoreCase(className)
+                && character.getSubclass().trim().equalsIgnoreCase(subclassName);
+        return single && character.getLevel() != null ? character.getLevel() : 0;
+    }
+
     /** Whether the character's features include one of this name, in any case. */
     public static boolean hasFeature(PlayerCharacter character, String featureName) {
         if (character == null || character.getFeatures() == null) {

@@ -9807,6 +9807,20 @@
               "type": "string"
             }
           },
+          "languages": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "tools": {
             "type": "array",
             "nullable": true,

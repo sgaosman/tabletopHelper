@@ -400,6 +400,10 @@ class CharacterSheetServiceTest {
                     new FontOfMagicRequest(FontOfMagic.Direction.POINTS_TO_SLOT, 1), f.userId))
                     .isInstanceOf(ConflictException.class)
                     .hasMessage("Aria has 0 sorcery points, and a level 1 spell slot costs 2");
+            assertThatThrownBy(() -> f.sheet.fontOfMagic(pc.getId(),
+                    new FontOfMagicRequest(FontOfMagic.Direction.POINTS_TO_SLOT, 6), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Flexible Casting creates spell slots of 1st to 5th level, not level 6");
             assertThatThrownBy(() -> f.sheet.fontOfMagic(noPoints.getId(),
                     new FontOfMagicRequest(FontOfMagic.Direction.SLOT_TO_POINTS, 1), f.userId))
                     .isInstanceOf(ConflictException.class)

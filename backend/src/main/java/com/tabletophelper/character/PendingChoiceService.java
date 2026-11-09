@@ -20,6 +20,7 @@ import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.PendingChoice.Source;
 import com.tabletophelper.character.state.PendingChoice.Type;
+import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.SpellsLearned;
 import com.tabletophelper.character.state.SubclassChosen;
 import com.tabletophelper.reference.Background;
@@ -354,6 +355,7 @@ public class PendingChoiceService {
         }
         CharacterUpdates.recordChoices(character, index, c -> c.withSubclass(
                 new SubclassChosen(classId, subclass.getId(), subclass.getName())));
+        grantSubclassProficiencies(character, subclass, index);
         // An Eldritch Knight or Arcane Trickster stores its Intelligence when the character has no spellcasting
         // ability yet, so a feat taken later that chooses another doesn't replace it (D159)
         if (isBlank(character.getSpellcastingAbility())
@@ -541,6 +543,9 @@ public class PendingChoiceService {
                 CharacterUpdates.recordChoices(character, index, c -> c.withSubclass(
                         new SubclassChosen(entry.classId(), entry.subclassId(), entry.subclassName())));
             }
+            Subclass subclass = subclassRepository.findById(entry.subclassId())
+                    .orElseThrow(() -> new ValidationException("Subclass not found: " + entry.subclassId()));
+            grantSubclassProficiencies(character, subclass, index);
         }
 
         List<PendingChoice> owed = new ArrayList<>();
@@ -683,6 +688,102 @@ public class PendingChoiceService {
     }
 
     // ── The backfill ─────────────────────────────────────────────
+
+    // ── A subclass's bonus proficiencies ─────────────────────────
+
+    /**
+     * Gives the character the bonus proficiencies the subclass grants that it lacks, such as a Life Domain's heavy
+     * armour (PHB p.60), recorded on the level history entry at the index, the level that records the subclass, so
+     * levelling down past it takes them away with the subclass; recorded nowhere for an index below 0.
+     */
+    private void grantSubclassProficiencies(PlayerCharacter character, Subclass subclass, int index) {
+        ProficienciesGained missing = SubclassProficiencies.missing(character,
+                SubclassProficiencies.of(objectMapper, subclass));
+        CharacterUpdates.addProficiencies(character, index, missing);
+    }
+
+    /**
+     * The bonus proficiencies the character's subclasses grant that its sheet lacks, as characters given a subclass
+     * before they were granted lack them, for the recompute-characters job; one entry per subclass with any missing.
+     * Changes nothing.
+     *
+     * @throws ConflictException when a subclass the character has can't be found or read
+     */
+    public List<MissingSubclassProficiencies> missingSubclassProficiencies(PlayerCharacter character) {
+        List<MissingSubclassProficiencies> found = new ArrayList<>();
+        ProficienciesGained held = SubclassProficiencies.sheet(character);
+        for (ClassEntry entry : subclassEntries(character)) {
+            Subclass subclass = subclassRepository.findById(entry.subclassId())
+                    .orElseThrow(() -> new ConflictException("The subclass " + entry.subclassName() + " of "
+                            + character.getName() + "'s " + entry.className() + " can't be found"));
+            ProficienciesGained missing = SubclassProficiencies.missing(held,
+                    SubclassProficiencies.of(objectMapper, subclass));
+            if (!CharacterUpdates.addedAny(missing)) continue;
+            held = SubclassProficiencies.plus(held, missing);
+            int index = subclassRecordIndex(character, entry.classId());
+            LevelHistoryEntry level = index >= 0 ? character.getLevelHistory().get(index) : null;
+            found.add(new MissingSubclassProficiencies(subclass.getName(), missing,
+                    SubclassProficiencies.describe(missing), level != null ? level.className() : null,
+                    level != null ? level.classLevel() : 0, index));
+        }
+        return found;
+    }
+
+    /**
+     * Gives the character what {@link #missingSubclassProficiencies} finds, each recorded on the level that records
+     * its subclass when the history has one, for the recompute-characters job; the caller saves the character.
+     */
+    public void storeMissingSubclassProficiencies(PlayerCharacter character) {
+        for (MissingSubclassProficiencies missing : missingSubclassProficiencies(character)) {
+            CharacterUpdates.addProficiencies(character, missing.levelIndex(), missing.missing());
+        }
+    }
+
+    /**
+     * Bonus proficiencies a character's subclass grants and its sheet lacks.
+     *
+     * @param subclassName the subclass
+     * @param missing      what the sheet lacks
+     * @param description  what is missing, such as "armour heavy; weapons martial"
+     * @param className    the class of the level that records the subclass; null when no level records it
+     * @param classLevel   that level's class level; 0 when no level records the subclass
+     * @param levelIndex   that level's place in the level history; below 0 when none, so levelling down won't take
+     *                     them away
+     */
+    public record MissingSubclassProficiencies(String subclassName, ProficienciesGained missing, String description,
+                                               String className, int classLevel, int levelIndex) {
+
+        /** Whether a level records them, so levelling down past it takes them away. */
+        public boolean recorded() {
+            return levelIndex >= 0;
+        }
+    }
+
+    // The class entries with a subclass, or for a character without entries its own class's subclass
+    private static List<ClassEntry> subclassEntries(PlayerCharacter character) {
+        List<ClassEntry> entries = orEmpty(character.getMulticlassEntries());
+        if (entries.isEmpty() && character.getSubclassRef() != null) {
+            Subclass subclass = character.getSubclassRef();
+            CharacterClass characterClass = subclass.getCharacterClass();
+            return List.of(new ClassEntry(characterClass != null ? characterClass.getId() : null,
+                    characterClass != null ? characterClass.getName() : character.getCharacterClass(),
+                    subclass.getId(), subclass.getName(), character.getLevel() != null ? character.getLevel() : 0));
+        }
+        return entries.stream().filter(entry -> entry != null && entry.subclassId() != null).toList();
+    }
+
+    // The level history entry that records the class's subclass choice; -1 for none
+    private static int subclassRecordIndex(PlayerCharacter character, UUID classId) {
+        List<LevelHistoryEntry> history = orEmpty(character.getLevelHistory());
+        for (int i = 0; i < history.size(); i++) {
+            LevelChoices choices = history.get(i).choices();
+            if (choices != null && choices.subclass() != null && classId != null
+                    && classId.equals(choices.subclass().classId())) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     /**
      * The Ability Score Improvements, subclasses, Expertise and Metamagic options the character's levels owe that no

@@ -44,6 +44,18 @@ public final class ClassFeatures {
     /** The feature that adds to a Life cleric's healing spells (PHB p.60). */
     public static final String DISCIPLE_OF_LIFE = "Disciple of Life";
 
+    /**
+     * The subclass that gives Disciple of Life, from its 1st level (PHB p.60). Its data gives that level only a feature
+     * named after the subclass, so the subclass and the class level find Disciple of Life, not a feature's name.
+     */
+    public static final String LIFE_DOMAIN = "Life Domain";
+
+    /** The class Disciple of Life's subclass belongs to. */
+    public static final String CLERIC = "Cleric";
+
+    /** The cleric level that gives Disciple of Life (PHB p.60). */
+    public static final int DISCIPLE_OF_LIFE_LEVEL = 1;
+
     /** The feature that lets a barbarian attack recklessly (Barbarian 2, PHB p.48). */
     public static final String RECKLESS_ATTACK = "Reckless Attack";
 

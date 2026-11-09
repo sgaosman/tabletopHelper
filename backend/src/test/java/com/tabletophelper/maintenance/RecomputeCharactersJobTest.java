@@ -3,11 +3,13 @@ package com.tabletophelper.maintenance;
 import com.tabletophelper.character.CharacterRepository;
 import com.tabletophelper.character.CharacterService;
 import com.tabletophelper.character.FeatEligibility;
+import com.tabletophelper.character.PendingChoiceService;
 import com.tabletophelper.character.DerivedStats;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.dto.AbilityScoreMaximums;
 import com.tabletophelper.character.state.DmAdjustment;
 import com.tabletophelper.character.state.HitDicePool;
+import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.shared.ConflictException;
@@ -225,5 +227,59 @@ class RecomputeCharactersJobTest {
         verify(characterService).storeMissingSpellcastingAbility(recorded);
         verify(characterService).storeMissingSpellcastingAbility(unrecorded);
         verify(characterRepository).save(recorded);
+    }
+
+    @Test
+    @DisplayName("A character whose subclass grants bonus proficiencies its sheet lacks gains them, reported with the "
+            + "level they are recorded on, or why they aren't, and stored only with apply")
+    void backfillsSubclassProficiencies() {
+        PlayerCharacter life = barbarian("Tam");
+        PlayerCharacter old = barbarian("Old");
+        PlayerCharacter none = barbarian("None");
+        when(characterRepository.findAll()).thenReturn(List.of(none, old, life));
+        when(characterService.derivedStats(any())).thenReturn(derived(65, 2, List.of(RAGE), List.of()));
+        ProficienciesGained heavy = new ProficienciesGained(List.of("heavy"), null, null);
+        ProficienciesGained martial = new ProficienciesGained(List.of("heavy"), List.of("martial"), null);
+        when(characterService.missingSubclassProficiencies(life)).thenReturn(List.of(
+                new PendingChoiceService.MissingSubclassProficiencies("Life Domain", heavy, "armour heavy", "Cleric",
+                        1, 0)));
+        when(characterService.missingSubclassProficiencies(old)).thenReturn(List.of(
+                new PendingChoiceService.MissingSubclassProficiencies("War Domain", martial,
+                        "armour heavy; weapons martial", null, 0, -1)));
+
+        MaintenanceReport dryRun = job().run(false);
+
+        assertThat(dryRun.changes()).hasSize(2);
+        assertThat(dryRun.changes().get(0)).startsWith("Old (")
+                .contains("subclass proficiencies: + armour heavy; weapons martial (War Domain, not recorded: no level "
+                        + "records the subclass, so levelling down won't remove them)");
+        assertThat(dryRun.changes().get(1)).startsWith("Tam (")
+                .contains("subclass proficiencies: + armour heavy (Life Domain, recorded on Cleric 1)");
+        verify(characterService, never()).storeMissingSubclassProficiencies(any());
+        verify(characterRepository, never()).save(any());
+
+        job().run(true);
+
+        verify(characterService).storeMissingSubclassProficiencies(life);
+        verify(characterService).storeMissingSubclassProficiencies(old);
+        verify(characterService, never()).storeMissingSubclassProficiencies(none);
+        verify(characterRepository).save(life);
+        verify(characterRepository, never()).save(none);
+    }
+
+    @Test
+    @DisplayName("A subclass that can't be found is a warning, and the character's other changes go ahead")
+    void subclassProficienciesSkipped() {
+        PlayerCharacter lost = barbarian("Lost");
+        when(characterRepository.findAll()).thenReturn(List.of(lost));
+        when(characterService.derivedStats(lost)).thenReturn(derived(65, 3, List.of(RAGE), List.of()));
+        when(characterService.missingSubclassProficiencies(lost))
+                .thenThrow(new ConflictException("The subclass Gone of Lost's Cleric can't be found"));
+
+        MaintenanceReport report = job().run(false);
+
+        assertThat(report.warnings()).containsExactly("Lost (" + lost.getId() + ", level 6 Barbarian, deleted): "
+                + "subclass proficiencies skipped (The subclass Gone of Lost's Cleric can't be found)");
+        assertThat(report.changes()).singleElement().asString().contains("initiative: +2 → +3");
     }
 }

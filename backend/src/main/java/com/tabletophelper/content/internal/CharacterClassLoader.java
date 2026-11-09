@@ -31,6 +31,12 @@ public class CharacterClassLoader implements ContentLoader {
     static final Set<String> SUBCLASS_EFFECTS = Set.of("hpPerClassLevel", "unarmouredAcBase", "unarmouredAcDex",
             "unarmouredAcCon", "unarmouredAcWithArmour");
 
+    // The bonus proficiencies a subclass gives at its subclass level, such as a Life Domain's heavy armour (PHB p.60),
+    // by the subclass's natural key: the 5etools data has them only in the features' text. Only fixed grants are listed;
+    // a proficiency the player chooses isn't
+    static final String SUBCLASS_PROFICIENCIES_FILE = "data/content/subclass-proficiencies.json";
+    static final Set<String> PROFICIENCY_KINDS = Set.of("armor", "weapons", "tools", "skills", "languages");
+
     // Class files we don't load: Mystic is unofficial playtest material, and sidekicks aren't player classes
     private static final Set<String> SKIP_FILES = Set.of("class-mystic.json", "class-sidekick.json");
 
@@ -44,14 +50,15 @@ public class CharacterClassLoader implements ContentLoader {
 
     @Override
     public List<String> files() {
-        return List.of("data/5etools/class/class-*.json", ClassTablesFile.PATH, SUBCLASS_EFFECTS_FILE);
+        return List.of("data/5etools/class/class-*.json", ClassTablesFile.PATH, SUBCLASS_EFFECTS_FILE,
+                SUBCLASS_PROFICIENCIES_FILE);
     }
 
     // The slot progressions and subclass levels come from the class tables, which files() lists; version 2 writes
-    // the subclass effects overlay
+    // the subclass effects overlay, and version 3 the subclasses' bonus proficiencies
     @Override
     public int version() {
-        return 2;
+        return 3;
     }
 
     /** Loads the classes, then the subclasses under them. */
@@ -119,7 +126,58 @@ public class CharacterClassLoader implements ContentLoader {
             subclass.setEffects(effects.effectsOf(subclassKey(subclass)));
         }
         effects.requireEveryRowFound();
+        Map<String, String> proficiencies = subclassProficiencies(context);
+        Set<String> found = new HashSet<>();
+        for (Subclass subclass : allSubclasses) {
+            String key = subclassKey(subclass);
+            subclass.setAdditionalProficiencies(proficiencies.get(key));
+            if (proficiencies.containsKey(key)) found.add(key);
+        }
+        List<String> missing = new ArrayList<>(proficiencies.keySet());
+        missing.removeAll(found);
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + " names subclasses the data doesn't have: "
+                    + missing);
+        }
         context.upsert("subclasses", subclassRepository, allSubclasses, CharacterClassLoader::subclassKey);
+    }
+
+    /**
+     * The bonus proficiencies file, as JSON text by subclass natural key: each row an object of the kinds in
+     * {@link #PROFICIENCY_KINDS}, each a list of names.
+     *
+     * @throws IllegalStateException for a row that isn't one
+     */
+    Map<String, String> subclassProficiencies(LoadContext context) {
+        JsonNode root = context.read(SUBCLASS_PROFICIENCIES_FILE);
+        if (!root.isObject()) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + " is not an object of natural keys");
+        }
+        Map<String, String> rows = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonNode> row : root.properties()) {
+            JsonNode value = row.getValue();
+            if (!value.isObject() || value.isEmpty()) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + row.getKey()
+                        + " has no proficiencies object");
+            }
+            for (Map.Entry<String, JsonNode> kind : value.properties()) {
+                if (!PROFICIENCY_KINDS.contains(kind.getKey())) {
+                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + row.getKey() + " has "
+                            + kind.getKey() + ", which isn't one of " + PROFICIENCY_KINDS);
+                }
+                JsonNode items = kind.getValue();
+                boolean names = items.isArray() && !items.isEmpty();
+                for (JsonNode item : items) {
+                    names &= item.isString() && !item.asString("").isBlank();
+                }
+                if (!names) {
+                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + row.getKey() + "'s "
+                            + kind.getKey() + " is not a list of names");
+                }
+            }
+            rows.put(row.getKey(), objectMapper.writeValueAsString(value));
+        }
+        return rows;
     }
 
     /** A subclass's natural key: its class's name and source, then its own. */

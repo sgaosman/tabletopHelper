@@ -47,6 +47,17 @@ class EncounterLifecycleIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Starting puts the encounter on round 1 before any Next Turn, in the start's response and when read")
+    void startIsRoundOne() {
+        JsonNode started = startEncounter(dm.accessToken(), encounterId);
+
+        assertThat(started.get("roundNumber").isInt()).isTrue();
+        assertThat(started.get("roundNumber").asInt()).isEqualTo(1);
+        assertThat(encounter().get("roundNumber").isInt()).isTrue();
+        assertThat(encounter().get("roundNumber").asInt()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("Combat in a Paused encounter gets 409 and changes nothing; once resumed, it applies")
     void combatInPausedEncounterIsRefused() {
         startEncounter(dm.accessToken(), encounterId);

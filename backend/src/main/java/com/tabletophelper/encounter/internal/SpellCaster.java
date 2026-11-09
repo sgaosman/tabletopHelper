@@ -256,11 +256,12 @@ public class SpellCaster {
      * Disciple of Life (Life Domain 1, PHB p.60): a healing spell of 1st level or higher cast by a cleric with the
      * feature restores 2 + the spell's level more hit points to each creature it heals, the level being the slot's.
      * The Effect rolls its healing once for every target (D161), so the bonus goes on the dice. The Effect unchanged
-     * for anything else.
+     * for anything else. A cleric has the feature from Life Domain's 1st level: the subclass data gives that level
+     * only a feature named "Life Domain", so no sheet has one named Disciple of Life unless it was entered by hand,
+     * which counts too.
      */
     static Effect discipleOfLife(EncounterParticipant caster, Effect effect, int spellLevel, int slotLevel) {
-        if (effect.healing() == null || spellLevel < 1
-                || !FeatureEffects.hasFeature(caster.getCharacter(), ClassFeatures.DISCIPLE_OF_LIFE)) {
+        if (effect.healing() == null || spellLevel < 1 || !hasDiscipleOfLife(caster)) {
             return effect;
         }
         int bonus = ClassFeatures.discipleOfLife(Math.max(spellLevel, slotLevel));
@@ -268,6 +269,13 @@ public class SpellCaster {
         return new Effect(effect.name(), effect.delivery(), effect.damage(),
                 new Dice(healing.count(), healing.sides(), healing.modifier() + bonus), effect.conditions(),
                 effect.concentration(), effect.durationRounds(), effect.conditionEnds());
+    }
+
+    // A Life Domain cleric of 1st level or higher (PHB p.60), or a sheet with the feature by name
+    private static boolean hasDiscipleOfLife(EncounterParticipant caster) {
+        return FeatureEffects.subclassLevel(caster.getCharacter(), ClassFeatures.CLERIC, ClassFeatures.LIFE_DOMAIN)
+                >= ClassFeatures.DISCIPLE_OF_LIFE_LEVEL
+                || FeatureEffects.hasFeature(caster.getCharacter(), ClassFeatures.DISCIPLE_OF_LIFE);
     }
 
     /**

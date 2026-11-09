@@ -12,6 +12,7 @@ import com.tabletophelper.character.state.LevelHistoryEntry;
 import com.tabletophelper.character.state.PendingChoice;
 import com.tabletophelper.character.state.PendingChoice.Source;
 import com.tabletophelper.character.state.PendingChoice.Type;
+import com.tabletophelper.character.state.ProficienciesGained;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellsLearned;
 import com.tabletophelper.character.state.SubclassChosen;
@@ -913,6 +914,142 @@ class PendingChoiceServiceTest {
             assertThat(pc.getFeatures()).extracting(Feature::name).doesNotContain("Fighting Style: Archery");
             assertThat(names(pc, "class:Wizard")).containsExactly("Fire Bolt", "Minor Illusion", "Chill Touch");
             assertThat(pc.getPendingChoices()).extracting(PendingChoice::type).containsExactly(Type.SPELLS);
+        }
+    }
+
+    @Nested
+    @DisplayName("A subclass's bonus proficiencies")
+    class SubclassBonusProficiencies {
+
+        // As the content loader stores them: the 5etools features, whose 1st level is only the feature named after the
+        // subclass, and the bonus proficiencies from subclass-proficiencies.json
+        private final Subclass lifeDomain = Subclass.builder().id(UUID.randomUUID()).name("Life Domain")
+                .characterClass(f.cleric)
+                .features("[{\"level\":1,\"name\":\"Life Domain\",\"description\":\"The Life domain\"},"
+                        + "{\"level\":2,\"name\":\"Channel Divinity: Preserve Life\",\"description\":\"Heal\"}]")
+                .additionalProficiencies("{\"armor\":[\"heavy\"]}")
+                .build();
+        private final Subclass runeKnight = Subclass.builder().id(UUID.randomUUID()).name("Rune Knight")
+                .characterClass(f.fighter)
+                .features("[{\"level\":3,\"name\":\"Bonus Proficiencies\",\"description\":\"Smith's tools, Giant\"}]")
+                .additionalProficiencies("{\"tools\":[\"smith's tools\"],\"languages\":[\"Giant\"]}")
+                .build();
+
+        @BeforeEach
+        void knowTheSubclasses() {
+            lenient().when(f.subclassRepository.findById(lifeDomain.getId())).thenReturn(Optional.of(lifeDomain));
+            lenient().when(f.subclassRepository.findById(runeKnight.getId())).thenReturn(Optional.of(runeKnight));
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.fighter.getId()))
+                    .thenReturn(List.of(f.champion, f.eldritchKnight, runeKnight));
+        }
+
+        private PlayerCharacter lifeCleric() {
+            return create(f.cleric, 1, request -> {
+                request.setSubclassId(lifeDomain.getId());
+                // The class's own armour, as the creation wizard sends it from the class data
+                request.setArmorProficiencies(List.of("light", "medium", "shields"));
+                request.setWeaponProficiencies(List.of("simple"));
+            });
+        }
+
+        @Test
+        @DisplayName("A Life Domain cleric created with its subclass gains heavy armour, recorded on Cleric 1 (PHB p.60)")
+        void lifeDomainAtCreation() {
+            PlayerCharacter pc = lifeCleric();
+
+            assertThat(pc.getArmorProficiencies()).containsExactly("light", "medium", "shields", "heavy");
+            assertThat(pc.getLevelHistory().getFirst().proficienciesGained())
+                    .isEqualTo(new ProficienciesGained(List.of("heavy"), null, null, null, null));
+            assertThat(pc.getFeatures()).extracting(Feature::name).contains("Life Domain")
+                    .doesNotContain("Disciple of Life");
+        }
+
+        @Test
+        @DisplayName("A proficiency the sheet has already, in any case, isn't added or recorded again")
+        void alreadyProficient() {
+            PlayerCharacter pc = create(f.cleric, 1, request -> {
+                request.setSubclassId(lifeDomain.getId());
+                request.setArmorProficiencies(List.of("Heavy Armor", "Heavy"));
+            });
+
+            assertThat(pc.getArmorProficiencies()).containsExactly("Heavy Armor", "Heavy");
+            assertThat(pc.getLevelHistory().getFirst().proficienciesGained()).isNull();
+        }
+
+        @Test
+        @DisplayName("A subclass chosen on the sheet gives its proficiencies on its level, and levelling down past that "
+                + "level takes them away with it")
+        void chosenLaterAndReversed() {
+            PlayerCharacter pc = create(f.fighter, 3, request -> request.setToolProficiencies(List.of("dice set")));
+
+            f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(runeKnight.getId()));
+
+            assertThat(pc.getToolProficiencies()).containsExactly("dice set", "smith's tools");
+            assertThat(pc.getLanguageProficiencies()).containsExactly("Giant");
+            assertThat(pc.getLevelHistory().get(2).proficienciesGained())
+                    .isEqualTo(new ProficienciesGained(null, null, List.of("smith's tools"), null, List.of("Giant")));
+
+            f.levelDown(pc);
+
+            assertThat(pc.getSubclass()).isNull();
+            assertThat(pc.getToolProficiencies()).containsExactly("dice set");
+            assertThat(pc.getLanguageProficiencies()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A character given its subclass before subclasses granted proficiencies is found missing them, "
+                + "recorded on the level that records the subclass, and a second look finds nothing")
+        void missingForTheJob() {
+            PlayerCharacter pc = lifeCleric();
+            pc.setArmorProficiencies(List.of("light", "medium", "shields"));
+            pc.setLevelHistory(List.of(pc.getLevelHistory().getFirst().withProficienciesGained(null)));
+
+            List<PendingChoiceService.MissingSubclassProficiencies> missing =
+                    f.choices.missingSubclassProficiencies(pc);
+
+            assertThat(missing).singleElement().satisfies(m -> {
+                assertThat(m.subclassName()).isEqualTo("Life Domain");
+                assertThat(m.description()).isEqualTo("armour heavy");
+                assertThat(m.recorded()).isTrue();
+                assertThat(m.className()).isEqualTo("Cleric");
+                assertThat(m.classLevel()).isEqualTo(1);
+            });
+            assertThat(pc.getArmorProficiencies()).doesNotContain("heavy");
+
+            f.choices.storeMissingSubclassProficiencies(pc);
+
+            assertThat(pc.getArmorProficiencies()).containsExactly("light", "medium", "shields", "heavy");
+            assertThat(pc.getLevelHistory().getFirst().proficienciesGained().armor()).containsExactly("heavy");
+            assertThat(f.choices.missingSubclassProficiencies(pc)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Without a level that records the subclass, the missing proficiencies are given unrecorded")
+        void missingUnrecorded() {
+            PlayerCharacter pc = lifeCleric();
+            pc.setArmorProficiencies(List.of("light"));
+            pc.setLevelHistory(List.of(pc.getLevelHistory().getFirst().withProficienciesGained(null)
+                    .withChoices(LevelChoices.NONE)));
+
+            List<PendingChoiceService.MissingSubclassProficiencies> missing =
+                    f.choices.missingSubclassProficiencies(pc);
+
+            assertThat(missing).singleElement().satisfies(m -> assertThat(m.recorded()).isFalse());
+            f.choices.storeMissingSubclassProficiencies(pc);
+            assertThat(pc.getArmorProficiencies()).containsExactly("light", "heavy");
+            assertThat(pc.getLevelHistory().getFirst().proficienciesGained()).isNull();
+        }
+
+        @Test
+        @DisplayName("A subclass whose proficiencies can't be read is a 409")
+        void unreadable() {
+            PlayerCharacter pc = lifeCleric();
+            pc.setArmorProficiencies(List.of());
+            lifeDomain.setAdditionalProficiencies("{\"armor\": \"heavy\"");
+
+            assertThatThrownBy(() -> f.choices.missingSubclassProficiencies(pc))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("The bonus proficiencies of the subclass Life Domain can't be read");
         }
     }
 

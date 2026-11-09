@@ -252,20 +252,51 @@ public class AttackService {
             return List.of();
         }
         AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(participant));
-        return characterWeapons.of(character).stream().map(held -> option(character, attacker, held)).toList();
+        RollBonuses rollBonuses = rollBonuses(participant, CreatureStats.conditionNames(participant));
+        return characterWeapons.of(character).stream()
+                .map(held -> option(character, attacker, held, rollBonuses))
+                .toList();
     }
 
+    /**
+     * The bonuses to a weapon attack roll the attacker has in force now: Sacred Weapon's Charisma modifier, at least
+     * +1 (PHB p.86), and War God's Blessing's +10, which the next attack spends (PHB p.63).
+     */
+    record RollBonuses(int sacredWeapon, boolean blessed) {
+
+        int total() {
+            return sacredWeapon + (blessed ? ChannelDivinity.ATTACK_BONUS : 0);
+        }
+
+        List<String> notes() {
+            List<String> notes = new ArrayList<>();
+            if (sacredWeapon > 0) notes.add("Sacred Weapon +" + sacredWeapon);
+            if (blessed) notes.add("War God's Blessing +" + ChannelDivinity.ATTACK_BONUS);
+            return notes;
+        }
+    }
+
+    private RollBonuses rollBonuses(EncounterParticipant attacker, List<String> conditions) {
+        int sacredWeapon = ClassFeatures.has(conditions, ChannelDivinity.SACRED_WEAPON)
+                ? ChannelDivinity.sacredWeaponBonus(stats.abilityScore(attacker, Ability.CHA)) : 0;
+        return new RollBonuses(sacredWeapon, ClassFeatures.has(conditions, ChannelDivinity.WAR_GODS_BLESSING));
+    }
+
+    // A weapon's option with the attack roll bonuses in force, which the attack itself adds (Sacred Weapon, War God's
+    // Blessing), so the numbers shown are those the attack rolls
     private AttackOption option(PlayerCharacter character, AttackFeatures.Attacker attacker,
-                                CharacterWeapons.Held held) {
+                                CharacterWeapons.Held held, RollBonuses rollBonuses) {
         WeaponRules.Weapon weapon = held.weapon();
         AttackFeatures.Grip grip = AttackFeatures.defaultGrip(weapon, false);
         AttackFeatures.Numbers numbers = characterWeapons.numbers(held, attacker, false, false, grip);
         AttackOption.PowerAttackOption powerAttack = null;
         if (held.powerAttack() != null) {
             AttackFeatures.Numbers traded = characterWeapons.numbers(held, attacker, true, false, grip);
-            powerAttack = new AttackOption.PowerAttackOption(held.powerAttack().featName(), traded.attackBonus(),
-                    traded.damage().toString());
+            powerAttack = new AttackOption.PowerAttackOption(held.powerAttack().featName(),
+                    traded.attackBonus() + rollBonuses.total(), traded.damage().toString());
         }
+        List<String> features = new ArrayList<>(rollBonuses.notes());
+        features.addAll(numbers.notes());
         String versatile = weapon.versatile() && !weapon.twoHanded()
                 ? characterWeapons.numbers(held, attacker, false, false, AttackFeatures.Grip.TWO_HANDED).damage()
                         .toString() : null;
@@ -274,9 +305,10 @@ public class AttackService {
         int rogueLevel = Math.min(20, FeatureEffects.classLevel(character, ROGUE));
         String sneakAttack = rogueLevel >= 1 && AttackFeatures.sneakAttackWeapon(weapon)
                 ? AttackFeatures.sneakAttack(rogueLevel).toString() : null;
-        return new AttackOption(weapon.name(), numbers.ability(), held.proficient(), numbers.attackBonus(),
-                numbers.damage().toString(), weapon.damageType(), weapon.ranged(), powerAttack, reckless,
-                weapon.twoHanded(), versatile, numbers.notes(), numbers.critRange(), sneakAttack, numbers.martialArts());
+        return new AttackOption(weapon.name(), numbers.ability(), held.proficient(),
+                numbers.attackBonus() + rollBonuses.total(), numbers.damage().toString(), weapon.damageType(),
+                weapon.ranged(), powerAttack, reckless, weapon.twoHanded(), versatile, features, numbers.critRange(),
+                sneakAttack, numbers.martialArts());
     }
 
     // ── What an attack costs ─────────────────────────────────────
@@ -419,10 +451,10 @@ public class AttackService {
             damage.add(new Effect.DamagePart(extraDamage, extraType));
         }
         // Sacred Weapon (PHB p.86) and War God's Blessing (PHB p.63) add to the attack roll
-        int sacredWeapon = ClassFeatures.has(conditions, ChannelDivinity.SACRED_WEAPON)
-                ? ChannelDivinity.sacredWeaponBonus(stats.abilityScore(actor, Ability.CHA)) : 0;
-        boolean blessed = ClassFeatures.has(conditions, ChannelDivinity.WAR_GODS_BLESSING);
-        int attackBonus = numbers.attackBonus() + sacredWeapon + (blessed ? ChannelDivinity.ATTACK_BONUS : 0)
+        RollBonuses rollBonuses = rollBonuses(actor, conditions);
+        int sacredWeapon = rollBonuses.sacredWeapon();
+        boolean blessed = rollBonuses.blessed();
+        int attackBonus = numbers.attackBonus() + rollBonuses.total()
                 + (request.getExtraAttackBonus() != null ? request.getExtraAttackBonus() : 0);
         // There is no map: a melee weapon attacks from within 5 feet, and a ranged one from beyond (D161)
         boolean withinFiveFeet = request.getWithin5Ft() != null ? request.getWithin5Ft() : !weapon.ranged();

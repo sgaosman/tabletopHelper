@@ -495,6 +495,26 @@ public class CharacterService {
      */
     public record MissingSpellcastingAbility(String ability, String className, int classLevel, boolean recorded) {}
 
+    /**
+     * The bonus proficiencies the character's subclasses grant and its sheet lacks, such as a Life Domain cleric's heavy
+     * armour (PHB p.60) for a subclass chosen before subclasses granted them, for the recompute-characters job; changes
+     * nothing.
+     *
+     * @throws ConflictException when a subclass the character has can't be found or read
+     */
+    public List<PendingChoiceService.MissingSubclassProficiencies> missingSubclassProficiencies(
+            PlayerCharacter character) {
+        return pendingChoices.missingSubclassProficiencies(character);
+    }
+
+    /**
+     * Gives the character what {@link #missingSubclassProficiencies} finds, each recorded on the level that records its
+     * subclass when the history has one, for the recompute-characters job; the caller saves the character.
+     */
+    public void storeMissingSubclassProficiencies(PlayerCharacter character) {
+        pendingChoices.storeMissingSubclassProficiencies(character);
+    }
+
     /** What the rules give the character now, beside what its sheet stores; changes nothing (D167). */
     public DerivedStats derivedStats(PlayerCharacter character) {
         return characterStats.derive(character);

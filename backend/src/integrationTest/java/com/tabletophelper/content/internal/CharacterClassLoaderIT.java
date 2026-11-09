@@ -143,4 +143,53 @@ class CharacterClassLoaderIT extends IntegrationTest {
         assertThat(characterClassRepository.findByNameAndSource("Fighter", "PHB").orElseThrow()
                 .getSpellSlotProgression()).isNull();
     }
+
+    @Test
+    @DisplayName("After loading, subclasses carry the fixed bonus proficiencies of subclass-proficiencies.json: a Life "
+            + "Domain's heavy armour, a War Domain's heavy armour and martial weapons, and none for a Light Domain")
+    void subclassProficienciesComeFromTheOverlay() {
+        load();
+
+        assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getAdditionalProficiencies() != null)
+                .hasSize(23);
+        assertThat(proficienciesOf("Life Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
+        assertThat(proficienciesOf("War Domain")).isEqualTo(objectMapper.readTree(
+                "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
+        assertThat(proficienciesOf("Tempest Domain")).isEqualTo(objectMapper.readTree(
+                "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
+        assertThat(proficienciesOf("Nature Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
+        assertThat(proficienciesOf("College of Valor")).isEqualTo(objectMapper.readTree(
+                "{\"armor\": [\"medium\", \"shields\"], \"weapons\": [\"martial\"]}"));
+        assertThat(cleric("Light Domain").getAdditionalProficiencies()).isNull();
+    }
+
+    @Test
+    @DisplayName("After loading, a Life Domain's only 1st-level feature is the one named after the subclass, so no "
+            + "character has a feature named Disciple of Life")
+    void lifeDomainHoldsDiscipleOfLifeInsideItsFirstFeature() {
+        load();
+
+        var features = objectMapper.readTree(cleric("Life Domain").getFeatures());
+        var firstLevel = new java.util.ArrayList<String>();
+        features.forEach(feature -> {
+            if (feature.path("level").asInt() == 1) firstLevel.add(feature.path("name").asString());
+        });
+        assertThat(firstLevel).containsExactly("Life Domain");
+    }
+
+    private Subclass cleric(String name) {
+        return subclassRepository.findAll().stream()
+                .filter(subclass -> subclass.getName().equals(name)
+                        && subclass.getCharacterClass().getName().equals("Cleric"))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private tools.jackson.databind.JsonNode proficienciesOf(String name) {
+        Subclass subclass = subclassRepository.findAll().stream()
+                .filter(found -> found.getName().equals(name))
+                .findFirst()
+                .orElseThrow();
+        return objectMapper.readTree(subclass.getAdditionalProficiencies());
+    }
 }

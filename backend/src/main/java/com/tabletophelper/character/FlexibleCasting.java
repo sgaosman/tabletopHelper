@@ -69,8 +69,8 @@ public final class FlexibleCasting {
     private static Exchange create(String owner, Map<String, SpellSlot> slots, List<ResourcePoolEntry> pools,
                                    ResourcePoolEntry points, int slotLevel) {
         if (!FontOfMagic.canCreate(slotLevel)) {
-            throw new ValidationException("Flexible Casting creates spell slots of 1st to "
-                    + FontOfMagic.MAX_CREATED_LEVEL + " level, not level " + slotLevel);
+            throw new ValidationException("Flexible Casting creates spell slots of 1st to 5th level, not level "
+                    + slotLevel);
         }
         int cost = FontOfMagic.creationCost(slotLevel);
         if (points.currentUses() < cost) {

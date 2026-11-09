@@ -3324,6 +3324,8 @@ export interface components {
         };
         ProficienciesGained: {
             armor?: string[] | null;
+            languages?: string[] | null;
+            skills?: string[] | null;
             tools?: string[] | null;
             weapons?: string[] | null;
         };

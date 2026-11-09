@@ -15,7 +15,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param weapon          what an attack names to use it, such as "Longsword"
  * @param ability         the ability it attacks with: STR, DEX, or the higher for a finesse weapon or Martial Arts
  * @param proficient      whether the attack bonus includes the proficiency bonus
- * @param attackBonus     the attack bonus
+ * @param attackBonus     the attack bonus, with the attack roll bonuses in force now: Sacred Weapon (PHB p.86) and
+ *                        War God's Blessing (PHB p.63), each also named in {@code features}
  * @param damage          the damage dice and modifier, such as "1d8 + 3"; a critical hit doubles the dice
  * @param ranged          a ranged weapon, which attacks from beyond 5 feet unless the attacker says otherwise
  * @param powerAttack     Great Weapon Master's or Sharpshooter's trade, when the character may take it with this weapon
