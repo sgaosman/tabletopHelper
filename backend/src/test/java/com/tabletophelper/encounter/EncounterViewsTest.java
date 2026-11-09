@@ -453,6 +453,42 @@ class EncounterViewsTest {
         }
 
         @Test
+        @DisplayName("Keeps a monster's pool, slot and Legendary Resistance uses without what it has left, and a "
+                + "character's whole (D157)")
+        void hidesWhatAMonsterHasLeft() {
+            var log = List.of(
+                    entry("Goblin uses Legendary Actions ×2; 1/3 left", goblinId, null).toBuilder()
+                            .actionType("POOL_USE").build(),
+                    entry("Goblin uses Psionic Recovery (bonus action) and regains a use of Psionic Energy Dice (4/4); "
+                            + "unlimited", goblinId, null).toBuilder().actionType("POOL_USE").build(),
+                    entry("Goblin uses a level 3 spell slot (1/2 remaining)", null, goblinId).toBuilder()
+                            .actionType("SPELL_SLOT_USE").build(),
+                    entry("Goblin uses an innate use of Darkness (0/1 remaining)", null, goblinId).toBuilder()
+                            .actionType("SPELL_SLOT_USE").build(),
+                    entry("Goblin restores a level 1 spell slot (2/4 remaining)", null, goblinId).toBuilder()
+                            .actionType("SPELL_SLOT_RESTORE").build(),
+                    entry("Goblin uses Legendary Resistance and succeeds on the save instead: loses paralyzed "
+                            + "(2 remaining)", goblinId, goblinId).toBuilder()
+                            .actionType("LEGENDARY_RESISTANCE_USED").build(),
+                    entry("Gimli uses Second Wind (bonus action); 0/1 left", gimliId, null).toBuilder()
+                            .actionType("POOL_USE").build(),
+                    entry("Gimli uses a level 1 spell slot (3/4 remaining)", null, gimliId).toBuilder()
+                            .actionType("SPELL_SLOT_USE").build());
+
+            var playerLog = EncounterViews.playerLog(log, Map.of(), Set.of(goblinId));
+
+            assertEquals(List.of("Goblin uses Legendary Actions ×2",
+                    "Goblin uses Psionic Recovery (bonus action) and regains a use of Psionic Energy Dice",
+                    "Goblin uses a level 3 spell slot",
+                    "Goblin uses an innate use of Darkness",
+                    "Goblin restores a level 1 spell slot",
+                    "Goblin uses Legendary Resistance and succeeds on the save instead: loses paralyzed",
+                    "Gimli uses Second Wind (bonus action); 0/1 left",
+                    "Gimli uses a level 1 spell slot (3/4 remaining)"), descriptions(playerLog));
+            assertEquals("Goblin uses Legendary Actions ×2; 1/3 left", log.getFirst().getDescription());
+        }
+
+        @Test
         @DisplayName("With nothing hidden, every entry stays")
         void nothingHidden() {
             var log = List.of(entry("Gimli attacks Goblin", gimliId, goblinId), entry("Round 2 begins", null, null));

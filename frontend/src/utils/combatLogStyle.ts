@@ -17,7 +17,7 @@ export function logTextColour(actionType: string): string {
     case 'SPELL_SLOT_USE': return 'text-ink';
     case 'SPELL_SLOT_RESTORE': return 'text-ink';
     case 'TURN_ADVANCE': case 'TURN_BACK': return 'text-faint';
-    case 'MONSTER_ACTION': return 'text-monster';
+    case 'MONSTER_ACTION': case 'REACTION_TAKEN': return 'text-monster';
     case 'LEGENDARY_ACTION': return 'text-cls-monk';
     case 'LAIR_ACTION': return 'text-cls-warlock';
     case 'LEGENDARY_RESISTANCE_USED': return 'text-cls-monk';
@@ -36,7 +36,7 @@ export function logBorderColour(actionType: string): string {
       return 'border-debuff';
     case 'HEAL': case 'REVIVE': case 'STABILIZE': case 'CONDITION_REMOVE': case 'HP_SET':
       return 'border-buff';
-    case 'MONSTER_ACTION': return 'border-monster';
+    case 'MONSTER_ACTION': case 'REACTION_TAKEN': return 'border-monster';
     case 'LEGENDARY_ACTION': case 'LEGENDARY_RESISTANCE_USED': return 'border-cls-monk';
     case 'LAIR_ACTION': return 'border-cls-warlock';
     case 'RECHARGE_SUCCESS': return 'border-buff';

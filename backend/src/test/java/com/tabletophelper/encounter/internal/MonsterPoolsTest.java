@@ -148,6 +148,28 @@ class MonsterPoolsTest {
         }
 
         @Test
+        @DisplayName("A bonus action or reaction with a d6 recharge gets a pool costing what it costs, and one that "
+                + "comes back after a rest gets none (D174)")
+        void bonusActionAndReactionRechargePools() {
+            Monster drake = monster("Storm Drake", null, null, """
+                    {"actions": [{"name": "Bite"}],
+                     "bonusActions": [{"name": "Static Leap", "recharge": "4-6"},
+                                      {"name": "Second Wind", "recharge": "SHORT_REST"}],
+                     "reactions": [{"name": "Shock Ward", "recharge": "5-6"}, {"name": "Parry"}]}""");
+
+            List<ResourcePoolEntry> pools = monsterPools.pools(drake);
+
+            assertEquals(List.of("monster:recharge:static-leap", "monster:recharge:shock-ward"), poolIds(pools));
+            ResourcePoolEntry leap = pool(pools, "monster:recharge:static-leap");
+            assertEquals("1d6>=4", leap.resetCheck());
+            assertEquals(1, leap.currentUses());
+            assertEquals("BONUS_ACTION", leap.spendActionType());
+            ResourcePoolEntry ward = pool(pools, "monster:recharge:shock-ward");
+            assertEquals("1d6>=5", ward.resetCheck());
+            assertEquals("REACTION", ward.spendActionType());
+        }
+
+        @Test
         @DisplayName("Daily keys give uses, never levels; a cantrip by the day costs nothing, so it gets no pool")
         void innatePools() {
             Monster drow = monster("Drow Mage", null, null, """

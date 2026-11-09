@@ -6,7 +6,8 @@ describe('combatLogStyle', () => {
     expect([logTextColour('DAMAGE'), logBorderColour('DAMAGE')]).toEqual(['text-debuff', 'border-debuff']);
     expect([logTextColour('HEAL'), logBorderColour('HEAL')]).toEqual(['text-buff', 'border-buff']);
     expect([logTextColour('MONSTER_ACTION'), logBorderColour('MONSTER_ACTION')]).toEqual(['text-monster', 'border-monster']);
-    expect([logTextColour('LAIR_ACTION'), logBorderColour('LAIR_ACTION')]).toEqual(['text-cls-warlock', 'border-cls-warlock']);
+    expect([logTextColour('REACTION_TAKEN'), logBorderColour('REACTION_TAKEN')]).toEqual(['text-monster', 'border-monster']);
+    expect([logTextColour('LAIR_ACTION'),logBorderColour('LAIR_ACTION')]).toEqual(['text-cls-warlock', 'border-cls-warlock']);
     expect(logBorderColour('LEGENDARY_RESISTANCE_USED')).toBe('border-cls-monk');
   });
 

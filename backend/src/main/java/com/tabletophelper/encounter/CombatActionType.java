@@ -35,5 +35,7 @@ public enum CombatActionType {
     // A participant's object interaction: the first each turn is free (D174)
     OBJECT_INTERACTION,
     // The DM's edit of a participant's turn economy, with what changed (D174)
-    TURN_ECONOMY_SET
+    TURN_ECONOMY_SET,
+    // A monster's reaction from its stat block, with what it did or what the DM applies by hand (D174)
+    REACTION_TAKEN
 }

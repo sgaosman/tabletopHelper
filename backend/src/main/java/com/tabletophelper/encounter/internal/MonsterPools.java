@@ -153,15 +153,12 @@ public class MonsterPools {
                     count, null, count, "longRest", null, null, "FREE", "shield", Map.of()));
         }
 
-        for (MonsterTemplates.Action action : templates.actions()) {
-            Matcher recharge = RECHARGE.matcher(action.recharge() != null ? action.recharge().trim() : "");
-            String name = action.name() != null ? action.name() : "";
-            if (recharge.matches() && !name.isBlank()) {
-                String poolId = rechargePoolId(name);
-                pools.putIfAbsent(poolId, new ResourcePoolEntry(poolId, name, "MONSTER", monster.getName(), 1, null,
-                        1, null, null, "1d6>=" + recharge.group(1), "ACTION", "zap", Map.of()));
+        rechargeable(templates).forEach((action, spendActionType) -> {
+            ResourcePoolEntry pool = rechargePool(action, monster.getName(), spendActionType);
+            if (pool != null) {
+                pools.putIfAbsent(pool.poolId(), pool);
             }
-        }
+        });
 
         for (Resolved spell : spells) {
             Integer uses = uses(spell.entry());
@@ -173,8 +170,33 @@ public class MonsterPools {
         return new ArrayList<>(pools.values());
     }
 
-    // The pool a recharge action spends, as MonsterActionService looks it up: "monster:recharge:" and the
-    // action's name in kebab case
+    // The entries that can recharge on a d6, the actions, bonus actions and reactions (D174), each with what it costs
+    private static Map<MonsterTemplates.Action, String> rechargeable(MonsterTemplates templates) {
+        Map<MonsterTemplates.Action, String> actions = new LinkedHashMap<>();
+        templates.actions().forEach(action -> actions.putIfAbsent(action, "ACTION"));
+        templates.bonusActions().forEach(action -> actions.putIfAbsent(action, "BONUS_ACTION"));
+        templates.reactions().forEach(action -> actions.putIfAbsent(action, "REACTION"));
+        return actions;
+    }
+
+    /**
+     * The full pool an action, bonus action or reaction with a d6 recharge spends, which the start of the monster's
+     * turn rolls to recharge; null for one without, such as a use that comes back after a rest.
+     *
+     * @param spendActionType what the action costs, ACTION, BONUS_ACTION or REACTION, as the pool's spendActionType
+     */
+    static ResourcePoolEntry rechargePool(MonsterTemplates.Action action, String monsterName, String spendActionType) {
+        Matcher recharge = RECHARGE.matcher(action.recharge() != null ? action.recharge().trim() : "");
+        String name = action.name() != null ? action.name() : "";
+        if (!recharge.matches() || name.isBlank()) {
+            return null;
+        }
+        String poolId = rechargePoolId(name);
+        return new ResourcePoolEntry(poolId, name, "MONSTER", monsterName, 1, null, 1, null, null,
+                "1d6>=" + recharge.group(1), spendActionType, "zap", Map.of());
+    }
+
+    // The pool a recharge action spends: "monster:recharge:" and the action's name in kebab case
     private static String rechargePoolId(String actionName) {
         return "monster:recharge:" + actionName.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")

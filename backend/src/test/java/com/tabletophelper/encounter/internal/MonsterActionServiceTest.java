@@ -58,7 +58,11 @@ class MonsterActionServiceTest {
                     "saveAbility": "DEX", "effects": [{"effectType": "CONDITION", "condition": "prone"}]}],
                  "bonusActions": [
                    {"name": "Tail Flick", "deliveryMethod": "ATTACK_ROLL", "attackBonus": 10,
-                    "effects": [{"effectType": "DAMAGE", "damageDice": "5", "damageType": "bludgeoning"}]}],
+                    "effects": [{"effectType": "DAMAGE", "damageDice": "5", "damageType": "bludgeoning"}]},
+                   {"name": "Smoke Burst", "deliveryMethod": "SAVING_THROW", "saveDC": 15, "saveAbility": "CON",
+                    "recharge": "5-6", "effects": [{"effectType": "DAMAGE", "damageDice": "4", "damageType": "fire"}]},
+                   {"name": "Second Wind", "recharge": "SHORT_REST", "automatable": false,
+                    "description": "The dragon regains 10 hit points."}],
                  "reactions": [
                    {"name": "Fiery Rebuke", "deliveryMethod": "SAVING_THROW", "saveDC": 15, "saveAbility": "DEX",
                     "effects": [{"effectType": "DAMAGE", "damageDice": "10", "damageType": "fire"}]},
@@ -554,6 +558,7 @@ class MonsterActionServiceTest {
         assertFalse(dragon.getTurnEconomy().bonusActionUsed());
         assertEquals(30, fighter.getHpCurrent());
         assertEquals("Young Dragon uses Fiery Rebuke (reaction).", f.descriptions().getFirst());
+        assertTrue(f.log.stream().allMatch(entry -> entry.getActionType() == CombatActionType.REACTION_TAKEN));
 
         f.lairTurn();
         act("Parry", "REACTION", List.of());
@@ -576,6 +581,39 @@ class MonsterActionServiceTest {
                 + "restores its damage by hand."), f.descriptions());
         assertEquals(40, fighter.getHpCurrent());
         assertTrue(dragon.getTurnEconomy().reactionUsed());
+        assertEquals(CombatActionType.REACTION_TAKEN, f.log.getFirst().getActionType());
+    }
+
+    @Test
+    @DisplayName("A bonus action with a d6 recharge spends its pool, started charged for a monster that joined "
+            + "without it, and is a 409 until it recharges (D174)")
+    void bonusActionRecharge() {
+        f.turnOf(dragon);
+
+        // The fighter's CON save of 2 fails against DC 15; the flat 4 fire needs no roll
+        act("Smoke Burst", "BONUS", List.of(fighter), 2);
+
+        assertEquals(0, pool(dragon, "monster:recharge:smoke-burst"));
+        ResourcePoolEntry started = dragon.getResourcePoolsCurrent().stream()
+                .filter(pool -> pool.poolId().equals("monster:recharge:smoke-burst")).findFirst().orElseThrow();
+        assertEquals("1d6>=5", started.resetCheck());
+        assertEquals("BONUS_ACTION", started.spendActionType());
+        ConflictException ex = assertThrows(ConflictException.class,
+                () -> act("Smoke Burst", "BONUS", List.of(fighter), 2));
+        assertEquals("Recharge action 'Smoke Burst' is not yet recharged", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("A bonus action whose uses come back after a rest isn't counted, as no monster action's are (D174)")
+    void restRechargeIsNotCounted() {
+        f.turnOf(dragon);
+
+        act("Second Wind", "BONUS", List.of());
+        act("Second Wind", "BONUS", List.of());
+
+        assertEquals(2, f.descriptions().stream().filter(entry -> entry.contains("uses Second Wind")).count());
+        assertTrue(dragon.getResourcePoolsCurrent().stream()
+                .noneMatch(pool -> pool.poolId().contains("second-wind")));
     }
 
     @Test

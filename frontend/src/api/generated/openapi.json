@@ -5976,7 +5976,8 @@
               "POOL_USE",
               "STANDARD_ACTION",
               "OBJECT_INTERACTION",
-              "TURN_ECONOMY_SET"
+              "TURN_ECONOMY_SET",
+              "REACTION_TAKEN"
             ]
           },
           "actorId": {

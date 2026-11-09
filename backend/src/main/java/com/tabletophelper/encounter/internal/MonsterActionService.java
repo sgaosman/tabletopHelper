@@ -2,6 +2,7 @@ package com.tabletophelper.encounter.internal;
 
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.campaign.AccessPolicy;
+import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -44,6 +45,8 @@ import java.util.stream.Collectors;
  * actions costs its action, a Multiattack included; a bonus action costs its bonus action, and a reaction its
  * reaction, which may be taken on any creature's turn, the Lair's included (D138, D174). Legendary and lair actions
  * are outside the action economy. The DM is never refused for the economy, and a monster going over it isn't logged.
+ * A reaction's entries are logged as REACTION_TAKEN. A d6 recharge applies to bonus actions and reactions as it does
+ * to actions; uses that come back only after a rest or each day aren't counted for any of them.
  * <p>
  * Bonus actions and reactions resolve as actions do: those with effects the server can read automatically, the rest
  * logged for the DM (D137). Nothing prompts for a reaction, so one that changes a result already resolved, such as
@@ -103,17 +106,26 @@ public class MonsterActionService {
                 throw new ConflictException("Not enough legendary actions remaining (need " + cost + ")");
             }
         }
-        String rechargePool = rechargePoolId(action);
-        if (rechargePool != null && poolUses(monster, rechargePool) <= 0) {
-            throw new ConflictException("Recharge action '" + actionName + "' is not yet recharged");
-        }
         ActionCost cost = costOf(request.actionSource());
+        ResourcePoolEntry rechargePool = MonsterPools.rechargePool(action, monsterEntity.getName(),
+                cost != null ? cost.name() : ActionCost.ACTION.name());
+        if (rechargePool != null) {
+            startPoolIfMissing(monster, rechargePool);
+            if (poolUses(monster, rechargePool.poolId()) <= 0) {
+                throw new ConflictException("Recharge action '" + actionName + "' is not yet recharged");
+            }
+        }
+        CombatActionType logType = switch (request.actionSource()) {
+            case "LEGENDARY" -> CombatActionType.LEGENDARY_ACTION;
+            case "LAIR" -> CombatActionType.LAIR_ACTION;
+            case "REACTION" -> CombatActionType.REACTION_TAKEN;
+            default -> CombatActionType.MONSTER_ACTION;
+        };
         String costNote = costNote(cost);
         if (cost != null) {
             economy.charge(encounter, monster,
                     Charge.of(cost, EncounterTurns.isCurrentTurn(encounter, monster.getId())), userId,
-                    new ActionEconomyKeeper.Command(CombatActionType.MONSTER_ACTION,
-                            monster.getDisplayName() + "'s " + actionName + costNote));
+                    new ActionEconomyKeeper.Command(logType, monster.getDisplayName() + "'s " + actionName + costNote));
         }
         if ("LAIR".equals(request.actionSource())) {
             if (actionName.equals(monster.getLastLairActionUsed())) {
@@ -125,11 +137,6 @@ public class MonsterActionService {
         MonsterEffects.MonsterAction plan = componentTargetIds != null
                 ? monsterEffects.multiattack(multiattack, componentTargetIds)
                 : monsterEffects.plan(action, templates, targetIds, overrides);
-        CombatActionType logType = switch (request.actionSource()) {
-            case "LEGENDARY" -> CombatActionType.LEGENDARY_ACTION;
-            case "LAIR" -> CombatActionType.LAIR_ACTION;
-            default -> CombatActionType.MONSTER_ACTION;
-        };
 
         // The entry for the action as a whole names no target, so it can't name a hidden one (D157)
         String lead = monster.getDisplayName() + " uses " + actionName + costNote;
@@ -162,7 +169,7 @@ public class MonsterActionService {
         }
 
         if (rechargePool != null) {
-            resourcePoolService.spendPool(monster, rechargePool, 1);
+            resourcePoolService.spendPool(monster, rechargePool.poolId(), 1);
         }
 
         List<MonsterActionResponse.TargetResult> results = applied.stream().map(MonsterActionService::result).toList();
@@ -335,16 +342,16 @@ public class MonsterActionService {
                 applied.legendaryResistanceRemaining());
     }
 
-    // The pool a recharge action spends, "monster:recharge:<name in kebab case>", or null for an action
-    // without a d6 recharge
-    private static String rechargePoolId(MonsterTemplates.Action action) {
-        String recharge = action.recharge() != null ? action.recharge() : "";
-        if (!recharge.matches("^[4-6]-[5-6]$") && !recharge.matches("^[4-6]$")) {
-            return null;
+    // A monster that joined before its recharge pools covered bonus actions and reactions starts the pool charged,
+    // as a recharge ability is at the start of an encounter
+    private static void startPoolIfMissing(EncounterParticipant monster, ResourcePoolEntry pool) {
+        List<ResourcePoolEntry> pools = monster.getResourcePoolsCurrent() != null
+                ? monster.getResourcePoolsCurrent() : List.of();
+        if (pools.stream().noneMatch(existing -> existing != null && pool.poolId().equals(existing.poolId()))) {
+            List<ResourcePoolEntry> started = new ArrayList<>(pools);
+            started.add(pool);
+            monster.setResourcePoolsCurrent(started);
         }
-        String kebab = MonsterEffects.nameOf(action).toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");
-        return "monster:recharge:" + kebab;
     }
 
     private static int poolUses(EncounterParticipant participant, String poolId) {

@@ -65,7 +65,7 @@ class MonsterActionDataTest {
 
     @Test
     @DisplayName("Every bonus action and reaction is found under its source and plans: 60 of the 235 bonus actions "
-            + "and 84 of the 339 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
+            + "and 82 of the 339 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
     void bonusActionsAndReactions() {
         List<String> missing = new ArrayList<>();
         Map<String, int[]> counts = new LinkedHashMap<>(Map.of("BONUS", new int[2], "REACTION", new int[2]));
@@ -85,7 +85,7 @@ class MonsterActionDataTest {
 
         assertEquals(List.of(), missing);
         assertArrayEquals(new int[]{60, 175}, counts.get("BONUS"));
-        assertArrayEquals(new int[]{84, 255}, counts.get("REACTION"));
+        assertArrayEquals(new int[]{82, 257}, counts.get("REACTION"));
     }
 
     @Test
@@ -121,9 +121,10 @@ class MonsterActionDataTest {
 
     @ParameterizedTest(name = "{0} ({1}) {2}")
     @CsvSource({"Autumn Eladrin, MPMM, Foster Peace", "Zuggtmoy, MPMM, Protective Thrall",
-            "Kas the Betrayer, VEoR, Parrying Riposte", "Nilbog, VGM, Reversal of Fortune"})
-    @DisplayName("A reaction whose effects misread its text, charming the attacker or dealing damage with no attack, is "
-            + "the DM's, with a note")
+            "Kas the Betrayer, VEoR, Parrying Riposte", "Nilbog, VGM, Reversal of Fortune",
+            "Borivik Windheim, MaBJoV, Enduring Response", "The Gardener, QftIS, Pacification"})
+    @DisplayName("A reaction whose effects misread its text, charming the attacker, dealing damage with no attack or "
+            + "later, or knocking out a creature the damage doesn't drop, is the DM's, with a note")
     void misreadReactionsAreTheDms(String monster, String source, String name) {
         MonsterTemplates templates = MonsterTemplates.of(definition(monster, source));
         MonsterTemplates.Action reaction = templates.find("REACTION", name).orElseThrow();

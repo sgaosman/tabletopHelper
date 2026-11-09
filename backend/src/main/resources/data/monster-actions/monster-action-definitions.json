@@ -33546,14 +33546,9 @@
       {
         "name": "Enduring Response",
         "actionType": "REACTION",
-        "effects": [
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "weapon",
-            "_note": "retaliatory damage matching weapon type"
-          }
-        ]
+        "automatable": false,
+        "description": "When Borivik takes acid, cold, fire, lightning, or thunder damage, he gains immunity to that damage type until the start of his next turn. Also, the first time he hits with a Shortsword attack on his next turn, the target takes an extra 10 (3d6) of the triggering damage type.",
+        "dmNote": "When Borivik takes acid, cold, fire, lightning, or thunder damage, he gains immunity to that damage type until the start of his next turn. Also, the first time he hits with a Shortsword attack on his next turn, the target takes an extra 10 (3d6) of the triggering damage type. Nothing is dealt now: the DM applies the immunity to later damage of that type until the start of his next turn, and adds the extra 3d6 to his first Shortsword hit on that turn, by hand."
       }
     ],
     "spellcasting": {
@@ -170256,17 +170251,9 @@
       {
         "name": "Pacification",
         "actionType": "REACTION",
-        "effects": [
-          {
-            "effectType": "DAMAGE",
-            "damageDice": "3d6",
-            "damageType": "psychic"
-          },
-          {
-            "effectType": "CONDITION",
-            "condition": "unconscious"
-          }
-        ]
+        "automatable": false,
+        "description": "When a creature within 120 feet of the Gardener damages the Gardener, that creature takes 10 (3d6) psychic damage, and the Gardener teleports, along with anything they are wearing or carrying, to an unoccupied space they can see within 15 feet. A creature reduced to 0 hit points by the psychic damage has the unconscious condition and is stable instead of dying.",
+        "dmNote": "When a creature within 120 feet of the Gardener damages the Gardener, that creature takes 10 (3d6) psychic damage, and the Gardener teleports, along with anything they are wearing or carrying, to an unoccupied space they can see within 15 feet. A creature reduced to 0 hit points by the psychic damage has the unconscious condition and is stable instead of dying. The DM deals the psychic damage to the creature that damaged the Gardener, and makes it unconscious and stable rather than dying or dead if the damage drops it to 0 hit points, by hand."
       },
       {
         "name": "Spell Refuge",

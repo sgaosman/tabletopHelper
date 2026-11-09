@@ -5,6 +5,7 @@ import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.SpellTemplate;
@@ -43,6 +44,17 @@ class ActionEconomyIT extends IntegrationTest {
     private static final String HEALING_WORD = """
             {"spellName": "Healing Word", "spellLevel": 1, "deliveryMethod": "AUTO_HIT", "effects": [],
              "healing": {"healingDice": "1d4"}}""";
+
+    // A bonus action and a reaction that recharge on a d6, and a reaction the DM applies by hand
+    private static final String GOBLIN_TEMPLATES = """
+            {"actions": [],
+             "bonusActions": [{"name": "Smoke Burst", "recharge": "5-6", "automatable": false,
+                               "description": "The goblin vanishes in a puff of smoke."}],
+             "reactions": [{"name": "Parry", "automatable": false,
+                            "description": "The goblin adds 2 to its AC against one melee attack that would hit it.",
+                            "dmNote": "+2 AC against one melee hit: if it now misses, the DM restores its damage by hand."},
+                           {"name": "Shock Ward", "recharge": "6", "automatable": false,
+                            "description": "The goblin sparks at a creature that hits it."}]}""";
 
     @Autowired private MonsterRepository monsterRepository;
     @Autowired private SpellRepository spellRepository;
@@ -83,7 +95,8 @@ class ActionEconomyIT extends IntegrationTest {
         coraId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "PLAYER", "characterId", cora, "displayName", "Cora")), "Cora");
         Monster goblin = monsterRepository.save(Monster.builder().name("Goblin").type("Humanoid")
-                .challengeRating("1/4").source("MM").hitPoints(200).armourClass(15).dexterity(14).build());
+                .challengeRating("1/4").source("MM").hitPoints(200).armourClass(15).dexterity(14)
+                .actionTemplates(MonsterTemplates.parse(GOBLIN_TEMPLATES)).build());
         goblinId = idOf(addParticipant(dm.accessToken(), encounterId,
                 Map.of("participantType", "MONSTER", "monsterId", goblin.getId(), "displayName", "Goblin")),
                 "Goblin");
@@ -188,6 +201,53 @@ class ActionEconomyIT extends IntegrationTest {
                 "Bram attacks (reaction) Goblin: d20(15) + 5 = 20 vs AC 15 — hit, 3 damage.",
                 "Bram's attack (reaction) is over the action economy: it has already taken its reaction; it comes "
                         + "back at the start of its turn");
+    }
+
+    @Test
+    @DisplayName("A monster's reaction on Bram's turn is logged as REACTION_TAKEN; its d6-recharge bonus action is "
+            + "a 409 once spent; players read its reaction pool's use without what it has left (D157, D174)")
+    void monsterReactionAndRechargeBonusAction() {
+        expect(HttpStatus.OK, monsterAction("Parry", "REACTION"));
+        nextTurn();
+        nextTurn();
+        expect(HttpStatus.OK, monsterAction("Smoke Burst", "BONUS"));
+        ResponseEntity<String> again = monsterAction("Smoke Burst", "BONUS");
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/use-pool",
+                Map.of("participantId", goblinId, "poolId", "monster:recharge:shock-ward"), dm.accessToken()));
+
+        assertThat(again.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(json(again).get("error").asString()).isEqualTo("Recharge action 'Smoke Burst' is not yet recharged");
+        JsonNode dmLog = dmLog();
+        JsonNode parry = entry(dmLog, "Goblin uses Parry (reaction)");
+        assertThat(parry.get("actionType").asString()).isEqualTo("REACTION_TAKEN");
+        assertThat(entry(dmLog, "Goblin uses Smoke Burst (bonus action) —").get("actionType").asString())
+                .isEqualTo("MONSTER_ACTION");
+        JsonNode dmPoolUse = entry(dmLog, "Goblin uses Shock Ward (reaction)");
+        assertThat(dmPoolUse.get("description").asString()).isEqualTo("Goblin uses Shock Ward (reaction); 0/1 left");
+        assertThat(dmPoolUse.get("actionType").asString()).isEqualTo("POOL_USE");
+        assertThat(participant(dmView(), goblinId).get("turnEconomy").get("bonusActionUsed").asBoolean()).isTrue();
+        JsonNode playerLog = expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/combat/log", null, player.accessToken()));
+        assertThat(descriptions(playerLog)).contains("Goblin uses Shock Ward (reaction)")
+                .noneMatch(description -> description.contains(" left"));
+        assertThat(entry(playerLog, "Goblin uses Parry (reaction)").get("actionType").asString())
+                .isEqualTo("REACTION_TAKEN");
+    }
+
+    private ResponseEntity<String> monsterAction(String name, String source) {
+        return exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action",
+                Map.of("monsterParticipantId", goblinId, "actionName", name, "actionSource", source,
+                        "targetParticipantIds", List.of()), dm.accessToken());
+    }
+
+    // The first entry whose description starts with the text
+    private static JsonNode entry(JsonNode log, String start) {
+        for (JsonNode entry : log) {
+            if (entry.get("description").asString().startsWith(start)) {
+                return entry;
+            }
+        }
+        throw new AssertionError("No log entry starts with " + start + ": " + log);
     }
 
     private void spell(String name, int level, String castingTime, String template) {
