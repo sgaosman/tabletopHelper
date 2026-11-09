@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Zap, Sparkles } from 'lucide-react';
-import { useEncounterAction, useSpellOptions } from '../../queries/encounters';
+import { useEncounterAction, useSpellOptions, useSummonOptions } from '../../queries/encounters';
+import { useLiveEncounter } from '../../context/liveEncounter';
 import { apiErrorMessage } from '../../api/errors';
 import type { EncounterParticipant, SpellSlot } from '../../types/encounter';
 import type { MetamagicChoice, MetamagicName, SpellOption, SpellSource } from '../../types/combat';
@@ -15,6 +16,9 @@ import ConfirmStep from './spellflow/ConfirmStep';
 import ResultView from './spellflow/ResultView';
 import CastingTimeBadge from './spellflow/CastingTimeBadge';
 import MetamagicStep, { MetamagicTargets } from './spellflow/MetamagicStep';
+import SummonStep from './spellflow/SummonStep';
+import useSummonDraft from './spellflow/useSummonDraft';
+import { draftProblem, isSummoningSpell, summonSummary, toSummonChoice } from '../../utils/summons';
 
 interface Props {
   caster: EncounterParticipant;
@@ -55,14 +59,16 @@ interface ChoiceRow extends CastChoice {
  * confirm and result are the steps every spell pop-up shares. A sorcerer who knows Metamagic (PHB p.102, M18) chooses
  * it after how to pay, each option showing its cost and why it can't change the spell; Quickened Spell makes the cast a
  * bonus action, Twinned Spell allows a second target, and Careful and Heightened Spell choose their creatures among the
- * targets on the confirm step.
+ * targets on the confirm step. A summoning spell (D182) chooses its creatures in the summon step after how to pay, from
+ * the options the server lists at that slot level, and the cast carries the choice.
  */
 export default function SpellCastModal({
   caster, participants, onClose, allowManualModifiers = false, asDm = false, castingTimes,
 }: Props) {
   const actions = useEncounterAction();
   const spellOptions = useSpellOptions(caster.id);
-  const flow = useSpellFlow<'spell' | 'slot' | 'metamagic'>('spell', { allowManualModifiers });
+  const flow = useSpellFlow<'spell' | 'slot' | 'metamagic' | 'summon'>('spell', { allowManualModifiers });
+  const { encounterId } = useLiveEncounter();
   const [search, setSearch] = useState('');
   const [selectedSpell, setSelectedSpell] = useState<SpellOption | null>(null);
   const [choice, setChoice] = useState<CastChoice | null>(null);
@@ -74,6 +80,11 @@ export default function SpellCastModal({
   const offersMetamagic = (spell: SpellOption) => (spell.metamagic?.length ?? 0) > 0
     && sorceryPoints(caster.resourcePoolsCurrent) !== null;
   const quickened = metamagic.includes('QUICKENED');
+  // A summoning spell's options at the chosen slot level, and the caster's choice among them (D182)
+  const summoning = isSummoningSpell(selectedSpell?.name) && choice !== null;
+  const summonOptions = useSummonOptions(encounterId, caster.id, summoning ? selectedSpell?.name : undefined,
+    choice?.level ?? null);
+  const [summonDraft, setSummonDraft] = useSummonDraft(summoning ? summonOptions.data : undefined);
 
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
@@ -113,7 +124,16 @@ export default function SpellCastModal({
     if (offersMetamagic(spell)) {
       flow.setStep('metamagic');
     } else {
-      flow.lookUpTargeting(spell.name, next.level);
+      afterSource(spell, next.level);
+    }
+  }
+
+  // On to the creatures for a summoning spell, else to the targets
+  function afterSource(spell: SpellOption, level: number) {
+    if (isSummoningSpell(spell.name)) {
+      flow.setStep('summon');
+    } else {
+      flow.lookUpTargeting(spell.name, level);
     }
   }
 
@@ -125,7 +145,7 @@ export default function SpellCastModal({
   function afterMetamagic() {
     if (!selectedSpell || !choice) return;
     flow.setExtraTargets(metamagic.includes('TWINNED') ? 1 : 0);
-    flow.lookUpTargeting(selectedSpell.name, choice.level);
+    afterSource(selectedSpell, choice.level);
   }
 
   // The Metamagic the request carries, with the creatures Careful and Heightened Spell name among the targets
@@ -164,13 +184,23 @@ export default function SpellCastModal({
       targetIds: flow.selectedTargets,
       advantage: flow.advantage,
       metamagic: metamagicRequest(),
+      summon: summoning && summonOptions.data && summonDraft
+        ? toSummonChoice(summonOptions.data, summonDraft) : undefined,
       ...flow.overrides(),
     }, caster.id));
   }
 
-  // Back from targeting or confirm: to Metamagic when it was offered, else to the source step when there was a
-  // choice, else to the spells
+  // Back from targeting or confirm: to the creatures of a summoning spell, else to Metamagic when it was offered, else
+  // to the source step when there was a choice, else to the spells
   function backToSource() {
+    if (selectedSpell && isSummoningSpell(selectedSpell.name)) {
+      flow.setStep('summon');
+      return;
+    }
+    backBeforeSummon();
+  }
+
+  function backBeforeSummon() {
     if (selectedSpell && offersMetamagic(selectedSpell)) {
       flow.setStep('metamagic');
       return;
@@ -228,6 +258,26 @@ export default function SpellCastModal({
             onContinue={afterMetamagic}
             onBack={backBeforeMetamagic}
           />
+        ) : flow.step === 'summon' ? (
+          summonOptions.isError ? (
+            <>
+              <p role="alert" className="font-body text-[15px] font-semibold text-debuff">{apiErrorMessage(summonOptions.error)}</p>
+              <Button variant="ghost" size="sm" onClick={backBeforeSummon}>&larr; Back</Button>
+            </>
+          ) : summonOptions.data && summonDraft ? (
+            <SummonStep
+              options={summonOptions.data}
+              draft={summonDraft}
+              onChange={setSummonDraft}
+              onBack={backBeforeSummon}
+              onContinue={() => {
+                if (draftProblem(summonOptions.data, summonDraft)) return;
+                flow.lookUpTargeting(selectedSpell!.name, choice!.level);
+              }}
+            />
+          ) : (
+            <p className="font-body text-[15px] font-semibold text-faint text-center py-4">Loading creatures...</p>
+          )
         ) : flow.step === 'target' ? (
           <TargetStep
             spellName={selectedSpell!.name}
@@ -250,6 +300,11 @@ export default function SpellCastModal({
             onCareful={setCareful}
             onHeightened={setHeightened}
           />
+          {summoning && summonOptions.data && summonDraft && (
+            <p className="font-body text-[15px] font-semibold text-ink">
+              Summons: {summonSummary(summonOptions.data, summonDraft)}
+            </p>
+          )}
           <ConfirmStep
             spellName={selectedSpell!.name}
             levelLabel={selectedSpell!.level === 0 ? 'Cantrip' : `Level ${selectedSpell!.level}`}

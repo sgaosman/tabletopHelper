@@ -38,6 +38,7 @@
 | 23 | Architecture Review 2 Action Plan | Complete | IDOR fix, long rest resource reset, unconscious auto-crit, ErrorBoundary, CombatService dedup, CharacterSheetPage split, HikariCP, @EntityGraph, Flyway, ARIA, FeatPicker extraction |
 | 24.5 | Generic Resource Pool System | Complete | Unified resource schema for Ki, Sorcery Points, Channel Divinity, legendary actions, breath weapons, etc. |
 | 25 | Comprehensive Testing Suite | Complete | 529 tests (276 backend + 253 frontend) — expanded from 330 with MSW infrastructure, component tests (14 files), integration tests (3 files), and backend additions (MonsterService, spell targeting) |
+| 26 | Summoning Spells Automation | Implemented (2026-11-09) | Conjure Animals, TCE summon spells, Lesser Demons, familiars, steeds, Animate Dead and Tiny Servant as companion participants owned by the caster's Spell Effect (D182, V34) |
 | R1–R8 | Refactor Phase (D150) | Implemented (2026-11-06) | Server-authoritative rules, modular monolith, typed JSON, content as data, Spring Boot 4.1; 1,936 backend unit, 220 integration and 766 frontend tests. On the local database since 2026-11-06 (V29); M13 followed |
 
 ## Milestone 3: 5e.tools Data Import & Reference Browsing
@@ -955,11 +956,11 @@ A `resource_pools` JSONB column on `player_characters` and `resource_pools_curre
 
 ## Milestone 26: Summoning Spells Automation
 
-**Status (2026-11-09):** backend implemented ([[decisions-log#D182]], V34): all eleven spells, summoned creatures as companion participants owned by the caster's Spell Effect, group and follower initiative, dismissal with undo. The frontend follows.
+**Status (2026-11-09):** backend implemented ([[decisions-log#D182]], V34): all eleven spells, summoned creatures as companion participants owned by the caster's Spell Effect, group and follower initiative, dismissal with undo, and the picker, summon cards, DM placement and companion screens in the frontend.
 
 **Goal:** Full automation for summoning spells (Conjure Animals, Conjure Woodland Beings, Summon Beast, Summon Fey, Summon Undead, Find Familiar, Find Steed, Animate Dead, etc.).
 
-**Status:** Future — not yet started.
+**Status:** Implemented (2026-11-09).
 
 **Requirements:**
 - [ ] Summoned creature picker: select creature(s) matching the spell's CR/type constraints (e.g., Conjure Animals: 1 CR 2, 2 CR 1, 4 CR 1/2, or 8 CR 1/4 beasts)

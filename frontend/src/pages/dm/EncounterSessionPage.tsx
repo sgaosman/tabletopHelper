@@ -33,6 +33,9 @@ import StandardActionMenu from '../../components/encounter/StandardActionMenu';
 import ReactionMenu from '../../components/encounter/ReactionMenu';
 import HitFollowUps from '../../components/encounter/HitFollowUps';
 import InspirationControls from '../../components/encounter/InspirationControls';
+import SummonAwaitingBanner from '../../components/encounter/SummonAwaitingBanner';
+import SummonPlaceModal from '../../components/encounter/SummonPlaceModal';
+import AddCompanionModal from '../../components/encounter/AddCompanionModal';
 import { FIELD_INPUT, FIELD_LABEL, SUBMIT_BUTTON } from '../../components/encounter/formStyles';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import { wildShapePoolId } from '../../utils/classFeatures';
@@ -44,7 +47,7 @@ import { DAMAGE_TYPES } from '../../utils/conditions';
 import {
   ArrowLeft, Pause, Play, Flag, Copy, Check,
   ChevronRight, ChevronLeft, Heart, HeartPulse, Swords,
-  Plus, Minus, X, Zap, Crosshair, Sparkles, Trash2, Footprints, ShieldAlert, Undo2
+  Plus, Minus, X, Zap, Crosshair, Sparkles, Trash2, Footprints, ShieldAlert, Undo2, UserPlus
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { usePending } from '../../hooks/usePending';
@@ -208,6 +211,9 @@ function DmSessionView() {
   const [undoSteps, setUndoSteps] = useState<number | null>(null);
   // The Spell Effect the DM is using, while its pop-up is open (M15)
   const [effectUse, setEffectUse] = useState<EffectInUse | null>(null);
+  // The summoning whose creatures the DM is choosing or replacing, and whether Add companion is open (D182)
+  const [summonPlace, setSummonPlace] = useState<{ casterId: string; effectId: string } | null>(null);
+  const [addingCompanion, setAddingCompanion] = useState(false);
 
   // Opening another monster's actions, or closing them, starts them afresh: no targets and no result
   function toggleMonsterActions(participantId: string) {
@@ -328,6 +334,8 @@ function DmSessionView() {
   const selectedTarget = sorted.find(p => p.id === selectedTargetId) ?? null;
   const effectCaster = effectUse ? participantsById.get(effectUse.casterId) : undefined;
   const effectInUse = effectCaster?.activeEffects.find(e => e.id === effectUse?.effectId);
+  const summonCaster = summonPlace ? participantsById.get(summonPlace.casterId) : undefined;
+  const summonEffect = summonCaster?.activeEffects.find(e => e.id === summonPlace?.effectId);
   const currentCreature = encounter.participants.find(p => p.isCurrentTurn);
   // Combat controls show only while the encounter is Active: a Paused one can only resume or end, and a
   // Completed one is final (D166)
@@ -418,6 +426,11 @@ function DmSessionView() {
           <div className="flex flex-wrap items-center gap-2">
             {isActive && (
               <>
+                {/* A player character's familiar, steed or other summoning, placed with no slot spent (D182) */}
+                <button onClick={() => setAddingCompanion(true)} disabled={controls.pending}
+                  className={`${CONTROL} gap-1.5 px-3 py-2 bg-page-alt hover:bg-rule text-muted`}>
+                  <UserPlus className="w-4 h-4" /> Add companion
+                </button>
                 {/* Undo takes back the newest command after asking; after Next Turn it restores what Previous can't */}
                 <IconButton
                   label={undo ? `Undo: ${undo.summary}` : 'Nothing to undo'}
@@ -483,6 +496,19 @@ function DmSessionView() {
         {isActive && (
           <TriggerReminder participants={encounter.participants} current={currentCreature}
             onApply={(caster, effect, trigger, targetId) => setEffectUse({ casterId: caster.id, effectId: effect.id, trigger, targetId })} />
+        )}
+
+        {/* Summonings waiting for the DM to choose their creatures (D182) */}
+        {isActive && (
+          <SummonAwaitingBanner participants={encounter.participants}
+            onChoose={(caster, effect) => setSummonPlace({ casterId: caster.id, effectId: effect.id })} />
+        )}
+        {isActive && summonCaster && summonEffect && (
+          <SummonPlaceModal caster={summonCaster} effect={summonEffect} onClose={() => setSummonPlace(null)} />
+        )}
+        {isActive && addingCompanion && (
+          <AddCompanionModal encounterId={encounter.id} participants={encounter.participants}
+            onSubmit={request => actions.placeCompanion(request)} onClose={() => setAddingCompanion(false)} />
         )}
 
         {/* Spell cast modal */}
@@ -582,6 +608,8 @@ function DmSessionView() {
             const p = participantsById.get(turn.participantId ?? '');
             if (!p) return null;
             const isMonster = p.participantType === 'MONSTER';
+            // A monster or a summoned creature acts from its stat block (D182)
+            const hasStatBlock = isMonster || (p.participantType === 'COMPANION' && p.monsterId != null);
             // Alive, Dying, Stable or Dead (D161): the dead can only be revived with Set HP
             const isUp = p.lifeState === 'ALIVE';
             const isDead = p.lifeState === 'DEAD';
@@ -592,6 +620,7 @@ function DmSessionView() {
                   participant={p}
                   current={turn.current}
                   highlighted={p.id === selectedTargetId}
+                  summonerName={p.summonedByParticipantId ? participantsById.get(p.summonedByParticipantId)?.displayName : null}
                   onEndWildShape={isActive && p.wildShape
                     ? () => { void attemptTurnChange(() => actions.usePool({ participantId: p.id, poolId: wildShapePoolId(p), option: 'end' })); }
                     : undefined}
@@ -633,9 +662,9 @@ function DmSessionView() {
                       {isActive && (
                         <div className="flex flex-wrap items-center gap-1 flex-shrink-0 sm:ml-2">
                           {/* Monster actions toggle (M12), and a druid in Wild Shape's beast actions (PHB p.67) */}
-                          {(isMonster || p.wildShape) && (
+                          {(hasStatBlock || p.wildShape) && (
                             <IconButton
-                              label={isMonster ? 'Monster actions' : 'Beast actions'}
+                              label={isMonster ? 'Monster actions' : hasStatBlock ? 'Creature actions' : 'Beast actions'}
                               onClick={() => toggleMonsterActions(p.id)}
                               aria-expanded={expandedMonsterId === p.id}
                               className={`${QUICK_ACTION} ${expandedMonsterId === p.id ? 'bg-monster/20 text-monster' : 'bg-monster/10 hover:bg-monster/20 text-monster'}`}
@@ -734,6 +763,9 @@ function DmSessionView() {
                     roundNumber={encounter.roundNumber}
                     onUse={isActive ? effect => directEffect(p, effect) : undefined}
                     onEnd={isActive ? effect => { void attemptTurnChange(() => actions.endSpellEffect({ participantId: p.id, effectId: effect.id })); } : undefined}
+                    participants={encounter.participants}
+                    onReplaceSummon={isActive ? effect => setSummonPlace({ casterId: p.id, effectId: effect.id }) : undefined}
+                    onDismissSummon={isActive ? creature => { void attemptTurnChange(() => actions.dismissSummons({ participantIds: [creature.id] })); } : undefined}
                   />
 
                   {/* Death saves only while Dying: a Stable PC makes none, and the dead are past them (D161) */}
@@ -763,7 +795,7 @@ function DmSessionView() {
                 </ParticipantRow>
 
                 {/* M12 Inline monster action panel */}
-                {isActive && expandedMonsterId === p.id && (isMonster || p.wildShape) && (
+                {isActive && expandedMonsterId === p.id && (hasStatBlock || p.wildShape) && (
                   <InlineMonsterActions
                     key={monsterTab}
                     initialTab={monsterTab}

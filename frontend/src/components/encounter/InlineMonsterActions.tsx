@@ -7,6 +7,7 @@ import type { MonsterAction, MonsterActionRequest, MonsterActionResponse, Monste
 import type { EncounterParticipant } from '../../types/encounter';
 import MultiattackPicker from './MultiattackPicker';
 import { chargeBlock, type EconomyCost } from '../../utils/turnEconomy';
+import { isAttackAction } from '../../utils/summons';
 
 type ActionSource = MonsterActionRequest['actionSource'];
 type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'componentTargetIds'>;
@@ -74,14 +75,18 @@ function formatActionLabel(a: MonsterAction) {
  * notes saying what the DM applies by hand (D174); where its turn economy can't pay, the tab warns, but the DM is
  * never refused. Legendary actions are used on other creatures' turns, the Lair's included, never on the monster's
  * own; lair actions only on the Lair's turn, by a monster fighting in its lair (D163). The server refuses the rest.
- * `initialTab` opens it on a tab, such as Reactions from the DM's Reaction menu.
+ * `initialTab` opens it on a tab, such as Reactions from the DM's Reaction menu. `noAttacks` leaves out the attacks,
+ * for a player's familiar, which can't attack (PHB p.240, D182).
  */
-export default function InlineMonsterActions({ participant, participants, isLairTurn, inLair, initialTab = 'actions' }: {
+export default function InlineMonsterActions({
+  participant, participants, isLairTurn, inLair, initialTab = 'actions', noAttacks = false,
+}: {
   participant: EncounterParticipant;
   participants: EncounterParticipant[];
   isLairTurn: boolean;
   inLair: boolean;
   initialTab?: MonsterActionTab;
+  noAttacks?: boolean;
 }) {
   const encounterActions = useEncounterAction();
   const templatesQuery = useMonsterActionTemplates(participant.id);
@@ -124,9 +129,9 @@ export default function InlineMonsterActions({ participant, participants, isLair
   const templates = templatesQuery.data as TemplatesAnswer | undefined;
   if (!templates || templates.error) return <div className="px-4 py-2 font-body text-[15px] font-semibold text-debuff">{templates?.error || 'No data'}</div>;
 
-  const actions = templates.actions || [];
-  const bonusActions = templates.bonusActions || [];
-  const reactions = templates.reactions || [];
+  const actions = (templates.actions || []).filter(a => !noAttacks || !isAttackAction(a));
+  const bonusActions = (templates.bonusActions || []).filter(a => !noAttacks || !isAttackAction(a));
+  const reactions = (templates.reactions || []).filter(a => !noAttacks || !isAttackAction(a));
   const legendary = templates.legendaryActions || [];
   const lair = templates.lairActions || [];
   const pools = templates.resourcePools || {};

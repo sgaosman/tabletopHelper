@@ -48,6 +48,12 @@ export const queryKeys = {
     /** The beasts a druid can become with Wild Shape now: the DM's for anyone, a player's for their own (PHB p.66). */
     wildShapeOptions: (encounterId: string, view: EncounterView, participantId: string) =>
       ['encounters', encounterId, view, 'participants', participantId, 'wild-shape-options'] as const,
+    /**
+     * What a summoning spell can bring when the participant casts it at a slot level (D182): the DM's for anyone, a
+     * player's for their own. The builder asks too, outside a live view, so the key has no view.
+     */
+    summonOptions: (encounterId: string, participantId: string, spellName: string, slotLevel: number | null) =>
+      ['encounters', encounterId, 'participants', participantId, 'summon-options', spellName, slotLevel] as const,
   },
   monsters: {
     all: () => ['monsters'] as const,

@@ -91,3 +91,37 @@ export type TurnEconomy = Schemas['TurnEconomy'];
  * maximum and AC are the beast's, and the druid's own are kept here.
  */
 export type WildShapeForm = Schemas['WildShapeForm'];
+
+/**
+ * What a summoning spell can bring when its caster casts it at a slot level (D182): its options (how many creatures,
+ * up to what challenge rating), the creatures that fit, a Tasha's spirit's stat preview, the initiative modes and who
+ * controls the creatures.
+ */
+export type SummonOptions = Schemas['SummonOptions'];
+
+/** One of a summoning's options, such as eight beasts of challenge rating 1/4 or lower (D182). */
+export type SummonOption = Schemas['Option'];
+
+/** A creature a summoning can bring (D182). */
+export type SummonCandidate = Schemas['Candidate'];
+
+/** How a summoned creature takes its turns: right after its caster, as one group, or each on its own roll (D182). */
+export type SummonInitiativeMode = SummonOptions['defaultInitiativeMode'];
+
+/** The caster's or the DM's choice of a summoning's creatures, as cast-spell and the summons commands take it (D182). */
+export type SummonChoice = Schemas['SummonChoice'];
+
+/** What links a summoned creature to its caster and its spell (D182). */
+export type SummonLink = Schemas['SummonLink'];
+
+/** The DM's creatures for a summoning that waits for them, or in place of a placed one's (D182). */
+export type PlaceSummonRequest = Schemas['PlaceSummonRequest'];
+
+/** A summoning the DM places with no slot spent, such as a familiar found before the fight (D182). */
+export type CompanionSummonRequest = Schemas['CompanionSummonRequest'];
+
+/** The DM's dismissal of summoned creatures, while their spell goes on (D182). */
+export type DismissSummonsRequest = Schemas['DismissSummonsRequest'];
+
+/** The caster's bonus-action command to creatures that act only when commanded (PHB p.212, XGE p.168, D182). */
+export type CommandSummonsRequest = Schemas['CommandSummonsRequest'];

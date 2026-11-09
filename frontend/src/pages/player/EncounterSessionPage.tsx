@@ -32,8 +32,10 @@ import InlineMonsterActions from '../../components/encounter/InlineMonsterAction
 import { wildShapePoolId } from '../../utils/classFeatures';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
-import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, Footprints, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, Footprints, ShieldAlert, Megaphone } from 'lucide-react';
 import { useState } from 'react';
+import { usePending } from '../../hooks/usePending';
+import { useToast } from '../../hooks/useToast';
 
 // The player's own action buttons, each at least 44px tall for a phone
 const SELF_ACTION = 'flex items-center gap-1.5 min-h-11 px-3 py-1.5 font-heading text-[13px] font-semibold tracking-[0.02em] border';
@@ -98,6 +100,9 @@ function PlayerSessionView() {
   const [effectError, setEffectError] = useState('');
   // The beast's actions of the player's character in Wild Shape, shown on request (PHB p.67)
   const [showBeastActions, setShowBeastActions] = useState(false);
+  // The command to the character's summoned creatures, one at a time, a failure shown as a toast (D182)
+  const commanding = usePending();
+  const toast = useToast();
 
   if (!encounter) {
     return (
@@ -113,8 +118,16 @@ function PlayerSessionView() {
   // in its lair is visible; its turn order counts only what players see (D157, D163)
   const participantsById = new Map(encounter.participants.map(p => [p.id, p]));
   const lairMonsters = encounter.monstersInLair.flatMap(id => participantsById.get(id)?.displayName ?? []);
-  const isMyTurn = encounter.participants.some(p => p.isCurrentTurn && p.controlledByUserId === user?.userId);
-  const myCharacter = encounter.participants.find(p => p.controlledByUserId === user?.userId);
+  // The player's own character, never a creature it summoned, which the player controls too (D182)
+  const myCharacter = encounter.participants.find(p => p.participantType === 'PLAYER' && p.controlledByUserId === user?.userId);
+  const isMyTurn = myCharacter?.isCurrentTurn ?? false;
+  // The creatures the player's character summoned and controls (D182): the one whose turn it is acts from its stat
+  // block, and those that act only on command (PHB p.212, XGE p.168) await the character's bonus action
+  const mySummons = encounter.participants.filter(p => p.participantType === 'COMPANION'
+    && p.controlledByUserId === user?.userId);
+  const summonOnTurn = mySummons.find(p => p.isCurrentTurn && p.lifeState === 'ALIVE');
+  const toCommand = mySummons.filter(p => p.summon?.needsCommand && p.summon.commandedRound == null
+    && p.lifeState !== 'DEAD' && p.summonedByParticipantId === myCharacter?.id);
   // A player's reactions, on any turn, while their reaction is unused; off their turn they are all a player can take
   // (D174)
   const canReact = myCharacter?.lifeState === 'ALIVE' && myCharacter.turnEconomy != null
@@ -152,6 +165,14 @@ function PlayerSessionView() {
     if (!effect.directedCost) return null;
     if (!participant.isCurrentTurn) return 'Only on your turn';
     return effect.directedCost === 'NONE' ? null : chargeBlock(participant, { cost: effect.directedCost });
+  }
+
+  // The character's bonus action that lets its uncommanded creatures act on their next turn (PHB p.212, XGE p.168)
+  function commandSummons() {
+    if (!myCharacter || toCommand.length === 0) return;
+    commanding.run(() => actions.commandSummons({
+      casterParticipantId: myCharacter.id, participantIds: toCommand.map(p => p.id),
+    })).catch(toast.errorFrom);
   }
 
   function selectAttackTarget(targetId: string) {
@@ -292,6 +313,15 @@ function PlayerSessionView() {
                 <Swords className="w-3.5 h-3.5" /> {myCharacter.wildShape.beastName} actions
               </button>
             )}
+            {/* Animate Dead's undead and a tiny servant act only when commanded, with the caster's bonus action on its
+                turn (PHB p.212, XGE p.168, D182) */}
+            {isMyTurn && toCommand.length > 0 && (
+              <button onClick={commandSummons} disabled={commanding.pending || !!chargeBlock(myCharacter, { cost: 'BONUS_ACTION' })}
+                title={chargeBlock(myCharacter, { cost: 'BONUS_ACTION' }) ?? undefined}
+                className={`${SELF_ACTION} bg-cls-druid/10 hover:bg-cls-druid/20 text-cls-druid border-cls-druid/30 disabled:opacity-50`}>
+                <Megaphone className="w-3.5 h-3.5" /> Command {toCommand.length === 1 ? toCommand[0].displayName : `${toCommand.length} creatures`}
+              </button>
+            )}
             {myCharacter.spellsKnown && (
               <button onClick={() => selectSelfAction('spell')}
                 className={`${SELF_ACTION} bg-ink/10 hover:bg-ink/20 text-ink border-ink/30`}>
@@ -307,6 +337,29 @@ function PlayerSessionView() {
             <InlineMonsterActions participant={myCharacter} participants={encounter.participants} isLairTurn={false}
               inLair={false} />
           </div>
+        )}
+
+        {/* A creature the character summoned, on its own turn: its turn economy and its stat block's actions, as a
+            druid's beast in Wild Shape (D182). A familiar's attacks are left out (PHB p.240); a creature that acts
+            only when commanded waits for the command (PHB p.212, XGE p.168) */}
+        {isActive && summonOnTurn && (
+          <section aria-label={`${summonOnTurn.displayName}'s turn`} className="mb-4 border border-cls-druid/30 bg-card">
+            <p className="px-4 pt-3 font-heading text-[15px] font-semibold tracking-[0.01em] text-cls-druid">
+              It&apos;s {summonOnTurn.displayName}&apos;s turn
+            </p>
+            <div className="px-4 pt-2">
+              <TurnEconomyBar participant={summonOnTurn} variant="card" />
+            </div>
+            {summonOnTurn.summon?.needsCommand && summonOnTurn.summon.commandedRound == null ? (
+              <p role="note" className="px-4 pb-3 font-body text-[15px] font-semibold text-muted">
+                {summonOnTurn.displayName} has no command, so it only defends itself. Command it with a bonus action on
+                your turn.
+              </p>
+            ) : (
+              <InlineMonsterActions participant={summonOnTurn} participants={encounter.participants} isLairTurn={false}
+                inLair={false} noAttacks={summonOnTurn.summon?.cannotAttack ?? false} />
+            )}
+          </section>
         )}
 
         {/* Spell cast modal */}
@@ -360,7 +413,9 @@ function PlayerSessionView() {
             const p = participantsById.get(turn.participantId ?? '');
             if (!p) return null;
             const isOwn = p.controlledByUserId === user?.userId;
-            const isMonster = p.participantType === 'MONSTER';
+            // A summoned creature nobody plays, as Summon Lesser Demons' demons, reads as a monster (D157, D182)
+            const isMonster = p.participantType === 'MONSTER' || (p.participantType === 'COMPANION' && !p.controlledByUserId);
+            const kindLabel = isMonster ? 'Monster' : p.participantType === 'COMPANION' ? 'Companion' : 'Player';
             const monsterHealth = isMonster ? healthLabel(p) : null;
 
             return (
@@ -369,18 +424,19 @@ function PlayerSessionView() {
                 participant={p}
                 current={turn.current}
                 highlighted={isOwn}
+                summonerName={p.summonedByParticipantId ? participantsById.get(p.summonedByParticipantId)?.displayName : null}
                 onEndWildShape={isOwn && isActive && p.wildShape
                   ? () => { void effectCommand(() => actions.usePool({ participantId: p.id, poolId: wildShapePoolId(p), option: 'end' })); }
                   : undefined}
                 badges={(
                   <>
-                    {isOwn && <span className="px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 text-ink">You</span>}
+                    {p.id === myCharacter?.id && <span className="px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 text-ink">You</span>}
                     <LifeStateBadge participant={p} />
                   </>
                 )}
                 trailing={isOwn ? <HpReadout participant={p} /> : (
                   <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                    <span className="text-faint font-body text-[15px] font-semibold">{isMonster ? 'Monster' : 'Player'}</span>
+                    <span className="text-faint font-body text-[15px] font-semibold">{kindLabel}</span>
                     {monsterHealth && (
                       <span className="font-heading text-[13px] font-semibold text-muted">{monsterHealth}</span>
                     )}
@@ -408,6 +464,7 @@ function PlayerSessionView() {
                   onUse={isOwn && isActive && p.lifeState === 'ALIVE' ? effect => directEffect(effect) : undefined}
                   blockedBy={effect => effectBlock(p, effect)}
                   onEnd={isOwn && isActive ? effect => { void effectCommand(() => actions.endSpellEffect({ participantId: p.id, effectId: effect.id })); } : undefined}
+                  participants={encounter.participants}
                 />
               </ParticipantRow>
             );

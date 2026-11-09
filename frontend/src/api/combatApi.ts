@@ -1,5 +1,8 @@
 import api from './axiosConfig';
-import type { Encounter, EndSpellEffectRequest } from '../types/encounter';
+import type {
+  CommandSummonsRequest, CompanionSummonRequest, DismissSummonsRequest, Encounter, EndSpellEffectRequest,
+  PlaceSummonRequest, SummonOptions,
+} from '../types/encounter';
 import type {
   AttackOption,
   AttackRollRequest,
@@ -218,5 +221,36 @@ export const combatApi = {
   // Every monster participant fighting in its lair, which gives the Lair a turn on initiative 20 (D163)
   setLairStatus(encounterId: string, monsterIds: string[]) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/lair-status`, { monsterIds });
+  },
+  // ── M26 Summoning (D182) ─────────────────────────────────────────
+
+  // What a summoning spell can bring when the participant casts it at this slot level (its own level when left out):
+  // the DM's for anyone, a player's for a participant they control. Any other spell is a 400
+  getSummonOptions(encounterId: string, participantId: string, spellName: string, slotLevel?: number) {
+    return api.get<SummonOptions>(`/encounters/${encounterId}/combat/summon-options`, {
+      params: { participantId, spellName, ...(slotLevel != null ? { slotLevel } : {}) },
+    });
+  },
+
+  // The DM's creatures for a summoning waiting for them, or in place of a placed one's
+  placeSummon(encounterId: string, request: PlaceSummonRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/summons`, request);
+  },
+
+  // A summoning the DM places with no slot spent, while the encounter is prepared or active: a familiar, steed,
+  // Animate Dead's undead or a tiny servant cast before the fight
+  placeCompanion(encounterId: string, request: CompanionSummonRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/summons/companion`, request);
+  },
+
+  // The DM dismisses summoned creatures, while their spell goes on
+  dismissSummons(encounterId: string, request: DismissSummonsRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/summons/dismiss`, request);
+  },
+
+  // The caster's bonus action that lets creatures act which act only when commanded (PHB p.212, XGE p.168); a player
+  // only on the caster's turn
+  commandSummons(encounterId: string, request: CommandSummonsRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/summons/command`, request);
   },
 };

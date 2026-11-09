@@ -698,3 +698,82 @@ describe('Player EncounterSessionPage in Wild Shape (PHB p.66–67)', () => {
     ]));
   });
 });
+
+describe('Player EncounterSessionPage with summoned creatures (D182)', () => {
+  // Gimli's owl familiar, which the player controls too, listed before Gimli
+  const owl = (overrides: Partial<EncounterParticipant> = {}) =>
+    makeMockParticipant('part-owl', 'Owl', 'COMPANION', {
+      sortOrder: 2, monsterId: 'mon-owl', controlledByUserId: 'user-001', hpMax: 1, hpCurrent: 1,
+      summonedByParticipantId: 'part-gimli',
+      summon: { spell: 'Find Familiar', kind: 'FAMILIAR', initiativeMode: 'INDIVIDUAL', cannotAttack: true },
+      ...overrides,
+    });
+  const skeleton = (overrides: Partial<EncounterParticipant> = {}) =>
+    makeMockParticipant('part-skeleton', 'Skeleton', 'COMPANION', {
+      sortOrder: 4, monsterId: 'mon-skeleton', controlledByUserId: 'user-001', summonedByParticipantId: 'part-gimli',
+      summon: { spell: 'Animate Dead', kind: 'ANIMATE_DEAD', initiativeMode: 'GROUP', needsCommand: true },
+      ...overrides,
+    });
+
+  function serve(...participants: EncounterParticipant[]) {
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({ participants }))));
+  }
+
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  it("takes the player character as the player's own, not a creature it summoned", async () => {
+    serve(goblin(), owl(), gimli());
+    renderPage();
+
+    const you = await screen.findByText('You');
+    expect(you.closest('[style]')).toHaveTextContent('Gimli');
+    expect(screen.getAllByText('You')).toHaveLength(1);
+    expect(screen.getByText('Summoned by Gimli (Find Familiar)')).toBeInTheDocument();
+    // The self-actions are Gimli's: he knows Fire Bolt
+    expect(screen.getByRole('button', { name: /Cast Spell/ })).toBeInTheDocument();
+  });
+
+  it("shows the familiar's turn economy and actions on its turn, without its attacks (PHB p.240)", async () => {
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [
+        { name: 'Talons', deliveryMethod: 'ATTACK_ROLL', attackBonus: 3 },
+        { name: 'Flyby Help', deliveryMethod: 'NONE', automatable: false },
+      ],
+    })));
+    serve(goblin(), owl({ isCurrentTurn: true }), gimli());
+    renderPage();
+
+    const turn = await screen.findByRole('region', { name: "Owl's turn" });
+    expect(within(turn).getByText("It's Owl's turn")).toBeInTheDocument();
+    expect(await within(turn).findByRole('button', { name: /Flyby Help/ })).toBeInTheDocument();
+    expect(within(turn).queryByRole('button', { name: /Talons/ })).not.toBeInTheDocument();
+    // Not the character's turn
+    expect(screen.queryByText("It's your turn!")).not.toBeInTheDocument();
+  });
+
+  it("commands uncommanded undead with a bonus action on the caster's turn (PHB p.212)", async () => {
+    const commands: unknown[] = [];
+    const commanded = skeleton({ summon: { ...skeleton().summon, commandedRound: 1 } });
+    server.use(http.post('/api/encounters/:id/combat/summons/command', async ({ request }) => {
+      commands.push(await request.json());
+      return HttpResponse.json(makeMockEncounter({ participants: [goblin(), gimli({ isCurrentTurn: true }), commanded] }));
+    }));
+    serve(goblin(), gimli({ isCurrentTurn: true }), skeleton());
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /Command Skeleton/ }));
+    await waitFor(() => expect(commands).toEqual([{ casterParticipantId: 'part-gimli', participantIds: ['part-skeleton'] }]));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Command Skeleton/ })).not.toBeInTheDocument());
+  });
+
+  it('tells the player an uncommanded skeleton only defends itself on its turn', async () => {
+    serve(goblin(), gimli(), skeleton({ isCurrentTurn: true }));
+    renderPage();
+
+    const turn = await screen.findByRole('region', { name: "Skeleton's turn" });
+    expect(within(turn).getByRole('note')).toHaveTextContent('Skeleton has no command, so it only defends itself');
+  });
+});

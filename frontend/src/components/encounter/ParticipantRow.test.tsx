@@ -79,4 +79,23 @@ describe('ParticipantRow', () => {
     expect(screen.getAllByRole('button').map(b => b.textContent)).toEqual([expect.stringContaining('Combat Log')]);
     expect(screen.queryByText('Death save due')).not.toBeInTheDocument();
   });
+
+  it('badges a summoned creature with its summoner and spell, and indents one that acts right after its caster (D182)', () => {
+    const spirit = makeMockParticipant('s', 'Bestial Spirit', 'COMPANION', {
+      summonedByParticipantId: 'p',
+      summon: { spell: 'Summon Beast', kind: 'SPIRIT', initiativeMode: 'FOLLOWS_CASTER' },
+    });
+    const { rerender } = render(<ParticipantRow participant={spirit} current={false} summonerName="Legolas" />);
+    expect(screen.getByText('Summoned by Legolas (Summon Beast)')).toBeInTheDocument();
+    expect(screen.getByText('Bestial Spirit').closest('[style]')).toHaveClass('ml-6');
+
+    const wolf = { ...spirit, displayName: 'Wolf', summon: { spell: 'Conjure Animals', initiativeMode: 'GROUP' as const } };
+    rerender(<ParticipantRow participant={wolf} current={false} summonerName="Legolas" />);
+    expect(screen.getByText('Summoned by Legolas (Conjure Animals)')).toBeInTheDocument();
+    expect(screen.getByText('Wolf').closest('[style]')).not.toHaveClass('ml-6');
+
+    // A participant nobody summoned has no badge
+    rerender(<ParticipantRow participant={legolas()} current={false} />);
+    expect(screen.queryByText(/Summoned/)).not.toBeInTheDocument();
+  });
 });

@@ -5,15 +5,16 @@ import { apiErrorMessage } from '../../api/errors';
 import { useCampaigns } from '../../queries/campaigns';
 import { useCampaignCharacters } from '../../queries/characters';
 import {
-  useAddParticipant, useCampaignEncounters, useCreateEncounter, useDeleteEncounter, useRemoveParticipant,
-  useRenameParticipant, useReorderTie, useRollInitiatives, useSetInitiatives, useSetParticipantVisibility,
-  useStartEncounter,
+  useAddParticipant, useCampaignEncounters, useCreateEncounter, useDeleteEncounter, usePlaceCompanion,
+  useRemoveParticipant, useRenameParticipant, useReorderTie, useRollInitiatives, useSetInitiatives,
+  useSetParticipantVisibility, useStartEncounter,
 } from '../../queries/encounters';
+import AddCompanionModal from '../../components/encounter/AddCompanionModal';
 import { useMonsterSearch } from '../../queries/monsters';
 import type { PlayerCharacter } from '../../types/character';
 import type { Monster } from '../../types/monster';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
-import { Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Check } from 'lucide-react';
+import { Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Check, UserPlus } from 'lucide-react';
 import NavBar from '../../components/common/NavBar';
 import TieOrderArrows from '../../components/encounter/TieOrderArrows';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
@@ -74,6 +75,9 @@ export default function EncounterBuilderPage() {
   const rollInitiatives = useRollInitiatives();
   const reorderTie = useReorderTie();
   const startEncounter = useStartEncounter();
+  const placeCompanion = usePlaceCompanion();
+  // Whether the Add companion form is open (D182)
+  const [addingCompanion, setAddingCompanion] = useState(false);
 
   // Searches once typing pauses
   useEffect(() => {
@@ -226,7 +230,7 @@ export default function EncounterBuilderPage() {
   // The builder's buttons wait while one of its changes is on its way, so a double click doesn't add, roll, start or
   // delete twice
   const builderBusy = addParticipant.isPending || removeParticipant.isPending || rollInitiatives.isPending
-    || startEncounter.isPending || deleteEncounter.isPending;
+    || startEncounter.isPending || deleteEncounter.isPending || placeCompanion.isPending;
 
   const addedCharacterIds = new Set(
     selectedEncounter?.participants
@@ -495,6 +499,25 @@ export default function EncounterBuilderPage() {
                           </div>
                         </div>
 
+                        {/* A player character's familiar, steed or other summoning, placed with no slot spent (D182) */}
+                        <div className="mb-6">
+                          <button
+                            onClick={() => setAddingCompanion(true)}
+                            disabled={builderBusy}
+                            className="flex items-center gap-2 min-h-11 px-4 py-2 bg-page border border-rule font-body text-[15px] font-semibold text-ink hover:border-muted transition-colors disabled:opacity-50 disabled:cursor-wait"
+                          >
+                            <UserPlus className="w-4 h-4 text-cls-druid" /> Add companion
+                          </button>
+                        </div>
+                        {addingCompanion && (
+                          <AddCompanionModal
+                            encounterId={selectedEncounter.id}
+                            participants={selectedEncounter.participants}
+                            onSubmit={request => placeCompanion.mutateAsync({ encounter: selectedEncounter, request })}
+                            onClose={() => setAddingCompanion(false)}
+                          />
+                        )}
+
                         {/* Initiative + Start */}
                         {hasParticipants && (
                           <div className="flex items-center gap-3 mb-6">
@@ -581,6 +604,12 @@ export default function EncounterBuilderPage() {
                                         >
                                           {p.participantType}
                                         </span>
+                                        {p.summon && (
+                                          <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-cls-druid/10 text-cls-druid">
+                                            Summoned by {selectedEncounter.participants.find(o => o.id === p.summonedByParticipantId)?.displayName ?? 'a caster'}
+                                            {p.summon.spell ? ` (${p.summon.spell})` : ''}
+                                          </span>
+                                        )}
                                         {isMonster && (
                                           <VisibilityToggle participant={p} onToggle={visible => handleSetVisibility(p.id, visible)} />
                                         )}

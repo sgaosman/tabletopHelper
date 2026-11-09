@@ -15,11 +15,13 @@ import WildShapeStatus from './WildShapeStatus';
  * @param children under the name: conditions, spells, death saves and pools
  * @param trailing at the right: HP and AC, labels and buttons
  * @param onEndWildShape ends the druid's Wild Shape, for whoever may: the DM, or the druid's player
+ * @param summonerName the name of the creature that summoned this one, for its "Summoned by" badge (D182); a summon
+ *   that acts right after its caster is indented under it
  *
  * On a phone the trailing part moves to a line of its own when it does not fit beside the name.
  */
 export default function ParticipantRow({
-  participant: p, current, highlighted = false, leading, badges, children, trailing, onEndWildShape,
+  participant: p, current, highlighted = false, leading, badges, children, trailing, onEndWildShape, summonerName,
 }: {
   participant: EncounterParticipant;
   current: boolean;
@@ -29,12 +31,15 @@ export default function ParticipantRow({
   children?: ReactNode;
   trailing?: ReactNode;
   onEndWildShape?: () => void;
+  summonerName?: string | null;
 }) {
   const isMonster = p.participantType === 'MONSTER';
+  // A summon that acts right after its caster sits under it in the order (TCE p.109, D182)
+  const follower = p.summon?.initiativeMode === 'FOLLOWS_CASTER';
   return (
     <div
       aria-current={current ? 'step' : undefined}
-      className={`bg-card border border-l-[3px] px-3 sm:px-4 py-3 transition-all ${
+      className={`bg-card border border-l-[3px] px-3 sm:px-4 py-3 transition-all ${follower ? 'ml-6 sm:ml-10' : ''} ${
         current ? 'border-t-cls-fighter border-r-cls-fighter border-b-cls-fighter ring-1 ring-cls-fighter/30' :
         highlighted ? 'border-t-ink border-r-ink border-b-ink ring-1 ring-ink/30' :
         'border-t-rule border-r-rule border-b-rule'
@@ -58,6 +63,11 @@ export default function ParticipantRow({
               {p.displayName}
             </span>
             {badges}
+            {p.summon && (
+              <span className="font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5 bg-cls-druid/10 text-cls-druid">
+                {summonerName ? `Summoned by ${summonerName}` : 'Summoned'}{p.summon.spell ? ` (${p.summon.spell})` : ''}
+              </span>
+            )}
           </div>
           <WildShapeStatus participant={p} onEnd={onEndWildShape} />
           {children}

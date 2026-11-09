@@ -12,7 +12,7 @@ import type {
 } from '../../types/combat';
 import type {
   CombatResultPreview, ConditionEntry, Encounter, EncounterParticipant, ParticipantType, ResourcePoolEntry, SpellEffect,
-  TurnEntry,
+  SummonOptions, TurnEntry,
 } from '../../types/encounter';
 import type { Monster } from '../../types/monster';
 import type {
@@ -690,6 +690,48 @@ export function makeMockRace(id: string, name: string, abilityScoreBonuses: stri
     creatureType: 'Humanoid', darkvision: null, traits: '[]', proficiencies: '{}', resistances: '[]',
     raceChoices: null, additionalSpells: null, baseRaceName: null, description: null,
   } satisfies Race;
+}
+
+/**
+ * Conjure Animals' summon options at 3rd level as the server lists them (PHB p.225, D182): its four tiers, a wolf, a
+ * giant badger and an elk to choose from, one group initiative by default and acting right after the caster as a
+ * house rule, the beasts counting as fey, unless the overrides say otherwise.
+ */
+export function makeMockSummonOptions(overrides: Partial<SummonOptions> = {}): SummonOptions {
+  const options = {
+    spellName: 'Conjure Animals', kind: 'CONJURE_ANIMALS', slotLevel: 3, spellLevel: 3, concentration: true,
+    castInCombat: true, dmChooses: false, multiplier: 1,
+    options: [
+      { id: '1xCR2', count: 1, maxCr: 2, label: '1 beast of challenge rating 2 or lower' },
+      { id: '2xCR1', count: 2, maxCr: 1, label: '2 beasts of challenge rating 1 or lower' },
+      { id: '4xCR1/2', count: 4, maxCr: 0.5, label: '4 beasts of challenge rating 1/2 or lower' },
+      { id: '8xCR1/4', count: 8, maxCr: 0.25, label: '8 beasts of challenge rating 1/4 or lower' },
+    ],
+    variants: [], initiativeModes: ['GROUP', 'FOLLOWS_CASTER'], defaultInitiativeMode: 'GROUP',
+    houseRuleModes: ['FOLLOWS_CASTER'], controlledBy: 'CASTER', creatureTypes: [], creatureType: 'fey',
+    cannotAttack: false, needsCommand: false, vanishesAtZero: true, hasFamiliar: false,
+    candidates: [
+      { monsterId: 'mon-wolf', name: 'Wolf', challengeRating: '1/4', challengeRatingValue: 0.25, hitPoints: 11, armourClass: 13, type: 'beast', size: 'M', source: 'MM' },
+      { monsterId: 'mon-badger', name: 'Giant Badger', challengeRating: '1/4', challengeRatingValue: 0.25, hitPoints: 13, armourClass: 10, type: 'beast', size: 'M', source: 'MM' },
+      { monsterId: 'mon-elk', name: 'Elk', challengeRating: '1/4', challengeRatingValue: 0.25, hitPoints: 13, armourClass: 10, type: 'beast', size: 'L', source: 'MM' },
+      { monsterId: 'mon-bear', name: 'Brown Bear', challengeRating: '1', challengeRatingValue: 1, hitPoints: 34, armourClass: 11, type: 'beast', size: 'L', source: 'MM' },
+    ],
+    spirit: null,
+  } satisfies SummonOptions;
+  return { ...options, ...overrides };
+}
+
+/** Summon Beast's options at 4th level (TCE p.109): one spirit, Air, Land or Water, with its preview. */
+export function makeMockSpiritOptions(overrides: Partial<SummonOptions> = {}): SummonOptions {
+  return makeMockSummonOptions({
+    spellName: 'Summon Beast', kind: 'SPIRIT', slotLevel: 4, spellLevel: 2,
+    options: [{ id: '1', count: 1, maxCr: null, label: '1 spirit' }],
+    variants: ['Air', 'Land', 'Water'], initiativeModes: ['FOLLOWS_CASTER'], defaultInitiativeMode: 'FOLLOWS_CASTER',
+    houseRuleModes: [], creatureType: null,
+    candidates: [{ monsterId: 'mon-bestial', name: 'Bestial Spirit', challengeRating: null, challengeRatingValue: null, hitPoints: 0, armourClass: 10, type: 'beast', size: 'S', source: 'TCE' }],
+    spirit: { monsterId: 'mon-bestial', name: 'Bestial Spirit', armourClass: 15, hitPoints: { Air: 30, Land: 40, Water: 40 }, attacks: 2, attackBonus: 7, saveDc: 15 },
+    ...overrides,
+  });
 }
 
 export const allHandlers = [

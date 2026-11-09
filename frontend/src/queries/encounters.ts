@@ -8,7 +8,8 @@ import { encounterApi } from '../api/encounterApi';
 import { useLiveEncounter } from '../context/liveEncounter';
 import type { CombatLogEntry } from '../types/combat';
 import type {
-  AddParticipantRequest, Encounter, EncounterCreateRequest, EncounterParticipant, EncounterView, SetInitiativeRequest,
+  AddParticipantRequest, CompanionSummonRequest, Encounter, EncounterCreateRequest, EncounterParticipant, EncounterView,
+  SetInitiativeRequest,
 } from '../types/encounter';
 import { useCharacter } from './characters';
 import { queryKeys } from './keys';
@@ -105,6 +106,15 @@ export function useRollInitiatives() {
 export function useReorderTie() {
   return useEncounterChange(({ encounter, participantIds }: { encounter: EncounterRef; participantIds: string[] }) =>
     encounterApi.reorderTie(encounter.id, participantIds));
+}
+
+/**
+ * A summoning the DM places with no slot spent while the encounter is being prepared (D182), such as a familiar or a
+ * steed found before the fight.
+ */
+export function usePlaceCompanion() {
+  return useEncounterChange(({ encounter, request }: { encounter: EncounterRef; request: CompanionSummonRequest }) =>
+    combatApi.placeCompanion(encounter.id, request));
 }
 
 export function useStartEncounter() {
@@ -217,14 +227,17 @@ export function useMonsterActionTemplates(participantId: string) {
  */
 export function useBonusActionFeatures(participant: EncounterParticipant, { dm }: { dm: boolean }): string[] | null {
   const { encounterId } = useLiveEncounter();
-  const character = useCharacter(participant.participantType !== 'MONSTER' ? participant.characterId ?? undefined : undefined);
-  const monster = participant.participantType === 'MONSTER' && dm;
+  // A summoned creature reads its stat block as a monster does (D182)
+  const statBlock = participant.participantType === 'MONSTER'
+    || (participant.participantType === 'COMPANION' && participant.monsterId != null);
+  const character = useCharacter(!statBlock ? participant.characterId ?? undefined : undefined);
+  const monster = statBlock && dm;
   const templates = useQuery({
     queryKey: queryKeys.encounters.monsterActions(encounterId, participant.id),
     queryFn: monster ? async () => (await combatApi.getMonsterActions(encounterId, participant.id)).data : skipToken,
     staleTime: 0,
   });
-  if (participant.participantType === 'MONSTER') {
+  if (statBlock) {
     if (!templates.data) return null;
     return [...(templates.data.traits ?? []), ...(templates.data.bonusActions ?? [])].map(entry => entry.name);
   }
@@ -279,6 +292,22 @@ export function useWildShapeOptions(participantId: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.encounters.wildShapeOptions(encounterId, view, participantId),
     queryFn: enabled ? async () => (await combatApi.getWildShapeOptions(encounterId, participantId)).data : skipToken,
+  });
+}
+
+/**
+ * What a summoning spell can bring when the participant casts it at this slot level (D182), loaded while all three are
+ * known. It reads the campaign's setting and the caster's familiar, so it loads again each time it is shown.
+ */
+export function useSummonOptions(
+  encounterId: string, participantId: string | undefined, spellName: string | undefined, slotLevel: number | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.encounters.summonOptions(encounterId, participantId ?? '', spellName ?? '', slotLevel),
+    queryFn: participantId && spellName
+      ? async () => (await combatApi.getSummonOptions(encounterId, participantId, spellName, slotLevel ?? undefined)).data
+      : skipToken,
+    staleTime: 0,
   });
 }
 
@@ -367,6 +396,12 @@ export function useEncounterAction() {
       protection: change(combatApi.protection),
       // A held Bardic Inspiration die used by its holder (M17)
       bardicInspiration: change(combatApi.bardicInspiration),
+      // Summoning (D182): the DM's creatures for a summoning, a companion placed with no slot, a dismissal, and the
+      // caster's command to creatures that act only when commanded
+      placeSummon: change(combatApi.placeSummon),
+      placeCompanion: change(combatApi.placeCompanion),
+      dismissSummons: change(combatApi.dismissSummons),
+      commandSummons: change(combatApi.commandSummons),
     };
   }, [queryClient, encounterId, view, socketMessages]);
 }

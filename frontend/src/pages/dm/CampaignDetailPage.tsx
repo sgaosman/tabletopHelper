@@ -65,6 +65,10 @@ export default function CampaignDetailPage() {
     saveSetting({ allowPlayerManualModifiers });
   }
 
+  function handleDmChoosesConjuredCreatures(dmChoosesConjuredCreatures: boolean) {
+    saveSetting({ dmChoosesConjuredCreatures });
+  }
+
   function handleRevive(characterId: string) {
     if (!campaign) return;
     revive.mutate({ characterId, campaignId: campaign.id });
@@ -143,6 +147,22 @@ export default function CampaignDetailPage() {
               <span className="block font-heading text-[15px] font-bold text-ink">Allow players Manual Modifiers</span>
               <span className="block font-body text-[13px] font-semibold text-faint">
                 Players can type their own spell attack bonus and save DC, and force a critical hit. Each use shows in the combat log.
+              </span>
+            </span>
+          </label>
+          {/* D182: PHB p.225 has the DM holding the creatures' statistics; off, the caster picks them */}
+          <label className="bg-card border border-rule p-3 flex items-start gap-3 cursor-pointer w-fit mt-2">
+            <input
+              type="checkbox"
+              checked={campaign.dmChoosesConjuredCreatures}
+              onChange={e => handleDmChoosesConjuredCreatures(e.target.checked)}
+              disabled={updateSettings.isPending}
+              className="mt-1 accent-ink"
+            />
+            <span>
+              <span className="block font-heading text-[15px] font-bold text-ink">DM chooses conjured creatures</span>
+              <span className="block font-body text-[13px] font-semibold text-faint">
+                When a player casts Conjure Animals, they choose how many come and you choose the beasts. When off, the player chooses them.
               </span>
             </span>
           </label>

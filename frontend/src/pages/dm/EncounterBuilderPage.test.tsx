@@ -276,4 +276,61 @@ describe('EncounterBuilderPage', () => {
       expect(screen.queryByPlaceholderText('Encounter name')).not.toBeInTheDocument();
     });
   });
+
+  it("adds a player character's familiar with Add companion, with no slot spent (PHB p.240, D182)", async () => {
+    const { server } = await import('../../test/mocks/server');
+    const { http, HttpResponse } = await import('msw');
+    const { makeMockEncounter, makeMockParticipant, makeMockSummonOptions } = await import('../../test/mocks/handlers');
+    const gimli = makeMockParticipant('part-gimli', 'Gimli', 'PLAYER');
+    const owl = makeMockParticipant('part-owl', 'Owl', 'COMPANION', {
+      summonedByParticipantId: 'part-gimli', summon: { spell: 'Find Familiar', kind: 'FAMILIAR' },
+    });
+    const preparing = (participants: EncounterParticipant[]) =>
+      makeMockEncounter({ status: 'PREPARING', sessionCode: undefined, participants });
+    const asked: (string | null)[][] = [];
+    const requests: unknown[] = [];
+    server.use(
+      http.get('/api/encounters/campaign/:campaignId', () => HttpResponse.json([preparing([gimli])])),
+      http.get('/api/encounters/:id/combat/summon-options', ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        asked.push([params.get('participantId'), params.get('spellName'), params.get('slotLevel')]);
+        return HttpResponse.json(makeMockSummonOptions({
+          spellName: 'Find Familiar', kind: 'FAMILIAR', slotLevel: 1, spellLevel: 1, concentration: false,
+          options: [{ id: '1', count: 1, maxCr: null, label: '1 familiar' }], initiativeModes: ['INDIVIDUAL'],
+          defaultInitiativeMode: 'INDIVIDUAL', houseRuleModes: [], creatureTypes: ['celestial', 'fey', 'fiend'],
+          creatureType: null, cannotAttack: true,
+          candidates: [
+            { monsterId: 'mon-owl', name: 'Owl', challengeRating: '0', challengeRatingValue: 0, hitPoints: 1, armourClass: 11, type: 'beast', size: 'T', source: 'MM' },
+            { monsterId: 'mon-cat', name: 'Cat', challengeRating: '0', challengeRatingValue: 0, hitPoints: 2, armourClass: 12, type: 'beast', size: 'T', source: 'MM' },
+          ],
+        }));
+      }),
+      http.post('/api/encounters/:id/combat/summons/companion', async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json(preparing([gimli, owl]));
+      }),
+    );
+    render(<EncounterBuilderPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Goblin Ambush'));
+
+    await user.click(screen.getByRole('button', { name: 'Add companion' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add companion' });
+    expect(screen.getByRole('combobox', { name: 'Owner' })).toHaveValue('part-gimli');
+    expect(screen.getByRole('combobox', { name: 'Spell' })).toHaveValue('Find Familiar');
+    await user.click(await screen.findByRole('button', { name: 'One more Owl' }));
+    await user.click(screen.getByRole('radio', { name: 'fey' }));
+    // Find Familiar needs no concentration, so the link starts off
+    expect(screen.getByRole('checkbox', { name: /Ends with the owner's concentration/ })).not.toBeChecked();
+    await user.click(screen.getAllByRole('button', { name: 'Add companion' }).find(b => dialog.contains(b))!);
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(asked[0]).toEqual(['part-gimli', 'Find Familiar', null]);
+    expect(requests[0]).toEqual({
+      casterParticipantId: 'part-gimli', spellName: 'Find Familiar', slotLevel: 1, concentrationLinked: false,
+      optionId: '1', creatures: [{ monsterId: 'mon-owl', count: 1 }], initiativeMode: 'INDIVIDUAL', creatureType: 'fey',
+    });
+    expect(await screen.findByText('Summoned by Gimli (Find Familiar)')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Add companion' })).not.toBeInTheDocument();
+  });
 });

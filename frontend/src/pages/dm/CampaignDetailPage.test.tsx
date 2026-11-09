@@ -86,6 +86,26 @@ describe('CampaignDetailPage', () => {
     expect(screen.getByRole('checkbox', { name: /Show exact monster HP/ })).not.toBeChecked();
   });
 
+  it('has the DM choose conjured creatures, sending only that setting (PHB p.225, D182)', async () => {
+    let settingsRequest: unknown;
+    server.use(
+      http.patch('/api/campaigns/:id/settings', async ({ params, request }) => {
+        settingsRequest = await request.json();
+        return HttpResponse.json({ ...makeCampaign(params.id as string, 'Test Campaign'), dmChoosesConjuredCreatures: true });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    const setting = await screen.findByRole('checkbox', { name: /DM chooses conjured creatures/ });
+    expect(setting).not.toBeChecked();
+    await user.click(setting);
+
+    await waitFor(() => expect(setting).toBeChecked());
+    expect(settingsRequest).toEqual({ dmChoosesConjuredCreatures: true });
+    expect(screen.getByRole('checkbox', { name: /Show exact monster HP/ })).not.toBeChecked();
+  });
+
   it('shows the setting as saved on the campaign', async () => {
     server.use(
       http.get('/api/campaigns/:id', ({ params }) =>

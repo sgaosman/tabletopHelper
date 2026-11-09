@@ -1227,3 +1227,48 @@ describe('DM EncounterSessionPage while a change is on its way', () => {
     }
   });
 });
+
+describe('DM EncounterSessionPage with summonings (D182)', () => {
+  const demons = makeMockSpellEffect('Summon Lesser Demons', {
+    id: 'effect-demons', slotLevel: 3, concentration: true, directedCost: null, directedResolves: false,
+    summon: { optionId: '4xCR1/2', multiplier: 1, roll: 4, status: 'AWAITING_DM' },
+  });
+  const wolfEffect = makeMockSpellEffect('Conjure Animals', {
+    id: 'effect-conjure', slotLevel: 3, concentration: true, directedCost: null, directedResolves: false,
+    summon: { optionId: '1xCR2', multiplier: 1, roll: null, status: 'PLACED' }, summonedParticipantIds: ['part-wolf'],
+  });
+  const wolf = makeMockParticipant('part-wolf', 'Dire Wolf', 'COMPANION', {
+    sortOrder: 3, monsterId: 'mon-dire-wolf', controlledByUserId: 'user-002', summonedByParticipantId: 'part-gimli',
+    summon: { effectId: 'effect-conjure', spell: 'Conjure Animals', kind: 'CONJURE_ANIMALS', initiativeMode: 'GROUP' },
+  });
+
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({
+      participants: [goblin(), gimli({ activeEffects: [demons, wolfEffect] }), wolf],
+    }))));
+  });
+
+  it('shows a summoning waiting for the DM, with its d6, and badges the summoned wolf with its summoner', async () => {
+    await renderLoaded();
+
+    expect(screen.getByRole('status', { name: 'Summonings waiting for you' }))
+      .toHaveTextContent("Gimli's Summon Lesser Demons waits for you to choose its creatures — rolled d6: 4");
+    expect(screen.getByText('Summoned by Gimli (Conjure Animals)')).toBeInTheDocument();
+    // The wolf acts from its stat block
+    expect(screen.getByRole('button', { name: 'Creature actions' })).toBeInTheDocument();
+  });
+
+  it('dismisses one summoned creature while the spell goes on', async () => {
+    const dismissals: unknown[] = [];
+    server.use(http.post('/api/encounters/:id/combat/summons/dismiss', async ({ request }) => {
+      dismissals.push(await request.json());
+      return HttpResponse.json(makeMockEncounter({ participants: [goblin(), gimli({ activeEffects: [demons, wolfEffect] })] }));
+    }));
+    await renderLoaded();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss Dire Wolf' }));
+    await waitFor(() => expect(dismissals).toEqual([{ participantIds: ['part-wolf'] }]));
+  });
+});
