@@ -10,14 +10,20 @@ import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -60,23 +66,42 @@ public class SpellCaster {
     public CastResult cast(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                            List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
                            Boolean advantage, String costNote) {
+        return cast(encounter, caster, spellName, slotLevel, targets, castingAbility, attackBonus, saveDc, advantage,
+                costNote, MetamagicCasting.Plan.NONE);
+    }
+
+    /**
+     * As {@link #cast(Encounter, EncounterParticipant, String, int, List, String, int, int, Boolean, String)}, with a
+     * sorcerer's Metamagic, already checked and paid for (PHB p.102, M18): Careful Spell's creatures succeed on their
+     * saves and Heightened Spell's has disadvantage on its first, Empowered Spell rerolls low damage dice, Extended
+     * Spell doubles the durations, Subtle Spell needs no verbal component, so silence doesn't stop it, and Twinned
+     * Spell's second target is among the targets. On a spell the DM resolves, the log names what the DM applies.
+     */
+    public CastResult cast(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                           List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
+                           Boolean advantage, String costNote, MetamagicCasting.Plan metamagic) {
         SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, castingAbility, attackBonus,
                 saveDc, advantage);
+        if (metamagic.has(Metamagic.Option.EXTENDED)) {
+            plan = extended(plan);
+        }
         String lead = caster.getDisplayName() + " casts " + spellName
-                + (slotLevel > 0 && slotLevel > plan.spellLevel() ? " at level " + slotLevel : "") + costNote;
+                + (slotLevel > 0 && slotLevel > plan.spellLevel() ? " at level " + slotLevel : "") + costNote
+                + metamagic.note();
 
         if (!plan.automated()) {
             ConcentrationInstance instance = plan.concentration()
                     ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel, plan.durationRounds())
                     : null;
-            String summary = lead + " — " + plan.manualReason();
+            String summary = lead + " — " + plan.manualReason() + forTheDm(metamagic, targets);
             effectApplier.summary(encounter, use(caster, spellName, costNote, instance), summary);
-            leaveEffect(encounter, caster, spellName, slotLevel, instance, false);
+            leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic);
             return new CastResult(spellName, plan.spellLevel(), plan.concentration(), plan.manualReason(), summary,
                     List.of());
         }
 
-        if (plan.verbal() && silenced(caster)) {
+        // Subtle Spell casts it without verbal or somatic components (PHB p.102)
+        if (plan.verbal() && silenced(caster) && !metamagic.has(Metamagic.Option.SUBTLE)) {
             throw new ConflictException("Cannot cast spells with verbal components while silenced");
         }
         Effect effect = discipleOfLife(caster, plan.effect(), plan.spellLevel(), slotLevel);
@@ -92,11 +117,73 @@ public class SpellCaster {
                 : null;
         EffectApplier.Use use = use(caster, spellName, costNote, instance);
         effectApplier.summary(encounter, use, lead + ".");
+        List<Resolver.Target> resolvedAgainst = stats.targets(reached, effect).stream()
+                .map(target -> withMetamagic(target, metamagic))
+                .toList();
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, effect,
-                resolver.resolve(effect, stats.targets(reached, effect)));
-        leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty());
+                resolver.resolve(effect, resolvedAgainst, metamagic.empoweredDice()));
+        leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty(), metamagic);
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null, summary(lead, applied),
                 outcomes(effect, applied));
+    }
+
+    // Careful Spell's creatures succeed on the save, and Heightened Spell's rolls its first with disadvantage
+    // (PHB p.102); a repeated save at the end of a turn is a later one
+    private static Resolver.Target withMetamagic(Resolver.Target target, MetamagicCasting.Plan metamagic) {
+        Resolver.Target changed = target;
+        if (metamagic.careful().contains(target.id())) {
+            changed = changed.succeedingAutomatically();
+        }
+        if (target.id().equals(metamagic.heightened())) {
+            changed = changed.withSaveSource(RollMode.DISADVANTAGE);
+        }
+        return changed;
+    }
+
+    /**
+     * Extended Spell (PHB p.102): the spell's duration doubled to at most 24 hours, and with it its concentration and
+     * each condition that lasts as long as the spell.
+     */
+    static SpellEffects.SpellPlan extended(SpellEffects.SpellPlan plan) {
+        Integer rounds = plan.durationRounds();
+        if (rounds == null) {
+            return plan;
+        }
+        int doubled = Metamagic.extendedRounds(rounds);
+        Effect effect = plan.effect();
+        if (effect != null) {
+            Map<String, Effect.ConditionEnd> ends = new LinkedHashMap<>();
+            effect.conditionEnds().forEach((name, end) -> ends.put(name, rounds.equals(end.durationRounds())
+                    ? new Effect.ConditionEnd(doubled, end.repeatSave(), end.escapeDc(), end.endOfUsersTurn(),
+                            end.endsOnDamage())
+                    : end));
+            effect = new Effect(effect.name(), effect.delivery(), effect.damage(), effect.healing(),
+                    effect.conditions(), effect.concentration(),
+                    effect.durationRounds() != null ? Metamagic.extendedRounds(effect.durationRounds()) : null, ends);
+        }
+        return new SpellEffects.SpellPlan(plan.spellName(), plan.spellLevel(), effect, plan.manualReason(),
+                plan.concentration(), doubled, plan.verbal());
+    }
+
+    // What the DM applies of the Metamagic on a spell they resolve by hand
+    private static String forTheDm(MetamagicCasting.Plan metamagic, List<EncounterParticipant> targets) {
+        List<String> notes = new ArrayList<>();
+        if (!metamagic.careful().isEmpty()) {
+            notes.add("Careful Spell: " + names(targets, metamagic.careful()) + " succeed on the save");
+        }
+        if (metamagic.heightened() != null) {
+            notes.add("Heightened Spell: " + names(targets, Set.of(metamagic.heightened()))
+                    + " has disadvantage on the first save");
+        }
+        if (metamagic.empoweredDice() > 0) {
+            notes.add("Empowered Spell: reroll up to " + metamagic.empoweredDice() + " damage dice");
+        }
+        return notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")";
+    }
+
+    private static String names(List<EncounterParticipant> targets, Set<UUID> ids) {
+        return targets.stream().filter(target -> ids.contains(target.getId()))
+                .map(EncounterParticipant::getDisplayName).collect(Collectors.joining(", "));
     }
 
     /**
@@ -105,14 +192,18 @@ public class SpellCaster {
      * Minute Meteors (XGE p.161).
      */
     private void leaveEffect(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
-                             ConcentrationInstance instance, boolean spentOne) {
+                             ConcentrationInstance instance, boolean spentOne, MetamagicCasting.Plan metamagic) {
         spellEffects.lasting(spellName, slotLevel).ifPresent(lasting -> {
             Integer uses = lasting.uses();
             if (uses != null && spentOne) {
                 uses = Math.max(0, uses - 1);
             }
+            Integer rounds = lasting.durationRounds();
+            if (rounds != null && metamagic.has(Metamagic.Option.EXTENDED)) {
+                rounds = Metamagic.extendedRounds(rounds);
+            }
             effectApplier.startEffect(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null, instance,
-                    lasting.durationRounds(), uses);
+                    rounds, uses);
         });
     }
 

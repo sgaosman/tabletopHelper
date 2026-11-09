@@ -686,6 +686,47 @@
         ]
       }
     },
+    "/api/characters/{characterId}/font-of-magic": {
+      "post": {
+        "operationId": "flexibleCasting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FontOfMagicRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
     "/api/characters/{characterId}/hp": {
       "post": {
         "operationId": "changeHitPoints",
@@ -1786,6 +1827,47 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DivineSmiteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/font-of-magic": {
+      "post": {
+        "operationId": "fontOfMagic",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FontOfMagicUseRequest"
               }
             }
           },
@@ -4621,6 +4703,13 @@
             "type": "string",
             "nullable": true
           },
+          "metamagic": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "spells": {
             "type": "array",
             "nullable": true,
@@ -5233,6 +5322,15 @@
           "advantage": {
             "type": "boolean",
             "nullable": true
+          },
+          "metamagic": {
+            "maxItems": 2,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/MetamagicChoice"
+            }
           },
           "overrideSpellAttackBonus": {
             "type": "integer",
@@ -7799,6 +7897,55 @@
           }
         }
       },
+      "FontOfMagicRequest": {
+        "required": [
+          "direction",
+          "slotLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "SLOT_TO_POINTS",
+              "POINTS_TO_SLOT"
+            ]
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "FontOfMagicUseRequest": {
+        "required": [
+          "direction",
+          "participantId",
+          "slotLevel"
+        ],
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "SLOT_TO_POINTS",
+              "POINTS_TO_SLOT"
+            ]
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slotLevel": {
+            "maximum": 9,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "HealRequest": {
         "required": [
           "amount",
@@ -8207,6 +8354,13 @@
             "type": "string",
             "nullable": true
           },
+          "metamagic": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "setsSpellcastingAbility": {
             "type": "boolean",
             "nullable": true
@@ -8384,6 +8538,80 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "MetamagicChoice": {
+        "required": [
+          "option"
+        ],
+        "type": "object",
+        "properties": {
+          "option": {
+            "type": "string",
+            "enum": [
+              "CAREFUL",
+              "DISTANT",
+              "EMPOWERED",
+              "EXTENDED",
+              "HEIGHTENED",
+              "QUICKENED",
+              "SUBTLE",
+              "TWINNED"
+            ]
+          },
+          "targetIds": {
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "MetamagicOption": {
+        "required": [
+          "cost",
+          "costIsCastLevel",
+          "name",
+          "option"
+        ],
+        "type": "object",
+        "properties": {
+          "cost": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "costIsCastLevel": {
+            "type": "boolean"
+          },
+          "ineligibleReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "maxCastLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "option": {
+            "type": "string",
+            "enum": [
+              "CAREFUL",
+              "DISTANT",
+              "EMPOWERED",
+              "EXTENDED",
+              "HEIGHTENED",
+              "QUICKENED",
+              "SUBTLE",
+              "TWINNED"
+            ]
           }
         }
       },
@@ -9166,6 +9394,23 @@
               "DEAD"
             ]
           },
+          "metamagicOptions": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "CAREFUL",
+                "DISTANT",
+                "EMPOWERED",
+                "EXTENDED",
+                "HEIGHTENED",
+                "QUICKENED",
+                "SUBTLE",
+                "TWINNED"
+              ]
+            }
+          },
           "monsterId": {
             "type": "string",
             "format": "uuid",
@@ -9309,6 +9554,7 @@
             "enum": [
               "SUBCLASS",
               "FIGHTING_STYLE",
+              "METAMAGIC",
               "ASI",
               "FEAT",
               "EXPERTISE",
@@ -10155,6 +10401,13 @@
             "type": "integer",
             "format": "int32"
           },
+          "metamagic": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/MetamagicOption"
+            }
+          },
           "name": {
             "type": "string"
           },
@@ -10181,6 +10434,11 @@
         ],
         "type": "object",
         "properties": {
+          "created": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "max": {
             "type": "integer",
             "format": "int32"

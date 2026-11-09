@@ -21,9 +21,10 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param classId        the class whose level owes it; null for a race's or background's feat
  * @param className      the class, as its class entry names it
  * @param classLevel     the class level that owes it
- * @param count          how many to choose: skills for Expertise, cantrips, or spells; 1 for the others
- * @param options        the fixed list it is chosen from, where it has one: the subclasses, the Fighting Styles, or the
- *                       feats a background offers; null for any, as an Ability Score Improvement's feat is
+ * @param count          how many to choose: skills for Expertise, Metamagic options, cantrips, or spells; 1 for the
+ *                       others
+ * @param options        the fixed list it is chosen from, where it has one: the subclasses, the Fighting Styles, the
+ *                       Metamagic options, or the feats a background offers; null for any, as an Ability Score Improvement's feat is
  * @param maxSpellLevel  for CANTRIPS 0, and for SPELLS the highest level of spell the class could learn at that class
  *                       level, from its own table (PHB p.164)
  * @param swap           for SPELLS, true when the class may also replace one spell it knows with another, as a bard,
@@ -56,6 +57,8 @@ public record PendingChoice(
         SUBCLASS,
         /** A Fighting Style, from the class's list */
         FIGHTING_STYLE,
+        /** Metamagic options a sorcerer learns, from the class's list (PHB p.101–102, M18) */
+        METAMAGIC,
         /** An Ability Score Improvement: +2 to one score or +1 to two, or a feat in its place */
         ASI,
         /** A feat a race or background gives at creation, such as a Variant Human's */

@@ -292,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{characterId}/font-of-magic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["flexibleCasting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{characterId}/hp": {
         parameters: {
             query?: never;
@@ -718,6 +734,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["divineSmite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/font-of-magic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["fontOfMagic"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1911,6 +1943,7 @@ export interface components {
             expertiseSkills?: string[] | null;
             feat?: components["schemas"]["AsiChoice"] | null;
             fightingStyle?: string | null;
+            metamagic?: string[] | null;
             spells?: string[] | null;
             /** Format: uuid */
             subclassId?: string | null;
@@ -2070,6 +2103,7 @@ export interface components {
         };
         CastSpellRequest: {
             advantage?: boolean | null;
+            metamagic?: components["schemas"]["MetamagicChoice"][] | null;
             /** Format: int32 */
             overrideSpellAttackBonus?: number | null;
             /** Format: int32 */
@@ -2759,6 +2793,20 @@ export interface components {
             name: string;
             source?: string | null;
         };
+        FontOfMagicRequest: {
+            /** @enum {string} */
+            direction: "SLOT_TO_POINTS" | "POINTS_TO_SLOT";
+            /** Format: int32 */
+            slotLevel: number;
+        };
+        FontOfMagicUseRequest: {
+            /** @enum {string} */
+            direction: "SLOT_TO_POINTS" | "POINTS_TO_SLOT";
+            /** Format: uuid */
+            participantId: string;
+            /** Format: int32 */
+            slotLevel: number;
+        };
         HealRequest: {
             /** Format: int32 */
             amount: number;
@@ -2878,6 +2926,7 @@ export interface components {
             expertise?: string[] | null;
             feats?: components["schemas"]["FeatTaken"][] | null;
             fightingStyle?: string | null;
+            metamagic?: string[] | null;
             setsSpellcastingAbility?: boolean | null;
             spells?: components["schemas"]["SpellsLearned"] | null;
             subclass?: components["schemas"]["SubclassChosen"] | null;
@@ -2925,6 +2974,22 @@ export interface components {
             /** Format: uuid */
             userId: string;
             username: string;
+        };
+        MetamagicChoice: {
+            /** @enum {string} */
+            option: "CAREFUL" | "DISTANT" | "EMPOWERED" | "EXTENDED" | "HEIGHTENED" | "QUICKENED" | "SUBTLE" | "TWINNED";
+            targetIds?: string[] | null;
+        };
+        MetamagicOption: {
+            /** Format: int32 */
+            cost: number;
+            costIsCastLevel: boolean;
+            ineligibleReason?: string | null;
+            /** Format: int32 */
+            maxCastLevel?: number | null;
+            name: string;
+            /** @enum {string} */
+            option: "CAREFUL" | "DISTANT" | "EMPOWERED" | "EXTENDED" | "HEIGHTENED" | "QUICKENED" | "SUBTLE" | "TWINNED";
         };
         Monster: {
             acType?: string | null;
@@ -3148,6 +3213,7 @@ export interface components {
             isVisibleToPlayers?: boolean | null;
             /** @enum {string} */
             lifeState: "ALIVE" | "DYING" | "STABLE" | "DEAD";
+            metamagicOptions?: ("CAREFUL" | "DISTANT" | "EMPOWERED" | "EXTENDED" | "HEIGHTENED" | "QUICKENED" | "SUBTLE" | "TWINNED")[] | null;
             /** Format: uuid */
             monsterId?: string | null;
             notes?: string | null;
@@ -3190,7 +3256,7 @@ export interface components {
             spellList?: string | null;
             swap?: boolean | null;
             /** @enum {string} */
-            type: "SUBCLASS" | "FIGHTING_STYLE" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
+            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
         };
         PoolChange: {
             /** Format: int32 */
@@ -3421,12 +3487,15 @@ export interface components {
             castingTime: "ACTION" | "BONUS_ACTION" | "REACTION" | "LONGER";
             /** Format: int32 */
             level: number;
+            metamagic?: components["schemas"]["MetamagicOption"][] | null;
             name: string;
             reactionTrigger?: string | null;
             sources: components["schemas"]["SourceOption"][];
             unavailableReason?: string | null;
         };
         SpellSlot: {
+            /** Format: int32 */
+            created?: number | null;
             /** Format: int32 */
             max: number;
             /** Format: int32 */
@@ -4140,6 +4209,32 @@ export interface operations {
             };
         };
     };
+    flexibleCasting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FontOfMagicRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
     changeHitPoints: {
         parameters: {
             query?: never;
@@ -4846,6 +4941,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DivineSmiteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    fontOfMagic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FontOfMagicUseRequest"];
             };
         };
         responses: {

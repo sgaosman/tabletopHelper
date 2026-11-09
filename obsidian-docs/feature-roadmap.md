@@ -30,7 +30,7 @@
 | 15 | Persistent Spell Effects as Companion Participants | Implemented (2026-11-09) | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
 | 17 | Class Feature Automation | Implemented (2026-11-09; Wild Shape deferred) | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
-| 18 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
+| 18 | Sorcerer Metamagic | Implemented (2026-11-09) | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
 | 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
 | 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
 | 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
@@ -634,6 +634,8 @@ Phase 3 — Multiclass at creation:
 **Dependencies:** M24.5 (resource pools), M13 (action economy), M7 class feature analysis data.
 
 ## Milestone 18: Sorcerer Metamagic
+
+**Status (2026-11-09):** implemented ([[decisions-log#D179]]): Metamagic as a Pending Choice, Font of Magic both ways on the sheet and in combat with created slots, and all eight PHB options on a cast. No migration; existing sorcerers gain their choice through `backfill-pending-choices`.
 
 **Goal:** Implement Sorcerer-specific metamagic options with Sorcery Point tracking. Builds on M24.5 (Generic Resource Pool) for Sorcery Points and M13 (action economy) for Quickened Spell interaction.
 

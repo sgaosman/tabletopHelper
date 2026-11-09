@@ -56,10 +56,14 @@ public record ClassTables(Map<String, List<List<Integer>>> spellSlots, Defaults 
      * @param fightingStyles      the Fighting Styles the class chooses from, in order
      * @param spellcasting        its Spellcasting, or null for a class without
      * @param spellbook           its spellbook, or null for a class without
+     * @param metamagic           how many Metamagic options the class learns, by class level (a sorcerer's, PHB
+     *                            p.101–102); empty for a class without
+     * @param metamagicOptions    the Metamagic options it chooses from, in order
      */
     public record ClassTable(int subclassLevel, List<Integer> asiLevels, Map<Integer, Integer> expertise,
                              List<Integer> fightingStyleLevels, List<String> fightingStyles,
-                             Spellcasting spellcasting, Spellbook spellbook) {
+                             Spellcasting spellcasting, Spellbook spellbook, Map<Integer, Integer> metamagic,
+                             List<String> metamagicOptions) {
         public ClassTable {
             requireClassLevel(subclassLevel, "subclassLevel");
             asiLevels = classLevels(asiLevels, "asiLevels");
@@ -67,6 +71,9 @@ public record ClassTables(Map<String, List<List<Integer>>> spellSlots, Defaults 
             expertise.keySet().forEach(level -> requireClassLevel(level, "expertise"));
             fightingStyleLevels = classLevels(fightingStyleLevels, "fightingStyleLevels");
             fightingStyles = fightingStyles != null ? List.copyOf(fightingStyles) : List.of();
+            metamagic = metamagic != null ? Map.copyOf(metamagic) : Map.of();
+            metamagic.keySet().forEach(level -> requireClassLevel(level, "metamagic"));
+            metamagicOptions = metamagicOptions != null ? List.copyOf(metamagicOptions) : List.of();
         }
     }
 

@@ -164,6 +164,19 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         return components != null && Boolean.TRUE.equals(components.verbal());
     }
 
+    /** Whether it has a somatic component, read from the stored JSON (M18, for Subtle Spell). */
+    public boolean somatic() {
+        return json != null && json.path("components").path("somatic").asBoolean(false);
+    }
+
+    /** Its duration as the PHB words it, such as "Concentration, up to 1 minute", read from the stored JSON; or null. */
+    public String durationText() {
+        if (json == null || !json.path("durationText").isString()) {
+            return null;
+        }
+        return json.path("durationText").asString();
+    }
+
     /**
      * Whether casting it leaves a Spell Effect on its caster (M15): it has an effect its caster can use again on later
      * turns, or one its area applies by itself.

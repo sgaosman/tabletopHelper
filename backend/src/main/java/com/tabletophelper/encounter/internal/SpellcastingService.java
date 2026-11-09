@@ -25,6 +25,7 @@ import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.ClassFeatures;
+import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
@@ -49,8 +50,9 @@ import java.util.function.Predicate;
  * caster's main ones. A spell attack bonus or save DC entered in place of the caster's is a Manual Modifier,
  * which a player may enter only while the campaign allows it.
  *
- * <p>A cast costs its casting time from the caster's turn, and a reaction spell may be cast on another creature's
- * turn; a spell that takes longer than a turn is refused to a player in combat and logged for the DM. A lasting
+ * <p>A cast costs its casting time from the caster's turn, or a bonus action with Quickened Spell, and a reaction
+ * spell may be cast on another creature's turn; a sorcerer's Metamagic is checked and its sorcery points spent with the
+ * cast (M18, {@link MetamagicCasting}); a spell that takes longer than a turn is refused to a player in combat and logged for the DM. A lasting
  * spell leaves a Spell Effect on its caster (M15), which its caster uses on their turn at what its template says that
  * costs (D174), and whose area the DM applies to creatures on their turns.
  */
@@ -73,6 +75,7 @@ public class SpellcastingService {
     private final EncounterService encounterService;
     private final CharacterService characterService;
     private final CreatureStats stats;
+    private final MetamagicCasting metamagicCasting;
 
     /**
      * Casts a spell for a player character or a monster: everything is checked, and the cast charged to the
@@ -89,16 +92,20 @@ public class SpellcastingService {
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));
         SpellSources.Payment payment = casterSpells.payment(caster, request.getSpellName(), request.getSpellSource(),
                 request.getSlotLevel());
-        // A spell longer than a turn would take the caster's action each turn, so the DM's is charged an action
-        ActionCost cost = payment.castingTime().cost().orElse(ActionCost.ACTION);
+        MetamagicCasting.Plan metamagic = metamagicCasting.plan(caster, payment, request.getMetamagic(),
+                request.getTargetIds());
+        boolean quickened = metamagic.has(Metamagic.Option.QUICKENED);
+        // A spell longer than a turn would take the caster's action each turn, so the DM's is charged an action.
+        // Quickened Spell makes a casting time of 1 action 1 bonus action (PHB p.102)
+        ActionCost cost = quickened ? ActionCost.BONUS_ACTION : payment.castingTime().cost().orElse(ActionCost.ACTION);
         access.requireTurnForCost(encounter, actorParticipantId, userId, cost);
-        requireTargetCount(payment, request.getTargetIds().size());
+        requireTargetCount(payment, request.getTargetIds().size(), metamagic.has(Metamagic.Option.TWINNED));
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         SpellNumbers own = numbers(caster, payment.origin());
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
 
-        String costNote = costNote(payment.castingTime());
+        String costNote = quickened ? costNote(CastingTime.BONUS_ACTION) : costNote(payment.castingTime());
         Charge.SpellKind kind = payment.spellLevel() == 0 ? Charge.SpellKind.CANTRIP : Charge.SpellKind.LEVELLED;
         String tooLong = payment.castingTime() == CastingTime.LONGER
                 ? payment.spellName() + " takes longer than a turn to cast, so it can't be cast in combat" : null;
@@ -108,11 +115,12 @@ public class SpellcastingService {
                         caster.getDisplayName() + "'s " + payment.spellName() + costNote));
 
         casterSpells.spend(encounter, caster, payment);
+        metamagicCasting.spend(caster, metamagic);
         manualModifiers.log(encounter, CombatActionType.SPELL_CAST, caster,
                 caster.getDisplayName() + "'s " + payment.spellName(), userId, modifiers);
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
-                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote);
+                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic);
         return response(encounter, result, payment.castLevel(), payment.source());
     }
 
@@ -150,7 +158,7 @@ public class SpellcastingService {
         EncounterParticipant participant = CombatAccess.target(encounter, participantId, userId);
         accessPolicy.requireControls(campaignId, participant.getControlledByUserId(), userId);
         String ban = castingBan(participant);
-        List<SpellOption> options = casterSpells.options(participant);
+        List<SpellOption> options = metamagicCasting.withMetamagic(participant, casterSpells.options(participant));
         return ban == null ? options : options.stream().map(option -> option.unavailable(ban)).toList();
     }
 
@@ -323,7 +331,7 @@ public class SpellcastingService {
         slots.put(key, spent);
         participant.setSpellSlotsCurrent(slots);
         combatLog.write(encounter, CombatActionType.SPELL_SLOT_USE, participant.getDisplayName() + " uses a level "
-                + key + " spell slot (" + spent.remaining() + "/" + spent.max() + " remaining)", null, participant);
+                + key + " spell slot (" + spent.remaining() + "/" + spent.total() + " remaining)", null, participant);
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
@@ -337,7 +345,7 @@ public class SpellcastingService {
         if (slot == null) {
             throw new ValidationException("Participant has no level " + request.getSlotLevel() + " spell slots");
         }
-        if (slot.remaining() >= slot.max()) {
+        if (slot.used() <= 0) {
             throw new ConflictException("Level " + key + " spell slots already at maximum");
         }
 
@@ -345,7 +353,7 @@ public class SpellcastingService {
         slots.put(key, restored);
         participant.setSpellSlotsCurrent(slots);
         combatLog.write(encounter, CombatActionType.SPELL_SLOT_RESTORE, participant.getDisplayName()
-                + " restores a level " + key + " spell slot (" + restored.remaining() + "/" + restored.max()
+                + " restores a level " + key + " spell slot (" + restored.remaining() + "/" + restored.total()
                 + " remaining)", null, participant);
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
@@ -396,8 +404,12 @@ public class SpellcastingService {
         };
     }
 
-    private void requireTargetCount(SpellSources.Payment payment, int targetCount) {
+    // The template's limit at the cast level, and one more with Twinned Spell (PHB p.102)
+    private void requireTargetCount(SpellSources.Payment payment, int targetCount, boolean twinned) {
         OptionalInt max = spellEffects.maxTargets(payment.spellName(), payment.castLevel());
+        if (twinned) {
+            max = OptionalInt.of(max.orElse(1) + 1);
+        }
         if (max.isPresent() && targetCount > max.getAsInt()) {
             int limit = max.getAsInt();
             throw new ValidationException(payment.spellName() + " can target at most " + limit

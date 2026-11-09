@@ -4,6 +4,7 @@ import type { PendingChoice, PendingChoiceType } from '../types/character';
 const TITLES: Record<PendingChoiceType, string> = {
   SUBCLASS: 'Subclass',
   FIGHTING_STYLE: 'Fighting Style',
+  METAMAGIC: 'Metamagic',
   ASI: 'Ability Score Improvement',
   FEAT: 'Feat',
   EXPERTISE: 'Expertise',

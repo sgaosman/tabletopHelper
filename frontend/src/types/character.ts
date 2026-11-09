@@ -22,6 +22,12 @@ export type HitPointChange = HitPointChangeRequest['kind'];
 /** Uses of a resource pool to spend or recover, one unless an amount is given. */
 export type PoolUseRequest = Schemas['PoolUseRequest'];
 
+/**
+ * A sorcerer's Flexible Casting on the sheet (PHB p.101, M18): a spell slot expended for sorcery points, or points
+ * spent to create a slot of 1st to 5th level, which a long rest ends.
+ */
+export type FontOfMagicRequest = Schemas['FontOfMagicRequest'];
+
 /** The Hit Dice spent on a short rest, each with the roll entered, or none for the server to roll it. */
 export type ShortRestRequest = Schemas['ShortRestRequest'];
 

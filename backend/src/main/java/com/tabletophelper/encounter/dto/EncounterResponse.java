@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
@@ -199,6 +200,10 @@ public class EncounterResponse {
         // The Channel Divinity options a player character can use now, by its class, level and subclass, such as
         // "turn-undead" or "preserve-life" (PHB p.58-63, p.85-88, M17); null for a monster
         private List<String> channelDivinityOptions;
+
+        // The Metamagic options a player character knows, chosen as its features (PHB p.102, M18), so the session pages
+        // can offer them on a cast; null for a monster
+        private List<Metamagic.Option> metamagicOptions;
     }
 
     /**

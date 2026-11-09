@@ -4,6 +4,7 @@ import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.character.dto.CharacterCampaignRequest;
 import com.tabletophelper.character.dto.CharacterDetailsRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.dto.FontOfMagicRequest;
 import com.tabletophelper.character.dto.HitPointChangeRequest;
 import com.tabletophelper.character.dto.HitPointChangeRequest.Kind;
 import com.tabletophelper.character.dto.InventoryRequest;
@@ -17,6 +18,7 @@ import com.tabletophelper.reference.ClassFeaturePool;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.reference.PoolLevelTable;
 import com.tabletophelper.reference.ResourcePoolDefinition;
+import com.tabletophelper.rules.character.FontOfMagic;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
 import com.tabletophelper.shared.NotFoundException;
@@ -366,6 +368,42 @@ class CharacterSheetServiceTest {
             assertThatThrownBy(() -> f.sheet.restoreSlot(pc.getId(), "pact_2", f.userId))
                     .isInstanceOf(ConflictException.class)
                     .hasMessage("Aria has spent no pact slots");
+        }
+
+        @Test
+        @DisplayName("Flexible Casting out of combat: a 2nd-level slot for 2 points, then 5 points for a 3rd-level slot, which can be spent (PHB p.101)")
+        void flexibleCasting() {
+            PlayerCharacter noPoints = fighter(1);
+            // Sorcerer 5: four 1st-level slots, three 2nd and two 3rd; 5 sorcery points, 3 left
+            ResourcePoolDefinition points = ResourcePoolDefinition.builder().poolId(FlexibleCasting.SORCERY_POINTS)
+                    .displayName("Sorcery Points").sourceType("CLASS").maxUsesFormula("sorcererLevel")
+                    .resetOn("longRest").spendActionType("FREE").build();
+            when(f.featurePoolRepository.findByCharacterClassIdAndSubclassIsNullAndMinLevelLessThanEqual(
+                    any(UUID.class), anyInt())).thenReturn(List.of(ClassFeaturePool.builder()
+                    .characterClass(f.sorcerer).minLevel(2).poolDefinition(points).build()));
+            PlayerCharacter pc = f.create(f.human, CharacterFixture.scores(), f.sorcerer, 5);
+            pc.setResourcePools(new ArrayList<>(List.of(pc.getResourcePools().getFirst().withCurrentUses(3))));
+
+            CharacterResponse converted = f.sheet.fontOfMagic(pc.getId(),
+                    new FontOfMagicRequest(FontOfMagic.Direction.SLOT_TO_POINTS, 2), f.userId);
+            assertThat(converted.getSpellSlots().get("2")).isEqualTo(new SpellSlot(3, 1));
+            assertThat(converted.getResourcePools().getFirst().currentUses()).isEqualTo(5);
+
+            CharacterResponse created = f.sheet.fontOfMagic(pc.getId(),
+                    new FontOfMagicRequest(FontOfMagic.Direction.POINTS_TO_SLOT, 3), f.userId);
+            assertThat(created.getSpellSlots().get("3")).isEqualTo(new SpellSlot(2, 0, 1));
+            assertThat(created.getResourcePools().getFirst().currentUses()).isZero();
+
+            assertThat(f.sheet.spendSlot(pc.getId(), "3", f.userId).getSpellSlots().get("3"))
+                    .isEqualTo(new SpellSlot(2, 1, 1));
+            assertThatThrownBy(() -> f.sheet.fontOfMagic(pc.getId(),
+                    new FontOfMagicRequest(FontOfMagic.Direction.POINTS_TO_SLOT, 1), f.userId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Aria has 0 sorcery points, and a level 1 spell slot costs 2");
+            assertThatThrownBy(() -> f.sheet.fontOfMagic(noPoints.getId(),
+                    new FontOfMagicRequest(FontOfMagic.Direction.SLOT_TO_POINTS, 1), f.userId))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Aria has no sorcery points (Font of Magic, Sorcerer 2)");
         }
 
         @Test

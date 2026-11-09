@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { EncounterParticipant, ResourcePoolEntry } from '../../types/encounter';
+import type { EncounterParticipant, ResourcePoolEntry, SpellSlot } from '../../types/encounter';
+import type { FontOfMagicRequest } from '../../types/character';
 import { apiErrorMessage } from '../../api/errors';
 import { chargeBlock, poolBudgetBlock, poolCostLabel, poolRecoveryText, poolRefusal } from '../../utils/turnEconomy';
 import {
@@ -7,6 +8,8 @@ import {
   type PoolUseOptions,
 } from '../../utils/classFeatures';
 import IconButton from '../ui/IconButton';
+import FlexibleCastingControls from './FlexibleCastingControls';
+import { SORCERY_POINTS } from '../../utils/metamagic';
 
 interface ResourcePoolDisplayProps {
   pools?: ResourcePoolEntry[] | null;
@@ -30,6 +33,13 @@ interface ResourcePoolDisplayProps {
   asDm?: boolean;
   /** The creatures a feature that touches another can be used on, such as Lay on Hands; the user alone without it. */
   targets?: EncounterParticipant[];
+  /**
+   * A sorcerer's Flexible Casting (PHB p.101, M18), offered beside the Sorcery Points pool: on the sheet with
+   * spellSlots, and at the table with the participant's slots, as a bonus action.
+   */
+  onFlexibleCasting?: (direction: FontOfMagicRequest['direction'], slotLevel: number) => Promise<unknown>;
+  /** The sheet's spell slots, for Flexible Casting out of combat. */
+  spellSlots?: Record<string, SpellSlot> | null;
 }
 
 export default function ResourcePoolDisplay({
@@ -42,6 +52,8 @@ export default function ResourcePoolDisplay({
   onUse,
   asDm = false,
   targets,
+  onFlexibleCasting,
+  spellSlots,
 }: ResourcePoolDisplayProps) {
   const entries = pools ?? [];
   const filtered = filterSourceType
@@ -51,9 +63,11 @@ export default function ResourcePoolDisplay({
   if (filtered.length === 0) return null;
 
   if (onUse && participant) {
-    return <EncounterPools pools={filtered} participant={participant} onUse={onUse} asDm={asDm} targets={targets} />;
+    return <EncounterPools pools={filtered} participant={participant} onUse={onUse} asDm={asDm} targets={targets}
+      onFlexibleCasting={onFlexibleCasting} />;
   }
 
+  const points = filtered.find(entry => entry.poolId === SORCERY_POINTS);
   return (
     <div className="flex flex-wrap gap-2">
       {filtered.map((entry) => {
@@ -110,6 +124,11 @@ export default function ResourcePoolDisplay({
           </div>
         );
       })}
+      {points && onFlexibleCasting && (
+        <div className="basis-full">
+          <FlexibleCastingControls points={points} slots={spellSlots} onExchange={onFlexibleCasting} />
+        </div>
+      )}
     </div>
   );
 }
@@ -130,12 +149,13 @@ const SMALL_FIELD = 'px-1 py-0.5 bg-page-alt border border-rule font-body text-[
  * does: Rage shows while it lasts what it gives and can be ended, Lay on Hands takes its points, use and target, and Ki
  * offers Patient Defense and Step of the Wind.
  */
-function EncounterPools({ pools, participant, onUse, asDm, targets }: {
+function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCasting }: {
   pools: ResourcePoolEntry[];
   participant: EncounterParticipant;
   onUse: (poolId: string, options?: PoolUseOptions) => Promise<unknown>;
   asDm: boolean;
   targets?: EncounterParticipant[];
+  onFlexibleCasting?: (direction: FontOfMagicRequest['direction'], slotLevel: number) => Promise<unknown>;
 }) {
   const [using, setUsing] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -209,6 +229,10 @@ function EncounterPools({ pools, participant, onUse, asDm, targets }: {
               <FeatureControls effect={effect} entry={entry} participant={participant} targets={targets}
                 blocked={refusal !== null || using !== null} asDm={asDm}
                 onUse={options => { void use(entry.poolId, options); }} />
+              {entry.poolId === SORCERY_POINTS && onFlexibleCasting && (
+                <FlexibleCastingControls points={entry} slots={participant.spellSlotsCurrent} asDm={asDm}
+                  blocked={chargeBlock(participant, { cost: 'BONUS_ACTION' })} onExchange={onFlexibleCasting} />
+              )}
               {reason && (
                 <span id={reasonId} className={`text-[11px] font-semibold ${refusal || !asDm ? 'text-debuff' : 'text-cls-fighter'}`}>
                   {reason}

@@ -3,8 +3,9 @@ import { Zap, Sparkles } from 'lucide-react';
 import { useEncounterAction, useSpellOptions } from '../../queries/encounters';
 import { apiErrorMessage } from '../../api/errors';
 import type { EncounterParticipant, SpellSlot } from '../../types/encounter';
-import type { SpellOption, SpellSource } from '../../types/combat';
+import type { MetamagicChoice, MetamagicName, SpellOption, SpellSource } from '../../types/combat';
 import { spellCastBlock, type CastingTime } from '../../utils/turnEconomy';
+import { chosenCost, metamagicBlock, slotsLeft, slotTotal, sorceryPoints } from '../../utils/metamagic';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Modal from '../ui/Modal';
@@ -13,6 +14,7 @@ import TargetStep from './spellflow/TargetStep';
 import ConfirmStep from './spellflow/ConfirmStep';
 import ResultView from './spellflow/ResultView';
 import CastingTimeBadge from './spellflow/CastingTimeBadge';
+import MetamagicStep, { MetamagicTargets } from './spellflow/MetamagicStep';
 
 interface Props {
   caster: EncounterParticipant;
@@ -50,17 +52,28 @@ interface ChoiceRow extends CastChoice {
  * alike, so only those are offered (D164, D165). Each shows its casting time, and one the caster's turn can't pay
  * for is greyed out for a player with the reason, worked out from the caster's turn economy; the server stays the
  * authority and its refusal shows too (D174). Its own steps choose the spell and how to pay for it; the targets,
- * confirm and result are the steps every spell pop-up shares.
+ * confirm and result are the steps every spell pop-up shares. A sorcerer who knows Metamagic (PHB p.102, M18) chooses
+ * it after how to pay, each option showing its cost and why it can't change the spell; Quickened Spell makes the cast a
+ * bonus action, Twinned Spell allows a second target, and Careful and Heightened Spell choose their creatures among the
+ * targets on the confirm step.
  */
 export default function SpellCastModal({
   caster, participants, onClose, allowManualModifiers = false, asDm = false, castingTimes,
 }: Props) {
   const actions = useEncounterAction();
   const spellOptions = useSpellOptions(caster.id);
-  const flow = useSpellFlow<'spell' | 'slot'>('spell', { allowManualModifiers });
+  const flow = useSpellFlow<'spell' | 'slot' | 'metamagic'>('spell', { allowManualModifiers });
   const [search, setSearch] = useState('');
   const [selectedSpell, setSelectedSpell] = useState<SpellOption | null>(null);
   const [choice, setChoice] = useState<CastChoice | null>(null);
+  const [metamagic, setMetamagic] = useState<MetamagicName[]>([]);
+  const [careful, setCareful] = useState<string[]>([]);
+  const [heightened, setHeightened] = useState<string | null>(null);
+  const points = sorceryPoints(caster.resourcePoolsCurrent)?.currentUses ?? 0;
+  // Metamagic needs the options the server lists for the spell and the sorcery points to pay for them
+  const offersMetamagic = (spell: SpellOption) => (spell.metamagic?.length ?? 0) > 0
+    && sorceryPoints(caster.resourcePoolsCurrent) !== null;
+  const quickened = metamagic.includes('QUICKENED');
 
   const filteredSpells = useMemo(() => {
     const q = search.toLowerCase();
@@ -68,8 +81,20 @@ export default function SpellCastModal({
       && (!castingTimes || castingTimes.includes(s.castingTime)));
   }, [spellOptions.data, search, castingTimes]);
 
-  // Why the caster's turn can't pay for a spell now, if it can't (D174)
-  const blockFor = (spell: SpellOption) => spellCastBlock(caster, spell.castingTime, spell.level, { dm: asDm });
+  // Why the caster's turn can't pay for a spell now, if it can't (D174); a spell Quickened Spell could cast as a bonus
+  // action instead isn't blocked by a spent action (PHB p.102)
+  const blockFor = (spell: SpellOption) => {
+    const blocked = spellCastBlock(caster, spell.castingTime, spell.level, { dm: asDm });
+    if (!blocked) return null;
+    const quicken = spell.metamagic?.find(option => option.option === 'QUICKENED');
+    const canQuicken = quicken && !metamagicBlock(quicken, spell.level) && points >= quicken.cost
+      && spellCastBlock(caster, 'BONUS_ACTION', spell.level, { dm: asDm }) === null;
+    return canQuicken ? null : blocked;
+  };
+  // The turn's block for the cast as chosen, a bonus action with Quickened Spell
+  const castBlock = (spell: SpellOption) => quickened
+    ? spellCastBlock(caster, 'BONUS_ACTION', spell.level, { dm: asDm })
+    : spellCastBlock(caster, spell.castingTime, spell.level, { dm: asDm });
 
   const cantrips = filteredSpells.filter(s => s.level === 0);
   const leveled = filteredSpells.filter(s => s.level > 0);
@@ -81,7 +106,40 @@ export default function SpellCastModal({
 
   function choose(spell: SpellOption, next: CastChoice) {
     setChoice(next);
-    flow.lookUpTargeting(spell.name, next.level);
+    setMetamagic([]);
+    setCareful([]);
+    setHeightened(null);
+    flow.setExtraTargets(0);
+    if (offersMetamagic(spell)) {
+      flow.setStep('metamagic');
+    } else {
+      flow.lookUpTargeting(spell.name, next.level);
+    }
+  }
+
+  function toggleMetamagic(option: MetamagicName) {
+    setMetamagic(chosen => chosen.includes(option) ? chosen.filter(o => o !== option) : [...chosen, option]);
+  }
+
+  // On from Metamagic to the targets, with Twinned Spell's second creature allowed
+  function afterMetamagic() {
+    if (!selectedSpell || !choice) return;
+    flow.setExtraTargets(metamagic.includes('TWINNED') ? 1 : 0);
+    flow.lookUpTargeting(selectedSpell.name, choice.level);
+  }
+
+  // The Metamagic the request carries, with the creatures Careful and Heightened Spell name among the targets
+  function metamagicRequest(): MetamagicChoice[] | undefined {
+    if (metamagic.length === 0) return undefined;
+    return metamagic.map(option => {
+      if (option === 'CAREFUL') {
+        return { option, targetIds: careful.filter(id => flow.selectedTargets.includes(id)) };
+      }
+      if (option === 'HEIGHTENED') {
+        return { option, targetIds: heightened && flow.selectedTargets.includes(heightened) ? [heightened] : [] };
+      }
+      return { option };
+    });
   }
 
   // A spell that only costs nothing, or only an innate use, has nothing to choose
@@ -105,12 +163,22 @@ export default function SpellCastModal({
       slotLevel: choice.level,
       targetIds: flow.selectedTargets,
       advantage: flow.advantage,
+      metamagic: metamagicRequest(),
       ...flow.overrides(),
     }, caster.id));
   }
 
-  // Back from targeting or confirm: to the source step when there was a choice, else to the spells
+  // Back from targeting or confirm: to Metamagic when it was offered, else to the source step when there was a
+  // choice, else to the spells
   function backToSource() {
+    if (selectedSpell && offersMetamagic(selectedSpell)) {
+      flow.setStep('metamagic');
+      return;
+    }
+    backBeforeMetamagic();
+  }
+
+  function backBeforeMetamagic() {
     const available = choiceRows.filter(row => row.available);
     const skipped = available.length === 1 && (available[0].source === 'NONE' || available[0].source === 'INNATE');
     flow.setStep(skipped ? 'spell' : 'slot');
@@ -149,6 +217,17 @@ export default function SpellCastModal({
             onSelect={row => choose(selectedSpell!, row)}
             onBack={() => flow.setStep('spell')}
           />
+        ) : flow.step === 'metamagic' ? (
+          <MetamagicStep
+            spellName={selectedSpell!.name}
+            castLevel={choice!.level}
+            options={selectedSpell!.metamagic ?? []}
+            points={points}
+            chosen={metamagic}
+            onToggle={toggleMetamagic}
+            onContinue={afterMetamagic}
+            onBack={backBeforeMetamagic}
+          />
         ) : flow.step === 'target' ? (
           <TargetStep
             spellName={selectedSpell!.name}
@@ -162,13 +241,23 @@ export default function SpellCastModal({
             onBack={backToSource}
           />
         ) : (
+          <>
+          <MetamagicTargets
+            chosen={metamagic}
+            targets={participants.filter(p => flow.selectedTargets.includes(p.id))}
+            careful={careful}
+            heightened={heightened}
+            onCareful={setCareful}
+            onHeightened={setHeightened}
+          />
           <ConfirmStep
             spellName={selectedSpell!.name}
             levelLabel={selectedSpell!.level === 0 ? 'Cantrip' : `Level ${selectedSpell!.level}`}
-            castingTime={selectedSpell!.castingTime}
+            castingTime={quickened ? 'BONUS_ACTION' : selectedSpell!.castingTime}
             reactionTrigger={selectedSpell!.reactionTrigger}
-            economyWarning={overBudget(blockFor(selectedSpell!), asDm)}
-            cost={costLine(choice!, selectedSpell!, choiceRows)}
+            economyWarning={overBudget(castBlock(selectedSpell!), asDm)}
+            cost={costLine(choice!, selectedSpell!, choiceRows, metamagic,
+              chosenCost(selectedSpell!.metamagic ?? [], metamagic, choice!.level))}
             caster={caster}
             targets={participants.filter(p => flow.selectedTargets.includes(p.id))}
             warnConcentration
@@ -186,6 +275,7 @@ export default function SpellCastModal({
             onSubmit={cast}
             onBack={() => (flow.takesNoTargets ? backToSource() : flow.setStep('target'))}
           />
+          </>
         )}
       </div>
     </Modal>
@@ -206,13 +296,13 @@ function rowsFor(spell: SpellOption, slots: Record<string, SpellSlot>): ChoiceRo
   for (const option of spell.sources) {
     if (option.source === 'SLOT') {
       const levels = Object.entries(slots)
-        .filter(([key, slot]) => !key.startsWith('pact_') && parseInt(key) >= spell.level && slot.max > 0)
+        .filter(([key, slot]) => !key.startsWith('pact_') && parseInt(key) >= spell.level && slotTotal(slot) > 0)
         .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
       for (const [key, slot] of levels) {
         const level = parseInt(key);
         rows.push({
           key, source: 'SLOT', level, label: `Level ${level}`,
-          available: option.levels.includes(level), left: slot.max - slot.used, max: slot.max,
+          available: option.levels.includes(level), left: slotsLeft(slot), max: slotTotal(slot),
         });
       }
     } else if (option.source === 'PACT_SLOT') {
@@ -421,14 +511,22 @@ function sourceText(choice: CastChoice, spell: SpellOption, row: ChoiceRow | und
   }
 }
 
-// The confirm step's cost line, noting an upcast; a cantrip cast for nothing has none
-function costLine(choice: CastChoice, spell: SpellOption, rows: ChoiceRow[]) {
+// The confirm step's cost line, noting an upcast and the Metamagic's sorcery points; a cantrip cast for nothing with no
+// Metamagic has none
+function costLine(choice: CastChoice, spell: SpellOption, rows: ChoiceRow[], metamagic: MetamagicName[],
+  metamagicPoints: number) {
   const paidWith = sourceText(choice, spell, rows.find(row => row.source === choice.source && row.level === choice.level));
-  if (!paidWith) return undefined;
+  const names = (spell.metamagic ?? []).filter(option => metamagic.includes(option.option)).map(option => option.name);
+  if (!paidWith && names.length === 0) return undefined;
   return (
     <>
       {paidWith}
       {choice.level > spell.level && <span className="text-muted ml-1">(upcast +{choice.level - spell.level})</span>}
+      {names.length > 0 && (
+        <span className="block">
+          {names.join(' and ')}: {metamagicPoints} sorcery point{metamagicPoints === 1 ? '' : 's'}
+        </span>
+      )}
     </>
   );
 }

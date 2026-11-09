@@ -15,8 +15,9 @@ import java.util.List;
 /**
  * Adds the Pending Choices existing characters' levels missed (D159): an Ability Score Improvement at a level that
  * gives one and records none, a subclass for a class at or past its subclass level without one, and Expertise at a
- * level that gives it and records none, less the Expertise the sheet has that no level records. Fighting Styles and
- * known spells aren't backfilled. Each character that would gain choices is reported with each choice, and one whose
+ * level that gives it and records none, less the Expertise the sheet has that no level records, and a sorcerer's
+ * Metamagic options at Sorcerer 3rd, 10th and 17th level when the level records none (M18), less the Metamagic
+ * features the sheet has that no level records. Fighting Styles and known spells aren't backfilled. Each character that would gain choices is reported with each choice, and one whose
  * classes can't be found is skipped with a warning. A second run adds nothing, since the choices it added are
  * pending. Dry run by default; {@code --maintenance.apply=true} writes.
  */

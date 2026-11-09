@@ -35,6 +35,7 @@ import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.character.ClassProgression;
 import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -77,6 +78,7 @@ public class PendingChoiceService {
     private static final int NO_SUBCLASS_LEVEL = 99;
     private static final String FIGHTING_STYLE_FEATURES = "FightingStyle";
     private static final String FIGHTING_STYLE = "Fighting Style: ";
+    private static final String METAMAGIC_FEATURES = "Metamagic";
 
     private final CharacterCommands characterCommands;
     private final CharacterStats characterStats;
@@ -124,6 +126,7 @@ public class PendingChoiceService {
             case SUBCLASS -> brought = applySubclass(character, choice, index, request.getSubclassId());
             case EXPERTISE -> applyExpertise(character, choice, index, request.getExpertiseSkills());
             case FIGHTING_STYLE -> applyFightingStyle(character, choice, index, request.getFightingStyle());
+            case METAMAGIC -> applyMetamagic(character, choice, index, request.getMetamagic());
             case CANTRIPS -> {
                 List<String> learned = spellService.learnCantrips(character, choice, request.getSpells());
                 CharacterUpdates.recordChoices(character, index, c -> c.withCantrips(
@@ -152,6 +155,7 @@ public class PendingChoiceService {
         given.put("subclassId", request.getSubclassId());
         given.put("expertiseSkills", request.getExpertiseSkills());
         given.put("fightingStyle", request.getFightingStyle());
+        given.put("metamagic", request.getMetamagic());
         given.put("spells", request.getSpells());
         given.put("swap", request.getSwap());
         List<String> takes = switch (type) {
@@ -160,6 +164,7 @@ public class PendingChoiceService {
             case SUBCLASS -> List.of("subclassId");
             case EXPERTISE -> List.of("expertiseSkills");
             case FIGHTING_STYLE -> List.of("fightingStyle");
+            case METAMAGIC -> List.of("metamagic");
             case CANTRIPS -> List.of("spells");
             case SPELLS -> List.of("spells", "swap");
         };
@@ -451,6 +456,63 @@ public class PendingChoiceService {
                 .orElse("Fighting Style");
     }
 
+    // ── Metamagic ────────────────────────────────────────────────
+
+    /**
+     * Metamagic options from the class's list, as many as the choice counts, none the character knows already (PHB
+     * p.102: "you gain two of the following Metamagic options of your choice", and another at 10th and 17th level),
+     * each a feature of the class named "Metamagic: X" that its level records, so levelling down takes them away.
+     */
+    private void applyMetamagic(PlayerCharacter character, PendingChoice choice, int index, List<String> picked) {
+        List<String> options = choice.options() != null ? choice.options()
+                : ClassProgression.metamagicOptions(classTables, choice.className());
+        Set<String> known = metamagicKnown(character);
+        List<String> chosen = new ArrayList<>();
+        for (String option : distinct(orEmpty(picked))) {
+            String name = options.stream().filter(o -> o.equalsIgnoreCase(option.trim())).findFirst()
+                    .orElseThrow(() -> new ValidationException("A " + choice.className() + " chooses Metamagic from "
+                            + String.join(", ", options) + ", not " + option.trim()));
+            if (known.contains(name)) {
+                throw new ValidationException(character.getName() + " already knows " + name);
+            }
+            chosen.add(name);
+        }
+        int needed = (int) Math.min(choice.count(), options.stream().filter(o -> !known.contains(o)).count());
+        if (chosen.size() != needed) {
+            throw new ValidationException("Choose " + needed + " Metamagic option" + (needed == 1 ? "" : "s")
+                    + ", not " + chosen.size());
+        }
+        List<Feature> gained = chosen.stream()
+                .map(name -> new Feature(Metamagic.FEATURE_PREFIX + name, metamagicDescription(name),
+                        choice.className()))
+                .toList();
+        List<Feature> features = copy(character.getFeatures());
+        features.addAll(gained);
+        character.setFeatures(features);
+        CharacterUpdates.appendFeaturesGained(character, index, gained);
+        CharacterUpdates.recordChoices(character, index, c -> c.withMetamagic(chosen));
+    }
+
+    // The Metamagic options the character knows, by the features its levels gave
+    private static Set<String> metamagicKnown(PlayerCharacter character) {
+        Set<String> known = new LinkedHashSet<>();
+        for (Feature feature : orEmpty(character.getFeatures())) {
+            if (feature != null && feature.name() != null && feature.name().startsWith(Metamagic.FEATURE_PREFIX)) {
+                known.add(feature.name().substring(Metamagic.FEATURE_PREFIX.length()));
+            }
+        }
+        return known;
+    }
+
+    // The option's text, from the optional features data
+    private String metamagicDescription(String option) {
+        return optionalFeatureRepository.findByFeatureTypeOrderByNameAsc(METAMAGIC_FEATURES).stream()
+                .filter(feature -> option.equalsIgnoreCase(feature.getName()) && feature.getDescription() != null)
+                .map(OptionalFeature::getDescription)
+                .findFirst()
+                .orElse("Metamagic");
+    }
+
     // ── The choices levels bring ─────────────────────────────────
 
     /**
@@ -623,10 +685,11 @@ public class PendingChoiceService {
     // ── The backfill ─────────────────────────────────────────────
 
     /**
-     * The Ability Score Improvements, subclasses and Expertise the character's levels owe that no level records and no
-     * Pending Choice holds, as characters levelled before R6 workstream F can owe them, for the
-     * backfill-pending-choices job; it adds them through {@link #addPending}. Expertise the sheet has that no level
-     * records, as the creation wizard gave it before, counts against the levels that give Expertise, oldest first.
+     * The Ability Score Improvements, subclasses, Expertise and Metamagic options the character's levels owe that no
+     * level records and no Pending Choice holds, as characters levelled before R6 workstream F (or, for Metamagic,
+     * before M18) can owe them, for the backfill-pending-choices job; it adds them through {@link #addPending}.
+     * Expertise the sheet has that no level records, as the creation wizard gave it before, counts against the levels
+     * that give Expertise, oldest first, and Metamagic features no level records against the Metamagic levels.
      * Changes nothing.
      *
      * @throws ConflictException when a class the character has can't be found
@@ -669,8 +732,33 @@ public class PendingChoiceService {
                 missed.add(missedChoice(Type.EXPERTISE, level, count - covered, null));
             }
         }
+        int unrecordedMetamagic = unrecordedMetamagic(character);
+        for (LevelHistoryEntry level : history) {
+            int count = level.className() != null
+                    ? ClassProgression.metamagicChoices(classTables, level.className(), level.classLevel()) : 0;
+            boolean recorded = level.choices() != null && level.choices().metamagic() != null;
+            if (count == 0 || recorded || isPending(pending, Type.METAMAGIC, level.characterLevel())) continue;
+            int covered = Math.min(count, unrecordedMetamagic);
+            unrecordedMetamagic -= covered;
+            if (covered < count) {
+                missed.add(missedChoice(Type.METAMAGIC, level, count - covered,
+                        ClassProgression.metamagicOptions(classTables, level.className())));
+            }
+        }
         missed.sort(PendingChoices.ORDER);
         return missed;
+    }
+
+    // The Metamagic options the sheet has as features that no level records, as one added by hand would be
+    private static int unrecordedMetamagic(PlayerCharacter character) {
+        Set<String> unrecorded = new LinkedHashSet<>();
+        metamagicKnown(character).forEach(option -> unrecorded.add(key(option)));
+        for (LevelHistoryEntry level : orEmpty(character.getLevelHistory())) {
+            if (level.choices() != null) {
+                orEmpty(level.choices().metamagic()).forEach(option -> unrecorded.remove(key(option)));
+            }
+        }
+        return unrecorded.size();
     }
 
     /** Adds choices to the character's Pending Choices, in the order they are made. */

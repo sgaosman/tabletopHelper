@@ -99,7 +99,7 @@ class CasterSpells {
                 caster.setSpellSlotsCurrent(slots);
                 combatLog.write(encounter, CombatActionType.SPELL_SLOT_USE, caster.getDisplayName() + " uses a level "
                         + payment.castLevel() + (payment.source() == SpellSource.PACT_SLOT ? " pact slot" : " spell slot")
-                        + " (" + spent.remaining() + "/" + spent.max() + " remaining)", null, caster);
+                        + " (" + spent.remaining() + "/" + spent.total() + " remaining)", null, caster);
             }
             case INNATE -> {
                 String poolId = payment.innatePool().poolId();

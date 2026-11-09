@@ -497,3 +497,105 @@ describe('SpellCastModal and the turn economy (D174)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('It has no action left this turn');
   });
 });
+
+describe('SpellCastModal and Metamagic (PHB p.102, M18)', () => {
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  const POINTS = {
+    poolId: 'class:sorcerer-sorcery-points', displayName: 'Sorcery Points', sourceType: 'CLASS', maxUses: 5,
+    currentUses: 4, resetOn: 'longRest', spendActionType: 'FREE',
+  };
+  const sorcerer = (economy: Partial<NonNullable<typeof wizard.turnEconomy>> = {}) => ({
+    ...wizard,
+    turnEconomy: { ...wizard.turnEconomy!, ...economy },
+    resourcePoolsCurrent: [POINTS],
+    metamagicOptions: ['QUICKENED', 'TWINNED', 'CAREFUL'] as ('QUICKENED' | 'TWINNED' | 'CAREFUL')[],
+  });
+  const HOLD_PERSON: SpellOption = {
+    name: 'Hold Person', level: 2, castingTime: 'ACTION', sources: [{ source: 'SLOT', levels: [3] }],
+    metamagic: [
+      { option: 'QUICKENED', name: 'Quickened Spell', cost: 2, costIsCastLevel: false, maxCastLevel: null, ineligibleReason: null },
+      { option: 'TWINNED', name: 'Twinned Spell', cost: 2, costIsCastLevel: true, maxCastLevel: 2, ineligibleReason: null },
+      { option: 'CAREFUL', name: 'Careful Spell', cost: 1, costIsCastLevel: false, maxCastLevel: null, ineligibleReason: null },
+    ],
+  };
+  const FIRE_BOLT: SpellOption = {
+    name: 'Fire Bolt', level: 0, castingTime: 'ACTION', sources: [{ source: 'NONE', levels: [0] }],
+    metamagic: [
+      { option: 'QUICKENED', name: 'Quickened Spell', cost: 2, costIsCastLevel: false, maxCastLevel: null, ineligibleReason: null },
+      { option: 'TWINNED', name: 'Twinned Spell', cost: 1, costIsCastLevel: true, maxCastLevel: null, ineligibleReason: null },
+      { option: 'CAREFUL', name: 'Careful Spell', cost: 1, costIsCastLevel: false, maxCastLevel: null,
+        ineligibleReason: 'Careful Spell needs a spell that forces a saving throw' },
+    ],
+  };
+
+  it('quickens a spell after the action is spent, sending the option and charging a bonus action', async () => {
+    spellOptions([HOLD_PERSON]);
+    targeting({ maxTargets: 1 });
+    const requests = castRequests();
+    const { user } = await renderModal({ caster: sorcerer({ actionsUsed: 1 }) });
+
+    // The action is gone, but Quickened Spell could cast it as a bonus action
+    expect(await screen.findByRole('button', { name: /^Hold Person/ })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: /^Hold Person/ }));
+    await user.click(screen.getByRole('button', { name: /^Level 3/ }));
+    // Twinned can't change Hold Person at 3rd level
+    expect(screen.getByRole('checkbox', { name: /^Twinned Spell/ })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /^Quickened Spell/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(screen.getByText(/Quickened Spell: 2 sorcery points/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({
+      spellName: 'Hold Person', spellSource: 'SLOT', slotLevel: 3, targetIds: ['part-goblin'],
+      metamagic: [{ option: 'QUICKENED' }],
+    });
+  });
+
+  it('twins a cantrip, allowing a second target beyond its one', async () => {
+    spellOptions([FIRE_BOLT]);
+    targeting({ maxTargets: 1 });
+    const requests = castRequests();
+    const { user } = await renderModal({ caster: sorcerer() });
+
+    await user.click(await screen.findByRole('button', { name: /^Fire Bolt/ }));
+    expect(screen.getByRole('checkbox', { name: /^Careful Spell/ })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /^Twinned Spell/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: /Orc/ }));
+    expect(screen.getByText(/Select targets \(2\/2\)/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({
+      spellName: 'Fire Bolt', targetIds: ['part-goblin', 'part-orc'], metamagic: [{ option: 'TWINNED' }],
+    });
+  });
+
+  it('asks which targets Careful Spell protects on the confirm step', async () => {
+    spellOptions([{ ...HOLD_PERSON, sources: [{ source: 'SLOT', levels: [3] }] }]);
+    targeting({ maxTargets: 2 });
+    const requests = castRequests();
+    const { user } = await renderModal({ caster: sorcerer() });
+
+    await user.click(await screen.findByRole('button', { name: /^Hold Person/ }));
+    await user.click(screen.getByRole('button', { name: /^Level 3/ }));
+    await user.click(screen.getByRole('checkbox', { name: /^Careful Spell/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: /Legolas/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Legolas' }));
+    await user.click(screen.getByRole('button', { name: 'Cast Spell' }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].body).toMatchObject({ metamagic: [{ option: 'CAREFUL', targetIds: ['part-legolas'] }] });
+  });
+});

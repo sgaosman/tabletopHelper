@@ -2,7 +2,7 @@ import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } fr
 import { characterApi } from '../api/characterApi';
 import type {
   ApplyChoicesRequest, CharacterDetailsRequest, DmAdjustmentRequest, HitPointChangeRequest, InventoryRequest,
-  PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
+  FontOfMagicRequest, PlayerCharacter, PoolUseRequest, PreparedSpellsRequest, ShortRestRequest,
 } from '../types/character';
 import { queryKeys } from './keys';
 import { invalidateOnConflict } from './queryClient';
@@ -148,6 +148,12 @@ export function useRestoreSlot() {
 export function useSpendPool() {
   return useCharacterCommand(({ characterId, use }: { characterId: string; use: PoolUseRequest }) =>
     characterApi.spendPool(characterId, use));
+}
+
+/** A sorcerer's Flexible Casting on the sheet: a slot for sorcery points, or points for a slot (PHB p.101, M18). */
+export function useFontOfMagic() {
+  return useCharacterCommand(({ characterId, exchange }: { characterId: string; exchange: FontOfMagicRequest }) =>
+    characterApi.fontOfMagic(characterId, exchange));
 }
 
 /** Gets back spent uses of one of a character's resource pools. */

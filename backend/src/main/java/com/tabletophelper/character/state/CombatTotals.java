@@ -1,6 +1,7 @@
 package com.tabletophelper.character.state;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -18,31 +19,47 @@ import java.util.Map;
  * @param hpTemp           temporary hit points
  * @param slotsUsed        how many of each level's slots are spent
  * @param poolsCurrentUses how many uses each pool has left
+ * @param slotsCreated     how many of each level's slots Flexible Casting created (PHB p.101, M18), for the levels with
+ *                         any; written only when there are some, so totals stored before it existed read as none
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CombatTotals(
         int hpCurrent,
         int hpTemp,
         Map<String, Integer> slotsUsed,
-        Map<String, Integer> poolsCurrentUses
+        Map<String, Integer> poolsCurrentUses,
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, Integer> slotsCreated
 ) {
 
     public CombatTotals {
         slotsUsed = withoutNulls(slotsUsed);
         poolsCurrentUses = withoutNulls(poolsCurrentUses);
+        slotsCreated = withoutNulls(slotsCreated);
+    }
+
+    /** Totals with no created slots. */
+    public CombatTotals(int hpCurrent, int hpTemp, Map<String, Integer> slotsUsed,
+                        Map<String, Integer> poolsCurrentUses) {
+        this(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, Map.of());
     }
 
     /**
-     * The totals of a sheet or a participant: its slots' used counts, each kept between 0 and the slot's maximum, and
-     * its pools' current uses, the first of two pools with one ID counting.
+     * The totals of a sheet or a participant: its slots' used counts, each kept between 0 and the level's total, the
+     * slots created at each level that has any, and its pools' current uses, the first of two pools with one ID
+     * counting.
      */
     public static CombatTotals of(int hpCurrent, int hpTemp, Map<String, SpellSlot> slots,
                                   List<ResourcePoolEntry> pools) {
         Map<String, Integer> slotsUsed = new LinkedHashMap<>();
+        Map<String, Integer> slotsCreated = new LinkedHashMap<>();
         if (slots != null) {
             slots.forEach((key, slot) -> {
                 if (slot != null) {
-                    slotsUsed.put(key, Math.max(0, Math.min(slot.max(), slot.used())));
+                    SpellSlot kept = slot.clamped();
+                    slotsUsed.put(key, kept.used());
+                    if (kept.created() > 0) {
+                        slotsCreated.put(key, kept.created());
+                    }
                 }
             });
         }
@@ -54,7 +71,7 @@ public record CombatTotals(
                 }
             }
         }
-        return new CombatTotals(hpCurrent, Math.max(0, hpTemp), slotsUsed, poolsCurrentUses);
+        return new CombatTotals(hpCurrent, Math.max(0, hpTemp), slotsUsed, poolsCurrentUses, slotsCreated);
     }
 
     // A key without a number, which no code writes, counts as absent

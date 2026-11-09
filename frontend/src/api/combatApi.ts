@@ -13,6 +13,7 @@ import type {
   MultiattackOption,
   BardicInspirationRequest,
   DivineSmiteRequest,
+  FontOfMagicUseRequest,
   ObjectInteractionRequest,
   ProtectionRequest,
   SpellOption,
@@ -160,6 +161,12 @@ export const combatApi = {
   // turn (D174)
   usePool(encounterId: string, request: UsePoolRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/use-pool`, request);
+  },
+
+  // A sorcerer's Flexible Casting, a bonus action on their turn: a slot for sorcery points, or points for a slot
+  // of 1st to 5th level (PHB p.101, M18)
+  fontOfMagic(encounterId: string, request: FontOfMagicUseRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/font-of-magic`, request);
   },
 
   // Dash, Disengage, Dodge, Help, Hide, Ready, Search or Use an Object on the participant's turn: an action, or a

@@ -204,7 +204,7 @@ final class SpellSources {
         boolean any = false;
         for (int slotLevel = level; slotLevel <= 9; slotLevel++) {
             SpellSlot slot = purse.slots().get(String.valueOf(slotLevel));
-            if (slot != null && slot.max() > 0) {
+            if (slot != null && slot.total() > 0) {
                 any = true;
                 if (slot.remaining() > 0) {
                     levels.add(slotLevel);
@@ -217,14 +217,14 @@ final class SpellSources {
     // The pact slots, all of the Warlock's slot level, when that is at least the spell's
     private static Optional<SourceOption> pactSource(int level, Purse purse) {
         return purse.slots().entrySet().stream()
-                .filter(entry -> pactLevel(entry.getKey()) != null && entry.getValue().max() > 0)
+                .filter(entry -> pactLevel(entry.getKey()) != null && entry.getValue().total() > 0)
                 .filter(entry -> pactLevel(entry.getKey()) >= level)
                 .max(Comparator.comparingInt(entry -> pactLevel(entry.getKey())))
                 .map(entry -> {
                     SpellSlot slot = entry.getValue();
                     int pactLevel = pactLevel(entry.getKey());
                     return new SourceOption(SpellSource.PACT_SLOT,
-                            slot.remaining() > 0 ? List.of(pactLevel) : List.of(), slot.remaining(), slot.max());
+                            slot.remaining() > 0 ? List.of(pactLevel) : List.of(), slot.remaining(), slot.total());
                 });
     }
 

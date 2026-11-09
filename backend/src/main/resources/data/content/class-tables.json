@@ -212,6 +212,8 @@
     "Sorcerer": {
       "subclassLevel": 1,
       "asiLevels": [4, 8, 12, 16, 19],
+      "metamagic": {"3": 2, "10": 1, "17": 1},
+      "metamagicOptions": ["Careful Spell", "Distant Spell", "Empowered Spell", "Extended Spell", "Heightened Spell", "Quickened Spell", "Subtle Spell", "Twinned Spell"],
       "spellcasting": {
         "casterType": "full",
         "spellList": "Sorcerer",

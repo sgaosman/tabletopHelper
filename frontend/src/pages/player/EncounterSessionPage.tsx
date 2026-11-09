@@ -244,7 +244,10 @@ function PlayerSessionView() {
           <ResourcePoolDisplay pools={myCharacter.resourcePoolsCurrent} participant={myCharacter}
             targets={encounter.participants}
             onUse={isActive && myCharacter.lifeState === 'ALIVE'
-              ? (poolId, options) => actions.usePool({ participantId: myCharacter.id, poolId, ...options }) : undefined} />
+              ? (poolId, options) => actions.usePool({ participantId: myCharacter.id, poolId, ...options }) : undefined}
+            onFlexibleCasting={isActive && myCharacter.lifeState === 'ALIVE'
+              ? (direction, slotLevel) => actions.fontOfMagic({ participantId: myCharacter.id, direction, slotLevel })
+              : undefined} />
         )}
 
         {/* Player self-action buttons */}

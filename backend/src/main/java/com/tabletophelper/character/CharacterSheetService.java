@@ -6,6 +6,7 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.CharacterCampaignRequest;
 import com.tabletophelper.character.dto.CharacterDetailsRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.dto.FontOfMagicRequest;
 import com.tabletophelper.character.dto.HitPointChangeRequest;
 import com.tabletophelper.character.dto.InventoryRequest;
 import com.tabletophelper.character.dto.PoolUseRequest;
@@ -185,6 +186,26 @@ public class CharacterSheetService {
     // "level 3 spell slots" or "pact slots", as a key names them
     private static String slotName(String slot) {
         return slot.startsWith("pact_") ? "pact slots" : "level " + slot + " spell slots";
+    }
+
+    /**
+     * A sorcerer's Flexible Casting out of combat (PHB p.101, M18): expends a spell slot for sorcery points, or spends
+     * sorcery points to create a slot, which a long rest ends. In an encounter it is a bonus action, through the
+     * encounter's font-of-magic command.
+     *
+     * @throws ConflictException   for a character without sorcery points, no slot of the level left, sorcery points at
+     *                             their maximum, or too few points
+     * @throws ValidationException for a level Flexible Casting can't create
+     */
+    @Transactional
+    public CharacterResponse fontOfMagic(UUID characterId, FontOfMagicRequest request, UUID userId) {
+        return characterCommands.run(characterId, userId, character -> {
+            FlexibleCasting.Exchange exchange = FlexibleCasting.exchange(character.getName(),
+                    character.getSpellSlots(), character.getResourcePools(), request.direction(),
+                    request.slotLevel());
+            character.setSpellSlots(exchange.slots());
+            character.setResourcePools(new ArrayList<>(exchange.pools()));
+        });
     }
 
     // ── Resource pools ───────────────────────────────────────────

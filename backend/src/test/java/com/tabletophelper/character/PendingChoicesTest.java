@@ -91,12 +91,15 @@ class PendingChoicesTest {
                         entry(12, List.of("ASI")), entry(16, List.of("ASI")), entry(19, List.of("ASI")))),
                 Arguments.of("Sorcerer", 1, Map.ofEntries(
                         entry(1, List.of("SUBCLASS", "CANTRIPS×4", "SPELLS×2")), entry(2, List.of("SPELLS swap")),
-                        entry(3, List.of("SPELLS swap")), entry(4, List.of("ASI", "CANTRIPS", "SPELLS swap")),
+                        // Metamagic: two options at 3rd level, one more at 10th and 17th (PHB p.101-102)
+                        entry(3, List.of("METAMAGIC×2", "SPELLS swap")),
+                        entry(4, List.of("ASI", "CANTRIPS", "SPELLS swap")),
                         entry(5, List.of("SPELLS swap")), entry(6, List.of("SPELLS swap")),
                         entry(7, List.of("SPELLS swap")), entry(8, List.of("ASI", "SPELLS swap")),
-                        entry(9, List.of("SPELLS swap")), entry(10, List.of("CANTRIPS", "SPELLS swap")),
+                        entry(9, List.of("SPELLS swap")), entry(10, List.of("METAMAGIC", "CANTRIPS", "SPELLS swap")),
                         entry(11, List.of("SPELLS swap")), entry(12, List.of("ASI")), entry(13, List.of("SPELLS swap")),
-                        entry(15, List.of("SPELLS swap")), entry(16, List.of("ASI")), entry(17, List.of("SPELLS swap")),
+                        entry(15, List.of("SPELLS swap")), entry(16, List.of("ASI")),
+                        entry(17, List.of("METAMAGIC", "SPELLS swap")),
                         entry(19, List.of("ASI")))),
                 Arguments.of("Warlock", 1, Map.ofEntries(
                         entry(1, List.of("SUBCLASS", "CANTRIPS×2", "SPELLS×2")), entry(2, List.of("SPELLS swap")),
@@ -146,7 +149,7 @@ class PendingChoicesTest {
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("everyClass")
-    @DisplayName("Each class level owes its PHB choices, in order: subclass, Fighting Style, ASI, Expertise, cantrips, spells; a known caster's swap comes only when Spells Known rise")
+    @DisplayName("Each class level owes its PHB choices, in order: subclass, Fighting Style, Metamagic, ASI, Expertise, cantrips, spells; a known caster's swap comes only when Spells Known rise")
     void everyClassLevel(String className, int subclassLevel, Map<Integer, List<String>> expected) {
         for (int classLevel = 1; classLevel <= 20; classLevel++) {
             assertThat(owed(level(className, null, classLevel, subclassLevel)))

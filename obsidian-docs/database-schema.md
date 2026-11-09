@@ -157,7 +157,7 @@ Added in V13 (D156). One row per refresh token. The browser holds the random tok
 | condition_immunities | JSONB | | |
 | features | JSONB | | Array of {name, description, uses} |
 | spells_known | JSONB | | |
-| spell_slots | JSONB | | `{"1": {total, used}, …, "pact_1": {total, used}}` — pact slots are keyed `pact_N`. Copied as `{max, used}` when a character joins an encounter (V15, D168). Since R1, a single Spellcasting class uses its own progression (D153); the recompute-spell-slots job corrects maximums stored before that. Since V19 (R6, D168) the sheet stores `{max, used}` as well. |
+| spell_slots | JSONB | | `{"1": {total, used}, …, "pact_1": {total, used}}` — pact slots are keyed `pact_N`. Copied as `{max, used}` when a character joins an encounter (V15, D168). Since R1, a single Spellcasting class uses its own progression (D153); the recompute-spell-slots job corrects maximums stored before that. Since V19 (R6, D168) the sheet stores `{max, used}` as well. Since M18 (D179) a slot may also carry `created`, the slots Font of Magic made, counted among the remaining slots until a long rest; left out when 0. `CombatTotals.slotsCreated` carries them through Write-back, and `LevelChoices.metamagic` records a level's Metamagic picks. |
 | spell_save_dc | INTEGER | | |
 | spell_attack_bonus | INTEGER | | |
 | spellcasting_ability | VARCHAR(20) | | |

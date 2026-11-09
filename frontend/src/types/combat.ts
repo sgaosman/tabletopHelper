@@ -42,6 +42,18 @@ export type ProtectionRequest = Schemas['ProtectionRequest'];
 
 export type CastSpellRequest = Schemas['CastSpellRequest'];
 
+/** A Metamagic option put on a cast (PHB p.102, M18), with the creatures Careful or Heightened Spell names. */
+export type MetamagicChoice = Schemas['MetamagicChoice'];
+
+/** A Metamagic option the caster knows, with its cost for a spell and why it can't change it (M18). */
+export type MetamagicOption = Schemas['MetamagicOption'];
+
+/** The PHB's eight Metamagic options (PHB p.102). */
+export type MetamagicName = MetamagicOption['option'];
+
+/** A sorcerer's Flexible Casting at the table, a bonus action (PHB p.101, M18). */
+export type FontOfMagicUseRequest = Schemas['FontOfMagicUseRequest'];
+
 export type TargetOutcome = Schemas['TargetOutcome'];
 
 /** The result of a spell, with the encounter state it left: the caller's view (D157). */

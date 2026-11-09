@@ -11,7 +11,7 @@ import java.util.OptionalInt;
 
 /**
  * What a class gains at each class level under the 2014 rules (D167): Ability Score Improvements, Expertise, Fighting
- * Styles and the styles to choose from, and the cantrips, spells known, spells prepared, spellbook spells and highest
+ * Styles and the styles to choose from, Metamagic options and those to choose from, and the cantrips, spells known, spells prepared, spellbook spells and highest
  * spell level that its class table and Spellcasting feature give. The numbers are the {@link ClassTables}' (R7, from
  * {@code data/content/class-tables.json}), which every method takes. Classes and subclasses are named as the class
  * data names them, such as "Fighter" and "Eldritch Knight", and the Artificer's numbers are Tasha's Cauldron of
@@ -63,6 +63,23 @@ public final class ClassProgression {
      */
     public static List<String> fightingStyles(ClassTables tables, String className) {
         return tables.classTable(className).map(ClassTable::fightingStyles).orElse(List.of());
+    }
+
+    /**
+     * How many Metamagic options a class level brings: two at Sorcerer 3rd level and one more at 10th and 17th (PHB
+     * p.101–102), and none otherwise.
+     */
+    public static int metamagicChoices(ClassTables tables, String className, int classLevel) {
+        requireClassLevel(classLevel);
+        return tables.classTable(className).map(table -> table.metamagic().getOrDefault(classLevel, 0)).orElse(0);
+    }
+
+    /**
+     * The Metamagic options a class chooses from: the sorcerer's eight in the Player's Handbook (PHB p.102). Empty for a
+     * class without Metamagic.
+     */
+    public static List<String> metamagicOptions(ClassTables tables, String className) {
+        return tables.classTable(className).map(ClassTable::metamagicOptions).orElse(List.of());
     }
 
     /**

@@ -17,12 +17,13 @@ import java.util.UUID;
 /**
  * The Pending Choices a class level brings (D159), worked out from the rules in rules.character's ClassProgression
  * over the class tables, which each method takes: the subclass at the class's subclass level, a Fighting Style, an
- * Ability Score Improvement, Expertise, the cantrips by which its Cantrips Known rise, and its spells. A class that
+ * Ability Score Improvement, Expertise, a sorcerer's Metamagic options (PHB p.101–102), the cantrips by which its
+ * Cantrips Known rise, and its spells. A class that
  * knows a set number of spells, a bard, ranger, sorcerer or warlock or an Eldritch Knight or Arcane Trickster (PHB
  * p.51, p.89, p.99, p.105, p.74, p.97), learns those by which its Spells Known rise and may replace one it already
  * knows as it does; a wizard copies spells into its spellbook, six at 1st level and two at each level after (PHB
  * p.114); and a class that prepares its spells has none to choose, since it prepares them from its whole list.
- * Invocations, pact boons, Metamagic and maneuvers come later.
+ * Invocations, pact boons and maneuvers come later.
  */
 final class PendingChoices {
 
@@ -67,6 +68,11 @@ final class PendingChoices {
         if (ClassProgression.isFightingStyleLevel(tables, className, subclass, classLevel)) {
             owed.add(choice(Type.FIGHTING_STYLE, source, characterLevel, level, 1,
                     ClassProgression.fightingStyles(tables, className)));
+        }
+        int metamagic = ClassProgression.metamagicChoices(tables, className, classLevel);
+        if (metamagic > 0) {
+            owed.add(choice(Type.METAMAGIC, source, characterLevel, level, metamagic,
+                    ClassProgression.metamagicOptions(tables, className)));
         }
         if (ClassProgression.isAsiLevel(tables, className, classLevel)) {
             owed.add(choice(Type.ASI, source, characterLevel, level, 1, null));

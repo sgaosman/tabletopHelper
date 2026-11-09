@@ -1,7 +1,7 @@
 import api from './axiosConfig';
 import type {
   PlayerCharacter, CharacterCreateRequest, LevelUpResponse, ApplyChoicesRequest, EligibleClassResponse, FeatOptionResponse,
-  CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest,
+  CharacterDetailsRequest, CharacterCampaignRequest, InventoryRequest, HitPointChangeRequest, PoolUseRequest, FontOfMagicRequest,
   ShortRestRequest, ShortRestResponse, PreparedSpellsRequest, SpellbookRequest, DmAdjustmentRequest,
 } from '../types/character';
 
@@ -62,6 +62,11 @@ export const characterApi = {
 
   recoverPool(id: string, data: PoolUseRequest) {
     return api.post<PlayerCharacter>(`/characters/${id}/pools/recover`, data);
+  },
+
+  /** A sorcerer's Flexible Casting out of combat: a slot for sorcery points, or points for a slot (PHB p.101). */
+  fontOfMagic(id: string, data: FontOfMagicRequest) {
+    return api.post<PlayerCharacter>(`/characters/${id}/font-of-magic`, data);
   },
 
   /** Answers with the rested character and what each Hit Die spent rolled. */

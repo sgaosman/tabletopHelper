@@ -6,6 +6,7 @@ import com.tabletophelper.rules.Rng;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,14 +41,23 @@ public final class Resolver {
      *                     spawn's Turn Resistance against Turn Undead (M17); they combine with its conditions' once
      * @param inspirationSides the sides of a Bardic Inspiration die it rolls and adds when it fails the Effect's save
      *                     (PHB p.53, M17); 0 for none
+     * @param autoSucceed  it succeeds on the Effect's save without rolling, as a creature Careful Spell protects does
+     *                     (PHB p.102, M18)
      */
     public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
-                         boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides) {
+                         boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides,
+                         boolean autoSucceed) {
 
         public Target {
             Objects.requireNonNull(id, "id");
             conditions = List.copyOf(conditions);
             saveSources = saveSources != null ? List.copyOf(saveSources) : List.of();
+        }
+
+        /** A target that rolls its save. */
+        public Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
+                      boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides) {
+            this(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources, inspirationSides, false);
         }
 
         /** A target with no other sources on its save and no die to add. */
@@ -61,7 +71,13 @@ public final class Resolver {
             List<RollMode> sources = new ArrayList<>(saveSources);
             sources.add(source);
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, sources,
-                    inspirationSides);
+                    inspirationSides, autoSucceed);
+        }
+
+        /** The same target succeeding on the Effect's save without rolling (Careful Spell, PHB p.102). */
+        public Target succeedingAutomatically() {
+            return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources,
+                    inspirationSides, true);
         }
 
         /** A target whose saves nothing but its conditions changes. */
@@ -143,22 +159,31 @@ public final class Resolver {
 
     /** Each target's outcome, in the order the targets are given. */
     public List<TargetOutcome> resolve(Effect effect, List<Target> targets) {
+        return resolve(effect, targets, 0);
+    }
+
+    /**
+     * As {@link #resolve(Effect, List)}, with Empowered Spell (PHB p.102, M18): each damage roll then rerolls up to
+     * empoweredDice of its dice, those that rolled below their die's average, the furthest below first, and keeps the
+     * new rolls. A damage roll shared by every target is rerolled once.
+     */
+    public List<TargetOutcome> resolve(Effect effect, List<Target> targets, int empoweredDice) {
         List<TargetOutcome> outcomes = new ArrayList<>();
         switch (effect.delivery()) {
             case Effect.Attack attack -> {
                 for (Target target : targets) {
-                    outcomes.add(attack(effect, attack, target));
+                    outcomes.add(attack(effect, attack, target, empoweredDice));
                 }
             }
             case Effect.Save save -> {
-                List<Damage> damage = rollDamage(effect.damage(), false);
+                List<Damage> damage = rollDamage(effect.damage(), false, empoweredDice);
                 int healing = rollHealing(effect.healing());
                 for (Target target : targets) {
                     outcomes.add(save(effect, save, target, damage, healing));
                 }
             }
-            case Effect.Automatic automatic -> outcomes.addAll(automatic(effect, targets));
-            case Effect.Self self -> outcomes.addAll(automatic(effect, targets));
+            case Effect.Automatic automatic -> outcomes.addAll(automatic(effect, targets, empoweredDice));
+            case Effect.Self self -> outcomes.addAll(automatic(effect, targets, empoweredDice));
         }
         return List.copyOf(outcomes);
     }
@@ -207,7 +232,7 @@ public final class Resolver {
         return rng.roll(20);
     }
 
-    private TargetOutcome attack(Effect effect, Effect.Attack attack, Target target) {
+    private TargetOutcome attack(Effect effect, Effect.Attack attack, Target target, int empoweredDice) {
         AttackRules.Setup setup = AttackRules.setup(attack.attackerSources(), target.conditions(),
                 attack.withinFiveFeet());
         List<Integer> d20s = setup.rollMode() == RollMode.NORMAL
@@ -249,7 +274,7 @@ public final class Resolver {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
                     List.of(), List.of(), 0, List.of(), null, inspiration, false);
         }
-        List<Damage> damage = rollDamage(effect.damage(), outcome == Outcome.CRITICAL);
+        List<Damage> damage = rollDamage(effect.damage(), outcome == Outcome.CRITICAL, empoweredDice);
         int healing = rollHealing(effect.healing());
         Effect.HitSave hitSave = attack.hitSave();
         if (hitSave == null) {
@@ -257,8 +282,9 @@ public final class Resolver {
                     damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike);
         }
         // The save decides only the conditions it guards, so a success would leave all of the damage
-        SaveRoll save = savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions(),
-                target.strDexDisadvantage());
+        SaveRoll save = target.autoSucceed() ? new SaveRoll(null, null, true, false)
+                : savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions(),
+                        target.strDexDisadvantage(), target.saveSources());
         List<String> conditions = effect.conditions().stream()
                 .filter(condition -> !save.success() || !hitSave.conditions().contains(condition))
                 .toList();
@@ -267,8 +293,10 @@ public final class Resolver {
     }
 
     private TargetOutcome save(Effect effect, Effect.Save save, Target target, List<Damage> damage, int healing) {
-        SaveRoll roll = savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions(),
-                target.strDexDisadvantage(), target.saveSources());
+        // A creature Careful Spell protects succeeds without rolling (PHB p.102)
+        SaveRoll roll = target.autoSucceed() ? new SaveRoll(null, null, true, false)
+                : savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions(),
+                        target.strDexDisadvantage(), target.saveSources());
         List<Damage> onSuccess = save.halfDamageOnSuccess() ? halved(damage) : List.of();
         // A held Bardic Inspiration die is rolled on a failed save its holder rolled, not on one failed
         // automatically (PHB p.53)
@@ -287,8 +315,8 @@ public final class Resolver {
                 inspiration, false);
     }
 
-    private List<TargetOutcome> automatic(Effect effect, List<Target> targets) {
-        List<Damage> damage = rollDamage(effect.damage(), false);
+    private List<TargetOutcome> automatic(Effect effect, List<Target> targets, int empoweredDice) {
+        List<Damage> damage = rollDamage(effect.damage(), false, empoweredDice);
         int healing = rollHealing(effect.healing());
         return targets.stream()
                 .map(target -> new TargetOutcome(target.id(), Outcome.AUTOMATIC, List.of(), null, null,
@@ -297,14 +325,50 @@ public final class Resolver {
     }
 
     // Each part rolled once, its dice doubled on a critical hit and those it rerolls rolled again (Great Weapon
-    // Fighting), then totalled by type in the parts' order
-    private List<Damage> rollDamage(List<Effect.DamagePart> parts, boolean critical) {
-        Map<String, Integer> byType = new LinkedHashMap<>();
+    // Fighting), then up to empoweredDice of all the dice rolled again (Empowered Spell), and totalled by type in the
+    // parts' order
+    private List<Damage> rollDamage(List<Effect.DamagePart> parts, boolean critical, int empoweredDice) {
+        List<Dice> dice = new ArrayList<>();
+        List<int[]> rolls = new ArrayList<>();
         for (Effect.DamagePart part : parts) {
-            Dice dice = critical ? part.dice().doubled() : part.dice();
-            byType.merge(part.type(), dice.total(dice.rollDice(rng, part.rerollUpTo())), Integer::sum);
+            Dice rolled = critical ? part.dice().doubled() : part.dice();
+            dice.add(rolled);
+            rolls.add(rolled.rollEach(rng, part.rerollUpTo()));
+        }
+        if (empoweredDice > 0) {
+            empower(dice, rolls, empoweredDice);
+        }
+        Map<String, Integer> byType = new LinkedHashMap<>();
+        for (int i = 0; i < parts.size(); i++) {
+            int sum = 0;
+            for (int roll : rolls.get(i)) {
+                sum += roll;
+            }
+            byType.merge(parts.get(i).type(), dice.get(i).total(sum), Integer::sum);
         }
         return byType.entrySet().stream().map(e -> new Damage(e.getKey(), e.getValue())).toList();
+    }
+
+    // Empowered Spell (PHB p.102): the sorcerer may reroll up to that many damage dice and must use the new rolls; the
+    // server rerolls those below their die's average, those furthest below first, the earlier die first on a tie
+    private void empower(List<Dice> dice, List<int[]> rolls, int count) {
+        record Rolled(int part, int index, int sides, double shortfall) {
+        }
+        List<Rolled> low = new ArrayList<>();
+        for (int part = 0; part < dice.size(); part++) {
+            int sides = dice.get(part).sides();
+            double average = (sides + 1) / 2.0;
+            int[] each = rolls.get(part);
+            for (int index = 0; index < each.length; index++) {
+                if (each[index] < average) {
+                    low.add(new Rolled(part, index, sides, average - each[index]));
+                }
+            }
+        }
+        low.sort(Comparator.comparingDouble(Rolled::shortfall).reversed());
+        for (Rolled rolled : low.subList(0, Math.min(count, low.size()))) {
+            rolls.get(rolled.part())[rolled.index()] = rng.roll(rolled.sides());
+        }
     }
 
     private int rollHealing(Dice healing) {

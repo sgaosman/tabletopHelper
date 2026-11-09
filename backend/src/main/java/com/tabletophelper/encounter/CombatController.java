@@ -4,6 +4,7 @@ import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.AttackService;
 import com.tabletophelper.encounter.internal.BardicInspirationService;
 import com.tabletophelper.encounter.internal.ConditionService;
+import com.tabletophelper.encounter.internal.FontOfMagicService;
 import com.tabletophelper.encounter.internal.HitFollowUpService;
 import com.tabletophelper.encounter.internal.HitPointService;
 import com.tabletophelper.encounter.internal.LegendaryResistanceService;
@@ -42,6 +43,7 @@ public class CombatController {
     private final HitPointService hitPointService;
     private final HitFollowUpService hitFollowUpService;
     private final BardicInspirationService bardicInspirationService;
+    private final FontOfMagicService fontOfMagicService;
     private final UndoService undoService;
     private final EncounterService encounterService;
 
@@ -326,6 +328,18 @@ public class CombatController {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = legendaryResistanceService.useLegendaryResistance(
                 encounterId, request.combatLogId(), userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // A sorcerer's Flexible Casting, a bonus action on their turn: a slot for sorcery points or points for a slot
+    // (PHB p.101, M18): the DM for anyone, a player for their own participant
+    @PostMapping("/font-of-magic")
+    public ResponseEntity<EncounterResponse> fontOfMagic(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody FontOfMagicUseRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = fontOfMagicService.use(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 

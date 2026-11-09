@@ -119,6 +119,16 @@ public class CharacterController {
         return ResponseEntity.ok(sheetService.restoreSlot(characterId, slot, userId));
     }
 
+    /** A sorcerer's Flexible Casting out of combat: a spell slot for sorcery points, or points for a slot (PHB p.101). */
+    @PostMapping("/{characterId}/font-of-magic")
+    public ResponseEntity<CharacterResponse> flexibleCasting(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody FontOfMagicRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.fontOfMagic(characterId, request, userId));
+    }
+
     @PostMapping("/{characterId}/pools/spend")
     public ResponseEntity<CharacterResponse> spendPool(
             @PathVariable UUID characterId,

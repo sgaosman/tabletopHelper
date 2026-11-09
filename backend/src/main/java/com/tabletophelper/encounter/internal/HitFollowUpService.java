@@ -106,7 +106,7 @@ public class HitFollowUpService {
             dice = dice.doubled();
         }
         SpellSlot after = slots.get(key);
-        String note = slotName(key, level) + ", " + after.remaining() + "/" + after.max() + " left"
+        String note = slotName(key, level) + ", " + after.remaining() + "/" + after.total() + " left"
                 + (hit.critical() ? "; critical hit" : "") + (undeadOrFiend ? "; +1d8 against " + type : "");
         Effect effect = new Effect("Divine Smite", new Effect.Automatic(),
                 List.of(new Effect.DamagePart(dice, AttackFeatures.RADIANT)), null, List.of(), false, null);

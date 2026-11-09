@@ -343,6 +343,8 @@ export function useEncounterAction() {
       setTurnEconomy: change(combatApi.setTurnEconomy),
       // A pool used at the table, a standard action and an object interaction, each charged to the turn (D174)
       usePool: change(combatApi.usePool),
+      // A sorcerer's Flexible Casting, a bonus action (M18)
+      fontOfMagic: change(combatApi.fontOfMagic),
       standardAction: change(combatApi.standardAction),
       objectInteraction: change(combatApi.objectInteraction),
       // What follows a melee weapon hit, and the Protection reaction (M17)

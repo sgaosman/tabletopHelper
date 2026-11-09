@@ -7,7 +7,9 @@ import com.tabletophelper.reference.SpellTemplate;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.Metamagic;
 import com.tabletophelper.rules.combat.RollMode;
 import com.tabletophelper.rules.combat.SpellTrigger;
 import lombok.RequiredArgsConstructor;
@@ -275,6 +277,46 @@ public class SpellEffects {
      */
     public ActionCost repeatCost(String spellName) {
         return template(spellName).map(SpellTemplate::repeatActionType).orElse(ActionCost.ACTION);
+    }
+
+    /**
+     * What Metamagic needs to know of the spell (M18), from its effect template and its range in the spells table;
+     * empty for a spell without a template, which Metamagic can't change.
+     */
+    public Optional<Metamagic.SpellFacts> metamagicFacts(String spellName) {
+        Optional<Spell> spell = spellRepository.findByNameIgnoreCase(spellName);
+        if (spell.isEmpty() || spell.get().getEffectTemplate() == null) {
+            return Optional.empty();
+        }
+        return spell.get().getEffectTemplate().readable(spell.get().getName() + "'s effect template")
+                .map(template -> facts(template, spell.get().getCastingTime(), spell.get().getRangeDistance()));
+    }
+
+    /**
+     * A template's facts for Metamagic, with the spell's range and its casting time as the spells table words them;
+     * the template's own casting time comes first.
+     */
+    static Metamagic.SpellFacts facts(SpellTemplate template, String castingTime, String range) {
+        String time = template.json() != null && template.json().path("castingTime").isString()
+                ? template.json().path("castingTime").asString() : castingTime;
+        boolean forcesSave = template.saveAbility() != null && !template.saveAbility().isBlank();
+        // Empowered Spell rerolls the damage rolled when the spell is cast
+        boolean dealsDamage = template.firstDamageEffect().isPresent();
+        SpellTemplate.TargetScaling scaling = template.targetCountUpcastScaling();
+        return new Metamagic.SpellFacts(template.level(), castingTime(time), forcesSave,
+                dealsDamage, template.durationRounds(), template.durationText(),
+                "SINGLE_TARGET".equals(template.targetType()), Boolean.TRUE.equals(template.selfOnly()),
+                template.targetCount(), scaling != null ? scaling.additionalTargetsPerLevel() : null,
+                range, template.verbal(), template.somatic());
+    }
+
+    // The casting time the text names, or null when there is none or it can't be read
+    private static CastingTime castingTime(String text) {
+        try {
+            return text != null ? CastingTime.of(text) : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     static RollMode rollMode(Boolean advantage) {

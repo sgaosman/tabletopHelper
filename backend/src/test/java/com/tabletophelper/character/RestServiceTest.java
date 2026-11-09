@@ -353,6 +353,22 @@ class RestServiceTest {
         }
 
         @Test
+        @DisplayName("A long rest ends the slots Flexible Casting created, and a short rest keeps them (PHB p.101)")
+        void createdSlotsVanish() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.sorcerer, 3);
+            pc.setSpellSlots(new LinkedHashMap<>(Map.of("1", new SpellSlot(4, 1, 1),
+                    "2", new SpellSlot(2, 2), "3", new SpellSlot(0, 0, 1))));
+
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of()), f.userId);
+            assertThat(rested.character().getSpellSlots()).containsEntry("1", new SpellSlot(4, 1, 1))
+                    .containsEntry("3", new SpellSlot(0, 0, 1));
+
+            CharacterResponse response = f.rests.longRest(pc.getId(), f.userId);
+
+            assertThat(response.getSpellSlots()).isEqualTo(Map.of("1", new SpellSlot(4, 0), "2", new SpellSlot(2, 0)));
+        }
+
+        @Test
         @DisplayName("15.19 A long rest brings back half the character's Hit Dice, rounded down, and at least one")
         void bringsBackHalfTheHitDice() {
             PlayerCharacter seven = f.create(f.human, CON_14, f.fighter, 7);

@@ -66,14 +66,26 @@ public record Dice(int count, int sides, int modifier) {
      */
     public int rollDice(Rng rng, int rerollUpTo) {
         int sum = 0;
+        for (int roll : rollEach(rng, rerollUpTo)) {
+            sum += roll;
+        }
+        return sum;
+    }
+
+    /**
+     * Each die's roll, in order, rerolled as {@link #rollDice(Rng, int)} does, so a caller can reroll some of them
+     * again, as Empowered Spell does (PHB p.102).
+     */
+    public int[] rollEach(Rng rng, int rerollUpTo) {
+        int[] rolls = new int[count];
         for (int i = 0; i < count; i++) {
             int roll = rng.roll(sides);
             if (roll <= rerollUpTo) {
                 roll = rng.roll(sides);
             }
-            sum += roll;
+            rolls[i] = roll;
         }
-        return sum;
+        return rolls;
     }
 
     /** The dice's average roll with the modifier, such as 4.5 for 1d8, to compare two damage dice. */

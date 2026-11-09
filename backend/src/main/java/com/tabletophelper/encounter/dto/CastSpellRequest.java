@@ -1,10 +1,12 @@
 package com.tabletophelper.encounter.dto;
 
 import com.tabletophelper.encounter.state.SpellSource;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -38,4 +40,9 @@ public class CastSpellRequest {
     private Integer overrideSpellAttackBonus;
 
     private Integer overrideSpellSaveDC;
+
+    // A sorcerer's Metamagic options on the cast (PHB p.102, M18): at most one, plus Empowered Spell; none when left out
+    @Valid
+    @Size(max = 2)
+    private List<MetamagicChoice> metamagic;
 }

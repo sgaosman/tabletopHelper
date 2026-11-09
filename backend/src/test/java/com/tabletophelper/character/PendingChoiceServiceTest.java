@@ -224,14 +224,14 @@ class PendingChoiceServiceTest {
             PlayerCharacter sorcerer = create(f.sorcerer, 5, request -> request.setSpellsKnown(levelOne));
 
             assertThat(described(sorcerer.getPendingChoices()))
-                    .containsExactly("2 SPELLS", "3 SPELLS", "4 ASI", "4 CANTRIPS", "4 SPELLS", "5 SPELLS");
+                    .containsExactly("2 SPELLS", "3 METAMAGIC×2", "3 SPELLS", "4 ASI", "4 CANTRIPS", "4 SPELLS", "5 SPELLS");
 
             List<KnownSpell> all = new ArrayList<>(levelOne);
             for (String name : List.of("Misty Step", "Fireball", "Hex", "Cure Wounds")) {
                 all.add(classSpell(name, 1, "Sorcerer"));
             }
             PlayerCharacter given = create(f.sorcerer, 5, request -> request.setSpellsKnown(all));
-            assertThat(described(given.getPendingChoices())).containsExactly("4 ASI", "4 CANTRIPS");
+            assertThat(described(given.getPendingChoices())).containsExactly("3 METAMAGIC×2", "4 ASI", "4 CANTRIPS");
         }
 
         @Test
@@ -535,6 +535,47 @@ class PendingChoiceServiceTest {
             assertThatThrownBy(() -> f.choose(pc, second, request -> request.setFightingStyle("Archery")))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("Aria already has the Archery Fighting Style");
+        }
+
+        @Test
+        @DisplayName("Metamagic: two options at Sorcerer 3 become features of the level, one known or off the list is a 400, and levelling down removes them")
+        void metamagic() {
+            PlayerCharacter pc = create(f.sorcerer, 3, request -> {});
+            PendingChoice metamagic = f.pending(pc, Type.METAMAGIC);
+            assertThat(metamagic.count()).isEqualTo(2);
+            assertThat(metamagic.options()).containsExactly("Careful Spell", "Distant Spell", "Empowered Spell",
+                    "Extended Spell", "Heightened Spell", "Quickened Spell", "Subtle Spell", "Twinned Spell");
+
+            assertThatThrownBy(() -> f.choose(pc, metamagic, request -> request.setMetamagic(List.of("Seeking Spell",
+                    "Quickened Spell"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageStartingWith("A Sorcerer chooses Metamagic from Careful Spell, ");
+            assertThatThrownBy(() -> f.choose(pc, metamagic, request -> request.setMetamagic(List.of("Quickened Spell"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Choose 2 Metamagic options, not 1");
+            assertThatThrownBy(() -> f.choose(pc, metamagic, request -> request.setFightingStyle("Archery")))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("This METAMAGIC choice takes metamagic, not fightingStyle");
+
+            f.choose(pc, metamagic, request -> request.setMetamagic(List.of("quickened spell", "Twinned Spell")));
+
+            assertThat(pc.getFeatures()).extracting(Feature::name)
+                    .contains("Metamagic: Quickened Spell", "Metamagic: Twinned Spell");
+            assertThat(pc.getLevelHistory().get(2).choices().metamagic())
+                    .containsExactly("Quickened Spell", "Twinned Spell");
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.METAMAGIC);
+
+            // The 10th level's option can't be one the sorcerer knows
+            PendingChoice tenth = new PendingChoice(UUID.randomUUID(), Type.METAMAGIC, Source.LEVEL_UP, 3,
+                    f.sorcerer.getId(), "Sorcerer", 10, 1, metamagic.options(), null, null, null);
+            pc.setPendingChoices(List.of(tenth));
+            assertThatThrownBy(() -> f.choose(pc, tenth, request -> request.setMetamagic(List.of("Twinned Spell"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Aria already knows Twinned Spell");
+            pc.setPendingChoices(List.of());
+
+            f.levelDown(pc);
+            assertThat(pc.getFeatures()).extracting(Feature::name).noneMatch(name -> name.startsWith("Metamagic: "));
         }
 
         @Test
@@ -921,6 +962,20 @@ class PendingChoiceServiceTest {
 
             rogue.setSkillExpertises(List.of("Stealth", "Perception", "Insight"));
             assertThat(described(f.choices.missedChoices(rogue))).containsExactly("4 ASI", "6 EXPERTISE");
+        }
+
+        @Test
+        @DisplayName("A sorcerer levelled before M18 is owed Metamagic at 3rd and 10th level, less the Metamagic features no level records")
+        void metamagicBackfilled() {
+            PlayerCharacter sorcerer = legacy(f.sorcerer, 10);
+            recordAsi(sorcerer, 4);
+            recordAsi(sorcerer, 8);
+
+            assertThat(described(f.choices.missedChoices(sorcerer))).containsExactly("3 METAMAGIC×2", "10 METAMAGIC");
+            assertThat(f.choices.missedChoices(sorcerer).getFirst().options()).hasSize(8);
+
+            sorcerer.setFeatures(new ArrayList<>(List.of(new Feature("Metamagic: Subtle Spell", null, "Sorcerer"))));
+            assertThat(described(f.choices.missedChoices(sorcerer))).containsExactly("3 METAMAGIC", "10 METAMAGIC");
         }
 
         @Test

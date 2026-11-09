@@ -402,3 +402,30 @@ describe('ResourcePoolDisplay', () => {
     });
   });
 });
+
+describe('ResourcePoolDisplay and Flexible Casting (PHB p.101, M18)', () => {
+  const points = makeMockResourcePool('class:sorcerer-sorcery-points', 'Sorcery Points', {
+    sourceName: 'Sorcerer', maxUses: 5, currentUses: 3, spendActionType: 'FREE',
+  });
+
+  it('offers Flexible Casting beside the sorcery points on the sheet', async () => {
+    const onFlexibleCasting = vi.fn().mockResolvedValue(undefined);
+    render(<ResourcePoolDisplay pools={pools(points)} editable spellSlots={{ '1': { max: 4, used: 0 } }}
+      onFlexibleCasting={onFlexibleCasting} />);
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Convert to 1 points' }));
+
+    expect(onFlexibleCasting).toHaveBeenCalledWith('SLOT_TO_POINTS', 1);
+  });
+
+  it('greys it at the table for a player whose bonus action is used, with the reason', () => {
+    const sorcerer = makeMockParticipant('part-sorin', 'Sorin', 'PLAYER', {
+      isCurrentTurn: true, resourcePoolsCurrent: [points], spellSlotsCurrent: { '1': { max: 4, used: 0 } },
+    });
+    const spent: EncounterParticipant = { ...sorcerer, turnEconomy: { ...sorcerer.turnEconomy!, bonusActionUsed: true } };
+    render(<ResourcePoolDisplay pools={pools(points)} participant={spent} onUse={vi.fn()} onFlexibleCasting={vi.fn()} />);
+
+    expect(screen.getByRole('group', { name: 'Flexible Casting' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create slot' })).toBeDisabled();
+  });
+});

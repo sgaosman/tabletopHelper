@@ -159,7 +159,9 @@ public class WriteBackService {
 
         /**
          * The totals after one participant's results. Each slot and pool the participant joined and ended with gets
-         * its change, within the sheet's maximum; one the sheet or the participant lacks is left as it is.
+         * its change, within the sheet's maximum; one the sheet or the participant lacks is left as it is. Slots the
+         * participant created with Flexible Casting are added to the sheet's (PHB p.101, M18), with the level's
+         * maximum raised by them.
          */
         Sheet after(CharacterResult result) {
             CombatTotals joined = result.joinedWith();
@@ -168,15 +170,31 @@ public class WriteBackService {
                     ended.hpTemp(), result.lifeState());
 
             Map<String, SpellSlot> slotsAfter = null;
-            if (slots != null) {
+            if (slots != null || !ended.slotsCreated().isEmpty()) {
                 slotsAfter = new LinkedHashMap<>();
-                for (Map.Entry<String, SpellSlot> entry : slots.entrySet()) {
+                Map<String, SpellSlot> sheetSlots = new LinkedHashMap<>(slots != null ? slots : Map.of());
+                // A level the participant created slots at that the sheet has none of (PHB p.101, M18)
+                ended.slotsCreated().forEach((key, created) -> {
+                    if (created > joined.slotsCreated().getOrDefault(key, 0) && sheetSlots.get(key) == null) {
+                        sheetSlots.put(key, new SpellSlot(0, 0));
+                    }
+                });
+                for (Map.Entry<String, SpellSlot> entry : sheetSlots.entrySet()) {
+                    String key = entry.getKey();
                     SpellSlot slot = entry.getValue();
-                    Integer joinedUsed = joined.slotsUsed().get(entry.getKey());
-                    Integer endedUsed = ended.slotsUsed().get(entry.getKey());
-                    slotsAfter.put(entry.getKey(), slot == null || joinedUsed == null || endedUsed == null ? slot
-                            : new SpellSlot(slot.max(), WriteBack.total(slot.used(), slot.max(), joinedUsed,
-                            endedUsed)));
+                    Integer joinedUsed = joined.slotsUsed().get(key);
+                    Integer endedUsed = ended.slotsUsed().get(key);
+                    if (slot == null || endedUsed == null) {
+                        slotsAfter.put(key, slot);
+                        continue;
+                    }
+                    // Created slots only come in combat, so the sheet gains those the participant made
+                    int created = Math.max(0, slot.created() + ended.slotsCreated().getOrDefault(key, 0)
+                            - joined.slotsCreated().getOrDefault(key, 0));
+                    int used = WriteBack.total(slot.used(), slot.max() + created,
+                            joinedUsed != null ? joinedUsed : 0, endedUsed);
+                    slotsAfter.put(key, joinedUsed == null && created == slot.created() ? slot
+                            : new SpellSlot(slot.max(), used, created));
                 }
             }
 

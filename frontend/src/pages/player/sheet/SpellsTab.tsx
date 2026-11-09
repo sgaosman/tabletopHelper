@@ -6,6 +6,7 @@ import IconButton from '../../../components/ui/IconButton';
 import Modal from '../../../components/ui/Modal';
 import type { PlayerCharacter } from '../../../types/character';
 import type { SpellSlot } from '../../../types/encounter';
+import { slotsLeft, slotTotal } from '../../../utils/metamagic';
 import { useClassTables, useSpellByName } from '../../../queries/reference';
 import { isThirdCasterSubclass } from '../../../utils/classTables';
 import { formatMod } from '../../../utils/dndRules';
@@ -109,7 +110,7 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
 
   function spendSlot(level: string) {
     const slot = spellSlots[level];
-    if (!slot || slot.used >= slot.max) return;
+    if (!slot || slotsLeft(slot) <= 0) return;
     void runCommand(spendSlotCommand.mutateAsync({ characterId: char.id, slot: level }));
   }
 
@@ -192,7 +193,10 @@ export default function SpellsTab({ char, spellsKnown, spellSlots, runCommand }:
                   className="w-full bg-page border border-rule p-3 text-center hover:bg-page-alt transition-colors"
                 >
                   <p className="font-heading text-[11px] font-semibold text-faint">{label === 'Pact Slots' ? 'Pact' : ''} Lv {displayLevel}</p>
-                  <p className="font-heading text-[17px] font-bold text-ink">{slot.max - slot.used}/{slot.max}</p>
+                  <p className="font-heading text-[17px] font-bold text-ink">{slotsLeft(slot)}/{slotTotal(slot)}</p>
+                  {(slot.created ?? 0) > 0 && (
+                    <p className="font-body text-[11px] text-faint">{slot.created} created, gone after a long rest</p>
+                  )}
                 </button>
                 {slot.used > 0 && (
                   <IconButton

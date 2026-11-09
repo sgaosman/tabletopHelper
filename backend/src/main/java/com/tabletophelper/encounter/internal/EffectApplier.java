@@ -1091,6 +1091,10 @@ public class EffectApplier {
                 if (outcome.autoFailed()) {
                     description.append(" vs DC ").append(save.dc());
                     results.add("fails automatically");
+                } else if (outcome.d20() == null) {
+                    // Careful Spell (PHB p.102)
+                    description.append(" vs DC ").append(save.dc());
+                    results.add("succeeds automatically");
                 } else {
                     int inspired = outcome.inspiration() != null ? outcome.inspiration().roll() : 0;
                     description.append(' ').append(rolls(outcome))
@@ -1151,6 +1155,10 @@ public class EffectApplier {
         String ability = save.ability().name() + " save";
         if (roll.autoFailed()) {
             return ability + " vs DC " + save.dc() + " fails automatically";
+        }
+        if (roll.d20() == null) {
+            return ability + " vs DC " + save.dc() + " succeeds automatically against "
+                    + String.join(", ", save.conditions());
         }
         String rolled = ability + " " + saveDice(roll) + signed(roll.total() - roll.d20()) + " = "
                 + roll.total() + " vs DC " + save.dc();

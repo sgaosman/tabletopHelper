@@ -534,16 +534,18 @@ public class CharacterStats {
 
     /**
      * Each slot's maximum, keeping the used count up to it, so levelling restores no slot (D168). Pact slots that
-     * change level on a warlock's level keep their used count too. Null for no slots.
+     * change level on a warlock's level keep their used count too. Slots created by Flexible Casting stay until a long
+     * rest (PHB p.101, M18), at a level the tables give no slots too. Null for no slots.
      */
     private Map<String, SpellSlot> spellSlots(PlayerCharacter character, List<ClassLevel> classes) {
         Map<String, SpellSlotCalculator.ClassEntry> entries = spellSlotEntries(classes);
         Map<String, Integer> maximums = entries.isEmpty() ? Map.of()
                 : SpellSlotCalculator.calculateSlots(classTables, entries);
-        if (maximums.isEmpty()) {
+        Map<String, SpellSlot> stored = character.getSpellSlots() != null ? character.getSpellSlots() : Map.of();
+        boolean anyCreated = stored.values().stream().anyMatch(slot -> slot != null && slot.created() > 0);
+        if (maximums.isEmpty() && !anyCreated) {
             return null;
         }
-        Map<String, SpellSlot> stored = character.getSpellSlots() != null ? character.getSpellSlots() : Map.of();
         int pactUsed = stored.entrySet().stream()
                 .filter(slot -> slot.getKey().startsWith("pact_") && slot.getValue() != null)
                 .mapToInt(slot -> slot.getValue().used())
@@ -552,7 +554,13 @@ public class CharacterStats {
         maximums.forEach((key, max) -> {
             SpellSlot old = stored.get(key);
             int used = old != null ? old.used() : key.startsWith("pact_") ? pactUsed : 0;
-            slots.put(key, new SpellSlot(max, Math.max(0, Math.min(used, max))));
+            int created = old != null && !key.startsWith("pact_") ? old.created() : 0;
+            slots.put(key, new SpellSlot(max, used, created).clamped());
+        });
+        stored.forEach((key, old) -> {
+            if (old != null && old.created() > 0 && !slots.containsKey(key) && !key.startsWith("pact_")) {
+                slots.put(key, new SpellSlot(0, old.used(), old.created()).clamped());
+            }
         });
         return slots;
     }

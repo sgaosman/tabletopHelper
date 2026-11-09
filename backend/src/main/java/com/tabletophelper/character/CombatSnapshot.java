@@ -57,8 +57,8 @@ public record CombatSnapshot(
                 CombatTotals.of(hp, temporary, slots, pools));
     }
 
-    // Sheets and participants hold slots in the same {max, used} shape (D168); each used count is copied between 0
-    // and the maximum, and a level without a value is left out
+    // Sheets and participants hold slots in the same {max, used, created} shape (D168); each used count is copied
+    // between 0 and the level's total, created slots included (M18), and a level without a value is left out
     private static Map<String, SpellSlot> copySpellSlots(Map<String, SpellSlot> sheetSlots) {
         if (sheetSlots == null) {
             return null;
@@ -66,7 +66,7 @@ public record CombatSnapshot(
         Map<String, SpellSlot> slots = new LinkedHashMap<>();
         sheetSlots.forEach((level, slot) -> {
             if (slot != null) {
-                slots.put(level, new SpellSlot(slot.max(), Math.max(0, Math.min(slot.max(), slot.used()))));
+                slots.put(level, slot.clamped());
             }
         });
         return slots;

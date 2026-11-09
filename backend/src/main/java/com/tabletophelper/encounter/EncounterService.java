@@ -18,6 +18,7 @@ import com.tabletophelper.encounter.internal.ChannelDivinityEffects;
 import com.tabletophelper.encounter.internal.CommandRecorder;
 import com.tabletophelper.encounter.internal.EffectApplier;
 import com.tabletophelper.encounter.internal.EncounterTurns;
+import com.tabletophelper.encounter.internal.MetamagicCasting;
 import com.tabletophelper.encounter.internal.MonsterPools;
 import com.tabletophelper.encounter.internal.SpellEffects;
 import com.tabletophelper.encounter.internal.TurnEconomies;
@@ -573,6 +574,7 @@ public class EncounterService {
                         .fightingStyles(fightingStyles(p))
                         .channelDivinityOptions(p.getCharacter() != null ? ChannelDivinityEffects.available(p).stream()
                                 .map(ChannelDivinity.Option::id).toList() : null)
+                        .metamagicOptions(p.getCharacter() != null ? MetamagicCasting.known(p.getCharacter()) : null)
                         .build())
                 .toList();
 

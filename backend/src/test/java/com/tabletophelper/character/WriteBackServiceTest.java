@@ -88,6 +88,24 @@ class WriteBackServiceTest {
     }
 
     @Test
+    @DisplayName("Slots a sorcerer created with Flexible Casting reach the sheet with their use, a level the sheet lacks included (PHB p.101)")
+    void createdSlotsWrittenBack() {
+        PlayerCharacter sorcerer = f.create(f.human, CharacterFixture.scores(), f.sorcerer, 5);
+        sorcerer.setSpellSlots(Map.of("1", new SpellSlot(4, 0), "2", new SpellSlot(3, 0), "3", new SpellSlot(2, 0)));
+        int hp = sorcerer.getHpCurrent();
+
+        // In combat: a 1st-level slot expended for a point, a 2nd-level slot created, and a 4th-level one created and cast
+        f.writeBack.apply(results(new CharacterResult(sorcerer.getId(),
+                totals(hp, 0, Map.of("1", 0, "2", 0, "3", 0), Map.of()),
+                new CombatTotals(hp, 0, Map.of("1", 1, "2", 0, "3", 0, "4", 1), Map.of(), Map.of("2", 1, "4", 1)),
+                LifeState.ALIVE)));
+
+        assertThat(sorcerer.getSpellSlots()).containsEntry("1", new SpellSlot(4, 1))
+                .containsEntry("2", new SpellSlot(3, 0, 1)).containsEntry("3", new SpellSlot(2, 0))
+                .containsEntry("4", new SpellSlot(0, 1, 1));
+    }
+
+    @Test
     @DisplayName("A character still Dying or Stable is written back alive at 0; one who died is dead at 0 with no temporary hit points")
     void dyingStableAndDead() {
         PlayerCharacter aria = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);

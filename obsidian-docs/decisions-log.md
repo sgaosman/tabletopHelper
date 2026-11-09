@@ -3183,3 +3183,33 @@ The plan's twelve questions were answered with its recommended answers when the 
 - **Choices made after seeing a roll.** An attack resolves in one call, so Bardic Inspiration and Guided Strike are added only when the roll would otherwise miss, which is when a player would choose them. War God's Blessing is set up before the attack rather than as a reaction after it, and monster attacks don't read it. Guided Strike covers weapon and hand-entered attacks, not spell attacks. Sacred Weapon applies to every weapon the paladin uses, since the blessed weapon isn't tracked.
 - **Known gaps:** Destroy Undead destroys the creature even if it then uses Legendary Resistance on the failed save; Cloak of Shadows doesn't end early when the cleric attacks or casts; Abjure Enemy's speed effects and a turned creature's behaviour are the DM's. Existing sheets take the new pool behaviour on their next command, a `recompute-characters` apply or an encounter start, as in A.
 - **Tests:** new `ChannelDivinityTest`, `ChannelDivinityEffectsTest` and `ChannelDivinityIT` (with undo); class pools go from 74 to 75 and definitions from 78 to 79. 2,378 backend unit, 271 integration and 934 frontend. Not checked in a browser.
+
+## D179: Sorcerer Metamagic and Font of Magic
+
+**Date:** 2026-11-09
+**Status:** Accepted — implemented (M18); existing sorcerers gain their Metamagic choice through `backfill-pending-choices`
+
+**Decision:**
+- **Metamagic is a Pending Choice** ([[#D159]]): a new `METAMAGIC` type owed at Sorcerer 3 (two options), 10 and 17 (one each) (PHB p.101), with the levels and the PHB's eight options in `class-tables.json` read through `ClassProgression`. Each pick becomes a "Metamagic: X" feature, so levelling down removes it. Tasha's Seeking and Transmuted Spell aren't offered; the option descriptions still come from the optional feature rows.
+- **Font of Magic** (p.101): `rules/character/FontOfMagic` holds the costs (a 1st- to 5th-level slot for 2, 3, 5, 6 or 7 points; nothing above 5th, even above the sorcerer's own highest slot, as written) and the reverse (a slot gives points equal to its level, capped at the pool's maximum; pact slots count as spell slots). `character/FlexibleCasting` does the exchange on the sheet (`POST /characters/{id}/font-of-magic`) and in combat (`POST /combat/font-of-magic`, a bonus action, logged as a pool use). A created slot is counted in `SpellSlot.created`; it counts among the remaining slots, survives short rests and Write-back, and vanishes on a long rest. `CombatTotals.slotsCreated` carries created slots back to the sheet.
+- **Metamagic on a cast** (p.102): `rules/combat/Metamagic` holds the costs, which spells each option can change, and the rule of one option per spell plus Empowered. `MetamagicCasting` checks a cast before anything is spent, then spends the points.
+  - Quickened (2): the cast is charged as a bonus action, so the bonus-action spell rule (PHB p.202, [[#D174]]) applies.
+  - Twinned (the spell's level, 1 for a cantrip): a second target, refused at a level where the spell can already target more than one.
+  - Heightened (3): disadvantage on the chosen target's first save.
+  - Careful (1): up to the CHA modifier (at least 1) of chosen creatures succeed on the save, including an attack spell's follow-up save; it overrides conditions that would make the save fail automatically.
+  - Empowered (1): the server rerolls up to the CHA modifier of the damage dice that rolled below their average, worst first, as a player would choose; only damage rolled when the spell is cast, not a lasting effect's later uses.
+  - Extended (1): doubles the concentration, Spell Effect ([[#D177]]) and matching condition durations, up to 24 hours.
+  - Subtle (1) and Distant (1): logged; Subtle also lets a silenced sorcerer cast.
+- **Spell options** list each known option's cost and why it can't be used; a spell isn't greyed for a spent action when Quickened could still cast it. Spells with no effect template can't take Metamagic.
+- **Undo** covers points, slots and created slots ([[#D176]]).
+- **No migration:** the new fields (`SpellSlot.created`, `LevelChoices.metamagic`, `CombatTotals.slotsCreated`) are left out when empty, so existing rows read unchanged.
+
+**Rationale:** sorcerers' signature feature had a pool and no way to spend it.
+
+**Trade-offs:** the spell templates call Ice Knife single-target, so it counts as twinnable, although its explosion affects other creatures; the DM may refuse it. Careful's CHA limit is checked only by the server.
+
+**Key files:** `rules/combat/Metamagic.java`, `rules/character/FontOfMagic.java`, `character/FlexibleCasting.java`, `encounter/internal/MetamagicCasting.java`, `encounter/internal/FontOfMagicService.java`, `MetamagicModal.tsx`, `FlexibleCastingControls.tsx`, `SpellCastModal.tsx`, `utils/metamagic.ts`
+
+**Related:** D125, D127, D159, D174, D176, D177, D178, [[Pending Choice]], [[Flexible Casting]]
+
+**Checks on a copy of the local data (2026-11-09):** a `backfill-pending-choices` dry run found one sorcerer to change (a level 8 Sorcerer gains two Metamagic choices at Sorcerer 3), and `json-roundtrip` kept its baseline of 11 null-only changes with 0 unreadable. Tests: 2,421 backend unit, 274 integration (including `MetamagicIT`) and 950 frontend. Not checked in a browser.

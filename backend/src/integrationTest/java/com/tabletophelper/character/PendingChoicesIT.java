@@ -216,9 +216,10 @@ class PendingChoicesIT extends IntegrationTest {
                 Map.of("name", "Shield", "level", 1, "source", "class:Sorcerer"),
                 Map.of("name", "Magic Missile", "level", 1, "source", "class:Sorcerer"))));
         String aria = created.get("id").asString();
-        // The wizard gives the 1st level's four cantrips and two spells; levels 2 to 5 each owe a spell
-        assertThat(described(created)).containsExactly("2 SPELLS", "3 SPELLS", "4 ASI", "4 CANTRIPS", "4 SPELLS",
-                "5 SPELLS");
+        // The wizard gives the 1st level's four cantrips and two spells; levels 2 to 5 each owe a spell, and the 3rd
+        // two Metamagic options (PHB p.101-102)
+        assertThat(described(created)).containsExactly("2 SPELLS", "3 METAMAGIC×2", "3 SPELLS", "4 ASI", "4 CANTRIPS",
+                "4 SPELLS", "5 SPELLS");
         assertThat(choice(created, "SPELLS", 3).get("maxSpellLevel").asInt()).isEqualTo(2);
         assertThat(choice(created, "SPELLS", 5).get("maxSpellLevel").asInt()).isEqualTo(3);
         assertThat(choice(created, "SPELLS", 2).get("swap").asBoolean()).isTrue();
@@ -239,7 +240,7 @@ class PendingChoicesIT extends IntegrationTest {
         assertThat(third.get("learned").toString()).isEqualTo("[\"Misty Step\"]");
         assertThat(third.get("replaced").get("name").asString()).isEqualTo("Shield");
         assertThat(third.get("replacement").asString()).isEqualTo("Sleep");
-        assertThat(described(fifth)).containsExactly("4 ASI", "4 SPELLS");
+        assertThat(described(fifth)).containsExactly("3 METAMAGIC×2", "4 ASI", "4 SPELLS");
     }
 
     // ── Making them ──────────────────────────────────────────────

@@ -33,6 +33,8 @@ export default function useSpellFlow<S extends string = never>(
   // Nothing is shown as a target until a lookup has finished
   const [targetingLoaded, setTargetingLoaded] = useState(false);
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
+  // Targets beyond the spell's own limit, as Twinned Spell's second creature (PHB p.102, M18)
+  const [extraTargets, setExtraTargets] = useState(0);
   const [advantage, setAdvantage] = useState<boolean | null>(null);
   const [overrideAttackBonus, setOverrideAttackBonus] = useState('');
   const [overrideSaveDC, setOverrideSaveDC] = useState('');
@@ -75,10 +77,15 @@ export default function useSpellFlow<S extends string = never>(
     setSelectedTargets(prev => {
       if (prev.includes(id)) return prev.filter(t => t !== id);
       const max = targetingInfo?.maxTargets ?? -1;
-      if (max > 0 && prev.length >= max) return prev;
+      if (max > 0 && prev.length >= max + extraTargets) return prev;
       return [...prev, id];
     });
-  }, [targetingInfo]);
+  }, [targetingInfo, extraTargets]);
+
+  // The targeting the target step shows: the spell's, with its limit raised by any extra targets
+  const shownTargeting: SpellTargetingInfo | null = targetingInfo && extraTargets > 0 && (targetingInfo.maxTargets ?? -1) > 0
+    ? { ...targetingInfo, maxTargets: (targetingInfo.maxTargets ?? 0) + extraTargets }
+    : targetingInfo;
 
   function overrides(): SpellOverrides {
     return {
@@ -101,9 +108,9 @@ export default function useSpellFlow<S extends string = never>(
 
   return {
     step, setStep,
-    targetingInfo, targetingLoading: !targetingLoaded, takesNoTargets: takesNoTargets(targetingInfo), lookUpTargeting,
+    targetingInfo: shownTargeting, targetingLoading: !targetingLoaded, takesNoTargets: takesNoTargets(targetingInfo), lookUpTargeting,
     chooseFreely,
-    selectedTargets, toggleTarget,
+    selectedTargets, toggleTarget, setExtraTargets,
     advantage, setAdvantage,
     overrideAttackBonus, setOverrideAttackBonus, overrideSaveDC, setOverrideSaveDC, overrides,
     submitting, result, error, setError, submit,

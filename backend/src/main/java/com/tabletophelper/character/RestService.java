@@ -42,7 +42,7 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  *       {@value #ARCANE_RECOVERY} pool counts until its next long rest.</li>
  *   <li>A long rest needs at least 1 hit point. It restores every hit point and clears temporary hit points, brings
  *       back spent Hit Dice up to half the character's total, at least one, the largest first, and restores every
- *       spell slot and every pool.</li>
+ *       spell slot and every pool, and ends the spell slots a sorcerer created with Flexible Casting (PHB p.101).</li>
  * </ul>
  * Song of Rest isn't applied.
  */
@@ -253,14 +253,20 @@ public class RestService {
         resetSlots(character, false);
     }
 
-    // Each slot's used count goes back to 0, or only the pact slots'
+    // Each slot's used count goes back to 0, or only the pact slots'. A long rest also ends the slots Flexible Casting
+    // created (PHB p.101, M18), and a level that held only those goes
     private static void resetSlots(PlayerCharacter character, boolean pactOnly) {
         if (character.getSpellSlots() == null) {
             return;
         }
         Map<String, SpellSlot> slots = new LinkedHashMap<>();
-        character.getSpellSlots().forEach((key, slot) -> slots.put(key,
-                slot != null && (!pactOnly || key.startsWith(PACT_SLOT)) ? new SpellSlot(slot.max(), 0) : slot));
+        character.getSpellSlots().forEach((key, slot) -> {
+            if (slot == null || (pactOnly && !key.startsWith(PACT_SLOT))) {
+                slots.put(key, slot);
+            } else if (pactOnly || slot.max() > 0) {
+                slots.put(key, new SpellSlot(slot.max(), 0));
+            }
+        });
         character.setSpellSlots(slots);
     }
 

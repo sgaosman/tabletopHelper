@@ -6,6 +6,7 @@ import { useCampaigns } from '../../queries/campaigns';
 import {
   useChangeHitPoints, useCharacter, useLevelDown, useLongRest, useRecoverPool, useSetCampaign, useShortRest,
   useSpendPool,
+  useFontOfMagic,
 } from '../../queries/characters';
 import LevelUpModal from '../../components/character/LevelUpModal';
 import ChoiceDialog from '../../components/character/ChoiceDialog';
@@ -94,6 +95,7 @@ export default function CharacterSheetPage() {
   const setCampaign = useSetCampaign();
   const changeHitPoints = useChangeHitPoints();
   const spendPool = useSpendPool();
+  const fontOfMagic = useFontOfMagic();
   const recoverPool = useRecoverPool();
   const shortRest = useShortRest();
   const longRest = useLongRest();
@@ -429,6 +431,9 @@ export default function CharacterSheetPage() {
             editable
             onSpend={poolId => void runCommand(spendPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
             onRecover={poolId => void runCommand(recoverPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
+            spellSlots={char.spellSlots}
+            onFlexibleCasting={(direction, slotLevel) =>
+              fontOfMagic.mutateAsync({ characterId: char.id, exchange: { direction, slotLevel } })}
           />
         </div>
 

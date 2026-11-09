@@ -342,6 +342,10 @@ Spend uses of one of the character's resource pools, or get spent uses back.
 - `400` — The character has no pool with that `poolId`
 - `409` — The pool hasn't that many uses left (`spend`), or getting them back would take it past its maximum (`recover`)
 
+### POST /characters/{characterId}/font-of-magic
+
+A sorcerer's Flexible Casting on the sheet (M18, D179): turn sorcery points into a spell slot of 1st to 5th level (2, 3, 5, 6 or 7 points) or a slot into points equal to its level, capped at the pool's maximum. A created slot lasts until a long rest. The same exchange in combat is `POST /encounters/{id}/combat/font-of-magic`, which costs a bonus action. The cast-spell request takes `metamagic` (option names) with `carefulTargetIds`, `heightenedTargetId` and the Twinned second target; spell options list each known option's cost and why it can't be used.
+
 ### POST /characters/{characterId}/short-rest
 
 A short rest (PHB p.186). The body can be left out.

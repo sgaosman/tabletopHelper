@@ -116,9 +116,12 @@ class CombatFixture {
             new ConditionService(access, effectApplier, encounterRepository, encounterService);
     final AttackService attacks = new AttackService(access, accessPolicy, characterWeapons, resolver, stats,
             effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService);
+    final MetamagicCasting metamagicCasting = new MetamagicCasting(spellEffects, stats);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
-            characterService, stats);
+            characterService, stats, metamagicCasting);
+    final FontOfMagicService fontOfMagic = new FontOfMagicService(access, economy, combatLog, encounterRepository,
+            encounterService);
     final MonsterActionService monsterActions = new MonsterActionService(access, accessPolicy, monsterEffects, resolver,
             stats, effectApplier, economy, resourcePoolService, objectMapper, encounterRepository, encounterService);
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,

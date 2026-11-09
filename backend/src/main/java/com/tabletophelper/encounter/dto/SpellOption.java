@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.rules.combat.CastingTime;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,6 +22,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param sources         what can pay for it, in the order SLOT, PACT_SLOT, INNATE, NONE
  * @param unavailableReason why the caster can't cast it at all now, such as armour worn without proficiency (PHB
  *                        p.144), which casting refuses for the DM too; null when nothing stops it
+ * @param metamagic       the Metamagic options the caster knows, each with its cost and whether it can change this
+ *                        spell (PHB p.102, M18); left out for a caster who knows none
  */
 public record SpellOption(
         @Schema(requiredMode = REQUIRED) String name,
@@ -28,12 +31,24 @@ public record SpellOption(
         @Schema(requiredMode = REQUIRED) CastingTime castingTime,
         String reactionTrigger,
         @Schema(requiredMode = REQUIRED) List<SourceOption> sources,
-        String unavailableReason
+        String unavailableReason,
+        @JsonInclude(JsonInclude.Include.NON_NULL) List<MetamagicOption> metamagic
 ) {
+
+    /** An option with no Metamagic. */
+    public SpellOption(String name, int level, CastingTime castingTime, String reactionTrigger,
+                       List<SourceOption> sources, String unavailableReason) {
+        this(name, level, castingTime, reactionTrigger, sources, unavailableReason, null);
+    }
 
     /** The option with the reason the caster can't cast it. */
     public SpellOption unavailable(String reason) {
-        return new SpellOption(name, level, castingTime, reactionTrigger, sources, reason);
+        return new SpellOption(name, level, castingTime, reactionTrigger, sources, reason, metamagic);
+    }
+
+    /** The option with the Metamagic the caster knows. */
+    public SpellOption withMetamagic(List<MetamagicOption> options) {
+        return new SpellOption(name, level, castingTime, reactionTrigger, sources, unavailableReason, options);
     }
 
     /**

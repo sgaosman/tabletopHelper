@@ -463,4 +463,81 @@ class ResolverTest {
             assertEquals(0, outcome.healing());
         }
     }
+
+    @Nested
+    @DisplayName("Metamagic (PHB p.102, M18)")
+    class MetamagicOptions {
+
+        @Test
+        @DisplayName("Careful Spell: a protected creature succeeds without rolling and takes half of a half-on-save spell's damage; the other rolls")
+        void carefulSucceedsAutomatically() {
+            // 8d6 fire shared: 1+2+3+4+5+6+1+2 = 24; the orc rolls a 3
+            var dice = Rng.scripted(1, 2, 3, 4, 5, 6, 1, 2, 3);
+            var outcomes = new Resolver(dice).resolve(save(Ability.DEX, 15, true, List.of(), part("8d6", "fire")),
+                    List.of(target(GOBLIN, 12, 0).succeedingAutomatically(), target(ORC, 13, 0)));
+
+            assertEquals(Outcome.SAVE_SUCCESS, outcomes.get(0).outcome());
+            assertNull(outcomes.get(0).d20());
+            assertTrue(outcomes.get(0).d20s().isEmpty());
+            assertEquals(12, total(outcomes.get(0).damage()));
+            assertEquals(Outcome.SAVE_FAIL, outcomes.get(1).outcome());
+            assertEquals(24, total(outcomes.get(1).damage()));
+            assertEquals(0, dice.remaining());
+        }
+
+        @Test
+        @DisplayName("Careful Spell beats a condition that fails the save automatically, as a paralyzed creature's DEX save")
+        void carefulBeatsAutomaticFailure() {
+            var outcome = new Resolver(Rng.scripted(4)).resolve(
+                    save(Ability.DEX, 15, false, List.of("restrained"), part("1d6", "fire")),
+                    List.of(target(GOBLIN, 12, 0, "paralyzed").succeedingAutomatically())).getFirst();
+
+            assertEquals(Outcome.SAVE_SUCCESS, outcome.outcome());
+            assertTrue(outcome.conditions().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Heightened Spell: disadvantage on the save, the lower d20 counting")
+        void heightenedDisadvantage() {
+            var outcome = new Resolver(Rng.scripted(18, 6)).resolve(
+                    save(Ability.WIS, 15, false, List.of("paralyzed")),
+                    List.of(target(GOBLIN, 12, 2).withSaveSource(RollMode.DISADVANTAGE))).getFirst();
+
+            assertEquals(Outcome.SAVE_FAIL, outcome.outcome());
+            assertEquals(List.of(18, 6), outcome.d20s());
+            assertEquals(6, outcome.d20());
+            assertEquals(RollMode.DISADVANTAGE, outcome.rollMode());
+        }
+
+        @Test
+        @DisplayName("Empowered Spell: rerolls up to N dice below their average, the furthest below first, keeping the new rolls")
+        void empoweredRerollsLowestDice() {
+            // 4d6: 1, 5, 3, 2; two rerolls go to the 1 and the 2 (3 is below 3.5 but less so), rolling 6 and 4
+            var dice = Rng.scripted(1, 5, 3, 2, 6, 4);
+            var outcome = new Resolver(dice).resolve(save(Ability.DEX, 15, true, List.of(), part("4d6", "fire")),
+                    List.of(target(GOBLIN, 12, 0).succeedingAutomatically()), 2).getFirst();
+
+            // 6 + 5 + 3 + 4 = 18, halved on the success
+            assertEquals(9, total(outcome.damage()));
+            assertEquals(0, dice.remaining());
+        }
+
+        @Test
+        @DisplayName("Empowered Spell rerolls nothing when every die reached its average, and a hit's crit dice count too")
+        void empoweredWithHighRollsAndCrit() {
+            var high = Rng.scripted(15, 4, 6);
+            var hit = new Resolver(high).resolve(attack(5, RollMode.NORMAL, false, false, part("2d6", "fire")),
+                    List.of(target(GOBLIN, 12, 0)), 3).getFirst();
+            assertEquals(10, total(hit.damage()));
+            assertEquals(0, high.remaining());
+
+            // A natural 20 doubles 1d10 to 2d10: 1 and 9, the 1 rerolled to 7
+            var crit = Rng.scripted(20, 1, 9, 7);
+            var critical = new Resolver(crit).resolve(attack(5, RollMode.NORMAL, false, false, part("1d10", "fire")),
+                    List.of(target(GOBLIN, 12, 0)), 1).getFirst();
+            assertEquals(Outcome.CRITICAL, critical.outcome());
+            assertEquals(16, total(critical.damage()));
+            assertEquals(0, crit.remaining());
+        }
+    }
 }
