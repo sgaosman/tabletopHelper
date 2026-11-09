@@ -1238,7 +1238,8 @@ class PendingChoiceServiceTest {
 
         @Test
         @DisplayName("The backfill finds the choices a subclass taken before they were owed misses, on the level that "
-                + "records it, or else the class's subclass level, and finds nothing once they are pending or made")
+                + "records it, or else the class's subclass level, and finds nothing once they are pending or made, "
+                + "each choice on its own")
         void backfill() {
             PlayerCharacter pc = knowledgeCleric();
             pc.setPendingChoices(List.of());
@@ -1254,8 +1255,286 @@ class PendingChoiceServiceTest {
             assertThat(f.choices.missedChoices(pc)).isEmpty();
 
             choose(pc, proficiencyChoice(pc, true), "Arcana", "Nature");
+            List<PendingChoice> languages = f.stored(pc.getId()).getPendingChoices();
+            pc.setPendingChoices(List.of());
+            // The skills chosen don't make the languages choice too
+            assertThat(f.choices.missedChoices(pc)).singleElement().satisfies(choice -> {
+                assertThat(choice.expertise()).isNull();
+                assertThat(choice.proficiencyOptions().languages()).contains("Giant");
+            });
+
+            pc.setPendingChoices(languages);
+            choose(pc, proficiencyChoice(pc, false), "Dwarvish", "Giant");
             pc.setPendingChoices(List.of());
             assertThat(f.choices.missedChoices(pc)).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("Conditional grants: a proficiency, or another when the character has it")
+    class ConditionalGrants {
+
+        // Path of the Giant: "you learn to speak, read, and write Giant or one other language of your choice if you
+        // already know Giant" (BGG p.11), as the content loader stores it (the languages shortened here)
+        private final Subclass giant = Subclass.builder().id(UUID.randomUUID()).name("Path of the Giant")
+                .characterClass(f.barbarian)
+                .features("[{\"level\":3,\"name\":\"Giant Power\",\"description\":\"Giant, and a cantrip\"}]")
+                .additionalProficiencies("{\"conditional\":[{\"languages\":[\"Giant\"],\"otherwise\":{\"count\":1,"
+                        + "\"languages\":[\"Common\",\"Elvish\",\"Giant\",\"Sylvan\"]}}]}")
+                .build();
+
+        @BeforeEach
+        void knowTheSubclass() {
+            lenient().when(f.subclassRepository.findById(giant.getId())).thenReturn(Optional.of(giant));
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.barbarian.getId()))
+                    .thenReturn(List.of(giant));
+        }
+
+        private PlayerCharacter giantBarbarian(String... languages) {
+            return create(f.barbarian, 3, request -> {
+                request.setSubclassId(giant.getId());
+                request.setLanguageProficiencies(List.of(languages));
+            });
+        }
+
+        @Test
+        @DisplayName("A character without Giant learns it on the subclass level, owing nothing")
+        void grantedWhenLacking() {
+            PlayerCharacter pc = giantBarbarian("Common");
+
+            assertThat(pc.getLanguageProficiencies()).containsExactly("Common", "Giant");
+            assertThat(pc.getLevelHistory().get(2).proficienciesGained())
+                    .isEqualTo(new ProficienciesGained(null, null, null, null, List.of("Giant")));
+            assertThat(pc.getPendingChoices()).noneMatch(c -> c.type() == Type.PROFICIENCY);
+        }
+
+        @Test
+        @DisplayName("A character who knows Giant already owes one other language on the subclass level instead, "
+                + "which levelling down takes away")
+        void otherwiseWhenHeld() {
+            PlayerCharacter pc = giantBarbarian("Common", "giant");
+
+            assertThat(pc.getLanguageProficiencies()).containsExactly("Common", "giant");
+            assertThat(pc.getLevelHistory().get(2).proficienciesGained()).isNull();
+            PendingChoice choice = f.pending(pc, Type.PROFICIENCY);
+            assertThat(choice.characterLevel()).isEqualTo(3);
+            assertThat(choice.count()).isEqualTo(1);
+            assertThat(choice.proficiencyOptions().languages()).contains("Sylvan");
+            assertThat(choice.kenseiWeapons()).isNull();
+
+            assertThatThrownBy(() -> f.choose(pc, choice, request -> request.setProficiencies(List.of("Giant"))))
+                    .isInstanceOf(ValidationException.class).hasMessage("Aria already has Giant");
+            f.choose(pc, choice, request -> request.setProficiencies(List.of("Sylvan")));
+            assertThat(pc.getLanguageProficiencies()).containsExactly("Common", "giant", "Sylvan");
+            assertThat(pc.getLevelHistory().get(2).choices().proficiencies()).containsExactly("Sylvan");
+
+            f.levelDown(pc);
+            assertThat(pc.getLanguageProficiencies()).containsExactly("Common", "giant");
+        }
+
+        @Test
+        @DisplayName("Choosing the subclass on the sheet grants Giant, or owes another language when the character "
+                + "knows it")
+        void chosenOnTheSheet() {
+            PlayerCharacter lacking = create(f.barbarian, 3, request -> request.setLanguageProficiencies(
+                    List.of("Common")));
+            f.choose(lacking, f.pending(lacking, Type.SUBCLASS), request -> request.setSubclassId(giant.getId()));
+            assertThat(lacking.getLanguageProficiencies()).containsExactly("Common", "Giant");
+            assertThat(f.pending(lacking, Type.PROFICIENCY)).isNull();
+
+            PlayerCharacter knowing = create(f.barbarian, 3, request -> request.setLanguageProficiencies(
+                    List.of("Common", "Giant")));
+            f.choose(knowing, f.pending(knowing, Type.SUBCLASS), request -> request.setSubclassId(giant.getId()));
+            assertThat(knowing.getLanguageProficiencies()).containsExactly("Common", "Giant");
+            assertThat(f.pending(knowing, Type.PROFICIENCY)).satisfies(c -> assertThat(c.characterLevel())
+                    .isEqualTo(3));
+        }
+
+        @Test
+        @DisplayName("For a subclass taken before conditional grants: one the sheet lacks is the recompute job's to "
+                + "grant and the backfill owes nothing; one it has that the level didn't give owes the choice in the "
+                + "backfill and the recompute grants nothing, so neither grants twice")
+        void jobsNeverGrantTwice() {
+            PlayerCharacter lacking = giantBarbarian("Common");
+            lacking.setLanguageProficiencies(List.of("Common"));
+            lacking.setLevelHistory(withoutGains(lacking.getLevelHistory()));
+
+            assertThat(f.choices.missedChoices(lacking)).isEmpty();
+            assertThat(f.choices.missingSubclassProficiencies(lacking)).singleElement()
+                    .satisfies(m -> assertThat(m.description()).isEqualTo("languages Giant"));
+            f.choices.storeMissingSubclassProficiencies(lacking);
+            assertThat(lacking.getLanguageProficiencies()).containsExactly("Common", "Giant");
+            assertThat(f.choices.missingSubclassProficiencies(lacking)).isEmpty();
+            assertThat(f.choices.missedChoices(lacking)).as("Giant is now recorded as the level's gain").isEmpty();
+
+            PlayerCharacter knowing = giantBarbarian("Common", "Giant");
+            knowing.setPendingChoices(List.of());
+
+            assertThat(f.choices.missingSubclassProficiencies(knowing)).isEmpty();
+            List<PendingChoice> missed = f.choices.missedChoices(knowing);
+            assertThat(described(missed)).containsExactly("3 PROFICIENCY");
+            f.choices.addPending(knowing, missed);
+            assertThat(f.choices.missedChoices(knowing)).isEmpty();
+            f.choose(knowing, f.pending(knowing, Type.PROFICIENCY),
+                    request -> request.setProficiencies(List.of("Elvish")));
+            knowing.setPendingChoices(List.of());
+            assertThat(f.choices.missedChoices(knowing)).isEmpty();
+            assertThat(f.choices.missingSubclassProficiencies(knowing)).isEmpty();
+        }
+
+        private static List<LevelHistoryEntry> withoutGains(List<LevelHistoryEntry> history) {
+            return history.stream().map(level -> level.withProficienciesGained(null)).toList();
+        }
+    }
+
+    @Nested
+    @DisplayName("Kensei weapons (XGE p.34)")
+    class Kensei {
+
+        private final CharacterClass monk = CharacterClass.builder().id(UUID.randomUUID()).name("Monk").hitDice(8)
+                .subclassLevel(3).isSpellcaster(false).isPactMagic(false)
+                .multiclassRequirements("[{\"ability\":\"DEX\",\"minimum\":13},{\"ability\":\"WIS\",\"minimum\":13}]")
+                .build();
+        // As the content loader stores it, the lists written out (shortened here)
+        private final Subclass kensei = Subclass.builder().id(UUID.randomUUID()).name("Way of the Kensei")
+                .characterClass(monk)
+                .features("[{\"level\":3,\"name\":\"Path of the Kensei\",\"description\":\"Kensei weapons\"}]")
+                .additionalProficiencies("{\"choices\":["
+                        + "{\"count\":1,\"tools\":[\"Calligrapher's Supplies\",\"Painter's Supplies\"]},"
+                        + "{\"count\":1,\"weapons\":[\"Shortsword\",\"Longsword\",\"Spear\"],\"kensei\":true},"
+                        + "{\"count\":1,\"weapons\":[\"Shortbow\",\"Longbow\"],\"kensei\":true},"
+                        + level(6) + "," + level(11) + "," + level(17) + "]}")
+                .build();
+
+        private static String level(int level) {
+            return "{\"level\":" + level + ",\"count\":1,\"weapons\":[\"Shortsword\",\"Longsword\",\"Spear\","
+                    + "\"Shortbow\",\"Longbow\"],\"kensei\":true}";
+        }
+
+        @BeforeEach
+        void knowTheMonk() {
+            lenient().when(f.classRepository.findById(monk.getId())).thenReturn(Optional.of(monk));
+            lenient().when(f.subclassRepository.findById(kensei.getId())).thenReturn(Optional.of(kensei));
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(monk.getId()))
+                    .thenReturn(List.of(kensei));
+        }
+
+        private PlayerCharacter kenseiMonk(int level) {
+            return create(monk, level, request -> {
+                request.setSubclassId(kensei.getId());
+                request.setWeaponProficiencies(List.of("simple", "shortswords"));
+            });
+        }
+
+        private List<PendingChoice> kenseiChoices(PlayerCharacter pc) {
+            return f.stored(pc.getId()).getPendingChoices().stream()
+                    .filter(c -> c.type() == Type.PROFICIENCY && Boolean.TRUE.equals(c.kenseiWeapons()))
+                    .toList();
+        }
+
+        private PendingChoice kenseiChoice(PlayerCharacter pc, String option) {
+            return kenseiChoices(pc).stream()
+                    .filter(c -> c.proficiencyOptions().weapons().contains(option))
+                    .findFirst().orElseThrow();
+        }
+
+        private void choose(PlayerCharacter pc, PendingChoice choice, String weapon) {
+            f.choose(pc, choice, request -> request.setProficiencies(List.of(weapon)));
+        }
+
+        @Test
+        @DisplayName("A Monk 3 created as a kensei owes its tool and one melee and one ranged kensei weapon on Monk 3")
+        void owedAtCreation() {
+            PlayerCharacter pc = kenseiMonk(3);
+
+            assertThat(described(pc.getPendingChoices().stream().filter(c -> c.type() == Type.PROFICIENCY).toList()))
+                    .containsExactly("3 PROFICIENCY", "3 PROFICIENCY", "3 PROFICIENCY");
+            assertThat(kenseiChoices(pc)).extracting(c -> c.proficiencyOptions().weapons())
+                    .containsExactlyInAnyOrder(List.of("Shortsword", "Longsword", "Spear"),
+                            List.of("Shortbow", "Longbow"));
+        }
+
+        @Test
+        @DisplayName("A weapon the monk is proficient with becomes a kensei weapon without a new proficiency, one it "
+                + "isn't gains it on the level, and both are recorded on the level as kensei weapons")
+        void chosen() {
+            PlayerCharacter pc = kenseiMonk(3);
+
+            choose(pc, kenseiChoice(pc, "Shortsword"), "Shortsword");
+            choose(pc, kenseiChoice(pc, "Longbow"), "Longbow");
+
+            assertThat(KenseiWeapons.of(pc)).containsExactly("Shortsword", "Longbow");
+            assertThat(pc.getWeaponProficiencies()).containsExactly("simple", "shortswords", "Longbow");
+            LevelHistoryEntry level3 = pc.getLevelHistory().get(2);
+            assertThat(level3.choices().kenseiWeapons()).containsExactly("Shortsword", "Longbow");
+            assertThat(level3.choices().proficiencies()).isNull();
+            assertThat(level3.proficienciesGained().weapons()).containsExactly("Longbow");
+            assertThat(f.mapper.toResponse(pc).getKenseiWeapons()).containsExactly("Shortsword", "Longbow");
+        }
+
+        @Test
+        @DisplayName("Monk 6, 11 and 17 each owe one more kensei weapon, melee or ranged, but not one the monk has; "
+                + "levelling down takes it away with its proficiency")
+        void laterLevels() {
+            PlayerCharacter pc = kenseiMonk(3);
+            choose(pc, kenseiChoice(pc, "Spear"), "Spear");
+            choose(pc, kenseiChoice(pc, "Shortbow"), "Shortbow");
+
+            f.levelUp(pc, monk);
+            f.levelUp(pc, monk);
+            assertThat(kenseiChoices(pc)).isEmpty();
+            f.levelUp(pc, monk);
+
+            PendingChoice sixth = kenseiChoices(pc).getFirst();
+            assertThat(kenseiChoices(pc)).hasSize(1);
+            assertThat(sixth.characterLevel()).isEqualTo(6);
+            assertThat(sixth.classLevel()).isEqualTo(6);
+            assertThatThrownBy(() -> choose(pc, sixth, "Spear"))
+                    .isInstanceOf(ValidationException.class).hasMessage("Aria already has the kensei weapon Spear");
+            choose(pc, sixth, "Longsword");
+            assertThat(KenseiWeapons.of(pc)).containsExactly("Spear", "Shortbow", "Longsword");
+            assertThat(pc.getWeaponProficiencies()).contains("Longsword");
+
+            f.levelDown(pc);
+            assertThat(KenseiWeapons.of(pc)).containsExactly("Spear", "Shortbow");
+            assertThat(pc.getWeaponProficiencies()).doesNotContain("Longsword");
+        }
+
+        @Test
+        @DisplayName("A kensei created at Monk 6, or given the subclass on the sheet at Monk 6, owes the Monk 6 "
+                + "weapon too")
+        void createdOrChosenPastTheLevel() {
+            PlayerCharacter created = kenseiMonk(6);
+            assertThat(kenseiChoices(created)).extracting(PendingChoice::characterLevel).containsExactly(3, 3, 6);
+
+            PlayerCharacter chosen = create(monk, 6, request -> { });
+            f.choose(chosen, f.pending(chosen, Type.SUBCLASS), request -> request.setSubclassId(kensei.getId()));
+            assertThat(kenseiChoices(chosen)).extracting(PendingChoice::characterLevel).containsExactly(3, 3, 6);
+        }
+
+        @Test
+        @DisplayName("The backfill owes a kensei who chose its tool before kensei weapons were owed its weapons on "
+                + "Monk 3 and 6, each choice on its own, and nothing once they are pending or made")
+        void backfill() {
+            PlayerCharacter pc = kenseiMonk(6);
+            PendingChoice tool = f.stored(pc.getId()).getPendingChoices().stream()
+                    .filter(c -> c.type() == Type.PROFICIENCY && c.kenseiWeapons() == null)
+                    .findFirst().orElseThrow();
+            f.choose(pc, tool, request -> request.setProficiencies(List.of("Painter's Supplies")));
+            pc.setPendingChoices(List.of());
+
+            List<PendingChoice> missed = f.choices.missedChoices(pc);
+            assertThat(missed).filteredOn(c -> c.type() == Type.PROFICIENCY)
+                    .extracting(PendingChoice::characterLevel, PendingChoice::kenseiWeapons)
+                    .containsExactly(tuple(3, true), tuple(3, true), tuple(6, true));
+
+            f.choices.addPending(pc, missed);
+            assertThat(f.choices.missedChoices(pc)).isEmpty();
+
+            choose(pc, kenseiChoice(pc, "Spear"), "Spear");
+            pc.setPendingChoices(List.of());
+            assertThat(f.choices.missedChoices(pc)).filteredOn(c -> c.type() == Type.PROFICIENCY)
+                    .extracting(PendingChoice::characterLevel).containsExactly(3, 6);
         }
     }
 

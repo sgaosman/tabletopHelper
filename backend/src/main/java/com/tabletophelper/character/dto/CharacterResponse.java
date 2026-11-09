@@ -128,6 +128,9 @@ public class CharacterResponse {
     private List<String> armorProficiencies;
     private List<String> weaponProficiencies;
     private List<String> toolProficiencies;
+    // A Way of the Kensei monk's kensei weapons (XGE p.34), as its levels record them; empty for any other character
+    @Schema(requiredMode = REQUIRED)
+    private List<String> kenseiWeapons;
     private List<String> languageProficiencies;
     // From the race, features and feats, and from the DM's DEFENCE adjustments, each damage type once; only the DM's
     // adjustments give vulnerabilities (D161)

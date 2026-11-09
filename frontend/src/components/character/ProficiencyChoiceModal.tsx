@@ -4,7 +4,7 @@ import { apiErrorMessage } from '../../api/errors';
 import { useApplyChoices } from '../../queries/characters';
 import type { PendingChoice, PlayerCharacter } from '../../types/character';
 import {
-  proficiencyKindTitle, proficiencyOptions, proficiencyTaken, type ProficiencyKind, type ProficiencyOption,
+  hasProficiency, proficiencyKindTitle, proficiencyOptions, proficiencyTaken, type ProficiencyKind, type ProficiencyOption,
 } from '../../utils/pendingChoices';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
@@ -22,9 +22,11 @@ interface Props {
 /**
  * The bonus proficiencies a subclass lets the player choose when it is taken, such as the College of Lore's three
  * skills (PHB p.54), the Knowledge Domain's two languages and two skills with Expertise (PHB p.59), or the Cavalier's
- * skill or language (XGE p.30). The options are grouped by kind; one the character has already can't be chosen, except
- * that a Knowledge Domain's skill it is proficient in may still gain Expertise. With fewer options left than the count,
- * the rest are taken. The server records the choice on the subclass's level, so levelling down takes it away.
+ * skill or language (XGE p.30), or a Way of the Kensei monk's kensei weapons (XGE p.34). The options are grouped by
+ * kind; one the character has already can't be chosen, except that a Knowledge Domain's skill it is proficient in may
+ * still gain Expertise, and a weapon it is proficient with may still become a kensei weapon, gaining no proficiency.
+ * With fewer options left than the count, the rest are taken. The server records the choice on the level that owes it,
+ * so levelling down takes it away.
  */
 export default function ProficiencyChoiceModal({ character, choice, onComplete, onSkip, onClose }: Props) {
   const applyChoices = useApplyChoices();
@@ -54,7 +56,10 @@ export default function ProficiencyChoiceModal({ character, choice, onComplete, 
     );
   }
 
-  const title = needed === 1 ? 'Choose a Proficiency' : `Choose ${needed} Proficiencies`;
+  const kensei = Boolean(choice.kenseiWeapons);
+  const title = kensei ? (needed === 1 ? 'Choose a Kensei Weapon' : `Choose ${needed} Kensei Weapons`)
+    : needed === 1 ? 'Choose a Proficiency' : `Choose ${needed} Proficiencies`;
+  const takenLabel = choice.expertise ? 'Already expert' : kensei ? 'Already a kensei weapon' : 'Already proficient';
 
   return (
     <Modal
@@ -79,9 +84,17 @@ export default function ProficiencyChoiceModal({ character, choice, onComplete, 
             Your proficiency bonus is doubled for ability checks with the skills you choose.
           </p>
         )}
+        {kensei && (
+          <p className="font-body text-[14px] font-semibold text-muted">
+            Weapons of the type you choose are monk weapons for you, and you gain proficiency with it if you don't
+            have it already.
+          </p>
+        )}
         {needed === 0 && (
           <p className="font-body text-[14px] font-semibold text-muted">
-            You have every proficiency offered already, so there is nothing to choose. Confirm to finish the choice.
+            {kensei
+              ? 'Every weapon offered is a kensei weapon already, so there is nothing to choose. Confirm to finish the choice.'
+              : 'You have every proficiency offered already, so there is nothing to choose. Confirm to finish the choice.'}
           </p>
         )}
         {(Object.keys(groups) as ProficiencyKind[]).map(kind => (
@@ -107,9 +120,10 @@ export default function ProficiencyChoiceModal({ character, choice, onComplete, 
                     </div>
                     <span className="font-body text-[15px] font-semibold text-ink">{option.name}</span>
                     {already && (
-                      <span className="font-body text-[13px] font-semibold text-faint ml-auto">
-                        {choice.expertise ? 'Already expert' : 'Already proficient'}
-                      </span>
+                      <span className="font-body text-[13px] font-semibold text-faint ml-auto">{takenLabel}</span>
+                    )}
+                    {kensei && !already && hasProficiency(character, option) && (
+                      <span className="font-body text-[13px] font-semibold text-faint ml-auto">Proficient</span>
                     )}
                   </button>
                 );

@@ -56,5 +56,24 @@ describe('pendingChoices', () => {
     // A Knowledge Domain's skill may already be a proficiency, but not already have Expertise
     expect(proficiencyTaken(character, expertise, { kind: 'skills', name: 'History' })).toBe(false);
     expect(proficiencyTaken(character, expertise, { kind: 'skills', name: 'Arcana' })).toBe(true);
+    // Every PHB weapon has its category, ranged ones too
+    expect(hasProficiency(character, { kind: 'weapons', name: 'Longbow' })).toBe(true);
+    expect(hasProficiency(character, { kind: 'weapons', name: 'Shortbow' })).toBe(false);
+  });
+
+  it("lets a kensei choose a weapon it is proficient with, but not one that is a kensei weapon already (XGE p.34)", () => {
+    const monk = {
+      ...makeMockCharacter('char-005', 'Shiro', 'Monk', 6),
+      weaponProficiencies: ['Simple Weapons', 'Shortswords', 'Longbow'], kenseiWeapons: ['Shortsword', 'longbow'],
+    };
+    const kensei = makeMockPendingChoice({
+      type: 'PROFICIENCY', className: 'Monk', classLevel: 6, characterLevel: 6, kenseiWeapons: true,
+      proficiencyOptions: { weapons: ['Spear', 'Shortsword', 'Longbow', 'Longsword'] },
+    });
+    expect(proficiencyTaken(monk, kensei, { kind: 'weapons', name: 'Spear' })).toBe(false);
+    expect(proficiencyTaken(monk, kensei, { kind: 'weapons', name: 'Longbow' })).toBe(true);
+    expect(proficiencyTaken(monk, kensei, { kind: 'weapons', name: 'Longsword' })).toBe(false);
+    expect(choiceTitle(kensei)).toBe('Kensei Weapon');
+    expect(choiceLabel(kensei)).toBe('Kensei Weapon (Monk 6)');
   });
 });

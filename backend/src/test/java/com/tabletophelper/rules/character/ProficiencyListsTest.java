@@ -49,6 +49,42 @@ class ProficiencyListsTest {
                 .doesNotContain("Greatclub", "Greatsword", "Glaive", "Halberd", "Lance", "Maul", "Pike", "Greataxe");
         assertThat(ProficiencyLists.weaponCategory("dagger")).contains("simple");
         assertThat(ProficiencyLists.weaponCategory("Rapier")).contains("martial");
-        assertThat(ProficiencyLists.weaponCategory("Longbow")).isEmpty();
+        assertThat(ProficiencyLists.weaponCategory("Longbow")).contains("martial");
+        assertThat(ProficiencyLists.weaponCategory("light crossbow")).contains("simple");
+        assertThat(ProficiencyLists.weaponCategory("Musket")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("The PHB's weapon table has 10 simple melee, 4 simple ranged, 18 martial melee and 5 martial ranged "
+            + "weapons (p.149)")
+    void weaponTable() {
+        assertThat(ProficiencyLists.SIMPLE_MELEE).hasSize(10).doesNotHaveDuplicates();
+        assertThat(ProficiencyLists.SIMPLE_RANGED).hasSize(4).doesNotHaveDuplicates();
+        assertThat(ProficiencyLists.MARTIAL_MELEE).hasSize(18).doesNotHaveDuplicates();
+        assertThat(ProficiencyLists.MARTIAL_RANGED).hasSize(5).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("Kensei weapons are simple or martial weapons without the heavy and special properties, and the "
+            + "longbow (XGE p.34): 10 simple and 11 martial melee, 4 simple ranged, and the blowgun, hand crossbow and "
+            + "longbow")
+    void kenseiWeapons() {
+        assertThat(ProficiencyLists.KENSEI_MELEE).hasSize(21)
+                .contains("Greatclub", "Javelin", "Longsword", "Rapier", "Shortsword", "Whip", "Warhammer")
+                .doesNotContain("Glaive", "Greataxe", "Greatsword", "Halberd", "Lance", "Maul", "Pike");
+        assertThat(ProficiencyLists.KENSEI_RANGED).containsExactly("Light Crossbow", "Dart", "Shortbow", "Sling",
+                "Blowgun", "Hand Crossbow", "Longbow");
+        assertThat(ProficiencyLists.expand(List.of("*kensei weapons"))).hasSize(28);
+        assertThat(ProficiencyLists.expand(List.of("*kensei melee weapons")))
+                .isEqualTo(ProficiencyLists.KENSEI_MELEE);
+
+        assertThat(ProficiencyLists.isKenseiWeapon("longbow")).isTrue();
+        assertThat(ProficiencyLists.isKenseiWeapon(" Hand Crossbow ")).isTrue();
+        assertThat(ProficiencyLists.isKenseiWeapon("Heavy Crossbow")).as("heavy").isFalse();
+        assertThat(ProficiencyLists.isKenseiWeapon("Net")).as("special").isFalse();
+        assertThat(ProficiencyLists.isKenseiWeapon("Lance")).as("special").isFalse();
+        assertThat(ProficiencyLists.isKenseiWeapon("Greatsword")).as("heavy").isFalse();
+        assertThat(ProficiencyLists.isKenseiWeapon("Musket")).as("not a PHB weapon").isFalse();
+        assertThat(ProficiencyLists.isKenseiWeapon(null)).isFalse();
     }
 }

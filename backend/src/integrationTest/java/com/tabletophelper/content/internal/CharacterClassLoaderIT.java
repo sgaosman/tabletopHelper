@@ -152,7 +152,7 @@ class CharacterClassLoaderIT extends IntegrationTest {
         load();
 
         assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getAdditionalProficiencies() != null)
-                .hasSize(34);
+                .hasSize(38);
         assertThat(proficienciesOf("Life Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
         assertThat(proficienciesOf("War Domain")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
@@ -164,6 +164,38 @@ class CharacterClassLoaderIT extends IntegrationTest {
         assertThat(proficienciesOf("College of Valor")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"medium\", \"shields\"], \"weapons\": [\"martial\"]}"));
         assertThat(cleric("Light Domain").getAdditionalProficiencies()).isNull();
+    }
+
+    @Test
+    @DisplayName("After loading, the Draconic Bloodline, Storm Sorcery and Circle of the Shepherd learn Draconic, "
+            + "Primordial and Sylvan (PHB p.102, XGE p.51, p.31); the Artificer subclasses' tools and the Path of the "
+            + "Giant's Giant are conditional grants with a choice otherwise (TCE p.14-18, BGG p.11); and a kensei owes "
+            + "kensei weapons on Monk 3, 6, 11 and 17 (XGE p.34)")
+    void conditionalGrantsLanguagesAndKenseiWeapons() {
+        load();
+
+        assertThat(proficienciesOf("Draconic Bloodline")).isEqualTo(objectMapper.readTree(
+                "{\"languages\": [\"Draconic\"]}"));
+        assertThat(proficienciesOf("Storm Sorcery")).isEqualTo(objectMapper.readTree(
+                "{\"languages\": [\"Primordial\"]}"));
+        assertThat(proficienciesOf("Circle of the Shepherd")).isEqualTo(objectMapper.readTree(
+                "{\"languages\": [\"Sylvan\"]}"));
+        var alchemist = proficienciesOf("Alchemist");
+        assertThat(alchemist.path("tools").isMissingNode()).isTrue();
+        assertThat(alchemist.path("conditional").get(0).path("tools").toString()).isEqualTo("[\"alchemist's supplies\"]");
+        assertThat(alchemist.path("conditional").get(0).path("otherwise").path("tools")).hasSize(17);
+        assertThat(proficienciesOf("Armorer").path("armor").toString()).isEqualTo("[\"heavy\"]");
+        assertThat(proficienciesOf("Battle Smith").path("weapons").toString()).isEqualTo("[\"martial\"]");
+        assertThat(proficienciesOf("Artillerist").path("conditional").get(0).path("tools").toString())
+                .isEqualTo("[\"woodcarver's tools\"]");
+        assertThat(proficienciesOf("Path of the Giant").path("conditional").get(0).path("otherwise")
+                .path("languages")).hasSize(16);
+        var kensei = proficienciesOf("Way of the Kensei").path("choices");
+        assertThat(kensei).hasSize(6);
+        assertThat(kensei.get(1).path("weapons")).hasSize(21);
+        assertThat(kensei.get(2).path("weapons")).hasSize(7);
+        assertThat(kensei.get(5).path("level").asInt()).isEqualTo(17);
+        assertThat(kensei.get(5).path("weapons")).hasSize(28);
     }
 
     @Test

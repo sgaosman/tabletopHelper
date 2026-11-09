@@ -207,6 +207,37 @@ class AttackFeaturesTest {
         }
 
         @Test
+        @DisplayName("A kensei's kensei weapons are monk weapons for it (XGE p.34): a longsword and a longbow use DEX "
+                + "under Martial Arts, the longbow keeping its 1d8 over a Monk 5's 1d6, and a heavy longbow or a "
+                + "shortbow named in any case counts; other weapons and other attackers don't")
+        void kenseiWeapons() {
+            Attacker kensei = new Attacker(10, 16, 3, Set.of(), 5, 20, List.of("longsword", "LONGBOW"));
+            WeaponRules.Weapon shortbow = new WeaponRules.Weapon("Shortbow", WeaponRules.Category.SIMPLE, true, false,
+                    false, false, Dice.parse("1d6"), "piercing", true, false, null);
+
+            AttackFeatures.Numbers longsword = AttackFeatures.numbers(LONGSWORD, kensei, true, false, false,
+                    Grip.ONE_HANDED);
+            assertTrue(longsword.martialArts());
+            assertEquals(Ability.DEX, longsword.ability());
+            assertEquals(Dice.parse("1d8+3"), longsword.damage());
+            AttackFeatures.Numbers longbow = AttackFeatures.numbers(LONGBOW, kensei, true, false, false,
+                    Grip.TWO_HANDED);
+            assertTrue(longbow.martialArts());
+            assertEquals(Ability.DEX, longbow.ability());
+            assertEquals(6, longbow.attackBonus());
+            assertEquals(Dice.parse("1d8+3"), longbow.damage());
+            assertFalse(AttackFeatures.numbers(shortbow, kensei, true, false, false, Grip.TWO_HANDED).martialArts());
+            assertTrue(kensei.kenseiWeapon(LONGBOW));
+            assertFalse(kensei.kenseiWeapon(WeaponRules.UNARMED_STRIKE));
+            assertTrue(kensei.monkWeapon(HANDAXE));
+
+            // Armour stops Martial Arts for kensei weapons too
+            Attacker armoured = new Attacker(10, 16, 3, Set.of(), 0, 20, List.of("Longsword"));
+            assertFalse(AttackFeatures.numbers(LONGSWORD, armoured, true, false, false, Grip.ONE_HANDED).martialArts());
+            assertFalse(new Attacker(10, 16, 3, Set.of(), 5, 20).monkWeapon(LONGBOW));
+        }
+
+        @Test
         @DisplayName("The ki save DC is 8 + proficiency + WIS: 13 for a Monk 5 with WIS 14")
         void kiSaveDc() {
             assertEquals(13, AttackFeatures.kiSaveDc(3, 14));

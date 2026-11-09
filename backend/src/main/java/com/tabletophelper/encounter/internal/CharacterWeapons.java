@@ -3,6 +3,7 @@ package com.tabletophelper.encounter.internal;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.character.DmAdjustments;
+import com.tabletophelper.character.KenseiWeapons;
 import com.tabletophelper.character.PlayerCharacter;
 import com.tabletophelper.character.state.AbilityScoreImprovement;
 import com.tabletophelper.character.state.ClassEntry;
@@ -135,8 +136,9 @@ class CharacterWeapons {
     /**
      * The character as its weapon attacks see it (M17): its STR and DEX with the DM's adjustments, its proficiency
      * bonus, its Fighting Styles (the features "Fighting Style: X", D159), its Monk level for Martial Arts while it
-     * wears no armour and carries no shield (PHB p.78), and a Champion's critical range (PHB p.72-73), from its Fighter
-     * levels with the Champion subclass or the features Improved Critical and Superior Critical.
+     * wears no armour and carries no shield (PHB p.78), a Champion's critical range (PHB p.72-73), from its Fighter
+     * levels with the Champion subclass or the features Improved Critical and Superior Critical, and a Way of the
+     * Kensei monk's kensei weapons, which its levels record (XGE p.34).
      *
      * @param armoured whether it wears armour or carries a shield, which stops Martial Arts
      */
@@ -154,7 +156,8 @@ class CharacterWeapons {
         }
         return new AttackFeatures.Attacker(DmAdjustments.abilityScore(character, Ability.STR),
                 DmAdjustments.abilityScore(character, Ability.DEX), proficiencyBonus(character),
-                AttackFeatures.FightingStyle.of(featureNames), armoured ? 0 : monkLevel, critRange);
+                AttackFeatures.FightingStyle.of(featureNames), armoured ? 0 : monkLevel, critRange,
+                KenseiWeapons.of(character));
     }
 
     /** The attack's numbers with the attacker's class features and Fighting Styles (M17). */

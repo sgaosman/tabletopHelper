@@ -37,6 +37,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                       or the Cavalier's five skills and the languages (XGE p.30)
  * @param expertise      for PROFICIENCY, true when the skills chosen gain Expertise too, as the Knowledge Domain's do
  *                       (PHB p.59); null otherwise
+ * @param kenseiWeapons  for PROFICIENCY, true when the weapons chosen become the Way of the Kensei monk's kensei weapons
+ *                       (XGE p.34), recorded on the level's {@code kenseiWeapons}: a weapon the character is proficient
+ *                       with may be chosen, one that is a kensei weapon already may not; null otherwise
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -54,15 +57,24 @@ public record PendingChoice(
         Boolean swap,
         String spellList,
         ProficienciesGained proficiencyOptions,
-        Boolean expertise
+        Boolean expertise,
+        Boolean kenseiWeapons
 ) {
+
+    /** A choice that makes no kensei weapons. */
+    public PendingChoice(UUID id, Type type, Source source, int characterLevel, UUID classId, String className,
+                         Integer classLevel, int count, List<String> options, Integer maxSpellLevel, Boolean swap,
+                         String spellList, ProficienciesGained proficiencyOptions, Boolean expertise) {
+        this(id, type, source, characterLevel, classId, className, classLevel, count, options, maxSpellLevel, swap,
+                spellList, proficiencyOptions, expertise, null);
+    }
 
     /** A choice that offers no proficiencies, as every type but PROFICIENCY is. */
     public PendingChoice(UUID id, Type type, Source source, int characterLevel, UUID classId, String className,
                          Integer classLevel, int count, List<String> options, Integer maxSpellLevel, Boolean swap,
                          String spellList) {
         this(id, type, source, characterLevel, classId, className, classLevel, count, options, maxSpellLevel, swap,
-                spellList, null, null);
+                spellList, null, null, null);
     }
 
     /** What is chosen, in the order a level's choices are shown and made: a subclass can bring more. */
@@ -75,7 +87,8 @@ public record PendingChoice(
         METAMAGIC,
         /**
          * Bonus proficiencies a subclass lets the player choose when it is taken, such as the College of Lore's three
-         * skills (PHB p.54) or the Battle Master's artisan's tools (PHB p.73), from its {@code proficiencyOptions}
+         * skills (PHB p.54) or the Battle Master's artisan's tools (PHB p.73), from its {@code proficiencyOptions}; or
+         * on a later class level, as a Way of the Kensei monk's further kensei weapons (XGE p.34)
          */
         PROFICIENCY,
         /** An Ability Score Improvement: +2 to one score or +1 to two, or a feat in its place */
@@ -108,6 +121,6 @@ public record PendingChoice(
     /** The same choice with a new count, as when creation made part of it. */
     public PendingChoice withCount(int newCount) {
         return new PendingChoice(id, type, source, characterLevel, classId, className, classLevel, newCount, options,
-                maxSpellLevel, swap, spellList, proficiencyOptions, expertise);
+                maxSpellLevel, swap, spellList, proficiencyOptions, expertise, kenseiWeapons);
     }
 }

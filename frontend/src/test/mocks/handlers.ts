@@ -511,6 +511,8 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     armorProficiencies: ['All Armor'],
     weaponProficiencies: ['Simple Weapons', 'Martial Weapons'],
     toolProficiencies: null, languageProficiencies: ['Common'],
+    // A Way of the Kensei monk's, from its levels (XGE p.34)
+    kenseiWeapons: [],
     damageResistances: [], damageImmunities: [], damageVulnerabilities: [], conditionImmunities: null,
     features: [{ name: 'Action Surge', description: 'Take one additional action.', source: 'Class' }],
     spellsKnown: null, spellSlots: null, spellSaveDc: null, spellAttackBonus: null, spellcastingAbility: null,

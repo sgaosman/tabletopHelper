@@ -66,6 +66,41 @@ describe('ProficiencyChoiceModal', () => {
     expect(screen.getByRole('button', { name: 'Confirm (2/2)' })).toBeEnabled();
   });
 
+  it("offers a kensei's weapon it is proficient with, but not one that is a kensei weapon already (XGE p.34)", async () => {
+    let applied: unknown;
+    server.use(http.post('/api/characters/:id/apply-choices', async ({ request }) => {
+      applied = await request.json();
+      return HttpResponse.json({ ...character, pendingChoices: [] });
+    }));
+    const monk = {
+      ...makeMockCharacter('char-005', 'Shiro', 'Monk', 6),
+      weaponProficiencies: ['Simple Weapons', 'Shortswords'], kenseiWeapons: ['Spear', 'Longbow'],
+    };
+    const kensei = makeMockPendingChoice({
+      id: 'choice-kensei', type: 'PROFICIENCY', characterLevel: 6, classLevel: 6, className: 'Monk', count: 1,
+      kenseiWeapons: true, proficiencyOptions: { weapons: ['Spear', 'Shortsword', 'Longsword', 'Longbow'] },
+    });
+    const onComplete = vi.fn();
+    render(<ProficiencyChoiceModal character={monk} choice={kensei} onComplete={onComplete} onSkip={() => {}}
+      onClose={() => {}} />);
+    const user = userEvent.setup();
+
+    expect(screen.getByRole('dialog', { name: 'Choose a Kensei Weapon' })).toBeInTheDocument();
+    expect(screen.getByText(/monk weapons for you/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Spear/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Longbow/ })).toBeDisabled();
+    expect(screen.getAllByText('Already a kensei weapon')).toHaveLength(2);
+    // A shortsword the monk is proficient with may still become a kensei weapon
+    expect(screen.getByRole('button', { name: /Shortsword/ })).toBeEnabled();
+    expect(screen.getByText('Proficient')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Shortsword/ }));
+    await user.click(screen.getByRole('button', { name: 'Confirm (1/1)' }));
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    expect(applied).toEqual({ choiceId: 'choice-kensei', proficiencies: ['Shortsword'] });
+  });
+
   it('asks for none when every option is held, and Skip leaves the choice for later', async () => {
     const held = makeMockPendingChoice({
       type: 'PROFICIENCY', className: 'Fighter', classLevel: 3, characterLevel: 3,

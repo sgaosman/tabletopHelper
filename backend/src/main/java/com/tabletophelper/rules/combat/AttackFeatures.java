@@ -22,7 +22,8 @@ import java.util.Set;
  *       rolled again; Two-Weapon Fighting, the ability modifier added to an off-hand attack's damage. Defense (+1 AC in
  *       armour) is rules/character/ArmourClass's, and Protection a reaction the DM applies.</li>
  *   <li>Martial Arts (Monk 1, PHB p.78): unarmed strikes and monk weapons may use DEX, and deal the martial arts die
- *       in place of their own damage when it is higher, while the monk wears no armour and carries no shield.</li>
+ *       in place of their own damage when it is higher, while the monk wears no armour and carries no shield. A Way of
+ *       the Kensei monk's kensei weapons are monk weapons for it, a ranged one too (XGE p.34).</li>
  *   <li>Improved Critical (Champion 3, PHB p.72) and Superior Critical (Champion 15, PHB p.73): weapon attacks score a
  *       critical hit on 19-20, then 18-20.</li>
  *   <li>Sneak Attack (Rogue 1, PHB p.96): once per turn, extra damage on a hit with a finesse or ranged weapon that had
@@ -135,12 +136,33 @@ public final class AttackFeatures {
      * @param styles           its Fighting Styles
      * @param martialArtsLevel its Monk level while Martial Arts applies (no armour, no shield); 0 otherwise
      * @param critRange        the lowest d20 that is a critical hit for its weapon attacks ({@link #critRange})
+     * @param kenseiWeapons    a Way of the Kensei monk's kensei weapons, by name, which are monk weapons for it (XGE
+     *                         p.34); empty for any other attacker
      */
     public record Attacker(int strength, int dexterity, int proficiencyBonus, Set<FightingStyle> styles,
-                           int martialArtsLevel, int critRange) {
+                           int martialArtsLevel, int critRange, List<String> kenseiWeapons) {
 
         public Attacker {
             styles = styles.isEmpty() ? EnumSet.noneOf(FightingStyle.class) : EnumSet.copyOf(styles);
+            kenseiWeapons = kenseiWeapons != null ? List.copyOf(kenseiWeapons) : List.of();
+        }
+
+        /** An attacker without kensei weapons. */
+        public Attacker(int strength, int dexterity, int proficiencyBonus, Set<FightingStyle> styles,
+                        int martialArtsLevel, int critRange) {
+            this(strength, dexterity, proficiencyBonus, styles, martialArtsLevel, critRange, List.of());
+        }
+
+        /** Whether the weapon is a monk weapon for it: one of the PHB's (p.78), or one of its kensei weapons. */
+        public boolean monkWeapon(WeaponRules.Weapon weapon) {
+            return AttackFeatures.monkWeapon(weapon) || kenseiWeapon(weapon);
+        }
+
+        /** Whether the weapon is one of its kensei weapons (XGE p.34), by name in any case; never an unarmed strike. */
+        public boolean kenseiWeapon(WeaponRules.Weapon weapon) {
+            if (weapon == WeaponRules.UNARMED_STRIKE) return false;
+            String name = weapon.name().trim();
+            return kenseiWeapons.stream().anyMatch(kensei -> kensei.trim().equalsIgnoreCase(name));
         }
 
         /** An attacker with none of these features. */
@@ -217,7 +239,7 @@ public final class AttackFeatures {
         List<String> notes = new ArrayList<>();
         boolean unarmed = weapon == WeaponRules.UNARMED_STRIKE;
         boolean melee = !weapon.ranged();
-        boolean martialArts = attacker.martialArtsLevel() >= 1 && (unarmed || monkWeapon(weapon));
+        boolean martialArts = attacker.martialArtsLevel() >= 1 && (unarmed || attacker.monkWeapon(weapon));
 
         // Martial Arts lets an unarmed strike or monk weapon use DEX, as a finesse weapon does (PHB p.78)
         Ability ability = martialArts

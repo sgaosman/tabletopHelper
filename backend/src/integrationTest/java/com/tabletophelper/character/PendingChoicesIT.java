@@ -2,6 +2,8 @@ package com.tabletophelper.character;
 
 import tools.jackson.databind.JsonNode;
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.maintenance.BackfillPendingChoicesJob;
+import com.tabletophelper.maintenance.MaintenanceReport;
 import com.tabletophelper.reference.CharacterClass;
 import com.tabletophelper.reference.Feat;
 import com.tabletophelper.reference.FeatEffects;
@@ -20,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,6 +48,8 @@ class PendingChoicesIT extends IntegrationTest {
     @Autowired private FeatRepository featRepository;
     @Autowired private SpellRepository spellRepository;
     @Autowired private OptionalFeatureRepository optionalFeatureRepository;
+    @Autowired private BackfillPendingChoicesJob backfillPendingChoicesJob;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     private RegisteredUser dm;
     private RegisteredUser player;
@@ -434,5 +440,146 @@ class PendingChoicesIT extends IntegrationTest {
         JsonNode second = levelDown(aria);
         assertThat(second.get("toolProficiencies").toString()).isEqualTo("[\"Dice Set\"]");
         assertThat(second.path("subclass").isMissingNode() || second.path("subclass").isNull()).isTrue();
+    }
+
+    // ── Conditional grants and kensei weapons ────────────────────
+
+    // A Barbarian with the Path of the Giant: Giant, or another language when the character knows it (BGG p.11)
+    private UUID insertGiantBarbarian() {
+        CharacterClass barbarian = characterClassRepository.save(CharacterClass.builder().name("Barbarian")
+                .source("PHB").hitDice(12).subclassLevel(3).isSpellcaster(false).isPactMagic(false).build());
+        subclassRepository.save(Subclass.builder().name("Path of the Giant").source("BGG").characterClass(barbarian)
+                .features("[{\"level\":3,\"name\":\"Giant Power\",\"description\":\"Giant, and a cantrip\"}]")
+                .additionalProficiencies("{\"conditional\":[{\"languages\":[\"Giant\"],\"otherwise\":{\"count\":1,"
+                        + "\"languages\":[\"Common\",\"Elvish\",\"Giant\",\"Sylvan\"]}}]}")
+                .build());
+        return barbarian.getId();
+    }
+
+    // A Monk with the Way of the Kensei, its weapon lists shortened (XGE p.34)
+    private UUID[] insertKenseiMonk() {
+        CharacterClass monk = characterClassRepository.save(CharacterClass.builder().name("Monk").source("PHB")
+                .hitDice(8).subclassLevel(3).isSpellcaster(false).isPactMagic(false)
+                .features("[{\"level\":4,\"name\":\"Ability Score Improvement\",\"description\":\"Improve\"}]")
+                .build());
+        String later = "\"count\":1,\"weapons\":[\"Shortsword\",\"Longsword\",\"Shortbow\",\"Longbow\"],"
+                + "\"kensei\":true}";
+        UUID kensei = subclassRepository.save(Subclass.builder().name("Way of the Kensei").source("XGE")
+                .characterClass(monk)
+                .features("[{\"level\":3,\"name\":\"Path of the Kensei\",\"description\":\"Kensei weapons\"}]")
+                .additionalProficiencies("{\"choices\":["
+                        + "{\"count\":1,\"tools\":[\"Calligrapher's Supplies\",\"Painter's Supplies\"]},"
+                        + "{\"count\":1,\"weapons\":[\"Shortsword\",\"Longsword\"],\"kensei\":true},"
+                        + "{\"count\":1,\"weapons\":[\"Shortbow\",\"Longbow\"],\"kensei\":true},"
+                        + "{\"level\":6," + later + ",{\"level\":11," + later + ",{\"level\":17," + later + "]}")
+                .build()).getId();
+        return new UUID[]{monk.getId(), kensei};
+    }
+
+    private static String kenseiChoiceId(JsonNode character, int characterLevel, String option) {
+        for (JsonNode choice : character.get("pendingChoices")) {
+            if (choice.path("kenseiWeapons").asBoolean(false) && choice.get("characterLevel").asInt() == characterLevel
+                    && choice.get("proficiencyOptions").get("weapons").toString().contains("\"" + option + "\"")) {
+                return choice.get("id").asString();
+            }
+        }
+        throw new AssertionError("No kensei choice at level " + characterLevel + " offering " + option);
+    }
+
+    @Test
+    @DisplayName("A Path of the Giant barbarian learns Giant when it doesn't know it, and owes one other language "
+            + "on Barbarian 3 when it does (BGG p.11), which it makes by name")
+    void conditionalGrant() {
+        UUID barbarianId = insertGiantBarbarian();
+        UUID giantId = subclassRepository.findByCharacterClassIdOrderByNameAsc(barbarianId).getFirst().getId();
+
+        JsonNode lacking = create(Map.of("classId", barbarianId, "level", 3, "subclassId", giantId,
+                "languageProficiencies", List.of("Common")));
+        assertThat(lacking.get("languageProficiencies").toString()).isEqualTo("[\"Common\",\"Giant\"]");
+        assertThat(lacking.get("levelHistory").get(2).get("proficienciesGained").toString())
+                .isEqualTo("{\"languages\":[\"Giant\"]}");
+        assertThat(described(lacking)).doesNotContain("3 PROFICIENCY");
+
+        JsonNode knowing = create(Map.of("classId", barbarianId, "level", 3, "subclassId", giantId,
+                "languageProficiencies", List.of("Common", "Giant")));
+        String id = knowing.get("id").asString();
+        JsonNode other = choice(knowing, "PROFICIENCY", 3);
+        assertThat(other.get("proficiencyOptions").toString())
+                .isEqualTo("{\"languages\":[\"Common\",\"Elvish\",\"Giant\",\"Sylvan\"]}");
+        assertThat(error(apply(id, Map.of("choiceId", other.get("id").asString(), "proficiencies",
+                List.of("Giant"))), HttpStatus.BAD_REQUEST)).isEqualTo("Aria already has Giant");
+        JsonNode made = applied(id, Map.of("choiceId", other.get("id").asString(), "proficiencies",
+                List.of("Sylvan")));
+        assertThat(made.get("languageProficiencies").toString()).isEqualTo("[\"Common\",\"Giant\",\"Sylvan\"]");
+        assertThat(made.get("levelHistory").get(2).get("choices").get("proficiencies").toString())
+                .isEqualTo("[\"Sylvan\"]");
+    }
+
+    @Test
+    @DisplayName("A kensei chooses a melee and a ranged kensei weapon on Monk 3 and another on Monk 6 (XGE p.34), "
+            + "gaining proficiency only with those it lacked; the sheet lists them, and levelling down takes the "
+            + "Monk 6 weapon away")
+    void kenseiWeapons() {
+        UUID[] ids = insertKenseiMonk();
+        JsonNode created = create(Map.of("classId", ids[0], "level", 3, "subclassId", ids[1],
+                "weaponProficiencies", List.of("Simple", "Shortswords")));
+        String aria = created.get("id").asString();
+        assertThat(described(created)).containsSubsequence("3 PROFICIENCY", "3 PROFICIENCY", "3 PROFICIENCY");
+        assertThat(created.path("kenseiWeapons")).isEmpty();
+
+        applied(aria, Map.of("choiceId", kenseiChoiceId(created, 3, "Shortsword"), "proficiencies",
+                List.of("Shortsword")));
+        JsonNode both = applied(aria, Map.of("choiceId", kenseiChoiceId(created, 3, "Longbow"), "proficiencies",
+                List.of("Longbow")));
+        assertThat(both.get("kenseiWeapons").toString()).isEqualTo("[\"Shortsword\",\"Longbow\"]");
+        assertThat(both.get("weaponProficiencies").toString()).isEqualTo("[\"Simple\",\"Shortswords\",\"Longbow\"]");
+        JsonNode third = both.get("levelHistory").get(2);
+        assertThat(third.get("choices").get("kenseiWeapons").toString()).isEqualTo("[\"Shortsword\",\"Longbow\"]");
+        assertThat(third.get("proficienciesGained").toString()).isEqualTo("{\"weapons\":[\"Longbow\"]}");
+
+        levelUp(aria, ids[0]);
+        levelUp(aria, ids[0]);
+        JsonNode sixth = levelUp(aria, ids[0]);
+        String weapon = kenseiChoiceId(sixth, 6, "Longsword");
+        assertThat(error(apply(aria, Map.of("choiceId", weapon, "proficiencies", List.of("Longbow"))),
+                HttpStatus.BAD_REQUEST)).isEqualTo("Aria already has the kensei weapon Longbow");
+        JsonNode made = applied(aria, Map.of("choiceId", weapon, "proficiencies", List.of("Longsword")));
+        assertThat(made.get("kenseiWeapons").toString()).isEqualTo("[\"Shortsword\",\"Longbow\",\"Longsword\"]");
+
+        JsonNode fifth = levelDown(aria);
+        assertThat(fifth.get("kenseiWeapons").toString()).isEqualTo("[\"Shortsword\",\"Longbow\"]");
+        assertThat(fifth.get("weaponProficiencies").toString()).doesNotContain("Longsword");
+    }
+
+    @Test
+    @DisplayName("backfill-pending-choices owes a kensei who made its tool choice before kensei weapons were owed its "
+            + "weapons on Monk 3 and 6, and a Giant barbarian who knew Giant its other language; a second run adds "
+            + "nothing")
+    void backfillOwesTheNewChoices() {
+        UUID[] ids = insertKenseiMonk();
+        JsonNode monk = create(Map.of("classId", ids[0], "level", 6, "subclassId", ids[1]));
+        String kensei = monk.get("id").asString();
+        String tool = null;
+        for (JsonNode choice : monk.get("pendingChoices")) {
+            if (choice.get("type").asString().equals("PROFICIENCY") && choice.path("kenseiWeapons").isMissingNode()) {
+                tool = choice.get("id").asString();
+            }
+        }
+        applied(kensei, Map.of("choiceId", tool, "proficiencies", List.of("Painter's Supplies")));
+        UUID barbarianId = insertGiantBarbarian();
+        UUID giantId = subclassRepository.findByCharacterClassIdOrderByNameAsc(barbarianId).getFirst().getId();
+        String giant = create(Map.of("classId", barbarianId, "level", 3, "subclassId", giantId,
+                "languageProficiencies", List.of("Common", "Giant"))).get("id").asString();
+        jdbcTemplate.update("UPDATE player_characters SET pending_choices = '[]'::jsonb");
+
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        MaintenanceReport applied = transaction.execute(status -> backfillPendingChoicesJob.run(true));
+
+        assertThat(applied.changes()).hasSize(2);
+        assertThat(get(kensei).get("pendingChoices")).filteredOn(c -> c.get("type").asString().equals("PROFICIENCY"))
+                .extracting(c -> c.get("characterLevel").asInt() + " " + c.path("kenseiWeapons").asBoolean(false))
+                .containsExactly("3 true", "3 true", "6 true");
+        assertThat(described(get(giant))).containsExactly("3 PROFICIENCY");
+        assertThat(transaction.execute(status -> backfillPendingChoicesJob.run(false)).changes()).isEmpty();
     }
 }

@@ -55,10 +55,12 @@ export function proficiencyOptions(choice: PendingChoice): ProficiencyOption[] {
   return KIND_ORDER.flatMap(kind => (offered[kind] ?? []).map(name => ({ kind, name })));
 }
 
-// One-handed melee weapons by category (PHB p.149), so a whole category held counts as each weapon held
-const SIMPLE_WEAPONS = ['club', 'dagger', 'handaxe', 'javelin', 'light hammer', 'mace', 'quarterstaff', 'sickle', 'spear'];
-const MARTIAL_WEAPONS = ['battleaxe', 'flail', 'longsword', 'morningstar', 'rapier', 'scimitar', 'shortsword', 'trident',
-  'war pick', 'warhammer', 'whip'];
+// The PHB's weapons by category (p.149), so a whole category held counts as each weapon held
+const SIMPLE_WEAPONS = ['club', 'dagger', 'greatclub', 'handaxe', 'javelin', 'light hammer', 'mace', 'quarterstaff',
+  'sickle', 'spear', 'light crossbow', 'dart', 'shortbow', 'sling'];
+const MARTIAL_WEAPONS = ['battleaxe', 'flail', 'glaive', 'greataxe', 'greatsword', 'halberd', 'lance', 'longsword', 'maul',
+  'morningstar', 'pike', 'rapier', 'scimitar', 'shortsword', 'trident', 'war pick', 'warhammer', 'whip', 'blowgun',
+  'hand crossbow', 'heavy crossbow', 'longbow', 'net'];
 
 const SHEET_LISTS: Record<ProficiencyKind, (c: PlayerCharacter) => string[] | null | undefined> = {
   skills: c => c.skillProficiencies,
@@ -84,20 +86,32 @@ export function hasProficiency(character: PlayerCharacter, option: ProficiencyOp
   });
 }
 
+/** Whether the weapon is one of the character's kensei weapons (XGE p.34), in any case. */
+export function isKenseiWeapon(character: PlayerCharacter, name: string): boolean {
+  const wanted = name.trim().toLowerCase();
+  return (character.kenseiWeapons ?? []).some(weapon => weapon.trim().toLowerCase() === wanted);
+}
+
 /**
  * Whether an option can't be chosen: one the character has already, or for a choice whose skills gain Expertise, a
- * skill it has Expertise in already (a skill it is only proficient in may be chosen).
+ * skill it has Expertise in already (a skill it is only proficient in may be chosen), or for a choice of kensei weapons,
+ * one that is a kensei weapon already (a weapon it is only proficient with may be chosen, XGE p.34).
  */
 export function proficiencyTaken(character: PlayerCharacter, choice: PendingChoice, option: ProficiencyOption): boolean {
   if (choice.expertise) {
     return (character.skillExpertises ?? []).some(skill => skill.trim().toLowerCase() === option.name.toLowerCase());
   }
+  if (choice.kenseiWeapons) return isKenseiWeapon(character, option.name);
   return hasProficiency(character, option);
 }
 
-/** The choice's name, such as "Subclass", "Spellbook" for a wizard's spells, or "Skills or Languages". */
+/**
+ * The choice's name, such as "Subclass", "Spellbook" for a wizard's spells, "Skills or Languages", or "Kensei Weapon"
+ * for a Way of the Kensei monk's.
+ */
 export function choiceTitle(choice: PendingChoice): string {
   if (isSpellbookChoice(choice)) return 'Spellbook';
+  if (choice.type === 'PROFICIENCY' && choice.kenseiWeapons) return 'Kensei Weapon';
   if (choice.type === 'PROFICIENCY') {
     const kinds = KIND_ORDER.filter(kind => (choice.proficiencyOptions?.[kind] ?? []).length > 0);
     if (kinds.length === 0) return TITLES.PROFICIENCY;

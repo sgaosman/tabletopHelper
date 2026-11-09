@@ -35,11 +35,18 @@ public class CharacterClassLoader implements ContentLoader {
     // The bonus proficiencies a subclass gives at its subclass level, such as a Life Domain's heavy armour (PHB p.60),
     // by the subclass's natural key: the 5etools data has them only in the features' text. Fixed grants are listed by
     // kind; those the player chooses, such as the College of Lore's three skills (PHB p.54), under "choices", each with
-    // how many to choose and the options by kind, a name starting with * standing for a list of ProficiencyLists, and
-    // for a choice of skills whether they gain Expertise too
+    // how many to choose and the options by kind, a name starting with * standing for a list of ProficiencyLists, for a
+    // choice of skills whether they gain Expertise too, for a choice owed after the subclass level the class level that
+    // owes it, and for a Way of the Kensei monk's kensei weapons (XGE p.34) that they are; those granted unless the
+    // character has them already, when another is chosen instead, such as an Alchemist's alchemist's supplies (TCE
+    // p.14), under "conditional", each with the one proficiency and the choice "otherwise"
     static final String SUBCLASS_PROFICIENCIES_FILE = "data/content/subclass-proficiencies.json";
     static final Set<String> PROFICIENCY_KINDS = Set.of("armor", "weapons", "tools", "skills", "languages");
     static final String CHOICES = "choices";
+    static final String CONDITIONAL = "conditional";
+    static final String OTHERWISE = "otherwise";
+    // What a choice says besides its count and options
+    private static final Set<String> CHOICE_FLAGS = Set.of("expertise", "kensei", "level");
 
     // Class files we don't load: Mystic is unofficial playtest material, and sidekicks aren't player classes
     private static final Set<String> SKIP_FILES = Set.of("class-mystic.json", "class-sidekick.json");
@@ -60,11 +67,13 @@ public class CharacterClassLoader implements ContentLoader {
 
     // The slot progressions and subclass levels come from the class tables, which files() lists; version 2 writes
     // the subclass effects overlay, version 3 the subclasses' bonus proficiencies, and version 4 the text of the
-    // features nested inside another, such as the Life Domain's Disciple of Life, and version 5 the bonus
-    // proficiencies a subclass lets the player choose
+    // features nested inside another, such as the Life Domain's Disciple of Life, version 5 the bonus
+    // proficiencies a subclass lets the player choose, and version 6 the conditional grants, the choices owed after
+    // the subclass level, the kensei weapons and the Draconic Bloodline's, Storm Sorcery's and Circle of the
+    // Shepherd's languages
     @Override
     public int version() {
-        return 5;
+        return 6;
     }
 
     // The 5etools entries that place another feature's text inside a feature, such as the Life Domain's Bonus
@@ -162,9 +171,13 @@ public class CharacterClassLoader implements ContentLoader {
 
     /**
      * The bonus proficiencies file, as JSON text by subclass natural key: each row an object of the kinds in
-     * {@link #PROFICIENCY_KINDS}, each a list of names, and {@value #CHOICES}, a list of the choices the subclass
-     * gives, each with its {@code count} (at least 1), at least one kind of options, and {@code expertise} only for a
-     * choice of skills alone. A choice's list names, such as {@code *languages}, are written out as their lists.
+     * {@link #PROFICIENCY_KINDS}, each a list of names, {@value #CHOICES}, a list of the choices the subclass
+     * gives, each with its {@code count} (at least 1), at least one kind of options, {@code expertise} only for a
+     * choice of skills alone, {@code kensei} only for a choice of weapons alone, and {@code level}, the class level
+     * from 1 to 20 that owes it when that isn't the subclass level, and {@value #CONDITIONAL}, a list of grants each of
+     * one proficiency of one kind, given unless the character has it, and the choice {@value #OTHERWISE} owed when it
+     * does, with a count and options alone. A choice's list names, such as {@code *languages}, are written out as their
+     * lists.
      *
      * @throws IllegalStateException for a row that isn't one
      */
@@ -186,6 +199,10 @@ public class CharacterClassLoader implements ContentLoader {
                     stored.set(CHOICES, choices(row.getKey(), kind.getValue()));
                     continue;
                 }
+                if (CONDITIONAL.equals(kind.getKey())) {
+                    stored.set(CONDITIONAL, conditionals(row.getKey(), kind.getValue()));
+                    continue;
+                }
                 requireKind(row.getKey(), kind.getKey());
                 requireNames(row.getKey() + "'s " + kind.getKey(), kind.getValue());
                 stored.set(kind.getKey(), kind.getValue());
@@ -203,43 +220,100 @@ public class CharacterClassLoader implements ContentLoader {
         ArrayNode stored = objectMapper.createArrayNode();
         for (JsonNode choice : choices) {
             String what = key + "'s choice " + (stored.size() + 1);
-            if (!choice.isObject() || !choice.path("count").isInt() || choice.path("count").asInt() < 1) {
+            stored.add(choice(what, choice, true));
+        }
+        return stored;
+    }
+
+    // A row's conditional grants, each checked, with its choice otherwise's list names written out
+    ArrayNode conditionals(String key, JsonNode conditionals) {
+        if (!conditionals.isArray() || conditionals.isEmpty()) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + key
+                    + "'s conditional grants are not a list");
+        }
+        ArrayNode stored = objectMapper.createArrayNode();
+        for (JsonNode conditional : conditionals) {
+            String what = key + "'s conditional grant " + (stored.size() + 1);
+            if (!conditional.isObject() || !conditional.path(OTHERWISE).isObject()) {
                 throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
-                        + " has no count of 1 or more");
+                        + " has no choice otherwise");
             }
             ObjectNode written = objectMapper.createObjectNode();
-            written.put("count", choice.path("count").asInt());
-            List<String> kinds = new ArrayList<>();
-            for (Map.Entry<String, JsonNode> field : choice.properties()) {
-                if (field.getKey().equals("count") || field.getKey().equals("expertise")) continue;
+            for (Map.Entry<String, JsonNode> field : conditional.properties()) {
+                if (field.getKey().equals(OTHERWISE)) continue;
                 requireKind(what, field.getKey());
                 requireNames(what + "'s " + field.getKey(), field.getValue());
-                List<String> names = new ArrayList<>();
-                field.getValue().forEach(name -> names.add(name.asString("")));
-                List<String> options;
-                try {
-                    options = ProficiencyLists.expand(names);
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + ": " + e.getMessage());
-                }
-                ArrayNode list = written.putArray(field.getKey());
-                options.forEach(list::add);
-                kinds.add(field.getKey());
-            }
-            if (kinds.isEmpty()) {
-                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " offers no options");
-            }
-            JsonNode expertise = choice.path("expertise");
-            if (!expertise.isMissingNode()) {
-                if (!expertise.isBoolean() || !kinds.equals(List.of("skills"))) {
+                if (field.getValue().size() != 1 || field.getValue().get(0).asString("")
+                        .startsWith(ProficiencyLists.LIST_PREFIX)) {
                     throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
-                            + "'s expertise is true or false, and only for a choice of skills");
+                            + " grants one proficiency by name");
                 }
-                if (expertise.asBoolean()) written.put("expertise", true);
+                written.set(field.getKey(), field.getValue());
             }
+            if (written.size() != 1) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + " grants one proficiency by name");
+            }
+            written.set(OTHERWISE, choice(what + "'s choice otherwise", conditional.get(OTHERWISE), false));
             stored.add(written);
         }
         return stored;
+    }
+
+    // A choice, checked, with its list names written out; one otherwise has a count and options alone
+    private ObjectNode choice(String what, JsonNode choice, boolean full) {
+        if (!choice.isObject() || !choice.path("count").isInt() || choice.path("count").asInt() < 1) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                    + " has no count of 1 or more");
+        }
+        ObjectNode written = objectMapper.createObjectNode();
+        written.put("count", choice.path("count").asInt());
+        List<String> kinds = new ArrayList<>();
+        for (Map.Entry<String, JsonNode> field : choice.properties()) {
+            if (field.getKey().equals("count")) continue;
+            if (full && CHOICE_FLAGS.contains(field.getKey())) continue;
+            requireKind(what, field.getKey());
+            requireNames(what + "'s " + field.getKey(), field.getValue());
+            List<String> names = new ArrayList<>();
+            field.getValue().forEach(name -> names.add(name.asString("")));
+            List<String> options;
+            try {
+                options = ProficiencyLists.expand(names);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + ": " + e.getMessage());
+            }
+            ArrayNode list = written.putArray(field.getKey());
+            options.forEach(list::add);
+            kinds.add(field.getKey());
+        }
+        if (kinds.isEmpty()) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " offers no options");
+        }
+        JsonNode expertise = choice.path("expertise");
+        if (!expertise.isMissingNode()) {
+            if (!expertise.isBoolean() || !kinds.equals(List.of("skills"))) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + "'s expertise is true or false, and only for a choice of skills");
+            }
+            if (expertise.asBoolean()) written.put("expertise", true);
+        }
+        JsonNode kensei = choice.path("kensei");
+        if (!kensei.isMissingNode()) {
+            if (!kensei.isBoolean() || !kinds.equals(List.of("weapons"))) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + "'s kensei is true or false, and only for a choice of weapons");
+            }
+            if (kensei.asBoolean()) written.put("kensei", true);
+        }
+        JsonNode level = choice.path("level");
+        if (!level.isMissingNode()) {
+            if (!level.isInt() || level.asInt() < 1 || level.asInt() > 20) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + "'s level is a class level from 1 to 20");
+            }
+            written.put("level", level.asInt());
+        }
+        return written;
     }
 
     private static void requireKind(String what, String kind) {

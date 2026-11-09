@@ -87,6 +87,7 @@ public class CharacterMapper {
                 .savingThrowProficiencies(c.getSavingThrowProficiencies())
                 .skillProficiencies(c.getSkillProficiencies())
                 .skillExpertises(c.getSkillExpertises())
+                .kenseiWeapons(KenseiWeapons.of(c))
                 .armorProficiencies(c.getArmorProficiencies())
                 .weaponProficiencies(c.getWeaponProficiencies())
                 .toolProficiencies(c.getToolProficiencies())

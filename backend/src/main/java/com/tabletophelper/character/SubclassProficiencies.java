@@ -18,7 +18,11 @@ import java.util.Optional;
  * armour (PHB p.60) or a College of Valor's medium armour, shields and martial weapons (PHB p.55): the subclass's
  * {@code additional_proficiencies}, which the content loader fills from {@code data/content/subclass-proficiencies.json}.
  * Those the subclass lets the player choose, such as the College of Lore's three skills (PHB p.54), are its
- * {@code choices}, each owed as a PROFICIENCY Pending Choice on the level that records the subclass.
+ * {@code choices}, each owed as a PROFICIENCY Pending Choice on the level that records the subclass, or for one with a
+ * {@code level}, such as a Way of the Kensei monk's further kensei weapons at Monk 6, 11 and 17 (XGE p.34), on that
+ * class level. Those granted unless the character has them already, such as an Alchemist's alchemist's supplies (TCE
+ * p.14) or a Path of the Giant barbarian's Giant (BGG p.11), are its {@code conditional} grants: each gives its one
+ * proficiency, or when the character has it, owes its choice {@code otherwise}.
  */
 final class SubclassProficiencies {
 
@@ -50,8 +54,27 @@ final class SubclassProficiencies {
      * @param count     how many to choose
      * @param options   what may be chosen, by kind
      * @param expertise whether the skills chosen gain Expertise too, as the Knowledge Domain's do (PHB p.59)
+     * @param kensei    whether the weapons chosen become kensei weapons (XGE p.34)
+     * @param level     the class level that owes it; null for the subclass level
      */
-    record Choice(int count, ProficienciesGained options, boolean expertise) {}
+    record Choice(int count, ProficienciesGained options, boolean expertise, boolean kensei, Integer level) {
+
+        /** A choice owed on the subclass level that makes no kensei weapons. */
+        Choice(int count, ProficienciesGained options, boolean expertise) {
+            this(count, options, expertise, false, null);
+        }
+
+        /** Whether the class level owes it, for a class whose subclass level is the one given. */
+        boolean owedAt(int classLevel, int subclassLevel) {
+            return (level != null ? level : subclassLevel) == classLevel;
+        }
+    }
+
+    /**
+     * A proficiency the subclass grants unless the character has it already, when it owes the choice otherwise, such
+     * as an Alchemist's alchemist's supplies or one other type of artisan's tools (TCE p.14).
+     */
+    record Conditional(Option grant, Choice otherwise) {}
 
     /** One proficiency a choice offers, of a kind of {@link ProficienciesGained}: "skills", "languages" and so on. */
     record Option(String kind, String name) {}
@@ -78,17 +101,71 @@ final class SubclassProficiencies {
             }
             List<Choice> found = new ArrayList<>();
             for (JsonNode choice : choices) {
-                int count = choice.path("count").asInt(0);
-                ProficienciesGained options = objectMapper.treeToValue(choice, ProficienciesGained.class);
-                if (count < 1 || options == null || optionsOf(options).isEmpty()) {
-                    throw unreadable;
-                }
-                found.add(new Choice(count, options, choice.path("expertise").asBoolean(false)));
+                found.add(choice(objectMapper, choice, unreadable));
             }
             return found;
         } catch (JacksonException e) {
             throw unreadable;
         }
+    }
+
+    /**
+     * The choices the subclass gives that the class level owes, for a class whose subclass level is the one given.
+     *
+     * @throws ConflictException when the subclass's proficiencies can't be read (D155)
+     */
+    static List<Choice> choicesAt(ObjectMapper objectMapper, Subclass subclass, int classLevel, int subclassLevel) {
+        return choices(objectMapper, subclass).stream()
+                .filter(choice -> choice.owedAt(classLevel, subclassLevel))
+                .toList();
+    }
+
+    /**
+     * The proficiencies the subclass grants unless the character has them, in the file's order; empty for a subclass
+     * with none.
+     *
+     * @throws ConflictException when the subclass's proficiencies can't be read (D155)
+     */
+    static List<Conditional> conditionals(ObjectMapper objectMapper, Subclass subclass) {
+        String json = subclass.getAdditionalProficiencies();
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        ConflictException unreadable = new ConflictException("The bonus proficiencies of the subclass "
+                + subclass.getName() + " can't be read");
+        try {
+            JsonNode conditionals = objectMapper.readTree(json).path("conditional");
+            if (conditionals.isMissingNode() || conditionals.isNull()) {
+                return List.of();
+            }
+            if (!conditionals.isArray()) {
+                throw unreadable;
+            }
+            List<Conditional> found = new ArrayList<>();
+            for (JsonNode conditional : conditionals) {
+                ProficienciesGained grant = objectMapper.treeToValue(conditional, ProficienciesGained.class);
+                List<Option> granted = grant != null ? optionsOf(grant) : List.of();
+                if (granted.size() != 1 || !conditional.path("otherwise").isObject()) {
+                    throw unreadable;
+                }
+                found.add(new Conditional(granted.getFirst(), choice(objectMapper, conditional.get("otherwise"),
+                        unreadable)));
+            }
+            return found;
+        } catch (JacksonException e) {
+            throw unreadable;
+        }
+    }
+
+    private static Choice choice(ObjectMapper objectMapper, JsonNode choice, ConflictException unreadable) {
+        int count = choice.path("count").asInt(0);
+        ProficienciesGained options = objectMapper.treeToValue(choice, ProficienciesGained.class);
+        if (count < 1 || options == null || optionsOf(options).isEmpty()) {
+            throw unreadable;
+        }
+        JsonNode level = choice.path("level");
+        return new Choice(count, options, choice.path("expertise").asBoolean(false),
+                choice.path("kensei").asBoolean(false), level.isInt() ? level.asInt() : null);
     }
 
     /** What a choice offers, skills first, then languages, tools, weapons and armour, each in its list's order. */
@@ -142,6 +219,12 @@ final class SubclassProficiencies {
             }
         }
         return false;
+    }
+
+    /** Whether the names include the option's, in any case. */
+    static boolean named(List<String> names, Option option) {
+        String wanted = key(option.name());
+        return names != null && names.stream().anyMatch(name -> name != null && key(name).equals(wanted));
     }
 
     /** The options as proficiencies gained, each under its kind. */

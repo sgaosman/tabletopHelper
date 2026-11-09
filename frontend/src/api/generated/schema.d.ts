@@ -2392,6 +2392,7 @@ export interface components {
             /** Format: int32 */
             intelligence: number;
             isActive: boolean;
+            kenseiWeapons: string[];
             languageProficiencies?: string[] | null;
             /** Format: int32 */
             level: number;
@@ -3088,6 +3089,7 @@ export interface components {
             expertise?: string[] | null;
             feats?: components["schemas"]["FeatTaken"][] | null;
             fightingStyle?: string | null;
+            kenseiWeapons?: string[] | null;
             metamagic?: string[] | null;
             proficiencies?: string[] | null;
             setsSpellcastingAbility?: boolean | null;
@@ -3413,6 +3415,7 @@ export interface components {
             expertise?: boolean | null;
             /** Format: uuid */
             id: string;
+            kenseiWeapons?: boolean | null;
             /** Format: int32 */
             maxSpellLevel?: number | null;
             options?: string[] | null;

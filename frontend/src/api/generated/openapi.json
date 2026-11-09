@@ -6059,6 +6059,7 @@
           "initiativeBonus",
           "intelligence",
           "isActive",
+          "kenseiWeapons",
           "level",
           "name",
           "ownerDisplayName",
@@ -6266,6 +6267,12 @@
           },
           "isActive": {
             "type": "boolean"
+          },
+          "kenseiWeapons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "languageProficiencies": {
             "type": "array",
@@ -8801,6 +8808,13 @@
             "type": "string",
             "nullable": true
           },
+          "kenseiWeapons": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "metamagic": {
             "type": "array",
             "nullable": true,
@@ -9985,6 +9999,10 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "kenseiWeapons": {
+            "type": "boolean",
+            "nullable": true
           },
           "maxSpellLevel": {
             "type": "integer",

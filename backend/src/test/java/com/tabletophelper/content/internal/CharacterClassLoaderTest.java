@@ -141,5 +141,80 @@ class CharacterClassLoaderTest {
                 .hasMessageEndingWith("expertise is true or false, and only for a choice of skills");
         assertThatThrownBy(() -> loader.choices("Key", json("[{\"count\": 1, \"feats\": [\"Alert\"]}]")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("has feats, which isn't one of");
+        assertThatThrownBy(() -> loader.choices("Key", json(
+                "[{\"count\": 1, \"skills\": [\"Arcana\"], \"kensei\": true}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("kensei is true or false, and only for a choice of weapons");
+        assertThatThrownBy(() -> loader.choices("Key", json("[{\"count\": 1, \"skills\": [\"Arcana\"], \"level\": 21}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's choice 1's level is a class level from 1 to 20");
+    }
+
+    @Test
+    @DisplayName("The file's conditional grants keep their one proficiency and write out the choice otherwise: an "
+            + "Alchemist's alchemist's supplies or another artisan's tool (TCE p.14), a Path of the Giant's Giant or "
+            + "another language (BGG p.11); kensei weapons are owed at Monk 3, 6, 11 and 17 (XGE p.34); and the "
+            + "Draconic Bloodline, Storm Sorcery and Circle of the Shepherd learn their languages")
+    void conditionalGrantsAndLaterChoices() {
+        var rows = loader.subclassProficiencies(new LoadContext(objectMapper));
+
+        JsonNode alchemist = json(rows.get("Artificer|TCE|Alchemist|TCE"));
+        assertThat(alchemist.path("tools").isMissingNode()).isTrue();
+        assertThat(alchemist.path("conditional").get(0).path("tools")).isEqualTo(json("[\"alchemist's supplies\"]"));
+        assertThat(alchemist.path("conditional").get(0).path("otherwise").path("tools")).hasSize(17);
+        JsonNode armorer = json(rows.get("Artificer|TCE|Armorer|TCE"));
+        assertThat(armorer.path("armor")).isEqualTo(json("[\"heavy\"]"));
+        assertThat(armorer.path("conditional").get(0).path("tools")).isEqualTo(json("[\"smith's tools\"]"));
+        assertThat(json(rows.get("Artificer|TCE|Artillerist|TCE")).path("conditional").get(0).path("tools"))
+                .isEqualTo(json("[\"woodcarver's tools\"]"));
+        assertThat(json(rows.get("Artificer|TCE|Battle Smith|TCE")).path("conditional").get(0).path("tools"))
+                .isEqualTo(json("[\"smith's tools\"]"));
+        JsonNode giant = json(rows.get("Barbarian|PHB|Path of the Giant|BGG"));
+        assertThat(giant.path("conditional").get(0).path("languages")).isEqualTo(json("[\"Giant\"]"));
+        assertThat(giant.path("conditional").get(0).path("otherwise").path("languages")).hasSize(16);
+
+        JsonNode kensei = json(rows.get("Monk|PHB|Way of the Kensei|XGE")).path("choices");
+        assertThat(kensei).hasSize(6);
+        assertThat(kensei.get(0).path("kensei").isMissingNode()).isTrue();
+        assertThat(kensei.get(1).path("weapons")).hasSize(21);
+        assertThat(kensei.get(1).path("kensei").asBoolean()).isTrue();
+        assertThat(kensei.get(2).path("weapons")).hasSize(7);
+        assertThat(kensei.get(2).path("level").isMissingNode()).isTrue();
+        assertThat(kensei.get(3).path("level").asInt()).isEqualTo(6);
+        assertThat(kensei.get(3).path("weapons")).hasSize(28);
+        assertThat(kensei.get(4).path("level").asInt()).isEqualTo(11);
+        assertThat(kensei.get(5).path("level").asInt()).isEqualTo(17);
+
+        assertThat(json(rows.get("Sorcerer|PHB|Draconic Bloodline|PHB")).path("languages"))
+                .isEqualTo(json("[\"Draconic\"]"));
+        assertThat(json(rows.get("Sorcerer|PHB|Storm Sorcery|XGE")).path("languages"))
+                .isEqualTo(json("[\"Primordial\"]"));
+        assertThat(json(rows.get("Druid|PHB|Circle of the Shepherd|XGE")).path("languages"))
+                .isEqualTo(json("[\"Sylvan\"]"));
+    }
+
+    @Test
+    @DisplayName("A conditional grant of more than one proficiency, of a list, or without a choice otherwise, or whose "
+            + "choice otherwise has a level, is refused")
+    void badConditionalGrants() {
+        assertThatThrownBy(() -> loader.conditionals("Key", json(
+                "[{\"tools\": [\"smith's tools\", \"tinker's tools\"], \"otherwise\": {\"count\": 1, "
+                        + "\"tools\": [\"*artisan's tools\"]}}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's conditional grant 1 grants one proficiency by name");
+        assertThatThrownBy(() -> loader.conditionals("Key", json(
+                "[{\"tools\": [\"*artisan's tools\"], \"otherwise\": {\"count\": 1, \"tools\": [\"Smith's Tools\"]}}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageEndingWith("grants one proficiency by name");
+        assertThatThrownBy(() -> loader.conditionals("Key", json(
+                "[{\"tools\": [\"smith's tools\"], \"languages\": [\"Giant\"], \"otherwise\": {\"count\": 1, "
+                        + "\"tools\": [\"*artisan's tools\"]}}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageEndingWith("grants one proficiency by name");
+        assertThatThrownBy(() -> loader.conditionals("Key", json("[{\"tools\": [\"smith's tools\"]}]")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageEndingWith("Key's conditional grant 1 has no choice otherwise");
+        assertThatThrownBy(() -> loader.conditionals("Key", json(
+                "[{\"tools\": [\"smith's tools\"], \"otherwise\": {\"count\": 1, \"level\": 6, "
+                        + "\"tools\": [\"*artisan's tools\"]}}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("has level, which isn't one of");
     }
 }
