@@ -235,6 +235,29 @@ class EncounterServiceTest {
     }
 
     @Test
+    @DisplayName("A monster whose stat block has no Dexterity is added with initiative modifier +0, not an error")
+    void addMonsterParticipant_missingDexterityCountsAsTen() {
+        UUID encounterId = UUID.randomUUID();
+        UUID monsterId = UUID.randomUUID();
+        Monster statue = Monster.builder().id(monsterId).name("Animated Statue").hitPoints(30).armourClass(15).build();
+        Encounter encounter = Encounter.builder().id(encounterId).campaign(campaign).name("Test Encounter")
+                .status(EncounterStatus.PREPARING).participants(new ArrayList<>()).build();
+        AddParticipantRequest request = new AddParticipantRequest();
+        request.setParticipantType("MONSTER");
+        request.setMonsterId(monsterId);
+        request.setDisplayName("Animated Statue");
+        request.setQuantity(1);
+
+        stubLock(encounter);
+        when(monsterRepository.findById(monsterId)).thenReturn(Optional.of(statue));
+        when(encounterRepository.save(any(Encounter.class))).thenAnswer(EncounterServiceTest::saved);
+
+        EncounterResponse response = encounterService.addParticipant(encounterId, request, dmUserId);
+
+        assertEquals(0, response.getParticipants().get(0).getInitiativeModifier());
+    }
+
+    @Test
     @DisplayName("Add PC participant auto-populates from character sheet")
     void addPcParticipant_autoPopulatesFromCharacterSheet() {
         UUID encounterId = UUID.randomUUID();

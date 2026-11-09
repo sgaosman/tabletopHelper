@@ -203,7 +203,8 @@ public class EncounterService {
         Monster monster = monsterRepository.findById(request.getMonsterId())
                 .orElseThrow(() -> new ValidationException("Monster not found"));
 
-        int dexMod = Ability.modifier(monster.getDexterity());
+        // A stat block without a Dexterity score counts as 10, as everywhere else that reads one
+        int dexMod = Ability.modifier(monster.getDexterity() != null ? monster.getDexterity() : 10);
         String baseName = request.getDisplayName().trim();
 
         long existingCount = encounter.getParticipants().stream()
