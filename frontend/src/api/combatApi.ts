@@ -5,6 +5,7 @@ import type {
 } from '../types/encounter';
 import type {
   AttackOption,
+  AttackRollPreview,
   AttackRollRequest,
   CombatLogEntry,
   CastSpellRequest,
@@ -71,6 +72,13 @@ export const combatApi = {
   // The weapons the participant can attack with, and the numbers for each (D164)
   getAttackOptions(encounterId: string, participantId: string) {
     return api.get<AttackOption[]>(`/encounters/${encounterId}/combat/attack-options`, { params: { participantId } });
+  },
+
+  // What the attacker's and the target's conditions do to an attack roll between them; no attacker is the DM's own
+  attackRollPreview(encounterId: string, attackerId: string | null, targetId: string, withinFiveFeet: boolean) {
+    return api.get<AttackRollPreview>(`/encounters/${encounterId}/combat/attack-roll-preview`, {
+      params: { ...(attackerId ? { attackerId } : {}), targetId, withinFiveFeet },
+    });
   },
 
   applyDamage(encounterId: string, targetId: string, amount: number, damageType?: string, actorId?: string) {

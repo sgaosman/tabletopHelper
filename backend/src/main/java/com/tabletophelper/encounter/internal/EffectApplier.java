@@ -18,6 +18,7 @@ import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.ClassFeatures;
@@ -1434,6 +1435,11 @@ public class EffectApplier {
         List<String> results = new ArrayList<>();
         switch (effect.delivery()) {
             case Effect.Attack attack -> {
+                // The advantage and disadvantage the conditions gave it, such as "(advantage: target restrained)"
+                String automatic = AttackRules.describe(outcome.automaticSources());
+                if (!automatic.isEmpty()) {
+                    description.append(" (").append(automatic).append(')');
+                }
                 description.append(": ").append(rerollText(outcome)).append(rolls(outcome))
                         .append(signed(attack.bonus()))
                         .append(inspirationText(outcome))

@@ -12,6 +12,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.ProficiencyBonus;
+import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ClassFeatures;
@@ -69,16 +70,39 @@ public class CreatureStats {
     }
 
     /**
+     * The participant's blindsight and truesight (MM p.8-9): its beast's in Wild Shape (PHB p.67), or its stat block's,
+     * a summoned creature's included; none for a player character, whose sheet records neither.
+     */
+    public static AttackRules.Senses senses(EncounterParticipant participant) {
+        Optional<WildShapeForm> form = WildShapeForm.of(participant);
+        if (form.isPresent()) {
+            return AttackRules.Senses.of(form.get().senses());
+        }
+        return participant.getMonster() != null ? AttackRules.Senses.of(participant.getMonster().getSenses())
+                : AttackRules.Senses.NONE;
+    }
+
+    /**
+     * The participant's side of an attack roll, as attacker or target: its conditions and senses
+     * ({@link AttackRules#setup}); nothing for no participant, such as the DM attacking by hand.
+     */
+    public static AttackRules.Side side(EncounterParticipant participant) {
+        return participant == null ? AttackRules.Side.NONE
+                : new AttackRules.Side(conditionNames(participant), senses(participant));
+    }
+
+    /**
      * The participant as the Resolver needs it for this Effect: AC, the modifier for the Effect's saving throw,
-     * the hit's save included, conditions, and whether armour it isn't proficient with gives it disadvantage on
-     * Strength and Dexterity saves (PHB p.144). A creature holding a Bardic Inspiration die it keeps for a failed save
-     * rolls it when it fails the Effect's save (PHB p.53, M17).
+     * the hit's save included, conditions, whether armour it isn't proficient with gives it disadvantage on
+     * Strength and Dexterity saves (PHB p.144), and its senses. A creature holding a Bardic Inspiration die it keeps
+     * for a failed save rolls it when it fails the Effect's save (PHB p.53, M17).
      */
     public Resolver.Target target(EncounterParticipant participant, Effect effect) {
         return new Resolver.Target(participant.getId(), armourClass(participant),
                 saveModifier(participant, effect.saveAbility()), conditionNames(participant),
                 armourPenalty(participant), List.of(),
-                effect.delivery() instanceof Effect.Save ? inspirationForSaves(participant) : 0);
+                effect.delivery() instanceof Effect.Save ? inspirationForSaves(participant) : 0, false,
+                senses(participant));
     }
 
     // The sides of the Bardic Inspiration die the creature keeps for its next failed save, or 0

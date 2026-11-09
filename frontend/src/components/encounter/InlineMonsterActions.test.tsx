@@ -173,3 +173,46 @@ describe('InlineMonsterActions: bonus actions and reactions (D138, D174)', () =>
     expect(screen.getByText(/^Over the action economy: Reaction already used/)).toBeInTheDocument();
   });
 });
+
+describe('InlineMonsterActions: conditions on attack rolls (PHB appendix A)', () => {
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [
+        { name: 'Scimitar', attackBonus: 4, deliveryMethod: 'ATTACK_ROLL', attackType: 'MELEE_WEAPON', automatable: true,
+          effects: [{ effectType: 'DAMAGE', damageDice: '1d6+2', damageType: 'slashing' }] },
+        { name: 'Shortbow', attackBonus: 4, deliveryMethod: 'ATTACK_ROLL', attackType: 'RANGED_WEAPON', automatable: true,
+          effects: [{ effectType: 'DAMAGE', damageDice: '1d6+2', damageType: 'piercing' }] },
+      ],
+    } satisfies MonsterActionTemplate)));
+  });
+
+  it("shows, for each chosen target, what its and the monster's conditions add, a ranged attack from beyond 5 ft", async () => {
+    const asked: string[] = [];
+    server.use(http.get('/api/encounters/:id/combat/attack-roll-preview', ({ request }) => {
+      const url = new URL(request.url);
+      asked.push(url.search);
+      const within = url.searchParams.get('withinFiveFeet') === 'true';
+      return HttpResponse.json({
+        rollMode: within ? 'ADVANTAGE' : 'DISADVANTAGE',
+        sources: [within ? { mode: 'ADVANTAGE', reason: 'target prone within 5 ft' }
+          : { mode: 'DISADVANTAGE', reason: 'target prone beyond 5 ft' }],
+        hitIsCritical: false,
+      });
+    }));
+    const user = await renderActions();
+
+    await user.click(await screen.findByRole('button', { name: /Scimitar/ }));
+    expect(screen.queryByRole('note', { name: 'Automatic advantage and disadvantage' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Gimli' }));
+    expect(await screen.findByRole('note', { name: 'Automatic advantage and disadvantage' }))
+      .toHaveTextContent('Gimli: Advantage: target prone within 5 ft');
+
+    await user.click(screen.getByRole('button', { name: /Shortbow/ }));
+    expect(await screen.findByText('Disadvantage: target prone beyond 5 ft')).toBeInTheDocument();
+    expect(asked).toEqual([
+      '?attackerId=part-goblin&targetId=part-gimli&withinFiveFeet=true',
+      '?attackerId=part-goblin&targetId=part-gimli&withinFiveFeet=false',
+    ]);
+  });
+});

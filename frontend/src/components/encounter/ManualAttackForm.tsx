@@ -4,6 +4,7 @@ import type { AttackRollRequest } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
 import { DAMAGE_TYPES } from '../../utils/conditions';
 import IconButton from '../ui/IconButton';
+import AttackRollSources from './AttackRollSources';
 import { useToast } from '../../hooks/useToast';
 import { FIELD_LABEL } from './formStyles';
 
@@ -19,8 +20,9 @@ const TOGGLE_OFF = 'bg-page-alt text-muted border border-rule';
 
 /**
  * The DM's attacks entered by hand: up to five rows of attack bonus, damage dice and type, each with advantage,
- * a forced critical and whether it is made from within 5 feet. `onRoll` sends each complete row in turn; the rows
- * empty once they have all been sent. A failure shows as a toast and keeps the rows, so they can be sent again.
+ * a forced critical and whether it is made from within 5 feet, and what the target's conditions add to the roll by
+ * themselves (PHB appendix A). `onRoll` sends each complete row in turn; the rows empty once they have all been sent.
+ * A failure shows as a toast and keeps the rows, so they can be sent again.
  */
 export default function ManualAttackForm({ target, onRoll }: {
   target: EncounterParticipant;
@@ -137,6 +139,8 @@ export default function ManualAttackForm({ target, onRoll }: {
                 </IconButton>
               )}
             </div>
+            {/* What the target's conditions add by themselves; the DM's own attack brings none of its own */}
+            <AttackRollSources attacker={null} target={target} withinFiveFeet={atk.within5Ft} />
           </div>
         ))}
         {attacks.length < MAX_ROWS && (

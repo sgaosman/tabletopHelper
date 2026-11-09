@@ -25,7 +25,8 @@ public final class SaveRules {
     /**
      * How the creature rolls this saving throw: Dexterity saves with advantage while it takes the Dodge action
      * (PHB p.192, {@link StandardActions#dodging}), Strength saves with advantage while it rages (PHB p.48,
-     * {@link ClassFeatures#raging}), and anything else normally.
+     * {@link ClassFeatures#raging}), Dexterity saves with disadvantage while it is restrained (PHB p.292), and anything
+     * else normally.
      */
     public static RollMode rollMode(Ability ability, Collection<String> conditions) {
         return rollMode(ability, conditions, false);
@@ -33,7 +34,8 @@ public final class SaveRules {
 
     /**
      * As {@link #rollMode(Ability, Collection)}, with disadvantage on Strength and Dexterity saves when
-     * strDexDisadvantage is true, as for a creature wearing armour or a shield it isn't proficient with (PHB p.144).
+     * strDexDisadvantage is true, as for a creature wearing armour or a shield it isn't proficient with (PHB p.144), as
+     * well as restrained's disadvantage on Dexterity saves.
      * Advantage and disadvantage cancel (PHB p.173).
      */
     public static RollMode rollMode(Ability ability, Collection<String> conditions, boolean strDexDisadvantage) {
@@ -43,6 +45,9 @@ public final class SaveRules {
                 ? RollMode.ADVANTAGE : RollMode.NORMAL;
         RollMode armour = strDexDisadvantage && (ability == Ability.STR || ability == Ability.DEX)
                 ? RollMode.DISADVANTAGE : RollMode.NORMAL;
-        return RollMode.combine(List.of(dodge, rage, armour));
+        RollMode restrained = ability == Ability.DEX && conditions != null
+                && Conditions.has(conditions, Conditions.RESTRAINED)
+                ? RollMode.DISADVANTAGE : RollMode.NORMAL;
+        return RollMode.combine(List.of(dodge, rage, armour, restrained));
     }
 }

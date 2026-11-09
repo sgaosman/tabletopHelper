@@ -156,6 +156,23 @@ class WildShapeTest {
         }
 
         @Test
+        @DisplayName("In beast form Rowan has the beast's senses, so a constrictor snake's blindsight finds an invisible "
+                + "creature and ignores blindness on its attacks (PHB p.67, MM p.324); reverting ends them")
+        void beastSenses() {
+            druid(rowan, 4, null);
+            snake.setSenses("[\"blindsight 10 ft.\", \"passive Perception 10\"]");
+            assertFalse(CreatureStats.senses(rowan).blindsight());
+
+            shape(snake);
+            assertTrue(CreatureStats.senses(rowan).blindsight());
+            assertFalse(CreatureStats.senses(rowan).truesight());
+
+            CombatFixture.newTurn(rowan);
+            revert();
+            assertFalse(CreatureStats.senses(rowan).blindsight());
+        }
+
+        @Test
         @DisplayName("Reverting is a bonus action that spends no use and gives back Rowan's own hit points and AC")
         void revertsEarly() {
             shape(wolf);

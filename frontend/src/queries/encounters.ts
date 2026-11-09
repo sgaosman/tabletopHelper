@@ -271,6 +271,25 @@ export function useAttackOptions(participantId: string) {
 }
 
 /**
+ * What the attacker's and the target's conditions and senses do to an attack roll between them now (PHB appendix A),
+ * for the attack form to show; a null attacker is the DM's own attack entered by hand. It loads again when either
+ * side's conditions change.
+ */
+export function useAttackRollPreview(attacker: EncounterParticipant | null, target: EncounterParticipant,
+  withinFiveFeet: boolean) {
+  const { encounterId, view } = useLiveEncounter();
+  const names = (p: EncounterParticipant | null) => (p?.activeConditions ?? []).map(c => c.name).sort().join(',');
+  const conditions = `${names(attacker)}|${names(target)}`;
+  return useQuery({
+    queryKey: queryKeys.encounters.attackRollPreview(encounterId, view, attacker?.id ?? null, target.id,
+      withinFiveFeet, conditions),
+    queryFn: async () => (await combatApi.attackRollPreview(encounterId, attacker?.id ?? null, target.id,
+      withinFiveFeet)).data,
+    staleTime: 0,
+  });
+}
+
+/**
  * The spells a participant can cast now, with what can pay for each (D164, D165). Casting spends slots and uses,
  * so the options load again each time they are shown.
  */

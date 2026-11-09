@@ -50,12 +50,31 @@ class SaveRulesTest {
             CON | dodging            | NORMAL
             DEX | -                  | NORMAL
             DEX | dodging incapacitated | NORMAL
-            DEX | dodging restrained | NORMAL
+            DEX | dodging restrained | DISADVANTAGE
             """)
     @DisplayName("A dodging creature has advantage on DEX saves while it keeps the benefit (PHB p.192)")
     void dodgingDexSaves(Ability ability, String conditions, RollMode expected) {
         List<String> names = "-".equals(conditions) ? List.of() : List.of(conditions.split("\\s+"));
         assertEquals(expected, SaveRules.rollMode(ability, names));
+    }
+
+    @ParameterizedTest(name = "{0} save while {1} → {2}")
+    @CsvSource(delimiter = '|', textBlock = """
+            DEX | restrained          | DISADVANTAGE
+            DEX | Restrained          | DISADVANTAGE
+            STR | restrained          | NORMAL
+            CON | restrained          | NORMAL
+            DEX | grappled            | NORMAL
+            """)
+    @DisplayName("A restrained creature has disadvantage on DEX saves (PHB p.292)")
+    void restrainedDexSaves(Ability ability, String conditions, RollMode expected) {
+        assertEquals(expected, SaveRules.rollMode(ability, List.of(conditions)));
+    }
+
+    @Test
+    @DisplayName("Restrained and armour worn without proficiency still give one disadvantage on DEX saves (PHB p.173)")
+    void restrainedAndArmour() {
+        assertEquals(RollMode.DISADVANTAGE, SaveRules.rollMode(Ability.DEX, List.of("restrained"), true));
     }
 
     @Test

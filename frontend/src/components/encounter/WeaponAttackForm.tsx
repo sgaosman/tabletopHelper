@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Copy, Plus, X } from 'lucide-react';
 import IconButton from '../ui/IconButton';
+import AttackRollSources from './AttackRollSources';
 import { apiErrorMessage } from '../../api/errors';
 import { useAttackOptions, useEncounterAction } from '../../queries/encounters';
 import type { AttackGrip, AttackOption, AttackRollRequest } from '../../types/combat';
@@ -369,6 +370,9 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
                   className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.advantage === true ? 'bg-buff text-card' : TOGGLE_OFF}`}>Adv</button>
               </div>
             </div>
+
+            {/* What the conditions add by themselves, which the player's choice combines with (PHB p.173) */}
+            <AttackRollSources attacker={attacker} target={target} withinFiveFeet={row.within5Ft} />
 
             <div className="flex gap-1">
               {/* Great Weapon Master's or Sharpshooter's trade, only where the server allows it (D164) */}

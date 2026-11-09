@@ -42,6 +42,14 @@ export const queryKeys = {
     /** The weapons a participant can attack with and their numbers: the DM's for anyone, a player's for their own. */
     attackOptions: (encounterId: string, view: EncounterView, participantId: string) =>
       ['encounters', encounterId, view, 'participants', participantId, 'attack-options'] as const,
+    /**
+     * What the attacker's and the target's conditions do to an attack roll between them; `conditions` names both
+     * sides' conditions, so the preview loads again when they change.
+     */
+    attackRollPreview: (encounterId: string, view: EncounterView, attackerId: string | null, targetId: string,
+      withinFiveFeet: boolean, conditions: string) =>
+      ['encounters', encounterId, view, 'attack-roll-preview', attackerId ?? 'dm', targetId, withinFiveFeet,
+        conditions] as const,
     /** A monster's multiattacks and the attacks each makes, which only the DM may read (D157, D165). */
     multiattackOptions: (encounterId: string, participantId: string) =>
       ['encounters', encounterId, 'dm', 'participants', participantId, 'multiattack-options'] as const,

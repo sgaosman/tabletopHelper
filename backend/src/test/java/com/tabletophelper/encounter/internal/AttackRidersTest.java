@@ -240,6 +240,25 @@ class AttackRidersTest {
         }
 
         @Test
+        @DisplayName("A restrained target's advantage brings Sneak Attack without the player choosing advantage; a "
+                + "poisoned rogue's disadvantage cancels it and there is none (PHB p.96, p.292)")
+        void advantageFromConditions() {
+            goblin.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("restrained", null, 1))));
+
+            attack(sly, request(goblin, "Rapier"), 4, 15, 3, 2, 5);
+            CombatFixture.newTurn(sly);
+            sly.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("poisoned", null, 1))));
+            attack(sly, request(goblin, "Rapier"), 15, 3);
+
+            assertEquals(List.of(
+                    "Sly uses Rapier (Sneak Attack +2d6) on Goblin (advantage: target restrained): 2d20(4, 15) with "
+                            + "advantage → 15 + 5 = 20 vs AC 10 — hit, 13 piercing damage.",
+                    "Sly uses Rapier on Goblin (advantage: target restrained; disadvantage: attacker poisoned): d20(15) "
+                            + "+ 5 = 20 vs AC 10 — hit, 6 piercing damage."),
+                    f.entriesAbout(goblin).stream().map(e -> e.getDescription()).toList());
+        }
+
+        @Test
         @DisplayName("Sneak Attack's dice are part of the hit's damage, so a concentrating target makes one check "
                 + "against the whole: 23 damage is DC 11 (PHB p.96, p.203)")
         void oneConcentrationCheck() {

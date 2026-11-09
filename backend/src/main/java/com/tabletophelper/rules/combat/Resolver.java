@@ -43,15 +43,30 @@ public final class Resolver {
      *                     (PHB p.53, M17); 0 for none
      * @param autoSucceed  it succeeds on the Effect's save without rolling, as a creature Careful Spell protects does
      *                     (PHB p.102, M18)
+     * @param senses       its blindsight and truesight, which let it perceive an invisible attacker (MM p.8-9)
      */
     public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
                          boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides,
-                         boolean autoSucceed) {
+                         boolean autoSucceed, AttackRules.Senses senses) {
 
         public Target {
             Objects.requireNonNull(id, "id");
             conditions = List.copyOf(conditions);
             saveSources = saveSources != null ? List.copyOf(saveSources) : List.of();
+            senses = senses != null ? senses : AttackRules.Senses.NONE;
+        }
+
+        /** A target with no special senses. */
+        public Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
+                      boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides,
+                      boolean autoSucceed) {
+            this(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources, inspirationSides,
+                    autoSucceed, AttackRules.Senses.NONE);
+        }
+
+        /** Its side of an attack roll against it. */
+        public AttackRules.Side side() {
+            return new AttackRules.Side(List.copyOf(conditions), senses);
         }
 
         /** A target that rolls its save. */
@@ -71,13 +86,13 @@ public final class Resolver {
             List<RollMode> sources = new ArrayList<>(saveSources);
             sources.add(source);
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, sources,
-                    inspirationSides, autoSucceed);
+                    inspirationSides, autoSucceed, senses);
         }
 
         /** The same target succeeding on the Effect's save without rolling (Careful Spell, PHB p.102). */
         public Target succeedingAutomatically() {
             return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, saveSources,
-                    inspirationSides, true);
+                    inspirationSides, true, senses);
         }
 
         /** A target whose saves nothing but its conditions changes. */
@@ -117,12 +132,14 @@ public final class Resolver {
      * @param guidedStrike  Guided Strike's +10 was added to the attack roll, already in total (PHB p.63)
      * @param rerolledD20s  the d20s of the missed attack roll Unerring Accuracy rolled again (XGE p.35), d20s being the
      *                      new roll's; null when nothing was rerolled
+     * @param automaticSources the advantage and disadvantage the attacker's and the target's conditions gave an attack
+     *                      roll, with their reasons ({@link AttackRules#setup}); empty for anything else
      */
     public record TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
                                 RollMode rollMode, boolean autoFailed, List<Damage> damage,
                                 List<Damage> successDamage, int healing, List<String> conditions,
                                 SaveRoll hitSave, Inspiration inspiration, boolean guidedStrike,
-                                List<Integer> rerolledD20s) {
+                                List<Integer> rerolledD20s, List<AttackRules.Source> automaticSources) {
 
         public TargetOutcome {
             d20s = List.copyOf(d20s);
@@ -130,6 +147,16 @@ public final class Resolver {
             successDamage = List.copyOf(successDamage);
             conditions = List.copyOf(conditions);
             rerolledD20s = rerolledD20s != null ? List.copyOf(rerolledD20s) : null;
+            automaticSources = automaticSources != null ? List.copyOf(automaticSources) : List.of();
+        }
+
+        /** An outcome with no automatic sources named. */
+        public TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
+                             RollMode rollMode, boolean autoFailed, List<Damage> damage, List<Damage> successDamage,
+                             int healing, List<String> conditions, SaveRoll hitSave, Inspiration inspiration,
+                             boolean guidedStrike, List<Integer> rerolledD20s) {
+            this(targetId, outcome, d20s, d20, total, rollMode, autoFailed, damage, successDamage, healing,
+                    conditions, hitSave, inspiration, guidedStrike, rerolledD20s, List.of());
         }
 
         /** An outcome no roll was rerolled for. */
@@ -175,22 +202,39 @@ public final class Resolver {
         }
     }
 
-    /** Each target's outcome, in the order the targets are given. */
+    /**
+     * Each target's outcome, in the order the targets are given, for an Effect whose user has no conditions or senses
+     * that change an attack roll, such as the DM's own attack.
+     */
     public List<TargetOutcome> resolve(Effect effect, List<Target> targets) {
-        return resolve(effect, targets, 0);
+        return resolve(effect, AttackRules.Side.NONE, targets, 0);
     }
 
     /**
-     * As {@link #resolve(Effect, List)}, with Empowered Spell (PHB p.102, M18): each damage roll then rerolls up to
-     * empoweredDice of its dice, those that rolled below their die's average, the furthest below first, and keeps the
-     * new rolls. A damage roll shared by every target is rerolled once.
+     * Each target's outcome, in the order the targets are given; an attack roll counts the attacker's conditions and
+     * senses ({@link AttackRules#setup}).
      */
+    public List<TargetOutcome> resolve(Effect effect, AttackRules.Side attacker, List<Target> targets) {
+        return resolve(effect, attacker, targets, 0);
+    }
+
+    /** As {@link #resolve(Effect, AttackRules.Side, List, int)}, for a user with no conditions or senses. */
     public List<TargetOutcome> resolve(Effect effect, List<Target> targets, int empoweredDice) {
+        return resolve(effect, AttackRules.Side.NONE, targets, empoweredDice);
+    }
+
+    /**
+     * As {@link #resolve(Effect, AttackRules.Side, List)}, with Empowered Spell (PHB p.102, M18): each damage roll then
+     * rerolls up to empoweredDice of its dice, those that rolled below their die's average, the furthest below first,
+     * and keeps the new rolls. A damage roll shared by every target is rerolled once.
+     */
+    public List<TargetOutcome> resolve(Effect effect, AttackRules.Side attacker, List<Target> targets,
+                                       int empoweredDice) {
         List<TargetOutcome> outcomes = new ArrayList<>();
         switch (effect.delivery()) {
             case Effect.Attack attack -> {
                 for (Target target : targets) {
-                    outcomes.add(attack(effect, attack, target, empoweredDice));
+                    outcomes.add(attack(effect, attack, attacker, target, empoweredDice));
                 }
             }
             case Effect.Save save -> {
@@ -250,9 +294,11 @@ public final class Resolver {
         return rng.roll(20);
     }
 
-    private TargetOutcome attack(Effect effect, Effect.Attack attack, Target target, int empoweredDice) {
-        AttackRules.Setup setup = AttackRules.setup(attack.attackerSources(), target.conditions(),
+    private TargetOutcome attack(Effect effect, Effect.Attack attack, AttackRules.Side attacker, Target target,
+                                 int empoweredDice) {
+        AttackRules.Setup setup = AttackRules.setup(attack.attackerSources(), attacker, target.side(),
                 attack.withinFiveFeet());
+        List<AttackRules.Source> automatic = setup.automatic();
         List<Integer> d20s = rollD20s(setup.rollMode());
         int d20 = kept(setup.rollMode(), d20s);
         Outcome outcome = attack.forcedCritical()
@@ -294,14 +340,15 @@ public final class Resolver {
         int total = d20 + bonus;
         if (outcome == Outcome.MISS) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    List.of(), List.of(), 0, List.of(), null, inspiration, false, rerolledD20s);
+                    List.of(), List.of(), 0, List.of(), null, inspiration, false, rerolledD20s, automatic);
         }
         List<Damage> damage = rollDamage(effect.damage(), outcome == Outcome.CRITICAL, empoweredDice);
         int healing = rollHealing(effect.healing());
         Effect.HitSave hitSave = attack.hitSave();
         if (hitSave == null) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike, rerolledD20s);
+                    damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike, rerolledD20s,
+                    automatic);
         }
         // The save decides only the conditions it guards, so a success would leave all of the damage
         SaveRoll save = target.autoSucceed() ? new SaveRoll(null, null, true, false)
@@ -312,7 +359,7 @@ public final class Resolver {
                 .toList();
         return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
                 damage, save.success() ? List.of() : damage, healing, conditions, save, inspiration, guidedStrike,
-                rerolledD20s);
+                rerolledD20s, automatic);
     }
 
     // One d20, or two with advantage or disadvantage

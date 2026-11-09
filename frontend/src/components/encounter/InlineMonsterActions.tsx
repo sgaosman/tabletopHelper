@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../api/errors';
 import { useEncounterAction, useMonsterActionTemplates } from '../../queries/encounters';
 import type { MonsterAction, MonsterActionRequest, MonsterActionResponse, MonsterActionTemplate } from '../../types/combat';
 import type { EncounterParticipant } from '../../types/encounter';
+import AttackRollSources from './AttackRollSources';
 import MultiattackPicker from './MultiattackPicker';
 import { chargeBlock, type EconomyCost } from '../../utils/turnEconomy';
 import { isAttackAction } from '../../utils/summons';
@@ -346,6 +347,12 @@ export default function InlineMonsterActions({
           {selectedAction.dmNote && (
             <p className="mb-1 font-body text-[13px] font-semibold text-muted">DM: {selectedAction.dmNote}</p>
           )}
+          {/* What each target's and the monster's conditions add to an attack roll; a ranged attack is made from
+              beyond 5 feet, as the server takes it (D161) */}
+          {isAttackAction(selectedAction) && participants.filter(p => targets.includes(p.id)).map(t => (
+            <AttackRollSources key={t.id} attacker={participant} target={t} named
+              withinFiveFeet={!(selectedAction.attackType ?? '').toUpperCase().startsWith('RANGED')} />
+          ))}
           <button
             disabled={targets.length === 0 || executing
               || (tab === 'legendary' && (ownTurn || legendaryRemaining < (selectedAction.cost || 1)))

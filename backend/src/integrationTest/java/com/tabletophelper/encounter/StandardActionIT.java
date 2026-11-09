@@ -99,7 +99,8 @@ class StandardActionIT extends IntegrationTest {
                         + "/combat/attack?actorId=" + goblinId,
                 new HashMap<>(Map.of("targetId", vexId, "attackBonus", 4, "damageDice", "1d6")), dm.accessToken()));
         assertThat(descriptions(logEntries("ATTACK")).getLast())
-                .startsWith("Goblin attacks Vex: 2d20(18, 1) with disadvantage → 1 + 4 = 5");
+                .startsWith("Goblin attacks Vex (disadvantage: target dodging): 2d20(18, 1) with disadvantage → 1 + 4 "
+                        + "= 5");
 
         nextTurn();
         JsonNode round2 = dmView();

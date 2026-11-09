@@ -628,6 +628,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/attack-roll-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAttackRollPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/bardic-inspiration": {
         parameters: {
             query?: never;
@@ -2205,6 +2221,12 @@ export interface components {
             versatileDamage?: string | null;
             weapon: string;
         };
+        AttackRollPreview: {
+            hitIsCritical: boolean;
+            /** @enum {string} */
+            rollMode: "NORMAL" | "ADVANTAGE" | "DISADVANTAGE";
+            sources: components["schemas"]["RollSource"][];
+        };
         AttackRollRequest: {
             advantage?: boolean | null;
             /** Format: int32 */
@@ -3746,6 +3768,11 @@ export interface components {
             sourceName?: string | null;
             sourceType: string;
             spendActionType?: string | null;
+        };
+        RollSource: {
+            /** @enum {string} */
+            mode: "NORMAL" | "ADVANTAGE" | "DISADVANTAGE";
+            reason: string;
         };
         SetHpRequest: {
             /** Format: int32 */
@@ -5293,6 +5320,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttackOption"][];
+                };
+            };
+        };
+    };
+    getAttackRollPreview: {
+        parameters: {
+            query: {
+                attackerId?: string;
+                targetId: string;
+                withinFiveFeet?: boolean;
+            };
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttackRollPreview"];
                 };
             };
         };

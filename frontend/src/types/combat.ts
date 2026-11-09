@@ -13,6 +13,13 @@ export type AttackRollRequest = Schemas['AttackRollRequest'];
 export type AttackOption = Schemas['AttackOption'];
 
 /**
+ * What the attacker's and the target's conditions and senses do to an attack roll between them now (PHB appendix A):
+ * each source of advantage or disadvantage with its reason, such as "target restrained", and what they come to. The
+ * attacker's own choice still combines with them when it attacks (PHB p.173).
+ */
+export type AttackRollPreview = Schemas['AttackRollPreview'];
+
+/**
  * How an attacker holds its weapons for an attack (M17): one-handed, two-handed (a two-handed weapon always, a
  * versatile one for its larger die) or a weapon in each hand. Dueling needs one-handed and Great Weapon Fighting
  * two-handed (PHB p.72, p.147).

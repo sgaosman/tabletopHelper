@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
 import com.tabletophelper.encounter.dto.AttackCost;
 import com.tabletophelper.encounter.dto.AttackOption;
+import com.tabletophelper.encounter.dto.AttackRollPreview;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
@@ -185,7 +186,8 @@ public class AttackService {
                 CombatActionType.ATTACK, attack.action() + costNote, attack.preposition(), "", null);
         manualModifiers.log(encounter, CombatActionType.ATTACK, actor, attack.subject(), userId, attack.modifiers());
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, attack.effect(),
-                resolver.resolve(attack.effect(), List.of(stats.target(target, attack.effect()))));
+                resolver.resolve(attack.effect(), CreatureStats.side(actor),
+                        List.of(stats.target(target, attack.effect()))));
         if (actor != null) {
             recordHit(encounter, actor, target, attack, applied.getFirst());
             if (applied.getFirst().outcome().guidedStrike()) {
@@ -294,6 +296,36 @@ public class AttackService {
                         rollBonuses(participant, conditions, held.weapon().name()), kenseiLevel,
                         kenseisShot(conditions, kenseiLevel, attacker, held.weapon())))
                 .toList();
+    }
+
+    /**
+     * What the attacker's and the target's conditions and senses do to an attack roll between them now
+     * ({@link AttackRules#setup}), for the attack form to show before a weapon, spell or monster attack. Whether the
+     * attacker is within 5 feet decides a prone target's advantage or disadvantage and an unconscious or paralyzed
+     * one's critical hit. The DM may read any attacker's, a player only that of a creature they control; with no
+     * attacker it is the DM's own attack entered by hand, which brings no conditions, and only the DM's. It changes
+     * nothing, so it needs no lock and any status will do.
+     */
+    @Transactional(readOnly = true)
+    public AttackRollPreview attackRollPreview(UUID encounterId, UUID attackerId, UUID targetId,
+                                               boolean withinFiveFeet, UUID userId) {
+        Encounter encounter = encounterRepository.findById(encounterId)
+                .orElseThrow(() -> new NotFoundException("Encounter not found"));
+        UUID campaignId = encounter.getCampaign().getId();
+        accessPolicy.requireMember(campaignId, userId);
+        EncounterParticipant attacker = null;
+        if (attackerId == null) {
+            accessPolicy.requireDm(campaignId, userId);
+        } else {
+            attacker = CombatAccess.target(encounter, attackerId, userId);
+            accessPolicy.requireControls(campaignId, attacker.getControlledByUserId(), userId);
+        }
+        EncounterParticipant target = CombatAccess.target(encounter, targetId, userId);
+        AttackRules.Setup setup = AttackRules.setup(List.of(), CreatureStats.side(attacker),
+                CreatureStats.side(target), withinFiveFeet);
+        return new AttackRollPreview(setup.rollMode(), setup.automatic().stream()
+                .map(source -> new AttackRollPreview.RollSource(source.mode(), source.reason()))
+                .toList(), setup.hitIsCritical());
     }
 
     /**
@@ -721,8 +753,8 @@ public class AttackService {
             }
             return null;
         }
-        RollMode mode = AttackRules.setup(delivery.attackerSources(), CreatureStats.conditionNames(target),
-                delivery.withinFiveFeet()).rollMode();
+        RollMode mode = AttackRules.setup(delivery.attackerSources(), CreatureStats.side(actor),
+                CreatureStats.side(target), delivery.withinFiveFeet()).rollMode();
         if (!AttackFeatures.sneakAttackApplies(claim, mode)) {
             if (claimed) {
                 notes.add("no Sneak Attack with disadvantage");

@@ -336,8 +336,8 @@ class AttackServiceTest {
 
             List<String> attacks = f.entriesAbout(fighter).stream().map(CombatLog::getDescription)
                     .filter(description -> description.startsWith("Rogue uses Longbow")).toList();
-            assertEquals("Rogue uses Longbow on Fighter: d20(15) + 4 = 19 vs AC 12 — hit, 7 piercing damage.",
-                    attacks.getFirst());
+            assertEquals("Rogue uses Longbow on Fighter (advantage: target unconscious; disadvantage: target prone beyond "
+                    + "5 ft): d20(15) + 4 = 19 vs AC 12 — hit, 7 piercing damage.", attacks.getFirst());
             assertTrue(attacks.get(1).contains("with advantage") && attacks.get(1).contains("critical hit"));
         }
 
@@ -808,7 +808,8 @@ class AttackServiceTest {
 
             attack(request, 15, 5);
 
-            assertTrue(entryAbout(goblin).startsWith("Rogue uses Longsword on Goblin: d20(15)"), entryAbout(goblin));
+            assertTrue(entryAbout(goblin).startsWith("Rogue uses Longsword on Goblin (disadvantage: target dodging): "
+                    + "d20(15)"), entryAbout(goblin));
         }
 
         @Test

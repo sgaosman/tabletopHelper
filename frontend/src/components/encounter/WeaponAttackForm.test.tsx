@@ -61,6 +61,40 @@ describe('WeaponAttackForm', () => {
     expect(bodies[0]).not.toHaveProperty('cost');
   });
 
+  it("shows the advantage and disadvantage both sides' conditions add, for the attacker and target, and keeps the "
+    + "player's own choice to send", async () => {
+    const asked: string[] = [];
+    server.use(http.get('/api/encounters/:id/combat/attack-roll-preview', ({ request }) => {
+      asked.push(new URL(request.url).search);
+      return HttpResponse.json({
+        rollMode: 'NORMAL',
+        sources: [{ mode: 'ADVANTAGE', reason: 'target restrained' }, { mode: 'DISADVANTAGE', reason: 'attacker poisoned' }],
+        hitIsCritical: false,
+      });
+    }));
+    const bodies = attackRequests();
+    const { onDone, user } = await renderForm({
+      attacker: rogue({ activeConditions: [makeMockCondition('poisoned')] }),
+      target: { ...goblin, activeConditions: [makeMockCondition('restrained')] },
+    });
+
+    const note = await screen.findByRole('note', { name: 'Automatic advantage and disadvantage' });
+    expect(note).toHaveTextContent('Advantage: target restrained; Disadvantage: attacker poisoned (they cancel)');
+    expect(asked[0]).toBe('?attackerId=part-rogue&targetId=part-goblin&withinFiveFeet=true');
+    await user.click(screen.getByRole('button', { name: 'Adv' }));
+    await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(bodies[0]).toMatchObject({ advantage: true, within5Ft: true });
+  });
+
+  it('shows nothing when no condition changes the roll', async () => {
+    await renderForm();
+
+    expect(await screen.findByLabelText('Cost')).toBeInTheDocument();
+    expect(screen.queryByRole('note', { name: 'Automatic advantage and disadvantage' })).not.toBeInTheDocument();
+  });
+
   it('sends an off-hand attack as a bonus action', async () => {
     const bodies = attackRequests();
     const { onDone, user } = await renderForm({

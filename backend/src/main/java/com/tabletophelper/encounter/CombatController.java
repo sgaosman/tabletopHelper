@@ -133,6 +133,20 @@ public class CombatController {
         return ResponseEntity.ok(attackService.attackOptions(encounterId, participantId, userId));
     }
 
+    // What the attacker's and the target's conditions do to an attack roll between them: the DM's for any attacker or
+    // none (the DM's own attack), a player's for a creature they control
+    @GetMapping("/attack-roll-preview")
+    public ResponseEntity<AttackRollPreview> getAttackRollPreview(
+            @PathVariable UUID encounterId,
+            @RequestParam(required = false) UUID attackerId,
+            @RequestParam UUID targetId,
+            @RequestParam(defaultValue = "true") boolean withinFiveFeet,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(attackService.attackRollPreview(encounterId, attackerId, targetId, withinFiveFeet,
+                userId));
+    }
+
     // The DM's alone (D028, D161)
     @PostMapping("/damage")
     public ResponseEntity<EncounterResponse> applyDamage(

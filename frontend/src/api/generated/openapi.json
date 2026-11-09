@@ -1533,6 +1533,64 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/attack-roll-preview": {
+      "get": {
+        "operationId": "getAttackRollPreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attackerId",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "withinFiveFeet",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttackRollPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/bardic-inspiration": {
       "post": {
         "operationId": "bardicInspiration",
@@ -5469,6 +5527,33 @@
           },
           "weapon": {
             "type": "string"
+          }
+        }
+      },
+      "AttackRollPreview": {
+        "required": [
+          "hitIsCritical",
+          "rollMode",
+          "sources"
+        ],
+        "type": "object",
+        "properties": {
+          "hitIsCritical": {
+            "type": "boolean"
+          },
+          "rollMode": {
+            "type": "string",
+            "enum": [
+              "NORMAL",
+              "ADVANTAGE",
+              "DISADVANTAGE"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RollSource"
+            }
           }
         }
       },
@@ -11179,6 +11264,26 @@
           "spendActionType": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "RollSource": {
+        "required": [
+          "mode",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "NORMAL",
+              "ADVANTAGE",
+              "DISADVANTAGE"
+            ]
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },

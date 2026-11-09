@@ -160,10 +160,13 @@ class EndsOnAttackOrCastTest {
             assertTrue(given.endsWhenAttackingOrCasting());
             assertEquals(EndRule.CONCENTRATION, given.endRule());
 
-            rapierAttack(vex, 15, 4);
+            // Invisible as it attacks, so with advantage (PHB p.291)
+            rapierAttack(vex, 15, 2, 4);
 
             assertNull(invisible(vex));
             assertEquals(26, goblin.getHpCurrent());
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.startsWith("Vex uses Rapier on Goblin (advantage: "
+                    + "attacker invisible): 2d20(15, 2) with advantage")), String.join("; ", f.descriptions()));
             assertTrue(f.descriptions().contains("invisible ends on Vex (it attacks)"));
             assertEquals("Invisibility", wren.getConcentration().spell());
         }
@@ -173,7 +176,7 @@ class EndsOnAttackOrCastTest {
         void endsOnlyForTheAttacker() {
             cast(wren, "Invisibility", 3, List.of(vex, ash));
 
-            rapierAttack(vex, 2);
+            rapierAttack(vex, 2, 2);
 
             assertNull(invisible(vex));
             assertNotNull(invisible(ash));
@@ -185,7 +188,7 @@ class EndsOnAttackOrCastTest {
             cast(wren, "Invisibility", 2, List.of(wren));
             assertNotNull(invisible(wren));
 
-            cast(wren, "Fire Bolt", 0, List.of(goblin), 3);
+            cast(wren, "Fire Bolt", 0, List.of(goblin), 3, 3);
 
             assertNull(invisible(wren));
             // Fire Bolt's spell attack is an attack too
@@ -196,7 +199,7 @@ class EndsOnAttackOrCastTest {
         @DisplayName("Undoing the attack gives the invisibility back")
         void undo() {
             cast(wren, "Invisibility", 2, List.of(vex));
-            rapierAttack(vex, 2);
+            rapierAttack(vex, 2, 2);
             assertNull(invisible(vex));
 
             f.inTransaction(() -> f.undoService.undo(f.encounterId(),
@@ -233,7 +236,7 @@ class EndsOnAttackOrCastTest {
             assertTrue(cloak.endsWhenAttackingOrCasting());
             assertEquals(EndRule.endOfTurn(tam.getId()), cloak.endRule());
 
-            rapierAttack(tam, 2);
+            rapierAttack(tam, 2, 2);
 
             assertNull(invisible(tam));
         }
@@ -243,7 +246,7 @@ class EndsOnAttackOrCastTest {
         void endsOnCast() {
             cloakOfShadows();
 
-            cast(tam, "Fire Bolt", 0, List.of(goblin), 1);
+            cast(tam, "Fire Bolt", 0, List.of(goblin), 1, 1);
 
             assertNull(invisible(tam));
         }
@@ -267,7 +270,7 @@ class EndsOnAttackOrCastTest {
         goblin.setActiveConditions(new ArrayList<>(List.of(new ConditionEntry(UUID.randomUUID(), "invisible", 600, 1,
                 "Invisibility", wren.getId(), true, null, EndRule.CONCENTRATION, null).endingOnAttackOrCast())));
         f.turnOf(goblin);
-        f.dice.script(3);
+        f.dice.script(3, 3);
 
         f.inTransaction(() -> f.monsterActions.monsterAction(f.encounterId(), new MonsterActionRequest(goblin.getId(),
                 "Scimitar", "ACTION", List.of(vex.getId()), null, null, null, null), f.dmUserId));
@@ -280,7 +283,7 @@ class EndsOnAttackOrCastTest {
     void otherInvisibilityStays() {
         vex.setActiveConditions(new ArrayList<>(List.of(ConditionEntry.manual("invisible", null, 1))));
 
-        rapierAttack(vex, 2);
+        rapierAttack(vex, 2, 2);
 
         assertNotNull(invisible(vex));
         assertFalse(invisible(vex).endsWhenAttackingOrCasting());

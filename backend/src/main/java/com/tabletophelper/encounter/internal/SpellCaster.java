@@ -127,7 +127,7 @@ public class SpellCaster {
                 .map(target -> withMetamagic(target, metamagic))
                 .toList();
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, effect,
-                resolver.resolve(effect, resolvedAgainst, metamagic.empoweredDice()));
+                resolver.resolve(effect, CreatureStats.side(caster), resolvedAgainst, metamagic.empoweredDice()));
         leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty(), metamagic);
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null, summary(lead, applied),
                 outcomes(effect, applied));
@@ -249,7 +249,7 @@ public class SpellCaster {
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
             applied.addAll(effectApplier.apply(encounter, use, effect,
-                    resolver.resolve(effect, stats.targets(standing, effect))));
+                    resolver.resolve(effect, CreatureStats.side(caster), stats.targets(standing, effect))));
         }
         return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
                 outcomes(effect, applied));
@@ -366,7 +366,7 @@ public class SpellCaster {
         CombatAccess.requireNotDead(targets);
         effectApplier.summary(encounter, use, lead + ".");
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, plan.effect(),
-                resolver.resolve(plan.effect(), stats.targets(targets, plan.effect())));
+                resolver.resolve(plan.effect(), CreatureStats.side(caster), stats.targets(targets, plan.effect())));
         endOnSave(encounter, caster, spellEffect, when, applied);
         return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
                 outcomes(plan.effect(), applied));

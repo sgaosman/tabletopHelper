@@ -290,7 +290,8 @@ class StandardActionServiceTest {
             f.attacks.rollAttack(f.encounterId(), attack, goblin.getId(), f.dmUserId);
             assertEquals(30, rogue.getHpCurrent());
             assertTrue(f.entriesAbout(rogue).getLast().getDescription()
-                    .startsWith("Goblin attacks Rogue: 2d20(18, 5) with disadvantage → 5 + 4 = 9 vs AC 14 — miss"),
+                    .startsWith("Goblin attacks Rogue (disadvantage: target dodging): 2d20(18, 5) with disadvantage "
+                            + "→ 5 + 4 = 9 vs AC 14 — miss"),
                     f.entriesAbout(rogue).getLast().getDescription());
 
             // The goblin's next action needs a new turn: 3 and 15 with advantage, 15 saves against DC 12
@@ -331,7 +332,7 @@ class StandardActionServiceTest {
         @DisplayName("An incapacitated dodger loses the benefit: the attack is rolled normally")
         void incapacitated() {
             act(rogue, Action.DODGE, player);
-            f.effectApplier.addCondition(f.encounter, rogue, "stunned", null);
+            f.effectApplier.addCondition(f.encounter, rogue, "incapacitated", null);
             f.turnOf(goblin);
 
             AttackRollRequest attack = new AttackRollRequest();

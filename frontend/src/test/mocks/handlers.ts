@@ -7,7 +7,7 @@ import type {
   ArmourClassBreakdown, DmAdjustment, EligibleClassResponse, FeatOptionResponse, LevelUpResponse, PendingChoice, PlayerCharacter, ShortRestResponse,
 } from '../../types/character';
 import type {
-  AttackOption, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
+  AttackOption, AttackRollPreview, CastSpellResponse, CombatLogEntry, MonsterActionResponse, MonsterActionTemplate, MultiattackOption,
   SpellOption, WildShapeOptions,
 } from '../../types/combat';
 import type {
@@ -307,6 +307,9 @@ export const combatHandlers = [
     makeMockAttackOption('Longsword'),
     makeMockAttackOption('Unarmed Strike', { damage: '4', damageType: 'bludgeoning' }),
   ] satisfies AttackOption[])),
+  // Nothing in either side's conditions changes the roll; tests that show sources serve them (PHB appendix A)
+  http.get(`${BASE}/encounters/:id/combat/attack-roll-preview`, async () => HttpResponse.json(
+    { rollMode: 'NORMAL', sources: [], hitIsCritical: false } satisfies AttackRollPreview)),
   http.post(`${BASE}/encounters/:id/combat/damage`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/heal`, async () => HttpResponse.json(makeMockEncounter())),
   http.post(`${BASE}/encounters/:id/combat/hp`, async () => HttpResponse.json(makeMockEncounter())),

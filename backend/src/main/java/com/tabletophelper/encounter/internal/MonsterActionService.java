@@ -207,7 +207,8 @@ public class MonsterActionService {
                 EffectApplier.Use use = new EffectApplier.Use(monster, monster.getDisplayName(), logType,
                         "uses " + label + costNote, "on", monster.getDisplayName(), null);
                 applied.addAll(effectApplier.apply(encounter, use, step.effect(),
-                        resolver.resolve(step.effect(), stats.targets(stepTargets, step.effect()))));
+                        resolver.resolve(step.effect(), CreatureStats.side(monster),
+                                stats.targets(stepTargets, step.effect()))));
             }
         }
 
