@@ -69,7 +69,7 @@ public class SpellCaster {
                            List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
                            Boolean advantage, String costNote) {
         return cast(encounter, caster, spellName, slotLevel, targets, castingAbility, attackBonus, saveDc, advantage,
-                costNote, MetamagicCasting.Plan.NONE);
+                costNote, MetamagicCasting.Plan.NONE, null);
     }
 
     /**
@@ -78,10 +78,15 @@ public class SpellCaster {
      * saves and Heightened Spell's has disadvantage on its first, Empowered Spell rerolls low damage dice, Extended
      * Spell doubles the durations, Subtle Spell needs no verbal component, so silence doesn't stop it, and Twinned
      * Spell's second target is among the targets. On a spell the DM resolves, the log names what the DM applies.
+     * A summoning spell's cast, whose creatures {@link Summoner#afterCast} brings, says what it summons or that they
+     * wait for the DM, not the spell data's note for resolving it by hand (D182).
+     *
+     * @param summoning the summoning as checked, or null for any other spell
      */
     public CastResult cast(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
                            List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
-                           Boolean advantage, String costNote, MetamagicCasting.Plan metamagic) {
+                           Boolean advantage, String costNote, MetamagicCasting.Plan metamagic,
+                           Summoner.Prepared summoning) {
         SpellEffects.SpellPlan plan = spellEffects.forCast(spellName, slotLevel, caster, castingAbility, attackBonus,
                 saveDc, advantage);
         if (metamagic.has(Metamagic.Option.EXTENDED)) {
@@ -95,10 +100,12 @@ public class SpellCaster {
             ConcentrationInstance instance = plan.concentration()
                     ? effectApplier.startConcentration(encounter, caster, spellName, slotLevel, plan.durationRounds())
                     : null;
-            String summary = lead + " — " + plan.manualReason() + forTheDm(metamagic, targets);
+            String manualReason = summoning != null ? summoning.manualReason() : plan.manualReason();
+            String summary = lead + " — " + (summoning != null ? summoning.castNote() : plan.manualReason())
+                    + forTheDm(metamagic, targets);
             effectApplier.summary(encounter, use(caster, spellName, costNote, instance), summary);
             leaveEffect(encounter, caster, spellName, slotLevel, instance, false, metamagic);
-            return new CastResult(spellName, plan.spellLevel(), plan.concentration(), plan.manualReason(), summary,
+            return new CastResult(spellName, plan.spellLevel(), plan.concentration(), manualReason, summary,
                     List.of());
         }
 

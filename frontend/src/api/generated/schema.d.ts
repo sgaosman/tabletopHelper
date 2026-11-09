@@ -2074,7 +2074,7 @@ export interface components {
             /** Format: uuid */
             controlledByUserId?: string | null;
             creatureType?: string | null;
-            displayName: string;
+            displayName?: string | null;
             /** Format: int32 */
             hpMax?: number | null;
             /** @enum {string|null} */

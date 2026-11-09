@@ -140,6 +140,11 @@ class SummonIT extends IntegrationTest {
                 "targetIds", List.of(), "summon", Map.of("optionId", "16xCR1/4",
                         "creatures", List.of(Map.of("monsterId", wolf.getId(), "count", 16)))), player.accessToken()));
 
+        // The cast says what it summoned, not the spell data's note for resolving it by hand
+        assertThat(cast.get("resultSummary").asString()).contains("casts Conjure Animals at level 5 — summons Wolf ×16")
+                .doesNotContain("Summons creatures");
+        assertThat(cast.get("autoResolved").asBoolean()).isTrue();
+
         JsonNode seen = cast.get("encounterState");
         List<JsonNode> wolves = companions(seen);
         assertThat(wolves).hasSize(16);
@@ -178,9 +183,13 @@ class SummonIT extends IntegrationTest {
     void lesserDemons_dmFlow() {
         start();
         dice.script(3);
-        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+        JsonNode cast = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
                 + "/combat/cast-spell?actorId=" + breaId, Map.of("spellName", "Summon Lesser Demons", "slotLevel", 3,
                 "targetIds", List.of()), player.accessToken()));
+        assertThat(cast.get("resultSummary").asString()).contains("the DM chooses them")
+                .doesNotContain("Summons creatures");
+        assertThat(cast.get("manualResolutionReason").asString())
+                .isEqualTo("The DM chooses the creatures for Summon Lesser Demons");
         JsonNode effect = participant(dmState(), breaId).get("activeEffects").get(0);
         assertThat(effect.get("summon").get("status").asString()).isEqualTo("AWAITING_DM");
         assertThat(effect.get("summon").get("roll").asInt()).isEqualTo(3);
@@ -191,6 +200,12 @@ class SummonIT extends IntegrationTest {
                 "creatures", List.of(Map.of("monsterId", dretch.getId(), "count", 4)));
         expect(HttpStatus.FORBIDDEN, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/summons",
                 place, player.accessToken()));
+        // The d6 set the option (XGE p.167): the DM can't name another, which leaves the rolled one
+        expect(HttpStatus.BAD_REQUEST, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/summons", Map.of("effectId", effectId, "optionId", "2xCR1",
+                "creatures", List.of(Map.of("monsterId", dretch.getId(), "count", 2))), dm.accessToken()));
+        assertThat(participant(dmState(), breaId).get("activeEffects").get(0).get("summon").get("optionId")
+                .asString()).isEqualTo("4xCR1/2");
         dice.script(15);
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/summons", place,
                 dm.accessToken()));
@@ -205,6 +220,58 @@ class SummonIT extends IntegrationTest {
             assertThat(d.get("healthStatus").asString()).isEqualTo("UNHARMED");
             assertThat(d.get("monsterId").isNull()).isTrue();
         });
+    }
+
+    @Test
+    @DisplayName("A summoned companion added from the form takes the DM's name, numbered when there are several, or its stat block's")
+    void companion_takesDisplayName() {
+        dice.script(12);
+        JsonNode state = addParticipant(dm.accessToken(), encounterId, Map.of("participantType", "COMPANION",
+                "displayName", "Hawk", "monsterId", owl.getId(), "summonerParticipantId", breaId,
+                "spellName", "Find Familiar", "creatureType", "fey"));
+        assertThat(participant(state, idOf(state, "Hawk")).get("summon").get("spell").asString())
+                .isEqualTo("Find Familiar");
+
+        spell("Animate Dead", 3, false);
+        Monster skeleton = monster("Skeleton", "undead", null, "1/4", 13, 13, 14);
+        dice.script(8);
+        state = addParticipant(dm.accessToken(), encounterId, Map.of("participantType", "COMPANION",
+                "displayName", "Bones", "monsterId", skeleton.getId(), "quantity", 3,
+                "summonerParticipantId", breaId, "spellName", "Animate Dead", "slotLevel", 4));
+        idOf(state, "Bones 1");
+        idOf(state, "Bones 3");
+
+        // Without a name, the stat block's
+        dice.script(5);
+        state = addParticipant(dm.accessToken(), encounterId, Map.of("participantType", "COMPANION",
+                "monsterId", skeleton.getId(), "summonerParticipantId", breaId, "spellName", "Animate Dead"));
+        idOf(state, "Skeleton");
+
+        // A monster still needs its name
+        expect(HttpStatus.BAD_REQUEST, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/participants",
+                Map.of("participantType", "MONSTER", "monsterId", skeleton.getId()), dm.accessToken()));
+    }
+
+    @Test
+    @DisplayName("A reprinted demon is offered once, from the newer book")
+    void candidates_reprintOnce() {
+        monster("Maw Demon", "fiend", "demon", "1", 33, 13, 8, "VGM");
+        Monster newer = monster("Maw Demon", "fiend", "demon", "1", 33, 13, 8, "MPMM");
+        start();
+        JsonNode options = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId
+                + "/combat/summon-options?participantId=" + breaId + "&spellName=Summon Lesser Demons&slotLevel=3",
+                null, player.accessToken()));
+        List<JsonNode> maws = new ArrayList<>();
+        options.get("candidates").forEach(c -> {
+            if ("Maw Demon".equals(c.get("name").asString())) {
+                maws.add(c);
+            }
+        });
+        assertThat(maws).hasSize(1);
+        assertThat(maws.getFirst().get("monsterId").asString()).isEqualTo(newer.getId().toString());
+        assertThat(options.get("options").findValuesAsString("label"))
+                .containsExactly("2 demons of challenge rating 1 or lower", "4 demons of challenge rating 1/2 or lower",
+                        "8 demons of challenge rating 1/4 or lower");
     }
 
     @Test
@@ -239,8 +306,13 @@ class SummonIT extends IntegrationTest {
     }
 
     private Monster monster(String name, String type, String subtype, String cr, int hp, int ac, int dex) {
+        return monster(name, type, subtype, cr, hp, ac, dex, "MM");
+    }
+
+    private Monster monster(String name, String type, String subtype, String cr, int hp, int ac, int dex,
+                            String source) {
         return monsterRepository.save(Monster.builder().name(name).type(type).subtype(subtype).challengeRating(cr)
-                .source("MM").hitPoints(hp).armourClass(ac).dexterity(dex).build());
+                .source(source).hitPoints(hp).armourClass(ac).dexterity(dex).build());
     }
 
     private JsonNode dmState() {

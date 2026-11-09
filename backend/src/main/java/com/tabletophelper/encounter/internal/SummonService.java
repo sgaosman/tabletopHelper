@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -119,7 +120,8 @@ public class SummonService {
 
     /**
      * The DM's creatures for a summoning (D182): one waiting for the DM gets them, and a placed one's creatures
-     * disappear for the new ones. The option is the one the casting chose or rolled unless the DM names another.
+     * disappear for the new ones. The option is the one the casting chose unless the DM names another; Summon Lesser
+     * Demons keeps the one its d6 rolled (XGE p.167), and naming another is a 400.
      */
     @Transactional
     public EncounterResponse place(UUID encounterId, PlaceSummonRequest request, UUID userId) {
@@ -135,6 +137,13 @@ public class SummonService {
         SummonRules.Spell spell = Summoner.spell(effect.spell());
         int slot = effect.slotLevel() != null ? effect.slotLevel() : spell.level();
         var choice = request.choice();
+        // Summon Lesser Demons' d6 sets how many demons come and their challenge rating; the DM chooses only which
+        // demons (XGE p.167), so the rolled option stays
+        if (spell.kind() == SummonRules.Kind.LESSER_DEMONS && choice.optionId() != null
+                && !choice.optionId().trim().equals(effect.summon().optionId())) {
+            throw new ValidationException(spell.name() + "'s d6 set its option to " + effect.summon().optionId()
+                    + ", so the DM chooses demons for that, not " + choice.optionId().trim());
+        }
         if (choice.optionId() == null && effect.summon().optionId() != null) {
             choice = new com.tabletophelper.encounter.dto.SummonChoice(effect.summon().optionId(), choice.creatures(),
                     choice.variant(), choice.initiativeMode(), choice.creatureType());
@@ -218,7 +227,8 @@ public class SummonService {
         return encounter;
     }
 
-    // The creatures that fit any of the options, from the rulebooks and with hit points, by challenge rating then name
+    // The creatures that fit any of the options, from the rulebooks and with hit points, each name once, by challenge
+    // rating then name
     private List<SummonOptions.Candidate> candidates(SummonRules.Spell spell, List<SummonRules.Option> options,
                                                      boolean pact) {
         List<Monster> pool = new ArrayList<>();
@@ -243,6 +253,11 @@ public class SummonService {
                 .filter(monster -> options.stream().anyMatch(option -> SummonRules.refusal(spell, option,
                         monster.getName(), monster.getChallengeRating(), monster.getType(), monster.getSubtype(), pact)
                         .isEmpty()))
+                // Each creature once: a reprint replaces the older printing, such as MPMM's Maw Demon VGM's
+                .collect(Collectors.toMap(monster -> monster.getName().trim().toLowerCase(Locale.ROOT),
+                        monster -> monster, (kept, other) -> SummonRules.reprints(other.getSource(), kept.getSource())
+                                ? other : kept, LinkedHashMap::new))
+                .values().stream()
                 .sorted(Comparator.comparingDouble((Monster monster) ->
                                 BeastShapes.challengeRating(monster.getChallengeRating()).orElse(0))
                         .thenComparing(Monster::getName))

@@ -130,7 +130,7 @@ public class SpellcastingService {
                 caster.getDisplayName() + "'s " + payment.spellName(), userId, modifiers);
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
-                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic);
+                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, metamagic, summon);
         if (summon != null) {
             summoner.afterCast(encounter, caster, summon, payment.castLevel(),
                     attackBonus(own, request.getOverrideSpellAttackBonus()),

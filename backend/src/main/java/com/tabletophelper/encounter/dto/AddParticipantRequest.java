@@ -22,7 +22,8 @@ public class AddParticipantRequest {
 
     private UUID monsterId;
 
-    @NotBlank
+    // Required for a MONSTER or a plain COMPANION, the base of numbered names when there are several; a PLAYER takes
+    // its character's name, and a summoned COMPANION its stat block's when this is left out (D182)
     @Size(max = 200)
     private String displayName;
 

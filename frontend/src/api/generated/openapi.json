@@ -4906,7 +4906,6 @@
       },
       "AddParticipantRequest": {
         "required": [
-          "displayName",
           "participantType"
         ],
         "type": "object",
@@ -4937,7 +4936,8 @@
           "displayName": {
             "maxLength": 200,
             "minLength": 0,
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "hpMax": {
             "type": "integer",

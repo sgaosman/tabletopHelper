@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -141,6 +142,12 @@ public final class SummonRules {
     /** The Pact Boon that adds familiar forms (PHB p.107). */
     public static final String PACT_OF_THE_CHAIN = "Pact of the Chain";
 
+    /**
+     * The books whose creatures a newer book reprints under the same name: Mordenkainen Presents: Monsters of the
+     * Multiverse updates Volo's Guide to Monsters' and Mordenkainen's Tome of Foes', such as the Maw Demon and the Ox.
+     */
+    public static final Map<String, Set<String>> REPRINTS = Map.of("MPMM", Set.of("VGM", "MTF"));
+
     private static final List<InitiativeMode> GROUP_ONLY = List.of(InitiativeMode.GROUP);
 
     private static final Map<String, Spell> SPELLS = Stream.of(
@@ -211,16 +218,16 @@ public final class SummonRules {
         int times = multiplier(spell, slotLevel);
         return switch (spell.kind()) {
             case CONJURE_ANIMALS -> List.of(
-                    tier(1 * times, 2.0, "beast"), tier(2 * times, 1.0, "beasts"), tier(4 * times, 0.5, "beasts"),
+                    tier(1 * times, 2.0, "beasts"), tier(2 * times, 1.0, "beasts"), tier(4 * times, 0.5, "beasts"),
                     tier(8 * times, 0.25, "beasts"));
             case LESSER_DEMONS -> List.of(
                     tier(2 * times, 1.0, "demons"), tier(4 * times, 0.5, "demons"), tier(8 * times, 0.25, "demons"));
             case FLOCK_OF_FAMILIARS -> List.of(single(Math.max(0, 3 + above - (hasFamiliar ? 1 : 0)), "familiars"));
             case ANIMATE_DEAD, TINY_SERVANT -> List.of(single(1 + 2 * above,
                     spell.kind() == Kind.ANIMATE_DEAD ? "undead" : "tiny servants"));
-            case FAMILIAR -> List.of(single(1, "familiar"));
-            case STEED -> List.of(single(1, "steed"));
-            case SPIRIT -> List.of(single(1, "spirit"));
+            case FAMILIAR -> List.of(single(1, "familiars"));
+            case STEED -> List.of(single(1, "steeds"));
+            case SPIRIT -> List.of(single(1, "spirits"));
         };
     }
 
@@ -235,6 +242,15 @@ public final class SummonRules {
         Spell spell = spell("Summon Lesser Demons").orElseThrow();
         List<Option> tiers = options(spell, slotLevel, false);
         return tiers.get((d6 - 1) / 2);
+    }
+
+    /**
+     * Whether a creature from this book replaces one of the same name from that one, the newer printing over the
+     * older ({@link #REPRINTS}), so a list offers each creature once.
+     */
+    public static boolean reprints(String source, String other) {
+        return source != null && other != null
+                && REPRINTS.getOrDefault(source.trim(), Set.of()).contains(other.trim());
     }
 
     /** The option of that ID at this slot level. */
@@ -339,16 +355,17 @@ public final class SummonRules {
 
     private static Option tier(int count, double maxCr, String what) {
         String cr = crText(maxCr);
-        return new Option(count + "xCR" + cr, count, maxCr, count + " " + (count == 1 ? singular(what) : what)
+        return new Option(count + "xCR" + cr, count, maxCr, count + " " + counted(count, what)
                 + " of challenge rating " + cr + " or lower");
     }
 
     private static Option single(int count, String what) {
-        return new Option(String.valueOf(count), count, null, count + " " + what);
+        return new Option(String.valueOf(count), count, null, count + " " + counted(count, what));
     }
 
-    private static String singular(String what) {
-        return what.endsWith("s") ? what.substring(0, what.length() - 1) : what;
+    // The plural noun, or its singular for one: "1 beast", "2 beasts", "1 tiny servant"; "undead" is both
+    private static String counted(int count, String plural) {
+        return count == 1 && plural.endsWith("s") ? plural.substring(0, plural.length() - 1) : plural;
     }
 
     private static boolean named(List<String> names, String name) {

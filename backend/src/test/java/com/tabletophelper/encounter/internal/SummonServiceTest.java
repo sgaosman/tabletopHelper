@@ -209,6 +209,8 @@ class SummonServiceTest {
 
             SpellEffectEntry waiting = effect("Conjure Animals");
             assertTrue(waiting.summon().awaitingDm());
+            assertEquals("Druid casts Conjure Animals — its creatures wait for the DM to choose them",
+                    f.entries(CombatActionType.SPELL_CAST).getLast().getDescription());
             assertEquals("4xCR1/2", waiting.summon().optionId());
             assertTrue(summoned().isEmpty());
 
@@ -217,6 +219,26 @@ class SummonServiceTest {
                     List.of(new SummonCreature(id("Wolf"), 4)), null, null, null), f.dmUserId));
             assertEquals(4, summoned().size());
             assertEquals(SummonSpec.Status.PLACED, effect("Conjure Animals").summon().status());
+        }
+
+        @Test
+        @DisplayName("The DM may replace the caster's creatures with another option's")
+        void dmReplace_mayChangeOption() {
+            castAs(player, "Conjure Animals", 3, wolves(id("Wolf"), "8xCR1/4", 8), 11);
+            UUID effectId = effect("Conjure Animals").id();
+            f.dice.script(6);
+            f.inTransaction(() -> f.summons.place(f.encounterId(), new PlaceSummonRequest(effectId, "2xCR1",
+                    List.of(new SummonCreature(id("Brown Bear"), 2)), null, null, null), f.dmUserId));
+            assertEquals(2, summoned().size());
+            assertEquals("2xCR1", effect("Conjure Animals").summon().optionId());
+        }
+
+        @Test
+        @DisplayName("The cast's log names what it summoned, or that the DM chooses, not the spell data's manual note")
+        void castLog() {
+            castAs(player, "Conjure Animals", 3, wolves(id("Wolf"), "8xCR1/4", 8), 11);
+            assertEquals("Druid casts Conjure Animals — summons Wolf ×8",
+                    f.entries(CombatActionType.SPELL_CAST).getLast().getDescription());
         }
 
         @Test
@@ -252,11 +274,43 @@ class SummonServiceTest {
 
             // The DM replaces them: the old ones disappear, and the summoning goes on
             f.dice.script(4);
-            f.inTransaction(() -> f.summons.place(f.encounterId(), new PlaceSummonRequest(waiting.id(), "2xCR1",
-                    List.of(new SummonCreature(id("Dretch"), 2)), null, null, null), f.dmUserId));
-            assertEquals(2, summoned().size());
+            f.inTransaction(() -> f.summons.place(f.encounterId(), new PlaceSummonRequest(waiting.id(), "8xCR1/4",
+                    List.of(new SummonCreature(id("Dretch"), 8)), null, null, null), f.dmUserId));
+            assertEquals(8, summoned().size());
             assertEquals(8, f.entries(CombatActionType.SUMMON_END).size());
             assertNotNull(druid.getConcentration());
+        }
+
+        @Test
+        @DisplayName("The d6 sets the option (XGE p.167): the DM naming another is a 400 that keeps the rolled one")
+        void rolledOptionStays() {
+            castAs(player, "Summon Lesser Demons", 3, null, 5);
+            SpellEffectEntry waiting = effect("Summon Lesser Demons");
+            assertThrows(ValidationException.class, () -> f.summons.place(f.encounterId(),
+                    new PlaceSummonRequest(waiting.id(), "2xCR1", List.of(new SummonCreature(id("Dretch"), 2)), null,
+                            null, null), f.dmUserId));
+            assertEquals("8xCR1/4", effect("Summon Lesser Demons").summon().optionId());
+            assertTrue(effect("Summon Lesser Demons").summon().awaitingDm());
+            assertTrue(summoned().isEmpty());
+
+            // Placed, a replacement can't change it either
+            f.dice.script(12);
+            f.inTransaction(() -> f.summons.place(f.encounterId(), new PlaceSummonRequest(waiting.id(), null,
+                    List.of(new SummonCreature(id("Dretch"), 8)), null, null, null), f.dmUserId));
+            assertThrows(ValidationException.class, () -> f.summons.place(f.encounterId(),
+                    new PlaceSummonRequest(waiting.id(), "2xCR1", List.of(new SummonCreature(id("Dretch"), 2)), null,
+                            null, null), f.dmUserId));
+            assertEquals("8xCR1/4", effect("Summon Lesser Demons").summon().optionId());
+            assertEquals(8, summoned().size());
+        }
+
+        @Test
+        @DisplayName("The cast's log says the d6 decides and the DM chooses, not the spell data's manual note")
+        void castLog() {
+            castAs(player, "Summon Lesser Demons", 3, null, 2);
+            String summary = f.entries(CombatActionType.SPELL_CAST).getLast().getDescription();
+            assertEquals("Druid casts Summon Lesser Demons — its d6 sets how many demons come, and the DM chooses"
+                    + " them", summary);
         }
     }
 

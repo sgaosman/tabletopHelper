@@ -84,6 +84,24 @@ public class Summoner {
      * @param optionId the option the caster chose for the DM to fill; null when the DM chooses that too
      */
     public record Prepared(SummonRules.Spell spell, Plan plan, String optionId) {
+
+        /**
+         * What the cast does, for its log entry and response: the creatures it summons, or that they wait for the DM,
+         * in place of the spell data's note for a spell resolved by hand.
+         */
+        public String castNote() {
+            if (plan != null) {
+                return "summons " + creatures(plan);
+            }
+            return spell.kind() == SummonRules.Kind.LESSER_DEMONS
+                    ? "its d6 sets how many demons come, and the DM chooses them"
+                    : "its creatures wait for the DM to choose them";
+        }
+
+        /** Why the DM still has to act on the cast, or null when its creatures are placed. */
+        public String manualReason() {
+            return plan != null ? null : "The DM chooses the creatures for " + spell.name();
+        }
     }
 
     /** The summoning spell of that name; a 400 for any other. */
@@ -214,7 +232,7 @@ public class Summoner {
         SpellEffectEntry effect = effectApplier.startSummonEffect(encounter, caster, spell.name(), slotLevel,
                 instance, duration, new SummonSpec(prepared.plan().option().id(), multiplier, null,
                         SummonSpec.Status.PLACED));
-        place(encounter, caster, effect, prepared.plan(), attackBonus, saveDc, how);
+        place(encounter, caster, effect, prepared.plan(), attackBonus, saveDc, how, null);
         return effect;
     }
 
@@ -224,12 +242,22 @@ public class Summoner {
      * needs it.
      */
     public SpellEffectEntry companion(Encounter encounter, CompanionSummonRequest request) {
+        return companion(encounter, request, null);
+    }
+
+    /**
+     * As {@link #companion(Encounter, CompanionSummonRequest)}, with the DM's name for the creatures from the
+     * add-participant form: one creature takes it, several take it numbered ("Hawk 1", "Hawk 2"); blank, their stat
+     * block's name.
+     */
+    public SpellEffectEntry companion(Encounter encounter, CompanionSummonRequest request, String displayName) {
         EncounterParticipant caster = CombatAccess.participant(encounter, request.casterParticipantId());
         SummonRules.Spell spell = spell(request.spellName());
         int slot = request.slotLevel() != null ? request.slotLevel() : spell.level();
         Plan plan = check(encounter, caster, spell, slot, request.choice(), true);
         boolean linked = request.concentrationLinked() != null ? request.concentrationLinked() : spell.concentration();
-        return placeCompanion(encounter, caster, plan, linked);
+        return placeCompanion(encounter, caster, plan, linked,
+                displayName != null && !displayName.isBlank() ? displayName.trim() : null);
     }
 
     /**
@@ -237,7 +265,7 @@ public class Summoner {
      * starts first when it is linked, ending any it held.
      */
     public SpellEffectEntry placeCompanion(Encounter encounter, EncounterParticipant caster, Plan plan,
-                                           boolean concentrationLinked) {
+                                           boolean concentrationLinked, String displayName) {
         SummonRules.Spell spell = plan.spell();
         ConcentrationInstance instance = concentrationLinked
                 ? effectApplier.startConcentration(encounter, caster, spell.name(), plan.slotLevel(),
@@ -248,7 +276,7 @@ public class Summoner {
                 instance, spell.durationRounds(), new SummonSpec(plan.option().id(),
                         SummonRules.multiplier(spell, plan.slotLevel()), null, SummonSpec.Status.PLACED));
         place(encounter, caster, effect, plan, numberOr(caster.getSpellAttackBonus(), 0),
-                numberOr(caster.getSpellSaveDc(), 10), " (placed by the DM, no slot spent)");
+                numberOr(caster.getSpellSaveDc(), 10), " (placed by the DM, no slot spent)", displayName);
         return effect;
     }
 
@@ -266,7 +294,7 @@ public class Summoner {
         }
         SpellEffectEntry placed = effectApplier.updateSummon(caster, effect.id(), spec.placed(plan.option().id()));
         place(encounter, caster, placed, plan, numberOr(caster.getSpellAttackBonus(), 0),
-                numberOr(caster.getSpellSaveDc(), 10), " (chosen by the DM)");
+                numberOr(caster.getSpellSaveDc(), 10), " (chosen by the DM)", null);
     }
 
     /** Whether the caster has a familiar in the fight already (PHB p.240, LLK p.57). */
@@ -278,8 +306,10 @@ public class Summoner {
 
     // ── Making the creatures ─────────────────────────────────────
 
+    // displayName: the creatures' name in place of their stat block's, numbered when there are several
     private void place(Encounter encounter, EncounterParticipant caster, SpellEffectEntry effect, Plan plan,
-                       int attackBonus, int saveDc, String how) {
+                       int attackBonus, int saveDc, String how, String displayName) {
+        int total = plan.picked().stream().mapToInt(Picked::count).sum();
         SummonRules.Spell spell = plan.spell();
         int sortOrder = encounter.getParticipants().stream()
                 .map(EncounterParticipant::getSortOrder).filter(Objects::nonNull)
@@ -296,7 +326,8 @@ public class Summoner {
         for (Picked picked : plan.picked()) {
             Monster monster = picked.monster();
             int dexMod = Ability.modifier(monster.getDexterity() != null ? monster.getDexterity() : 10);
-            String base = plan.spirit() != null ? monster.getName() + " (" + plan.variant().name() + ")"
+            String base = displayName != null ? displayName
+                    : plan.spirit() != null ? monster.getName() + " (" + plan.variant().name() + ")"
                     : monster.getName();
             long existing = encounter.getParticipants().stream()
                     .filter(p -> p.getDisplayName() != null && p.getDisplayName().startsWith(base)).count();
@@ -319,7 +350,7 @@ public class Summoner {
                     }
                     default -> initiative = rng.roll(20) + dexMod;
                 }
-                boolean numbered = picked.count() > 1 || existing > 0;
+                boolean numbered = (displayName != null ? total : picked.count()) > 1 || existing > 0;
                 EncounterParticipant creature = EncounterParticipant.builder()
                         .encounter(encounter)
                         .participantType(ParticipantType.COMPANION)
@@ -413,6 +444,19 @@ public class Summoner {
             return names.isEmpty() ? "nothing" : names.getFirst();
         }
         return String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.getLast();
+    }
+
+    // The plan's creatures by kind: "Wolf ×8", "Bestial Spirit (Land)", "Skeleton ×2 and Zombie"
+    private static String creatures(Plan plan) {
+        List<String> kinds = plan.picked().stream()
+                .map(picked -> picked.monster().getName()
+                        + (plan.variant() != null ? " (" + plan.variant().name() + ")" : "")
+                        + (picked.count() > 1 ? " ×" + picked.count() : ""))
+                .toList();
+        if (kinds.size() <= 1) {
+            return kinds.isEmpty() ? "nothing" : kinds.getFirst();
+        }
+        return String.join(", ", kinds.subList(0, kinds.size() - 1)) + " and " + kinds.getLast();
     }
 
     private static String initiativeNote(InitiativeMode mode, List<EncounterParticipant> made) {

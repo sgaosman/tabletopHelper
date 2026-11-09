@@ -218,4 +218,42 @@ class SummonRulesTest {
             assertEquals(11, SummonRules.spells().size());
         }
     }
+
+    @Nested
+    @DisplayName("Labels and reprints")
+    class Labels {
+
+        private static String label(String name, int slot, boolean hasFamiliar) {
+            return SummonRules.options(spell(name), slot, hasFamiliar).getFirst().label();
+        }
+
+        @Test
+        @DisplayName("Each option counts its creatures in the singular for one and the plural for more")
+        void plurals() {
+            assertEquals(List.of("1 beast of challenge rating 2 or lower", "2 beasts of challenge rating 1 or lower",
+                            "4 beasts of challenge rating 1/2 or lower", "8 beasts of challenge rating 1/4 or lower"),
+                    SummonRules.options(spell("Conjure Animals"), 3, false).stream().map(Option::label).toList());
+            assertEquals("2 beasts of challenge rating 2 or lower", label("Conjure Animals", 5, false));
+            assertEquals("2 demons of challenge rating 1 or lower", label("Summon Lesser Demons", 3, false));
+            assertEquals("1 tiny servant", label("Tiny Servant", 3, false));
+            assertEquals("3 tiny servants", label("Tiny Servant", 4, false));
+            assertEquals("1 undead", label("Animate Dead", 3, false));
+            assertEquals("3 undead", label("Animate Dead", 4, false));
+            assertEquals("3 familiars", label("Flock of Familiars", 2, false));
+            assertEquals("2 familiars", label("Flock of Familiars", 2, true));
+            assertEquals("1 familiar", label("Find Familiar", 1, false));
+            assertEquals("1 steed", label("Find Steed", 2, false));
+            assertEquals("1 spirit", label("Summon Beast", 2, false));
+        }
+
+        @Test
+        @DisplayName("Monsters of the Multiverse's printing replaces Volo's and the Tome of Foes', not the other way")
+        void reprints() {
+            assertTrue(SummonRules.reprints("MPMM", "VGM"));
+            assertTrue(SummonRules.reprints("MPMM", "MTF"));
+            assertFalse(SummonRules.reprints("VGM", "MPMM"));
+            assertFalse(SummonRules.reprints("MM", "VGM"));
+            assertFalse(SummonRules.reprints(null, "VGM"));
+        }
+    }
 }

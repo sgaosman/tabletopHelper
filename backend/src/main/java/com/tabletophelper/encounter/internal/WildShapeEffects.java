@@ -12,6 +12,7 @@ import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -163,14 +164,17 @@ public class WildShapeEffects {
         if (limit.isEmpty()) {
             return new WildShapeOptions(level, moon, null, false, false, null, null, 0, List.of(), List.of());
         }
-        List<WildShapeOptions.Beast> beasts = new ArrayList<>();
+        // Each beast once: a reprint replaces the older printing, such as MPMM's over VGM's (SummonRules.REPRINTS)
+        Map<String, WildShapeOptions.Beast> byName = new LinkedHashMap<>();
         for (Monster beast : monsterRepository.findByTypeIgnoreCase(BEAST)) {
             Map<String, Integer> speed = TurnEconomies.speed(beast, objectMapper);
             if (BeastShapes.offered(beast.getSource(), beast.getHitPoints())
                     && BeastShapes.refusal(limit.get(), beast.getName(), beast.getChallengeRating(), speed).isEmpty()) {
-                beasts.add(option(beast, speed));
+                byName.merge(beast.getName().trim().toLowerCase(Locale.ROOT), option(beast, speed),
+                        (kept, other) -> SummonRules.reprints(other.source(), kept.source()) ? other : kept);
             }
         }
+        List<WildShapeOptions.Beast> beasts = new ArrayList<>(byName.values());
         List<WildShapeOptions.Beast> elementals = new ArrayList<>();
         if (BeastShapes.elementalWildShape(level, moon)) {
             for (String name : BeastShapes.ELEMENTALS) {

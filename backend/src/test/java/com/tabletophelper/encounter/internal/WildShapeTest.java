@@ -233,6 +233,21 @@ class WildShapeTest {
             assertEquals(List.of("Constrictor Snake", "Wolf", "Ape", "Brown Bear"),
                     options.beasts().stream().map(WildShapeOptions.Beast::name).toList());
         }
+
+        @Test
+        @DisplayName("A beast reprinted in MPMM is offered once, from MPMM, whichever printing comes first")
+        void reprintOnce() {
+            Monster vgmOx = beast("Ox", "1/4", 15, 10, "{\"walk\": 40}");
+            vgmOx.setSource("VGM");
+            Monster mpmmOx = beast("Ox", "1/4", 15, 10, "{\"walk\": 40}");
+            mpmmOx.setSource("MPMM");
+            lenient().when(f.monsterRepository.findByTypeIgnoreCase("beast")).thenReturn(List.of(vgmOx, wolf, mpmmOx));
+
+            WildShapeOptions options = f.wildShape.options(f.encounterId(), rowan.getId(), f.dmUserId);
+
+            assertEquals(List.of("Ox:MPMM", "Wolf:MM"), options.beasts().stream()
+                    .map(beast -> beast.name() + ":" + beast.source()).toList());
+        }
     }
 
     @Nested

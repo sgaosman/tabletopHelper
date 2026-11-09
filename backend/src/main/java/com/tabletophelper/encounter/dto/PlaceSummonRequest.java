@@ -16,7 +16,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * p.167), or new ones in place of a placed summoning's, which disappear.
  *
  * @param effectId       the caster's Spell Effect
- * @param optionId       the option, when it differs from the one the casting chose or rolled
+ * @param optionId       the option, when it differs from the one the casting chose; Summon Lesser Demons keeps the
+ *                       one its d6 rolled (XGE p.167), so any other is a 400
  * @param creatures      the creatures; see {@link SummonChoice}
  * @param variant        a Tasha's spirit's variant
  * @param initiativeMode left out, the rules' own

@@ -124,7 +124,7 @@ public class EncounterService {
                     request.getOptionId(), request.getMonsterId() != null
                             ? List.of(new SummonCreature(request.getMonsterId(), quantity)) : List.of(),
                     request.getVariant(), request.getInitiativeMode(), request.getCreatureType(),
-                    request.getConcentrationLinked()));
+                    request.getConcentrationLinked()), request.getDisplayName());
         } else {
             addMonsterParticipants(encounter, request, quantity, type);
         }
@@ -190,6 +190,9 @@ public class EncounterService {
         if (request.getMonsterId() == null) {
             throw new ValidationException("monsterId is required for a monster participant");
         }
+        if (request.getDisplayName() == null || request.getDisplayName().isBlank()) {
+            throw new ValidationException("displayName is required for a monster participant");
+        }
         if (type == ParticipantType.COMPANION && request.getControlledByUserId() != null) {
             accessPolicy.requireOwnerIsMember(encounter.getCampaign().getId(), request.getControlledByUserId());
         }
@@ -197,7 +200,7 @@ public class EncounterService {
                 .orElseThrow(() -> new ValidationException("Monster not found"));
 
         int dexMod = Ability.modifier(monster.getDexterity());
-        String baseName = request.getDisplayName();
+        String baseName = request.getDisplayName().trim();
 
         long existingCount = encounter.getParticipants().stream()
                 .filter(p -> p.getDisplayName().startsWith(baseName))
