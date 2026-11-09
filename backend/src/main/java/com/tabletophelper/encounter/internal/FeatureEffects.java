@@ -17,6 +17,7 @@ import com.tabletophelper.rules.Rng;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.ActionEconomy;
 import com.tabletophelper.rules.combat.ClassFeatures;
+import com.tabletophelper.rules.combat.KenseiFeatures;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +46,10 @@ import java.util.UUID;
  *   <li>{@value #KI} (Monk 2, PHB p.78): "patient-defense" takes the Dodge action, and "step-of-the-wind-dash" or
  *       "step-of-the-wind-disengage" the Dash or Disengage action with the jump distance doubled, each as a bonus
  *       action for 1 ki point. Without an option, ki is spent as before, for what the app doesn't model yet, such as
- *       Flurry of Blows.</li>
+ *       Flurry of Blows. A Way of the Kensei monk also has "kenseis-shot" (Monk 3, XGE p.34), a bonus action spending
+ *       no ki that adds 1d4 to its ranged kensei weapon attacks' hits for the rest of the turn, and
+ *       "sharpen-the-blade" (Monk 11, XGE p.35), a bonus action spending 1 to 3 ki points to give one kensei weapon that
+ *       bonus to attack and damage rolls for 1 minute, until it is used again.</li>
  *   <li>{@value ChannelDivinityEffects#EFFECT} (Cleric 2, PHB p.58–59; Paladin 3, PHB p.85): the option names what
  *       the use does, as {@link ChannelDivinityEffects} carries it out.</li>
  *   <li>{@value #BARDIC_INSPIRATION} (Bard 1, PHB p.53–54): a bonus action giving one other creature a Bardic
@@ -74,8 +78,11 @@ public class FeatureEffects {
     public static final String PATIENT_DEFENSE = "patient-defense";
     public static final String STEP_DASH = "step-of-the-wind-dash";
     public static final String STEP_DISENGAGE = "step-of-the-wind-disengage";
+    public static final String KENSEIS_SHOT = "kenseis-shot";
+    public static final String SHARPEN_THE_BLADE = "sharpen-the-blade";
 
-    private static final List<String> KI_OPTIONS = List.of(PATIENT_DEFENSE, STEP_DASH, STEP_DISENGAGE);
+    private static final List<String> KI_OPTIONS = List.of(PATIENT_DEFENSE, STEP_DASH, STEP_DISENGAGE, KENSEIS_SHOT,
+            SHARPEN_THE_BLADE);
 
     private static final String BARD = "Bard";
 
@@ -84,6 +91,7 @@ public class FeatureEffects {
     private final Rng rng;
     private final ChannelDivinityEffects channelDivinity;
     private final WildShapeEffects wildShape;
+    private final CharacterWeapons characterWeapons;
 
     /**
      * A use, checked and ready.
@@ -155,7 +163,8 @@ public class FeatureEffects {
         if (request.beastId() != null && !WildShapeEffects.EFFECT.equals(effect)) {
             throw new ValidationException(pool.displayName() + " takes no beast");
         }
-        if (request.weapon() != null && !ChannelDivinityEffects.EFFECT.equals(effect)) {
+        boolean sharpening = KI.equals(effect) && SHARPEN_THE_BLADE.equals(option);
+        if (request.weapon() != null && !ChannelDivinityEffects.EFFECT.equals(effect) && !sharpening) {
             throw new ValidationException(pool.displayName() + " takes no weapon");
         }
         if (ChannelDivinityEffects.EFFECT.equals(effect)) {
@@ -181,7 +190,7 @@ public class FeatureEffects {
                 yield new Plan(effect, null, poolCost, 1, user, "");
             }
             case LAY_ON_HANDS -> layOnHands(encounter, user, pool, request, option, uses, userId, poolCost);
-            case KI -> ki(user, pool, option, request.uses(), poolCost);
+            case KI -> ki(user, pool, option, request.uses(), request.weapon(), poolCost);
             case BARDIC_INSPIRATION -> bardicInspiration(encounter, user, pool, request, option, uses, userId,
                     poolCost);
             case ARCANE_RECOVERY -> throw new ConflictException(pool.displayName() + " is used when finishing a short "
@@ -229,7 +238,18 @@ public class FeatureEffects {
                         new HeldDie(sides, false)));
             }
             case KI -> {
-                if (PATIENT_DEFENSE.equals(plan.option())) {
+                if (KENSEIS_SHOT.equals(plan.option())) {
+                    // For the rest of the turn: it ends at the end of the monk's turn (XGE p.34)
+                    effectApplier.addFeatureEntry(user, new ConditionEntry(UUID.randomUUID(),
+                            KenseiFeatures.KENSEIS_SHOT, null, encounter.getRoundNumber(), "Kensei's Shot", user.getId(),
+                            null, null, EndRule.endOfTurn(user.getId()), null));
+                } else if (SHARPEN_THE_BLADE.equals(plan.option())) {
+                    // 1 minute, or until the feature is used again, which replaces the entry (XGE p.35)
+                    effectApplier.addFeatureEntry(user, new ConditionEntry(UUID.randomUUID(),
+                            KenseiFeatures.SHARPEN_THE_BLADE, KenseiFeatures.SHARPEN_THE_BLADE_ROUNDS,
+                            encounter.getRoundNumber(), "Sharpen the Blade", user.getId(), null, null,
+                            EndRule.afterRounds(user.getId()), null, null, null, plan.weapon(), null, plan.spend()));
+                } else if (PATIENT_DEFENSE.equals(plan.option())) {
                     effectApplier.dodge(encounter, user, "Patient Defense");
                 } else if (STEP_DASH.equals(plan.option())) {
                     user.setTurnEconomy(economy(user).withBudget(ActionEconomy.dash(economy(user).budget())));
@@ -326,7 +346,7 @@ public class FeatureEffects {
         return new Plan(LAY_ON_HANDS, HEAL, poolCost, uses, target, on + " to restore " + uses + " HP");
     }
 
-    private Plan ki(EncounterParticipant monk, ResourcePoolEntry pool, String option, Integer uses,
+    private Plan ki(EncounterParticipant monk, ResourcePoolEntry pool, String option, Integer uses, String weapon,
                     ActionCost poolCost) {
         if (option == null) {
             return new Plan(KI, null, poolCost, uses != null ? uses : 1, monk, "");
@@ -334,6 +354,12 @@ public class FeatureEffects {
         if (!KI_OPTIONS.contains(option)) {
             throw new ValidationException(pool.displayName() + " takes the option \"" + String.join("\", \"",
                     KI_OPTIONS) + "\" or none");
+        }
+        if (KENSEIS_SHOT.equals(option)) {
+            return kenseisShot(monk, uses);
+        }
+        if (SHARPEN_THE_BLADE.equals(option)) {
+            return sharpenTheBlade(monk, uses, weapon);
         }
         if (uses != null && uses != 1) {
             throw new ValidationException(optionName(option) + " costs 1 ki point");
@@ -348,6 +374,70 @@ public class FeatureEffects {
         };
         // Patient Defense and Step of the Wind are bonus actions for 1 ki point (PHB p.78)
         return new Plan(KI, option, ActionCost.BONUS_ACTION, 1, monk, note);
+    }
+
+    /**
+     * Kensei's Shot (Way of the Kensei 3, XGE p.34): a bonus action spending no ki, after which a ranged attack with a
+     * kensei weapon deals an extra 1d4 of the weapon's type on a hit, until the end of the turn.
+     */
+    private static Plan kenseisShot(EncounterParticipant monk, Integer uses) {
+        requireKensei(monk, KenseiFeatures.KENSEIS_SHOT_LEVEL, "Kensei's Shot");
+        if (uses != null && uses != 1) {
+            throw new ValidationException("Kensei's Shot spends no ki points");
+        }
+        return new Plan(KI, KENSEIS_SHOT, ActionCost.BONUS_ACTION, 0, monk, " for Kensei's Shot, spending no ki: its "
+                + "ranged attacks with a kensei weapon deal an extra " + KenseiFeatures.KENSEIS_SHOT_DAMAGE
+                + " damage of the weapon's type on a hit until the end of the turn");
+    }
+
+    /**
+     * Sharpen the Blade (Way of the Kensei 11, XGE p.35): a bonus action spending 1 to 3 ki points to give one kensei
+     * weapon the monk touches a bonus to attack and damage rolls equal to the points, for 1 minute or until it is used
+     * again. A magic weapon that already has a bonus gains nothing; magic bonuses are added by hand (D164), so the log
+     * says so for the DM to judge. Without a weapon named, the monk's only kensei weapon it carries.
+     *
+     * @throws ValidationException for another number of points, or a weapon that isn't one of its kensei weapons it
+     *                             carries, or none named when it carries several
+     */
+    private Plan sharpenTheBlade(EncounterParticipant monk, Integer uses, String weapon) {
+        requireKensei(monk, KenseiFeatures.SHARPEN_THE_BLADE_LEVEL, "Sharpen the Blade");
+        int ki = uses != null ? uses : 1;
+        String refusal = KenseiFeatures.sharpenTheBladeRefusal(ki);
+        if (refusal != null) {
+            throw new ValidationException(refusal);
+        }
+        PlayerCharacter character = monk.getCharacter();
+        var attacker = characterWeapons.attacker(character, false);
+        List<String> carried = characterWeapons.of(character).stream()
+                .map(CharacterWeapons.Held::weapon)
+                .filter(attacker::kenseiWeapon)
+                .map(com.tabletophelper.rules.combat.WeaponRules.Weapon::name)
+                .toList();
+        String chosen;
+        if (weapon != null && !weapon.isBlank()) {
+            chosen = carried.stream().filter(name -> name.equalsIgnoreCase(weapon.trim())).findFirst()
+                    .orElseThrow(() -> new ValidationException("Sharpen the Blade sharpens a kensei weapon "
+                            + monk.getDisplayName() + " carries, and " + weapon.trim() + " isn't one"
+                            + (carried.isEmpty() ? "" : "; choose " + String.join(", ", carried))));
+        } else if (carried.size() == 1) {
+            chosen = carried.getFirst();
+        } else {
+            throw new ValidationException(carried.isEmpty()
+                    ? monk.getDisplayName() + " carries no kensei weapon to sharpen"
+                    : "Name the kensei weapon Sharpen the Blade sharpens: " + String.join(", ", carried));
+        }
+        return new Plan(KI, SHARPEN_THE_BLADE, ActionCost.BONUS_ACTION, ki, monk, " for Sharpen the Blade: its "
+                + chosen + " gains +" + ki + " to attack and damage rolls for 1 minute (no effect on a magic weapon "
+                + "that already has a bonus to attack and damage rolls; the DM judges)", List.of(), List.of(), chosen);
+    }
+
+    // The monk's Way of the Kensei must reach the level
+    private static void requireKensei(EncounterParticipant monk, int level, String feature) {
+        int kensei = subclassLevel(monk.getCharacter(), KenseiFeatures.MONK, KenseiFeatures.SUBCLASS);
+        if (kensei < level) {
+            throw new ValidationException(feature + " needs Monk level " + level + " in the Way of the Kensei, and "
+                    + monk.getDisplayName() + (kensei == 0 ? " isn't a Kensei monk" : " is level " + kensei));
+        }
     }
 
     private static String optionName(String option) {

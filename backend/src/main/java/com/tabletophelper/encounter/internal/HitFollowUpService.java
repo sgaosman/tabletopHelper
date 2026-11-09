@@ -8,6 +8,7 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
+import com.tabletophelper.encounter.dto.DeftStrikeRequest;
 import com.tabletophelper.encounter.dto.DivineSmiteRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.dto.ProtectionRequest;
@@ -22,6 +23,7 @@ import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.KenseiFeatures;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
@@ -49,7 +51,12 @@ import java.util.UUID;
  *   <li>Stunning Strike (Monk 5, PHB p.79): 1 ki point; the creature hit makes a Constitution save against the ki save
  *       DC (8 + proficiency bonus + WIS modifier, PHB p.78) or is stunned until the end of the monk's next turn. A
  *       creature with Legendary Resistance is offered it, as for any failed save (D163).</li>
+ *   <li>Deft Strike (Way of the Kensei 6, XGE p.34): after a hit with a kensei weapon, ranged or melee, on the monk's
+ *       own turn, once on each of its turns, 1 ki point for extra damage equal to its Martial Arts die, of the weapon's
+ *       damage type, its die doubled on a critical hit (PHB p.196). Like a smite, it is part of the hit's damage for a
+ *       concentration check (PHB p.203).</li>
  * </ul>
+ * A ranged hit, which only a Kensei monk's kensei weapon records, is followed by Deft Strike alone.
  * The Protection fighting style's reaction (PHB p.72) is here too: it imposes disadvantage on an attack the DM is
  * rolling, so it is recorded, charged to the reaction and left to the DM.
  */
@@ -68,6 +75,7 @@ public class HitFollowUpService {
     private final CombatLogWriter combatLog;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
+    private final CharacterWeapons characterWeapons;
 
     /**
      * Divine Smite on the paladin's latest melee weapon hit.
@@ -84,7 +92,7 @@ public class HitFollowUpService {
             throw new ValidationException(paladin.getDisplayName() + " needs Paladin level "
                     + AttackFeatures.DIVINE_SMITE_LEVEL + " for Divine Smite");
         }
-        WeaponHit hit = hitToFollow(encounter, paladin, request.attackLogId(), "Divine Smite");
+        WeaponHit hit = meleeHitToFollow(encounter, paladin, request.attackLogId(), "Divine Smite");
         if (hit.smitten()) {
             throw new ConflictException(paladin.getDisplayName() + " has already smitten with that hit");
         }
@@ -137,7 +145,7 @@ public class HitFollowUpService {
             throw new ValidationException(monk.getDisplayName() + " needs Monk level "
                     + AttackFeatures.STUNNING_STRIKE_LEVEL + " for Stunning Strike");
         }
-        WeaponHit hit = hitToFollow(encounter, monk, request.attackLogId(), "Stunning Strike");
+        WeaponHit hit = meleeHitToFollow(encounter, monk, request.attackLogId(), "Stunning Strike");
         if (hit.stunningStrikeUsed()) {
             throw new ConflictException(monk.getDisplayName() + " has already used Stunning Strike with that hit");
         }
@@ -161,6 +169,62 @@ public class HitFollowUpService {
                 "uses Stunning Strike (1 ki" + kiLeft + ") after the " + hit.weapon() + " hit", "on",
                 "Stunning Strike", null);
         effectApplier.apply(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))));
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * Deft Strike on the Kensei monk's latest hit with a kensei weapon (XGE p.34).
+     *
+     * @throws ValidationException for a creature without Monk level 6 in the Way of the Kensei
+     * @throws ConflictException   off the monk's own turn, when there is no hit with a kensei weapon to follow on this
+     *                             turn, Deft Strike was used already this turn, it isn't the hit named, its target is
+     *                             gone or dead, or the monk has no ki left
+     */
+    @Transactional
+    public EncounterResponse deftStrike(UUID encounterId, DeftStrikeRequest request, UUID userId) {
+        Encounter encounter = access.beginForCost(encounterId, request.participantId(), userId, ActionCost.FREE);
+        EncounterParticipant monk = CombatAccess.participant(encounter, request.participantId());
+        PlayerCharacter character = monk.getCharacter();
+        int level = Math.min(20, FeatureEffects.subclassLevel(character, KenseiFeatures.MONK, KenseiFeatures.SUBCLASS));
+        if (level < KenseiFeatures.DEFT_STRIKE_LEVEL) {
+            throw new ValidationException(monk.getDisplayName() + " needs Monk level " + KenseiFeatures.DEFT_STRIKE_LEVEL
+                    + " in the Way of the Kensei for Deft Strike");
+        }
+        if (!EncounterTurns.isCurrentTurn(encounter, monk.getId())) {
+            throw new ConflictException("Deft Strike is used on " + monk.getDisplayName() + "'s own turn");
+        }
+        if (economyOf(monk).deftStrikeUsed()) {
+            throw new ConflictException(monk.getDisplayName() + " has already used Deft Strike this turn; it can be "
+                    + "used once on each of its turns");
+        }
+        WeaponHit hit = hitToFollow(encounter, monk, request.attackLogId(), "Deft Strike",
+                "a hit with a kensei weapon");
+        if (!hit.deftStrikeOffered()) {
+            throw new ConflictException("Deft Strike follows a hit with a kensei weapon, and " + monk.getDisplayName()
+                    + "'s " + hit.weapon() + " isn't one");
+        }
+        EncounterParticipant target = targetOf(encounter, hit);
+        List<ResourcePoolEntry> pools = ResourcePoolService.spend(monk.getResourcePoolsCurrent(), AttackService.KI_POOL,
+                1, monk.getDisplayName());
+        monk.setResourcePoolsCurrent(pools);
+        monk.setTurnEconomy(economyOf(monk).withLastMeleeHit(hit.deftStrike()).withDeftStrikeUsed());
+
+        String damageType = characterWeapons.find(character, hit.weapon())
+                .map(held -> held.weapon().damageType())
+                .orElse(null);
+        Dice dice = KenseiFeatures.deftStrike(level, hit.critical());
+        ResourcePoolEntry ki = pools.stream().filter(pool -> AttackService.KI_POOL.equals(pool.poolId())).findFirst()
+                .orElse(null);
+        String kiLeft = ki != null && !ki.unlimited() ? ", " + ki.currentUses() + "/" + ki.maxUses() + " left" : "";
+        Effect effect = new Effect("Deft Strike", new Effect.Automatic(),
+                List.of(new Effect.DamagePart(dice, damageType)), null, List.of(), false, null);
+        EffectApplier.Use use = new EffectApplier.Use(monk, monk.getDisplayName(), CombatActionType.ATTACK,
+                "uses Deft Strike (" + dice + (damageType != null ? " " + damageType : "") + "; 1 ki" + kiLeft
+                        + (hit.critical() ? "; critical hit" : "") + ") after the " + hit.weapon() + " hit", "on",
+                "Deft Strike", null);
+        // The extra damage is part of the hit's, so a concentrating target makes one check against both (PHB p.203)
+        effectApplier.applyToHit(encounter, use, effect, resolver.resolve(effect, List.of(stats.target(target, effect))),
+                hit.concentrationCheck());
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
@@ -198,12 +262,24 @@ public class HitFollowUpService {
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 
-    // The attacker's latest melee weapon hit, when it is on this turn and is the one named
+    // The attacker's latest melee weapon hit, when it is on this turn and is the one named; a ranged hit, which a
+    // kensei weapon records for Deft Strike, isn't one (PHB p.85, p.79)
+    private static WeaponHit meleeHitToFollow(Encounter encounter, EncounterParticipant attacker, UUID attackLogId,
+                                              String feature) {
+        WeaponHit hit = hitToFollow(encounter, attacker, attackLogId, feature, "a melee weapon hit");
+        if (hit.ranged()) {
+            throw new ConflictException(feature + " follows a melee weapon hit, and " + attacker.getDisplayName()
+                    + "'s " + hit.weapon() + " hit was a ranged attack");
+        }
+        return hit;
+    }
+
+    // The attacker's latest weapon hit, when it is on this turn and is the one named
     private static WeaponHit hitToFollow(Encounter encounter, EncounterParticipant attacker, UUID attackLogId,
-                                         String feature) {
+                                         String feature, String kind) {
         WeaponHit hit = economyOf(attacker).lastMeleeHit();
         if (hit == null || !hit.turn().equals(EncounterTurns.stamp(encounter))) {
-            throw new ConflictException(feature + " follows a melee weapon hit on the same turn, and "
+            throw new ConflictException(feature + " follows " + kind + " on the same turn, and "
                     + attacker.getDisplayName() + "'s last attack this turn wasn't one");
         }
         if (attackLogId != null && !attackLogId.equals(hit.attackLogId())) {

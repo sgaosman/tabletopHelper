@@ -74,6 +74,11 @@ public class AttackRollRequest {
     // so the server adds it, and spends the use, only when the attack would otherwise miss and the +10 makes it hit
     private Boolean guidedStrike;
 
+    // Unerring Accuracy (Way of the Kensei 17, XGE p.35): a missed attack roll with a monk weapon on the monk's turn is
+    // rolled again, once on each of its turns. Decided once the d20 is seen, so the server rerolls only a miss, and the
+    // use is spent only then; the new roll stands
+    private Boolean unerringAccuracy;
+
     // Whether the attacker is within 5 feet of the target, which makes a hit on an unconscious or paralyzed
     // target a critical hit (D161). There is no map, so leaving it out counts as true, except for a ranged weapon.
     private Boolean within5Ft;

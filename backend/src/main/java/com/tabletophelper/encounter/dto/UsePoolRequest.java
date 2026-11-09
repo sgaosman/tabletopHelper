@@ -19,7 +19,8 @@ import java.util.UUID;
  * @param uses          how many uses; 1 when left out. For Lay on Hands, the hit points spent from the pool
  * @param option        what the feature does, where it does more than one thing: "end" to end a Rage or a Wild Shape;
  *                      "heal" (the default) or "cure" for Lay on Hands; "patient-defense", "step-of-the-wind-dash" or
- *                      "step-of-the-wind-disengage" for Ki; the Channel Divinity option, such as "turn-undead" or
+ *                      "step-of-the-wind-disengage", and for a Way of the Kensei monk "kenseis-shot" (no ki) or
+ *                      "sharpen-the-blade" (uses 1 to 3 ki points, XGE p.34-35), for Ki; the Channel Divinity option, such as "turn-undead" or
  *                      "preserve-life" (left out, Channel Divinity only spends)
  * @param targetIds     the creatures a feature that reaches others is used on: Lay on Hands' and Bardic Inspiration's
  *                      one creature (Lay on Hands' the user itself when left out), or those a Channel Divinity option
@@ -29,7 +30,8 @@ import java.util.UUID;
  *                      Circle of the Moon druid of 10th level one of the elementals Elemental Wild Shape offers, which
  *                      spends two uses (PHB p.69); only for Wild Shape without an option
  * @param weapon        the weapon Sacred Weapon imbues (PHB p.86), as the attack options name it, such as "Longsword";
- *                      left out, the paladin's only weapon. Only for Sacred Weapon
+ *                      left out, the paladin's only weapon; or the kensei weapon Sharpen the Blade sharpens (XGE
+ *                      p.35), left out, the monk's only kensei weapon it carries. Only for those two
  */
 public record UsePoolRequest(
         @NotNull UUID participantId,

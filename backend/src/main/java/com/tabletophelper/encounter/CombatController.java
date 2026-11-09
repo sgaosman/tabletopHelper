@@ -87,6 +87,18 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // Deft Strike on a Kensei monk's latest hit with a kensei weapon this turn, spending 1 ki (XGE p.34): the DM for
+    // anyone, a player for their own participant, on the monk's own turn
+    @PostMapping("/deft-strike")
+    public ResponseEntity<EncounterResponse> deftStrike(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody DeftStrikeRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = hitFollowUpService.deftStrike(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     // A held Bardic Inspiration die kept for the next failed save, kept for an attack, or rolled now for a check or save
     // the DM resolves (PHB p.53, M17): the DM for anyone, a player for their own participant, on any turn
     @PostMapping("/bardic-inspiration")

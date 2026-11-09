@@ -393,6 +393,8 @@ export function useEncounterAction() {
       // What follows a melee weapon hit, and the Protection reaction (M17)
       divineSmite: change(combatApi.divineSmite),
       stunningStrike: change(combatApi.stunningStrike),
+      // A Kensei monk's Deft Strike after a hit with a kensei weapon (XGE p.34)
+      deftStrike: change(combatApi.deftStrike),
       protection: change(combatApi.protection),
       // A held Bardic Inspiration die used by its holder (M17)
       bardicInspiration: change(combatApi.bardicInspiration),

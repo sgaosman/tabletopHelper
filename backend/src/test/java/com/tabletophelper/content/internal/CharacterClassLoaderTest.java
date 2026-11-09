@@ -247,7 +247,9 @@ class CharacterClassLoaderTest {
         assertThat(json(rows.get("Cleric|PHB|Nature Domain|PHB")).path("cantrips")).isEqualTo(json(
                 "[{\"count\": 1, \"spellList\": \"Druid\"}]"));
         assertThat(json(rows.get("Druid|PHB|Circle of the Land|PHB")).path("cantrips")).isEqualTo(json(
-                "[{\"count\": 1, \"spellList\": \"Druid\"}]"));
+                "[{\"count\": 1, \"spellList\": \"Druid\"}]"));        // Improved Minor Illusion: Minor Illusion, or another wizard cantrip when it is known (PHB p.118)
+        assertThat(json(rows.get("Wizard|PHB|School of Illusion|PHB")).path("cantrips")).isEqualTo(json(
+                "[{\"count\": 1, \"grant\": \"Minor Illusion\", \"spellList\": \"Wizard\"}]"));
     }
 
     @Test
@@ -285,5 +287,22 @@ class CharacterClassLoaderTest {
         assertThatThrownBy(() -> loader.cantrips("Key", json("[{\"count\": 1, \"spellList\": \"Druid\", "
                 + "\"level\": 3}]")))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("has level, which isn't count");
+    }
+
+    @Test
+    @DisplayName("A cantrip granted unless known needs one name, a count of 1 and a spell list for the choice owed "
+            + "otherwise")
+    void badGrantedCantrip() {
+        String message = "Key's cantrip choice 1's grant names one cantrip, with a count of 1 and a spellList for the "
+                + "choice owed when it is known";
+        assertThatThrownBy(() -> loader.cantrips("Key", json(
+                "[{\"count\": 2, \"grant\": \"Minor Illusion\", \"spellList\": \"Wizard\"}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageEndingWith(message);
+        assertThatThrownBy(() -> loader.cantrips("Key", json(
+                "[{\"count\": 1, \"grant\": \" \", \"spellList\": \"Wizard\"}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageEndingWith(message);
+        assertThatThrownBy(() -> loader.cantrips("Key", json(
+                "[{\"count\": 1, \"grant\": \"Minor Illusion\", \"spells\": [\"Light\"]}]")))
+                .isInstanceOf(IllegalStateException.class).hasMessageEndingWith(message);
     }
 }

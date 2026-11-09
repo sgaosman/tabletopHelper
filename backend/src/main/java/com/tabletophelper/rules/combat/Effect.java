@@ -135,10 +135,13 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      * @param inspirationSides the sides of a Bardic Inspiration die the attacker rolls and adds (PHB p.53); 0 for none
      * @param guidedStrike     Guided Strike's +10 (PHB p.63), added only when it turns the miss into a hit, since its
      *                         Channel Divinity use is spent only then
+     * @param reroll           Unerring Accuracy (XGE p.35): a missed attack roll is rolled again, a natural 1 included,
+     *                         since the feature rerolls any miss; the new roll stands, and the other rescues are added
+     *                         to it only if it misses too
      */
-    public record Rescue(int inspirationSides, boolean guidedStrike) {
+    public record Rescue(int inspirationSides, boolean guidedStrike, boolean reroll) {
 
-        public static final Rescue NONE = new Rescue(0, false);
+        public static final Rescue NONE = new Rescue(0, false, false);
 
         public Rescue {
             if (inspirationSides < 0) {
@@ -146,8 +149,13 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
             }
         }
 
+        /** A rescue that rerolls nothing. */
+        public Rescue(int inspirationSides, boolean guidedStrike) {
+            this(inspirationSides, guidedStrike, false);
+        }
+
         public boolean any() {
-            return inspirationSides > 0 || guidedStrike;
+            return inspirationSides > 0 || guidedStrike || reroll;
         }
     }
 

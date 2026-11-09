@@ -182,7 +182,8 @@ public class EffectApplier {
                             ConcentrationCheck hitCheck) {
         EncounterParticipant target = CombatAccess.participant(encounter, outcome.targetId());
         Vitals before = vitals(target);
-        int armourClass = target.getArmourClass() != null ? target.getArmourClass() : 0;
+        Integer shownClass = CreatureStats.armourClass(target);
+        int armourClass = shownClass != null ? shownClass : 0;
 
         Defended damage = defended(target, outcome.damage());
         Taken taken = takeDamage(target, damage.total(), outcome.outcome() == Outcome.CRITICAL);
@@ -1433,7 +1434,8 @@ public class EffectApplier {
         List<String> results = new ArrayList<>();
         switch (effect.delivery()) {
             case Effect.Attack attack -> {
-                description.append(": ").append(rolls(outcome)).append(signed(attack.bonus()))
+                description.append(": ").append(rerollText(outcome)).append(rolls(outcome))
+                        .append(signed(attack.bonus()))
                         .append(inspirationText(outcome))
                         .append(outcome.guidedStrike() ? " + Guided Strike 10" : "")
                         .append(" = ").append(outcome.total()).append(" vs AC ").append(armourClass);
@@ -1531,6 +1533,18 @@ public class EffectApplier {
         }
         return "2d20(" + roll.d20s().get(0) + ", " + roll.d20s().get(1) + ") with "
                 + roll.rollMode().name().toLowerCase() + " → " + roll.d20();
+    }
+
+    // The missed roll Unerring Accuracy rolled again (XGE p.35), before the roll that stands: "d20(4) misses, Unerring
+    // Accuracy rerolls: "; empty when nothing was rerolled
+    private static String rerollText(Resolver.TargetOutcome outcome) {
+        if (!outcome.rerolled()) {
+            return "";
+        }
+        List<Integer> missed = outcome.rerolledD20s();
+        String dice = missed.size() < 2 ? "d20(" + missed.getFirst() + ")"
+                : "2d20(" + missed.get(0) + ", " + missed.get(1) + ")";
+        return dice + " misses, Unerring Accuracy rerolls: ";
     }
 
     // "d20(14)", or both dice with advantage or disadvantage and the one that counts

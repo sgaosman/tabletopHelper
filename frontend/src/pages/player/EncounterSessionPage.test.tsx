@@ -769,6 +769,25 @@ describe('Player EncounterSessionPage with summoned creatures (D182)', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: /Command Skeleton/ })).not.toBeInTheDocument());
   });
 
+  it("offers a Pact of the Chain warlock's familiar attack on the warlock's turn, and none without the pact", async () => {
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [{ name: 'Talons', deliveryMethod: 'ATTACK_ROLL', attackBonus: 3 }],
+    })));
+    serve(goblin(), owl(), gimli({ isCurrentTurn: true, pactOfTheChain: true }));
+    renderPage();
+
+    const pact = await screen.findByRole('region', { name: "Owl's attack (Pact of the Chain)" });
+    expect(await within(pact).findByRole('button', { name: /Talons/ })).toBeInTheDocument();
+  });
+
+  it('offers no familiar attack to a caster without Pact of the Chain', async () => {
+    serve(goblin(), owl(), gimli({ isCurrentTurn: true }));
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: /Cast Spell/ })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: "Owl's attack (Pact of the Chain)" })).not.toBeInTheDocument();
+  });
+
   it('tells the player an uncommanded skeleton only defends itself on its turn', async () => {
     serve(goblin(), gimli(), skeleton({ isCurrentTurn: true }));
     renderPage();

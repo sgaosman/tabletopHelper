@@ -1839,6 +1839,112 @@ class PendingChoiceServiceTest {
     }
 
     @Nested
+    @DisplayName("Improved Minor Illusion (PHB p.118)")
+    class ImprovedMinorIllusion {
+
+        // As the content loader stores it
+        private final Subclass illusion = Subclass.builder().id(UUID.randomUUID()).name("School of Illusion")
+                .characterClass(f.wizard)
+                .features("[{\"level\":2,\"name\":\"Improved Minor Illusion\",\"description\":\"Minor illusion\"}]")
+                .additionalProficiencies("{\"cantrips\":[{\"count\":1,\"grant\":\"Minor Illusion\","
+                        + "\"spellList\":\"Wizard\"}]}")
+                .build();
+
+        @BeforeEach
+        void knowTheSchool() {
+            spell("Minor Illusion", 0, "Bard", "Sorcerer", "Warlock", "Wizard");
+            spell("Fire Bolt", 0, "Sorcerer", "Wizard");
+            spell("Druidcraft", 0, "Druid");
+            lenient().when(f.subclassRepository.findById(illusion.getId())).thenReturn(Optional.of(illusion));
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.wizard.getId()))
+                    .thenReturn(List.of(illusion));
+        }
+
+        private PlayerCharacter illusionist(KnownSpell... known) {
+            PlayerCharacter pc = create(f.wizard, 2, request -> request.setSpellsKnown(List.of(known)));
+            f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(illusion.getId()));
+            return pc;
+        }
+
+        // The character as one given the school before the cantrip was granted: no subclass cantrip, none recorded
+        private void asBefore(PlayerCharacter pc) {
+            List<KnownSpell> known = new ArrayList<>(pc.getSpellsKnown());
+            known.removeIf(s -> "subclass:School of Illusion".equals(s.source()));
+            pc.setSpellsKnown(known);
+            List<LevelHistoryEntry> history = new ArrayList<>(pc.getLevelHistory());
+            LevelHistoryEntry level = history.get(1);
+            history.set(1, level.withChoices(level.choices().withSubclassCantrips(null)));
+            pc.setLevelHistory(history);
+            pc.setPendingChoices(List.of());
+        }
+
+        @Test
+        @DisplayName("Choosing the school teaches Minor Illusion as the subclass's, recorded on Wizard 2, with no "
+                + "choice owed; levelling down forgets it")
+        void granted() {
+            PlayerCharacter pc = illusionist();
+
+            assertThat(names(pc, "subclass:School of Illusion")).containsExactly("Minor Illusion");
+            assertThat(pc.getLevelHistory().get(1).choices().subclassCantrips()).containsExactly("Minor Illusion");
+            assertThat(f.pending(pc, Type.SUBCLASS_CANTRIP)).isNull();
+
+            f.levelDown(pc);
+            assertThat(names(pc, "subclass:School of Illusion")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A wizard who knows Minor Illusion owes another wizard cantrip instead, learned as the subclass's")
+        void knownAlready() {
+            PlayerCharacter pc = illusionist(classSpell("Minor Illusion", 0, "Wizard"));
+
+            PendingChoice choice = f.pending(pc, Type.SUBCLASS_CANTRIP);
+            assertThat(choice.options()).isNull();
+            assertThat(choice.spellList()).isEqualTo("Wizard");
+            assertThat(names(pc, "subclass:School of Illusion")).isEmpty();
+            assertThatThrownBy(() -> f.choose(pc, choice, request -> request.setSpells(List.of("Minor Illusion"))))
+                    .isInstanceOf(ValidationException.class).hasMessage("Aria already knows Minor Illusion");
+            assertThatThrownBy(() -> f.choose(pc, choice, request -> request.setSpells(List.of("Druidcraft"))))
+                    .isInstanceOf(ValidationException.class).hasMessage("Druidcraft isn't on the Wizard spell list");
+
+            f.choose(pc, choice, request -> request.setSpells(List.of("Fire Bolt")));
+            assertThat(names(pc, "subclass:School of Illusion")).containsExactly("Fire Bolt");
+            assertThat(pc.getLevelHistory().get(1).choices().subclassCantrips()).containsExactly("Fire Bolt");
+        }
+
+        @Test
+        @DisplayName("A wizard created with the school learns it too")
+        void atCreation() {
+            PlayerCharacter pc = create(f.wizard, 2, request -> request.setSubclassId(illusion.getId()));
+            assertThat(names(pc, "subclass:School of Illusion")).containsExactly("Minor Illusion");
+            assertThat(f.pending(pc, Type.SUBCLASS_CANTRIP)).isNull();
+        }
+
+        @Test
+        @DisplayName("For a wizard given the school before: recompute grants Minor Illusion when unknown, and the "
+                + "backfill owes the choice only when it is known")
+        void existingCharacters() {
+            PlayerCharacter pc = illusionist();
+            asBefore(pc);
+
+            assertThat(f.choices.missedChoices(pc)).noneMatch(c -> c.type() == Type.SUBCLASS_CANTRIP);
+            assertThat(f.choices.missingSubclassCantrips(pc)).singleElement().satisfies(missing -> {
+                assertThat(missing.cantrip()).isEqualTo("Minor Illusion");
+                assertThat(missing.levelIndex()).isEqualTo(1);
+            });
+            f.choices.storeMissingSubclassCantrips(pc);
+            assertThat(names(pc, "subclass:School of Illusion")).containsExactly("Minor Illusion");
+            assertThat(pc.getLevelHistory().get(1).choices().subclassCantrips()).containsExactly("Minor Illusion");
+            assertThat(f.choices.missingSubclassCantrips(pc)).isEmpty();
+
+            PlayerCharacter knowing = illusionist(classSpell("Minor Illusion", 0, "Wizard"));
+            asBefore(knowing);
+            assertThat(f.choices.missingSubclassCantrips(knowing)).isEmpty();
+            assertThat(f.choices.missedChoices(knowing)).filteredOn(c -> c.type() == Type.SUBCLASS_CANTRIP)
+                    .singleElement().satisfies(c -> assertThat(c.spellList()).isEqualTo("Wizard"));
+        }
+    }
+
+    @Nested
     @DisplayName("The backfill")
     class Backfill {
 

@@ -376,8 +376,8 @@ public class PendingChoiceService {
         int classLevel = MulticlassValidator.classLevels(character.getMulticlassEntries()).getOrDefault(classId, 0);
         List<PendingChoice> brought = new ArrayList<>(proficiencyChoices(otherwise, choice.characterLevel(), classId,
                 choice.className(), choice.classLevel(), choice.source()));
-        brought.addAll(cantripChoices(SubclassProficiencies.cantrips(objectMapper, subclass), choice.characterLevel(),
-                classId, choice.className(), choice.classLevel(), choice.source()));
+        brought.addAll(subclassCantrips(character, subclass, index, choice.characterLevel(), classId,
+                choice.className(), choice.classLevel(), choice.source()));
         for (int level = Math.max(1, subclassLevel); level <= classLevel; level++) {
             int levelIndex = historyIndexOf(character, classId, choice.className(), level);
             if (levelIndex < 0) continue;
@@ -649,6 +649,33 @@ public class PendingChoiceService {
         return null;
     }
 
+    /**
+     * What a subclass's cantrips give on the level given, at the history index given (below 0 for none): a cantrip
+     * granted unless known, as the School of Illusion's Minor Illusion (PHB p.118: "If you already know this cantrip,
+     * you learn a different wizard cantrip of your choice"), is learned and recorded on the level when the character
+     * doesn't know it, and owes its choice when it does; any other owes its choice.
+     *
+     * @return the SUBCLASS_CANTRIP choices owed
+     */
+    private List<PendingChoice> subclassCantrips(PlayerCharacter character, Subclass subclass, int index,
+                                                 int characterLevel, UUID classId, String className,
+                                                 Integer classLevel, Source source) {
+        List<SubclassProficiencies.CantripChoice> owed = new ArrayList<>();
+        for (SubclassProficiencies.CantripChoice cantrip : SubclassProficiencies.cantrips(objectMapper, subclass)) {
+            if (cantrip.grant() == null || CharacterSpellService.knows(character, cantrip.grant())) {
+                owed.add(cantrip);
+                continue;
+            }
+            List<String> learned = spellService.learnGrantedSubclassCantrip(character, cantrip.grant(),
+                    subclass.getName());
+            if (index >= 0) {
+                CharacterUpdates.recordChoices(character, index, c -> c.withSubclassCantrips(
+                        List.copyOf(CharacterUpdates.merged(c.subclassCantrips(), learned))));
+            }
+        }
+        return cantripChoices(owed, characterLevel, classId, className, classLevel, source);
+    }
+
     /** The SUBCLASS_CANTRIP choices owed for a subclass's cantrips of the player's choice, on the level given. */
     private static List<PendingChoice> cantripChoices(List<SubclassProficiencies.CantripChoice> cantrips,
                                                       int characterLevel, UUID classId, String className,
@@ -697,9 +724,8 @@ public class PendingChoiceService {
                 int subclassCharacterLevel = character.getLevelHistory().get(index).characterLevel();
                 owed.addAll(proficiencyChoices(otherwise, subclassCharacterLevel, entry.classId(),
                         characterClass.getName(), subclassLevel, Source.CREATION));
-                owed.addAll(cantripChoices(SubclassProficiencies.cantrips(objectMapper, subclass),
-                        subclassCharacterLevel, entry.classId(), characterClass.getName(), subclassLevel,
-                        Source.CREATION));
+                owed.addAll(subclassCantrips(character, subclass, index, subclassCharacterLevel, entry.classId(),
+                        characterClass.getName(), subclassLevel, Source.CREATION));
             }
             for (int level = Math.max(1, subclassLevel); level <= entry.level(); level++) {
                 int levelIndex = historyIndexOf(character, entry.classId(), characterClass.getName(), level);
@@ -1026,6 +1052,64 @@ public class PendingChoiceService {
     }
 
     /**
+     * The cantrips the character's subclasses grant unless known that it doesn't know, as characters given the School
+     * of Illusion before Improved Minor Illusion was granted lack Minor Illusion (PHB p.118), for the recompute-characters
+     * job: one for each such cantrip of a subclass a level records, when that level records no subclass cantrips and no
+     * SUBCLASS_CANTRIP choice is pending there. One the character knows owes a choice instead, which the
+     * backfill-pending-choices job adds; without a level that records the subclass, levelling down couldn't forget it,
+     * so it isn't granted. Changes nothing.
+     *
+     * @throws ConflictException when a subclass the character has can't be found or read
+     */
+    public List<MissingSubclassCantrip> missingSubclassCantrips(PlayerCharacter character) {
+        List<MissingSubclassCantrip> found = new ArrayList<>();
+        List<PendingChoice> pending = orEmpty(character.getPendingChoices());
+        for (ClassEntry entry : subclassEntries(character)) {
+            Subclass subclass = subclassRepository.findById(entry.subclassId())
+                    .orElseThrow(() -> new ConflictException("The subclass " + entry.subclassName() + " of "
+                            + character.getName() + "'s " + entry.className() + " can't be found"));
+            int index = subclassRecordIndex(character, entry.classId());
+            if (index < 0) continue;
+            LevelHistoryEntry level = character.getLevelHistory().get(index);
+            boolean made = level.choices() != null && level.choices().subclassCantrips() != null;
+            if (made || isPending(pending, Type.SUBCLASS_CANTRIP, level.characterLevel())) continue;
+            for (SubclassProficiencies.CantripChoice cantrip : SubclassProficiencies.cantrips(objectMapper, subclass)) {
+                if (cantrip.grant() != null && !CharacterSpellService.knows(character, cantrip.grant())) {
+                    found.add(new MissingSubclassCantrip(subclass.getName(), cantrip.grant(), level.className(),
+                            level.classLevel(), index));
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
+     * Teaches the character what {@link #missingSubclassCantrips} finds, each recorded on the level that records its
+     * subclass, for the recompute-characters job; the caller saves the character.
+     */
+    public void storeMissingSubclassCantrips(PlayerCharacter character) {
+        for (MissingSubclassCantrip missing : missingSubclassCantrips(character)) {
+            List<String> learned = spellService.learnGrantedSubclassCantrip(character, missing.cantrip(),
+                    missing.subclassName());
+            CharacterUpdates.recordChoices(character, missing.levelIndex(), c -> c.withSubclassCantrips(
+                    List.copyOf(CharacterUpdates.merged(c.subclassCantrips(), learned))));
+        }
+    }
+
+    /**
+     * A cantrip a character's subclass grants that it doesn't know.
+     *
+     * @param subclassName the subclass
+     * @param cantrip      the cantrip, as the subclass names it
+     * @param className    the class of the level that records the subclass
+     * @param classLevel   that level's class level
+     * @param levelIndex   that level's place in the level history
+     */
+    public record MissingSubclassCantrip(String subclassName, String cantrip, String className, int classLevel,
+                                         int levelIndex) {
+    }
+
+    /**
      * Gives the character what {@link #missingSubclassProficiencies} finds, each recorded on its level when the history
      * has one, for the recompute-characters job; the caller saves the character.
      */
@@ -1188,7 +1272,7 @@ public class PendingChoiceService {
                 for (SubclassProficiencies.Choice choice : choices) {
                     if (choice.level() == null) missed.addAll(missedProficiencyChoice(level, choice, pending));
                 }
-                missed.addAll(missedCantripChoices(level, cantrips, pending));
+                missed.addAll(missedCantripChoices(character, level, cantrips, pending));
             }
             if (recordIndex >= 0) {
                 LevelHistoryEntry level = history.get(recordIndex);
@@ -1229,15 +1313,19 @@ public class PendingChoiceService {
     }
 
     // The subclass's cantrip choices owed on the level, unless the level records its cantrips chosen or one is pending
-    // there
-    private static List<PendingChoice> missedCantripChoices(LevelHistoryEntry level,
+    // there. A cantrip granted unless known owes its choice only when the character knows it; one it doesn't know is
+    // the recompute-characters job's to grant (missingSubclassCantrips)
+    private static List<PendingChoice> missedCantripChoices(PlayerCharacter character, LevelHistoryEntry level,
                                                             List<SubclassProficiencies.CantripChoice> cantrips,
                                                             List<PendingChoice> pending) {
         boolean made = level.choices() != null && level.choices().subclassCantrips() != null;
         if (cantrips.isEmpty() || made || isPending(pending, Type.SUBCLASS_CANTRIP, level.characterLevel())) {
             return List.of();
         }
-        return cantripChoices(cantrips, level.characterLevel(), level.classId(), level.className(),
+        List<SubclassProficiencies.CantripChoice> owed = cantrips.stream()
+                .filter(c -> c.grant() == null || CharacterSpellService.knows(character, c.grant()))
+                .toList();
+        return cantripChoices(owed, level.characterLevel(), level.classId(), level.className(),
                 level.classLevel(), Source.LEVEL_UP);
     }
 

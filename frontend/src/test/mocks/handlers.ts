@@ -649,7 +649,7 @@ export function makeMockAttackOption(weapon: string, overrides: Partial<AttackOp
   const option = {
     weapon, ability: 'STR', proficient: true, attackBonus: 5, damage: '1d8 + 3', damageType: 'slashing',
     ranged: false, powerAttack: null, recklessAttack: false, twoHanded: false, versatileDamage: null, features: [],
-    critRange: 20, sneakAttack: null, martialArts: false,
+    critRange: 20, sneakAttack: null, martialArts: false, kenseiWeapon: false, unerringAccuracy: false,
   } satisfies AttackOption;
   return { ...option, ...overrides };
 }

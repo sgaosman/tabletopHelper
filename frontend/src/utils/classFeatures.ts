@@ -71,7 +71,7 @@ export function isReckless(participant: EncounterParticipant): boolean {
  * "Reckless" are a class feature's state, not conditions of appendix A.
  */
 export function featureMarker(condition: Pick<ConditionEntry, 'name'>
-  & Partial<Pick<ConditionEntry, 'heldDie' | 'wildShape' | 'weapon'>>):
+  & Partial<Pick<ConditionEntry, 'heldDie' | 'wildShape' | 'weapon' | 'bonus'>>):
   { label: string; description: string } | null {
   switch (condition.name.trim().toLowerCase()) {
     case RAGING: return { label: 'Raging', description: RAGE_TEXT };
@@ -99,8 +99,42 @@ export function featureMarker(condition: Pick<ConditionEntry, 'name'>
       label: "War God's Blessing",
       description: "+10 to this creature's next attack roll (PHB p.63).",
     };
+    case AGILE_PARRY: return {
+      label: `Agile Parry +${condition.bonus ?? 2} AC`,
+      description: `Defending with ${condition.weapon ? `the ${condition.weapon}` : 'a kensei weapon'}: +${
+        condition.bonus ?? 2} AC until the start of its next turn, while it isn't incapacitated (XGE p.34).`,
+    };
+    case KENSEIS_SHOT: return {
+      label: "Kensei's Shot",
+      description: 'Ranged attacks with a kensei weapon deal an extra 1d4 damage of the weapon\'s type on a hit until '
+        + 'the end of this turn (XGE p.34).',
+    };
+    case SHARPEN_THE_BLADE: return {
+      label: `Sharpen the Blade${condition.weapon ? `: ${condition.weapon}` : ''} +${condition.bonus ?? 1}`,
+      description: `+${condition.bonus ?? 1} to attack and damage rolls with ${condition.weapon
+        ? `the ${condition.weapon}` : 'the sharpened kensei weapon'} for 1 minute, or until used again; none on a magic `
+        + 'weapon that already has a bonus (XGE p.35).',
+    };
     default: return null;
   }
+}
+
+// ── Way of the Kensei (XGE p.34-35) ─────────────────────────────────────
+
+/** The entries a Kensei monk's features leave among its conditions. */
+export const AGILE_PARRY = 'agile parry';
+export const KENSEIS_SHOT = "kensei's shot";
+export const SHARPEN_THE_BLADE = 'sharpen the blade';
+
+/** The Monk levels of Kensei's Shot and Sharpen the Blade (XGE p.34-35). */
+export const KENSEIS_SHOT_LEVEL = 3;
+export const SHARPEN_THE_BLADE_LEVEL = 11;
+
+/** Deft Strike's extra damage: the martial arts die of the monk's level (PHB p.77), doubled on a critical hit. */
+export function deftStrikeDie(monkLevel: number | null | undefined, critical: boolean): string {
+  const level = monkLevel ?? 6;
+  const sides = level >= 17 ? 10 : level >= 11 ? 8 : level >= 5 ? 6 : 4;
+  return `${critical ? 2 : 1}d${sides}`;
 }
 
 /** Ki's options that take an action as a bonus action for 1 ki point (PHB p.78). */

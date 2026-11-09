@@ -79,11 +79,12 @@ public class CharacterClassLoader implements ContentLoader {
     // features nested inside another, such as the Life Domain's Disciple of Life, version 5 the bonus
     // proficiencies a subclass lets the player choose, and version 6 the conditional grants, the choices owed after
     // the subclass level, the kensei weapons and the Draconic Bloodline's, Storm Sorcery's and Circle of the
-    // Shepherd's languages, and version 7 saving throws, conditional grants after the subclass level and with
-    // Expertise, the Scout's Expertise and the subclass cantrips
+    // Shepherd's languages, version 7 saving throws, conditional grants after the subclass level and with
+    // Expertise, the Scout's Expertise and the subclass cantrips, and version 8 the School of Illusion's cantrip
+    // granted unless known (Improved Minor Illusion, PHB p.118)
     @Override
     public int version() {
-        return 7;
+        return 8;
     }
 
     // The 5etools entries that place another feature's text inside a feature, such as the Life Domain's Bonus
@@ -189,7 +190,8 @@ public class CharacterClassLoader implements ContentLoader {
      * does, with a count and options alone; such a grant may name its {@code level} after the subclass level and, for a
      * skill, {@code expertise}. {@value #EXPERTISE} lists skills of the row's own that gain Expertise too, and
      * {@value #CANTRIPS} the cantrips the player chooses, each with its count and either {@code spells}, a list of
-     * names, or {@code spellList}, a class's list. Saving throws ({@code saves}) are abbreviated as the class data has
+     * names, or {@code spellList}, a class's list; one with a {@code grant}, a cantrip's name, gives that cantrip unless
+     * the character knows it and only then owes the choice, which needs a count of 1 and a spellList. Saving throws ({@code saves}) are abbreviated as the class data has
      * them, such as "WIS". A choice's list names, such as {@code *languages}, are written out as their lists.
      *
      * @throws IllegalStateException for a row that isn't one
@@ -264,10 +266,16 @@ public class CharacterClassLoader implements ContentLoader {
                         + " has no count of 1 or more");
             }
             for (Map.Entry<String, JsonNode> field : cantrip.properties()) {
-                if (!Set.of("count", "spells", "spellList").contains(field.getKey())) {
+                if (!Set.of("count", "spells", "spellList", "grant").contains(field.getKey())) {
                     throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " has "
-                            + field.getKey() + ", which isn't count, spells or spellList");
+                            + field.getKey() + ", which isn't count, spells, spellList or grant");
                 }
+            }
+            if (cantrip.has("grant") && (!cantrip.path("grant").isString()
+                    || cantrip.path("grant").asString("").isBlank() || cantrip.path("count").asInt() != 1
+                    || cantrip.has("spells"))) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + "'s grant names one "
+                        + "cantrip, with a count of 1 and a spellList for the choice owed when it is known");
             }
             boolean spells = cantrip.has("spells");
             boolean spellList = cantrip.path("spellList").isString()

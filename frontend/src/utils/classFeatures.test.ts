@@ -3,7 +3,7 @@ import { makeMockCondition, makeMockParticipant } from '../test/mocks/handlers';
 import type { WeaponHit } from '../types/combat';
 import type { EncounterParticipant, ResourcePoolEntry, TurnEconomy } from '../types/encounter';
 import {
-  arcaneRecoveryBudget, arcaneRecoveryLevels, channelOptions, CLERIC_CHANNEL_DIVINITY, featureMarker, followableHit,
+  arcaneRecoveryBudget, arcaneRecoveryLevels, channelOptions, CLERIC_CHANNEL_DIVINITY, deftStrikeDie, featureMarker, followableHit,
   guidedStrikeBlock, heldInspiration, kiLeft, KI_POOL, monkStrikeBlock, poolEffect, recoverableSlots, smiteDice,
   smiteSlots, sneakAttackUsed,
 } from './classFeatures';
@@ -128,5 +128,22 @@ describe('classFeatures: Channel Divinity, Bardic Inspiration and Arcane Recover
     expect(recoverableSlots({ 1: { max: 4, used: 2 }, 2: { max: 3, used: 0 }, 6: { max: 1, used: 1 },
       pact_1: { max: 1, used: 1 } })).toEqual({ 1: 2 });
     expect(arcaneRecoveryLevels({ 2: 1, 1: 2 })).toEqual([1, 1, 2]);
+  });
+});
+
+describe('Way of the Kensei (XGE p.34-35)', () => {
+  it('names Agile Parry, Kensei\'s Shot and Sharpen the Blade as features in force', () => {
+    expect(featureMarker({ name: 'agile parry', bonus: 2, weapon: 'Longsword' })?.label).toBe('Agile Parry +2 AC');
+    expect(featureMarker({ name: 'agile parry', bonus: 2, weapon: 'Longsword' })?.description)
+      .toContain('Defending with the Longsword');
+    expect(featureMarker({ name: "kensei's shot" })?.label).toBe("Kensei's Shot");
+    expect(featureMarker({ name: 'sharpen the blade', bonus: 3, weapon: 'Longbow' })?.label)
+      .toBe('Sharpen the Blade: Longbow +3');
+  });
+
+  it("gives Deft Strike's die by monk level, doubled on a critical hit", () => {
+    expect(deftStrikeDie(6, false)).toBe('1d6');
+    expect(deftStrikeDie(11, true)).toBe('2d8');
+    expect(deftStrikeDie(17, false)).toBe('1d10');
   });
 });

@@ -339,6 +339,32 @@ public class CharacterSpellService {
     }
 
     /**
+     * Learns the cantrip a subclass grants without a choice, as the School of Illusion's Minor Illusion (PHB p.118),
+     * with the source "subclass:" and the subclass's name, so it doesn't count against the class's cantrips known. The
+     * caller records it on the subclass's level, so levelling down forgets it, and checks that the character doesn't
+     * know it already.
+     *
+     * @return the cantrip learned, by the spell data's name
+     * @throws ConflictException when the spell data has no cantrip of that name
+     */
+    List<String> learnGrantedSubclassCantrip(PlayerCharacter character, String name, String subclassName) {
+        Spell spell = spellRepository.findByNameIgnoreCase(name.trim())
+                .filter(found -> found.getLevel() == 0)
+                .orElseThrow(() -> new ConflictException("The cantrip " + name.trim() + " that the " + subclassName
+                        + " grants isn't in the spell data"));
+        List<KnownSpell> known = copy(character.getSpellsKnown());
+        known.add(new KnownSpell(null, spell.getName(), 0, SUBCLASS_SOURCE + subclassName, null, null, null, null,
+                null));
+        character.setSpellsKnown(known);
+        return List.of(spell.getName());
+    }
+
+    /** Whether the character knows a spell of that name, from any source. */
+    static boolean knows(PlayerCharacter character, String name) {
+        return knows(orEmpty(character.getSpellsKnown()), name);
+    }
+
+    /**
      * Forgets the cantrips a level's SUBCLASS_CANTRIP choices taught, as levelling down past the level does: the
      * subclass entries of those names.
      */

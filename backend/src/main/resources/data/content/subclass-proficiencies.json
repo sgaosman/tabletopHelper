@@ -46,5 +46,6 @@
   "Sorcerer|PHB|Draconic Bloodline|PHB": { "languages": ["Draconic"] },
   "Sorcerer|PHB|Storm Sorcery|XGE": { "languages": ["Primordial"] },
   "Warlock|PHB|The Hexblade|XGE": { "armor": ["medium", "shields"], "weapons": ["martial"] },
+  "Wizard|PHB|School of Illusion|PHB": { "cantrips": [{ "count": 1, "grant": "Minor Illusion", "spellList": "Wizard" }] },
   "Wizard|PHB|Bladesinging|TCE": { "armor": ["light"], "skills": ["Performance"], "choices": [{ "count": 1, "weapons": ["*one-handed melee weapons"] }] }
 }

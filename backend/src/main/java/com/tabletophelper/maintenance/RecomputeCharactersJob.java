@@ -42,7 +42,9 @@ import java.util.regex.Pattern;
  * whose subclass grants bonus proficiencies its sheet lacks, such as a Life Domain cleric's heavy armour (PHB p.60),
  * gets them, recorded on the level that records the subclass when the level history has one, as choosing a subclass now
  * does, and those of a later class level, such as a Fighter 7 Samurai's Wisdom saving throws (XGE p.31), recorded on
- * that level; so does the Expertise a subclass gives, such as a Scout's (XGE p.47), where a level records it. A class or subclass feature whose text on the sheet differs from the class data's takes the data's, as the
+ * that level; so does the Expertise a subclass gives, such as a Scout's (XGE p.47), where a level records it, and a
+ * cantrip a subclass grants unless known, such as a School of Illusion wizard's Minor Illusion (PHB p.118), where a level
+ * records the subclass and the character doesn't know it. A class or subclass feature whose text on the sheet differs from the class data's takes the data's, as the
  * features nested inside another, such as the Life Domain's Disciple of Life (PHB p.60), reach the data only from the
  * class loader's version 4; names, sources and order stay, so levelling down still removes them. Dry run by default;
  * {@code --maintenance.apply=true} writes.
@@ -111,6 +113,15 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 proficiencies = List.of();
             }
             proficiencies.forEach(missing -> diffs.add(subclassProficiencies(missing)));
+            List<PendingChoiceService.MissingSubclassCantrip> cantrips;
+            try {
+                cantrips = characterService.missingSubclassCantrips(pc);
+            } catch (RuntimeException e) {
+                warnings.add(who + ": subclass cantrips skipped (" + (e instanceof ConflictException ? ""
+                        : e.getClass().getSimpleName() + ": ") + e.getMessage() + ")");
+                cantrips = List.of();
+            }
+            cantrips.forEach(missing -> diffs.add(subclassCantrip(missing)));
             List<CharacterService.OutdatedFeatureText> texts;
             try {
                 texts = characterService.outdatedFeatureTexts(pc);
@@ -129,6 +140,9 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 }
                 if (!proficiencies.isEmpty()) {
                     characterService.storeMissingSubclassProficiencies(pc);
+                }
+                if (!cantrips.isEmpty()) {
+                    characterService.storeMissingSubclassCantrips(pc);
                 }
                 if (!texts.isEmpty()) {
                     characterService.storeFeatureTexts(pc);
@@ -154,6 +168,12 @@ public class RecomputeCharactersJob implements MaintenanceJob {
                 + (missing.recorded() ? "recorded on " + missing.className() + " " + missing.classLevel()
                         : "not recorded: no level records the subclass, so levelling down won't remove them")
                 + ")";
+    }
+
+    // Such as "subclass cantrip: + Minor Illusion (School of Illusion, recorded on Wizard 2)"
+    private static String subclassCantrip(PendingChoiceService.MissingSubclassCantrip missing) {
+        return "subclass cantrip: + " + missing.cantrip() + " (" + missing.subclassName() + ", recorded on "
+                + missing.className() + " " + missing.classLevel() + ")";
     }
 
     // Such as "feature text: Life Domain (Life Domain), 1203 → 1645 characters"

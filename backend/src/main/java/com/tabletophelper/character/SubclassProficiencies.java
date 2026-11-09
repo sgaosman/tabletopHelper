@@ -28,7 +28,9 @@ import java.util.Optional;
  * {@code expertise} gives Expertise in its skill either way, as a Purple Dragon Knight's Persuasion (SCAG p.128). Its
  * {@code expertise} lists the skills of its fixed grants that gain Expertise too, as a Scout's Nature and Survival (XGE
  * p.47), and its {@code cantrips} the cantrips the player chooses, as an Arcane Archer's prestidigitation or druidcraft
- * (XGE p.28), each owed as a SUBCLASS_CANTRIP Pending Choice on the level that records the subclass.
+ * (XGE p.28), each owed as a SUBCLASS_CANTRIP Pending Choice on the level that records the subclass, or for one with a
+ * {@code grant}, that cantrip learned unless the character knows it, when the choice is owed instead, as the School of
+ * Illusion's Minor Illusion, or another wizard cantrip (PHB p.118).
  */
 final class SubclassProficiencies {
 
@@ -107,8 +109,17 @@ final class SubclassProficiencies {
      * @param count     how many to choose
      * @param spells    the cantrips offered by name; null for any on the spell list
      * @param spellList the spell list chosen from, as the spells table names it, such as "Druid"; null for a fixed list
+     * @param grant     the cantrip learned without a choice unless the character knows it already, when the choice is
+     *                  owed instead, as the School of Illusion's Minor Illusion (PHB p.118); null for a choice always
+     *                  owed
      */
-    record CantripChoice(int count, List<String> spells, String spellList) {}
+    record CantripChoice(int count, List<String> spells, String spellList, String grant) {
+
+        /** A choice always owed. */
+        CantripChoice(int count, List<String> spells, String spellList) {
+            this(count, spells, spellList, null);
+        }
+    }
 
     /** One proficiency a choice offers, of a kind of {@link ProficienciesGained}: "skills", "languages" and so on. */
     record Option(String kind, String name) {}
@@ -241,8 +252,10 @@ final class SubclassProficiencies {
             if (count < 1 || (spells.isEmpty() == (spellList == null || spellList.isBlank()))) {
                 throw unreadable(subclass);
             }
+            String grant = cantrip.path("grant").isString() && !cantrip.path("grant").asString("").isBlank()
+                    ? cantrip.path("grant").asString("").trim() : null;
             found.add(new CantripChoice(count, spells.isEmpty() ? null : List.copyOf(spells),
-                    spells.isEmpty() ? spellList.trim() : null));
+                    spells.isEmpty() ? spellList.trim() : null, grant));
         }
         return found;
     }

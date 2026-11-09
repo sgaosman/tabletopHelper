@@ -79,6 +79,8 @@ interface AttackRow {
   inspiration: boolean;
   /** Guided Strike's +10 if the attack would miss and that makes it hit (PHB p.63, M17). */
   guidedStrike: boolean;
+  /** A Kensei monk's Unerring Accuracy: reroll the attack if it misses, once on each of its turns (XGE p.35). */
+  unerring: boolean;
   advantage: boolean | null;
   within5Ft: boolean;
   forceCrit: boolean;
@@ -94,7 +96,7 @@ interface AttackRow {
 function newRow(option: AttackOption | undefined, cost: AttackCost | null): AttackRow {
   return {
     cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, reckless: false, grip: null, sneak: 'auto',
-    inspiration: false, guidedStrike: false, advantage: null, within5Ft: !(option?.ranged ?? false),
+    inspiration: false, guidedStrike: false, unerring: false, advantage: null, within5Ft: !(option?.ranged ?? false),
     forceCrit: false, extraAttackBonus: '', extraDamageDice: '', extraDamageType: '',
     attackBonus: '', damageDice: '', damageType: '',
   };
@@ -136,6 +138,8 @@ function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOpti
     useInspiration: row.inspiration ? true : undefined,
     guidedStrike: row.guidedStrike ? true : undefined,
   };
+  // Unerring Accuracy goes with a monk weapon, which the server knows (XGE p.35)
+  const unerringAccuracy = row.unerring && option?.unerringAccuracy ? true : undefined;
   if (row.weapon === ENTERED) {
     if (!allowManualModifiers || row.attackBonus === '' || !row.damageDice.trim()) return null;
     return {
@@ -152,6 +156,7 @@ function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOpti
     recklessAttack: option?.recklessAttack && row.reckless ? true : undefined,
     grip: row.grip ?? undefined,
     sneakAttack: !option?.sneakAttack || row.sneak === 'auto' ? undefined : row.sneak === 'claim',
+    unerringAccuracy,
     extraAttackBonus: extraBonus ? extraBonus : undefined,
     extraDamageDice: extraDamage || undefined,
     extraDamageType: extraDamage && row.extraDamageType ? row.extraDamageType : undefined,
@@ -401,6 +406,15 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
                   title="Channel Divinity: +10 if the attack would miss and that makes it hit; the use is spent only then"
                   className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.guidedStrike ? 'bg-buff text-card' : TOGGLE_OFF}`}>
                   Guided Strike
+                </button>
+              )}
+              {/* Unerring Accuracy (XGE p.35), rerolled only if the attack misses, once on each of the monk's turns */}
+              {option?.unerringAccuracy && attacker.isCurrentTurn && !attacker.turnEconomy?.unerringAccuracyUsed && (
+                <button type="button" onClick={() => update(i, { unerring: !row.unerring })}
+                  aria-pressed={row.unerring}
+                  title="Reroll the attack if it misses, once on each of your turns; the new roll stands"
+                  className={`min-h-11 px-2 py-2 font-body text-[12.5px] font-semibold ${row.unerring ? 'bg-buff text-card' : TOGGLE_OFF}`}>
+                  Unerring Accuracy
                 </button>
               )}
               {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}

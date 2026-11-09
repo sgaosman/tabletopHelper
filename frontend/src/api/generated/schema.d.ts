@@ -740,6 +740,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/deft-strike": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deftStrike"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/divine-smite": {
         parameters: {
             query?: never;
@@ -2177,6 +2193,7 @@ export interface components {
             damage: string;
             damageType?: string | null;
             features: string[];
+            kenseiWeapon: boolean;
             martialArts: boolean;
             powerAttack?: components["schemas"]["PowerAttackOption"] | null;
             proficient: boolean;
@@ -2184,6 +2201,7 @@ export interface components {
             recklessAttack: boolean;
             sneakAttack?: string | null;
             twoHanded: boolean;
+            unerringAccuracy: boolean;
             versatileDamage?: string | null;
             weapon: string;
         };
@@ -2208,6 +2226,7 @@ export interface components {
             sneakAttack?: boolean | null;
             /** Format: uuid */
             targetId: string;
+            unerringAccuracy?: boolean | null;
             useInspiration?: boolean | null;
             weapon?: string | null;
             within5Ft?: boolean | null;
@@ -2729,6 +2748,8 @@ export interface components {
         ConditionEntry: {
             /** Format: int32 */
             appliedRound: number;
+            /** Format: int32 */
+            bonus?: number | null;
             /** Format: uuid */
             concentrationInstanceId?: string | null;
             /** Format: int32 */
@@ -2774,6 +2795,12 @@ export interface components {
             targetId: string;
         };
         DeathSaveRequest: {
+            /** Format: uuid */
+            participantId: string;
+        };
+        DeftStrikeRequest: {
+            /** Format: uuid */
+            attackLogId?: string | null;
             /** Format: uuid */
             participantId: string;
         };
@@ -3359,6 +3386,7 @@ export interface components {
             overrideAttackBonus?: number | null;
             /** Format: int32 */
             overrideSaveDC?: number | null;
+            pactOfTheChain?: boolean | null;
             targetParticipantIds: string[];
         };
         MonsterActionResponse: {
@@ -3519,12 +3547,15 @@ export interface components {
             initiativeModifier?: number | null;
             isCurrentTurn: boolean;
             isVisibleToPlayers?: boolean | null;
+            /** Format: int32 */
+            kenseiLevel?: number | null;
             /** @enum {string} */
             lifeState: "ALIVE" | "DYING" | "STABLE" | "DEAD";
             metamagicOptions?: ("CAREFUL" | "DISTANT" | "EMPOWERED" | "EXTENDED" | "HEIGHTENED" | "QUICKENED" | "SUBTLE" | "TWINNED")[] | null;
             /** Format: uuid */
             monsterId?: string | null;
             notes?: string | null;
+            pactOfTheChain?: boolean | null;
             /** @enum {string} */
             participantType: "PLAYER" | "MONSTER" | "COMPANION";
             resourcePoolsCurrent?: components["schemas"]["ResourcePoolEntry"][] | null;
@@ -4068,6 +4099,7 @@ export interface components {
             bonusActionSpellCast: boolean;
             bonusActionUsed: boolean;
             dashed: boolean;
+            deftStrikeUsed?: boolean | null;
             disengaged: boolean;
             /** Format: int32 */
             flurryStrikesLeft?: number | null;
@@ -4077,6 +4109,7 @@ export interface components {
             otherSpellCast: boolean;
             reactionUsed: boolean;
             sneakAttackTurn?: string | null;
+            unerringAccuracyUsed?: boolean | null;
         };
         TurnEconomyRequest: {
             /** Format: uuid */
@@ -4141,7 +4174,10 @@ export interface components {
             attackLogId?: string | null;
             concentrationCheck?: components["schemas"]["ConcentrationCheck"] | null;
             critical: boolean;
+            deftStrikeOffered?: boolean | null;
+            deftStrikeUsed?: boolean | null;
             divineSmiteOffered: boolean;
+            ranged?: boolean | null;
             smitten: boolean;
             stunningStrikeOffered: boolean;
             stunningStrikeUsed: boolean;
@@ -5433,6 +5469,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DeathSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    deftStrike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeftStrikeRequest"];
             };
         };
         responses: {

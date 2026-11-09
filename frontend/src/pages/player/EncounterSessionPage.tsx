@@ -29,6 +29,7 @@ import HitFollowUps from '../../components/encounter/HitFollowUps';
 import InspirationControls from '../../components/encounter/InspirationControls';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import InlineMonsterActions from '../../components/encounter/InlineMonsterActions';
+import FamiliarAttack from '../../components/encounter/FamiliarAttack';
 import { wildShapePoolId } from '../../utils/classFeatures';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
@@ -126,6 +127,9 @@ function PlayerSessionView() {
   const mySummons = encounter.participants.filter(p => p.participantType === 'COMPANION'
     && p.controlledByUserId === user?.userId);
   const summonOnTurn = mySummons.find(p => p.isCurrentTurn && p.lifeState === 'ALIVE');
+  // A Pact of the Chain warlock's familiars, which may attack in place of one of its attacks (PHB p.107)
+  const myFamiliars = mySummons.filter(p => p.summon?.kind === 'FAMILIAR' && p.lifeState === 'ALIVE'
+    && p.summonedByParticipantId === myCharacter?.id);
   const toCommand = mySummons.filter(p => p.summon?.needsCommand && p.summon.commandedRound == null
     && p.lifeState !== 'DEAD' && p.summonedByParticipantId === myCharacter?.id);
   // A player's reactions, on any turn, while their reaction is unused; off their turn they are all a player can take
@@ -361,6 +365,13 @@ function PlayerSessionView() {
             )}
           </section>
         )}
+
+        {/* Pact of the Chain (PHB p.107): on the warlock's turn its familiar attacks in place of one of its attacks */}
+        {isActive && isMyTurn && myCharacter?.pactOfTheChain && myCharacter.lifeState === 'ALIVE'
+          && myFamiliars.map(familiar => (
+            <FamiliarAttack key={familiar.id} warlock={myCharacter} familiar={familiar}
+              participants={encounter.participants} />
+          ))}
 
         {/* Spell cast modal */}
         {isActive && actionMode === 'spell' && myCharacter && (

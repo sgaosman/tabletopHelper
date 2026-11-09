@@ -15,6 +15,7 @@ import type {
   MonsterActionTemplate,
   MultiattackOption,
   BardicInspirationRequest,
+  DeftStrikeRequest,
   DivineSmiteRequest,
   FontOfMagicUseRequest,
   ObjectInteractionRequest,
@@ -49,6 +50,12 @@ export const combatApi = {
   // Stunning Strike on the monk's latest melee weapon hit this turn, spending 1 ki (PHB p.79, M17)
   stunningStrike(encounterId: string, request: StunningStrikeRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/stunning-strike`, request);
+  },
+
+  // Deft Strike on a Kensei monk's latest hit with a kensei weapon this turn, on its own turn, spending 1 ki for the
+  // martial arts die (XGE p.34); refused (409) once used this turn
+  deftStrike(encounterId: string, request: DeftStrikeRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/deft-strike`, request);
   },
 
   // A held Bardic Inspiration die kept for the next failed save, kept back, or rolled now (PHB p.53, M17)

@@ -31,6 +31,11 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  *                        "2d6" (PHB p.96); null otherwise
  * @param martialArts     whether Martial Arts applies to it, so the Attack action with it lets a monk make an unarmed
  *                        strike as a bonus action (PHB p.78)
+ * @param kenseiWeapon    whether it is one of a Way of the Kensei monk's kensei weapons (XGE p.34), which Kensei's
+ *                        Shot, Deft Strike and Sharpen the Blade work with
+ * @param unerringAccuracy whether a miss with it may be rerolled with Unerring Accuracy: the character is a Way of the
+ *                        Kensei monk of 17th level and it is a monk weapon for it (XGE p.35); whether a use is left
+ *                        this turn is the turn economy's
  */
 public record AttackOption(
         @Schema(requiredMode = REQUIRED) String weapon,
@@ -47,11 +52,22 @@ public record AttackOption(
         @Schema(requiredMode = REQUIRED) List<String> features,
         @Schema(requiredMode = REQUIRED) int critRange,
         String sneakAttack,
-        @Schema(requiredMode = REQUIRED) boolean martialArts
+        @Schema(requiredMode = REQUIRED) boolean martialArts,
+        @Schema(requiredMode = REQUIRED) boolean kenseiWeapon,
+        @Schema(requiredMode = REQUIRED) boolean unerringAccuracy
 ) {
 
     public AttackOption {
         features = features != null ? List.copyOf(features) : List.of();
+    }
+
+    /** A weapon that is no kensei weapon. */
+    public AttackOption(String weapon, Ability ability, boolean proficient, int attackBonus, String damage,
+                        String damageType, boolean ranged, PowerAttackOption powerAttack, boolean recklessAttack,
+                        boolean twoHanded, String versatileDamage, List<String> features, int critRange,
+                        String sneakAttack, boolean martialArts) {
+        this(weapon, ability, proficient, attackBonus, damage, damageType, ranged, powerAttack, recklessAttack,
+                twoHanded, versatileDamage, features, critRange, sneakAttack, martialArts, false, false);
     }
 
     /** A weapon with none of the class features of M17. */

@@ -30,6 +30,7 @@ export type DivineSmiteRequest = Schemas['DivineSmiteRequest'];
 
 /** Stunning Strike on the monk's latest melee weapon hit this turn, spending 1 ki (PHB p.79, M17). */
 export type StunningStrikeRequest = Schemas['StunningStrikeRequest'];
+export type DeftStrikeRequest = Schemas['DeftStrikeRequest'];
 
 /**
  * What the holder of a Bardic Inspiration die does with it (PHB p.53, M17): keep it for its next failed save, keep it

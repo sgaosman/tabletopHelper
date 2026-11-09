@@ -91,6 +91,12 @@ public class StandardActionService {
             throw new ValidationException("Ready needs its trigger in the note");
         }
 
+        // A controlled mount only Dashes, Disengages or Dodges (PHB p.198)
+        if (action != Action.DASH && action != Action.DISENGAGE && action != Action.DODGE) {
+            ControlledMount.requireMountAction(encounter, participant, "take the " + action.label() + " action", userId,
+                    combatLog);
+        }
+
         String overReason = null;
         String grant = null;
         if (cost == ActionCost.BONUS_ACTION) {

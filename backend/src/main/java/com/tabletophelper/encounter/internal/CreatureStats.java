@@ -17,6 +17,7 @@ import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.KenseiFeatures;
 import com.tabletophelper.rules.combat.Resolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -47,6 +48,20 @@ public class CreatureStats {
     private final ObjectMapper objectMapper;
     private final EquippedArmour equippedArmour;
 
+    /**
+     * The participant's AC now: its own, or its beast's in Wild Shape, with the bonuses its entries give while they
+     * hold, which are a Kensei monk's Agile Parry's +2 unless it is incapacitated (XGE p.34); null when it has none.
+     */
+    public static Integer armourClass(EncounterParticipant participant) {
+        Integer base = participant.getArmourClass();
+        if (base == null || participant.getActiveConditions() == null) {
+            return base;
+        }
+        boolean parrying = participant.getActiveConditions().stream()
+                .anyMatch(c -> c != null && KenseiFeatures.AGILE_PARRY.equalsIgnoreCase(c.name()));
+        return parrying ? base + KenseiFeatures.agileParryBonus(conditionNames(participant)) : base;
+    }
+
     /** The condition names a participant has. */
     public static List<String> conditionNames(EncounterParticipant participant) {
         return participant.getActiveConditions() == null ? List.of()
@@ -60,7 +75,7 @@ public class CreatureStats {
      * rolls it when it fails the Effect's save (PHB p.53, M17).
      */
     public Resolver.Target target(EncounterParticipant participant, Effect effect) {
-        return new Resolver.Target(participant.getId(), participant.getArmourClass(),
+        return new Resolver.Target(participant.getId(), armourClass(participant),
                 saveModifier(participant, effect.saveAbility()), conditionNames(participant),
                 armourPenalty(participant), List.of(),
                 effect.delivery() instanceof Effect.Save ? inspirationForSaves(participant) : 0);

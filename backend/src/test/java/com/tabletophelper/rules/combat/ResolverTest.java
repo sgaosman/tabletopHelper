@@ -57,6 +57,62 @@ class ResolverTest {
     @DisplayName("Attack rolls")
     class Attacks {
 
+        // A +5 attack that rerolls a miss with Unerring Accuracy, and adds a Bardic Inspiration d6 when given one
+        private Effect unerring(RollMode mode, int inspirationSides) {
+            Effect.Attack delivery = new Effect.Attack(5, mode, true, false)
+                    .withRescue(new Effect.Rescue(inspirationSides, false, true));
+            return new Effect("Longsword", delivery, List.of(part("1d8", "slashing")), null, List.of(), false, null);
+        }
+
+        @Test
+        @DisplayName("Unerring Accuracy rerolls a miss, a natural 1 included, and the new roll stands (XGE p.35)")
+        void unerringAccuracy_rerollsAMiss() {
+            var dice = Rng.scripted(1, 14, 6);
+            var outcome = new Resolver(dice).resolve(unerring(RollMode.NORMAL, 0), List.of(target(GOBLIN, 15, 0)))
+                    .getFirst();
+
+            assertEquals(Outcome.HIT, outcome.outcome());
+            assertEquals(List.of(1), outcome.rerolledD20s());
+            assertEquals(List.of(14), outcome.d20s());
+            assertEquals(19, outcome.total());
+            assertTrue(outcome.rerolled());
+            assertEquals(0, dice.remaining());
+        }
+
+        @Test
+        @DisplayName("Unerring Accuracy rolls both dice again with advantage, and a hit rerolls nothing")
+        void unerringAccuracy_advantageAndHit() {
+            var dice = Rng.scripted(3, 4, 2, 20, 5, 5);
+            var outcome = new Resolver(dice).resolve(unerring(RollMode.ADVANTAGE, 0), List.of(target(GOBLIN, 15, 0)))
+                    .getFirst();
+            assertEquals(List.of(3, 4), outcome.rerolledD20s());
+            assertEquals(Outcome.CRITICAL, outcome.outcome());
+            assertEquals(0, dice.remaining());
+
+            var hit = new Resolver(Rng.scripted(12, 6)).resolve(unerring(RollMode.NORMAL, 0),
+                    List.of(target(GOBLIN, 15, 0))).getFirst();
+            assertFalse(hit.rerolled());
+            assertNull(hit.rerolledD20s());
+        }
+
+        @Test
+        @DisplayName("A reroll that misses too still takes a Bardic Inspiration die, never on a natural 1")
+        void unerringAccuracy_thenInspiration() {
+            var dice = Rng.scripted(2, 8, 4, 3);
+            var outcome = new Resolver(dice).resolve(unerring(RollMode.NORMAL, 6), List.of(target(GOBLIN, 15, 0)))
+                    .getFirst();
+            assertEquals(Outcome.HIT, outcome.outcome());
+            assertEquals(8 + 5 + 4, outcome.total());
+            assertEquals(0, dice.remaining());
+
+            var ones = Rng.scripted(5, 1);
+            var miss = new Resolver(ones).resolve(unerring(RollMode.NORMAL, 6), List.of(target(GOBLIN, 15, 0)))
+                    .getFirst();
+            assertEquals(Outcome.MISS, miss.outcome());
+            assertNull(miss.inspiration());
+            assertEquals(0, ones.remaining());
+        }
+
         @Test
         @DisplayName("A roll plus the bonus that reaches the AC hits and rolls the damage (was SpellResolverEngineTest: roll + bonus >= AC)")
         void hit() {

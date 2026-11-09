@@ -91,6 +91,36 @@ describe('HitFollowUps', () => {
     await waitFor(() => expect(body).toEqual({ participantId: 'part-aria', attackLogId: 'log-7' }));
   });
 
+  it("sends Deft Strike for a Kensei monk's ranged kensei weapon hit, with the martial arts die (XGE p.34)", async () => {
+    let body: unknown;
+    server.use(http.post('/api/encounters/:id/combat/deft-strike', async ({ request }) => {
+      body = await request.json();
+      return HttpResponse.json(makeMockEncounter());
+    }));
+    const ki = [{ poolId: 'class:monk-ki', displayName: 'Ki Points', sourceType: 'CLASS', currentUses: 4, maxUses: 6,
+      spendActionType: 'FREE' }];
+    const user = await renderFollowUps(attacker({ weapon: 'Longbow', divineSmiteOffered: false, ranged: true,
+      deftStrikeOffered: true }, { resourcePoolsCurrent: ki, kenseiLevel: 6 }));
+
+    const deft = screen.getByRole('button', { name: 'Deft Strike (+1d6, 1 ki, 4 left)' });
+    expect(deft).toHaveClass('min-h-11');
+    await user.click(deft);
+    await waitFor(() => expect(body).toEqual({ participantId: 'part-aria', attackLogId: 'log-7' }));
+  });
+
+  it('offers no Deft Strike once used this turn', async () => {
+    const hit = { ...HIT, weapon: 'Longsword', divineSmiteOffered: false, deftStrikeOffered: true };
+    await renderFollowUps(attacker(hit, { kenseiLevel: 6,
+      turnEconomy: { ...FRESH, deftStrikeUsed: true, lastMeleeHit: hit } }));
+    expect(screen.queryByRole('button', { name: /Deft Strike/ })).not.toBeInTheDocument();
+  });
+
+  it("offers no Deft Strike on another creature's turn", async () => {
+    await renderFollowUps(attacker({ weapon: 'Longsword', divineSmiteOffered: false, deftStrikeOffered: true },
+      { kenseiLevel: 6, isCurrentTurn: false }));
+    expect(screen.queryByRole('region', { name: 'After the hit' })).not.toBeInTheDocument();
+  });
+
   it('shows the server\'s refusal', async () => {
     server.use(http.post('/api/encounters/:id/combat/divine-smite', () => HttpResponse.json(
       { error: 'Aria has no level 1 spell slot left' }, { status: 409 })));

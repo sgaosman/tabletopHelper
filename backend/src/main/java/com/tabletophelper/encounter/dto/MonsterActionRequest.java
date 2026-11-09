@@ -12,6 +12,10 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * componentTargetIds (D165), one list per component in the order its multiattack option lists them, with
  * targetParticipantIds empty; an empty list skips that attack. Without componentTargetIds, every attack goes to the
  * one creature named in targetParticipantIds.
+ * <p>
+ * pactOfTheChain: a Pact of the Chain warlock's familiar makes one attack with its reaction, in place of one of the
+ * warlock's own attacks of the Attack action on the warlock's turn (PHB p.107): an attack from the familiar's actions,
+ * which a familiar otherwise can't make (PHB p.240).
  */
 public record MonsterActionRequest(
         @Schema(requiredMode = REQUIRED) UUID monsterParticipantId,
@@ -22,6 +26,15 @@ public record MonsterActionRequest(
         Integer overrideAttackBonus,
         Integer overrideSaveDC,
         Boolean advantage,
-        List<List<UUID>> componentTargetIds
+        List<List<UUID>> componentTargetIds,
+        Boolean pactOfTheChain
 ) {
+
+    /** An action that isn't a Pact of the Chain familiar's attack. */
+    public MonsterActionRequest(UUID monsterParticipantId, String actionName, String actionSource,
+                                List<UUID> targetParticipantIds, Integer overrideAttackBonus, Integer overrideSaveDC,
+                                Boolean advantage, List<List<UUID>> componentTargetIds) {
+        this(monsterParticipantId, actionName, actionSource, targetParticipantIds, overrideAttackBonus, overrideSaveDC,
+                advantage, componentTargetIds, null);
+    }
 }

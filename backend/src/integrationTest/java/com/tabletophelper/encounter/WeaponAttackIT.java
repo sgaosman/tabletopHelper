@@ -105,15 +105,18 @@ class WeaponAttackIT extends IntegrationTest {
                 + "\"attackBonus\":5,\"damage\":\"2d6 + 3\",\"damageType\":\"slashing\",\"ranged\":false,"
                 + "\"powerAttack\":{\"feat\":\"Great Weapon Master\",\"attackBonus\":0,\"damage\":\"2d6 + 13\"},"
                 + "\"recklessAttack\":false,\"twoHanded\":true,\"versatileDamage\":null,\"features\":[],"
-                + "\"critRange\":20,\"sneakAttack\":null,\"martialArts\":false},"
+                + "\"critRange\":20,\"sneakAttack\":null,\"martialArts\":false,\"kenseiWeapon\":false,"
+                + "\"unerringAccuracy\":false},"
                 + "{\"weapon\":\"Longsword\",\"ability\":\"STR\",\"proficient\":true,\"attackBonus\":5,"
                 + "\"damage\":\"1d8 + 3\",\"damageType\":\"slashing\",\"ranged\":false,\"powerAttack\":null,"
                 + "\"recklessAttack\":false,\"twoHanded\":false,\"versatileDamage\":\"1d10 + 3\",\"features\":[],"
-                + "\"critRange\":20,\"sneakAttack\":null,\"martialArts\":false},"
+                + "\"critRange\":20,\"sneakAttack\":null,\"martialArts\":false,\"kenseiWeapon\":false,"
+                + "\"unerringAccuracy\":false},"
                 + "{\"weapon\":\"Unarmed Strike\",\"ability\":\"STR\",\"proficient\":true,\"attackBonus\":5,"
                 + "\"damage\":\"4\",\"damageType\":\"bludgeoning\",\"ranged\":false,\"powerAttack\":null,"
                 + "\"recklessAttack\":false,\"twoHanded\":false,\"versatileDamage\":null,\"features\":[],"
-                + "\"critRange\":20,\"sneakAttack\":null,\"martialArts\":false}]");
+                + "\"critRange\":20,\"sneakAttack\":null,\"martialArts\":false,\"kenseiWeapon\":false,"
+                + "\"unerringAccuracy\":false}]");
 
         // 11 + 0 hits AC 11; 2d6 + 13 is 3 + 4 + 13
         dice.script(11, 3, 4);

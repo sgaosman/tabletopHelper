@@ -152,7 +152,7 @@ class CharacterClassLoaderIT extends IntegrationTest {
         load();
 
         assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getAdditionalProficiencies() != null)
-                .hasSize(41);
+                .hasSize(42);
         assertThat(proficienciesOf("Life Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
         assertThat(proficienciesOf("War Domain")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
@@ -218,6 +218,9 @@ class CharacterClassLoaderIT extends IntegrationTest {
         assertThat(proficienciesOf("Path of the Giant").path("cantrips").get(0).path("spells")).hasSize(2);
         assertThat(proficienciesOf("Circle of the Land").path("cantrips").get(0).path("spellList").asString())
                 .isEqualTo("Druid");
+        // Improved Minor Illusion (PHB p.118)
+        assertThat(proficienciesOf("School of Illusion").path("cantrips").get(0).path("grant").asString())
+                .isEqualTo("Minor Illusion");
     }
 
     @Test

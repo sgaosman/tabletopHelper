@@ -522,6 +522,24 @@ public class CharacterService {
     }
 
     /**
+     * The cantrips the character's subclasses grant unless known that it doesn't know, such as a School of Illusion
+     * wizard's Minor Illusion (PHB p.118), for the recompute-characters job; changes nothing.
+     *
+     * @throws ConflictException when a subclass the character has can't be found or read
+     */
+    public List<PendingChoiceService.MissingSubclassCantrip> missingSubclassCantrips(PlayerCharacter character) {
+        return pendingChoices.missingSubclassCantrips(character);
+    }
+
+    /**
+     * Teaches the character what {@link #missingSubclassCantrips} finds, each recorded on the level that records its
+     * subclass, for the recompute-characters job; the caller saves the character.
+     */
+    public void storeMissingSubclassCantrips(PlayerCharacter character) {
+        pendingChoices.storeMissingSubclassCantrips(character);
+    }
+
+    /**
      * Gives the character what {@link #missingSubclassProficiencies} finds, each recorded on the level that records its
      * subclass when the history has one, for the recompute-characters job; the caller saves the character.
      */

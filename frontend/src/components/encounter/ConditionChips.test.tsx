@@ -57,6 +57,21 @@ describe('ConditionChips', () => {
     expect(screen.getByText('Reckless').getAttribute('title')).toContain('attacks against it have advantage');
   });
 
+  it("shows a Kensei monk's Agile Parry, Kensei's Shot and Sharpen the Blade as its own features (XGE p.34-35)", () => {
+    const ren = makeMockParticipant('p', 'Ren', 'PLAYER', { activeConditions: [
+      makeMockCondition('agile parry', { sourceSpellName: 'Agile Parry', bonus: 2, weapon: 'Longsword' }),
+      makeMockCondition("kensei's shot", { sourceSpellName: "Kensei's Shot" }),
+      makeMockCondition('sharpen the blade', { sourceSpellName: 'Sharpen the Blade', bonus: 2, weapon: 'Longbow',
+        duration: 10, appliedRound: 2 }),
+    ] });
+    plainRender(<ConditionChips participant={ren} roundNumber={4} />);
+
+    expect(screen.getByText('Agile Parry +2 AC').getAttribute('title'))
+      .toContain("+2 AC until the start of its next turn, while it isn't incapacitated");
+    expect(screen.getByText("Kensei's Shot").getAttribute('title')).toContain('extra 1d4 damage');
+    expect(screen.getByText('Sharpen the Blade: Longbow +2 (8)')).toBeInTheDocument();
+  });
+
   it('with the Glossary, a read-only chip the Glossary defines opens its definition (M19)', async () => {
     const user = userEvent.setup();
     const prone = makeMockCondition('Prone');

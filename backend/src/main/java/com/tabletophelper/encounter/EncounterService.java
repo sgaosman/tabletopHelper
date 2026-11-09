@@ -14,10 +14,12 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.CreatureStats;
 import com.tabletophelper.encounter.internal.ChannelDivinityEffects;
 import com.tabletophelper.encounter.internal.CommandRecorder;
 import com.tabletophelper.encounter.internal.EffectApplier;
 import com.tabletophelper.encounter.internal.EncounterTurns;
+import com.tabletophelper.encounter.internal.FeatureEffects;
 import com.tabletophelper.encounter.internal.MetamagicCasting;
 import com.tabletophelper.encounter.internal.MonsterPools;
 import com.tabletophelper.encounter.internal.SpellEffects;
@@ -33,7 +35,9 @@ import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.rules.combat.ChannelDivinity;
+import com.tabletophelper.rules.combat.KenseiFeatures;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.rules.combat.TurnOrder;
 import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.shared.ConflictException;
@@ -656,7 +660,7 @@ public class EncounterService {
                         .hpMax(p.getHpMax())
                         .hpCurrent(p.getHpCurrent())
                         .hpTemp(p.getHpTemp())
-                        .armourClass(p.getArmourClass())
+                        .armourClass(CreatureStats.armourClass(p))
                         .activeConditions(p.getActiveConditions())
                         .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
                         .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
@@ -684,6 +688,9 @@ public class EncounterService {
                         .channelDivinityOptions(p.getCharacter() != null ? ChannelDivinityEffects.available(p).stream()
                                 .map(ChannelDivinity.Option::id).toList() : null)
                         .metamagicOptions(p.getCharacter() != null ? MetamagicCasting.known(p.getCharacter()) : null)
+                        .pactOfTheChain(FeatureEffects.hasFeature(p.getCharacter(), SummonRules.PACT_OF_THE_CHAIN)
+                                ? Boolean.TRUE : null)
+                        .kenseiLevel(kenseiLevel(p))
                         .summonedByParticipantId(p.getSummonedByParticipantId())
                         .summon(p.getSummon())
                         .build())
@@ -769,6 +776,13 @@ public class EncounterService {
 
     private static boolean tied(TurnOrder.Turn a, TurnOrder.Turn b) {
         return !a.isLair() && !b.isLair() && TurnOrder.tied(a.combatant(), b.combatant());
+    }
+
+    // A Way of the Kensei monk's Monk level (XGE p.34); null for anyone else
+    private static Integer kenseiLevel(EncounterParticipant participant) {
+        int level = FeatureEffects.subclassLevel(participant.getCharacter(), KenseiFeatures.MONK,
+                KenseiFeatures.SUBCLASS);
+        return level > 0 ? Math.min(20, level) : null;
     }
 
     // Whether the monster's action templates list any lair actions, so it can fight in its lair (D163)

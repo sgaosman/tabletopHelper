@@ -94,7 +94,8 @@ public class PoolUseService {
         }
         participant.setResourcePoolsCurrent(spent);
 
-        String description = plan.spend() == 0
+        // Ending a rage spends nothing; so does Kensei's Shot, which is described as any other use
+        String description = plan.spend() == 0 && FeatureEffects.END.equals(plan.option())
                 ? participant.getDisplayName() + " ends their " + pool.displayName() + costNote
                 : describe(participant, pool, plan.spend(), costNote, spent, grantsAction, plan.note());
         combatLog.write(encounter, CombatActionType.POOL_USE, description, participant,

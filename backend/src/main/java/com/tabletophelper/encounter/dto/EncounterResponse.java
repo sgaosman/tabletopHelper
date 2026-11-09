@@ -212,6 +212,14 @@ public class EncounterResponse {
         // can offer them on a cast; null for a monster
         private List<Metamagic.Option> metamagicOptions;
 
+        // Whether a player character has Pact of the Chain, so its familiar may attack in place of one of its attacks
+        // of the Attack action (PHB p.107); null for anyone else
+        private Boolean pactOfTheChain;
+
+        // A Way of the Kensei monk's Monk level, so the session pages offer Kensei's Shot from 3rd and Sharpen the Blade
+        // from 11th (XGE p.34-35); null for anyone else
+        private Integer kenseiLevel;
+
         // The caster whose spell summoned it (D182); null for anyone else
         private UUID summonedByParticipantId;
 

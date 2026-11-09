@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.state;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.UUID;
@@ -32,6 +33,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param endsOnAttackOrCast          true when it also ends as soon as its creature attacks or casts a spell, once
  *                                    that attack or spell is resolved, as the Invisibility spell's invisibility
  *                                    (PHB p.254) and Cloak of Shadows' (PHB p.63) do; null or false otherwise
+ * @param bonus                       the number the entry's feature adds: Agile Parry's to AC (XGE p.34), Sharpen the
+ *                                    Blade's to attack and damage rolls with its weapon (XGE p.35); null for any other
+ *                                    entry
  */
 public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) UUID id,
@@ -47,8 +51,18 @@ public record ConditionEntry(
         HeldDie heldDie,
         WildShapeForm wildShape,
         String weapon,
-        Boolean endsOnAttackOrCast
+        Boolean endsOnAttackOrCast,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer bonus
 ) {
+
+    /** An entry that adds no number. */
+    public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
+                          UUID sourceParticipantId, Boolean sourceRequiresConcentration, UUID concentrationInstanceId,
+                          EndRule endRule, RepeatSave repeatSave, HeldDie heldDie, WildShapeForm wildShape,
+                          String weapon, Boolean endsOnAttackOrCast) {
+        this(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration,
+                concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon, endsOnAttackOrCast, null);
+    }
 
     /** An entry that attacking or casting doesn't end. */
     public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
@@ -131,20 +145,20 @@ public record ConditionEntry(
     public ConditionEntry withRepeatSave(RepeatSave save) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie, wildShape, weapon,
-                endsOnAttackOrCast);
+                endsOnAttackOrCast, bonus);
     }
 
     public ConditionEntry withHeldDie(HeldDie die) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die, wildShape, weapon,
-                endsOnAttackOrCast);
+                endsOnAttackOrCast, bonus);
     }
 
     /** This entry, ending too when its creature attacks or casts a spell. */
     public ConditionEntry endingOnAttackOrCast() {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
                 sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, heldDie, wildShape, weapon,
-                true);
+                true, bonus);
     }
 
     /** Whether it ends when its creature attacks or casts a spell. */

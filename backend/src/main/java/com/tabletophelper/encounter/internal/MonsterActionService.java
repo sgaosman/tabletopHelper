@@ -22,6 +22,7 @@ import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -62,6 +63,10 @@ import java.util.stream.Collectors;
  * <p>
  * A druid in Wild Shape takes its beast's actions, bonus actions and reactions the same way (PHB p.67): its player may,
  * on its turn unless the action is a reaction, and the DM for it, each charged to its turn economy as a player's are.
+ * <p>
+ * Summoned creatures (D182): a familiar can't attack (PHB p.240), except a Pact of the Chain warlock's, which may make
+ * one attack with its reaction when the warlock forgoes one of its own attacks of the Attack action (PHB p.107); and a
+ * controlled mount only Dashes, Disengages or Dodges (PHB p.198), so its actions are refused for players.
  */
 @Service
 @RequiredArgsConstructor
@@ -83,8 +88,10 @@ public class MonsterActionService {
 
     @Transactional
     public MonsterActionResponse monsterAction(UUID encounterId, MonsterActionRequest request, UUID userId) {
-        // A monster is the DM's; a druid in Wild Shape is its player's too, on its turn unless the action is a reaction
-        ActionCost sourceCost = costOf(request.actionSource());
+        // A monster is the DM's; a druid in Wild Shape is its player's too, on its turn unless the action is a reaction.
+        // A Pact of the Chain familiar's attack takes its reaction, on its warlock's turn (PHB p.107)
+        boolean pact = Boolean.TRUE.equals(request.pactOfTheChain());
+        ActionCost sourceCost = pact ? ActionCost.REACTION : costOf(request.actionSource());
         Encounter encounter = access.beginForCost(encounterId, request.monsterParticipantId(), userId,
                 sourceCost != null ? sourceCost : ActionCost.FREE);
         EncounterParticipant monster = monsterParticipant(encounter, request.monsterParticipantId());
@@ -97,7 +104,9 @@ public class MonsterActionService {
                 .orElseThrow(() -> new ValidationException("Action '" + request.actionName()
                         + "' not found in monster's action templates (source: " + request.actionSource() + ")"));
         String actionName = MonsterEffects.nameOf(action);
-        requireSummonMayAct(encounter, monster, action, actionName, userId);
+        EncounterParticipant warlock = pact
+                ? pactWarlock(encounter, monster, request, action, actionName) : null;
+        requireSummonMayAct(encounter, monster, action, actionName, userId, pact);
         MonsterEffects.Overrides overrides = new MonsterEffects.Overrides(request.overrideAttackBonus(),
                 request.overrideSaveDC(), request.advantage());
 
@@ -122,7 +131,7 @@ public class MonsterActionService {
                 throw new ConflictException("Not enough legendary actions remaining (need " + cost + ")");
             }
         }
-        ActionCost cost = costOf(request.actionSource());
+        ActionCost cost = pact ? ActionCost.REACTION : costOf(request.actionSource());
         ResourcePoolEntry rechargePool = MonsterPools.rechargePool(action, monsterEntity.getName(),
                 cost != null ? cost.name() : ActionCost.ACTION.name());
         if (rechargePool != null) {
@@ -148,7 +157,14 @@ public class MonsterActionService {
             case "REACTION" -> CombatActionType.REACTION_TAKEN;
             default -> CombatActionType.MONSTER_ACTION;
         };
-        String costNote = costNote(cost);
+        String costNote = pact ? " (reaction, Pact of the Chain)" : costNote(cost);
+        if (warlock != null) {
+            // The warlock forgoes one of its own attacks of the Attack action (PHB p.107)
+            economy.charge(encounter, warlock, Charge.replaceAttack(TurnEconomies.attacksPerAction(warlock)), userId,
+                    new ActionEconomyKeeper.Command(CombatActionType.ATTACK, warlock.getDisplayName()
+                            + "'s attack forgone for " + monster.getDisplayName() + " (Pact of the Chain)"));
+            effectApplier.markAttackedOrDamaged(warlock);
+        }
         if (cost != null) {
             economy.charge(encounter, monster,
                     Charge.of(cost, EncounterTurns.isCurrentTurn(encounter, monster.getId())), userId,
@@ -402,14 +418,17 @@ public class MonsterActionService {
      * runs.
      */
     private void requireSummonMayAct(Encounter encounter, EncounterParticipant creature,
-                                     MonsterTemplates.Action action, String actionName, UUID userId) {
+                                     MonsterTemplates.Action action, String actionName, UUID userId, boolean pact) {
         SummonLink link = creature.getSummon();
         if (link == null) {
             return;
         }
         boolean dm = CombatAccess.isDm(encounter, userId);
+        // A controlled mount only Dashes, Disengages or Dodges, standard actions it takes as any creature does
+        ControlledMount.requireMountAction(encounter, creature, "use " + actionName, userId, combatLog);
         boolean attack = action.multiattack() || "ATTACK_ROLL".equalsIgnoreCase(action.deliveryMethod());
-        if (link.cannotAttack() && attack) {
+        // A Pact of the Chain familiar's one attack is allowed (PHB p.107), checked by pactWarlock
+        if (link.cannotAttack() && attack && !pact) {
             if (!dm) {
                 throw new ConflictException(creature.getDisplayName() + " is a familiar, and a familiar can't attack");
             }
@@ -420,6 +439,49 @@ public class MonsterActionService {
             throw new ConflictException(creature.getDisplayName() + " has no command from its caster, so it only "
                     + "defends itself; its caster commands it with a bonus action");
         }
+    }
+
+    /**
+     * The warlock whose familiar attacks through Pact of the Chain (PHB p.107): the familiar's caster, with the Pact of
+     * the Chain feature, on whose turn the familiar makes one attack from its actions, with its reaction, at one
+     * creature. The warlock's forgone attack and the familiar's reaction are charged as any others, so a player is
+     * refused when either is spent and the DM's is logged.
+     *
+     * @throws ValidationException for a creature that isn't a familiar from Find Familiar, a caster without Pact of the
+     *                             Chain, or an action that isn't one attack from its actions at one creature
+     * @throws ConflictException   off the warlock's turn, for a player, or when the warlock has left the encounter
+     */
+    private EncounterParticipant pactWarlock(Encounter encounter, EncounterParticipant familiar,
+                                             MonsterActionRequest request, MonsterTemplates.Action action,
+                                             String actionName) {
+        SummonLink link = familiar.getSummon();
+        if (link == null || link.kind() != SummonRules.Kind.FAMILIAR) {
+            throw new ValidationException("Pact of the Chain lets a warlock's familiar from Find Familiar attack, and "
+                    + familiar.getDisplayName() + " isn't one");
+        }
+        EncounterParticipant warlock = encounter.getParticipants().stream()
+                .filter(p -> p.getId().equals(familiar.getSummonedByParticipantId()))
+                .findFirst()
+                .orElseThrow(() -> new ConflictException(familiar.getDisplayName()
+                        + "'s warlock isn't in the encounter"));
+        if (!FeatureEffects.hasFeature(warlock.getCharacter(), SummonRules.PACT_OF_THE_CHAIN)) {
+            throw new ValidationException(warlock.getDisplayName() + " doesn't have Pact of the Chain, so "
+                    + familiar.getDisplayName() + " can't attack");
+        }
+        if (!"ACTION".equals(request.actionSource()) || action.multiattack()
+                || !"ATTACK_ROLL".equalsIgnoreCase(action.deliveryMethod())) {
+            throw new ValidationException("With Pact of the Chain a familiar makes one attack of its own, and "
+                    + actionName + " isn't one");
+        }
+        if (request.componentTargetIds() != null || request.targetParticipantIds() == null
+                || request.targetParticipantIds().size() != 1) {
+            throw new ValidationException("A familiar's Pact of the Chain attack names one target");
+        }
+        if (!EncounterTurns.isCurrentTurn(encounter, warlock.getId())) {
+            throw new ConflictException("A familiar attacks through Pact of the Chain when " + warlock.getDisplayName()
+                    + " takes the Attack action on its own turn");
+        }
+        return warlock;
     }
 
     // The beast a druid in Wild Shape has become

@@ -1838,6 +1838,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/deft-strike": {
+      "post": {
+        "operationId": "deftStrike",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeftStrikeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/divine-smite": {
       "post": {
         "operationId": "divineSmite",
@@ -5346,11 +5387,13 @@
           "critRange",
           "damage",
           "features",
+          "kenseiWeapon",
           "martialArts",
           "proficient",
           "ranged",
           "recklessAttack",
           "twoHanded",
+          "unerringAccuracy",
           "weapon"
         ],
         "type": "object",
@@ -5387,6 +5430,9 @@
               "type": "string"
             }
           },
+          "kenseiWeapon": {
+            "type": "boolean"
+          },
           "martialArts": {
             "type": "boolean"
           },
@@ -5412,6 +5458,9 @@
             "nullable": true
           },
           "twoHanded": {
+            "type": "boolean"
+          },
+          "unerringAccuracy": {
             "type": "boolean"
           },
           "versatileDamage": {
@@ -5502,6 +5551,10 @@
           "targetId": {
             "type": "string",
             "format": "uuid"
+          },
+          "unerringAccuracy": {
+            "type": "boolean",
+            "nullable": true
           },
           "useInspiration": {
             "type": "boolean",
@@ -7417,6 +7470,11 @@
             "type": "integer",
             "format": "int32"
           },
+          "bonus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "concentrationInstanceId": {
             "type": "string",
             "format": "uuid",
@@ -7566,6 +7624,23 @@
         ],
         "type": "object",
         "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "DeftStrikeRequest": {
+        "required": [
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "attackLogId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "participantId": {
             "type": "string",
             "format": "uuid"
@@ -9748,6 +9823,10 @@
             "format": "int32",
             "nullable": true
           },
+          "pactOfTheChain": {
+            "type": "boolean",
+            "nullable": true
+          },
           "targetParticipantIds": {
             "type": "array",
             "items": {
@@ -10318,6 +10397,11 @@
             "type": "boolean",
             "nullable": true
           },
+          "kenseiLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "lifeState": {
             "type": "string",
             "enum": [
@@ -10351,6 +10435,10 @@
           },
           "notes": {
             "type": "string",
+            "nullable": true
+          },
+          "pactOfTheChain": {
+            "type": "boolean",
             "nullable": true
           },
           "participantType": {
@@ -12394,6 +12482,10 @@
           "dashed": {
             "type": "boolean"
           },
+          "deftStrikeUsed": {
+            "type": "boolean",
+            "nullable": true
+          },
           "disengaged": {
             "type": "boolean"
           },
@@ -12425,6 +12517,10 @@
           },
           "sneakAttackTurn": {
             "type": "string",
+            "nullable": true
+          },
+          "unerringAccuracyUsed": {
+            "type": "boolean",
             "nullable": true
           }
         }
@@ -12664,8 +12760,20 @@
           "critical": {
             "type": "boolean"
           },
+          "deftStrikeOffered": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "deftStrikeUsed": {
+            "type": "boolean",
+            "nullable": true
+          },
           "divineSmiteOffered": {
             "type": "boolean"
+          },
+          "ranged": {
+            "type": "boolean",
+            "nullable": true
           },
           "smitten": {
             "type": "boolean"

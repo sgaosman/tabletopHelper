@@ -4,8 +4,8 @@ import type { FontOfMagicRequest } from '../../types/character';
 import { apiErrorMessage } from '../../api/errors';
 import { chargeBlock, poolBudgetBlock, poolCostLabel, poolRecoveryText, poolRefusal } from '../../utils/turnEconomy';
 import {
-  channelOptions, heldInspiration, isRaging, KI_OPTIONS, poolEffect, poolEffectText, RAGE_TEXT, WILD_SHAPE_TEXT,
-  wildShapeOf, type PoolEffect, type PoolUseOptions,
+  channelOptions, heldInspiration, isRaging, KENSEIS_SHOT_LEVEL, KI_OPTIONS, poolEffect, poolEffectText, RAGE_TEXT,
+  SHARPEN_THE_BLADE_LEVEL, WILD_SHAPE_TEXT, wildShapeOf, type PoolEffect, type PoolUseOptions,
 } from '../../utils/classFeatures';
 import { useAttackOptions, useWildShapeOptions } from '../../queries/encounters';
 import IconButton from '../ui/IconButton';
@@ -244,7 +244,7 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
                 </span>
               )}
               <FeatureControls effect={effect} entry={entry} participant={participant} targets={targets}
-                blocked={refusal !== null || using !== null} asDm={asDm}
+                blocked={refusal !== null || using !== null} busy={using !== null} asDm={asDm}
                 onUse={options => { void use(entry.poolId, options); }} />
               {effect === 'wild-shape' && (
                 <WildShapeControls entry={entry} participant={participant} asDm={asDm}
@@ -271,14 +271,17 @@ function EncounterPools({ pools, participant, onUse, asDm, targets, onFlexibleCa
 
 /**
  * What a class feature's pool offers beyond a plain use (M17): Lay on Hands' points, use and creature (PHB p.84), and
- * Ki's Patient Defense and Step of the Wind, each a bonus action for 1 ki point (PHB p.78). The server checks them all.
+ * Ki's Patient Defense and Step of the Wind, each a bonus action for 1 ki point (PHB p.78), with a Kensei monk's
+ * Kensei's Shot and Sharpen the Blade (XGE p.34-35). The server checks them all.
  */
-function FeatureControls({ effect, entry, participant, targets, blocked, asDm, onUse }: {
+function FeatureControls({ effect, entry, participant, targets, blocked, busy, asDm, onUse }: {
   effect: PoolEffect | null;
   entry: ResourcePoolEntry;
   participant: EncounterParticipant;
   targets?: EncounterParticipant[];
   blocked: boolean;
+  /** A use of one of the pools is being sent; a use that spends nothing, as Kensei's Shot, waits only for this. */
+  busy: boolean;
   asDm: boolean;
   onUse: (options: PoolUseOptions) => void;
 }) {
@@ -298,15 +301,90 @@ function FeatureControls({ effect, entry, participant, targets, blocked, asDm, o
   const budget = chargeBlock(participant, { cost: 'BONUS_ACTION' });
   const disabled = blocked || entry.currentUses < 1 || (budget !== null && !asDm);
   return (
-    <div className="flex flex-wrap gap-1" role="group" aria-label={`${entry.displayName} options`}>
-      {KI_OPTIONS.map(option => (
-        <button key={option.option} type="button" disabled={disabled} title={option.description}
-          onClick={() => onUse({ option: option.option })}
-          className={USE_BUTTON}>
-          {option.label}
-        </button>
-      ))}
+    <>
+      <div className="flex flex-wrap gap-1" role="group" aria-label={`${entry.displayName} options`}>
+        {KI_OPTIONS.map(option => (
+          <button key={option.option} type="button" disabled={disabled} title={option.description}
+            onClick={() => onUse({ option: option.option })}
+            className={USE_BUTTON}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {(participant.kenseiLevel ?? 0) >= KENSEIS_SHOT_LEVEL && (
+        <KenseiControls entry={entry} participant={participant} blocked={blocked} busy={busy}
+          budget={budget} asDm={asDm} onUse={onUse} />
+      )}
+    </>
+  );
+}
+
+// 44px tall, as every combat control is at phone width
+const KENSEI_BUTTON = 'min-h-11 px-3 font-heading text-[12px] font-semibold tracking-[0.02em] bg-ink/10 hover:bg-ink/20 '
+  + 'text-ink border border-ink/30 disabled:opacity-40';
+const KENSEI_FIELD = 'min-h-11 px-2 bg-page-alt border border-rule font-body text-[15px] text-ink';
+
+/**
+ * A Way of the Kensei monk's bonus actions (XGE p.34-35): Kensei's Shot from Monk 3, which spends no ki, for 1d4 more on
+ * its ranged kensei weapon hits this turn; and from Monk 11 Sharpen the Blade, 1 to 3 ki points for that bonus to attack
+ * and damage rolls with one kensei weapon, chosen from its attack options, for 1 minute.
+ */
+function KenseiControls({ entry, participant, blocked, busy, budget, asDm, onUse }: {
+  entry: ResourcePoolEntry;
+  participant: EncounterParticipant;
+  blocked: boolean;
+  busy: boolean;
+  budget: string | null;
+  asDm: boolean;
+  onUse: (options: PoolUseOptions) => void;
+}) {
+  const overBudget = budget !== null && !asDm;
+  return (
+    <div className="flex flex-wrap items-center gap-2 mt-1" role="group" aria-label="Way of the Kensei">
+      {/* Kensei's Shot spends no ki, so an empty pool doesn't stop it */}
+      <button type="button" disabled={busy || overBudget} className={KENSEI_BUTTON}
+        title="Bonus action, no ki: +1d4 on ranged kensei weapon hits this turn"
+        onClick={() => onUse({ option: 'kenseis-shot' })}>
+        Kensei's Shot
+      </button>
+      {(participant.kenseiLevel ?? 0) >= SHARPEN_THE_BLADE_LEVEL && (
+        <SharpenTheBladeControls entry={entry} participantId={participant.id} disabled={blocked || overBudget}
+          onUse={onUse} />
+      )}
     </div>
+  );
+}
+
+/** Sharpen the Blade (XGE p.35): 1 to 3 ki points and one kensei weapon from the participant's attack options. */
+function SharpenTheBladeControls({ entry, participantId, disabled, onUse }: {
+  entry: ResourcePoolEntry;
+  participantId: string;
+  disabled: boolean;
+  onUse: (options: PoolUseOptions) => void;
+}) {
+  const [ki, setKi] = useState(1);
+  const [weapon, setWeapon] = useState('');
+  const options = useAttackOptions(participantId);
+  const kenseiWeapons = (options.data ?? []).filter(o => o.kenseiWeapon).map(o => o.weapon);
+  const chosen = weapon || kenseiWeapons[0] || '';
+  const base = `sharpen-${participantId}`;
+  return (
+    <>
+      <label htmlFor={`${base}-ki`} className="text-[11px] text-muted">Ki</label>
+      <select id={`${base}-ki`} value={ki} onChange={e => setKi(Number(e.target.value))} className={KENSEI_FIELD}>
+        {[1, 2, 3].map(n => <option key={n} value={n} disabled={n > entry.currentUses}>{n}</option>)}
+      </select>
+      <label htmlFor={`${base}-weapon`} className="text-[11px] text-muted">Weapon</label>
+      <select id={`${base}-weapon`} value={chosen} onChange={e => setWeapon(e.target.value)}
+        className={KENSEI_FIELD} disabled={options.isPending}>
+        {kenseiWeapons.map(name => <option key={name} value={name}>{name}</option>)}
+      </select>
+      <button type="button" className={KENSEI_BUTTON} disabled={disabled || entry.currentUses < ki || !chosen}
+        title="Bonus action: +ki spent to attack and damage rolls with the weapon for 1 minute"
+        onClick={() => onUse({ option: 'sharpen-the-blade', uses: ki, weapon: chosen })}>
+        Sharpen the Blade (+{ki})
+      </button>
+    </>
   );
 }
 

@@ -1,10 +1,14 @@
 package com.tabletophelper.encounter;
 
 import com.tabletophelper.IntegrationTest;
+import com.tabletophelper.character.CharacterRepository;
+import com.tabletophelper.character.PlayerCharacter;
+import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.KnownSpell;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.SpellTemplate;
@@ -40,12 +44,14 @@ class SummonIT extends IntegrationTest {
     @Autowired private MonsterRepository monsterRepository;
     @Autowired private SpellRepository spellRepository;
     @Autowired private EncounterParticipantRepository participantRepository;
+    @Autowired private CharacterRepository characterRepository;
 
     private RegisteredUser dm;
     private RegisteredUser player;
     private UUID encounterId;
     private String breaId;
     private String goblinId;
+    private UUID character;
     private Monster wolf;
     private Monster owl;
     private Monster dretch;
@@ -57,7 +63,7 @@ class SummonIT extends IntegrationTest {
         JsonNode campaign = createCampaign(dm.accessToken());
         expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/campaigns/join",
                 Map.of("inviteCode", campaign.get("inviteCode").asString()), player.accessToken()));
-        UUID character = createCharacter(player.accessToken(), insertRace("Wood Elf"), insertClass("Druid", 8));
+        character = createCharacter(player.accessToken(), insertRace("Wood Elf"), insertClass("Druid", 8));
         encounterId = createEncounter(dm.accessToken(), UUID.fromString(campaign.get("id").asString()));
         spell("Conjure Animals", 3, true);
         spell("Summon Lesser Demons", 3, true);
@@ -296,6 +302,51 @@ class SummonIT extends IntegrationTest {
         expect(HttpStatus.OK, exchange(HttpMethod.DELETE, "/api/encounters/" + encounterId + "/participants/" + breaId,
                 null, dm.accessToken()));
         assertThat(companions(dmState())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A Pact of the Chain warlock's familiar attacks with its reaction in place of one of the warlock's "
+            + "attacks, on the warlock's turn; a second is refused, and undo takes it back (PHB p.107)")
+    void pactOfTheChain_familiarAttacks() {
+        Monster imp = monsterRepository.save(Monster.builder().name("Imp").type("fiend").subtype("devil")
+                .challengeRating("1").source("MM").hitPoints(10).armourClass(13).dexterity(17)
+                .actionTemplates(MonsterTemplates.parse("""
+                        {"actions": [{"name": "Sting", "actionType": "ACTION", "deliveryMethod": "ATTACK_ROLL",
+                          "attackType": "MELEE_WEAPON", "attackBonus": 5, "targetCount": 1,
+                          "effects": [{"effectType": "DAMAGE", "damageDice": "1d4 + 3", "damageType": "piercing"}]}]}"""))
+                .build());
+        dice.script(13);
+        String impId = idOf(addParticipant(dm.accessToken(), encounterId, Map.of("participantType", "COMPANION",
+                "monsterId", imp.getId(), "summonerParticipantId", breaId, "spellName", "Find Familiar",
+                "creatureType", "fiend")), "Imp");
+        start();
+        Map<String, Object> sting = Map.of("monsterParticipantId", impId, "actionName", "Sting",
+                "actionSource", "ACTION", "targetParticipantIds", List.of(goblinId), "pactOfTheChain", true);
+
+        // Without Pact of the Chain a familiar's attack is refused
+        expect(HttpStatus.BAD_REQUEST, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/monster-action", sting, player.accessToken()));
+        PlayerCharacter sheet = characterRepository.findById(character).orElseThrow();
+        sheet.setFeatures(new ArrayList<>(List.of(new Feature("Pact of the Chain", "A familiar", "Warlock"))));
+        characterRepository.save(sheet);
+
+        dice.script(15, 2);
+        expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action",
+                sting, player.accessToken()));
+        JsonNode state = dmState();
+        assertThat(participant(state, goblinId).get("hpCurrent").asInt()).isEqualTo(7 - 5);
+        assertThat(participant(state, breaId).get("turnEconomy").get("attackActionTaken").asBoolean()).isTrue();
+        assertThat(participant(state, impId).get("turnEconomy").get("reactionUsed").asBoolean()).isTrue();
+        assertThat(participant(playerState(), breaId).get("pactOfTheChain").asBoolean()).isTrue();
+
+        expect(HttpStatus.CONFLICT, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/monster-action", sting, player.accessToken()));
+
+        String newest = dmState().get("undo").get("commandId").asString();
+        JsonNode undone = expect(HttpStatus.OK, exchange(HttpMethod.POST, "/api/encounters/" + encounterId
+                + "/combat/undo", Map.of("expectedCommandId", newest), dm.accessToken()));
+        assertThat(participant(undone, goblinId).get("hpCurrent").asInt()).isEqualTo(7);
+        assertThat(participant(undone, breaId).get("turnEconomy").get("attackActionTaken").asBoolean()).isFalse();
     }
 
     // ── Helpers ──────────────────────────────────────────────────

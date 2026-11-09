@@ -143,7 +143,7 @@ class CombatFixture {
             characterWeapons);
     final WildShapeEffects wildShapeEffects = new WildShapeEffects(monsterRepository, objectMapper, effectApplier);
     final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice, channelDivinity,
-            wildShapeEffects);
+            wildShapeEffects, characterWeapons);
     final WildShapeService wildShape = new WildShapeService(access, accessPolicy, economy, effectApplier,
             wildShapeEffects, dice, encounterRepository, encounterService);
     final BardicInspirationService bardicInspiration = new BardicInspirationService(access, combatLog, dice,
@@ -155,7 +155,7 @@ class CombatFixture {
     final TurnEconomyEditService turnEconomyEdit = new TurnEconomyEditService(access, combatLog, encounterRepository,
             encounterService);
     final HitFollowUpService hitFollowUps = new HitFollowUpService(access, resolver, stats, effectApplier, economy,
-            combatLog, encounterRepository, encounterService);
+            combatLog, encounterRepository, encounterService, characterWeapons);
     final TurnProcessor turnProcessor = new TurnProcessor(effectApplier, combatLog);
     final TurnService turns = new TurnService(access, turnProcessor, encounterRepository, encounterService);
     final SummonService summons = new SummonService(access, accessPolicy, encounterCommands, commandRecorder, summoner,

@@ -13,6 +13,7 @@ import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WeaponHit;
 import com.tabletophelper.encounter.state.WildShapeForm;
@@ -26,6 +27,7 @@ import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.KenseiFeatures;
 import com.tabletophelper.rules.combat.Outcome;
 import com.tabletophelper.rules.combat.Resolver;
 import com.tabletophelper.rules.combat.RollMode;
@@ -71,6 +73,13 @@ import java.util.UUID;
  * decided after the d20 is seen, before the hit is known (PHB p.53, p.63): a held Bardic Inspiration die and a War
  * cleric's Guided Strike, which the attack asks for and the server adds only to a roll that would miss, Guided Strike
  * only when its +10 makes it hit, spending the Channel Divinity use then.
+ *
+ * <p>Way of the Kensei (XGE p.34-35): an unarmed strike of the Attack action on the monk's turn, while it carries a
+ * melee kensei weapon, gives it Agile Parry's +2 AC until the start of its next turn; Kensei's Shot adds 1d4 of the
+ * weapon's type to a ranged kensei weapon attack's hit on the turn it was used; Sharpen the Blade adds its bonus to the
+ * attack and damage rolls of the weapon it sharpened; a hit with a kensei weapon on the monk's turn, ranged or melee, is
+ * recorded for Deft Strike to follow ({@link HitFollowUpService}); and Unerring Accuracy, asked for on the attack,
+ * rerolls a monk weapon attack's miss once on each of the monk's turns.
  */
 @Service
 @RequiredArgsConstructor
@@ -105,10 +114,22 @@ public class AttackService {
      * @param sneakAttack it carries Sneak Attack's dice, spent for the turn only on a hit
      * @param martialArts Martial Arts applies to it, so an Attack action with it lets a monk strike as a bonus action
      * @param blessed     it carries War God's Blessing's +10, which it spends (PHB p.63)
+     * @param kensei      what the Way of the Kensei adds to it (XGE p.34-35); {@link Kensei#NONE} for anyone else
      */
     private record Prepared(Effect effect, String action, String preposition, String subject,
                             List<ManualModifiers.Use> modifiers, boolean startsReckless, WeaponRules.Weapon weapon,
-                            boolean melee, boolean sneakAttack, boolean martialArts, boolean blessed) {
+                            boolean melee, boolean sneakAttack, boolean martialArts, boolean blessed, Kensei kensei) {
+    }
+
+    /**
+     * What a Kensei monk's features do with an attack (XGE p.34-35).
+     *
+     * @param deftStrikeOffered Deft Strike may follow its hit: a kensei weapon on the monk's own turn, from Monk 6
+     * @param unerringAccuracy  Unerring Accuracy rerolls its miss, as the attack asked
+     * @param parryWeapon       the melee kensei weapon Agile Parry defends with once the strike is made; null for none
+     */
+    private record Kensei(boolean deftStrikeOffered, boolean unerringAccuracy, String parryWeapon) {
+        static final Kensei NONE = new Kensei(false, false, null);
     }
 
     /** What an attack charges its attacker's turn, why it is over budget whatever the turn says, and ki it spends. */
@@ -134,6 +155,10 @@ public class AttackService {
         attack = withRescue(actor, request, attack);
         manualModifiers.require(encounter, userId, attack.modifiers());
         CombatAccess.requireNotDead(List.of(target));
+        // A controlled mount only Dashes, Disengages or Dodges (PHB p.198)
+        if (actor != null) {
+            ControlledMount.requireMountAction(encounter, actor, "attack", userId, combatLog);
+        }
         String costNote = costNote(cost);
         if (actor != null) {
             Cost charged = cost(encounter, actor, cost, attack);
@@ -151,6 +176,9 @@ public class AttackService {
             if (attack.blessed()) {
                 effectApplier.removeFeatureEntries(actor, ChannelDivinity.WAR_GODS_BLESSING, null);
             }
+            if (attack.kensei().parryWeapon() != null) {
+                agileParry(encounter, actor, attack.kensei().parryWeapon());
+            }
         }
 
         EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
@@ -162,6 +190,10 @@ public class AttackService {
             recordHit(encounter, actor, target, attack, applied.getFirst());
             if (applied.getFirst().outcome().guidedStrike()) {
                 spendGuidedStrike(encounter, actor);
+            }
+            // Unerring Accuracy is spent only when it rerolled a miss, once on each of the monk's turns (XGE p.35)
+            if (applied.getFirst().outcome().rerolled()) {
+                actor.setTurnEconomy(economyOf(actor).withUnerringAccuracyUsed());
             }
         }
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -180,7 +212,8 @@ public class AttackService {
     private Prepared withRescue(EncounterParticipant actor, AttackRollRequest request, Prepared attack) {
         boolean inspiration = Boolean.TRUE.equals(request.getUseInspiration());
         boolean guided = Boolean.TRUE.equals(request.getGuidedStrike());
-        if (!inspiration && !guided) {
+        boolean reroll = attack.kensei().unerringAccuracy();
+        if (!inspiration && !guided && !reroll) {
             return attack;
         }
         if (actor == null) {
@@ -205,12 +238,12 @@ public class AttackService {
         if (!(effect.delivery() instanceof Effect.Attack delivery)) {
             return attack;
         }
-        Effect rescued = new Effect(effect.name(), delivery.withRescue(new Effect.Rescue(sides, guided)),
+        Effect rescued = new Effect(effect.name(), delivery.withRescue(new Effect.Rescue(sides, guided, reroll)),
                 effect.damage(), effect.healing(), effect.conditions(), effect.concentration(), effect.durationRounds(),
                 effect.conditionEnds());
         return new Prepared(rescued, attack.action(), attack.preposition(), attack.subject(), attack.modifiers(),
                 attack.startsReckless(), attack.weapon(), attack.melee(), attack.sneakAttack(), attack.martialArts(),
-                attack.blessed());
+                attack.blessed(), attack.kensei());
     }
 
     // Guided Strike turned the miss into a hit, so its Channel Divinity use is spent (PHB p.63)
@@ -255,26 +288,34 @@ public class AttackService {
         }
         AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(participant));
         List<String> conditions = CreatureStats.conditionNames(participant);
+        int kenseiLevel = kenseiLevel(character);
         return characterWeapons.of(character).stream()
                 .map(held -> option(character, attacker, held,
-                        rollBonuses(participant, conditions, held.weapon().name())))
+                        rollBonuses(participant, conditions, held.weapon().name()), kenseiLevel,
+                        kenseisShot(conditions, kenseiLevel, attacker, held.weapon())))
                 .toList();
     }
 
     /**
      * The bonuses to a weapon attack roll the attacker has in force now: Sacred Weapon's Charisma modifier, at least
-     * +1, with the weapon it imbued (PHB p.86), and War God's Blessing's +10, which the next attack spends (PHB p.63).
+     * +1, with the weapon it imbued (PHB p.86), War God's Blessing's +10, which the next attack spends (PHB p.63), and
+     * Sharpen the Blade's bonus with the kensei weapon it sharpened, which adds to the damage too (XGE p.35).
      */
-    record RollBonuses(int sacredWeapon, boolean blessed) {
+    record RollBonuses(int sacredWeapon, boolean blessed, int sharpened) {
+
+        RollBonuses(int sacredWeapon, boolean blessed) {
+            this(sacredWeapon, blessed, 0);
+        }
 
         int total() {
-            return sacredWeapon + (blessed ? ChannelDivinity.ATTACK_BONUS : 0);
+            return sacredWeapon + (blessed ? ChannelDivinity.ATTACK_BONUS : 0) + sharpened;
         }
 
         List<String> notes() {
             List<String> notes = new ArrayList<>();
             if (sacredWeapon > 0) notes.add("Sacred Weapon +" + sacredWeapon);
             if (blessed) notes.add("War God's Blessing +" + ChannelDivinity.ATTACK_BONUS);
+            if (sharpened > 0) notes.add("Sharpen the Blade +" + sharpened);
             return notes;
         }
     }
@@ -282,7 +323,44 @@ public class AttackService {
     private RollBonuses rollBonuses(EncounterParticipant attacker, List<String> conditions, String weaponName) {
         int sacredWeapon = sacredWeaponImbues(attacker, weaponName)
                 ? ChannelDivinity.sacredWeaponBonus(stats.abilityScore(attacker, Ability.CHA)) : 0;
-        return new RollBonuses(sacredWeapon, ClassFeatures.has(conditions, ChannelDivinity.WAR_GODS_BLESSING));
+        return new RollBonuses(sacredWeapon, ClassFeatures.has(conditions, ChannelDivinity.WAR_GODS_BLESSING),
+                sharpened(attacker, weaponName));
+    }
+
+    /**
+     * Sharpen the Blade's bonus with the weapon (XGE p.35): the ki points spent on the attacker's entry that names it,
+     * in any case; 0 without one.
+     */
+    static int sharpened(EncounterParticipant attacker, String weaponName) {
+        if (attacker.getActiveConditions() == null || weaponName == null) {
+            return 0;
+        }
+        return attacker.getActiveConditions().stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(entry -> KenseiFeatures.SHARPEN_THE_BLADE.equalsIgnoreCase(entry.name())
+                        && entry.weapon() != null && entry.bonus() != null
+                        && entry.weapon().trim().equalsIgnoreCase(weaponName.trim()))
+                .mapToInt(ConditionEntry::bonus)
+                .max()
+                .orElse(0);
+    }
+
+    // The character's Monk level when its Monk is of the Way of the Kensei; 0 otherwise
+    private static int kenseiLevel(PlayerCharacter character) {
+        return Math.min(20, FeatureEffects.subclassLevel(character, KenseiFeatures.MONK, KenseiFeatures.SUBCLASS));
+    }
+
+    // Whether Kensei's Shot, used this turn, adds its 1d4 to the weapon: a kensei weapon of a Kensei monk of 3rd level,
+    // fired as a ranged weapon (XGE p.34); whether the attack is ranged is the caller's
+    private static boolean kenseisShot(List<String> conditions, int kenseiLevel, AttackFeatures.Attacker attacker,
+                                       WeaponRules.Weapon weapon) {
+        return kenseiLevel >= KenseiFeatures.KENSEIS_SHOT_LEVEL && attacker.kenseiWeapon(weapon)
+                && ClassFeatures.has(conditions, KenseiFeatures.KENSEIS_SHOT);
+    }
+
+    // Dice with a flat bonus added to their modifier, as Sharpen the Blade adds to damage (XGE p.35)
+    private static Dice plus(Dice dice, int bonus) {
+        return bonus == 0 ? dice : new Dice(dice.count(), dice.sides(), dice.modifier() + bonus);
     }
 
     /**
@@ -300,30 +378,38 @@ public class AttackService {
     // A weapon's option with the attack roll bonuses in force, which the attack itself adds (Sacred Weapon, War God's
     // Blessing), so the numbers shown are those the attack rolls
     private AttackOption option(PlayerCharacter character, AttackFeatures.Attacker attacker,
-                                CharacterWeapons.Held held, RollBonuses rollBonuses) {
+                                CharacterWeapons.Held held, RollBonuses rollBonuses, int kenseiLevel,
+                                boolean kenseisShot) {
         WeaponRules.Weapon weapon = held.weapon();
         AttackFeatures.Grip grip = AttackFeatures.defaultGrip(weapon, false);
         AttackFeatures.Numbers numbers = characterWeapons.numbers(held, attacker, false, false, grip);
+        int sharpened = rollBonuses.sharpened();
         AttackOption.PowerAttackOption powerAttack = null;
         if (held.powerAttack() != null) {
             AttackFeatures.Numbers traded = characterWeapons.numbers(held, attacker, true, false, grip);
             powerAttack = new AttackOption.PowerAttackOption(held.powerAttack().featName(),
-                    traded.attackBonus() + rollBonuses.total(), traded.damage().toString());
+                    traded.attackBonus() + rollBonuses.total(), plus(traded.damage(), sharpened).toString());
         }
         List<String> features = new ArrayList<>(rollBonuses.notes());
         features.addAll(numbers.notes());
+        // Kensei's Shot's die comes with a ranged attack only (XGE p.34)
+        if (kenseisShot && weapon.ranged()) {
+            features.add("Kensei's Shot +" + KenseiFeatures.KENSEIS_SHOT_DAMAGE);
+        }
         String versatile = weapon.versatile() && !weapon.twoHanded()
-                ? characterWeapons.numbers(held, attacker, false, false, AttackFeatures.Grip.TWO_HANDED).damage()
-                        .toString() : null;
+                ? plus(characterWeapons.numbers(held, attacker, false, false, AttackFeatures.Grip.TWO_HANDED).damage(),
+                        sharpened).toString() : null;
         boolean reckless = FeatureEffects.hasFeature(character, ClassFeatures.RECKLESS_ATTACK)
                 && ClassFeatures.meleeStrengthAttack(weapon.ranged(), numbers.ability());
         int rogueLevel = Math.min(20, FeatureEffects.classLevel(character, ROGUE));
         String sneakAttack = rogueLevel >= 1 && AttackFeatures.sneakAttackWeapon(weapon)
                 ? AttackFeatures.sneakAttack(rogueLevel).toString() : null;
+        boolean kenseiWeapon = kenseiLevel >= KenseiFeatures.KENSEIS_SHOT_LEVEL && attacker.kenseiWeapon(weapon);
+        boolean unerring = kenseiLevel >= KenseiFeatures.UNERRING_ACCURACY_LEVEL && attacker.monkWeapon(weapon);
         return new AttackOption(weapon.name(), numbers.ability(), held.proficient(),
-                numbers.attackBonus() + rollBonuses.total(), numbers.damage().toString(), weapon.damageType(),
-                weapon.ranged(), powerAttack, reckless, weapon.twoHanded(), versatile, features, numbers.critRange(),
-                sneakAttack, numbers.martialArts());
+                numbers.attackBonus() + rollBonuses.total(), plus(numbers.damage(), sharpened).toString(),
+                weapon.damageType(), weapon.ranged(), powerAttack, reckless, weapon.twoHanded(), versatile, features,
+                numbers.critRange(), sneakAttack, numbers.martialArts(), kenseiWeapon, unerring);
     }
 
     // ── What an attack costs ─────────────────────────────────────
@@ -394,13 +480,15 @@ public class AttackService {
             economy = economy.withSneakAttackTurn(turn);
         }
         WeaponHit followed = null;
-        if (hit && attack.melee() && attack.weapon() != null) {
+        // A Kensei monk's hit with a kensei weapon on its turn is kept for Deft Strike, a ranged one too (XGE p.34)
+        boolean deftStrike = attack.kensei().deftStrikeOffered();
+        if (hit && attack.weapon() != null && (attack.melee() || deftStrike)) {
             PlayerCharacter character = actor.getCharacter();
             // An unarmed strike is a melee weapon attack, so Divine Smite may follow it too (PHB p.195, p.85)
             followed = WeaponHit.of(turn, applied.logEntryId(), target.getId(), attack.weapon().name(),
-                    outcome == Outcome.CRITICAL,
+                    outcome == Outcome.CRITICAL, !attack.melee(),
                     FeatureEffects.classLevel(character, PALADIN) >= AttackFeatures.DIVINE_SMITE_LEVEL,
-                    FeatureEffects.classLevel(character, MONK) >= AttackFeatures.STUNNING_STRIKE_LEVEL)
+                    FeatureEffects.classLevel(character, MONK) >= AttackFeatures.STUNNING_STRIKE_LEVEL, deftStrike)
                     .withConcentrationCheck(applied.concentrationCheck());
         }
         actor.setTurnEconomy(economy.withLastMeleeHit(followed));
@@ -447,8 +535,8 @@ public class AttackService {
             throw new ValidationException(reason);
         });
 
-        AttackFeatures.Numbers numbers = characterWeapons.numbers(held,
-                characterWeapons.attacker(character, armoured(actor)), powerAttack, offHand, grip);
+        AttackFeatures.Attacker attacker = characterWeapons.attacker(character, armoured(actor));
+        AttackFeatures.Numbers numbers = characterWeapons.numbers(held, attacker, powerAttack, offHand, grip);
         boolean meleeStrength = ClassFeatures.meleeStrengthAttack(weapon.ranged(), numbers.ability());
         boolean ownTurn = EncounterTurns.isCurrentTurn(encounter, actor.getId());
         List<String> conditions = CreatureStats.conditionNames(actor);
@@ -460,8 +548,9 @@ public class AttackService {
         boolean reckless = ownTurn && meleeStrength && (alreadyReckless || startsReckless);
         int rageDamage = ClassFeatures.raging(conditions) && meleeStrength
                 ? rageDamage(FeatureEffects.classLevel(character, "Barbarian")) : 0;
-        Dice weaponDamage = rageDamage == 0 ? numbers.damage() : new Dice(numbers.damage().count(),
-                numbers.damage().sides(), numbers.damage().modifier() + rageDamage);
+        // Sharpen the Blade's bonus adds to the damage roll too (XGE p.35), a flat bonus a critical hit doesn't double
+        int sharpened = sharpened(actor, weapon.name());
+        Dice weaponDamage = plus(numbers.damage(), rageDamage + sharpened);
         Dice extraDamage = extraDamage(request);
         String extraType = extraDamage == null ? null
                 : request.getExtraDamageType() != null && !request.getExtraDamageType().isBlank()
@@ -471,7 +560,8 @@ public class AttackService {
         if (extraDamage != null) {
             damage.add(new Effect.DamagePart(extraDamage, extraType));
         }
-        // Sacred Weapon, with the weapon it imbued (PHB p.86), and War God's Blessing (PHB p.63) add to the attack roll
+        // Sacred Weapon, with the weapon it imbued (PHB p.86), War God's Blessing (PHB p.63) and Sharpen the Blade (XGE
+        // p.35) add to the attack roll
         RollBonuses rollBonuses = rollBonuses(actor, conditions, weapon.name());
         int sacredWeapon = rollBonuses.sacredWeapon();
         boolean blessed = rollBonuses.blessed();
@@ -488,6 +578,7 @@ public class AttackService {
         if (rageDamage > 0) notes.add("Rage +" + rageDamage);
         if (sacredWeapon > 0) notes.add("Sacred Weapon +" + sacredWeapon);
         if (blessed) notes.add("War God's Blessing +" + ChannelDivinity.ATTACK_BONUS);
+        if (sharpened > 0) notes.add("Sharpen the Blade +" + sharpened);
         boolean vowed = vowedAgainst(actor, target);
         if (vowed) notes.add("Vow of Enmity");
         notes.addAll(numbers.notes());
@@ -509,12 +600,87 @@ public class AttackService {
             damage.add(new Effect.DamagePart(sneakDice, weapon.damageType()));
             sneakAttack = true;
         }
+        // Kensei's Shot: 1d4 of the weapon's type on a ranged attack's hit with a kensei weapon this turn (XGE p.34)
+        int kenseiLevel = kenseiLevel(character);
+        if (!melee && kenseisShot(conditions, kenseiLevel, attacker, weapon)) {
+            damage.add(new Effect.DamagePart(KenseiFeatures.KENSEIS_SHOT_DAMAGE, weapon.damageType()));
+            notes.add("Kensei's Shot +" + KenseiFeatures.KENSEIS_SHOT_DAMAGE);
+        }
+        Kensei kensei = kensei(encounter, actor, held, attacker, kenseiLevel, cost, ownTurn,
+                Boolean.TRUE.equals(request.getUnerringAccuracy()));
 
         String label = weapon.name() + (notes.isEmpty() ? "" : " (" + String.join(", ", notes) + ")");
         Effect effect = new Effect(label, delivery, damage, null, List.of(), false, null);
         return new Prepared(effect, "uses " + label, "on", actor.getDisplayName() + "'s " + weapon.name() + " attack",
                 ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical),
-                startsReckless, weapon, melee, sneakAttack, numbers.martialArts(), blessed);
+                startsReckless, weapon, melee, sneakAttack, numbers.martialArts(), blessed, kensei);
+    }
+
+    /**
+     * What the Way of the Kensei does with the attack (XGE p.34-35): Deft Strike may follow a hit with a kensei weapon
+     * on the monk's own turn; Agile Parry follows an unarmed strike of the Attack action on its turn while it carries a
+     * melee kensei weapon, any one carried counting as held since hands aren't tracked; and Unerring Accuracy, when
+     * asked for, rerolls a miss with a monk weapon on its turn, once on each of its turns.
+     *
+     * @throws ValidationException Unerring Accuracy for an attacker without it, or with an unarmed strike, which isn't a
+     *                             monk weapon (PHB p.78)
+     * @throws ConflictException   Unerring Accuracy off the monk's turn, or used already this turn
+     */
+    private Kensei kensei(Encounter encounter, EncounterParticipant actor, CharacterWeapons.Held held,
+                          AttackFeatures.Attacker attacker, int kenseiLevel, AttackCost cost, boolean ownTurn,
+                          boolean unerringAsked) {
+        WeaponRules.Weapon weapon = held.weapon();
+        if (unerringAsked) {
+            if (kenseiLevel < KenseiFeatures.UNERRING_ACCURACY_LEVEL) {
+                throw new ValidationException(actor.getDisplayName() + " needs Monk level "
+                        + KenseiFeatures.UNERRING_ACCURACY_LEVEL + " in the Way of the Kensei for Unerring Accuracy");
+            }
+            if (!attacker.monkWeapon(weapon)) {
+                throw new ValidationException("Unerring Accuracy rerolls an attack with a monk weapon, and "
+                        + (weapon == WeaponRules.UNARMED_STRIKE ? "an unarmed strike" : "the " + weapon.name())
+                        + " isn't one for " + actor.getDisplayName());
+            }
+            if (!ownTurn) {
+                throw new ConflictException("Unerring Accuracy rerolls a miss on " + actor.getDisplayName()
+                        + "'s own turn");
+            }
+            if (economyOf(actor).unerringAccuracyUsed()) {
+                throw new ConflictException(actor.getDisplayName() + " has already used Unerring Accuracy this turn; "
+                        + "it can be used once on each of its turns");
+            }
+        }
+        if (kenseiLevel < KenseiFeatures.AGILE_PARRY_LEVEL) {
+            return Kensei.NONE;
+        }
+        boolean deftStrike = kenseiLevel >= KenseiFeatures.DEFT_STRIKE_LEVEL && ownTurn
+                && attacker.kenseiWeapon(weapon);
+        String parryWeapon = null;
+        if (KenseiFeatures.agileParry(weapon == WeaponRules.UNARMED_STRIKE, cost == AttackCost.ACTION, ownTurn, true)) {
+            parryWeapon = characterWeapons.of(actor.getCharacter()).stream()
+                    .map(CharacterWeapons.Held::weapon)
+                    .filter(w -> !w.ranged() && attacker.kenseiWeapon(w))
+                    .map(WeaponRules.Weapon::name)
+                    .findFirst()
+                    .orElse(null);
+        }
+        return new Kensei(deftStrike, unerringAsked, parryWeapon);
+    }
+
+    /**
+     * Agile Parry (XGE p.34): the monk defends with the melee kensei weapon it holds, +2 AC until the start of its next
+     * turn while it isn't incapacitated, which its AC reads ({@link CreatureStats#armourClass}). A second strike that
+     * turn leaves the one entry there.
+     */
+    private void agileParry(Encounter encounter, EncounterParticipant monk, String weapon) {
+        boolean already = ClassFeatures.has(CreatureStats.conditionNames(monk), KenseiFeatures.AGILE_PARRY);
+        effectApplier.addFeatureEntry(monk, new ConditionEntry(UUID.randomUUID(), KenseiFeatures.AGILE_PARRY, null,
+                encounter.getRoundNumber(), "Agile Parry", monk.getId(), null, null,
+                EndRule.startOfTurn(monk.getId()), null, null, null, weapon, null, KenseiFeatures.AGILE_PARRY_BONUS));
+        if (!already) {
+            combatLog.write(encounter, CombatActionType.ATTACK, monk.getDisplayName() + " parries with its " + weapon
+                    + " (Agile Parry): +" + KenseiFeatures.AGILE_PARRY_BONUS + " AC until the start of its next turn, "
+                    + "while it isn't incapacitated", monk, null);
+        }
     }
 
     // Whether the attacker's Vow of Enmity is on the target (PHB p.88)
@@ -633,6 +799,9 @@ public class AttackService {
             throw new ValidationException("Martial Arts and Flurry of Blows strike with an unarmed strike: choose it "
                     + "as the weapon");
         }
+        if (Boolean.TRUE.equals(request.getUnerringAccuracy())) {
+            throw new ValidationException("Unerring Accuracy rerolls an attack with a monk weapon: choose the weapon");
+        }
         Dice damage = Dice.parse(request.getDamageDice());
         String damageType = request.getDamageType() != null && !request.getDamageType().isBlank()
                 ? request.getDamageType().trim().toLowerCase() : null;
@@ -644,7 +813,7 @@ public class AttackService {
         String subject = actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack";
         return new Prepared(effect, "attacks", "", subject,
                 ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical), false,
-                null, false, false, false, false);
+                null, false, false, false, false, Kensei.NONE);
     }
 
     // The extra damage entered for a weapon attack, such as "1d6" or "+1"; a type alone is a 400

@@ -281,6 +281,34 @@ describe('WeaponAttackForm', () => {
       expect(bodies[0]).toMatchObject({ weapon: 'Unarmed Strike', cost: 'FLURRY_OF_BLOWS' });
     });
 
+    it("sends Unerring Accuracy with a monk weapon on the monk's turn, to reroll only a miss (XGE p.35)", async () => {
+      serveOptions(makeMockAttackOption('Longsword', { unerringAccuracy: true, kenseiWeapon: true }));
+      const bodies = attackRequests();
+      const { onDone, user } = await renderForm();
+
+      const toggle = await screen.findByRole('button', { name: 'Unerring Accuracy' });
+      expect(toggle).toHaveClass('min-h-11');
+      await user.click(toggle);
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(bodies[0]).toMatchObject({ weapon: 'Longsword', unerringAccuracy: true });
+    });
+
+    it('offers no Unerring Accuracy once used this turn', async () => {
+      serveOptions(makeMockAttackOption('Longsword', { unerringAccuracy: true }));
+      await renderForm({ attacker: rogue({ turnEconomy: { ...FRESH, unerringAccuracyUsed: true } }) });
+      expect(await screen.findByRole('button', { name: 'Roll Attack' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Unerring Accuracy' })).not.toBeInTheDocument();
+    });
+
+    it("offers no Unerring Accuracy with a weapon that isn't a monk weapon for the character", async () => {
+      serveOptions(makeMockAttackOption('Longsword'));
+      await renderForm();
+      expect(await screen.findByRole('button', { name: 'Roll Attack' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Unerring Accuracy' })).not.toBeInTheDocument();
+    });
+
     it('offers no monk strikes to a character without Martial Arts or ki', async () => {
       await renderForm();
       expect(await screen.findByLabelText('Cost')).toBeInTheDocument();

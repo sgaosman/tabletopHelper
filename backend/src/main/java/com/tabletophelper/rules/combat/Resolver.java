@@ -115,17 +115,35 @@ public final class Resolver {
      * @param inspiration   the Bardic Inspiration die added to the attack roll or the save, already in total; null
      *                      when none was rolled
      * @param guidedStrike  Guided Strike's +10 was added to the attack roll, already in total (PHB p.63)
+     * @param rerolledD20s  the d20s of the missed attack roll Unerring Accuracy rolled again (XGE p.35), d20s being the
+     *                      new roll's; null when nothing was rerolled
      */
     public record TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
                                 RollMode rollMode, boolean autoFailed, List<Damage> damage,
                                 List<Damage> successDamage, int healing, List<String> conditions,
-                                SaveRoll hitSave, Inspiration inspiration, boolean guidedStrike) {
+                                SaveRoll hitSave, Inspiration inspiration, boolean guidedStrike,
+                                List<Integer> rerolledD20s) {
 
         public TargetOutcome {
             d20s = List.copyOf(d20s);
             damage = List.copyOf(damage);
             successDamage = List.copyOf(successDamage);
             conditions = List.copyOf(conditions);
+            rerolledD20s = rerolledD20s != null ? List.copyOf(rerolledD20s) : null;
+        }
+
+        /** An outcome no roll was rerolled for. */
+        public TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
+                             RollMode rollMode, boolean autoFailed, List<Damage> damage, List<Damage> successDamage,
+                             int healing, List<String> conditions, SaveRoll hitSave, Inspiration inspiration,
+                             boolean guidedStrike) {
+            this(targetId, outcome, d20s, d20, total, rollMode, autoFailed, damage, successDamage, healing,
+                    conditions, hitSave, inspiration, guidedStrike, null);
+        }
+
+        /** Whether Unerring Accuracy rerolled its attack roll. */
+        public boolean rerolled() {
+            return rerolledD20s != null;
         }
 
         /** An outcome nothing was added to after its roll. */
@@ -235,23 +253,27 @@ public final class Resolver {
     private TargetOutcome attack(Effect effect, Effect.Attack attack, Target target, int empoweredDice) {
         AttackRules.Setup setup = AttackRules.setup(attack.attackerSources(), target.conditions(),
                 attack.withinFiveFeet());
-        List<Integer> d20s = setup.rollMode() == RollMode.NORMAL
-                ? List.of(rng.roll(20))
-                : List.of(rng.roll(20), rng.roll(20));
-        int d20 = switch (setup.rollMode()) {
-            case ADVANTAGE -> Math.max(d20s.get(0), d20s.get(1));
-            case DISADVANTAGE -> Math.min(d20s.get(0), d20s.get(1));
-            case NORMAL -> d20s.get(0);
-        };
+        List<Integer> d20s = rollD20s(setup.rollMode());
+        int d20 = kept(setup.rollMode(), d20s);
         Outcome outcome = attack.forcedCritical()
                 ? Outcome.CRITICAL
                 : AttackRules.outcome(d20, attack.bonus(), target.armourClass(), setup.hitIsCritical(),
                         attack.critRange());
+        // Unerring Accuracy rolls a missed attack roll again, as it was rolled, and the new roll stands (XGE p.35)
+        List<Integer> rerolledD20s = null;
+        if (outcome == Outcome.MISS && attack.rescue().reroll()) {
+            rerolledD20s = d20s;
+            d20s = rollD20s(setup.rollMode());
+            d20 = kept(setup.rollMode(), d20s);
+            outcome = AttackRules.outcome(d20, attack.bonus(), target.armourClass(), setup.hitIsCritical(),
+                    attack.critRange());
+        }
         int bonus = attack.bonus();
         Inspiration inspiration = null;
         boolean guidedStrike = false;
         // What the attacker adds once it sees the roll would miss; a natural 1 misses whatever is added (PHB p.194)
-        if (outcome == Outcome.MISS && d20 != 1 && attack.rescue().any()) {
+        if (outcome == Outcome.MISS && d20 != 1
+                && (attack.rescue().inspirationSides() > 0 || attack.rescue().guidedStrike())) {
             if (attack.rescue().inspirationSides() > 0) {
                 inspiration = new Inspiration(attack.rescue().inspirationSides(),
                         rng.roll(attack.rescue().inspirationSides()));
@@ -272,14 +294,14 @@ public final class Resolver {
         int total = d20 + bonus;
         if (outcome == Outcome.MISS) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    List.of(), List.of(), 0, List.of(), null, inspiration, false);
+                    List.of(), List.of(), 0, List.of(), null, inspiration, false, rerolledD20s);
         }
         List<Damage> damage = rollDamage(effect.damage(), outcome == Outcome.CRITICAL, empoweredDice);
         int healing = rollHealing(effect.healing());
         Effect.HitSave hitSave = attack.hitSave();
         if (hitSave == null) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike);
+                    damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike, rerolledD20s);
         }
         // The save decides only the conditions it guards, so a success would leave all of the damage
         SaveRoll save = target.autoSucceed() ? new SaveRoll(null, null, true, false)
@@ -289,7 +311,22 @@ public final class Resolver {
                 .filter(condition -> !save.success() || !hitSave.conditions().contains(condition))
                 .toList();
         return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                damage, save.success() ? List.of() : damage, healing, conditions, save, inspiration, guidedStrike);
+                damage, save.success() ? List.of() : damage, healing, conditions, save, inspiration, guidedStrike,
+                rerolledD20s);
+    }
+
+    // One d20, or two with advantage or disadvantage
+    private List<Integer> rollD20s(RollMode mode) {
+        return mode == RollMode.NORMAL ? List.of(rng.roll(20)) : List.of(rng.roll(20), rng.roll(20));
+    }
+
+    // The d20 that counts of those rolled
+    private static int kept(RollMode mode, List<Integer> d20s) {
+        return switch (mode) {
+            case ADVANTAGE -> Math.max(d20s.get(0), d20s.get(1));
+            case DISADVANTAGE -> Math.min(d20s.get(0), d20s.get(1));
+            case NORMAL -> d20s.get(0);
+        };
     }
 
     private TargetOutcome save(Effect effect, Effect.Save save, Target target, List<Damage> damage, int healing) {

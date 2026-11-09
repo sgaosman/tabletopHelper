@@ -1,5 +1,6 @@
 package com.tabletophelper.encounter.internal;
 
+import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.CombatActionType;
 import com.tabletophelper.encounter.EncounterParticipant;
@@ -12,6 +13,7 @@ import com.tabletophelper.encounter.dto.DismissSummonsRequest;
 import com.tabletophelper.encounter.dto.MonsterActionRequest;
 import com.tabletophelper.encounter.dto.PlaceSummonRequest;
 import com.tabletophelper.encounter.dto.SummonChoice;
+import com.tabletophelper.encounter.dto.StandardActionRequest;
 import com.tabletophelper.encounter.dto.SummonCreature;
 import com.tabletophelper.encounter.dto.UndoRequest;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
@@ -19,6 +21,7 @@ import com.tabletophelper.encounter.state.SummonSpec;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.StandardActions;
 import com.tabletophelper.rules.combat.SummonRules;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
@@ -587,5 +590,131 @@ class SummonServiceTest {
         request.setTargetIds(new ArrayList<>(List.of(goblin.getId())));
         assertThrows(ValidationException.class, () -> f.spellcasting.castSpell(f.encounterId(), request,
                 druid.getId(), player));
+    }
+    @Nested
+    @DisplayName("Pact of the Chain (PHB p.107) and controlled mounts (PHB p.198)")
+    class FamiliarsAndMounts {
+
+        private static final String WARHORSE_TEMPLATES = """
+                {"actions": [{"name": "Hooves", "actionType": "ACTION", "deliveryMethod": "ATTACK_ROLL",
+                  "attackType": "MELEE_WEAPON", "attackBonus": 6, "targetCount": 1,
+                  "effects": [{"effectType": "DAMAGE", "damageDice": "2d6 + 4", "damageType": "bludgeoning"}]}]}""";
+
+        private EncounterParticipant owl() {
+            f.dice.script(10);
+            f.inTransaction(() -> f.summons.companion(f.encounterId(), new CompanionSummonRequest(druid.getId(),
+                    "Find Familiar", null, null, List.of(new SummonCreature(id("Owl"), 1)), null, null, "fey", null),
+                    f.dmUserId));
+            return summoned().getFirst();
+        }
+
+        private MonsterActionRequest pactTalons(EncounterParticipant owl) {
+            return new MonsterActionRequest(owl.getId(), "Talons", "ACTION", List.of(goblin.getId()), null, null, null,
+                    null, true);
+        }
+
+        private void pactOfTheChain() {
+            druid.getCharacter().setFeatures(new ArrayList<>(List.of(new Feature("Pact of the Chain", null,
+                    "Warlock"))));
+        }
+
+        @Test
+        @DisplayName("The warlock forgoes an attack of its Attack action for the familiar's attack with its reaction")
+        void familiarAttacks() {
+            pactOfTheChain();
+            EncounterParticipant owl = owl();
+            f.dice.script(18, 1);
+            f.inTransaction(() -> f.monsterActions.monsterAction(f.encounterId(), pactTalons(owl), player));
+
+            assertEquals(6, goblin.getHpCurrent());
+            assertTrue(druid.getTurnEconomy().attackActionTaken());
+            assertEquals(0, druid.getTurnEconomy().attacksLeft());
+            assertTrue(owl.getTurnEconomy().reactionUsed());
+            assertTrue(f.descriptions().stream().anyMatch(d -> d.startsWith("Owl uses Talons (reaction, Pact of the "
+                    + "Chain)")));
+
+            // The warlock has no attack left to forgo, and the familiar no reaction
+            ConflictException again = assertThrows(ConflictException.class, () -> f.inTransaction(
+                    () -> f.monsterActions.monsterAction(f.encounterId(), pactTalons(owl), player)));
+            assertEquals("It has no attacks left in its Attack action and no action left this turn",
+                    again.getMessage());
+
+            UUID attacked = f.commands.getLast().getId();
+            f.inTransaction(() -> f.undoService.undo(f.encounterId(), new UndoRequest(attacked, 1), f.dmUserId));
+            assertEquals(7, goblin.getHpCurrent());
+            assertFalse(druid.getTurnEconomy().attackActionTaken());
+            assertFalse(owl.getTurnEconomy() != null && owl.getTurnEconomy().reactionUsed());
+        }
+
+        @Test
+        @DisplayName("Without Pact of the Chain it is a 400; off the warlock's turn a 409; two targets a 400")
+        void refusals() {
+            EncounterParticipant owl = owl();
+            ValidationException noPact = assertThrows(ValidationException.class, () -> f.inTransaction(
+                    () -> f.monsterActions.monsterAction(f.encounterId(), pactTalons(owl), player)));
+            assertEquals("Druid doesn't have Pact of the Chain, so Owl can't attack", noPact.getMessage());
+
+            pactOfTheChain();
+            MonsterActionRequest two = new MonsterActionRequest(owl.getId(), "Talons", "ACTION",
+                    List.of(goblin.getId(), druid.getId()), null, null, null, null, true);
+            assertThrows(ValidationException.class, () -> f.inTransaction(
+                    () -> f.monsterActions.monsterAction(f.encounterId(), two, player)));
+
+            f.turnOf(goblin);
+            ConflictException offTurn = assertThrows(ConflictException.class, () -> f.inTransaction(
+                    () -> f.monsterActions.monsterAction(f.encounterId(), pactTalons(owl), player)));
+            assertEquals("A familiar attacks through Pact of the Chain when Druid takes the Attack action on its own "
+                    + "turn", offTurn.getMessage());
+            assertEquals(7, goblin.getHpCurrent());
+        }
+
+        private EncounterParticipant steed(SummonRules.InitiativeMode mode) {
+            monster("Warhorse", "1/2", "beast", null, 19, 11, 12, WARHORSE_TEMPLATES, "MM");
+            f.dice.script(10);
+            f.inTransaction(() -> f.summons.companion(f.encounterId(), new CompanionSummonRequest(druid.getId(),
+                    "Find Steed", null, null, List.of(new SummonCreature(id("Warhorse"), 1)), null, mode, "fey",
+                    null), f.dmUserId));
+            return summoned().getFirst();
+        }
+
+        @Test
+        @DisplayName("A controlled mount only Dashes, Disengages or Dodges: its player's Hooves and Help are 409s, the "
+                + "DM's Hooves are logged as the DM's call")
+        void controlledMount() {
+            EncounterParticipant horse = steed(SummonRules.InitiativeMode.FOLLOWS_CASTER);
+            assertTrue(ControlledMount.controlled(horse));
+            f.turnOf(horse);
+            MonsterActionRequest hooves = new MonsterActionRequest(horse.getId(), "Hooves", "ACTION",
+                    List.of(goblin.getId()), null, null, null, null);
+            ConflictException refused = assertThrows(ConflictException.class, () -> f.inTransaction(
+                    () -> f.monsterActions.monsterAction(f.encounterId(), hooves, player)));
+            assertEquals("Warhorse is a controlled mount, and a controlled mount can only Dash, Disengage or Dodge",
+                    refused.getMessage());
+            assertThrows(ConflictException.class, () -> f.inTransaction(() -> f.standardActions.standardAction(
+                    f.encounterId(), new StandardActionRequest(horse.getId(), StandardActions.Action.HELP, null,
+                            druid.getId(), null), player)));
+
+            f.inTransaction(() -> f.standardActions.standardAction(f.encounterId(), new StandardActionRequest(
+                    horse.getId(), StandardActions.Action.DODGE, null, null, null), player));
+            assertTrue(CombatFixture.conditionNames(horse).contains(StandardActions.DODGING));
+
+            CombatFixture.newTurn(horse);
+            f.dice.script(15, 3, 3);
+            f.inTransaction(() -> f.monsterActions.monsterAction(f.encounterId(), hooves, f.dmUserId));
+            assertTrue(f.descriptions().contains("The DM lets Warhorse use Hooves, though a controlled mount can only "
+                    + "Dash, Disengage or Dodge"));
+        }
+
+        @Test
+        @DisplayName("A steed with its own initiative isn't controlled and attacks as any summon")
+        void independentSteed() {
+            EncounterParticipant horse = steed(SummonRules.InitiativeMode.INDIVIDUAL);
+            assertFalse(ControlledMount.controlled(horse));
+            f.turnOf(horse);
+            f.dice.script(15, 3, 3);
+            f.inTransaction(() -> f.monsterActions.monsterAction(f.encounterId(), new MonsterActionRequest(
+                    horse.getId(), "Hooves", "ACTION", List.of(goblin.getId()), null, null, null, null), player));
+            assertEquals(0, goblin.getHpCurrent());
+        }
     }
 }
