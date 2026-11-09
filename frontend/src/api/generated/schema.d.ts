@@ -1572,6 +1572,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reference/glossary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getGlossary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reference/items": {
         parameters: {
             query?: never;
@@ -2806,6 +2822,17 @@ export interface components {
             participantId: string;
             /** Format: int32 */
             slotLevel: number;
+        };
+        GlossaryEntry: {
+            aliases: string[];
+            body?: string | null;
+            /** @enum {string} */
+            category: "CONDITION" | "ACTION" | "SENSE" | "SKILL" | "DAMAGE_TYPE" | "COMBAT" | "RULE" | "SPELLCASTING";
+            id: string;
+            name: string;
+            seeAlso: string[];
+            source: string;
+            summary?: string | null;
         };
         HealRequest: {
             /** Format: int32 */
@@ -6198,6 +6225,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Feat"];
+                };
+            };
+        };
+    };
+    getGlossary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlossaryEntry"][];
                 };
             };
         };

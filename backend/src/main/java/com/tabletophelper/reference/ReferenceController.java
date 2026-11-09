@@ -4,6 +4,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.reference.dto.ClassTablesResponse;
+import com.tabletophelper.reference.dto.GlossaryEntry;
 import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.reference.dto.SpellTargetingResponse;
 import com.tabletophelper.rules.character.ClassTables;
@@ -46,8 +47,9 @@ public class ReferenceController {
     private final OptionalFeatureRepository optionalFeatureRepository;
     private final ObjectMapper objectMapper;
     private final ClassTables classTables;
+    private final Glossary glossary;
 
-    private static final Duration CLASS_TABLES_MAX_AGE = Duration.ofHours(1);
+    private static final Duration BUNDLED_DATA_MAX_AGE = Duration.ofHours(1);
     private static final String QUICK_REFERENCE = "data/5etools/generated/bookref-quick.json";
 
     @GetMapping("/spells")
@@ -304,8 +306,20 @@ public class ReferenceController {
     @GetMapping("/class-tables")
     public ResponseEntity<ClassTablesResponse> getClassTables() {
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.maxAge(CLASS_TABLES_MAX_AGE).cachePrivate())
+                .cacheControl(CacheControl.maxAge(BUNDLED_DATA_MAX_AGE).cachePrivate())
                 .body(ClassTablesResponse.of(classTables));
+    }
+
+    /**
+     * The Glossary (M19): the game terms the descriptions use, each with a short summary and its rules text, which
+     * the browser links bold terms to. Built once at startup from the bundled data, so the browser may keep it for an
+     * hour and the server needs no cache.
+     */
+    @GetMapping("/glossary")
+    public ResponseEntity<List<GlossaryEntry>> getGlossary() {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(BUNDLED_DATA_MAX_AGE).cachePrivate())
+                .body(glossary.entries());
     }
 
     @GetMapping("/quickref")

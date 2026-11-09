@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMarkup } from './parseMarkup';
+import { parseMarkup, parseMarkupSegments } from './parseMarkup';
 
 describe('parseMarkup', () => {
   // 22.1 {@bold text} -> bold text
@@ -84,3 +84,31 @@ describe('parseMarkup', () => {
     });
   });
 });
+
+describe('parseMarkupSegments', () => {
+  it('turns {@h} into an italic "Hit:" followed by the plain text', () => {
+    expect(parseMarkupSegments('{@h}12 (2d8 + 3) bludgeoning damage.')).toEqual([
+      { text: 'Hit:', style: 'italic' },
+      { text: ' 12 (2d8 + 3) bludgeoning damage.' },
+    ]);
+  });
+
+  it('converts tags to the same text as parseMarkup, joining plain runs', () => {
+    expect(parseMarkupSegments('Fire Breath {@recharge 5}. {@atk mw} {@hit 5} to hit, {@damage 2d6} fire.'))
+      .toEqual([{ text: 'Fire Breath (Recharge 5-6). Melee Weapon Attack: +5 to hit, 2d6 fire.' }]);
+  });
+
+  it('keeps bold and italic tags as styled segments, and drops tags with no text', () => {
+    expect(parseMarkupSegments('{@b Bold} and {@i soft}{@hom} end')).toEqual([
+      { text: 'Bold', style: 'bold' },
+      { text: ' and ' },
+      { text: 'soft', style: 'italic' },
+      { text: ' end' },
+    ]);
+  });
+
+  it('gives no segments for empty text', () => {
+    expect(parseMarkupSegments('')).toEqual([]);
+  });
+});
+

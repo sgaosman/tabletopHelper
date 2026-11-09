@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,7 +42,7 @@ class ReferenceControllerTargetingTest {
         controller = new ReferenceController(spellRepository, conditionRepository, itemRepository,
                 raceRepository, characterClassRepository, subclassRepository,
                 backgroundRepository, featRepository, optionalFeatureRepository, objectMapper,
-                TestClassTables.load());
+                TestClassTables.load(), new Glossary(List.of()));
     }
 
     @Test

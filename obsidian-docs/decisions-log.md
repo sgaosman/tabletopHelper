@@ -3213,3 +3213,23 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D125, D127, D159, D174, D176, D177, D178, [[Pending Choice]], [[Flexible Casting]]
 
 **Checks on a copy of the local data (2026-11-09):** a `backfill-pending-choices` dry run found one sorcerer to change (a level 8 Sorcerer gains two Metamagic choices at Sorcerer 3), and `json-roundtrip` kept its baseline of 11 null-only changes with 0 unreadable. Tests: 2,421 backend unit, 274 integration (including `MetamagicIT`) and 950 frontend. Not checked in a browser.
+
+## D180: Glossary Built From the Rules Data
+
+**Date:** 2026-11-09
+**Status:** Accepted — implemented (M19)
+
+**Decision:** game terms in rules text open a short definition. `GET /api/reference/glossary` serves 104 terms built at startup by `GlossaryFile` from `glossary-terms.json`, which names each term, its category, aliases, "see also" links and where its text comes from: the 15 conditions plus Concentration and Surprised from `conditionsdiseases.json`; 15 actions, 4 senses and 18 skills from `actions.json`, `senses.json` and `skills.json`, restored from the 5etools files R7 deleted (no loader reads them, so content hashes don't change, [[#D169]]); the 13 damage types and about 25 core and combat rules from sections of `bookref-quick.json`; and short plain-English summaries written for about 10 spellcasting terms, Inspiration, Difficulty Class and Ability Score Improvement, which have no data. Startup fails if a source can't be found, a name or alias is used twice, or a "see also" names no term. The browser caches the glossary for an hour and fetches it only once someone is signed in.
+- **Markup stays stripped.** The loaders keep turning 5etools tags into plain text ([[#D169]]); the frontend finds terms by matching text: the existing bold terms, conditions and senses in any case, a few terms such as concentration, opportunity attack and critical hit, actions by capitalised name before "action", damage types before "damage", and skills only when capitalised.
+- **Rendering.** A `GlossaryProvider` at the app root; `GlossaryText` renders text with terms as buttons (ink-coloured with a dotted underline, so contrast matches the text in every theme, [[#D173]]) that open `GlossaryModal` on the existing Modal and focus trap. Without the glossary the text renders as before. Wired: the four `FormattedDescription` screens (the sheet's Actions and Features tabs, spell cards, feat choices), monster stat blocks and read-only condition chips; the DM's removable chips still remove the condition.
+- **Stat blocks without raw HTML.** `MonsterStatBlock` no longer uses `dangerouslySetInnerHTML`: `parseMarkupSegments` turns the remaining tags (`{@h}`, `{@recharge 5}`, `{@dc 13}` and others, still in 2,645 monsters' text) into plain, bold and italic pieces, so "Hit:" is italic and "(Recharge 5-6)" reads as before, and entry names convert their tags too. `parseMarkup` still serves the Quick Reference page.
+
+**Rationale:** the roadmap's goal is plain-English definitions one click away, and the repo already holds the rules text.
+
+**Trade-offs:** the sheet's Stats tab and the Quick Reference page aren't wired. Monster skills such as "Sleight of hand" aren't linked because the stat block capitalises only the first letter.
+
+**Key files:** `content/internal/GlossaryFile.java`, `glossary-terms.json`, `reference/Glossary.java`, `context/GlossaryContext.tsx`, `components/glossary/`, `utils/glossary.ts`, `utils/parseMarkup.ts`, `MonsterStatBlock.tsx`
+
+**Related:** D169, D173, [[Glossary Term]]
+
+**Checks (2026-11-09):** on a copy of the local data the Ogre's stat block read "Hit: 13 (2d8 + 4) bludgeoning damage." with "Hit:" italic and no tags left, and "darkvision" opened its definition (Sense, PHB p.183), which Escape closed. Tests: 2,436 backend unit, 276 integration (including `GlossaryEndpointIT`) and 977 frontend. Not looked at in all four themes or on a phone.

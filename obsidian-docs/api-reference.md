@@ -696,6 +696,10 @@ The response also has `hasRepeatEffect` and, since M13 (D174), `repeatActionType
 
 An unknown spell, or one without an effect template, answers 404. A spell whose stored template can't be read answers 409 (R7, D155).
 
+### GET /reference/glossary
+
+The glossary (M19, D180): each term's `name`, `category` (condition, action, sense, skill, damage type, rule, spellcasting), `aliases`, `summary`, the full rules text where the data has it, its `source` and page, and `seeAlso`. Built at startup; cached by the browser for an hour.
+
 ## Items
 
 ### GET /reference/items

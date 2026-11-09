@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { GlossaryProvider } from './context/GlossaryContext';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import RoleSelectPage from './pages/RoleSelectPage';
@@ -46,7 +47,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // The Glossary links description terms to their definitions on every page (M19)
   return (
+    <GlossaryProvider>
     <Suspense fallback={<PageLoading />}>
       <Routes>
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
@@ -79,5 +82,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Suspense>
+    </GlossaryProvider>
   );
 }

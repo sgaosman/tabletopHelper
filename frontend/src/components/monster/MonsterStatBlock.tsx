@@ -1,5 +1,6 @@
 import type { Monster, MonsterEntry } from '../../types/monster';
-import { parseMarkup } from '../../utils/parseMarkup';
+import GlossaryText from '../glossary/GlossaryText';
+import { markupText } from '../../utils/parseMarkup';
 import { formatAbilityMod } from '../../utils/dndRules';
 
 export default function MonsterStatBlock({ monster }: { monster: Monster }) {
@@ -53,11 +54,11 @@ export default function MonsterStatBlock({ monster }: { monster: Monster }) {
             }</p>
           )}
           {m.skills && (
-            <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Skills</span> {
+            <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Skills</span> <GlossaryText text={
               Object.entries(m.skills as Record<string, string>).map(([k, v]) =>
                 `${k.charAt(0).toUpperCase() + k.slice(1)} ${v}`
               ).join(', ')
-            }</p>
+            } /></p>
           )}
           {m.damageResistances && m.damageResistances.length > 0 && (
             <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Damage Resistances</span> {m.damageResistances.join(', ')}</p>
@@ -69,9 +70,9 @@ export default function MonsterStatBlock({ monster }: { monster: Monster }) {
             <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Damage Vulnerabilities</span> {m.damageVulnerabilities.join(', ')}</p>
           )}
           {m.conditionImmunities && m.conditionImmunities.length > 0 && (
-            <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Condition Immunities</span> {m.conditionImmunities.join(', ')}</p>
+            <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Condition Immunities</span> <GlossaryText text={m.conditionImmunities.join(', ')} /></p>
           )}
-          <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Senses</span> {sensesStr}</p>
+          <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Senses</span> <GlossaryText text={sensesStr} /></p>
           <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Languages</span> {m.languages || '-'}</p>
           <p className="font-body text-[14px] font-semibold text-muted"><span className="font-bold text-ink">Challenge</span> {m.challengeRating} ({m.experiencePoints.toLocaleString()} XP)</p>
         </div>
@@ -80,8 +81,8 @@ export default function MonsterStatBlock({ monster }: { monster: Monster }) {
           <div className="space-y-2">
             {m.traits.map((t, i) => (
               <div key={i} className="font-body text-[14px] font-semibold text-muted">
-                <span className="font-semibold italic text-ink">{t.name}.</span>{' '}
-                <span className="whitespace-pre-line" dangerouslySetInnerHTML={{ __html: parseMarkup(t.description) }} />
+                <span className="font-semibold italic text-ink">{markupText(t.name)}.</span>{' '}
+                <GlossaryText className="whitespace-pre-line" text={t.description} />
               </div>
             ))}
           </div>
@@ -106,8 +107,8 @@ function EntrySection({ title, entries }: { title: string; entries?: MonsterEntr
       <h3 className="font-heading text-[15px] font-bold text-monster">{title}</h3>
       {entries.map((e, i) => (
         <div key={i} className="font-body text-[14px] font-semibold text-muted">
-          <span className="font-semibold italic text-ink">{e.name}.</span>{' '}
-          <span className="whitespace-pre-line" dangerouslySetInnerHTML={{ __html: parseMarkup(e.description) }} />
+          <span className="font-semibold italic text-ink">{markupText(e.name)}.</span>{' '}
+          <GlossaryText className="whitespace-pre-line" text={e.description} />
         </div>
       ))}
     </div>

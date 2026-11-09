@@ -1,6 +1,6 @@
 import api from './axiosConfig';
 import type { ClassTables } from '../utils/classTables';
-import type { Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature, SpellTargetingInfo } from '../types/reference';
+import type { GlossaryEntry, Spell, Condition, Item, SpellSearchParams, ItemSearchParams, PageResponse, Race, CharacterClassRef, Subclass, Background, Feat, OptionalFeature, SpellTargetingInfo } from '../types/reference';
 
 export const searchSpells = async (params: SpellSearchParams): Promise<PageResponse<Spell>> => {
   const response = await api.get('/reference/spells', { params });
@@ -65,6 +65,12 @@ export const getItemSources = async (): Promise<string[]> => {
 /** The class tables the server's rules use (D169): spell slots, cantrips and spells known, and more. */
 export const getClassTables = async (): Promise<ClassTables> => {
   const response = await api.get('/reference/class-tables');
+  return response.data;
+};
+
+/** The Glossary (M19): the game terms descriptions link to, with their summaries and rules text. */
+export const getGlossary = async (): Promise<GlossaryEntry[]> => {
+  const response = await api.get('/reference/glossary');
   return response.data;
 };
 

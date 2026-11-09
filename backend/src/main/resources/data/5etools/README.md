@@ -8,7 +8,7 @@ lists them, and `git checkout <commit>^ -- <path>` brings one back.
 | Kept | Read by |
 |------|---------|
 | `backgrounds.json` | `content.internal.BackgroundLoader` |
-| `conditionsdiseases.json` | `content.internal.ConditionLoader` |
+| `conditionsdiseases.json` | `content.internal.ConditionLoader`, and `content.internal.GlossaryFile` (conditions and statuses) |
 | `feats.json` | `content.internal.FeatLoader` (with `data/content/feat-effects.json`) |
 | `items-base.json`, `items.json` | `content.internal.ItemLoader` |
 | `optionalfeatures.json` | `content.internal.OptionalFeatureLoader` |
@@ -17,8 +17,11 @@ lists them, and `git checkout <commit>^ -- <path>` brings one back.
 | `spells/sources.json` | `content.internal.SpellLoader`, for each spell's classes |
 | `class/class-*.json` | `content.internal.CharacterClassLoader`, and `SpellLoader` for subclass spell lists. `class-mystic.json` and `class-sidekick.json` match the pattern and are skipped by the loader's `SKIP_FILES`, so they stay to keep its report the same |
 | `bestiary/bestiary-*.json` | `content.internal.MonsterLoader`, and `TextOnlySavesReportTest` |
-| `generated/bookref-quick.json` | `reference.ReferenceController`, for `GET /api/reference/quickref` |
+| `generated/bookref-quick.json` | `reference.ReferenceController`, for `GET /api/reference/quickref`, and `content.internal.GlossaryFile` |
+| `actions.json`, `senses.json`, `skills.json` | `content.internal.GlossaryFile`, for the Glossary's rules text (M19; restored from `d8978ba^`) |
 
 Each loader names its files in `files()`, and the content hash that decides whether a start reloads them is taken
 over those files alone, so deleting files no pattern matches left every hash, and the loaded content, unchanged.
+`GlossaryFile` isn't a loader: it reads its files, listed in `data/content/glossary-terms.json`, at every start and
+stores nothing, so they are in no content hash.
 A new loader that reads another 5etools file adds it back from git history and to this table.

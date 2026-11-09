@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render as plainRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { render, setupAuthToken } from '../../test/test-utils';
+import { render, renderWithGlossary, setupAuthToken } from '../../test/test-utils';
 import { makeMockCondition, makeMockParticipant } from '../../test/mocks/handlers';
 import { EncounterProvider } from '../../context/EncounterContext';
 import ConditionChips from './ConditionChips';
@@ -56,4 +56,28 @@ describe('ConditionChips', () => {
     expect(screen.getByText('Raging (8)')).toHaveAttribute('title', expect.stringContaining('resistance to bludgeoning'));
     expect(screen.getByText('Reckless').getAttribute('title')).toContain('attacks against it have advantage');
   });
+
+  it('with the Glossary, a read-only chip the Glossary defines opens its definition (M19)', async () => {
+    const user = userEvent.setup();
+    const prone = makeMockCondition('Prone');
+    renderWithGlossary(<ConditionChips participant={makeMockParticipant('p', 'Gimli', 'PLAYER', { activeConditions: [prone, restrained] })} roundNumber={2} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Prone' }));
+
+    expect(screen.getByRole('dialog', { name: 'Prone' })).toBeInTheDocument();
+    // The mock Glossary doesn't define Restrained, so its chip stays plain
+    expect(screen.queryByRole('button', { name: /restrained/ })).not.toBeInTheDocument();
+  });
+
+  it('with the Glossary, a removable chip still removes its condition', async () => {
+    const onRemove = vi.fn();
+    const prone = makeMockCondition('Prone');
+    renderWithGlossary(<ConditionChips participant={makeMockParticipant('p', 'Gimli', 'PLAYER', { activeConditions: [prone] })} roundNumber={2} onRemove={onRemove} />);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Prone' })).toBeInTheDocument());
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Prone' }));
+    expect(onRemove).toHaveBeenCalledWith(prone);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });
+

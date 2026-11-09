@@ -1,8 +1,10 @@
 import { Fragment } from 'react';
 import { X } from 'lucide-react';
 import type { ConditionEntry, EncounterParticipant } from '../../types/encounter';
+import type { GlossaryEntry } from '../../types/reference';
 import RepeatSavePrompt from './RepeatSavePrompt';
 import { featureMarker } from '../../utils/classFeatures';
+import { useGlossary } from '../../hooks/useGlossary';
 
 const CHIP_BASE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5';
 const CHIP = `${CHIP_BASE} text-debuff bg-debuff-bg border border-debuff`;
@@ -13,7 +15,7 @@ const FEATURE_CHIP = `${CHIP_BASE} text-buff bg-buff-bg border border-buff`;
  * A participant's conditions, each with its source spell and the rounds it has left. With `onRemove` each chip is
  * a button that removes its condition. `showRepeatSave` adds the DM's compact roll beside a condition whose Repeat
  * Save waits on a player (D162). A class feature in force, Raging or Reckless (M17), shows in the buff colours with
- * what it does.
+ * what it does. Without `onRemove`, a condition the Glossary defines is a button that opens its definition (M19).
  */
 export default function ConditionChips({ participant, roundNumber, onRemove, showRepeatSave = false }: {
   participant: EncounterParticipant;
@@ -21,6 +23,7 @@ export default function ConditionChips({ participant, roundNumber, onRemove, sho
   onRemove?: (condition: ConditionEntry) => void;
   showRepeatSave?: boolean;
 }) {
+  const glossary = useGlossary();
   const conditions = participant.activeConditions ?? [];
   if (conditions.length === 0) return null;
 
@@ -47,17 +50,40 @@ export default function ConditionChips({ participant, roundNumber, onRemove, sho
                 {label} <X className="w-2.5 h-2.5 inline" />
               </button>
             ) : (
-              <span
-                className={chip}
+              <ReadOnlyChip
+                chip={chip}
+                label={label}
                 title={remaining != null || saveEnds ? `${remaining != null ? `${remaining} rounds left` : ''}${saveEnds}` : undefined}
-              >
-                {label}
-              </span>
+                entry={marker ? undefined : glossary?.findTerm(c.name)}
+                onOpen={id => glossary?.openTerm(id)}
+              />
             )}
             {showRepeatSave && <RepeatSavePrompt participant={participant} condition={c} compact />}
           </Fragment>
         );
       })}
     </div>
+  );
+}
+
+/** A chip that only shows its condition; one the Glossary defines opens the definition (M19). */
+function ReadOnlyChip({ chip, label, title, entry, onOpen }: {
+  chip: string;
+  label: string;
+  title?: string;
+  entry?: GlossaryEntry;
+  onOpen: (id: string) => void;
+}) {
+  if (!entry) return <span className={chip} title={title}>{label}</span>;
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      onClick={() => onOpen(entry.id)}
+      className={`${chip} cursor-help underline decoration-dotted underline-offset-2`}
+      title={title ? `${title}. Click for what ${entry.name} means` : `What ${entry.name} means`}
+    >
+      {label}
+    </button>
   );
 }

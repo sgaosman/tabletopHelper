@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { AuthProvider } from '../context/AuthContext';
+import { GlossaryProvider } from '../context/GlossaryContext';
 import { clearAccessToken, setAccessToken } from '../api/tokenStore';
 import { createQueryClient } from '../queries/queryClient';
 import type { AuthResponse } from '../types/auth';
@@ -60,4 +61,13 @@ export function clearAuthToken() {
     http.post('/api/auth/refresh', () =>
       HttpResponse.json({ error: 'Your session has ended. Please sign in again.' }, { status: 401 })),
   );
+}
+
+/**
+ * Signs the test in and renders inside a GlossaryProvider as well (M19), so the mock Glossary (mocks/glossary.ts)
+ * loads; wait for a term with a findBy query.
+ */
+export function renderWithGlossary(ui: ReactElement) {
+  setupAuthToken();
+  return customRender(<GlossaryProvider>{ui}</GlossaryProvider>);
 }

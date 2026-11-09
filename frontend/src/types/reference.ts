@@ -28,6 +28,10 @@ export type Item = Omit<Schemas['Item'], 'properties'> & {
 /** Who a spell can target, read from its effect template; a spell without one has no targeting. */
 export type SpellTargetingInfo = Schemas['SpellTargetingResponse'];
 
+/** One term of the Glossary (M19): a game term with a short summary and its rules text. */
+export type GlossaryEntry = Schemas['GlossaryEntry'];
+export type GlossaryCategory = GlossaryEntry['category'];
+
 /** The search and filters of the spell list; a filter takes several values separated by commas. */
 export interface SpellSearchParams {
   name?: string;

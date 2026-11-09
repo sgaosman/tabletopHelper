@@ -3778,6 +3778,29 @@
         ]
       }
     },
+    "/api/reference/glossary": {
+      "get": {
+        "operationId": "getGlossary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GlossaryEntry"
+                  }
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "reference-controller"
+        ]
+      }
+    },
     "/api/reference/items": {
       "get": {
         "operationId": "searchItems",
@@ -7943,6 +7966,61 @@
             "minimum": 1,
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "GlossaryEntry": {
+        "required": [
+          "aliases",
+          "category",
+          "id",
+          "name",
+          "seeAlso",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "CONDITION",
+              "ACTION",
+              "SENSE",
+              "SKILL",
+              "DAMAGE_TYPE",
+              "COMBAT",
+              "RULE",
+              "SPELLCASTING"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seeAlso": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

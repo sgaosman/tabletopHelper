@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { keepPreviousData, queryOptions, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
-  getAllConditions, getBackgrounds, getClasses, getClassTables, getFeats, getItemRarities, getItemSources, getItemTypes,
+  getAllConditions, getBackgrounds, getClasses, getClassTables, getFeats, getGlossary, getItemRarities, getItemSources, getItemTypes,
   getOptionalFeatures, getQuickReference, getRaces, getSpellClasses, getSpellSchools, getSpellSources, getSpellSubclasses,
   getSpellTargeting, getSubclasses, searchItems, searchSpells,
 } from '../api/referenceApi';
@@ -156,6 +156,19 @@ export function useClassTables() {
     queryKey: queryKeys.reference.classTables(),
     queryFn: getClassTables,
     staleTime: REFERENCE_STALE_TIME,
+  });
+}
+
+/**
+ * The Glossary (M19), which GlossaryProvider links description terms to. It changes only with a release, so it is
+ * fetched once; with enabled false, such as before signing in, nothing is fetched.
+ */
+export function useGlossaryEntries({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: queryKeys.reference.glossary(),
+    queryFn: getGlossary,
+    staleTime: REFERENCE_STALE_TIME,
+    enabled,
   });
 }
 

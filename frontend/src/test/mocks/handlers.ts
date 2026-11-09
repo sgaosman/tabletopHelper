@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { CLASS_TABLES } from './classTables';
+import { GLOSSARY } from './glossary';
 import type { AuthResponse } from '../../types/auth';
 import type { Campaign, CampaignMember, CampaignSettingsRequest } from '../../types/campaign';
 import type {
@@ -404,6 +405,9 @@ export const referenceHandlers = [
   }),
   http.get(`${BASE}/reference/class-tables`, async () => {
     return HttpResponse.json(CLASS_TABLES);
+  }),
+  http.get(`${BASE}/reference/glossary`, async () => {
+    return HttpResponse.json(GLOSSARY);
   }),
   http.get(`${BASE}/reference/quickref`, async () => {
     return HttpResponse.json([]);

@@ -31,7 +31,7 @@
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
 | 17 | Class Feature Automation | Implemented (2026-11-09; Wild Shape deferred) | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
 | 18 | Sorcerer Metamagic | Implemented (2026-11-09) | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
-| 19 | Glossary Tooltips | Not started | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
+| 19 | Glossary Tooltips | Implemented (2026-11-09) | Clickable bolded D&D terms open a definitions modal with plain-English explanations |
 | 20 | Feat Automation on Level-Up | Complete | Full mechanical automation of feats: spells, actions, ability scores, proficiencies, passive stats, speed, resistances, expertise, resource pools |
 | 21 | Wizard Spellbook | Complete | Spellbook creation (6 + 2/level), add/remove spells on sheet, prepare from spellbook only, multiclass support |
 | 22 | Architecture Review Action Plan | Complete | 6-way review, 2-week action plan: exception logging, short rest fix, concentration save fix, typed JSONB records, input validation, wizard draft saving, shared utils, wizard split, DB indexes + GIN, caching, CharacterService extraction, 38 tests |
@@ -684,6 +684,8 @@ Phase 3 — Multiclass at creation:
 - **M6 (Polish & Deployment)** ← M12, M12.5 (CR 15 trigger), M13 (stable combat UI)
 
 ## Milestone 19: Glossary Tooltips
+
+**Status (2026-11-09):** implemented ([[decisions-log#D180]]): 104 terms from the rules data and short summaries, served by `GET /api/reference/glossary`, opening a definitions dialog from the sheet's feature and action text, spell cards, feat choices, monster stat blocks and condition chips.
 
 **Goal:** Bolded D&D terms in `FormattedDescription` become clickable, opening a lightweight modal/popover with a plain-English definition of the term. Aimed at new players who encounter jargon mid-game.
 
