@@ -52,6 +52,24 @@ describe('DM EncounterSessionPage', () => {
     server.use(http.get('/api/encounters/:id', () => HttpResponse.json(encounterWith())));
   });
 
+  it("sets a creature's exhaustion from the condition panel, and the row shows its level (D183)", async () => {
+    let request: unknown;
+    server.use(http.put('/api/encounters/:id/combat/exhaustion', async ({ request: sent }) => {
+      request = await sent.json();
+      return HttpResponse.json(makeMockEncounter({
+        participants: [gimli(), goblin({ exhaustionLevel: 1 }), bugbear()],
+      }));
+    }));
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    await user.click(screen.getAllByRole('button', { name: 'Add condition' })[0]);
+    await user.click(screen.getByRole('button', { name: "Raise Test Goblin's exhaustion" }));
+
+    expect(await screen.findByText('Exhausted (1)')).toBeInTheDocument();
+    expect(request).toEqual({ participantId: 'part-goblin', level: 1 });
+  });
+
   it('loads the encounter and lists every participant in initiative order', async () => {
     renderPage();
     expect(screen.getByText('Loading encounter...')).toBeInTheDocument();
@@ -617,17 +635,19 @@ describe('DM EncounterSessionPage', () => {
     const preview = [
       {
         characterId: 'char-001', name: 'Gimli', lifeState: 'ALIVE', hpMax: 30, hpBefore: 30, hpAfter: 12,
-        hpTempBefore: 0, hpTempAfter: 4, deadBefore: false, deadAfter: false,
+        hpTempBefore: 0, hpTempAfter: 4, deadBefore: false, deadAfter: false, exhaustionBefore: 1, exhaustionAfter: 2,
         slots: [{ slot: '1', max: 2, usedBefore: 0, usedAfter: 1 }],
         pools: [{ poolId: 'class:barbarian-rage', displayName: 'Rage', maxUses: 2, currentBefore: 2, currentAfter: 1 }],
       },
       {
         characterId: 'char-002', name: 'Bram', lifeState: 'DEAD', hpMax: 20, hpBefore: 20, hpAfter: 0,
         hpTempBefore: 0, hpTempAfter: 0, deadBefore: false, deadAfter: true, slots: [], pools: [],
+        exhaustionBefore: 0, exhaustionAfter: 0,
       },
       {
         characterId: 'char-003', name: 'Cora', lifeState: 'STABLE', hpMax: 24, hpBefore: 0, hpAfter: 0,
         hpTempBefore: 0, hpTempAfter: 0, deadBefore: false, deadAfter: false, slots: [], pools: [],
+        exhaustionBefore: 0, exhaustionAfter: 0,
       },
     ] satisfies CombatResultPreview[];
 
@@ -661,6 +681,7 @@ describe('DM EncounterSessionPage', () => {
       expect(within(results).getByText('Temporary HP 0 → 4')).toBeInTheDocument();
       expect(within(results).getByText('Level 1 slots spent 0 → 1 of 2')).toBeInTheDocument();
       expect(within(results).getByText('Rage 2 → 1 of 2')).toBeInTheDocument();
+      expect(within(results).getByText('Exhaustion 1 → 2')).toBeInTheDocument();
       expect(within(results).getByText('Dies')).toBeInTheDocument();
       expect(within(results).getByText('Down: back on the sheet alive at 0 HP')).toBeInTheDocument();
       expect(within(results).getByText('No change to the sheet')).toBeInTheDocument();

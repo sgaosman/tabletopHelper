@@ -157,6 +157,12 @@ public class EncounterParticipant {
     @Builder.Default
     private Integer deathSaveFailures = 0;
 
+    // Its exhaustion level, 0 to 6 (PHB p.291, D183, V35): a player character's is copied from its sheet when it joins
+    // and written back as a change; a monster's or companion's lives here only
+    @Column(name = "exhaustion_level", nullable = false)
+    @Builder.Default
+    private Integer exhaustionLevel = 0;
+
     @Column(name = "last_lair_action_used", length = 200)
     private String lastLairActionUsed;
 

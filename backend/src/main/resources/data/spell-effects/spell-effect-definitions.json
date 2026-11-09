@@ -10104,7 +10104,7 @@
     "aoeShape": "cylinder",
     "aoeSize": 5,
     "selfOnly": false,
-    "canTargetSelf": false,
+    "canTargetSelf": true,
     "canTargetAllies": true,
     "canTargetEnemies": true,
     "effects": [

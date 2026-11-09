@@ -5,6 +5,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.ActionEconomy;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.core.JacksonException;
@@ -50,10 +51,21 @@ public final class TurnEconomies {
     /**
      * The participant's speeds in feet by kind, walking first: a player character's walking speed from its sheet,
      * a monster's speeds from its stat block (a speed with a condition, such as "(hover)", by its number), and a
-     * druid's in beast form the beast's.
+     * druid's in beast form the beast's. Exhaustion halves every one of them from level 2, rounding down, and makes
+     * them 0 from level 5 (PHB p.291, D183); a druid's exhaustion carries into its beast form, and a summoned creature
+     * has its own.
      * Empty when neither has one.
      */
     public static Map<String, Integer> speed(EncounterParticipant participant, ObjectMapper objectMapper) {
+        int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
+        Map<String, Integer> speeds = new LinkedHashMap<>();
+        baseSpeed(participant, objectMapper)
+                .forEach((kind, feet) -> speeds.put(kind, Exhaustion.speed(feet, exhaustion)));
+        return speeds;
+    }
+
+    // The participant's speeds before exhaustion
+    private static Map<String, Integer> baseSpeed(EncounterParticipant participant, ObjectMapper objectMapper) {
         Map<String, Integer> speeds = new LinkedHashMap<>();
         // A druid in beast form moves at the beast's speeds (PHB p.67)
         Optional<WildShapeForm> form = WildShapeForm.of(participant);

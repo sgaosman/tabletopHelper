@@ -5,6 +5,7 @@ import com.tabletophelper.character.CombatResults.CharacterResult;
 import com.tabletophelper.character.dto.CharacterDetailsRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.CombatResultPreview;
+import com.tabletophelper.character.dto.ExhaustionRequest;
 import com.tabletophelper.character.dto.HitPointChangeRequest;
 import com.tabletophelper.character.state.CombatTotals;
 import com.tabletophelper.character.state.SpellSlot;
@@ -167,7 +168,7 @@ class WriteBackServiceTest {
 
         assertThat(previews).containsExactly(new CombatResultPreview(aria.getId(), "Aria", LifeState.ALIVE, 18, 18, 4,
                 0, 6, false, false, List.of(),
-                List.of(new CombatResultPreview.PoolChange(SURGE, "Action Surge", 1, 1, 0))));
+                List.of(new CombatResultPreview.PoolChange(SURGE, "Action Surge", 1, 1, 0)), 0, 0));
         assertThat(aria.getHpCurrent()).isEqualTo(18);
         assertThat(aria.getResourcePools().getFirst().currentUses()).isEqualTo(1);
         verify(f.characterRepository, never()).save(any(PlayerCharacter.class));
@@ -256,6 +257,76 @@ class WriteBackServiceTest {
 
         assertThat(aria.getHpMax()).isEqualTo(22);
         assertThat(aria.getHpCurrent()).isZero();
+    }
+
+    @Test
+    @DisplayName("The exhaustion an encounter added is added to the sheet's, whose hit points then answer to the halved "
+            + "maximum; level 6 is death (PHB p.291, D183)")
+    void exhaustionWritesBack() {
+        PlayerCharacter aria = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);
+        aria.setExhaustionLevel(1);
+
+        // She joined with 18 HP and level 1 elsewhere, and the encounter took her to level 4 at 18 HP
+        f.writeBack.apply(results(new CharacterResult(aria.getId(),
+                totals(18, 0, Map.of(), Map.of()).withExhaustion(1),
+                totals(9, 0, Map.of(), Map.of()).withExhaustion(4), LifeState.ALIVE)));
+
+        assertThat(aria.getExhaustionLevel()).isEqualTo(4);
+        assertThat(aria.getHpMax()).isEqualTo(18);
+        assertThat(aria.getHpCurrent()).isEqualTo(9);
+
+        PlayerCharacter brom = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);
+        brom.setExhaustionLevel(5);
+        List<CombatResultPreview> previews = f.writeBack.preview(results(new CharacterResult(brom.getId(),
+                totals(18, 0, Map.of(), Map.of()), totals(18, 0, Map.of(), Map.of()).withExhaustion(1),
+                LifeState.ALIVE)));
+        assertThat(previews.getFirst().exhaustionBefore()).isEqualTo(5);
+        assertThat(previews.getFirst().exhaustionAfter()).isEqualTo(6);
+        assertThat(previews.getFirst().deadAfter()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Totals stored before exhaustion existed read as none, so an encounter that changed nothing leaves the "
+            + "sheet's level alone")
+    void oldTotalsChangeNoExhaustion() {
+        PlayerCharacter aria = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);
+        aria.setExhaustionLevel(2);
+
+        f.writeBack.apply(results(new CharacterResult(aria.getId(), totals(18, 0, Map.of(), Map.of()),
+                totals(18, 0, Map.of(), Map.of()), LifeState.ALIVE)));
+
+        assertThat(aria.getExhaustionLevel()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("A character dead of exhaustion can't be revived until the level comes down")
+    void noRevivalAtSix() {
+        UUID dmId = UUID.randomUUID();
+        Campaign campaign = Campaign.builder().id(UUID.randomUUID()).name("Lost Mine")
+                .dm(User.builder().id(dmId).username("dm").build()).inviteCode("ABCD2345").build();
+        PlayerCharacter aria = f.create(f.human, CharacterFixture.scores(), f.fighter, 2);
+        aria.setCampaign(campaign);
+        lenient().when(f.campaignRepository.findById(campaign.getId())).thenReturn(Optional.of(campaign));
+        when(f.characterRepository.findCampaignOfCharacterById(aria.getId())).thenReturn(Optional.of(
+                new CharacterRepository.CampaignOfCharacter() {
+                    @Override
+                    public UUID getCharacterId() {
+                        return aria.getId();
+                    }
+
+                    @Override
+                    public UUID getCampaignId() {
+                        return campaign.getId();
+                    }
+                }));
+        f.sheet.setExhaustion(aria.getId(), new ExhaustionRequest(6), f.userId);
+
+        assertThatThrownBy(() -> f.writeBack.revive(aria.getId(), dmId))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("Aria has 6 levels of exhaustion; lower the exhaustion level before reviving them");
+
+        f.sheet.setExhaustion(aria.getId(), new ExhaustionRequest(5), f.userId);
+        assertThat(f.writeBack.revive(aria.getId(), dmId).getHpCurrent()).isEqualTo(1);
     }
 
     /** The character stored again under this ID. */

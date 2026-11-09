@@ -52,6 +52,11 @@ export const characterApi = {
     return api.post<PlayerCharacter>(`/characters/${id}/hp`, data);
   },
 
+  /** The character's exhaustion level, 0 to 6; 6 is death (PHB p.291, D183). */
+  setExhaustion(id: string, level: number) {
+    return api.put<PlayerCharacter>(`/characters/${id}/exhaustion`, { level });
+  },
+
   /** A slot of a spell level, "1" to "9", or a pact slot, "pact_N". */
   spendSlot(id: string, slot: string) {
     return api.post<PlayerCharacter>(`/characters/${id}/spell-slots/${slot}/spend`);

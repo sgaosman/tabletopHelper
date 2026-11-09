@@ -11,6 +11,7 @@ import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.reference.Race;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.ProficiencyBonus;
 import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.SummonRules;
@@ -23,6 +24,7 @@ import com.tabletophelper.rules.combat.Resolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -63,10 +65,30 @@ public class CreatureStats {
         return parrying ? base + KenseiFeatures.agileParryBonus(conditionNames(participant)) : base;
     }
 
-    /** The condition names a participant has. */
+    /**
+     * The condition names a participant has, with its exhaustion level as "exhausted (N)" when it has one (D183), so
+     * the attack, save and speed rules that read the conditions read the level too ({@link Exhaustion#level}).
+     */
     public static List<String> conditionNames(EncounterParticipant participant) {
-        return participant.getActiveConditions() == null ? List.of()
-                : participant.getActiveConditions().stream().map(ConditionEntry::name).toList();
+        List<String> names = new ArrayList<>();
+        if (participant.getActiveConditions() != null) {
+            participant.getActiveConditions().stream().map(ConditionEntry::name).forEach(names::add);
+        }
+        int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
+        if (exhaustion > 0) {
+            names.add(Exhaustion.conditionName(exhaustion));
+        }
+        return java.util.Collections.unmodifiableList(names);
+    }
+
+    /**
+     * The participant's hit point maximum now: its own, or its beast's in Wild Shape, halved from exhaustion level 4
+     * (PHB p.291, D183). The stored maximum stays whole, so the halving ends when the level drops below 4, and
+     * Write-back never sees a halved maximum.
+     */
+    public static int hpMax(EncounterParticipant participant) {
+        int stored = participant.getHpMax() != null ? participant.getHpMax() : 1;
+        return Exhaustion.hitPointMaximum(stored, Exhaustion.clamp(participant.getExhaustionLevel()));
     }
 
     /**

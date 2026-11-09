@@ -1,5 +1,6 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.character.dto.CharacterResponse;
 import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
@@ -107,6 +108,9 @@ public class RestService {
         if (character.getHpCurrent() == null || character.getHpCurrent() < 1) {
             throw new ConflictException(character.getName() + " needs at least 1 hit point to benefit from a long rest");
         }
+        // Finishing a long rest lowers exhaustion by one for a creature that has had food and drink, which the sheet
+        // takes it has (PHB p.186, p.291, D183); the hit points then fill to the maximum that level leaves
+        character.setExhaustionLevel(Exhaustion.afterLongRest(character.getExhaustionLevel()));
         character.setHpCurrent(CharacterSheetService.totals(character).maximum());
         character.setHpTemp(0);
         recoverHitDice(character);

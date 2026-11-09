@@ -1,5 +1,6 @@
 package com.tabletophelper.character;
 
+import com.tabletophelper.rules.Exhaustion;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -126,6 +127,9 @@ public class CharacterMapper {
                 .isActive(c.getIsActive())
                 .inLiveEncounter(c.getId() != null && liveEncounters.includes(c.getId()))
                 .dead(c.isDead())
+                .exhaustionLevel(Exhaustion.clamp(c.getExhaustionLevel()))
+                .hpMaxEffective(Exhaustion.hitPointMaximum(Math.max(1, c.getHpMax() != null ? c.getHpMax() : 1),
+                        Exhaustion.clamp(c.getExhaustionLevel())))
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();

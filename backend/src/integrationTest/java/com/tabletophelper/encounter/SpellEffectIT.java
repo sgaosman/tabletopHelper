@@ -175,6 +175,45 @@ class SpellEffectIT extends IntegrationTest {
     }
 
     @Test
+    @DisplayName("Moonbeam cast at 3rd level on the ogre deals its upcast 3d10 at once on a failed CON save, and its "
+            + "Spell Effect still starts for the later triggers (the user's ruling, D177)")
+    void moonbeamDamagesAtCast() {
+        useShippedTemplate("Moonbeam");
+        // 3d10 rolls 12; the ogre's CON save of 5 + 3 fails against DC 14, so it takes all 12
+        dice.script(4, 4, 4, 5);
+        cast("Moonbeam", 3, List.of(ogreId));
+
+        JsonNode state = dmState();
+        assertThat(participant(state, ogreId).get("hpCurrent").asInt()).isEqualTo(28);
+        JsonNode aria = participant(state, ariaId);
+        assertThat(aria.get("concentrationSpell").asString()).isEqualTo("Moonbeam");
+        JsonNode beam = aria.get("activeEffects").get(0);
+        assertThat(beam.get("spell").asString()).isEqualTo("Moonbeam");
+        assertThat(beam.get("slotLevel").asInt()).isEqualTo(3);
+        assertThat(beam.get("triggers").toString()).isEqualTo("[\"ENTER\",\"START_OF_TURN\"]");
+    }
+
+    @Test
+    @DisplayName("Spirit Guardians cast at 4th level on the ogre deals its upcast 4d8 at once, halved by a successful "
+            + "WIS save, and its Spell Effect still starts for the later triggers (the user's ruling, D177)")
+    void spiritGuardiansDamageAtCast() {
+        useShippedTemplate("Spirit Guardians");
+        aria(participant -> participant.setSpellSlotsCurrent(new HashMap<>(Map.of("4", new SpellSlot(1, 0)))));
+        // 4d8 rolls 9; the ogre's WIS save of 18 - 2 beats DC 14, so it takes half, 4
+        dice.script(2, 2, 2, 3, 18);
+        cast("Spirit Guardians", 4, List.of(ogreId));
+
+        JsonNode state = dmState();
+        assertThat(participant(state, ogreId).get("hpCurrent").asInt()).isEqualTo(36);
+        JsonNode aria = participant(state, ariaId);
+        assertThat(aria.get("concentrationSpell").asString()).isEqualTo("Spirit Guardians");
+        JsonNode guardians = aria.get("activeEffects").get(0);
+        assertThat(guardians.get("spell").asString()).isEqualTo("Spirit Guardians");
+        assertThat(guardians.get("slotLevel").asInt()).isEqualTo(4);
+        assertThat(guardians.get("triggers").toString()).isEqualTo("[\"ENTER\",\"START_OF_TURN\"]");
+    }
+
+    @Test
     @DisplayName("Ending Spiritual Weapon by hand is undone with the effect it ended, through the stored before-state")
     void endAndUndo() {
         dice.script(15, 5);
@@ -245,6 +284,30 @@ class SpellEffectIT extends IntegrationTest {
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+
+    // The spell's template as the game data ships it, in place of the one set up above
+    private void useShippedTemplate(String name) {
+        try (var in = getClass().getResourceAsStream("/data/spell-effects/spell-effect-definitions.json")) {
+            for (JsonNode definition : objectMapper.readTree(in)) {
+                if (name.equals(definition.path("spellName").asString(null))) {
+                    Spell spell = spellRepository.findAll().stream()
+                            .filter(s -> s.getName().equals(name)).findFirst().orElseThrow();
+                    spell.setEffectTemplate(SpellTemplate.of(definition));
+                    spellRepository.save(spell);
+                    return;
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        throw new AssertionError(name + " has no shipped template");
+    }
+
+    private void aria(java.util.function.Consumer<EncounterParticipant> change) {
+        EncounterParticipant aria = participantRepository.findById(UUID.fromString(ariaId)).orElseThrow();
+        change.accept(aria);
+        participantRepository.save(aria);
+    }
 
     private void spell(String name, int level, String template, String castingTime) {
         spellRepository.save(Spell.builder().name(name).level(level).source("PHB").castingTime(castingTime)

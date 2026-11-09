@@ -533,6 +533,8 @@ export function makeMockCharacter(id: string, name: string, cls: string, level: 
     // The choices its levels owe, of which there are none (D159)
     pendingChoices: [],
     isActive: true, inLiveEncounter: false, dead: false,
+    // Not exhausted, so the maximum it has is its own (D183)
+    exhaustionLevel: 0, hpMaxEffective: 30,
     createdAt: makeTimestamp(), updatedAt: makeTimestamp(),
   } satisfies PlayerCharacter;
 }
@@ -548,7 +550,7 @@ export function makeMockParticipant(
     monsterId: type === 'MONSTER' ? 'mon-001' : undefined,
     characterId: type === 'PLAYER' ? 'char-001' : undefined,
     displayName, initiative: 15, initiativeModifier: 2, sortOrder: 1,
-    hpMax: 30, hpCurrent: 30, hpTemp: 0, armourClass: 14,
+    hpMax: 30, hpMaxBase: 30, hpCurrent: 30, hpTemp: 0, armourClass: 14, exhaustionLevel: 0,
     isVisibleToPlayers: true, lifeState: 'ALIVE', isCurrentTurn: false, deathSaveDue: false,
     deathSaveSuccesses: 0, deathSaveFailures: 0,
     activeEffects: [],

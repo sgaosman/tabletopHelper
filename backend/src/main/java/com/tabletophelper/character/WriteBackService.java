@@ -6,6 +6,7 @@ import com.tabletophelper.character.dto.CombatResultPreview;
 import com.tabletophelper.character.state.CombatTotals;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.rules.character.WriteBack;
 import com.tabletophelper.rules.combat.LifeState;
@@ -93,6 +94,11 @@ public class WriteBackService {
         if (!character.isDead()) {
             throw new ConflictException(character.getName() + " isn't dead");
         }
+        // Exhaustion level 6 is death (PHB p.291): the level must come down before a revival can hold (D183)
+        if (Exhaustion.dies(character.getExhaustionLevel())) {
+            throw new ConflictException(character.getName() + " has 6 levels of exhaustion; lower the exhaustion level "
+                    + "before reviving them");
+        }
         character.setDead(false);
         character.setHpCurrent(REVIVED_HIT_POINTS);
         character.setHpTemp(0);
@@ -132,20 +138,22 @@ public class WriteBackService {
         return new CombatResultPreview(character.getId(), character.getName(), lifeState,
                 before.hitPoints().maximum(), before.hitPoints().current(), after.hitPoints().current(),
                 before.hitPoints().temporary(), after.hitPoints().temporary(), before.dead(), after.dead(), slots,
-                pools);
+                pools, before.exhaustion(), after.exhaustion());
     }
 
     /**
-     * The totals on a sheet that Write-back changes: its hit points, whether it is dead, its spell slots and its pools.
-     * Applying a participant's results gives the totals after them, leaving the character as it is until
+     * The totals on a sheet that Write-back changes: its hit points, whether it is dead, its spell slots, its pools and
+     * its exhaustion level (D183). The hit points' maximum is the one the exhaustion level leaves, and baseMaximum the
+     * sheet's own. Applying a participant's results gives the totals after them, leaving the character as it is until
      * {@link #writeTo}.
      */
     record Sheet(CurrentHitPoints.Totals hitPoints, boolean dead, Map<String, SpellSlot> slots,
-                 List<ResourcePoolEntry> pools) {
+                 List<ResourcePoolEntry> pools, int exhaustion, int baseMaximum) {
 
         static Sheet of(PlayerCharacter character) {
             return new Sheet(CharacterSheetService.totals(character), character.isDead(), character.getSpellSlots(),
-                    orEmpty(character.getResourcePools()).stream().filter(Objects::nonNull).toList());
+                    orEmpty(character.getResourcePools()).stream().filter(Objects::nonNull).toList(),
+                    Exhaustion.clamp(character.getExhaustionLevel()), CharacterSheetService.baseMaximum(character));
         }
 
         /** The totals after each of the character's results in turn. */
@@ -166,8 +174,19 @@ public class WriteBackService {
         Sheet after(CharacterResult result) {
             CombatTotals joined = result.joinedWith();
             CombatTotals ended = result.endedWith();
-            WriteBack.Outcome outcome = WriteBack.hitPoints(hitPoints, dead, joined.hpCurrent(), ended.hpCurrent(),
-                    ended.hpTemp(), result.lifeState());
+            // The exhaustion the encounter added or removed, kept between 0 and 6 (PHB p.291, D183). The hit points'
+            // change is applied within the sheet's own maximum, since a participant's hit points cut by halving show
+            // in that change already, and then kept within the maximum the new level leaves; level 6 is death
+            int exhaustionAfter = WriteBack.total(exhaustion, Exhaustion.MAX_LEVEL, joined.exhaustion(),
+                    ended.exhaustion());
+            int maximum = Exhaustion.hitPointMaximum(baseMaximum, exhaustionAfter);
+            WriteBack.Outcome changed = WriteBack.hitPoints(
+                    new CurrentHitPoints.Totals(hitPoints.current(), baseMaximum, hitPoints.temporary()), dead,
+                    joined.hpCurrent(), ended.hpCurrent(), ended.hpTemp(),
+                    Exhaustion.dies(exhaustionAfter) ? LifeState.DEAD : result.lifeState());
+            WriteBack.Outcome outcome = new WriteBack.Outcome(new CurrentHitPoints.Totals(
+                    Math.min(changed.hitPoints().current(), maximum), maximum, changed.hitPoints().temporary()),
+                    changed.dead());
 
             Map<String, SpellSlot> slotsAfter = null;
             if (slots != null || !ended.slotsCreated().isEmpty()) {
@@ -206,13 +225,15 @@ public class WriteBackService {
                         : pool.withCurrentUses(WriteBack.total(pool.currentUses(), pool.maxUses(), joinedUses,
                         endedUses)));
             }
-            return new Sheet(outcome.hitPoints(), outcome.dead(), slotsAfter, List.copyOf(poolsAfter));
+            return new Sheet(outcome.hitPoints(), outcome.dead(), slotsAfter, List.copyOf(poolsAfter), exhaustionAfter,
+                    baseMaximum);
         }
 
         void writeTo(PlayerCharacter character) {
             character.setHpCurrent(hitPoints.current());
             character.setHpTemp(hitPoints.temporary());
             character.setDead(dead);
+            character.setExhaustionLevel(exhaustion);
             character.setSpellSlots(slots);
             character.setResourcePools(new ArrayList<>(pools));
         }

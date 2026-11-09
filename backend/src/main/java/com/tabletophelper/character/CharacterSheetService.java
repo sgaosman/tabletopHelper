@@ -6,6 +6,7 @@ import com.tabletophelper.campaign.CampaignRepository;
 import com.tabletophelper.character.dto.CharacterCampaignRequest;
 import com.tabletophelper.character.dto.CharacterDetailsRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.dto.ExhaustionRequest;
 import com.tabletophelper.character.dto.FontOfMagicRequest;
 import com.tabletophelper.character.dto.HitPointChangeRequest;
 import com.tabletophelper.character.dto.InventoryRequest;
@@ -14,6 +15,7 @@ import com.tabletophelper.character.state.InventoryItem;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.character.CurrentHitPoints;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
@@ -125,12 +127,46 @@ public class CharacterSheetService {
         });
     }
 
-    /** The sheet's hit points, its current ones kept within the maximum. */
+    /**
+     * The sheet's hit points, its current ones kept within the maximum, which exhaustion level 4 or more halves (PHB
+     * p.291, D183).
+     */
     static CurrentHitPoints.Totals totals(PlayerCharacter character) {
-        int maximum = Math.max(1, character.getHpMax() != null ? character.getHpMax() : 1);
+        int maximum = Exhaustion.hitPointMaximum(baseMaximum(character),
+                Exhaustion.clamp(character.getExhaustionLevel()));
         int current = character.getHpCurrent() != null ? character.getHpCurrent() : maximum;
         int temporary = character.getHpTemp() != null ? character.getHpTemp() : 0;
         return new CurrentHitPoints.Totals(Math.max(0, Math.min(current, maximum)), maximum, Math.max(0, temporary));
+    }
+
+    /** The sheet's hit point maximum without exhaustion, at least 1. */
+    static int baseMaximum(PlayerCharacter character) {
+        return Math.max(1, character.getHpMax() != null ? character.getHpMax() : 1);
+    }
+
+    // ── Exhaustion ───────────────────────────────────────────────
+
+    /**
+     * Sets the character's exhaustion level, 0 to 6 (PHB p.291, D183), as an effect outside an encounter gives or
+     * removes it. At level 4 or more its hit points are kept within the halved maximum, and they stay where they are
+     * when the level drops below 4. Level 6 is death: the character is dead at 0 hit points until the DM revives it,
+     * which needs the level lowered first. Not refused during an encounter, as no sheet change is: the participant
+     * keeps its own level, and Write-back adds what the encounter changed (D166).
+     */
+    @Transactional
+    public CharacterResponse setExhaustion(UUID characterId, ExhaustionRequest request, UUID userId) {
+        return characterCommands.run(characterId, userId, character -> {
+            int level = Exhaustion.clamp(request.level());
+            character.setExhaustionLevel(level);
+            if (Exhaustion.dies(level)) {
+                character.setDead(true);
+                character.setHpCurrent(0);
+                character.setHpTemp(0);
+                return;
+            }
+            CurrentHitPoints.Totals totals = totals(character);
+            character.setHpCurrent(totals.current());
+        });
     }
 
     // ── Spell slots ──────────────────────────────────────────────

@@ -292,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{characterId}/exhaustion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setExhaustion_1"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{characterId}/feat-options": {
         parameters: {
             query?: never;
@@ -782,6 +798,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["divineSmite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/encounters/{encounterId}/combat/exhaustion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setExhaustion"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2522,6 +2554,8 @@ export interface components {
             dmAdjustments: components["schemas"]["DmAdjustment"][];
             equipment?: components["schemas"]["InventoryItem"][] | null;
             /** Format: int32 */
+            exhaustionLevel: number;
+            /** Format: int32 */
             experiencePoints: number;
             features?: components["schemas"]["Feature"][] | null;
             flaws?: string | null;
@@ -2532,6 +2566,8 @@ export interface components {
             hpCurrent: number;
             /** Format: int32 */
             hpMax: number;
+            /** Format: int32 */
+            hpMaxEffective: number;
             /** Format: int32 */
             hpTemp: number;
             /** Format: uuid */
@@ -2699,6 +2735,10 @@ export interface components {
             characterId: string;
             deadAfter: boolean;
             deadBefore: boolean;
+            /** Format: int32 */
+            exhaustionAfter: number;
+            /** Format: int32 */
+            exhaustionBefore: number;
             /** Format: int32 */
             hpAfter: number;
             /** Format: int32 */
@@ -2953,6 +2993,12 @@ export interface components {
         EquipmentOption: {
             entries: components["schemas"]["EquipmentEntry"][];
             key: string;
+        };
+        ExhaustionRequest: {
+            /** Format: int32 */
+            level: number;
+            /** Format: uuid */
+            participantId: string;
         };
         Feat: {
             /** @description The feat's ability score increases, each fixed or a choice */
@@ -3551,6 +3597,8 @@ export interface components {
             /** Format: int32 */
             deathSaveSuccesses: number;
             displayName: string;
+            /** Format: int32 */
+            exhaustionLevel: number;
             fightingStyles?: string[] | null;
             hasLairActions?: boolean | null;
             /** @enum {string|null} */
@@ -3559,6 +3607,8 @@ export interface components {
             hpCurrent?: number | null;
             /** Format: int32 */
             hpMax?: number | null;
+            /** Format: int32 */
+            hpMaxBase?: number | null;
             /** Format: int32 */
             hpTemp?: number | null;
             /** Format: uuid */
@@ -4768,6 +4818,32 @@ export interface operations {
             };
         };
     };
+    setExhaustion_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExhaustionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterResponse"];
+                };
+            };
+        };
+    };
     getFeatOptions: {
         parameters: {
             query?: never;
@@ -5574,6 +5650,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DivineSmiteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
+                };
+            };
+        };
+    };
+    setExhaustion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExhaustionRequest"];
             };
         };
         responses: {

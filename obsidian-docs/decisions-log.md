@@ -3354,3 +3354,27 @@ The plan's twelve questions were answered with its recommended answers when the 
 - **Saves:** a restrained creature has disadvantage on DEX saves (automatic failure of STR and DEX saves while paralyzed, stunned, unconscious or petrified was already there).
 - **Preview:** `GET /encounters/{id}/combat/attack-roll-preview?attackerId&targetId&withinFiveFeet` returns the mode and its sources (the DM for anyone or a hand-entered attack, a player for creatures they control); `AttackRollSources` shows them under the weapon, manual and monster attack forms. The spell confirm step doesn't show them, as the frontend doesn't know whether a spell attack is melee or ranged.
 - **Tests:** a golden table in `AttackRulesTest`, new `ConditionAttackRollsTest` and `ConditionAttackRollIT`; 2,828 backend unit, 321 integration and 1,106 frontend.
+
+## D183: Exhaustion Tracked by Level
+
+**Date:** 2026-11-09
+**Status:** Accepted — implemented (V35)
+
+**Decision:** exhaustion (PHB p.291) is a level from 0 to 6 on the character sheet and on each encounter participant, which the DM can set on any PC or creature, including before combat for exhaustion gained outside the encounter, and whose effects the rules apply:
+- **Storage (V35):** `exhaustion_level` (0–6, default 0) on `player_characters` and `encounter_participants`. A PC joins an encounter with its sheet's level, a change made while Preparing survives the start, and Write-back adds the encounter's change to the sheet ([[#D166]]); the End dialog shows the change. Undo restores the level ([[#D176]]).
+- **Effects** (`rules/Exhaustion`, reaching the combat rules as the condition name "exhausted (N)"): from 1, disadvantage on ability checks (Hide and the DM's Roll All Initiatives, initiative being a DEX check, p.189); from 2, speed halved (Wild Shape and summons included); from 3, disadvantage on attack rolls, as an automatic source ([[#D161]]), and on every saving throw, death saves included (p.197) and concentration saves; from 4, the HP maximum is halved, rounding down and never below 1 (p.7), for damage, healing, Set HP and massive damage, with current HP capped and the stored maximum kept whole; at 5, speed 0, so a Dodge stops protecting (p.192); at 6, the creature dies outright, a PC dead rather than dying.
+- **Setting it:** `PUT /encounters/{id}/combat/exhaustion` (DM only, Preparing or Active) and `PUT /characters/{id}/exhaustion` (the owner, on the sheet). Raising it is refused for a creature immune to exhaustion or one already dead; lowering is always allowed. A plain "exhaustion" condition can no longer be added. A long rest lowers the level by 1, assuming food and drink (p.186), then fills HP to the new maximum.
+- **Revival at 6 is refused** until the level comes down **(choice)**: the PHB doesn't say.
+- **Shown** as an "Exhausted (N)" chip linked to the glossary, a 0–6 control in the DM's condition panel, the encounter builder and the sheet, and the sheet's HP as "x/halved max".
+
+**Rationale:** the user asked for exhaustion to be trackable and applied, including exhaustion from before the encounter.
+
+**Trade-offs:** not settable while the encounter is paused (a paused encounter only resumes or ends); Greater Restoration (5th level) has no template, so removing a level is the DM's; Berserker Frenzy isn't tracked, so ending a frenzied rage adds no level yet; the engine rolls no grapple or shove contests; the sheet's stored speed isn't halved, only the combat speed.
+
+**Key files:** `rules/Exhaustion.java`, `V35__exhaustion.sql`, `encounter/internal/EffectApplier.java`, `CreatureStats.java`, `rules/combat/AttackRules.java`, `SaveRules.java`, `WriteBackService.java`, `RestService.java`, `components/common/ExhaustionControl.tsx`, `utils/exhaustion.ts`
+
+**Related:** D161, D166, D176, D178, [[Exhaustion]]
+
+**Tests:** new `ExhaustionTest`, `ExhaustionIT` and frontend `ExhaustionControl` and `exhaustion` tests; 2,857 backend unit, 328 integration and 1,114 frontend.
+
+**Update to [[#D177]] (2026-11-09):** the user ruled that Moonbeam and Spirit Guardians deal their damage at the moment they are cast, to the creatures the caster picks, departing from the strict reading that creating an area on a creature isn't "entering" it. The cast already did so; `SpellEffectIT` now locks it in (`moonbeamDamagesAtCast`, `spiritGuardiansDamageAtCast`: the CON or WIS save, half on a success, upcast dice, and the Spell Effect still starting for later triggers), and Moonbeam's template now lets the caster be a target.

@@ -20,7 +20,8 @@ import java.util.UUID;
  *
  * @param ownerId the user who plays the character, and so controls its participant
  * @param dead    a dead character can't join until the DM revives it
- * @param totals  the hit points, temporary hit points, slots spent and pool uses left that it joins with
+ * @param totals  the hit points, temporary hit points, slots spent, pool uses left and exhaustion level that it joins
+ *                with
  */
 public record CombatSnapshot(
         UUID characterId,
@@ -54,7 +55,7 @@ public record CombatSnapshot(
                 character.isDead(), hpMax, DmAdjustments.armourClass(character), character.getInitiativeBonus(), slots,
                 character.getSpellAttackBonus(), character.getSpellSaveDc(), character.getSpellcastingAbility(),
                 character.getSpellsKnown() != null ? new ArrayList<>(character.getSpellsKnown()) : null, pools,
-                CombatTotals.of(hp, temporary, slots, pools));
+                CombatTotals.of(hp, temporary, slots, pools).withExhaustion(character.getExhaustionLevel()));
     }
 
     // Sheets and participants hold slots in the same {max, used, created} shape (D168); each used count is copied

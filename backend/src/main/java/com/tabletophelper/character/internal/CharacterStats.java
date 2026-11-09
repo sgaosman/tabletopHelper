@@ -1,5 +1,6 @@
 package com.tabletophelper.character.internal;
 
+import com.tabletophelper.rules.Exhaustion;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -188,6 +189,9 @@ public class CharacterStats {
         int current = character.getHpCurrent() != null ? character.getHpCurrent() : stats.hpMax();
         int newCurrent = CurrentHitPoints.afterMaximum(current, character.getHpMax(), stats.hpMax(),
                 character.isDead());
+        // Exhaustion level 4 or more halves the maximum the hit points answer to (PHB p.291, D183)
+        newCurrent = Math.min(newCurrent, Exhaustion.hitPointMaximum(stats.hpMax(),
+                Exhaustion.clamp(character.getExhaustionLevel())));
 
         character.setProficiencyBonus(stats.proficiencyBonus());
         character.setHpMax(stats.hpMax());

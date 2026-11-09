@@ -18,6 +18,8 @@ import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WildShapeForm;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.Exhaustion;
+import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.rules.combat.AttackRules;
 import com.tabletophelper.rules.combat.BeastShapes;
 import com.tabletophelper.rules.combat.ChannelDivinity;
@@ -319,6 +321,12 @@ public class EffectApplier {
             return;
         }
         Vitals before = vitals(target);
+        // Exhaustion level 6 is death (PHB p.291): the level must come down before a revival can hold (D183)
+        if (before.lifeState() == LifeState.DEAD && hp > 0
+                && Exhaustion.dies(Exhaustion.clamp(target.getExhaustionLevel()))) {
+            throw new ConflictException(target.getDisplayName() + " has 6 levels of exhaustion; lower the exhaustion "
+                    + "level before reviving them");
+        }
         VitalsChange change = DamageRules.setHp(before, hp);
         Vitals after = tempHp == null ? change.vitals() : withTempHp(change.vitals(), Math.max(0, tempHp));
         setVitals(target, after);
@@ -360,6 +368,16 @@ public class EffectApplier {
     public void deathSave(Encounter encounter, EncounterParticipant participant) {
         Vitals before = vitals(participant);
         int d20 = resolver.d20();
+        // A death saving throw is a saving throw (PHB p.197), so exhaustion level 3 or more gives it disadvantage
+        // (PHB p.291): two d20s, the lower counting
+        String exhausted = "";
+        int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
+        if (Exhaustion.saveDisadvantage(exhaustion)) {
+            int second = resolver.d20();
+            exhausted = " (2d20(" + d20 + ", " + second + ") with disadvantage, " + Exhaustion.conditionName(exhaustion)
+                    + ")";
+            d20 = Math.min(d20, second);
+        }
         VitalsChange change = DamageRules.deathSave(before, d20);
         Vitals after = change.vitals();
         setVitals(participant, after);
@@ -387,13 +405,82 @@ public class EffectApplier {
                     ? name + " rolls a natural 1 on a death save, two failures (" + after.deathSaveFailures() + "/3)"
                     : name + " fails a death save (roll: " + d20 + "): " + after.deathSaveFailures() + "/3 failures";
         }
-        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, type, description), null, participant)
-                .rollValue(d20).rollTotal(d20));
+        combatLog.save(CombatLogWriter.about(combatLog.entry(encounter, type, description + exhausted), null,
+                participant).rollValue(d20).rollTotal(d20));
         participant.setDeathSaveDue(false);
 
         if (change.removeUnconsciousFromDowned()) {
             removeUnconsciousFromZeroHp(participant);
         }
+    }
+
+    // ── Exhaustion ───────────────────────────────────────────────
+
+    /**
+     * Sets the creature's exhaustion level, 0 to 6 (PHB p.291, D183), logged as gaining or losing levels. Its effects
+     * are read from the level wherever they apply: ability checks, attack rolls and saves, speed and the hit point
+     * maximum. At level 4 or more its hit points are kept within the halved maximum, and when the level drops below 4
+     * the maximum returns while its hit points stay. Level 6 kills it: a player character dies outright rather than
+     * dying, and a monster dies.
+     *
+     * @throws ConflictException when the level would rise on a creature immune to exhaustion (MM condition
+     *                           immunities) or on one already dead
+     */
+    public void setExhaustion(Encounter encounter, EncounterParticipant target, int level) {
+        int before = Exhaustion.clamp(target.getExhaustionLevel());
+        int after = Exhaustion.clamp(level);
+        if (after == before) {
+            return;
+        }
+        String name = target.getDisplayName();
+        if (after > before) {
+            if (stats.immuneToCondition(target, Exhaustion.CONDITION)) {
+                throw new ConflictException(name + " is immune to exhaustion");
+            }
+            if (target.getLifeState() == LifeState.DEAD) {
+                throw new ConflictException(name + " is dead");
+            }
+        }
+        target.setExhaustionLevel(after);
+
+        StringBuilder description = new StringBuilder();
+        if (after == 0) {
+            description.append(name).append(" is no longer exhausted (was level ").append(before).append(")");
+        } else {
+            description.append(name).append(after > before ? " gains" : " loses").append(" exhaustion: level ")
+                    .append(after).append(" (was ").append(before).append("): ")
+                    .append(String.join(", ", Exhaustion.effects(after)));
+        }
+        if (!Exhaustion.dies(after)) {
+            int maximum = CreatureStats.hpMax(target);
+            if (target.getHpCurrent() != null && target.getHpCurrent() > maximum) {
+                target.setHpCurrent(maximum);
+                description.append("; hit points reduced to the halved maximum of ").append(maximum);
+            }
+        }
+        combatLog.write(encounter, after > before ? CombatActionType.CONDITION_ADD : CombatActionType.CONDITION_REMOVE,
+                description.toString(), null, target);
+
+        if (Exhaustion.dies(after) && target.getLifeState() != LifeState.DEAD) {
+            dieOfExhaustion(encounter, target);
+        }
+    }
+
+    // Exhaustion level 6 (PHB p.291): death outright, with what follows a death. A druid in beast form dies as itself,
+    // since the exhaustion is the druid's
+    private void dieOfExhaustion(Encounter encounter, EncounterParticipant target) {
+        if (WildShapeForm.of(target).isPresent()) {
+            endWildShape(encounter, target, "it dies of exhaustion");
+        }
+        target.setHpCurrent(0);
+        target.setHpTemp(0);
+        target.setLifeState(LifeState.DEAD);
+        target.setDeathSaveDue(false);
+        combatLog.write(encounter, CombatActionType.KILL, target.getDisplayName() + " dies of exhaustion", null,
+                target);
+        endRage(encounter, target, "dead");
+        endConcentration(encounter, target, "dead");
+        vanishAtZero(encounter, target);
     }
 
     // ── Conditions ───────────────────────────────────────────────
@@ -1048,7 +1135,8 @@ public class EffectApplier {
         druid.setActiveConditions(conditions.isEmpty() ? null : conditions);
         WildShapeForm beast = form.get();
         druid.setHpMax(beast.normalHpMax());
-        druid.setHpCurrent(Math.min(beast.normalHpCurrent(), beast.normalHpMax()));
+        // Within the maximum exhaustion leaves the druid, should it have reached level 4 in beast form (D183)
+        druid.setHpCurrent(Math.min(beast.normalHpCurrent(), CreatureStats.hpMax(druid)));
         druid.setArmourClass(beast.normalArmourClass());
         return form;
     }
@@ -1056,7 +1144,7 @@ public class EffectApplier {
     private void writeReverted(Encounter encounter, EncounterParticipant druid, WildShapeForm beast, String why) {
         combatLog.write(encounter, CombatActionType.CONDITION_REMOVE, druid.getDisplayName() + " reverts from "
                 + beast.beastName() + " form to normal form (" + why + "), with " + druid.getHpCurrent() + "/"
-                + druid.getHpMax() + " HP and AC " + druid.getArmourClass(), null, druid);
+                + CreatureStats.hpMax(druid) + " HP and AC " + druid.getArmourClass(), null, druid);
     }
 
     /**
@@ -1139,7 +1227,7 @@ public class EffectApplier {
 
     /** The participant's hit points and life state as the rules read them (D161). */
     public static Vitals vitals(EncounterParticipant participant) {
-        return new Vitals(participant.getHpCurrent(), participant.getHpMax(),
+        return new Vitals(participant.getHpCurrent(), CreatureStats.hpMax(participant),
                 participant.getHpTemp() != null ? participant.getHpTemp() : 0, participant.getLifeState(),
                 orZero(participant.getDeathSaveSuccesses()), orZero(participant.getDeathSaveFailures()),
                 participant.getParticipantType() == ParticipantType.PLAYER);

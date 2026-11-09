@@ -4,6 +4,7 @@ import com.tabletophelper.campaign.Campaign;
 import com.tabletophelper.character.dto.CharacterCampaignRequest;
 import com.tabletophelper.character.dto.CharacterDetailsRequest;
 import com.tabletophelper.character.dto.CharacterResponse;
+import com.tabletophelper.character.dto.ExhaustionRequest;
 import com.tabletophelper.character.dto.FontOfMagicRequest;
 import com.tabletophelper.character.dto.HitPointChangeRequest;
 import com.tabletophelper.character.dto.HitPointChangeRequest.Kind;
@@ -74,6 +75,55 @@ class CharacterSheetServiceTest {
 
     private static HitPointChangeRequest hp(Kind kind, int amount) {
         return new HitPointChangeRequest(kind, amount);
+    }
+
+    @Nested
+    @DisplayName("Exhaustion")
+    class ExhaustionLevel {
+
+        @Test
+        @DisplayName("Level 4 halves the maximum and caps the hit points; dropping below 4 brings the maximum back while "
+                + "the hit points stay (PHB p.291)")
+        void halvesMaximum() {
+            PlayerCharacter pc = fighter(5);
+            int maximum = pc.getHpMax();
+
+            CharacterResponse halved = f.sheet.setExhaustion(pc.getId(), new ExhaustionRequest(4), f.userId);
+            assertThat(halved.getExhaustionLevel()).isEqualTo(4);
+            assertThat(halved.getHpMax()).isEqualTo(maximum);
+            assertThat(halved.getHpMaxEffective()).isEqualTo(maximum / 2);
+            assertThat(halved.getHpCurrent()).isEqualTo(maximum / 2);
+            assertThat(f.sheet.changeHitPoints(pc.getId(), hp(Kind.HEALING, 100), f.userId).getHpCurrent())
+                    .isEqualTo(maximum / 2);
+
+            CharacterResponse lowered = f.sheet.setExhaustion(pc.getId(), new ExhaustionRequest(3), f.userId);
+            assertThat(lowered.getHpMaxEffective()).isEqualTo(maximum);
+            assertThat(lowered.getHpCurrent()).isEqualTo(maximum / 2);
+        }
+
+        @Test
+        @DisplayName("Level 6 is death, and the DM can't revive the character until the level comes down")
+        void sixKills() {
+            PlayerCharacter pc = fighter(3);
+
+            CharacterResponse dead = f.sheet.setExhaustion(pc.getId(), new ExhaustionRequest(6), f.userId);
+
+            assertThat(dead.isDead()).isTrue();
+            assertThat(dead.getHpCurrent()).isZero();
+        }
+
+        @Test
+        @DisplayName("Only the owner sets it, from 0 to 6")
+        void ownerAndRange() {
+            PlayerCharacter pc = fighter(3);
+            assertThatThrownBy(() -> f.sheet.setExhaustion(pc.getId(), new ExhaustionRequest(1), otherUserId))
+                    .isInstanceOf(ForbiddenException.class);
+            Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+            assertThat(validator.validate(new ExhaustionRequest(7))).isNotEmpty();
+            assertThat(validator.validate(new ExhaustionRequest(-1))).isNotEmpty();
+            assertThat(validator.validate(new ExhaustionRequest(null))).isNotEmpty();
+            assertThat(validator.validate(new ExhaustionRequest(6))).isEmpty();
+        }
     }
 
     @Nested

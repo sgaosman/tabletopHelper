@@ -279,6 +279,7 @@ public final class EncounterViews {
             view.healthStatus(status != null ? status.name() : null)
                     .hpCurrent(null)
                     .hpMax(null)
+                    .hpMaxBase(null)
                     .hpTemp(null);
         }
         return view.build();

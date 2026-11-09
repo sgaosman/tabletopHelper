@@ -192,6 +192,17 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // The DM sets a creature's exhaustion level, 0 to 6 (PHB p.291, D183), while the encounter is prepared or under way
+    @PutMapping("/exhaustion")
+    public ResponseEntity<EncounterResponse> setExhaustion(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody ExhaustionRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = conditionService.setExhaustion(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     @PostMapping("/condition/remove")
     public ResponseEntity<EncounterResponse> removeCondition(
             @PathVariable UUID encounterId,

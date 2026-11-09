@@ -7,7 +7,7 @@ import { useCampaignCharacters } from '../../queries/characters';
 import {
   useAddParticipant, useCampaignEncounters, useCreateEncounter, useDeleteEncounter, usePlaceCompanion,
   useRemoveParticipant, useRenameParticipant, useReorderTie, useRollInitiatives, useSetInitiatives,
-  useSetParticipantVisibility, useStartEncounter,
+  useSetExhaustion, useSetParticipantVisibility, useStartEncounter,
 } from '../../queries/encounters';
 import AddCompanionModal from '../../components/encounter/AddCompanionModal';
 import { useMonsterSearch } from '../../queries/monsters';
@@ -18,6 +18,7 @@ import { Plus, Trash2, Dice5, Search, Swords, ScrollText, Users, Play, Copy, Che
 import NavBar from '../../components/common/NavBar';
 import TieOrderArrows from '../../components/encounter/TieOrderArrows';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
+import ExhaustionControl from '../../components/common/ExhaustionControl';
 import IconButton from '../../components/ui/IconButton';
 import Spinner from '../../components/ui/Spinner';
 import { useToast } from '../../hooks/useToast';
@@ -71,6 +72,7 @@ export default function EncounterBuilderPage() {
   const removeParticipant = useRemoveParticipant();
   const renameParticipant = useRenameParticipant();
   const setParticipantVisibility = useSetParticipantVisibility();
+  const setExhaustion = useSetExhaustion();
   const setInitiatives = useSetInitiatives();
   const rollInitiatives = useRollInitiatives();
   const reorderTie = useReorderTie();
@@ -614,6 +616,16 @@ export default function EncounterBuilderPage() {
                                           <VisibilityToggle participant={p} onToggle={visible => handleSetVisibility(p.id, visible)} />
                                         )}
                                       </div>
+                                      {/* A creature that arrives exhausted from outside the encounter (D183) */}
+                                      {selectedEncounter.status === 'PREPARING' && (
+                                        <div className="mt-2">
+                                          <ExhaustionControl
+                                            level={p.exhaustionLevel ?? 0}
+                                            name={p.displayName}
+                                            onChange={level => setExhaustion.mutateAsync({ encounter: selectedEncounter, participantId: p.id, level })}
+                                          />
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="px-4 py-3 font-heading text-[14px] font-semibold text-ink">{p.hpCurrent}/{p.hpMax}</td>
                                     <td className="px-4 py-3 font-heading text-[14px] font-semibold text-ink">{p.armourClass}</td>

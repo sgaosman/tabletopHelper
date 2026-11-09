@@ -74,6 +74,7 @@ class EncounterResults {
     private static CombatTotals endedWith(EncounterParticipant participant) {
         int hp = WildShapeForm.of(participant).map(WildShapeForm::normalHpCurrent).orElse(participant.getHpCurrent());
         return CombatTotals.of(hp, participant.getHpTemp() != null ? participant.getHpTemp() : 0,
-                participant.getSpellSlotsCurrent(), participant.getResourcePoolsCurrent());
+                participant.getSpellSlotsCurrent(), participant.getResourcePoolsCurrent())
+                .withExhaustion(participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0);
     }
 }

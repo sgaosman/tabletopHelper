@@ -163,6 +163,21 @@ describe('CharacterSheetPage', () => {
     expect(bodies).toEqual([{ hitDice: [] }]);
   });
 
+  it('the exhaustion control sets the level through the server, and the sheet shows the halved maximum (D183)', async () => {
+    server.use(http.get('/api/characters/:id', () => HttpResponse.json(hurtFighter)));
+    const bodies = recordCommand('put', 'exhaustion',
+      { ...hurtFighter, exhaustionLevel: 4, hpMaxEffective: 15, hpCurrent: 12 });
+    renderSheet();
+    const user = userEvent.setup();
+    expect(await screen.findByText('12/30')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: "Raise Gimli's exhaustion" }));
+
+    expect(await screen.findByText('12/15')).toBeInTheDocument();
+    expect(screen.getByText('halved from 30')).toBeInTheDocument();
+    expect(bodies).toEqual([{ level: 1 }]);
+  });
+
   it('spending a spell slot sends the spend command for that slot', async () => {
     const wizard = {
       ...makeMockCharacter('char-001', 'Elminster', 'Wizard', 3), spellcastingAbility: 'INT',

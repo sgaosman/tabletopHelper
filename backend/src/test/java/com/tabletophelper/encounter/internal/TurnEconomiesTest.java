@@ -93,6 +93,21 @@ class TurnEconomiesTest {
     }
 
     @Test
+    @DisplayName("Exhaustion halves every speed from level 2, rounding down, and makes them 0 from level 5 (PHB p.291)")
+    void exhaustion() {
+        EncounterParticipant gimli = pc(fighter(1));
+        gimli.setExhaustionLevel(2);
+        assertEquals(Map.of("walk", 12), TurnEconomies.speed(gimli, objectMapper));
+        EncounterParticipant wyvern = monster("{\"walk\": 20, \"fly\": 80}");
+        wyvern.setExhaustionLevel(1);
+        assertEquals(Map.of("walk", 20, "fly", 80), TurnEconomies.speed(wyvern, objectMapper));
+        wyvern.setExhaustionLevel(3);
+        assertEquals(Map.of("walk", 10, "fly", 40), TurnEconomies.speed(wyvern, objectMapper));
+        wyvern.setExhaustionLevel(5);
+        assertEquals(Map.of("walk", 0, "fly", 0), TurnEconomies.speed(wyvern, objectMapper));
+    }
+
+    @Test
     @DisplayName("A monster without a speed, or with one that can't be read, has none")
     void noSpeed() {
         assertEquals(Map.of(), TurnEconomies.speed(monster(null), objectMapper));

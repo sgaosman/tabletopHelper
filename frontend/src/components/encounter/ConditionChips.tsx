@@ -7,6 +7,7 @@ import { featureMarker } from '../../utils/classFeatures';
 import { useGlossary } from '../../hooks/useGlossary';
 import { usePending } from '../../hooks/usePending';
 import { useToast } from '../../hooks/useToast';
+import { exhaustionEffects, exhaustionLabel } from '../../utils/exhaustion';
 
 const CHIP_BASE = 'font-heading text-[11px] font-semibold tracking-[0.02em] px-1.5 py-0.5';
 const CHIP = `${CHIP_BASE} text-debuff bg-debuff-bg border border-debuff`;
@@ -18,7 +19,9 @@ const FEATURE_CHIP = `${CHIP_BASE} text-buff bg-buff-bg border border-buff`;
  * a button that removes its condition. `showRepeatSave` adds the DM's compact roll beside a condition whose Repeat
  * Save waits on a player (D162). A class feature in force, Raging or Reckless (M17), shows in the buff colours with
  * what it does. Without `onRemove`, a condition the Glossary defines is a button that opens its definition (M19).
- * While a removal is being sent the chips wait, and a failed one shows as a toast.
+ * While a removal is being sent the chips wait, and a failed one shows as a toast. A creature's exhaustion shows first
+ * as one chip, "Exhausted (3)", with what its level does (PHB p.291, D183); it opens the Glossary's Exhaustion, and
+ * the DM changes it with the exhaustion control rather than by removing the chip.
  */
 export default function ConditionChips({ participant, roundNumber, onRemove, showRepeatSave = false }: {
   participant: EncounterParticipant;
@@ -30,10 +33,20 @@ export default function ConditionChips({ participant, roundNumber, onRemove, sho
   const { pending, run } = usePending();
   const toast = useToast();
   const conditions = participant.activeConditions ?? [];
-  if (conditions.length === 0) return null;
+  const exhaustion = participant.exhaustionLevel ?? 0;
+  if (conditions.length === 0 && exhaustion === 0) return null;
 
   return (
     <div className="flex gap-1 mt-1 flex-wrap">
+      {exhaustion > 0 && (
+        <ReadOnlyChip
+          chip={CHIP}
+          label={exhaustionLabel(exhaustion)}
+          title={exhaustionEffects(exhaustion).join('; ')}
+          entry={glossary?.findTerm('exhaustion')}
+          onOpen={id => glossary?.openTerm(id)}
+        />
+      )}
       {conditions.map(c => {
         const remaining = c.duration != null ? Math.max(0, c.duration - (roundNumber - c.appliedRound)) : null;
         const marker = featureMarker(c);

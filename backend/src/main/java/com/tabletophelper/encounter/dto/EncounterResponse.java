@@ -126,8 +126,10 @@ public class EncounterResponse {
         @Schema(requiredMode = REQUIRED)
         private Integer sortOrder;
 
-        // Null in the Player View for a monster whose HP it hides behind healthStatus (D157)
+        // Null in the Player View for a monster whose HP it hides behind healthStatus (D157). Exhaustion level 4 or
+        // more halves it (PHB p.291, D183): this is the maximum now, and hpMaxBase the one without exhaustion
         private Integer hpMax;
+        private Integer hpMaxBase;
         private Integer hpCurrent;
         private Integer hpTemp;
 
@@ -139,6 +141,10 @@ public class EncounterResponse {
         private Integer armourClass;
 
         private List<ConditionEntry> activeConditions;
+
+        // Its exhaustion level, 0 to 6 (PHB p.291, D183), shown to players for every creature they see
+        @Schema(requiredMode = REQUIRED)
+        private Integer exhaustionLevel;
 
         // The spell and slot level of the Concentration Instance it holds, if any (D162)
         private String concentrationSpell;

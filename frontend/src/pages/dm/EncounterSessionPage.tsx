@@ -26,6 +26,7 @@ import HpReadout from '../../components/encounter/HpReadout';
 import CombatLog from '../../components/encounter/CombatLog';
 import ConnectionStatus, { ConnectionBanner } from '../../components/encounter/ConnectionStatus';
 import ConditionForm from '../../components/encounter/ConditionForm';
+import ExhaustionControl from '../../components/common/ExhaustionControl';
 import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import ManualAttackForm from '../../components/encounter/ManualAttackForm';
 import InlineMonsterActions, { type MonsterActionTab } from '../../components/encounter/InlineMonsterActions';
@@ -174,7 +175,17 @@ function ActionPanel({
         <HpChangeForm target={selectedTarget} mode={actionMode} />
       )}
       {actionMode === 'condition' && (
-        <ConditionForm onSubmit={(condition, duration) => actions.addCondition(selectedTarget.id, condition, duration)} />
+        <>
+          {/* Exhaustion has levels rather than a plain entry (PHB p.291, D183) */}
+          <div className="mb-3">
+            <ExhaustionControl
+              level={selectedTarget.exhaustionLevel ?? 0}
+              name={selectedTarget.displayName}
+              onChange={level => actions.setExhaustion(selectedTarget.id, level)}
+            />
+          </div>
+          <ConditionForm onSubmit={(condition, duration) => actions.addCondition(selectedTarget.id, condition, duration)} />
+        </>
       )}
       {actionMode === 'concentration' && (
         <ConcentrationForm onSubmit={spellName => actions.setConcentration(selectedTarget.id, spellName)} />

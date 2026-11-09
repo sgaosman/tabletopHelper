@@ -102,6 +102,11 @@ export const combatApi = {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/condition/add`, { targetId, condition, duration: duration ?? undefined });
   },
 
+  /** The DM sets a creature's exhaustion level, 0 to 6, while the encounter is prepared or under way (D183). */
+  setExhaustion(encounterId: string, participantId: string, level: number) {
+    return api.put<Encounter>(`/encounters/${encounterId}/combat/exhaustion`, { participantId, level });
+  },
+
   removeCondition(encounterId: string, targetId: string, condition: string) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/condition/remove`, { targetId, condition });
   },

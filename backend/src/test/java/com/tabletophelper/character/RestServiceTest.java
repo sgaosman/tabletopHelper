@@ -342,6 +342,28 @@ class RestServiceTest {
         }
 
         @Test
+        @DisplayName("A long rest lowers exhaustion by one, taking food and drink as had, and fills the hit points to "
+                + "the maximum the new level leaves (PHB p.186, p.291)")
+        void lowersExhaustion() {
+            PlayerCharacter pc = hurt(f.create(f.human, CON_14, f.fighter, 5), 10);
+            pc.setExhaustionLevel(4);
+
+            CharacterResponse response = f.rests.longRest(pc.getId(), f.userId);
+
+            assertThat(response.getExhaustionLevel()).isEqualTo(3);
+            assertThat(response.getHpCurrent()).isEqualTo(44);
+            assertThat(response.getHpMaxEffective()).isEqualTo(44);
+
+            PlayerCharacter worn = hurt(f.create(f.human, CON_14, f.fighter, 5), 10);
+            worn.setExhaustionLevel(5);
+            CharacterResponse still = f.rests.longRest(worn.getId(), f.userId);
+            assertThat(still.getExhaustionLevel()).isEqualTo(4);
+            assertThat(still.getHpCurrent()).isEqualTo(22);
+            assertThat(still.getHpMaxEffective()).isEqualTo(22);
+            assertThat(still.getHpMax()).isEqualTo(44);
+        }
+
+        @Test
         @DisplayName("15.18 A long rest restores every spell slot, pact slots included")
         void restoresEverySlot() {
             PlayerCharacter pc = f.create(f.human, CON_14, f.warlock, 3, f.wizard, 2);

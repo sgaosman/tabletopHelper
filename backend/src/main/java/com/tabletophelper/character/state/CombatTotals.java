@@ -1,5 +1,6 @@
 package com.tabletophelper.character.state;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -21,6 +22,8 @@ import java.util.Map;
  * @param poolsCurrentUses how many uses each pool has left
  * @param slotsCreated     how many of each level's slots Flexible Casting created (PHB p.101, M18), for the levels with
  *                         any; written only when there are some, so totals stored before it existed read as none
+ * @param exhaustionLevel  the exhaustion level, 1 to 6 (PHB p.291, D183); null for none, and written only when there
+ *                         is some, so totals stored before it existed read as none
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CombatTotals(
@@ -28,19 +31,38 @@ public record CombatTotals(
         int hpTemp,
         Map<String, Integer> slotsUsed,
         Map<String, Integer> poolsCurrentUses,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, Integer> slotsCreated
+        @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, Integer> slotsCreated,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel
 ) {
 
     public CombatTotals {
         slotsUsed = withoutNulls(slotsUsed);
         poolsCurrentUses = withoutNulls(poolsCurrentUses);
         slotsCreated = withoutNulls(slotsCreated);
+        exhaustionLevel = exhaustionLevel == null || exhaustionLevel <= 0 ? null : Math.min(6, exhaustionLevel);
+    }
+
+    /** Totals with no exhaustion. */
+    public CombatTotals(int hpCurrent, int hpTemp, Map<String, Integer> slotsUsed,
+                        Map<String, Integer> poolsCurrentUses, Map<String, Integer> slotsCreated) {
+        this(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, slotsCreated, null);
+    }
+
+    /** The exhaustion level, 0 for none. */
+    @JsonIgnore
+    public int exhaustion() {
+        return exhaustionLevel != null ? exhaustionLevel : 0;
+    }
+
+    /** The same totals with this exhaustion level. */
+    public CombatTotals withExhaustion(int level) {
+        return new CombatTotals(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, slotsCreated, level);
     }
 
     /** Totals with no created slots. */
     public CombatTotals(int hpCurrent, int hpTemp, Map<String, Integer> slotsUsed,
                         Map<String, Integer> poolsCurrentUses) {
-        this(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, Map.of());
+        this(hpCurrent, hpTemp, slotsUsed, poolsCurrentUses, Map.of(), null);
     }
 
     /**

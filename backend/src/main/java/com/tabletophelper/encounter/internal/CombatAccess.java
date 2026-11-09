@@ -5,6 +5,7 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterCommands;
 import com.tabletophelper.encounter.EncounterLifecycle;
 import com.tabletophelper.encounter.EncounterParticipant;
+import com.tabletophelper.encounter.EncounterStatus;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
@@ -45,6 +46,21 @@ public class CombatAccess {
     /** A command only the DM may give. */
     public Encounter beginAsDm(UUID encounterId, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
+        EncounterLifecycle.requireActive(encounter);
+        commandRecorder.record(encounter, userId);
+        return encounter;
+    }
+
+    /**
+     * A command only the DM may give, which may also come while the encounter is prepared, as setting a creature's
+     * exhaustion can (D183). Under way it is recorded for undo as any combat command is; while prepared there is
+     * nothing to undo, since undo never goes back past the start (M14).
+     */
+    public Encounter beginAsDmPreparingOrActive(UUID encounterId, UUID userId) {
+        Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
+        if (encounter.getStatus() == EncounterStatus.PREPARING) {
+            return encounter;
+        }
         EncounterLifecycle.requireActive(encounter);
         commandRecorder.record(encounter, userId);
         return encounter;

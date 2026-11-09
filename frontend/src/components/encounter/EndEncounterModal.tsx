@@ -39,6 +39,10 @@ function ResultRow({ result }: { result: CombatResultPreview }) {
   for (const pool of result.pools) {
     lines.push(`${pool.displayName} ${pool.currentBefore} → ${pool.currentAfter} of ${pool.maxUses}`);
   }
+  // Exhaustion outlasts the fight, so the sheet takes its change (D183)
+  if (result.exhaustionAfter !== result.exhaustionBefore) {
+    lines.push(`Exhaustion ${result.exhaustionBefore} → ${result.exhaustionAfter}`);
+  }
   const outcome = fate(result);
 
   return (
@@ -130,7 +134,7 @@ export default function EndEncounterModal({ encounterName, onEnd, onClose }: Pro
             <span className="block font-heading text-[15px] font-bold text-ink">Apply results to character sheets</span>
             <span className="block font-body text-[13px] font-semibold text-faint">
               {applyResults
-                ? 'Each sheet takes the hit points, spell slots and pool uses lost or regained in this fight, and a death.'
+                ? 'Each sheet takes the hit points, spell slots, pool uses and exhaustion lost or regained in this fight, and a death.'
                 : 'Nothing is written back: every sheet stays as it is, pool uses included.'}
             </span>
           </span>

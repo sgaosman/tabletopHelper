@@ -33,6 +33,7 @@ import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.KenseiFeatures;
@@ -183,6 +184,29 @@ public class EncounterService {
         participant.setSpellsKnown(snapshot.spellsKnown());
         participant.setResourcePoolsCurrent(snapshot.resourcePools());
         participant.setJoinedWith(snapshot.totals());
+        participant.setExhaustionLevel(snapshot.totals().exhaustion());
+    }
+
+    /**
+     * Joins the participant again at the start, keeping any change the DM made to its exhaustion while the encounter
+     * was prepared (D183): the level is the sheet's plus that change, and what it joined with is the sheet's, so
+     * Write-back takes the change to the sheet. At level 4 or more its hit points are kept within the halved maximum,
+     * and at level 6 it starts dead (PHB p.291).
+     */
+    private static void joinAgainAtStart(EncounterParticipant participant, CombatSnapshot snapshot) {
+        int before = Exhaustion.clamp(participant.getExhaustionLevel());
+        int joined = participant.getJoinedWith() != null ? participant.getJoinedWith().exhaustion() : before;
+        joinWith(participant, snapshot);
+        int level = Exhaustion.clamp(snapshot.totals().exhaustion() + before - joined);
+        participant.setExhaustionLevel(level);
+        if (Exhaustion.dies(level)) {
+            participant.setHpCurrent(0);
+            participant.setHpTemp(0);
+            participant.setLifeState(LifeState.DEAD);
+            participant.setActiveConditions(null);
+        } else if (participant.getHpCurrent() > CreatureStats.hpMax(participant)) {
+            participant.setHpCurrent(CreatureStats.hpMax(participant));
+        }
     }
 
     /**
@@ -410,20 +434,28 @@ public class EncounterService {
     public EncounterResponse rollAllInitiatives(UUID encounterId, UUID userId) {
         Encounter encounter = encounterCommands.beginAsDm(encounterId, userId);
 
-        // A summoned group rolls once, with its first creature's modifier (PHB p.189, p.225; D182)
+        // A summoned group rolls once, with its first creature's modifier (PHB p.189, p.225; D182). Initiative is a
+        // Dexterity check (PHB p.189), so exhaustion gives it disadvantage (PHB p.291, D183)
         Map<UUID, Integer> groupRolls = new HashMap<>();
         for (EncounterParticipant p : EncounterTurns.present(encounter)) {
             int mod = p.getInitiativeModifier() != null ? p.getInitiativeModifier() : 0;
+            boolean disadvantage = Exhaustion.abilityCheckDisadvantage(Exhaustion.clamp(p.getExhaustionLevel()));
             UUID group = p.getSummon() != null ? p.getSummon().groupId() : null;
             int roll = group != null
-                    ? groupRolls.computeIfAbsent(group, id -> ThreadLocalRandom.current().nextInt(1, 21) + mod)
-                    : ThreadLocalRandom.current().nextInt(1, 21) + mod;
+                    ? groupRolls.computeIfAbsent(group, id -> initiativeD20(disadvantage) + mod)
+                    : initiativeD20(disadvantage) + mod;
             p.setInitiative(roll);
         }
 
         followCasters(encounter);
         recomputeSortOrder(encounter);
         return toResponse(encounterRepository.save(encounter));
+    }
+
+    // One d20 for initiative, or the lower of two with disadvantage
+    private static int initiativeD20(boolean disadvantage) {
+        int d20 = ThreadLocalRandom.current().nextInt(1, 21);
+        return disadvantage ? Math.min(d20, ThreadLocalRandom.current().nextInt(1, 21)) : d20;
     }
 
     @Transactional
@@ -448,7 +480,7 @@ public class EncounterService {
                     throw new ConflictException(snapshot.name() + " has died since joining, so the encounter can't "
                             + "start with them until the DM revives them or removes them from it");
                 }
-                joinWith(participant, snapshot);
+                joinAgainAtStart(participant, snapshot);
             }
         }
 
@@ -658,11 +690,13 @@ public class EncounterService {
                         .initiative(p.getInitiative())
                         .initiativeModifier(p.getInitiativeModifier())
                         .sortOrder(places.get(p.getId()))
-                        .hpMax(p.getHpMax())
+                        .hpMax(CreatureStats.hpMax(p))
+                        .hpMaxBase(p.getHpMax())
                         .hpCurrent(p.getHpCurrent())
                         .hpTemp(p.getHpTemp())
                         .armourClass(CreatureStats.armourClass(p))
                         .activeConditions(p.getActiveConditions())
+                        .exhaustionLevel(Exhaustion.clamp(p.getExhaustionLevel()))
                         .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
                         .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
                         .activeEffects(effectResponses(encounter, p))

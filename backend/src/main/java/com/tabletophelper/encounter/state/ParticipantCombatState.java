@@ -38,6 +38,7 @@ import java.util.UUID;
  *                             snapshot taken before V34, which leaves it as it is
  * @param summon               what ties it to the spell that summoned it, with its caster's latest command (D182); null
  *                             for a creature nobody summoned, and in a snapshot taken before V34
+ * @param exhaustionLevel      its exhaustion level (D183); null in a snapshot taken before V35, which leaves it as it is
  */
 public record ParticipantCombatState(
         UUID id,
@@ -55,7 +56,20 @@ public record ParticipantCombatState(
         TurnEconomy turnEconomy,
         String lastLairActionUsed,
         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean dismissed,
-        @JsonInclude(JsonInclude.Include.NON_NULL) SummonLink summon) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) SummonLink summon,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer exhaustionLevel) {
+
+    /** A state as snapshots before V35 recorded it, without exhaustion. */
+    public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
+                                  Integer deathSaveSuccesses, Integer deathSaveFailures, Boolean deathSaveDue,
+                                  List<ConditionEntry> activeConditions, ConcentrationInstance concentration,
+                                  List<SpellEffectEntry> activeEffects, Map<String, SpellSlot> spellSlotsCurrent,
+                                  List<ResourcePoolEntry> resourcePoolsCurrent, TurnEconomy turnEconomy,
+                                  String lastLairActionUsed, Boolean dismissed, SummonLink summon) {
+        this(id, hpCurrent, hpTemp, lifeState, deathSaveSuccesses, deathSaveFailures, deathSaveDue, activeConditions,
+                concentration, activeEffects, spellSlotsCurrent, resourcePoolsCurrent, turnEconomy, lastLairActionUsed,
+                dismissed, summon, null);
+    }
 
     /** A state as snapshots before V34 recorded it, without summoning. */
     public ParticipantCombatState(UUID id, Integer hpCurrent, Integer hpTemp, LifeState lifeState,
@@ -66,7 +80,7 @@ public record ParticipantCombatState(
                                   String lastLairActionUsed) {
         this(id, hpCurrent, hpTemp, lifeState, deathSaveSuccesses, deathSaveFailures, deathSaveDue, activeConditions,
                 concentration, activeEffects, spellSlotsCurrent, resourcePoolsCurrent, turnEconomy, lastLairActionUsed,
-                null, null);
+                null, null, null);
     }
 
     /** The participant's combat state now, its lists and maps copied. */
@@ -87,7 +101,8 @@ public record ParticipantCombatState(
                 participant.getTurnEconomy(),
                 participant.getLastLairActionUsed(),
                 Boolean.TRUE.equals(participant.getDismissed()),
-                participant.getSummon());
+                participant.getSummon(),
+                participant.getExhaustionLevel() != null ? participant.getExhaustionLevel() : 0);
     }
 
     /** Puts the state back on the participant, with lists and maps of its own that later commands may change. */
@@ -113,6 +128,9 @@ public record ParticipantCombatState(
         }
         if (summon != null) {
             participant.setSummon(summon);
+        }
+        if (exhaustionLevel != null) {
+            participant.setExhaustionLevel(exhaustionLevel);
         }
     }
 

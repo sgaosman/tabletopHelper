@@ -1,5 +1,7 @@
 package com.tabletophelper.rules.combat;
 
+import com.tabletophelper.rules.Exhaustion;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -114,7 +116,8 @@ public final class AttackRules {
      * Combines the attack's own sources of advantage and disadvantage with what the attacker's and the target's
      * conditions add (PHB appendix A, p.290-292); any advantage and any disadvantage cancel (PHB p.173).
      * <ul>
-     *   <li>The attacker: blinded, poisoned, prone or restrained gives disadvantage; invisible gives advantage.</li>
+     *   <li>The attacker: blinded, poisoned, prone or restrained gives disadvantage; invisible gives advantage; an
+     *       exhaustion level of 3 or more gives disadvantage (PHB p.291, {@link Exhaustion}).</li>
      *   <li>The target: blinded, paralyzed, petrified, restrained, stunned or unconscious gives advantage; invisible
      *       gives disadvantage. Prone gives advantage from within 5 feet and disadvantage from beyond, and an
      *       unconscious creature is prone too, counted once (PHB p.292), so beyond 5 feet an unconscious target is
@@ -127,7 +130,7 @@ public final class AttackRules {
      *       p.48, {@link ClassFeatures#reckless}).</li>
      * </ul>
      * A hit on an unconscious or paralyzed target from within 5 feet is a critical hit. Frightened stays with the
-     * attacker's own choice, since whether it can see the source of its fear isn't known; exhaustion isn't tracked.
+     * attacker's own choice, since whether it can see the source of its fear isn't known.
      */
     public static Setup setup(Collection<RollMode> sources, Side attacker, Side target, boolean withinFiveFeet) {
         attacker = attacker != null ? attacker : Side.NONE;
@@ -143,6 +146,10 @@ public final class AttackRules {
         }
         if (attacker.has(Conditions.INVISIBLE) && !target.perceivesInvisible()) {
             automatic.add(new Source(RollMode.ADVANTAGE, "attacker invisible"));
+        }
+        int exhaustion = Exhaustion.level(attacker.conditions());
+        if (Exhaustion.attackDisadvantage(exhaustion)) {
+            automatic.add(new Source(RollMode.DISADVANTAGE, "attacker " + Exhaustion.conditionName(exhaustion)));
         }
 
         // The target's conditions

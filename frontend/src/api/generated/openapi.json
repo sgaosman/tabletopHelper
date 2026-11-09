@@ -682,6 +682,47 @@
         ]
       }
     },
+    "/api/characters/{characterId}/exhaustion": {
+      "put": {
+        "operationId": "setExhaustion_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "characterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhaustionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "character-controller"
+        ]
+      }
+    },
     "/api/characters/{characterId}/feat-options": {
       "get": {
         "operationId": "getFeatOptions",
@@ -1956,6 +1997,47 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DivineSmiteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
+    "/api/encounters/{encounterId}/combat/exhaustion": {
+      "put": {
+        "operationId": "setExhaustion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhaustionRequest"
               }
             }
           },
@@ -6514,9 +6596,11 @@
           "deathSaveSuccesses",
           "dexterity",
           "dmAdjustments",
+          "exhaustionLevel",
           "experiencePoints",
           "hpCurrent",
           "hpMax",
+          "hpMaxEffective",
           "hpTemp",
           "id",
           "inLiveEncounter",
@@ -6676,6 +6760,10 @@
               "$ref": "#/components/schemas/InventoryItem"
             }
           },
+          "exhaustionLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
           "experiencePoints": {
             "type": "integer",
             "format": "int32"
@@ -6703,6 +6791,10 @@
             "format": "int32"
           },
           "hpMax": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hpMaxEffective": {
             "type": "integer",
             "format": "int32"
           },
@@ -7290,6 +7382,8 @@
           "characterId",
           "deadAfter",
           "deadBefore",
+          "exhaustionAfter",
+          "exhaustionBefore",
           "hpAfter",
           "hpBefore",
           "hpMax",
@@ -7311,6 +7405,14 @@
           },
           "deadBefore": {
             "type": "boolean"
+          },
+          "exhaustionAfter": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "exhaustionBefore": {
+            "type": "integer",
+            "format": "int32"
           },
           "hpAfter": {
             "type": "integer",
@@ -8207,6 +8309,25 @@
           },
           "key": {
             "type": "string"
+          }
+        }
+      },
+      "ExhaustionRequest": {
+        "required": [
+          "level",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "level": {
+            "maximum": 6,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -10350,6 +10471,7 @@
           "deathSaveFailures",
           "deathSaveSuccesses",
           "displayName",
+          "exhaustionLevel",
           "id",
           "isCurrentTurn",
           "lifeState",
@@ -10425,6 +10547,10 @@
           "displayName": {
             "type": "string"
           },
+          "exhaustionLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
           "fightingStyles": {
             "type": "array",
             "nullable": true,
@@ -10452,6 +10578,11 @@
             "nullable": true
           },
           "hpMax": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "hpMaxBase": {
             "type": "integer",
             "format": "int32",
             "nullable": true

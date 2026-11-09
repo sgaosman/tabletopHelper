@@ -91,6 +91,14 @@ export function useSetParticipantVisibility() {
   );
 }
 
+/** The DM sets a participant's exhaustion level, 0 to 6, also while the encounter is prepared (D183). */
+export function useSetExhaustion() {
+  return useEncounterChange(
+    ({ encounter, participantId, level }: { encounter: EncounterRef; participantId: string; level: number }) =>
+      combatApi.setExhaustion(encounter.id, participantId, level),
+  );
+}
+
 export function useSetInitiatives() {
   return useEncounterChange(
     ({ encounter, initiatives }: { encounter: EncounterRef; initiatives: SetInitiativeRequest[] }) =>
@@ -386,6 +394,7 @@ export function useEncounterAction() {
       setHp: change(combatApi.setHp),
       addCondition: change(combatApi.addCondition),
       removeCondition: change(combatApi.removeCondition),
+      setExhaustion: change(combatApi.setExhaustion),
       rollDeathSave: change(combatApi.rollDeathSave),
       rollRepeatSave: change(combatApi.rollRepeatSave),
       setConcentration: change(combatApi.setConcentration),

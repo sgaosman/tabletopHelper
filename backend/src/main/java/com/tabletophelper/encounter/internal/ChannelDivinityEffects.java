@@ -387,7 +387,7 @@ public class ChannelDivinityEffects {
             total += amount;
             EncounterParticipant target = targets.get(i);
             int hp = target.getHpCurrent() != null ? target.getHpCurrent() : 0;
-            int max = target.getHpMax() != null ? target.getHpMax() : 0;
+            int max = CreatureStats.hpMax(target);
             ChannelDivinity.preserveLifeRefusal(target.getDisplayName(), typeOf(target), hp, max, amount)
                     .ifPresent(reason -> {
                         throw new ConflictException(reason);

@@ -216,6 +216,14 @@ public class CharacterResponse {
     @Schema(requiredMode = REQUIRED)
     private boolean dead;
 
+    // Its exhaustion level, 0 to 6 (PHB p.291, D183); from 4 the hit point maximum it has is hpMaxEffective, half of
+    // hpMax rounded down
+    @Schema(requiredMode = REQUIRED)
+    private int exhaustionLevel;
+
+    @Schema(requiredMode = REQUIRED)
+    private int hpMaxEffective;
+
     // Null in the response that creates the character: @CreationTimestamp and @UpdateTimestamp only fill
     // them in when the insert is flushed, after the response is built
     private Instant createdAt;

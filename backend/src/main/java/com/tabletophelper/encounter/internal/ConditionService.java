@@ -6,8 +6,10 @@ import com.tabletophelper.encounter.EncounterRepository;
 import com.tabletophelper.encounter.EncounterService;
 import com.tabletophelper.encounter.dto.ConditionRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
+import com.tabletophelper.encounter.dto.ExhaustionRequest;
 import com.tabletophelper.encounter.dto.RepeatSaveRequest;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ValidationException;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,12 @@ public class ConditionService {
     @Transactional
     public EncounterResponse addCondition(UUID encounterId, ConditionRequest request, UUID userId) {
         Encounter encounter = access.beginFor(encounterId, request.getTargetId(), userId);
+        // Exhaustion has levels, not a plain entry (PHB p.291, D183): the DM sets it on its own
+        String condition = request.getCondition() != null ? request.getCondition().trim() : "";
+        if (condition.equalsIgnoreCase(Exhaustion.CONDITION) || condition.toLowerCase().startsWith("exhausted")) {
+            throw new ValidationException("Exhaustion has six levels; the DM sets a creature's level with the "
+                    + "exhaustion control");
+        }
         effectApplier.addCondition(encounter, CombatAccess.participant(encounter, request.getTargetId()),
                 request.getCondition(), request.getDuration());
         return encounterService.toResponse(encounterRepository.save(encounter));
@@ -44,6 +52,19 @@ public class ConditionService {
         Encounter encounter = access.beginFor(encounterId, request.getTargetId(), userId);
         effectApplier.removeCondition(encounter, CombatAccess.participant(encounter, request.getTargetId()),
                 request.getCondition());
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    /**
+     * The DM sets a creature's exhaustion level, 0 to 6 (PHB p.291, D183), while the encounter is prepared or under
+     * way, logged, and undoable once under way (D176). Players can't: a player character's level on its sheet is its
+     * owner's to set between encounters, and Write-back takes the encounter's change there (D166).
+     */
+    @Transactional
+    public EncounterResponse setExhaustion(UUID encounterId, ExhaustionRequest request, UUID userId) {
+        Encounter encounter = access.beginAsDmPreparingOrActive(encounterId, userId);
+        effectApplier.setExhaustion(encounter, CombatAccess.participant(encounter, request.participantId()),
+                request.level());
         return encounterService.toResponse(encounterRepository.save(encounter));
     }
 

@@ -39,7 +39,9 @@ public record CombatResultPreview(
         @Schema(requiredMode = REQUIRED) boolean deadBefore,
         @Schema(requiredMode = REQUIRED) boolean deadAfter,
         @Schema(requiredMode = REQUIRED) List<SlotChange> slots,
-        @Schema(requiredMode = REQUIRED) List<PoolChange> pools
+        @Schema(requiredMode = REQUIRED) List<PoolChange> pools,
+        @Schema(requiredMode = REQUIRED) int exhaustionBefore,
+        @Schema(requiredMode = REQUIRED) int exhaustionAfter
 ) {
 
     /**

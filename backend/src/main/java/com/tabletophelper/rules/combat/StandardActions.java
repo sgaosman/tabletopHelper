@@ -1,5 +1,7 @@
 package com.tabletophelper.rules.combat;
 
+import com.tabletophelper.rules.Exhaustion;
+
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Optional;
@@ -54,8 +56,8 @@ public final class StandardActions {
 
     /**
      * Whether a creature's Dodge protects it now: it has the {@link #DODGING} entry and is neither incapacitated nor
-     * held at speed 0 by being grappled or restrained (PHB p.192). A speed brought to 0 any other way isn't known
-     * here, so the DM ends the Dodge by hand.
+     * held at speed 0 by being grappled or restrained, or by exhaustion level 5 or more (PHB p.192, p.291). A speed
+     * brought to 0 any other way isn't known here, so the DM ends the Dodge by hand.
      *
      * @param conditions the names of the creature's conditions
      */
@@ -65,7 +67,8 @@ public final class StandardActions {
         }
         return !ActionEconomy.incapacitated(conditions)
                 && !Conditions.has(conditions, Conditions.GRAPPLED)
-                && !Conditions.has(conditions, Conditions.RESTRAINED);
+                && !Conditions.has(conditions, Conditions.RESTRAINED)
+                && !Exhaustion.speedZero(Exhaustion.level(conditions));
     }
 
     /**

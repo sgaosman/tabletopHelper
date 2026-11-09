@@ -44,14 +44,14 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V34 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V35 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
                 "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33",
-                "34");
+                "34", "35");
     }
 
     @Test
@@ -179,6 +179,26 @@ class FlywayMigrationIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
                 + "WHERE conname = 'combat_logs_action_type_check'", String.class))
                 .contains("'SUMMON'", "'SUMMON_END'", "'SPELL_EFFECT_END'");
+    }
+
+    @Test
+    @DisplayName("V35 adds exhaustion_level to player_characters and encounter_participants, NOT NULL, 0 by default, "
+            + "and 0 to 6")
+    void exhaustionColumns() {
+        assertThat(jdbcTemplate.queryForList("SELECT table_name::text AS table, data_type::text AS type, "
+                + "is_nullable::text AS nullable, column_default::text AS defaulted FROM information_schema.columns "
+                + "WHERE table_schema = 'public' AND column_name = 'exhaustion_level' ORDER BY table_name"))
+                .containsExactly(
+                        Map.of("table", "encounter_participants", "type", "integer", "nullable", "NO",
+                                "defaulted", "0"),
+                        Map.of("table", "player_characters", "type", "integer", "nullable", "NO",
+                                "defaulted", "0"));
+        assertThat(jdbcTemplate.queryForList("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname IN "
+                + "('chk_player_characters_exhaustion_level', 'chk_encounter_participants_exhaustion_level')",
+                String.class))
+                .hasSize(2)
+                .allSatisfy(definition -> assertThat(definition).contains("exhaustion_level >= 0")
+                        .contains("exhaustion_level <= 6"));
     }
 
     @Test

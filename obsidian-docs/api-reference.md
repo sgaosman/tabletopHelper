@@ -369,6 +369,10 @@ A short rest (PHB p.186). The body can be left out.
 - `409` — The character is in an Active or Paused encounter
 - `409` — The character is dead (R6 workstream G, D166)
 
+### PUT /characters/{characterId}/exhaustion
+
+Sets the character's exhaustion level, 0 to 6 (D183); the owner may set it, also during an encounter. The character response carries `exhaustionLevel` and `hpMaxEffective`. The DM sets a participant's level with `PUT /encounters/{id}/combat/exhaustion {participantId, level}` while Preparing or Active; participants carry `exhaustionLevel`, `hpMax` (halved from level 4) and `hpMaxBase`, and the End preview `exhaustionBefore` and `exhaustionAfter`.
+
 ### POST /characters/{characterId}/long-rest
 
 A long rest (PHB p.186). No body. It restores every hit point and clears temporary hit points. It brings back spent Hit Dice up to half the character's total, at least one, the largest dice first, so a Fighter/Wizard regains d10s before d6s. Every spell slot comes back, and every pool refills completely, whatever its `resetAmount` (D127).

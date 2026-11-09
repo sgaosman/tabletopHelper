@@ -7,7 +7,9 @@ import {
   useChangeHitPoints, useCharacter, useLevelDown, useLongRest, useRecoverPool, useSetCampaign, useShortRest,
   useSpendPool,
   useFontOfMagic,
+  useSetExhaustion,
 } from '../../queries/characters';
+import ExhaustionControl from '../../components/common/ExhaustionControl';
 import LevelUpModal from '../../components/character/LevelUpModal';
 import ChoiceDialog from '../../components/character/ChoiceDialog';
 import PendingChoicesBanner from '../../components/character/PendingChoicesBanner';
@@ -94,6 +96,7 @@ export default function CharacterSheetPage() {
   const { data: campaigns = [] } = useCampaigns();
   const setCampaign = useSetCampaign();
   const changeHitPoints = useChangeHitPoints();
+  const setExhaustion = useSetExhaustion();
   const spendPool = useSpendPool();
   const fontOfMagic = useFontOfMagic();
   const recoverPool = useRecoverPool();
@@ -403,16 +406,20 @@ export default function CharacterSheetPage() {
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-debuff" />
-            <span className="font-heading text-[14px] font-bold text-ink">{char.hpCurrent}/{char.hpMax}</span>
+            <span className="font-heading text-[14px] font-bold text-ink">{char.hpCurrent}/{char.hpMaxEffective}</span>
+            {/* Exhaustion level 4 or more halves the maximum (PHB p.291, D183) */}
+            {char.hpMaxEffective < char.hpMax && (
+              <span className="font-body text-[13px] font-semibold text-debuff">halved from {char.hpMax}</span>
+            )}
             {char.hpTemp > 0 && <span className="font-heading text-[13px] font-semibold text-cls-wizard">+{char.hpTemp} temp</span>}
           </div>
           <div className="flex-1 min-w-24 h-2 bg-rule overflow-hidden">
             <div
               className={`h-full transition-all ${
-                char.hpCurrent / char.hpMax > 0.5 ? 'bg-buff' :
-                char.hpCurrent / char.hpMax > 0.25 ? 'bg-cls-monk' : 'bg-debuff'
+                char.hpCurrent / char.hpMaxEffective > 0.5 ? 'bg-buff' :
+                char.hpCurrent / char.hpMaxEffective > 0.25 ? 'bg-cls-monk' : 'bg-debuff'
               }`}
-              style={{ width: `${Math.min(100, (char.hpCurrent / char.hpMax) * 100)}%` }}
+              style={{ width: `${Math.min(100, (char.hpCurrent / char.hpMaxEffective) * 100)}%` }}
             />
           </div>
           <div className="flex gap-1">
@@ -425,6 +432,16 @@ export default function CharacterSheetPage() {
             <span className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Init <span className="font-heading text-[15px] font-bold text-ink">{formatMod(char.initiativeBonus)}</span></span>
             <span className="font-heading text-[11px] font-semibold tracking-[0.06em] uppercase text-faint">Speed <span className="font-heading text-[15px] font-bold text-ink">{char.speed}ft</span></span>
           </div>
+        </div>
+
+        {/* Exhaustion outlasts encounters, so the sheet keeps its level; a long rest lowers it by one (PHB p.291, D183) */}
+        <div className="mt-2">
+          <ExhaustionControl
+            level={char.exhaustionLevel}
+            name={char.name}
+            onChange={level => runCommand(setExhaustion.mutateAsync({ characterId: char.id, level }),
+              level >= 6 ? `${char.name} dies of exhaustion` : `Exhaustion set to ${level}`)}
+          />
         </div>
 
         {/* Resource pools, feats' limited uses among them (D158) */}

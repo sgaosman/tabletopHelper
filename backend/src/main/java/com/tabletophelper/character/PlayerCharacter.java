@@ -279,6 +279,11 @@ public class PlayerCharacter {
     @Column(name = "is_dead", nullable = false)
     private boolean dead;
 
+    // Its exhaustion level, 0 to 6 (PHB p.291, D183, V35): it outlasts encounters, so the sheet keeps it, a long rest
+    // lowers it by one, and Write-back changes it by what an encounter changed
+    @Column(name = "exhaustion_level", nullable = false)
+    private int exhaustionLevel;
+
     // The backstop behind the row lock every command takes: a write from a copy that someone else has changed since
     // fails instead of overwriting it (D158, V21)
     @Version

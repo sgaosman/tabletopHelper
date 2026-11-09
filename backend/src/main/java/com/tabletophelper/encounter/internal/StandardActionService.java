@@ -16,6 +16,7 @@ import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.Exhaustion;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.ActionEconomy;
 import com.tabletophelper.rules.combat.Charge;
@@ -183,16 +184,26 @@ public class StandardActionService {
     }
 
     // Dexterity (Stealth) from the sheet or the stat block, for the DM to judge against whoever is looking. Armour
-    // that hinders stealth, or armour worn without proficiency, gives the check disadvantage (PHB p.144-145)
+    // that hinders stealth, or armour worn without proficiency, gives the check disadvantage (PHB p.144-145), as does
+    // any exhaustion, which gives every ability check disadvantage (PHB p.291, D183)
     private void hide(Encounter encounter, EncounterParticipant participant, String taken) {
         int modifier = stats.skillModifier(participant, STEALTH, Ability.DEX);
         String dice;
         int d20;
+        int exhaustion = Exhaustion.clamp(participant.getExhaustionLevel());
+        List<String> reasons = new ArrayList<>();
         if (stats.armour(participant).stealthDisadvantage()) {
+            reasons.add("armour");
+        }
+        if (Exhaustion.abilityCheckDisadvantage(exhaustion)) {
+            reasons.add(Exhaustion.conditionName(exhaustion));
+        }
+        if (!reasons.isEmpty()) {
             int first = resolver.d20();
             int second = resolver.d20();
             d20 = Math.min(first, second);
-            dice = "2d20(" + first + ", " + second + ") with disadvantage from armour → " + d20;
+            dice = "2d20(" + first + ", " + second + ") with disadvantage from " + String.join(" and ", reasons)
+                    + " → " + d20;
         } else {
             d20 = resolver.d20();
             dice = "d20(" + d20 + ")";

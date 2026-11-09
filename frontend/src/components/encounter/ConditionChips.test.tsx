@@ -30,6 +30,21 @@ describe('ConditionChips', () => {
     expect(onRemove).toHaveBeenCalledWith(paralyzed);
   });
 
+  it('shows exhaustion as one chip with its level and what it does, even with no other condition (D183)', () => {
+    const tired = makeMockParticipant('p', 'Gimli', 'PLAYER', { exhaustionLevel: 2 });
+    plainRender(<ConditionChips participant={tired} roundNumber={1} />);
+    expect(screen.getByText('Exhausted (2)'))
+      .toHaveAttribute('title', 'Disadvantage on ability checks; Speed halved');
+  });
+
+  it('keeps exhaustion out of reach of onRemove: the DM changes it with the exhaustion control', () => {
+    const onRemove = vi.fn();
+    const tired = makeMockParticipant('p', 'Gimli', 'PLAYER', { exhaustionLevel: 1, activeConditions: [restrained] });
+    plainRender(<ConditionChips participant={tired} roundNumber={2} onRemove={onRemove} />);
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByText('Exhausted (1)')).toBeInTheDocument();
+  });
+
   it('shows nothing without conditions', () => {
     const { container } = plainRender(<ConditionChips participant={makeMockParticipant('p', 'Gimli', 'PLAYER')} roundNumber={1} />);
     expect(container).toBeEmptyDOMElement();

@@ -146,6 +146,12 @@ export function useChangeHitPoints() {
     characterApi.changeHitPoints(characterId, change));
 }
 
+/** Sets the character's exhaustion level, 0 to 6 (PHB p.291, D183); the server halves and caps as the level says. */
+export function useSetExhaustion() {
+  return useCharacterCommand(({ characterId, level }: { characterId: string; level: number }) =>
+    characterApi.setExhaustion(characterId, level));
+}
+
 /** Spends one slot of a spell level, "1" to "9", or a pact slot, "pact_N". */
 export function useSpendSlot() {
   return useCharacterCommand(({ characterId, slot }: { characterId: string; slot: string }) =>

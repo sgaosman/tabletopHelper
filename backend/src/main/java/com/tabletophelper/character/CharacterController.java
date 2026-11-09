@@ -109,6 +109,16 @@ public class CharacterController {
         return ResponseEntity.ok(sheetService.changeHitPoints(characterId, request, userId));
     }
 
+    /** Sets the character's exhaustion level, 0 to 6 (PHB p.291, D183); 6 is death. */
+    @PutMapping("/{characterId}/exhaustion")
+    public ResponseEntity<CharacterResponse> setExhaustion(
+            @PathVariable UUID characterId,
+            @Valid @RequestBody ExhaustionRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        return ResponseEntity.ok(sheetService.setExhaustion(characterId, request, userId));
+    }
+
     /** Spends a slot of a spell level, "1" to "9", or a pact slot, "pact_N". */
     @PostMapping("/{characterId}/spell-slots/{slot}/spend")
     public ResponseEntity<CharacterResponse> spendSlot(

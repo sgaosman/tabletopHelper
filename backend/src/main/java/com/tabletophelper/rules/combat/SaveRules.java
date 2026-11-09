@@ -1,6 +1,7 @@
 package com.tabletophelper.rules.combat;
 
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.Exhaustion;
 
 import java.util.Collection;
 import java.util.List;
@@ -25,8 +26,8 @@ public final class SaveRules {
     /**
      * How the creature rolls this saving throw: Dexterity saves with advantage while it takes the Dodge action
      * (PHB p.192, {@link StandardActions#dodging}), Strength saves with advantage while it rages (PHB p.48,
-     * {@link ClassFeatures#raging}), Dexterity saves with disadvantage while it is restrained (PHB p.292), and anything
-     * else normally.
+     * {@link ClassFeatures#raging}), Dexterity saves with disadvantage while it is restrained (PHB p.292), every save
+     * with disadvantage at exhaustion level 3 or more (PHB p.291, {@link Exhaustion}), and anything else normally.
      */
     public static RollMode rollMode(Ability ability, Collection<String> conditions) {
         return rollMode(ability, conditions, false);
@@ -48,6 +49,8 @@ public final class SaveRules {
         RollMode restrained = ability == Ability.DEX && conditions != null
                 && Conditions.has(conditions, Conditions.RESTRAINED)
                 ? RollMode.DISADVANTAGE : RollMode.NORMAL;
-        return RollMode.combine(List.of(dodge, rage, armour, restrained));
+        RollMode exhausted = Exhaustion.saveDisadvantage(Exhaustion.level(conditions))
+                ? RollMode.DISADVANTAGE : RollMode.NORMAL;
+        return RollMode.combine(List.of(dodge, rage, armour, restrained, exhausted));
     }
 }
