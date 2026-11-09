@@ -32,6 +32,7 @@ import InlineMonsterActions, { type MonsterActionTab } from '../../components/en
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
 import ReactionMenu from '../../components/encounter/ReactionMenu';
 import HitFollowUps from '../../components/encounter/HitFollowUps';
+import InspirationControls from '../../components/encounter/InspirationControls';
 import { FIELD_INPUT, FIELD_LABEL, SUBMIT_BUTTON } from '../../components/encounter/formStyles';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import Button from '../../components/ui/Button';
@@ -688,6 +689,8 @@ function DmSessionView() {
                   {isActive && p.participantType === 'PLAYER' && (
                     <HitFollowUps participant={p} participants={encounter.participants} turnStamp={encounter.turnStamp} />
                   )}
+                  {/* A Bardic Inspiration die the creature holds (M17) */}
+                  {isActive && p.lifeState !== 'DEAD' && <InspirationControls participant={p} />}
                   <ConditionChips
                     participant={p}
                     roundNumber={encounter.roundNumber}

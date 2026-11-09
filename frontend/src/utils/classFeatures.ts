@@ -1,12 +1,17 @@
 import type { ConditionEntry, EncounterParticipant, ResourcePoolEntry } from '../types/encounter';
 import type { UsePoolRequest, WeaponHit } from '../types/combat';
-import { chargeBlock, poolMetadata } from './turnEconomy';
+import { chargeBlock, poolMetadata, type EconomyCost } from './turnEconomy';
 
 /**
  * The class features a pool's use does more than spend (M17), as the server names them in the pool's metadata.effect:
- * Rage, Second Wind, Lay on Hands and Ki. The server decides what each use does; this only words and offers it.
+ * Rage, Second Wind, Lay on Hands, Ki, Channel Divinity, Bardic Inspiration and Arcane Recovery (used only on a short
+ * rest). The server decides what each use does; this only words and offers it.
  */
-export type PoolEffect = 'rage' | 'second-wind' | 'lay-on-hands' | 'ki';
+export type PoolEffect = 'rage' | 'second-wind' | 'lay-on-hands' | 'ki' | 'channel-divinity' | 'bardic-inspiration'
+  | 'arcane-recovery';
+
+const POOL_EFFECTS: PoolEffect[] = ['rage', 'second-wind', 'lay-on-hands', 'ki', 'channel-divinity',
+  'bardic-inspiration', 'arcane-recovery'];
 
 /** What a pool use sends besides the participant and the pool: its uses, option and target. */
 export type PoolUseOptions = Omit<UsePoolRequest, 'participantId' | 'poolId'>;
@@ -27,7 +32,7 @@ export const RECKLESS_TEXT = 'Advantage on melee weapon attacks using Strength t
 /** The feature a pool's use sets off, or null for a pool that only spends. */
 export function poolEffect(pool: Pick<ResourcePoolEntry, 'metadata'>): PoolEffect | null {
   const effect = poolMetadata(pool).effect;
-  return effect === 'rage' || effect === 'second-wind' || effect === 'lay-on-hands' || effect === 'ki' ? effect : null;
+  return POOL_EFFECTS.find(known => known === effect) ?? null;
 }
 
 function hasCondition(participant: EncounterParticipant, name: string): boolean {
@@ -48,10 +53,28 @@ export function isReckless(participant: EncounterParticipant): boolean {
  * How a feature's entry among the conditions reads, with what it does, or null for an ordinary condition: "Raging" and
  * "Reckless" are a class feature's state, not conditions of appendix A.
  */
-export function featureMarker(condition: Pick<ConditionEntry, 'name'>): { label: string; description: string } | null {
+export function featureMarker(condition: Pick<ConditionEntry, 'name'> & Partial<Pick<ConditionEntry, 'heldDie'>>):
+  { label: string; description: string } | null {
   switch (condition.name.trim().toLowerCase()) {
     case RAGING: return { label: 'Raging', description: RAGE_TEXT };
     case RECKLESS: return { label: 'Reckless', description: RECKLESS_TEXT };
+    case INSPIRED: return {
+      label: `Inspired${condition.heldDie ? ` (d${condition.heldDie.sides})` : ''}`,
+      description: INSPIRATION_TEXT + (condition.heldDie?.onFailedSave ? ' Kept for the next failed save.' : ''),
+    };
+    case SACRED_WEAPON: return {
+      label: 'Sacred Weapon',
+      description: 'Charisma modifier (at least +1) added to weapon attack rolls for 1 minute (PHB p.86).',
+    };
+    case VOW_OF_ENMITY: return {
+      label: 'Vow of Enmity',
+      description: 'The paladin who vowed has advantage on attack rolls against this creature for 1 minute or until it '
+        + 'drops to 0 hit points (PHB p.88).',
+    };
+    case WAR_GODS_BLESSING: return {
+      label: "War God's Blessing",
+      description: "+10 to this creature's next attack roll (PHB p.63).",
+    };
     default: return null;
   }
 }
@@ -73,6 +96,9 @@ export function poolEffectText(effect: PoolEffect | null): string | null {
     case 'second-wind': return 'regain 1d10 + fighter level HP';
     case 'lay-on-hands': return 'restore HP from the pool by touch, or 5 points to cure a disease or poison';
     case 'ki': return 'Patient Defense or Step of the Wind for 1 ki as a bonus action';
+    case 'channel-divinity': return 'pick an option below, or Use alone for one the app does not model';
+    case 'bardic-inspiration': return 'give another creature an inspiration die for 10 minutes';
+    case 'arcane-recovery': return 'used when finishing a short rest, on the character sheet';
     default: return null;
   }
 }
@@ -155,4 +181,165 @@ export function monkStrikeBlock(attacker: EncounterParticipant, cost: 'MARTIAL_A
   }
   if (!economy.attackActionTaken) return 'Flurry of Blows follows the Attack action this turn';
   return (kiLeft(attacker) ?? 0) < 1 ? 'No ki points left' : null;
+}
+
+// ── Channel Divinity, Bardic Inspiration and Arcane Recovery (M17 workstream C) ──────────────────────
+
+/** The entries Channel Divinity and Bardic Inspiration leave among a creature's conditions (M17). */
+export const INSPIRED = 'inspired';
+export const SACRED_WEAPON = 'sacred weapon';
+export const VOW_OF_ENMITY = 'vow of enmity';
+export const WAR_GODS_BLESSING = "war god's blessing";
+
+/** What a held Bardic Inspiration die does (PHB p.53). */
+export const INSPIRATION_TEXT = 'Add the die to one ability check, attack roll or saving throw within 10 minutes, '
+  + 'after seeing the d20 and before knowing the result.';
+
+/** The pool a cleric's Guided Strike spends (PHB p.63). */
+export const CLERIC_CHANNEL_DIVINITY = 'class:cleric-channel-divinity';
+
+/**
+ * Whom a Channel Divinity option reaches: no one but the user, one other creature, one creature or the user, any number
+ * of creatures it affects, or creatures with hit points split among them (Preserve Life); or it is chosen on the attack.
+ */
+export type ChannelTargets = 'none' | 'one' | 'one-or-self' | 'many' | 'split' | 'attack';
+
+export interface ChannelOption {
+  label: string;
+  targets: ChannelTargets;
+  cost: EconomyCost;
+  /** What it does, and whether the server automates it or only logs it. */
+  description: string;
+}
+
+/** The PHB's Channel Divinity options the server knows (PHB p.58-63, p.85-88), by the id the use-pool option names. */
+export const CHANNEL_DIVINITY_OPTIONS: Record<string, ChannelOption> = {
+  'turn-undead': {
+    label: 'Turn Undead', targets: 'many', cost: 'ACTION',
+    description: 'Each undead picked makes a WIS save or is turned for 1 minute or until damaged; Destroy Undead from '
+      + 'cleric 5',
+  },
+  'preserve-life': {
+    label: 'Preserve Life', targets: 'split', cost: 'ACTION',
+    description: 'Split 5 × cleric level HP; none above half its maximum; not undead or constructs',
+  },
+  'radiance-of-the-dawn': {
+    label: 'Radiance of the Dawn', targets: 'many', cost: 'ACTION',
+    description: 'Hostile creatures picked make a CON save: 2d10 + cleric level radiant, half on a success',
+  },
+  'charm-animals-and-plants': {
+    label: 'Charm Animals and Plants', targets: 'many', cost: 'ACTION',
+    description: 'Beasts and plants picked make a WIS save or are charmed for 1 minute or until damaged',
+  },
+  'destructive-wrath': {
+    label: 'Destructive Wrath', targets: 'none', cost: 'NONE',
+    description: 'Logged: the DM sets the lightning or thunder damage roll to its maximum',
+  },
+  'knowledge-of-the-ages': {
+    label: 'Knowledge of the Ages', targets: 'none', cost: 'ACTION',
+    description: 'Logged: proficiency with a skill or tool for 10 minutes',
+  },
+  'read-thoughts': {
+    label: 'Read Thoughts', targets: 'one', cost: 'ACTION',
+    description: 'Logged: the creature makes a WIS save, which the DM rolls and rules',
+  },
+  'invoke-duplicity': {
+    label: 'Invoke Duplicity', targets: 'none', cost: 'ACTION',
+    description: 'Logged: an illusory duplicate for 1 minute (concentration)',
+  },
+  'cloak-of-shadows': {
+    label: 'Cloak of Shadows', targets: 'none', cost: 'ACTION',
+    description: 'Invisible until the end of your next turn; attacking or casting ends it, removed by hand',
+  },
+  'guided-strike': {
+    label: 'Guided Strike', targets: 'attack', cost: 'NONE',
+    description: 'Chosen on the attack form: +10 when the roll would miss',
+  },
+  'war-gods-blessing': {
+    label: "War God's Blessing", targets: 'one-or-self', cost: 'REACTION',
+    description: "+10 to the creature's next attack roll",
+  },
+  'sacred-weapon': {
+    label: 'Sacred Weapon', targets: 'none', cost: 'ACTION',
+    description: '+CHA modifier (at least +1) to weapon attack rolls for 1 minute',
+  },
+  'turn-the-unholy': {
+    label: 'Turn the Unholy', targets: 'many', cost: 'ACTION',
+    description: 'Each fiend or undead picked makes a WIS save or is turned for 1 minute or until damaged',
+  },
+  'natures-wrath': {
+    label: "Nature's Wrath", targets: 'one', cost: 'ACTION',
+    description: 'STR or DEX save (its better) or restrained, repeating the save at the end of each of its turns',
+  },
+  'turn-the-faithless': {
+    label: 'Turn the Faithless', targets: 'many', cost: 'ACTION',
+    description: 'Each fey or fiend picked makes a WIS save or is turned for 1 minute or until damaged',
+  },
+  'abjure-enemy': {
+    label: 'Abjure Enemy', targets: 'one', cost: 'ACTION',
+    description: 'WIS save (fiends and undead with disadvantage) or frightened, speed 0, for 1 minute or until damaged',
+  },
+  'vow-of-enmity': {
+    label: 'Vow of Enmity', targets: 'one', cost: 'BONUS_ACTION',
+    description: 'Advantage on attack rolls against the creature for 1 minute or until it drops to 0 HP',
+  },
+};
+
+const PALADIN_OPTIONS = ['sacred-weapon', 'turn-the-unholy', 'natures-wrath', 'turn-the-faithless', 'abjure-enemy',
+  'vow-of-enmity'];
+
+/** The Channel Divinity options the participant can use from this pool, a cleric's or a paladin's, in the server's order. */
+export function channelOptions(participant: Pick<EncounterParticipant, 'channelDivinityOptions'>,
+  pool: Pick<ResourcePoolEntry, 'poolId'>): { id: string; option: ChannelOption }[] {
+  const paladin = pool.poolId.includes('paladin');
+  return (participant.channelDivinityOptions ?? [])
+    .filter(id => CHANNEL_DIVINITY_OPTIONS[id] !== undefined && PALADIN_OPTIONS.includes(id) === paladin)
+    .map(id => ({ id, option: CHANNEL_DIVINITY_OPTIONS[id] }));
+}
+
+/** The Bardic Inspiration die the participant holds, or null (PHB p.53). */
+export function heldInspiration(participant: Pick<EncounterParticipant, 'activeConditions'>): ConditionEntry | null {
+  return (participant.activeConditions ?? []).find(c => c.name.trim().toLowerCase() === INSPIRED && !!c.heldDie)
+    ?? null;
+}
+
+/**
+ * Why Guided Strike can't be offered on the participant's attack, or null (PHB p.63): it needs the War Domain's option
+ * and a Channel Divinity use left.
+ */
+export function guidedStrikeBlock(
+  participant: Pick<EncounterParticipant, 'channelDivinityOptions' | 'resourcePoolsCurrent'>,
+): string | null {
+  if (!(participant.channelDivinityOptions ?? []).includes('guided-strike')) return 'Not a War Domain cleric';
+  const pool = (participant.resourcePoolsCurrent ?? []).find(p => p.poolId === CLERIC_CHANNEL_DIVINITY);
+  return pool && pool.currentUses > 0 ? null : 'No Channel Divinity left';
+}
+
+/** Arcane Recovery's budget (PHB p.115): slot levels adding up to half the wizard level, rounded up. */
+export function arcaneRecoveryBudget(wizardLevel: number): number {
+  return Math.ceil(wizardLevel / 2);
+}
+
+/** The expended spell slots of 1st to 5th level Arcane Recovery can bring back, by level (PHB p.115). */
+export function recoverableSlots(slots: Record<string, { max: number; used: number }> | null | undefined):
+  Record<number, number> {
+  const expended: Record<number, number> = {};
+  for (const [key, slot] of Object.entries(slots ?? {})) {
+    const level = Number(key);
+    if (Number.isInteger(level) && level >= 1 && level <= 5 && slot.used > 0) expended[level] = slot.used;
+  }
+  return expended;
+}
+
+/** The pool counting Arcane Recovery's one use a day (PHB p.115). */
+export const ARCANE_RECOVERY_POOL = 'class:wizard-arcane-recovery';
+
+/** The slots chosen for Arcane Recovery, by level: how many of each. */
+export type ArcaneRecoveryChoice = Record<number, number>;
+
+/** One level for each slot chosen, lowest first, as the short rest request sends them. */
+export function arcaneRecoveryLevels(choice: ArcaneRecoveryChoice): number[] {
+  return Object.entries(choice)
+    .flatMap(([level, count]) => Array.from({ length: count }, () => Number(level)))
+    .sort((a, b) => a - b);
 }

@@ -195,6 +195,10 @@ public class EncounterResponse {
         // A player character's Fighting Styles from the PHB, such as "Protection", chosen as its features (D159, M17),
         // so the session pages can offer what they allow; null for a monster
         private List<String> fightingStyles;
+
+        // The Channel Divinity options a player character can use now, by its class, level and subclass, such as
+        // "turn-undead" or "preserve-life" (PHB p.58-63, p.85-88, M17); null for a monster
+        private List<String> channelDivinityOptions;
     }
 
     /**

@@ -5,6 +5,7 @@ import com.tabletophelper.character.dto.ShortRestRequest;
 import com.tabletophelper.character.dto.ShortRestRequest.HitDieSpent;
 import com.tabletophelper.character.dto.ShortRestResponse;
 import com.tabletophelper.character.dto.ShortRestResponse.HitDieRoll;
+import com.tabletophelper.character.state.ClassEntry;
 import com.tabletophelper.character.state.HitDicePool;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
@@ -36,18 +37,25 @@ import static com.tabletophelper.character.CharacterUpdates.orEmpty;
  *   <li>A short rest spends the Hit Dice the player names: each heals its roll, entered by the player or rolled
  *       here, plus the Constitution modifier, never less than 0, up to the hit point maximum, and the answer says
  *       what each rolled. The pools that reset on a short rest come back, and so do a warlock's pact slots
- *       (PHB p.107).</li>
+ *       (PHB p.107). A wizard may use Arcane Recovery as it finishes (PHB p.115): expended spell slots of 5th level or
+ *       lower whose levels add up to half its wizard level, rounded up, once a day, which its
+ *       {@value #ARCANE_RECOVERY} pool counts until its next long rest.</li>
  *   <li>A long rest needs at least 1 hit point. It restores every hit point and clears temporary hit points, brings
  *       back spent Hit Dice up to half the character's total, at least one, the largest first, and restores every
  *       spell slot and every pool.</li>
  * </ul>
- * Song of Rest and Arcane Recovery aren't applied.
+ * Song of Rest isn't applied.
  */
 @Service
 @RequiredArgsConstructor
 public class RestService {
 
     private static final String PACT_SLOT = "pact_";
+
+    /** The pool that counts Arcane Recovery's one use a day (M17). */
+    public static final String ARCANE_RECOVERY = "class:wizard-arcane-recovery";
+
+    private static final String WIZARD = "Wizard";
 
     private final CharacterCommands characterCommands;
     private final ResourcePoolService resourcePoolService;
@@ -57,9 +65,12 @@ public class RestService {
      * A short rest, spending the Hit Dice the request names. It answers with the rested character and each die's roll
      * and healing.
      *
-     * @throws ValidationException for a class without Hit Dice, more dice than a class has left, or a roll outside 1
-     *                             to the die's size
-     * @throws ConflictException   while the character is in an Active or Paused encounter, or dead
+     * @throws ValidationException for a class without Hit Dice, more dice than a class has left, a roll outside 1
+     *                             to the die's size, or Arcane Recovery's slots refused: a character without wizard
+     *                             levels, levels adding up to more than it recovers, a slot above 5th or one not
+     *                             expended
+     * @throws ConflictException   while the character is in an Active or Paused encounter, or dead, or when Arcane
+     *                             Recovery was used since the last long rest
      */
     @Transactional
     public ShortRestResponse shortRest(UUID characterId, ShortRestRequest request, UUID userId) {
@@ -67,9 +78,18 @@ public class RestService {
                 "take a short rest");
         CharacterCommands.requireAlive(character, "take a short rest");
         List<HitDieSpent> dice = request != null && request.hitDice() != null ? request.hitDice() : List.of();
+        List<Integer> recovered = request != null && request.arcaneRecovery() != null ? request.arcaneRecovery()
+                : List.of();
+        // Arcane Recovery is checked before anything changes, so a refused rest changes nothing
+        if (!recovered.isEmpty()) {
+            requireArcaneRecovery(character, recovered);
+        }
         List<HitDieRoll> rolls = spendHitDice(character, dice);
         resetPactSlots(character);
         resetShortRestPools(character);
+        if (!recovered.isEmpty()) {
+            arcaneRecovery(character, recovered);
+        }
         return new ShortRestResponse(characterCommands.finish(character), rolls);
     }
 
@@ -166,6 +186,61 @@ public class RestService {
             hitDice.put(classes.get(i), new HitDicePool(pool.dieSize(), pool.total(), pool.remaining()));
         }
         character.setHitDice(hitDice);
+    }
+
+    // ── Arcane Recovery ──────────────────────────────────────────
+
+    // The character's pools are brought up to date first, so a wizard made before Arcane Recovery had a pool has one
+    private void requireArcaneRecovery(PlayerCharacter character, List<Integer> slotLevels) {
+        int wizardLevel = wizardLevel(character);
+        Map<Integer, Integer> expended = new LinkedHashMap<>();
+        orEmptyMap(character.getSpellSlots()).forEach((key, slot) -> {
+            if (slot != null && !key.startsWith(PACT_SLOT) && slot.used() > 0) {
+                try {
+                    expended.put(Integer.parseInt(key), slot.used());
+                } catch (NumberFormatException e) {
+                    // A key that names no level has nothing to recover
+                }
+            }
+        });
+        Rests.arcaneRecoveryRefusal(wizardLevel, slotLevels, expended).ifPresent(reason -> {
+            throw new ValidationException(reason);
+        });
+        character.setResourcePools(resourcePoolService.reconciledPools(character,
+                resourcePoolService.buildCharacterContext(character)));
+        ResourcePoolEntry pool = orEmpty(character.getResourcePools()).stream()
+                .filter(entry -> ARCANE_RECOVERY.equals(entry.poolId()))
+                .findFirst()
+                .orElse(null);
+        if (pool != null && !pool.unlimited() && pool.currentUses() < 1) {
+            throw new ConflictException(character.getName() + " has used Arcane Recovery since their last long rest");
+        }
+    }
+
+    // Each slot named is no longer expended, and the day's use is spent
+    private static void arcaneRecovery(PlayerCharacter character, List<Integer> slotLevels) {
+        Map<String, SpellSlot> slots = new LinkedHashMap<>(orEmptyMap(character.getSpellSlots()));
+        for (Integer level : slotLevels) {
+            String key = String.valueOf(level);
+            slots.put(key, slots.get(key).restore());
+        }
+        character.setSpellSlots(slots);
+        if (orEmpty(character.getResourcePools()).stream().anyMatch(p -> ARCANE_RECOVERY.equals(p.poolId()))) {
+            character.setResourcePools(new ArrayList<>(ResourcePoolService.spend(character.getResourcePools(),
+                    ARCANE_RECOVERY, 1, character.getName())));
+        }
+    }
+
+    private static int wizardLevel(PlayerCharacter character) {
+        List<ClassEntry> entries = orEmpty(character.getMulticlassEntries());
+        if (!entries.isEmpty()) {
+            return entries.stream()
+                    .filter(entry -> entry != null && WIZARD.equalsIgnoreCase(entry.className()))
+                    .mapToInt(ClassEntry::level)
+                    .sum();
+        }
+        return WIZARD.equalsIgnoreCase(character.getCharacterClass()) && character.getLevel() != null
+                ? character.getLevel() : 0;
     }
 
     // ── Spell slots ──────────────────────────────────────────────

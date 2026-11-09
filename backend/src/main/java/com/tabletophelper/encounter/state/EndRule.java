@@ -23,6 +23,7 @@ public record EndRule(@Schema(requiredMode = REQUIRED) Type type, UUID participa
     public static final EndRule CONCENTRATION = new EndRule(Type.CONCENTRATION, null);
     public static final EndRule HP_REGAINED = new EndRule(Type.HP_REGAINED, null);
     public static final EndRule REPEAT_SAVE = new EndRule(Type.REPEAT_SAVE, null);
+    public static final EndRule ON_DAMAGE = new EndRule(Type.ON_DAMAGE, null);
 
     /** Ends after its duration, at the start of the caster's turn; null for the creature with the condition. */
     public static EndRule afterRounds(UUID caster) {
@@ -55,6 +56,12 @@ public record EndRule(@Schema(requiredMode = REQUIRED) Type type, UUID participa
 
         /** On a successful Repeat Save. */
         REPEAT_SAVE,
+
+        /**
+         * When the creature takes damage, as a creature turned by Turn Undead stops being turned (PHB p.59, M17). Its
+         * duration, when it has one, counts at the start of its source's turns.
+         */
+        ON_DAMAGE,
 
         /** When the creature regains hit points: the unconsciousness that dropping to 0 HP brings (D161). */
         HP_REGAINED,

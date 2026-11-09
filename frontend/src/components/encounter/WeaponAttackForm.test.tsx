@@ -227,6 +227,34 @@ describe('WeaponAttackForm', () => {
       expect(bodies[1]).toMatchObject({ weapon: 'Rapier', sneakAttack: true });
     });
 
+    it('sends a held Bardic Inspiration die and Guided Strike, to add only if the roll would miss (M17)', async () => {
+      serveOptions(makeMockAttackOption('Rapier'));
+      const bodies = attackRequests();
+      const warCleric = rogue({
+        activeConditions: [makeMockCondition('inspired', { heldDie: { sides: 8, onFailedSave: false } })],
+        channelDivinityOptions: ['turn-undead', 'guided-strike'],
+        resourcePoolsCurrent: [{ poolId: 'class:cleric-channel-divinity', displayName: 'Channel Divinity',
+          sourceType: 'CLASS', currentUses: 1, maxUses: 1, spendActionType: 'ACTION' }],
+      });
+      const { onDone, user } = await renderForm({ attacker: warCleric });
+
+      await user.click(await screen.findByRole('button', { name: 'Inspiration d8' }));
+      await user.click(screen.getByRole('button', { name: 'Guided Strike' }));
+      await user.click(screen.getByRole('button', { name: 'Roll Attack' }));
+
+      await waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(bodies[0]).toMatchObject({ weapon: 'Rapier', useInspiration: true, guidedStrike: true });
+    });
+
+    it('offers neither without a held die or Guided Strike', async () => {
+      serveOptions(makeMockAttackOption('Rapier'));
+      await renderForm();
+
+      expect(await screen.findByRole('button', { name: 'Roll Attack' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Inspiration d/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Guided Strike' })).not.toBeInTheDocument();
+    });
+
     it('says Sneak Attack was already dealt on this turn', async () => {
       serveOptions(makeMockAttackOption('Rapier', { sneakAttack: '2d6' }));
       server.use(http.get('/api/encounters/:id', () => HttpResponse.json(makeMockEncounter({ turnStamp: '1:part-rogue' }))));

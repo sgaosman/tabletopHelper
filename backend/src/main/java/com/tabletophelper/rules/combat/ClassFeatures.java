@@ -32,6 +32,18 @@ public final class ClassFeatures {
     /** The entry Reckless Attack leaves among the barbarian's conditions until the start of its next turn. */
     public static final String RECKLESS = "reckless";
 
+    /**
+     * The entry a Bardic Inspiration die leaves on the creature holding it (PHB p.53), with the die in the entry's
+     * {@code heldDie}, for 10 minutes or until it is rolled.
+     */
+    public static final String INSPIRED = "inspired";
+
+    /** Bardic Inspiration's die lasts 10 minutes (PHB p.53): a hundred rounds. */
+    public static final int INSPIRATION_ROUNDS = 100;
+
+    /** The feature that adds to a Life cleric's healing spells (PHB p.60). */
+    public static final String DISCIPLE_OF_LIFE = "Disciple of Life";
+
     /** The feature that lets a barbarian attack recklessly (Barbarian 2, PHB p.48). */
     public static final String RECKLESS_ATTACK = "Reckless Attack";
 
@@ -48,6 +60,11 @@ public final class ClassFeatures {
     private static final Set<String> UNHEALED_BY_LAY_ON_HANDS = Set.of("undead", "construct");
 
     private ClassFeatures() {}
+
+    /** Whether the creature has a feature's entry of this name among its conditions, such as Sacred Weapon's. */
+    public static boolean has(Collection<String> conditions, String entry) {
+        return conditions != null && Conditions.has(conditions, entry);
+    }
 
     /** Whether the creature is raging. */
     public static boolean raging(Collection<String> conditions) {
@@ -92,6 +109,28 @@ public final class ClassFeatures {
             throw new IllegalArgumentException("A fighter is level 1 to 20, not " + fighterLevel);
         }
         return new Dice(1, 10, fighterLevel);
+    }
+
+    /**
+     * The Bardic Inspiration die of the bard's level (PHB p.53–54): a d6, a d8 from 5th level, a d10 from 10th and a
+     * d12 from 15th; its number of sides.
+     */
+    public static int bardicInspirationDie(int bardLevel) {
+        if (bardLevel < 1 || bardLevel > 20) {
+            throw new IllegalArgumentException("A bard is level 1 to 20, not " + bardLevel);
+        }
+        if (bardLevel >= 15) return 12;
+        if (bardLevel >= 10) return 10;
+        if (bardLevel >= 5) return 8;
+        return 6;
+    }
+
+    /**
+     * Disciple of Life's extra healing (Life Domain 1, PHB p.60): a spell of 1st level or higher that restores hit
+     * points restores 2 + the spell's level more, the level it was cast at. A cantrip gets nothing.
+     */
+    public static int discipleOfLife(int spellLevel) {
+        return spellLevel >= 1 ? 2 + spellLevel : 0;
     }
 
     /**

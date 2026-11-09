@@ -66,6 +66,14 @@ public class AttackRollRequest {
     // incapacitated, which the server can't see; false declines it. Never with disadvantage
     private Boolean sneakAttack;
 
+    // Bardic Inspiration (PHB p.53, M17): the attacker rolls the die it holds and adds it, decided once the d20 is seen,
+    // so the server rolls it only when the attack would otherwise miss, and never on a natural 1; a hit keeps the die
+    private Boolean useInspiration;
+
+    // Guided Strike (War Domain, PHB p.63, M17): +10 from the cleric's Channel Divinity, decided once the d20 is seen,
+    // so the server adds it, and spends the use, only when the attack would otherwise miss and the +10 makes it hit
+    private Boolean guidedStrike;
+
     // Whether the attacker is within 5 feet of the target, which makes a hit on an unconscious or paralyzed
     // target a critical hit (D161). There is no map, so leaving it out counts as true, except for a ranged weapon.
     private Boolean within5Ft;

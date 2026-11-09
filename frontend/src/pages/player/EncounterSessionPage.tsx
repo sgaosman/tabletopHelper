@@ -26,6 +26,7 @@ import ConcentrationForm from '../../components/encounter/ConcentrationForm';
 import StandardActionMenu from '../../components/encounter/StandardActionMenu';
 import ReactionMenu from '../../components/encounter/ReactionMenu';
 import HitFollowUps from '../../components/encounter/HitFollowUps';
+import InspirationControls from '../../components/encounter/InspirationControls';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
@@ -195,6 +196,10 @@ function PlayerSessionView() {
         {/* Divine Smite or Stunning Strike after the character's melee weapon hit this turn (M17) */}
         {myCharacter && isActive && myCharacter.lifeState === 'ALIVE' && (
           <HitFollowUps participant={myCharacter} participants={encounter.participants} turnStamp={encounter.turnStamp} />
+        )}
+        {/* A Bardic Inspiration die the character holds, kept for a failed save or rolled now (M17) */}
+        {myCharacter && isActive && myCharacter.lifeState === 'ALIVE' && (
+          <InspirationControls participant={myCharacter} />
         )}
 
         {/* Own character at 0 HP: death saves only while Dying (D161), one due as each turn starts (D163) */}

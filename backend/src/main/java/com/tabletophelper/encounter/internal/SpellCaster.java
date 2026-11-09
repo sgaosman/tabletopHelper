@@ -6,6 +6,8 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.SpellEffectEntry;
+import com.tabletophelper.rules.Dice;
+import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Resolver;
@@ -77,7 +79,11 @@ public class SpellCaster {
         if (plan.verbal() && silenced(caster)) {
             throw new ConflictException("Cannot cast spells with verbal components while silenced");
         }
-        Effect effect = plan.effect();
+        Effect effect = discipleOfLife(caster, plan.effect(), plan.spellLevel(), slotLevel);
+        if (effect != plan.effect()) {
+            lead += " (" + ClassFeatures.DISCIPLE_OF_LIFE + " +"
+                    + (effect.healing().modifier() - plan.effect().healing().modifier()) + ")";
+        }
         List<EncounterParticipant> reached = effect.delivery() instanceof Effect.Self ? List.of(caster) : targets;
         CombatAccess.requireNotDead(reached);
 
@@ -137,17 +143,40 @@ public class SpellCaster {
             return new CastResult(spellName, plan.spellLevel(), false, plan.manualReason(), summary, List.of());
         }
         CombatAccess.requireNotDead(targets);
+        Effect effect = discipleOfLife(caster, plan.effect(), plan.spellLevel(), spellEffect.castLevel());
+        if (effect != plan.effect()) {
+            lead += " (" + ClassFeatures.DISCIPLE_OF_LIFE + " +"
+                    + (effect.healing().modifier() - plan.effect().healing().modifier()) + ")";
+        }
         effectApplier.summary(encounter, use, lead + ".");
         List<EffectApplier.Applied> applied = new ArrayList<>();
         for (int i = 0; i < times; i++) {
             List<EncounterParticipant> standing = targets.stream()
                     .filter(target -> target.getLifeState() != LifeState.DEAD)
                     .toList();
-            applied.addAll(effectApplier.apply(encounter, use, plan.effect(),
-                    resolver.resolve(plan.effect(), stats.targets(standing, plan.effect()))));
+            applied.addAll(effectApplier.apply(encounter, use, effect,
+                    resolver.resolve(effect, stats.targets(standing, effect))));
         }
         return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
-                outcomes(plan.effect(), applied));
+                outcomes(effect, applied));
+    }
+
+    /**
+     * Disciple of Life (Life Domain 1, PHB p.60): a healing spell of 1st level or higher cast by a cleric with the
+     * feature restores 2 + the spell's level more hit points to each creature it heals, the level being the slot's.
+     * The Effect rolls its healing once for every target (D161), so the bonus goes on the dice. The Effect unchanged
+     * for anything else.
+     */
+    static Effect discipleOfLife(EncounterParticipant caster, Effect effect, int spellLevel, int slotLevel) {
+        if (effect.healing() == null || spellLevel < 1
+                || !FeatureEffects.hasFeature(caster.getCharacter(), ClassFeatures.DISCIPLE_OF_LIFE)) {
+            return effect;
+        }
+        int bonus = ClassFeatures.discipleOfLife(Math.max(spellLevel, slotLevel));
+        Dice healing = effect.healing();
+        return new Effect(effect.name(), effect.delivery(), effect.damage(),
+                new Dice(healing.count(), healing.sides(), healing.modifier() + bonus), effect.conditions(),
+                effect.concentration(), effect.durationRounds(), effect.conditionEnds());
     }
 
     /**

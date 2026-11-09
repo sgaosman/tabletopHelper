@@ -12,13 +12,16 @@ import com.tabletophelper.encounter.dto.AttackCost;
 import com.tabletophelper.encounter.dto.AttackOption;
 import com.tabletophelper.encounter.dto.AttackRollRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
+import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.encounter.state.WeaponHit;
 import com.tabletophelper.resourcepool.ResourcePoolService;
+import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.AttackFeatures;
 import com.tabletophelper.rules.combat.AttackRules;
+import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.Charge;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.Effect;
@@ -60,6 +63,13 @@ import java.util.UUID;
  * Fighting Styles, Martial Arts and a Champion's critical range change the numbers ({@link AttackFeatures}); Sneak
  * Attack adds its dice to a hit once per turn (PHB p.96); and a melee weapon hit is recorded on the attacker's turn
  * economy, for Divine Smite and Stunning Strike to follow on the same turn ({@link HitFollowUpService}).
+ *
+ * <p>Channel Divinity and Bardic Inspiration (M17, workstream C): Sacred Weapon adds the paladin's Charisma modifier,
+ * at least +1, to its weapon attack rolls (PHB p.86); Vow of Enmity gives the paladin advantage against the creature
+ * vowed against (PHB p.88); War God's Blessing adds +10 to the blessed creature's next attack roll (PHB p.63). Two are
+ * decided after the d20 is seen, before the hit is known (PHB p.53, p.63): a held Bardic Inspiration die and a War
+ * cleric's Guided Strike, which the attack asks for and the server adds only to a roll that would miss, Guided Strike
+ * only when its +10 makes it hit, spending the Channel Divinity use then.
  */
 @Service
 @RequiredArgsConstructor
@@ -71,6 +81,7 @@ public class AttackService {
     private static final String ROGUE = "Rogue";
     private static final String MONK = "Monk";
     private static final String PALADIN = "Paladin";
+    private static final String CLERIC_CHANNEL_DIVINITY = "class:cleric-channel-divinity";
 
     private final CombatAccess access;
     private final AccessPolicy accessPolicy;
@@ -80,6 +91,7 @@ public class AttackService {
     private final EffectApplier effectApplier;
     private final ActionEconomyKeeper economy;
     private final ManualModifiers manualModifiers;
+    private final CombatLogWriter combatLog;
     private final EncounterRepository encounterRepository;
     private final EncounterService encounterService;
 
@@ -91,10 +103,11 @@ public class AttackService {
      * @param melee       a melee attack, which Divine Smite and Stunning Strike can follow
      * @param sneakAttack it carries Sneak Attack's dice, spent for the turn only on a hit
      * @param martialArts Martial Arts applies to it, so an Attack action with it lets a monk strike as a bonus action
+     * @param blessed     it carries War God's Blessing's +10, which it spends (PHB p.63)
      */
     private record Prepared(Effect effect, String action, String preposition, String subject,
                             List<ManualModifiers.Use> modifiers, boolean startsReckless, WeaponRules.Weapon weapon,
-                            boolean melee, boolean sneakAttack, boolean martialArts) {
+                            boolean melee, boolean sneakAttack, boolean martialArts, boolean blessed) {
     }
 
     /** What an attack charges its attacker's turn, why it is over budget whatever the turn says, and ki it spends. */
@@ -117,6 +130,7 @@ public class AttackService {
         EncounterParticipant target = CombatAccess.target(encounter, request.getTargetId(), userId);
         Prepared attack = request.getWeapon() != null ? weaponAttack(encounter, actor, target, request, cost)
                 : enteredAttack(actor, request, cost);
+        attack = withRescue(actor, request, attack);
         manualModifiers.require(encounter, userId, attack.modifiers());
         CombatAccess.requireNotDead(List.of(target));
         String costNote = costNote(cost);
@@ -132,6 +146,10 @@ public class AttackService {
             if (attack.startsReckless()) {
                 effectApplier.attackRecklessly(encounter, actor);
             }
+            // War God's Blessing adds to the next attack roll only (PHB p.63)
+            if (attack.blessed()) {
+                effectApplier.removeFeatureEntries(actor, ChannelDivinity.WAR_GODS_BLESSING, null);
+            }
         }
 
         EffectApplier.Use use = new EffectApplier.Use(actor, actor != null ? actor.getDisplayName() : "DM",
@@ -141,8 +159,78 @@ public class AttackService {
                 resolver.resolve(attack.effect(), List.of(stats.target(target, attack.effect()))));
         if (actor != null) {
             recordHit(encounter, actor, target, attack, applied.getFirst());
+            if (applied.getFirst().outcome().guidedStrike()) {
+                spendGuidedStrike(encounter, actor);
+            }
         }
         return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    // ── Decided after the roll ───────────────────────────────────
+
+    /**
+     * The attack with what its attacker adds once the roll would miss: a held Bardic Inspiration die (PHB p.53) and a
+     * War cleric's Guided Strike (PHB p.63), each only when asked for.
+     *
+     * @throws ValidationException Guided Strike for an attacker without it
+     * @throws ConflictException   a die asked for that the attacker doesn't hold, or Guided Strike with no Channel
+     *                             Divinity left
+     */
+    private Prepared withRescue(EncounterParticipant actor, AttackRollRequest request, Prepared attack) {
+        boolean inspiration = Boolean.TRUE.equals(request.getUseInspiration());
+        boolean guided = Boolean.TRUE.equals(request.getGuidedStrike());
+        if (!inspiration && !guided) {
+            return attack;
+        }
+        if (actor == null) {
+            throw new ValidationException("Bardic Inspiration and Guided Strike are a creature's own: attack as it");
+        }
+        int sides = 0;
+        if (inspiration) {
+            ConditionEntry held = EffectApplier.inspiration(actor).orElseThrow(() -> new ConflictException(
+                    actor.getDisplayName() + " holds no Bardic Inspiration die"));
+            sides = held.heldDie().sides();
+        }
+        if (guided) {
+            if (!ChannelDivinityEffects.available(actor).contains(ChannelDivinity.Option.GUIDED_STRIKE)) {
+                throw new ValidationException(actor.getDisplayName() + " doesn't have Guided Strike (War Domain)");
+            }
+            ResourcePoolEntry pool = channelDivinityPool(actor);
+            if (pool == null || (!pool.unlimited() && pool.currentUses() < 1)) {
+                throw new ConflictException(actor.getDisplayName() + " has no Channel Divinity left for Guided Strike");
+            }
+        }
+        Effect effect = attack.effect();
+        if (!(effect.delivery() instanceof Effect.Attack delivery)) {
+            return attack;
+        }
+        Effect rescued = new Effect(effect.name(), delivery.withRescue(new Effect.Rescue(sides, guided)),
+                effect.damage(), effect.healing(), effect.conditions(), effect.concentration(), effect.durationRounds(),
+                effect.conditionEnds());
+        return new Prepared(rescued, attack.action(), attack.preposition(), attack.subject(), attack.modifiers(),
+                attack.startsReckless(), attack.weapon(), attack.melee(), attack.sneakAttack(), attack.martialArts(),
+                attack.blessed());
+    }
+
+    // Guided Strike turned the miss into a hit, so its Channel Divinity use is spent (PHB p.63)
+    private void spendGuidedStrike(Encounter encounter, EncounterParticipant actor) {
+        ResourcePoolEntry pool = channelDivinityPool(actor);
+        List<ResourcePoolEntry> pools = ResourcePoolService.spend(actor.getResourcePoolsCurrent(), pool.poolId(), 1,
+                actor.getDisplayName());
+        actor.setResourcePoolsCurrent(pools);
+        ResourcePoolEntry after = pools.stream().filter(p -> pool.poolId().equals(p.poolId())).findFirst()
+                .orElse(pool);
+        combatLog.write(encounter, CombatActionType.POOL_USE, actor.getDisplayName() + " uses Channel Divinity for "
+                + "Guided Strike: +10 turns the miss into a hit; " + (after.unlimited() ? "unlimited"
+                : after.currentUses() + "/" + after.maxUses() + " left"), actor, null);
+    }
+
+    private static ResourcePoolEntry channelDivinityPool(EncounterParticipant participant) {
+        List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent();
+        return pools == null ? null : pools.stream()
+                .filter(pool -> pool != null && CLERIC_CHANNEL_DIVINITY.equals(pool.poolId()))
+                .findFirst()
+                .orElse(null);
     }
 
     /**
@@ -330,7 +418,11 @@ public class AttackService {
         if (extraDamage != null) {
             damage.add(new Effect.DamagePart(extraDamage, extraType));
         }
-        int attackBonus = numbers.attackBonus()
+        // Sacred Weapon (PHB p.86) and War God's Blessing (PHB p.63) add to the attack roll
+        int sacredWeapon = ClassFeatures.has(conditions, ChannelDivinity.SACRED_WEAPON)
+                ? ChannelDivinity.sacredWeaponBonus(stats.abilityScore(actor, Ability.CHA)) : 0;
+        boolean blessed = ClassFeatures.has(conditions, ChannelDivinity.WAR_GODS_BLESSING);
+        int attackBonus = numbers.attackBonus() + sacredWeapon + (blessed ? ChannelDivinity.ATTACK_BONUS : 0)
                 + (request.getExtraAttackBonus() != null ? request.getExtraAttackBonus() : 0);
         // There is no map: a melee weapon attacks from within 5 feet, and a ranged one from beyond (D161)
         boolean withinFiveFeet = request.getWithin5Ft() != null ? request.getWithin5Ft() : !weapon.ranged();
@@ -341,6 +433,10 @@ public class AttackService {
         if (powerAttack) notes.add(held.powerAttack().featName());
         if (reckless) notes.add(ClassFeatures.RECKLESS_ATTACK);
         if (rageDamage > 0) notes.add("Rage +" + rageDamage);
+        if (sacredWeapon > 0) notes.add("Sacred Weapon +" + sacredWeapon);
+        if (blessed) notes.add("War God's Blessing +" + ChannelDivinity.ATTACK_BONUS);
+        boolean vowed = vowedAgainst(actor, target);
+        if (vowed) notes.add("Vow of Enmity");
         notes.addAll(numbers.notes());
 
         // Every weapon attack uses STR or DEX, so armour worn without proficiency gives it disadvantage (PHB p.144):
@@ -349,6 +445,8 @@ public class AttackService {
         List<RollMode> sources = new ArrayList<>();
         if (stats.armourPenalty(actor)) sources.add(RollMode.DISADVANTAGE);
         if (reckless) sources.add(RollMode.ADVANTAGE);
+        // Vow of Enmity's advantage against the creature vowed against (PHB p.88)
+        if (vowed) sources.add(RollMode.ADVANTAGE);
         Effect.Attack delivery = new Effect.Attack(attackBonus, SpellEffects.rollMode(request.getAdvantage()),
                 withinFiveFeet, forcedCritical, null, sources, numbers.critRange());
 
@@ -363,7 +461,14 @@ public class AttackService {
         Effect effect = new Effect(label, delivery, damage, null, List.of(), false, null);
         return new Prepared(effect, "uses " + label, "on", actor.getDisplayName() + "'s " + weapon.name() + " attack",
                 ManualModifiers.forWeaponAttack(request.getExtraAttackBonus(), extraDamage, extraType, forcedCritical),
-                startsReckless, weapon, melee, sneakAttack, numbers.martialArts());
+                startsReckless, weapon, melee, sneakAttack, numbers.martialArts(), blessed);
+    }
+
+    // Whether the attacker's Vow of Enmity is on the target (PHB p.88)
+    private static boolean vowedAgainst(EncounterParticipant attacker, EncounterParticipant target) {
+        return target.getActiveConditions() != null && target.getActiveConditions().stream()
+                .anyMatch(c -> ChannelDivinity.VOW_OF_ENMITY.equalsIgnoreCase(c.name())
+                        && attacker.getId().equals(c.sourceParticipantId()));
     }
 
     /**
@@ -486,7 +591,7 @@ public class AttackService {
         String subject = actor != null ? actor.getDisplayName() + "'s attack" : "The DM's attack";
         return new Prepared(effect, "attacks", "", subject,
                 ManualModifiers.forEnteredAttack(request.getAttackBonus(), damage, damageType, forcedCritical), false,
-                null, false, false, false);
+                null, false, false, false, false);
     }
 
     // The extra damage entered for a weapon attack, such as "1d6" or "+1"; a type alone is a 400

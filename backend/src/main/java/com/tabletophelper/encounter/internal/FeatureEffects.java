@@ -7,6 +7,9 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.UsePoolRequest;
+import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.EndRule;
+import com.tabletophelper.encounter.state.HeldDie;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.reference.Item;
 import com.tabletophelper.rules.Dice;
@@ -43,6 +46,13 @@ import java.util.UUID;
  *       "step-of-the-wind-disengage" the Dash or Disengage action with the jump distance doubled, each as a bonus
  *       action for 1 ki point. Without an option, ki is spent as before, for what the app doesn't model yet, such as
  *       Flurry of Blows.</li>
+ *   <li>{@value ChannelDivinityEffects#EFFECT} (Cleric 2, PHB p.58–59; Paladin 3, PHB p.85): the option names what
+ *       the use does, as {@link ChannelDivinityEffects} carries it out.</li>
+ *   <li>{@value #BARDIC_INSPIRATION} (Bard 1, PHB p.53–54): a bonus action giving one other creature a Bardic
+ *       Inspiration die, d6 to d12 by the bard's level, which it holds for 10 minutes and adds to one attack roll, saving
+ *       throw or ability check. One creature holds one die at a time.</li>
+ *   <li>{@value #ARCANE_RECOVERY} (Wizard 1, PHB p.115): used only when finishing a short rest, on the character
+ *       sheet, so the table refuses it.</li>
  * </ul>
  */
 @Component
@@ -53,6 +63,8 @@ public class FeatureEffects {
     public static final String SECOND_WIND = "second-wind";
     public static final String LAY_ON_HANDS = "lay-on-hands";
     public static final String KI = "ki";
+    public static final String BARDIC_INSPIRATION = "bardic-inspiration";
+    public static final String ARCANE_RECOVERY = "arcane-recovery";
 
     public static final String END = "end";
     public static final String HEAL = "heal";
@@ -63,9 +75,12 @@ public class FeatureEffects {
 
     private static final List<String> KI_OPTIONS = List.of(PATIENT_DEFENSE, STEP_DASH, STEP_DISENGAGE);
 
+    private static final String BARD = "Bard";
+
     private final EffectApplier effectApplier;
     private final CreatureStats stats;
     private final Rng rng;
+    private final ChannelDivinityEffects channelDivinity;
 
     /**
      * A use, checked and ready.
@@ -74,11 +89,25 @@ public class FeatureEffects {
      * @param option the option chosen, or null
      * @param cost   what the use costs from the turn: the pool's spendActionType unless the option says otherwise
      * @param spend  how many uses it spends from the pool: 0 to end a rage
-     * @param target the creature it touches: the user, or Lay on Hands' target
-     * @param note   what the use does, for its log entry, such as ": takes the Dodge action until ..."; empty for none
+     * @param target  the creature its log entry is about: the user, or the one creature it touches
+     * @param note    what the use does, for its log entry, such as ": takes the Dodge action until ..."; empty for none
+     * @param targets every creature it affects, for a feature that affects several, such as Turn Undead
+     * @param amounts what each of targets gets, in the same order, for a feature that splits something among them, as
+     *                Preserve Life splits its healing; empty otherwise
      */
     public record Plan(String effect, String option, ActionCost cost, int spend, EncounterParticipant target,
-                       String note) {
+                       String note, List<EncounterParticipant> targets, List<Integer> amounts) {
+
+        public Plan {
+            targets = targets != null ? List.copyOf(targets) : List.of();
+            amounts = amounts != null ? List.copyOf(amounts) : List.of();
+        }
+
+        /** A use that affects only its one target. */
+        public Plan(String effect, String option, ActionCost cost, int spend, EncounterParticipant target,
+                    String note) {
+            this(effect, option, cost, spend, target, note, List.of(), List.of());
+        }
     }
 
     /** The effect a pool's metadata names, such as "rage", or null. */
@@ -109,7 +138,13 @@ public class FeatureEffects {
             }
             return new Plan(null, null, poolCost, uses, user, "");
         }
-        if (targeted && !LAY_ON_HANDS.equals(effect)) {
+        if (ChannelDivinityEffects.EFFECT.equals(effect)) {
+            return channelDivinity.plan(encounter, user, pool, request, option, uses, userId, poolCost);
+        }
+        if (request.amounts() != null) {
+            throw new ValidationException(pool.displayName() + " takes no amounts");
+        }
+        if (targeted && !LAY_ON_HANDS.equals(effect) && !BARDIC_INSPIRATION.equals(effect)) {
             throw new ValidationException(pool.displayName() + " is used only on " + user.getDisplayName());
         }
         return switch (effect) {
@@ -124,6 +159,10 @@ public class FeatureEffects {
             }
             case LAY_ON_HANDS -> layOnHands(encounter, user, pool, request, option, uses, userId, poolCost);
             case KI -> ki(user, pool, option, request.uses(), poolCost);
+            case BARDIC_INSPIRATION -> bardicInspiration(encounter, user, pool, request, option, uses, userId,
+                    poolCost);
+            case ARCANE_RECOVERY -> throw new ConflictException(pool.displayName() + " is used when finishing a short "
+                    + "rest, from the character sheet");
             default -> throw new IllegalStateException("The " + pool.poolId() + " pool has an unknown effect " + effect);
         };
     }
@@ -155,6 +194,15 @@ public class FeatureEffects {
                 if (!CURE.equals(plan.option())) {
                     effectApplier.heal(encounter, user, plan.target(), plan.spend(), "Lay on Hands");
                 }
+            }
+            case ChannelDivinityEffects.EFFECT -> channelDivinity.apply(encounter, user, plan);
+            case BARDIC_INSPIRATION -> {
+                int sides = ClassFeatures.bardicInspirationDie(Math.max(1, Math.min(20,
+                        classLevel(user.getCharacter(), BARD))));
+                effectApplier.addFeatureEntry(plan.target(), new ConditionEntry(UUID.randomUUID(),
+                        ClassFeatures.INSPIRED, ClassFeatures.INSPIRATION_ROUNDS, encounter.getRoundNumber(),
+                        "Bardic Inspiration", user.getId(), null, null, EndRule.afterRounds(user.getId()), null,
+                        new HeldDie(sides, false)));
             }
             case KI -> {
                 if (PATIENT_DEFENSE.equals(plan.option())) {
@@ -202,10 +250,37 @@ public class FeatureEffects {
                 + "saving throws, but can't cast spells or concentrate on them");
     }
 
+    private Plan bardicInspiration(Encounter encounter, EncounterParticipant bard, ResourcePoolEntry pool,
+                                   UsePoolRequest request, String option, int uses, UUID userId, ActionCost poolCost) {
+        requireNoOption(pool, option);
+        requireOneUse(pool, uses);
+        int level = classLevel(bard.getCharacter(), BARD);
+        if (level < 1) {
+            throw new ConflictException(bard.getDisplayName() + " has no Bard levels for Bardic Inspiration");
+        }
+        if (request.targetIds() == null || request.targetIds().size() != 1) {
+            throw new ValidationException("Bardic Inspiration goes to one creature: name it");
+        }
+        EncounterParticipant target = CombatAccess.target(encounter, request.targetIds().getFirst(), userId);
+        if (target == bard) {
+            throw new ValidationException("Bardic Inspiration goes to a creature other than the bard (PHB p.53)");
+        }
+        CombatAccess.requireNotDead(List.of(target));
+        if (EffectApplier.inspiration(target).isPresent()) {
+            throw new ConflictException(target.getDisplayName() + " already holds a Bardic Inspiration die");
+        }
+        int sides = ClassFeatures.bardicInspirationDie(Math.min(20, level));
+        return new Plan(BARDIC_INSPIRATION, null, poolCost, 1, target, " on " + target.getDisplayName() + ": a d"
+                + sides + " to add to one ability check, attack roll or saving throw within 10 minutes");
+    }
+
     private Plan layOnHands(Encounter encounter, EncounterParticipant paladin, ResourcePoolEntry pool,
                             UsePoolRequest request, String option, int uses, UUID userId, ActionCost poolCost) {
         if (option != null && !HEAL.equals(option) && !CURE.equals(option)) {
             throw new ValidationException("Lay on Hands takes the option \"" + HEAL + "\" or \"" + CURE + "\"");
+        }
+        if (request.targetIds() != null && request.targetIds().size() > 1) {
+            throw new ValidationException("Lay on Hands touches one creature at a time");
         }
         EncounterParticipant target = request.targetIds() != null && !request.targetIds().isEmpty()
                 ? CombatAccess.target(encounter, request.targetIds().getFirst(), userId) : paladin;

@@ -3,7 +3,8 @@ import type { EncounterParticipant, ResourcePoolEntry } from '../../types/encoun
 import { apiErrorMessage } from '../../api/errors';
 import { chargeBlock, poolBudgetBlock, poolCostLabel, poolRecoveryText, poolRefusal } from '../../utils/turnEconomy';
 import {
-  isRaging, KI_OPTIONS, poolEffect, poolEffectText, RAGE_TEXT, type PoolEffect, type PoolUseOptions,
+  channelOptions, heldInspiration, isRaging, KI_OPTIONS, poolEffect, poolEffectText, RAGE_TEXT, type PoolEffect,
+  type PoolUseOptions,
 } from '../../utils/classFeatures';
 import IconButton from '../ui/IconButton';
 
@@ -113,6 +114,10 @@ export default function ResourcePoolDisplay({
   );
 }
 
+// The pools whose use their own controls send, with the points, option or target it needs; Arcane Recovery is used on a
+// short rest, not at the table (M17)
+const OWN_CONTROLS: string[] = ['lay-on-hands', 'bardic-inspiration', 'arcane-recovery'];
+
 const USE_BUTTON = 'ml-1 px-1.5 py-0.5 font-heading text-[11px] font-semibold tracking-[0.02em] bg-ink/10 hover:bg-ink/20 '
   + 'text-ink disabled:opacity-40 disabled:hover:bg-ink/10';
 const SMALL_FIELD = 'px-1 py-0.5 bg-page-alt border border-rule font-body text-[13px] text-ink';
@@ -183,7 +188,7 @@ function EncounterPools({ pools, participant, onUse, asDm, targets }: {
                     className={USE_BUTTON}>
                     {using === entry.poolId ? '...' : 'End'}
                   </button>
-                ) : effect !== 'lay-on-hands' && (
+                ) : !OWN_CONTROLS.includes(effect ?? '') && (
                   <button type="button" disabled={disabled} onClick={() => { void use(entry.poolId); }}
                     aria-label={`Use ${entry.displayName}`} aria-describedby={reason ? reasonId : undefined}
                     className={USE_BUTTON}>
@@ -233,6 +238,14 @@ function FeatureControls({ effect, entry, participant, targets, blocked, asDm, o
 }) {
   if (effect === 'lay-on-hands') {
     return <LayOnHandsControls entry={entry} participant={participant} targets={targets} blocked={blocked}
+      asDm={asDm} onUse={onUse} />;
+  }
+  if (effect === 'channel-divinity') {
+    return <ChannelDivinityControls entry={entry} participant={participant} targets={targets} blocked={blocked}
+      asDm={asDm} onUse={onUse} />;
+  }
+  if (effect === 'bardic-inspiration') {
+    return <BardicInspirationControls entry={entry} participant={participant} targets={targets} blocked={blocked}
       asDm={asDm} onUse={onUse} />;
   }
   if (effect !== 'ki') return null;
@@ -293,6 +306,131 @@ function LayOnHandsControls({ entry, participant, targets, blocked, asDm, onUse 
         })}
         className={USE_BUTTON}>
         Use
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Channel Divinity's options (PHB p.58-63, p.85-88, M17): the participant's options by its class, level and subclass,
+ * each with the creatures it reaches: several to pick for Turn Undead and its kind, one for Vow of Enmity and its kind,
+ * and an amount for each creature Preserve Life heals. Guided Strike is chosen on the attack form. There is no map, so
+ * the player picks the creatures within range; the server checks the rest.
+ */
+function ChannelDivinityControls({ entry, participant, targets, blocked, asDm, onUse }: {
+  entry: ResourcePoolEntry;
+  participant: EncounterParticipant;
+  targets?: EncounterParticipant[];
+  blocked: boolean;
+  asDm: boolean;
+  onUse: (options: PoolUseOptions) => void;
+}) {
+  const options = channelOptions(participant, entry);
+  const [optionId, setOptionId] = useState(options[0]?.id ?? '');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  if (options.length === 0) return null;
+  const chosen = options.find(o => o.id === optionId) ?? options[0];
+  const option = chosen.option;
+  const living = (targets ?? []).filter(t => t.lifeState !== 'DEAD');
+  // Preserve Life and War God's Blessing may include the user; the others reach other creatures
+  const others = living.filter(t => t.id !== participant.id);
+  const choices = option.targets === 'split' || option.targets === 'one-or-self'
+    ? [participant, ...others] : others;
+  const selected = picked.filter(id => choices.some(c => c.id === id));
+  const budget = option.cost === 'NONE' ? null : chargeBlock(participant, { cost: option.cost });
+  const splitAmounts = selected.map(id => Number.parseInt(amounts[id] ?? '', 10));
+  const invalid = entry.currentUses < 1
+    || option.targets === 'attack'
+    || ((option.targets === 'many' || option.targets === 'split') && selected.length === 0)
+    || ((option.targets === 'one' || option.targets === 'one-or-self') && selected.length !== 1)
+    || (option.targets === 'split' && splitAmounts.some(n => !Number.isInteger(n) || n < 1));
+  const disabled = blocked || invalid || (budget !== null && !asDm);
+  const base = `cd-${participant.id}-${entry.poolId}`;
+  const single = option.targets === 'one' || option.targets === 'one-or-self';
+
+  function toggle(id: string) {
+    setPicked(prev => single ? [id] : prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  }
+
+  return (
+    <div className="flex flex-col gap-1" role="group" aria-label={`${entry.displayName} option and creatures`}>
+      <div className="flex flex-wrap items-center gap-1">
+        <label htmlFor={`${base}-option`} className="sr-only">{entry.displayName} option</label>
+        <select id={`${base}-option`} value={chosen.id} className={SMALL_FIELD}
+          onChange={e => { setOptionId(e.target.value); setPicked([]); }}>
+          {options.map(o => <option key={o.id} value={o.id}>{o.option.label}</option>)}
+        </select>
+        {option.targets !== 'attack' && (
+          <button type="button" disabled={disabled} aria-label={`Use ${entry.displayName}: ${option.label}`}
+            onClick={() => onUse({
+              option: chosen.id,
+              targetIds: option.targets === 'none' ? undefined : selected,
+              amounts: option.targets === 'split' ? splitAmounts : undefined,
+            })}
+            className={USE_BUTTON}>
+            {option.label}
+          </button>
+        )}
+      </div>
+      <span className="max-w-xs text-[11px] text-muted">{option.description}</span>
+      {option.targets !== 'none' && option.targets !== 'attack' && (
+        <fieldset className="flex flex-wrap gap-x-3 gap-y-1">
+          <legend className="sr-only">{option.label}: creatures</legend>
+          {choices.map(c => (
+            <span key={c.id} className="inline-flex items-center gap-1 text-[12px] text-ink">
+              <label className="inline-flex items-center gap-1">
+                <input type={single ? 'radio' : 'checkbox'} name={`${base}-targets`}
+                  checked={selected.includes(c.id)} onChange={() => toggle(c.id)} />
+                {c.id === participant.id ? `${c.displayName} (self)` : c.displayName}
+              </label>
+              {option.targets === 'split' && selected.includes(c.id) && (
+                <>
+                  <label htmlFor={`${base}-hp-${c.id}`} className="sr-only">HP for {c.displayName}</label>
+                  <input id={`${base}-hp-${c.id}`} type="number" min={1} value={amounts[c.id] ?? ''}
+                    onChange={e => setAmounts(prev => ({ ...prev, [c.id]: e.target.value }))}
+                    className={`${SMALL_FIELD} w-14`} />
+                </>
+              )}
+            </span>
+          ))}
+        </fieldset>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Bardic Inspiration (PHB p.53): a bonus action giving one creature other than the bard an inspiration die. A creature
+ * already holding one is left out, as the server refuses a second.
+ */
+function BardicInspirationControls({ entry, participant, targets, blocked, asDm, onUse }: {
+  entry: ResourcePoolEntry;
+  participant: EncounterParticipant;
+  targets?: EncounterParticipant[];
+  blocked: boolean;
+  asDm: boolean;
+  onUse: (options: PoolUseOptions) => void;
+}) {
+  const choices = (targets ?? []).filter(t => t.id !== participant.id && t.lifeState !== 'DEAD'
+    && !heldInspiration(t));
+  const [targetId, setTargetId] = useState('');
+  const target = choices.find(c => c.id === targetId) ?? choices[0];
+  const budget = poolBudgetBlock(participant, entry);
+  const disabled = blocked || !target || entry.currentUses < 1 || (budget !== null && !asDm);
+  const base = `bi-${participant.id}`;
+  return (
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`${entry.displayName}: creature`}>
+      <label htmlFor={`${base}-target`} className="sr-only">{entry.displayName} creature</label>
+      <select id={`${base}-target`} value={target?.id ?? ''} onChange={e => setTargetId(e.target.value)}
+        className={SMALL_FIELD} disabled={choices.length === 0}>
+        {choices.length === 0 && <option value="">No creature to inspire</option>}
+        {choices.map(c => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+      </select>
+      <button type="button" disabled={disabled} aria-label={`Use ${entry.displayName}`}
+        onClick={() => target && onUse({ targetIds: [target.id] })}
+        className={USE_BUTTON}>
+        Inspire
       </button>
     </div>
   );

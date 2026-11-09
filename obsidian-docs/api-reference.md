@@ -1561,6 +1561,10 @@ It costs the pool's `spendActionType`: `ACTION`, `BONUS_ACTION` or `REPLACE_ATTA
 
 Follow-ups on the turn's last weapon hit (M17 workstream B, D178). `divine-smite` takes the paladin and a slot level and adds radiant damage to that hit (melee, unarmed strikes included; once per hit; same turn only; 409 otherwise). `stunning-strike` spends 1 ki after a monk's melee hit and has the target make a CON save or be stunned until the end of the monk's next turn. `protection` is the Protection fighting style's reaction, logged for the DM. The weapon attack request also takes `grip` and `sneakAttack`; attack options show the monk's bonus strikes and their cost. The encounter response carries `turnStamp`, and participants `fightingStyles`.
 
+### POST /encounters/{id}/combat/bardic-inspiration
+
+The holder of a Bardic Inspiration die decides what to do with it (M17 workstream C, D178): keep it for the next failed save against a spell, a monster's save action or Channel Divinity; keep it back; or roll it now for a check or save the DM resolves. Giving the die, and Channel Divinity's options, go through `use-pool` with `option` and `targetIds`; the encounter response lists `channelDivinityOptions`. Weapon attacks take `useInspiration` and `guidedStrike`. The short-rest request takes the Arcane Recovery slots.
+
 ### POST /encounters/{id}/combat/standard-action
 
 Take one of the standard actions of PHB p.192–193 other than Attack and Cast a Spell (M13, D174). The DM may act for any participant, a player only for their own and only on its turn (403 "You can only take that action on your turn").

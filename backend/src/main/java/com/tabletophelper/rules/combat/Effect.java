@@ -76,9 +76,12 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      *                       proficiency (PHB p.144); they combine with rollMode and the target's once (PHB p.173)
      * @param critRange      the lowest d20 that is a critical hit: 20, or 19 with the Champion's Improved Critical
      *                       (PHB p.72) and 18 with its Superior Critical (PHB p.73)
+     * @param rescue         what the attacker adds once its roll is known to miss (M17); {@link Rescue#NONE} for
+     *                       nothing
      */
     public record Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical,
-                         HitSave hitSave, List<RollMode> otherSources, int critRange) implements Delivery {
+                         HitSave hitSave, List<RollMode> otherSources, int critRange, Rescue rescue)
+            implements Delivery {
 
         public Attack {
             Objects.requireNonNull(rollMode, "rollMode");
@@ -86,6 +89,18 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
             if (critRange < 2 || critRange > 20) {
                 throw new IllegalArgumentException("A critical hit needs a d20 of 2 to 20, not " + critRange);
             }
+            rescue = rescue != null ? rescue : Rescue.NONE;
+        }
+
+        /** An attack that adds nothing once its roll misses. */
+        public Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical, HitSave hitSave,
+                      List<RollMode> otherSources, int critRange) {
+            this(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, critRange, Rescue.NONE);
+        }
+
+        /** The same attack, adding the rescue once its roll misses. */
+        public Attack withRescue(Rescue added) {
+            return new Attack(bonus, rollMode, withinFiveFeet, forcedCritical, hitSave, otherSources, critRange, added);
         }
 
         /** An attack that is a critical hit only on a 20. */
@@ -109,6 +124,30 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
         /** An attack whose hit gives every condition of its Effect. */
         public Attack(int bonus, RollMode rollMode, boolean withinFiveFeet, boolean forcedCritical) {
             this(bonus, rollMode, withinFiveFeet, forcedCritical, null);
+        }
+    }
+
+    /**
+     * What an attacker may add to its attack roll after seeing it, before it is known whether the attack hits (M17).
+     * The attack resolves in one call (D160), so the server adds them only to a roll that would miss, which is when a
+     * player would spend them, and never to a natural 1, which misses whatever is added (PHB p.194).
+     *
+     * @param inspirationSides the sides of a Bardic Inspiration die the attacker rolls and adds (PHB p.53); 0 for none
+     * @param guidedStrike     Guided Strike's +10 (PHB p.63), added only when it turns the miss into a hit, since its
+     *                         Channel Divinity use is spent only then
+     */
+    public record Rescue(int inspirationSides, boolean guidedStrike) {
+
+        public static final Rescue NONE = new Rescue(0, false);
+
+        public Rescue {
+            if (inspirationSides < 0) {
+                throw new IllegalArgumentException("A die has at least 1 side, not " + inspirationSides);
+            }
+        }
+
+        public boolean any() {
+            return inspirationSides > 0 || guidedStrike;
         }
     }
 
@@ -177,9 +216,21 @@ public record Effect(String name, Delivery delivery, List<DamagePart> damage, Di
      * @param endOfUsersTurn it ends at the end of a turn of the creature that used the Effect, once durationRounds
      *                       rounds have passed (at the next such end when null), not at the start of one, as
      *                       Stunning Strike's stun lasts until the end of the monk's next turn (PHB p.79)
+     * @param endsOnDamage   it ends when the creature takes damage, as Turn Undead's turning does (PHB p.59), and
+     *                       otherwise after durationRounds, counted at the start of the user's turns
      */
     public record ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc,
-                               boolean endOfUsersTurn) {
+                               boolean endOfUsersTurn, boolean endsOnDamage) {
+
+        /** An end that taking damage doesn't bring. */
+        public ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc, boolean endOfUsersTurn) {
+            this(durationRounds, repeatSave, escapeDc, endOfUsersTurn, false);
+        }
+
+        /** An end after durationRounds or when the creature takes damage, whichever comes first. */
+        public static ConditionEnd untilDamaged(int durationRounds) {
+            return new ConditionEnd(durationRounds, null, null, false, true);
+        }
 
         /** An end with an escape DC, at the start of a turn. */
         public ConditionEnd(Integer durationRounds, RepeatSave repeatSave, Integer escapeDc) {

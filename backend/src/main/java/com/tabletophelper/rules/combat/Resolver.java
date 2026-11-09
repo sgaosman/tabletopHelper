@@ -36,13 +36,32 @@ public final class Resolver {
      * @param conditions   its conditions by name, which can change attack rolls and fail saves (D161)
      * @param strDexDisadvantage whether it makes Strength and Dexterity saves with disadvantage, as it does wearing
      *                     armour or a shield it isn't proficient with (PHB p.144)
+     * @param saveSources  its other sources of advantage or disadvantage on the Effect's save, such as a vampire
+     *                     spawn's Turn Resistance against Turn Undead (M17); they combine with its conditions' once
+     * @param inspirationSides the sides of a Bardic Inspiration die it rolls and adds when it fails the Effect's save
+     *                     (PHB p.53, M17); 0 for none
      */
     public record Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
-                         boolean strDexDisadvantage) {
+                         boolean strDexDisadvantage, List<RollMode> saveSources, int inspirationSides) {
 
         public Target {
             Objects.requireNonNull(id, "id");
             conditions = List.copyOf(conditions);
+            saveSources = saveSources != null ? List.copyOf(saveSources) : List.of();
+        }
+
+        /** A target with no other sources on its save and no die to add. */
+        public Target(UUID id, int armourClass, int saveModifier, Collection<String> conditions,
+                      boolean strDexDisadvantage) {
+            this(id, armourClass, saveModifier, conditions, strDexDisadvantage, List.of(), 0);
+        }
+
+        /** The same target with another source of advantage or disadvantage on the Effect's save. */
+        public Target withSaveSource(RollMode source) {
+            List<RollMode> sources = new ArrayList<>(saveSources);
+            sources.add(source);
+            return new Target(id, armourClass, saveModifier, conditions, strDexDisadvantage, sources,
+                    inspirationSides);
         }
 
         /** A target whose saves nothing but its conditions changes. */
@@ -53,6 +72,10 @@ public final class Resolver {
 
     /** Damage of one type; type is null when untyped. */
     public record Damage(String type, int amount) {
+    }
+
+    /** A Bardic Inspiration die rolled and added to an attack roll or a save (PHB p.53): its sides and its roll. */
+    public record Inspiration(int sides, int roll) {
     }
 
     /**
@@ -73,17 +96,28 @@ public final class Resolver {
      * @param conditions    the conditions it gets
      * @param hitSave       the save it made, once an attack hit it, against the conditions the hit's save guards
      *                      ({@link Effect.HitSave}); null when it made none
+     * @param inspiration   the Bardic Inspiration die added to the attack roll or the save, already in total; null
+     *                      when none was rolled
+     * @param guidedStrike  Guided Strike's +10 was added to the attack roll, already in total (PHB p.63)
      */
     public record TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
                                 RollMode rollMode, boolean autoFailed, List<Damage> damage,
                                 List<Damage> successDamage, int healing, List<String> conditions,
-                                SaveRoll hitSave) {
+                                SaveRoll hitSave, Inspiration inspiration, boolean guidedStrike) {
 
         public TargetOutcome {
             d20s = List.copyOf(d20s);
             damage = List.copyOf(damage);
             successDamage = List.copyOf(successDamage);
             conditions = List.copyOf(conditions);
+        }
+
+        /** An outcome nothing was added to after its roll. */
+        public TargetOutcome(UUID targetId, Outcome outcome, List<Integer> d20s, Integer d20, Integer total,
+                             RollMode rollMode, boolean autoFailed, List<Damage> damage, List<Damage> successDamage,
+                             int healing, List<String> conditions, SaveRoll hitSave) {
+            this(targetId, outcome, d20s, d20, total, rollMode, autoFailed, damage, successDamage, healing,
+                    conditions, hitSave, null, false);
         }
     }
 
@@ -145,10 +179,18 @@ public final class Resolver {
      */
     public SaveRoll savingThrow(Ability ability, int modifier, int dc, Collection<String> conditions,
                                 boolean strDexDisadvantage) {
+        return savingThrow(ability, modifier, dc, conditions, strDexDisadvantage, List.of());
+    }
+
+    // As above, with the target's other sources of advantage or disadvantage on this save, combined once (PHB p.173)
+    private SaveRoll savingThrow(Ability ability, int modifier, int dc, Collection<String> conditions,
+                                 boolean strDexDisadvantage, List<RollMode> otherSources) {
         if (SaveRules.autoFails(ability, conditions)) {
             return new SaveRoll(null, null, false, true);
         }
-        RollMode mode = SaveRules.rollMode(ability, conditions, strDexDisadvantage);
+        List<RollMode> sources = new ArrayList<>(otherSources);
+        sources.add(SaveRules.rollMode(ability, conditions, strDexDisadvantage));
+        RollMode mode = RollMode.combine(sources);
         if (mode == RollMode.NORMAL) {
             int d20 = rng.roll(20);
             int total = d20 + modifier;
@@ -180,17 +222,39 @@ public final class Resolver {
                 ? Outcome.CRITICAL
                 : AttackRules.outcome(d20, attack.bonus(), target.armourClass(), setup.hitIsCritical(),
                         attack.critRange());
-        int total = d20 + attack.bonus();
+        int bonus = attack.bonus();
+        Inspiration inspiration = null;
+        boolean guidedStrike = false;
+        // What the attacker adds once it sees the roll would miss; a natural 1 misses whatever is added (PHB p.194)
+        if (outcome == Outcome.MISS && d20 != 1 && attack.rescue().any()) {
+            if (attack.rescue().inspirationSides() > 0) {
+                inspiration = new Inspiration(attack.rescue().inspirationSides(),
+                        rng.roll(attack.rescue().inspirationSides()));
+                bonus += inspiration.roll();
+                outcome = AttackRules.outcome(d20, bonus, target.armourClass(), setup.hitIsCritical(),
+                        attack.critRange());
+            }
+            if (outcome == Outcome.MISS && attack.rescue().guidedStrike()) {
+                Outcome guided = AttackRules.outcome(d20, bonus + ChannelDivinity.ATTACK_BONUS, target.armourClass(),
+                        setup.hitIsCritical(), attack.critRange());
+                if (guided != Outcome.MISS) {
+                    bonus += ChannelDivinity.ATTACK_BONUS;
+                    outcome = guided;
+                    guidedStrike = true;
+                }
+            }
+        }
+        int total = d20 + bonus;
         if (outcome == Outcome.MISS) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    List.of(), List.of(), 0, List.of(), null);
+                    List.of(), List.of(), 0, List.of(), null, inspiration, false);
         }
         List<Damage> damage = rollDamage(effect.damage(), outcome == Outcome.CRITICAL);
         int healing = rollHealing(effect.healing());
         Effect.HitSave hitSave = attack.hitSave();
         if (hitSave == null) {
             return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                    damage, List.of(), healing, effect.conditions(), null);
+                    damage, List.of(), healing, effect.conditions(), null, inspiration, guidedStrike);
         }
         // The save decides only the conditions it guards, so a success would leave all of the damage
         SaveRoll save = savingThrow(hitSave.ability(), target.saveModifier(), hitSave.dc(), target.conditions(),
@@ -199,19 +263,28 @@ public final class Resolver {
                 .filter(condition -> !save.success() || !hitSave.conditions().contains(condition))
                 .toList();
         return new TargetOutcome(target.id(), outcome, d20s, d20, total, setup.rollMode(), false,
-                damage, save.success() ? List.of() : damage, healing, conditions, save);
+                damage, save.success() ? List.of() : damage, healing, conditions, save, inspiration, guidedStrike);
     }
 
     private TargetOutcome save(Effect effect, Effect.Save save, Target target, List<Damage> damage, int healing) {
         SaveRoll roll = savingThrow(save.ability(), target.saveModifier(), save.dc(), target.conditions(),
-                target.strDexDisadvantage());
+                target.strDexDisadvantage(), target.saveSources());
         List<Damage> onSuccess = save.halfDamageOnSuccess() ? halved(damage) : List.of();
+        // A held Bardic Inspiration die is rolled on a failed save its holder rolled, not on one failed
+        // automatically (PHB p.53)
+        Inspiration inspiration = null;
+        if (!roll.success() && !roll.autoFailed() && target.inspirationSides() > 0) {
+            inspiration = new Inspiration(target.inspirationSides(), rng.roll(target.inspirationSides()));
+            int total = roll.total() + inspiration.roll();
+            roll = new SaveRoll(roll.d20(), total, total >= save.dc(), false, roll.d20s(), roll.rollMode());
+        }
         if (roll.success()) {
             return new TargetOutcome(target.id(), Outcome.SAVE_SUCCESS, roll.d20s(), roll.d20(), roll.total(),
-                    roll.rollMode(), false, onSuccess, List.of(), healing, List.of(), null);
+                    roll.rollMode(), false, onSuccess, List.of(), healing, List.of(), null, inspiration, false);
         }
         return new TargetOutcome(target.id(), Outcome.SAVE_FAIL, roll.d20s(), roll.d20(), roll.total(),
-                roll.rollMode(), roll.autoFailed(), damage, onSuccess, healing, effect.conditions(), null);
+                roll.rollMode(), roll.autoFailed(), damage, onSuccess, healing, effect.conditions(), null,
+                inspiration, false);
     }
 
     private List<TargetOutcome> automatic(Effect effect, List<Target> targets) {

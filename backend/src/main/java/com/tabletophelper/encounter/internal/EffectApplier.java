@@ -14,6 +14,7 @@ import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
+import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.ClassFeatures;
 import com.tabletophelper.rules.combat.DamageRules.Defence;
 import com.tabletophelper.rules.combat.DamageRules;
@@ -171,6 +172,13 @@ public class EffectApplier {
         boolean offered = remaining > 0 && (outcome.outcome() == Outcome.SAVE_FAIL
                 || failedHitSave && target.getLifeState() != LifeState.DEAD);
 
+        // A Bardic Inspiration die rolled on the roll is spent: the attacker's on an attack, the target's on a save
+        if (outcome.inspiration() != null) {
+            EncounterParticipant holder = effect.delivery() instanceof Effect.Attack ? use.actor() : target;
+            if (holder != null) {
+                spendInspiration(holder);
+            }
+        }
         String description = describe(use, effect, target, outcome, damage, healed, added, immune);
         CombatLog.CombatLogBuilder entry = CombatLogWriter.about(
                         combatLog.entry(encounter, use.actionType(), description), use.actor(), target)
@@ -750,6 +758,68 @@ public class EffectApplier {
         participant.setTurnEconomy(economy.withAttackedOrDamaged(false));
     }
 
+    /**
+     * Puts a class feature's entry on the creature (M17), replacing one of the same name and source, so a feature used
+     * again starts afresh. The caller logs the use.
+     */
+    public void addFeatureEntry(EncounterParticipant participant, ConditionEntry entry) {
+        List<ConditionEntry> conditions = conditions(participant);
+        conditions.removeIf(c -> c.name().equalsIgnoreCase(entry.name())
+                && Objects.equals(c.sourceParticipantId(), entry.sourceParticipantId()));
+        conditions.add(entry);
+        participant.setActiveConditions(conditions);
+    }
+
+    /** Removes the creature's entries of the name from the source, without a log entry; whether any was there. */
+    public boolean removeFeatureEntries(EncounterParticipant participant, String name, UUID sourceId) {
+        List<ConditionEntry> conditions = conditions(participant);
+        boolean removed = conditions.removeIf(c -> c.name().equalsIgnoreCase(name)
+                && (sourceId == null || sourceId.equals(c.sourceParticipantId())));
+        if (removed) {
+            participant.setActiveConditions(conditions.isEmpty() ? null : conditions);
+        }
+        return removed;
+    }
+
+    /** The creature's Bardic Inspiration entry, or empty (PHB p.53). */
+    public static Optional<ConditionEntry> inspiration(EncounterParticipant participant) {
+        return conditions(participant).stream()
+                .filter(c -> ClassFeatures.INSPIRED.equalsIgnoreCase(c.name()) && c.heldDie() != null)
+                .findFirst();
+    }
+
+    /** Spends the creature's Bardic Inspiration die, once it is rolled (PHB p.53). */
+    public void spendInspiration(EncounterParticipant holder) {
+        removeFeatureEntries(holder, ClassFeatures.INSPIRED, null);
+    }
+
+    /** Ends the paladin's Sacred Weapon, if it has one, writing why (PHB p.86). */
+    public void endSacredWeapon(Encounter encounter, EncounterParticipant paladin, String why) {
+        if (removeFeatureEntries(paladin, ChannelDivinity.SACRED_WEAPON, null)) {
+            combatLog.write(encounter, CombatActionType.CONDITION_REMOVE,
+                    "Sacred Weapon ends on " + paladin.getDisplayName() + " (" + why + ")", null, paladin);
+        }
+    }
+
+    /**
+     * A monster destroyed outright, as an undead failing its save against a cleric's Turn Undead is by Destroy Undead
+     * (PHB p.59): it drops to 0 hit points and dies, with what follows a death, and the entry says what destroyed it.
+     * Nothing happens to a creature already dead or to a player character.
+     */
+    public void destroy(Encounter encounter, EncounterParticipant target, String source) {
+        if (target.getParticipantType() == ParticipantType.PLAYER || target.getLifeState() == LifeState.DEAD) {
+            return;
+        }
+        target.setHpCurrent(0);
+        target.setHpTemp(0);
+        target.setLifeState(LifeState.DEAD);
+        target.setDeathSaveDue(false);
+        combatLog.write(encounter, CombatActionType.KILL, target.getDisplayName() + " is destroyed (" + source + ")",
+                null, target);
+        endRage(encounter, target, "dead");
+        endConcentration(encounter, target, "dead");
+    }
+
     private static TurnEconomy economy(EncounterParticipant participant) {
         return participant.getTurnEconomy() != null ? participant.getTurnEconomy() : TurnEconomy.fresh();
     }
@@ -796,6 +866,7 @@ public class EffectApplier {
                              int damage) {
         if (damage > 0) {
             markAttackedOrDamaged(target);
+            endOnDamage(encounter, target);
         }
         if (change.addUnconsciousAndProne()) {
             addUnconsciousAndProne(encounter, target);
@@ -803,6 +874,7 @@ public class EffectApplier {
         logLifeChange(encounter, target, before, change);
         if (change.died()) {
             endRage(encounter, target, "dead");
+            endSacredWeapon(encounter, target, "dead");
         }
         if (change.concentrationEnds()) {
             endConcentrationAtZero(encounter, target);
@@ -856,6 +928,16 @@ public class EffectApplier {
                 .ifPresent(name -> endConcentration(encounter, target, name));
         if (added.stream().anyMatch(c -> UNCONSCIOUS.equalsIgnoreCase(c.name()))) {
             endRage(encounter, target, UNCONSCIOUS);
+            endSacredWeapon(encounter, target, UNCONSCIOUS);
+        }
+    }
+
+    // Conditions that last until their creature takes damage end once it does, as a turned undead's (PHB p.59)
+    private void endOnDamage(Encounter encounter, EncounterParticipant target) {
+        for (ConditionEntry condition : conditions(target)) {
+            if (condition.endRule() != null && condition.endRule().type() == EndRule.Type.ON_DAMAGE) {
+                endCondition(encounter, target, condition.id(), "it takes damage");
+            }
         }
     }
 
@@ -889,8 +971,10 @@ public class EffectApplier {
             conditions.add(ConditionEntry.manual("prone", null, encounter.getRoundNumber()));
         }
         target.setActiveConditions(conditions);
-        // Rage ends when the barbarian is knocked unconscious (PHB p.48)
+        // Rage ends when the barbarian is knocked unconscious (PHB p.48), and Sacred Weapon when the paladin falls
+        // unconscious (PHB p.86)
         endRage(encounter, target, UNCONSCIOUS);
+        endSacredWeapon(encounter, target, UNCONSCIOUS);
     }
 
     private static void removeUnconsciousFromZeroHp(EncounterParticipant target) {
@@ -916,12 +1000,19 @@ public class EffectApplier {
                     : effect.durationRounds();
             RepeatSave repeatSave = end != null && end.repeatSave() != null
                     ? new RepeatSave(end.repeatSave().ability(), end.repeatSave().dc(), false) : null;
-            // A condition that lasts until the end of its user's turn, as Stunning Strike's stun does (PHB p.79)
-            ConditionEntry entry = end != null && end.endOfUsersTurn() && sourceId != null
-                    ? new ConditionEntry(UUID.randomUUID(), name, end.durationRounds(), encounter.getRoundNumber(),
-                            use.conditionSource(), sourceId, null, null, EndRule.endOfTurn(sourceId), null)
-                    : ConditionEntry.fromEffect(name, duration, encounter.getRoundNumber(),
-                            use.conditionSource(), sourceId, use.instance(), repeatSave);
+            // A condition that lasts until the end of its user's turn, as Stunning Strike's stun does (PHB p.79), or
+            // until its creature takes damage, as a turned undead's does (PHB p.59)
+            ConditionEntry entry;
+            if (end != null && end.endOfUsersTurn() && sourceId != null) {
+                entry = new ConditionEntry(UUID.randomUUID(), name, end.durationRounds(), encounter.getRoundNumber(),
+                        use.conditionSource(), sourceId, null, null, EndRule.endOfTurn(sourceId), null);
+            } else if (end != null && end.endsOnDamage()) {
+                entry = new ConditionEntry(UUID.randomUUID(), name, duration, encounter.getRoundNumber(),
+                        use.conditionSource(), sourceId, null, null, EndRule.ON_DAMAGE, repeatSave);
+            } else {
+                entry = ConditionEntry.fromEffect(name, duration, encounter.getRoundNumber(),
+                        use.conditionSource(), sourceId, use.instance(), repeatSave);
+            }
             boolean duplicate = conditions.stream().anyMatch(c -> c.name().equalsIgnoreCase(name)
                     && Objects.equals(c.sourceParticipantId(), entry.sourceParticipantId())
                     && Objects.equals(c.sourceSpellName(), entry.sourceSpellName())
@@ -984,8 +1075,10 @@ public class EffectApplier {
         List<String> results = new ArrayList<>();
         switch (effect.delivery()) {
             case Effect.Attack attack -> {
-                description.append(": ").append(rolls(outcome)).append(signed(attack.bonus())).append(" = ")
-                        .append(outcome.total()).append(" vs AC ").append(target.getArmourClass());
+                description.append(": ").append(rolls(outcome)).append(signed(attack.bonus()))
+                        .append(inspirationText(outcome))
+                        .append(outcome.guidedStrike() ? " + Guided Strike 10" : "")
+                        .append(" = ").append(outcome.total()).append(" vs AC ").append(target.getArmourClass());
                 results.add(switch (outcome.outcome()) {
                     case CRITICAL -> attack.forcedCritical() ? "critical hit (forced)" : "critical hit";
                     case MISS -> outcome.d20() == 1 ? "natural 1, miss" : "miss";
@@ -999,8 +1092,10 @@ public class EffectApplier {
                     description.append(" vs DC ").append(save.dc());
                     results.add("fails automatically");
                 } else {
+                    int inspired = outcome.inspiration() != null ? outcome.inspiration().roll() : 0;
                     description.append(' ').append(rolls(outcome))
-                            .append(signed(outcome.total() - outcome.d20())).append(" = ").append(outcome.total())
+                            .append(signed(outcome.total() - outcome.d20() - inspired))
+                            .append(inspirationText(outcome)).append(" = ").append(outcome.total())
                             .append(" vs DC ").append(save.dc());
                     results.add(outcome.outcome() == Outcome.SAVE_SUCCESS ? "succeeds" : "fails");
                 }
@@ -1035,6 +1130,13 @@ public class EffectApplier {
         }
         boolean rolled = effect.delivery() instanceof Effect.Attack || effect.delivery() instanceof Effect.Save;
         return description.append(rolled ? " — " : ": ").append(String.join(", ", results)).append('.').toString();
+    }
+
+    // " + Bardic Inspiration d8(5)" when a held die was added to the roll (PHB p.53), or nothing
+    private static String inspirationText(Resolver.TargetOutcome outcome) {
+        Resolver.Inspiration inspiration = outcome.inspiration();
+        return inspiration == null ? ""
+                : " + Bardic Inspiration d" + inspiration.sides() + "(" + inspiration.roll() + ")";
     }
 
     // A condition gained, with the DC that escapes it when the Effect gives one: "grappled (escape DC 14)"

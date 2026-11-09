@@ -23,6 +23,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param endRule                     how it ends
  * @param repeatSave                  the save its creature repeats at the end of each of its turns to end it;
  *                                    null when there is none (D162)
+ * @param heldDie                     the die the entry gives its creature to roll, as Bardic Inspiration's does
+ *                                    (M17); null for any other entry
  */
 public record ConditionEntry(
         @Schema(requiredMode = REQUIRED) UUID id,
@@ -34,8 +36,17 @@ public record ConditionEntry(
         Boolean sourceRequiresConcentration,
         UUID concentrationInstanceId,
         @Schema(requiredMode = REQUIRED) EndRule endRule,
-        RepeatSave repeatSave
+        RepeatSave repeatSave,
+        HeldDie heldDie
 ) {
+
+    /** An entry with no held die. */
+    public ConditionEntry(UUID id, String name, Integer duration, int appliedRound, String sourceSpellName,
+                          UUID sourceParticipantId, Boolean sourceRequiresConcentration, UUID concentrationInstanceId,
+                          EndRule endRule, RepeatSave repeatSave) {
+        this(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration,
+                concentrationInstanceId, endRule, repeatSave, null);
+    }
 
     /**
      * A condition with no source, added by hand: it ends when removed, or after its duration at the start of
@@ -84,6 +95,11 @@ public record ConditionEntry(
 
     public ConditionEntry withRepeatSave(RepeatSave save) {
         return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
-                sourceRequiresConcentration, concentrationInstanceId, endRule, save);
+                sourceRequiresConcentration, concentrationInstanceId, endRule, save, heldDie);
+    }
+
+    public ConditionEntry withHeldDie(HeldDie die) {
+        return new ConditionEntry(id, name, duration, appliedRound, sourceSpellName, sourceParticipantId,
+                sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave, die);
     }
 }

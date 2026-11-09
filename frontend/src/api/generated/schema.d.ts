@@ -596,6 +596,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/bardic-inspiration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["bardicInspiration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/cast-spell": {
         parameters: {
             query?: never;
@@ -1965,11 +1981,13 @@ export interface components {
             forceCrit?: boolean | null;
             /** @enum {string|null} */
             grip?: "ONE_HANDED" | "TWO_HANDED" | "TWO_WEAPONS" | null;
+            guidedStrike?: boolean | null;
             powerAttack?: boolean | null;
             recklessAttack?: boolean | null;
             sneakAttack?: boolean | null;
             /** Format: uuid */
             targetId: string;
+            useInspiration?: boolean | null;
             weapon?: string | null;
             within5Ft?: boolean | null;
         };
@@ -1995,6 +2013,11 @@ export interface components {
             source?: string | null;
             startingEquipment?: string | null;
             toolProficiencies?: string | null;
+        };
+        BardicInspirationRequest: {
+            /** Format: uuid */
+            participantId: string;
+            use: components["schemas"]["InspirationUse"];
         };
         BaseAbilityScores: {
             /** Format: int32 */
@@ -2424,6 +2447,7 @@ export interface components {
             /** Format: int32 */
             duration?: number | null;
             endRule: components["schemas"]["EndRule"];
+            heldDie?: components["schemas"]["HeldDie"] | null;
             /** Format: uuid */
             id: string;
             name: string;
@@ -2553,7 +2577,7 @@ export interface components {
             /** Format: uuid */
             participantId?: string | null;
             /** @enum {string} */
-            type: "AFTER_ROUNDS" | "START_OF_TURN" | "END_OF_TURN" | "CONCENTRATION" | "REPEAT_SAVE" | "HP_REGAINED" | "MANUAL";
+            type: "AFTER_ROUNDS" | "START_OF_TURN" | "END_OF_TURN" | "CONCENTRATION" | "REPEAT_SAVE" | "ON_DAMAGE" | "HP_REGAINED" | "MANUAL";
         };
         EndSpellEffectRequest: {
             /** Format: uuid */
@@ -2741,6 +2765,11 @@ export interface components {
             /** Format: uuid */
             targetId: string;
         };
+        HeldDie: {
+            onFailedSave: boolean;
+            /** Format: int32 */
+            sides: number;
+        };
         HitDicePool: {
             /** Format: int32 */
             dieSize: number;
@@ -2770,6 +2799,8 @@ export interface components {
             /** @enum {string} */
             kind: "DAMAGE" | "HEALING" | "TEMPORARY";
         };
+        /** @enum {string} */
+        InspirationUse: "ON_FAILED_SAVE" | "KEEP" | "ROLL";
         InventoryItem: {
             attuned?: boolean | null;
             description?: string | null;
@@ -3082,6 +3113,7 @@ export interface components {
             armourClass: number;
             /** Format: int32 */
             attacksPerAction?: number | null;
+            channelDivinityOptions?: string[] | null;
             characterClass?: string | null;
             /** Format: uuid */
             characterId?: string | null;
@@ -3305,6 +3337,7 @@ export interface components {
             participantId: string;
         };
         ShortRestRequest: {
+            arcaneRecovery?: number[] | null;
             hitDice?: components["schemas"]["HitDieSpent"][] | null;
         };
         ShortRestResponse: {
@@ -3588,6 +3621,7 @@ export interface components {
             summary: string;
         };
         UsePoolRequest: {
+            amounts?: number[] | null;
             option?: string | null;
             /** Format: uuid */
             participantId: string;
@@ -4610,6 +4644,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttackOption"][];
+                };
+            };
+        };
+    };
+    bardicInspiration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BardicInspirationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
                 };
             };
         };

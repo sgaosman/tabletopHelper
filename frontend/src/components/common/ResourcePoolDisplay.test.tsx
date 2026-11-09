@@ -309,5 +309,96 @@ describe('ResourcePoolDisplay', () => {
       await user.click(screen.getByRole('button', { name: 'Use Lay on Hands' }));
       expect(onUse).toHaveBeenLastCalledWith('class:paladin-lay-on-hands', { uses: 5, option: 'cure', targetIds: undefined });
     });
+
+    // ── Workstream C: Channel Divinity and Bardic Inspiration ────────
+
+    const clericDivinity = feature('class:cleric-channel-divinity', 'Channel Divinity', 'channel-divinity', {
+      maxUses: 1, currentUses: 1, spendActionType: 'ACTION',
+    });
+    const paladinDivinity = feature('class:paladin-channel-divinity', 'Channel Divinity', 'channel-divinity', {
+      maxUses: 1, currentUses: 1, spendActionType: 'ACTION',
+    });
+    const bardic = feature('class:bard-bardic-inspiration', 'Bardic Inspiration', 'bardic-inspiration', {
+      maxUses: 3, currentUses: 3, spendActionType: 'BONUS_ACTION',
+    });
+    const zombie = makeMockParticipant('part-zombie', 'Zombie', 'MONSTER');
+    const ghoul = makeMockParticipant('part-ghoul', 'Ghoul', 'MONSTER');
+    const ally = makeMockParticipant('part-ally', 'Gimli', 'PLAYER');
+
+    it('sends Turn Undead with the creatures picked, and nothing until one is', async () => {
+      const cleric = hero([clericDivinity], { channelDivinityOptions: ['turn-undead', 'preserve-life'] });
+      const { onUse, user } = renderPools(cleric, [cleric, zombie, ghoul]);
+
+      const turn = screen.getByRole('button', { name: 'Use Channel Divinity: Turn Undead' });
+      expect(turn).toBeDisabled();
+      await user.click(screen.getByLabelText('Zombie'));
+      await user.click(screen.getByLabelText('Ghoul'));
+      await user.click(turn);
+
+      expect(onUse).toHaveBeenCalledWith('class:cleric-channel-divinity', {
+        option: 'turn-undead', targetIds: ['part-zombie', 'part-ghoul'], amounts: undefined,
+      });
+      // Turn Undead reaches other creatures only
+      expect(screen.queryByLabelText('Hero (self)')).not.toBeInTheDocument();
+    });
+
+    it("splits Preserve Life's hit points among the creatures picked, the cleric included", async () => {
+      const cleric = hero([clericDivinity], { channelDivinityOptions: ['turn-undead', 'preserve-life'] });
+      const { onUse, user } = renderPools(cleric, [cleric, ally]);
+
+      await user.selectOptions(screen.getByLabelText('Channel Divinity option'), 'preserve-life');
+      await user.click(screen.getByLabelText('Hero (self)'));
+      await user.click(screen.getByLabelText('Gimli'));
+      const use = screen.getByRole('button', { name: 'Use Channel Divinity: Preserve Life' });
+      expect(use).toBeDisabled();
+      await user.type(screen.getByLabelText('HP for Hero'), '4');
+      await user.type(screen.getByLabelText('HP for Gimli'), '6');
+      await user.click(use);
+
+      expect(onUse).toHaveBeenCalledWith('class:cleric-channel-divinity', {
+        option: 'preserve-life', targetIds: ['part-hero', 'part-ally'], amounts: [4, 6],
+      });
+    });
+
+    it("offers a paladin's oath options from the paladin's pool, Vow of Enmity on one creature", async () => {
+      const paladin = hero([paladinDivinity], { channelDivinityOptions: ['abjure-enemy', 'vow-of-enmity'] });
+      const { onUse, user } = renderPools(paladin, [paladin, zombie, ghoul]);
+
+      await user.selectOptions(screen.getByLabelText('Channel Divinity option'), 'vow-of-enmity');
+      await user.click(screen.getByLabelText('Zombie'));
+      await user.click(screen.getByLabelText('Ghoul'));
+      await user.click(screen.getByRole('button', { name: 'Use Channel Divinity: Vow of Enmity' }));
+
+      expect(onUse).toHaveBeenCalledWith('class:paladin-channel-divinity', {
+        option: 'vow-of-enmity', targetIds: ['part-ghoul'], amounts: undefined,
+      });
+      expect(screen.queryByRole('option', { name: 'Turn Undead' })).not.toBeInTheDocument();
+    });
+
+    it('sends a self option with no creatures, and leaves Guided Strike to the attack form', async () => {
+      const cleric = hero([clericDivinity], { channelDivinityOptions: ['turn-undead', 'guided-strike'] });
+      renderPools(cleric, [cleric, zombie]);
+      const user = userEvent.setup();
+
+      await user.selectOptions(screen.getByLabelText('Channel Divinity option'), 'guided-strike');
+
+      expect(screen.queryByRole('button', { name: /Use Channel Divinity: Guided Strike/ })).not.toBeInTheDocument();
+      expect(screen.getByText('Chosen on the attack form: +10 when the roll would miss')).toBeInTheDocument();
+    });
+
+    it('gives Bardic Inspiration to another creature, leaving out one that holds a die', async () => {
+      const inspired = makeMockParticipant('part-inspired', 'Legolas', 'PLAYER', {
+        activeConditions: [makeMockCondition('inspired', { heldDie: { sides: 6, onFailedSave: false } })],
+      });
+      const bard = hero([bardic]);
+      const { onUse, user } = renderPools(bard, [bard, inspired, ally]);
+
+      expect(screen.queryByRole('button', { name: 'Use Bardic Inspiration' })).toBeEnabled();
+      expect(screen.queryByRole('option', { name: 'Legolas' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Hero' })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Use Bardic Inspiration' }));
+
+      expect(onUse).toHaveBeenCalledWith('class:bard-bardic-inspiration', { targetIds: ['part-ally'] });
+    });
   });
 });

@@ -51,12 +51,27 @@ public class CreatureStats {
     /**
      * The participant as the Resolver needs it for this Effect: AC, the modifier for the Effect's saving throw,
      * the hit's save included, conditions, and whether armour it isn't proficient with gives it disadvantage on
-     * Strength and Dexterity saves (PHB p.144).
+     * Strength and Dexterity saves (PHB p.144). A creature holding a Bardic Inspiration die it keeps for a failed save
+     * rolls it when it fails the Effect's save (PHB p.53, M17).
      */
     public Resolver.Target target(EncounterParticipant participant, Effect effect) {
         return new Resolver.Target(participant.getId(), participant.getArmourClass(),
                 saveModifier(participant, effect.saveAbility()), conditionNames(participant),
-                armourPenalty(participant));
+                armourPenalty(participant), List.of(),
+                effect.delivery() instanceof Effect.Save ? inspirationForSaves(participant) : 0);
+    }
+
+    // The sides of the Bardic Inspiration die the creature keeps for its next failed save, or 0
+    private static int inspirationForSaves(EncounterParticipant participant) {
+        if (participant.getActiveConditions() == null) {
+            return 0;
+        }
+        return participant.getActiveConditions().stream()
+                .filter(c -> ClassFeatures.INSPIRED.equalsIgnoreCase(c.name()) && c.heldDie() != null
+                        && c.heldDie().onFailedSave())
+                .mapToInt(c -> c.heldDie().sides())
+                .findFirst()
+                .orElse(0);
     }
 
     /**

@@ -135,6 +135,8 @@ class PoolSizesGoldenTest {
                     "PHB p.72, Action Surge: once from 2nd; twice before a rest from 17th"),
             base("class:bard-bardic-inspiration", "Bard", 1, MODIFIER_AT_LEAST_ONCE,
                     "PHB p.51, Bardic Inspiration: a number of times equal to the Charisma modifier (a minimum of once)"),
+            base("class:wizard-arcane-recovery", "Wizard", 1, flat(1),
+                    "PHB p.115, Arcane Recovery: once per day, when finishing a short rest"),
             base("class:barbarian-rage", "Barbarian", 1, (level, modifier) -> RAGES[level - 1],
                     "PHB p.46, Rage: the Rages column of the Barbarian table, 2/3/4/5/6 at 1st/3rd/6th/12th/17th, unlimited at 20th"),
 

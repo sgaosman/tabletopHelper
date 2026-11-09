@@ -27,8 +27,10 @@ import SpellsTab from './sheet/SpellsTab';
 import InventoryTab from './sheet/InventoryTab';
 import FeaturesTab from './sheet/FeaturesTab';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
+import ArcaneRecoveryPicker from '../../components/character/ArcaneRecoveryPicker';
 import JournalTab from './sheet/JournalTab';
 import type { RunCommand } from './sheet/types';
+import { ARCANE_RECOVERY_POOL, arcaneRecoveryLevels, type ArcaneRecoveryChoice } from '../../utils/classFeatures';
 
 type Tab = 'Stats' | 'Actions' | 'Spells' | 'Inventory' | 'Features' | 'Journal';
 const TABS: { key: Tab; label: string; icon: typeof Shield }[] = [
@@ -102,6 +104,7 @@ export default function CharacterSheetPage() {
   const [restModal, setRestModal] = useState<'short' | 'long' | null>(null);
   const [shortRestDice, setShortRestDice] = useState<Record<string, number>>({});
   const [shortRestRolls, setShortRestRolls] = useState<Record<string, string[]>>({});
+  const [arcaneRecovery, setArcaneRecovery] = useState<ArcaneRecoveryChoice>({});
   const [hitPointDialog, setHitPointDialog] = useState<HitPointChange | null>(null);
   const [hitPointAmount, setHitPointAmount] = useState('');
   const [showLevelUp, setShowLevelUp] = useState(false);
@@ -145,6 +148,16 @@ export default function CharacterSheetPage() {
   const hasPactSlots = useMemo(() => Object.keys(spellSlots).some(k => k.startsWith('pact_')), [spellSlots]);
   const showShortRestAbilities = shortRestPools.length > 0 || hasPactSlots;
   const longRestPools = useMemo(() => resourcePools.filter(p => p.currentUses < p.maxUses), [resourcePools]);
+  // A wizard's Arcane Recovery, once a day as a short rest ends (PHB p.115, M17)
+  const wizardLevel = useMemo(() => {
+    const entries = char?.multiclassEntries ?? [];
+    if (entries.length > 0) {
+      return entries.filter(e => e.className === 'Wizard').reduce((sum, e) => sum + e.level, 0);
+    }
+    return char?.characterClass === 'Wizard' ? (char.level ?? 0) : 0;
+  }, [char?.multiclassEntries, char?.characterClass, char?.level]);
+  const arcaneRecoveryUsed = useMemo(() => resourcePools.some(p => p.poolId === ARCANE_RECOVERY_POOL
+    && p.currentUses < 1), [resourcePools]);
   const showLongRestAbilities = longRestPools.length > 0;
 
   const classAccent = getClassColour(char?.characterClass);
@@ -225,13 +238,17 @@ export default function CharacterSheetPage() {
     setRestModal(null);
     setShortRestDice({});
     setShortRestRolls({});
+    setArcaneRecovery({});
   }
 
   async function handleShortRest() {
     if (!char || diceToSpend === null) return;
     const before = char.hpCurrent;
-    const rested = await runCommand(shortRest.mutateAsync({ characterId: char.id, rest: { hitDice: diceToSpend } }),
-      result => shortRestMessage(before, result));
+    const recovered = arcaneRecoveryLevels(arcaneRecovery);
+    const rested = await runCommand(shortRest.mutateAsync({
+      characterId: char.id,
+      rest: { hitDice: diceToSpend, arcaneRecovery: recovered.length > 0 ? recovered : undefined },
+    }), result => shortRestMessage(before, result));
     if (rested) closeRestModal();
   }
 
@@ -641,6 +658,10 @@ export default function CharacterSheetPage() {
                   );
                 })}
               </div>
+              {wizardLevel > 0 && (
+                <ArcaneRecoveryPicker wizardLevel={wizardLevel} slots={spellSlots} usedToday={arcaneRecoveryUsed}
+                  choice={arcaneRecovery} onChange={setArcaneRecovery} />
+              )}
               {showShortRestAbilities && (
                 <div className="space-y-1">
                   <p className="font-body text-[13px] font-semibold text-cls-monk">Restored on short rest:</p>

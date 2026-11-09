@@ -115,7 +115,7 @@ class CombatFixture {
     final ConditionService conditionService =
             new ConditionService(access, effectApplier, encounterRepository, encounterService);
     final AttackService attacks = new AttackService(access, accessPolicy, characterWeapons, resolver, stats,
-            effectApplier, economy, manualModifiers, encounterRepository, encounterService);
+            effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService);
     final SpellcastingService spellcasting = new SpellcastingService(access, accessPolicy, casterSpells, spellCaster,
             spellEffects, effectApplier, economy, manualModifiers, combatLog, encounterRepository, encounterService,
             characterService, stats);
@@ -124,7 +124,10 @@ class CombatFixture {
     final LegendaryResistanceService legendaryResistance = new LegendaryResistanceService(access, effectApplier,
             resourcePoolService, combatLogRepository, combatCommandRepository, combatLog, encounterRepository,
             encounterService);
-    final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice);
+    final ChannelDivinityEffects channelDivinity = new ChannelDivinityEffects(effectApplier, stats, resolver);
+    final FeatureEffects featureEffects = new FeatureEffects(effectApplier, stats, dice, channelDivinity);
+    final BardicInspirationService bardicInspiration = new BardicInspirationService(access, combatLog, dice,
+            encounterRepository, encounterService);
     final PoolUseService poolUse = new PoolUseService(access, economy, combatLog, featureEffects, encounterRepository,
             encounterService);
     final StandardActionService standardActions = new StandardActionService(access, economy, resolver, stats,

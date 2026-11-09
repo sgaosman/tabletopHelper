@@ -14,6 +14,7 @@ import com.tabletophelper.character.state.Feature;
 import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
+import com.tabletophelper.encounter.internal.ChannelDivinityEffects;
 import com.tabletophelper.encounter.internal.CommandRecorder;
 import com.tabletophelper.encounter.internal.EffectApplier;
 import com.tabletophelper.encounter.internal.EncounterTurns;
@@ -27,6 +28,7 @@ import com.tabletophelper.monster.MonsterRepository;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.AttackFeatures;
+import com.tabletophelper.rules.combat.ChannelDivinity;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.TurnOrder;
 import com.tabletophelper.reference.dto.RepeatCost;
@@ -569,6 +571,8 @@ public class EncounterService {
                         .attacksPerAction(TurnEconomies.attacksPerAction(p))
                         .speed(TurnEconomies.speed(p, objectMapper))
                         .fightingStyles(fightingStyles(p))
+                        .channelDivinityOptions(p.getCharacter() != null ? ChannelDivinityEffects.available(p).stream()
+                                .map(ChannelDivinity.Option::id).toList() : null)
                         .build())
                 .toList();
 

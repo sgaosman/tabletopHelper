@@ -8,7 +8,8 @@ import type { EncounterParticipant } from '../../types/encounter';
 import { useEncounter } from '../../hooks/useEncounter';
 import { chargeBlock } from '../../utils/turnEconomy';
 import {
-  isReckless, kiLeft, monkStrikeBlock, RECKLESS_TEXT, SNEAK_ATTACK_TEXT, sneakAttackUsed,
+  guidedStrikeBlock, heldInspiration, isReckless, kiLeft, monkStrikeBlock, RECKLESS_TEXT, SNEAK_ATTACK_TEXT,
+  sneakAttackUsed,
 } from '../../utils/classFeatures';
 
 const DAMAGE_TYPES = [
@@ -74,6 +75,10 @@ interface AttackRow {
   grip: AttackGrip | null;
   /** Sneak Attack, for a rogue's finesse or ranged weapon (PHB p.96). */
   sneak: SneakChoice;
+  /** Roll the held Bardic Inspiration die if the attack would miss (PHB p.53, M17). */
+  inspiration: boolean;
+  /** Guided Strike's +10 if the attack would miss and that makes it hit (PHB p.63, M17). */
+  guidedStrike: boolean;
   advantage: boolean | null;
   within5Ft: boolean;
   forceCrit: boolean;
@@ -89,7 +94,7 @@ interface AttackRow {
 function newRow(option: AttackOption | undefined, cost: AttackCost | null): AttackRow {
   return {
     cost, weapon: option?.weapon ?? ENTERED, powerAttack: false, reckless: false, grip: null, sneak: 'auto',
-    advantage: null, within5Ft: !(option?.ranged ?? false),
+    inspiration: false, guidedStrike: false, advantage: null, within5Ft: !(option?.ranged ?? false),
     forceCrit: false, extraAttackBonus: '', extraDamageDice: '', extraDamageType: '',
     attackBonus: '', damageDice: '', damageType: '',
   };
@@ -127,6 +132,9 @@ function attackRequest(row: AttackRow & { cost: AttackCost }, option: AttackOpti
     advantage: row.advantage ?? undefined,
     within5Ft: row.within5Ft,
     forceCrit: allowManualModifiers && row.forceCrit ? true : undefined,
+    // Decided once the d20 is seen: the server adds them only to a roll that would miss (M17)
+    useInspiration: row.inspiration ? true : undefined,
+    guidedStrike: row.guidedStrike ? true : undefined,
   };
   if (row.weapon === ENTERED) {
     if (!allowManualModifiers || row.attackBonus === '' || !row.damageDice.trim()) return null;
@@ -212,6 +220,10 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
       update(index, { cost });
     }
   }
+
+  // A held Bardic Inspiration die and a War cleric's Guided Strike, added only when the roll would miss (M17)
+  const inspirationDie = heldInspiration(attacker)?.heldDie ?? null;
+  const guidedStrikeOffered = guidedStrikeBlock(attacker) === null;
 
   // Reckless Attack is chosen on the first attack of the barbarian's own turn, and lasts the turn (PHB p.48)
   const alreadyReckless = attacker.isCurrentTurn && isReckless(attacker);
@@ -374,6 +386,23 @@ export default function WeaponAttackForm({ attacker, target, allowManualModifier
                   Reckless
                 </button>
               ))}
+              {/* Bardic Inspiration (PHB p.53) and Guided Strike (PHB p.63), added only if the roll would miss */}
+              {inspirationDie && (
+                <button type="button" onClick={() => update(i, { inspiration: !row.inspiration })}
+                  aria-pressed={row.inspiration}
+                  title={`Roll the Bardic Inspiration d${inspirationDie.sides} and add it if the attack would miss`}
+                  className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.inspiration ? 'bg-buff text-card' : TOGGLE_OFF}`}>
+                  Inspiration d{inspirationDie.sides}
+                </button>
+              )}
+              {guidedStrikeOffered && (
+                <button type="button" onClick={() => update(i, { guidedStrike: !row.guidedStrike })}
+                  aria-pressed={row.guidedStrike}
+                  title="Channel Divinity: +10 if the attack would miss and that makes it hit; the use is spent only then"
+                  className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.guidedStrike ? 'bg-buff text-card' : TOGGLE_OFF}`}>
+                  Guided Strike
+                </button>
+              )}
               {/* A hit on an unconscious or paralyzed target is a critical hit only from within 5 feet (D161) */}
               <button type="button" onClick={() => update(i, { within5Ft: !row.within5Ft })} aria-pressed={row.within5Ft}
                 className={`px-2 py-2 font-body text-[12.5px] font-semibold ${row.within5Ft ? 'bg-cls-wizard text-card' : TOGGLE_OFF}`}>Within 5 ft</button>

@@ -50,6 +50,9 @@
             "maxUses": "3"
           }
         ]
+      },
+      "metadata": {
+        "effect": "channel-divinity"
       }
     },
     {
@@ -62,7 +65,10 @@
       "resetCheck": null,
       "spendActionType": "ACTION",
       "description": "Channel Divinity grants an oath-specific effect. Regains all uses on a short or long rest.",
-      "icon": "sun"
+      "icon": "sun",
+      "metadata": {
+        "effect": "channel-divinity"
+      }
     },
     {
       "poolId": "class:paladin-lay-on-hands",
@@ -163,7 +169,8 @@
       "description": "Inspire an ally with a die (d6 at levels 1-4, d8 at 5-9, d10 at 10-14, d12 at 15+). Regains on short rest starting at 5th level.",
       "icon": "music",
       "metadata": {
-        "die": "d6"
+        "die": "d6",
+        "effect": "bardic-inspiration"
       },
       "levelTable": {
         "levelOf": "Bard",
@@ -185,6 +192,21 @@
           }
         ]
       }
+    },
+    {
+      "poolId": "class:wizard-arcane-recovery",
+      "displayName": "Arcane Recovery",
+      "sourceType": "CLASS",
+      "maxUsesFormula": "1",
+      "resetOn": "longRest",
+      "resetAmount": null,
+      "resetCheck": null,
+      "spendActionType": "FREE",
+      "description": "Once per day when you finish a short rest, recover expended spell slots with a combined level of up to half your wizard level (rounded up), none of 6th level or higher. Used from the short rest dialog.",
+      "metadata": {
+        "effect": "arcane-recovery"
+      },
+      "icon": "sparkles"
     },
     {
       "poolId": "class:barbarian-rage",
@@ -1174,6 +1196,12 @@
       "classSource": "PHB",
       "minLevel": 1,
       "poolId": "class:bard-bardic-inspiration"
+    },
+    {
+      "class": "Wizard",
+      "classSource": "PHB",
+      "minLevel": 1,
+      "poolId": "class:wizard-arcane-recovery"
     },
     {
       "class": "Barbarian",

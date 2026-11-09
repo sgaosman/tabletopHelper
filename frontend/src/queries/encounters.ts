@@ -349,6 +349,8 @@ export function useEncounterAction() {
       divineSmite: change(combatApi.divineSmite),
       stunningStrike: change(combatApi.stunningStrike),
       protection: change(combatApi.protection),
+      // A held Bardic Inspiration die used by its holder (M17)
+      bardicInspiration: change(combatApi.bardicInspiration),
     };
   }, [queryClient, encounterId, view, socketMessages]);
 }

@@ -90,8 +90,8 @@ class ContentLoadIT extends IntegrationTest {
                 .allSatisfy((loader, status) -> assertThat(status).as(loader).isEqualTo(ContentLoading.Status.LOADED));
         Map<String, List<String>> loaded = rows();
         assertThat(loaded.get("monsters")).hasSizeGreaterThan(2500);
-        assertThat(loaded.get("class_feature_pools")).hasSize(74);
-        assertThat(loaded.get("resource_pool_definitions")).hasSize(78);
+        assertThat(loaded.get("class_feature_pools")).hasSize(75);
+        assertThat(loaded.get("resource_pool_definitions")).hasSize(79);
         // V27's level tables (D169): Rage's uses by barbarian level, unlimited at 20th
         assertThat(jdbcTemplate.queryForObject("SELECT level_table::text FROM resource_pool_definitions "
                 + "WHERE pool_id = 'class:barbarian-rage'", String.class))

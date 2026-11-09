@@ -1462,6 +1462,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/bardic-inspiration": {
+      "post": {
+        "operationId": "bardicInspiration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BardicInspirationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/cast-spell": {
       "post": {
         "operationId": "castSpell",
@@ -4888,6 +4929,10 @@
               "TWO_WEAPONS"
             ]
           },
+          "guidedStrike": {
+            "type": "boolean",
+            "nullable": true
+          },
           "powerAttack": {
             "type": "boolean",
             "nullable": true
@@ -4903,6 +4948,10 @@
           "targetId": {
             "type": "string",
             "format": "uuid"
+          },
+          "useInspiration": {
+            "type": "boolean",
+            "nullable": true
           },
           "weapon": {
             "type": "string",
@@ -4992,6 +5041,22 @@
           "toolProficiencies": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "BardicInspirationRequest": {
+        "required": [
+          "participantId",
+          "use"
+        ],
+        "type": "object",
+        "properties": {
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "use": {
+            "$ref": "#/components/schemas/InspirationUse"
           }
         }
       },
@@ -6572,6 +6637,14 @@
           "endRule": {
             "$ref": "#/components/schemas/EndRule"
           },
+          "heldDie": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HeldDie"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -7023,6 +7096,7 @@
               "END_OF_TURN",
               "CONCENTRATION",
               "REPEAT_SAVE",
+              "ON_DAMAGE",
               "HP_REGAINED",
               "MANUAL"
             ]
@@ -7743,6 +7817,22 @@
           }
         }
       },
+      "HeldDie": {
+        "required": [
+          "onFailedSave",
+          "sides"
+        ],
+        "type": "object",
+        "properties": {
+          "onFailedSave": {
+            "type": "boolean"
+          },
+          "sides": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "HitDicePool": {
         "required": [
           "dieSize",
@@ -7833,6 +7923,14 @@
             ]
           }
         }
+      },
+      "InspirationUse": {
+        "type": "string",
+        "enum": [
+          "ON_FAILED_SAVE",
+          "KEEP",
+          "ROLL"
+        ]
       },
       "InventoryItem": {
         "required": [
@@ -8958,6 +9056,13 @@
             "format": "int32",
             "nullable": true
           },
+          "channelDivinityOptions": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "characterClass": {
             "type": "string",
             "nullable": true
@@ -9750,6 +9855,16 @@
       "ShortRestRequest": {
         "type": "object",
         "properties": {
+          "arcaneRecovery": {
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
           "hitDice": {
             "type": "array",
             "nullable": true,
@@ -10757,6 +10872,17 @@
         ],
         "type": "object",
         "properties": {
+          "amounts": {
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
           "option": {
             "type": "string",
             "nullable": true
@@ -10770,7 +10896,7 @@
             "type": "string"
           },
           "targetIds": {
-            "maxItems": 1,
+            "maxItems": 20,
             "minItems": 0,
             "type": "array",
             "nullable": true,

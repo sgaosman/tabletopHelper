@@ -11,6 +11,7 @@ import type {
   MonsterActionResponse,
   MonsterActionTemplate,
   MultiattackOption,
+  BardicInspirationRequest,
   DivineSmiteRequest,
   ObjectInteractionRequest,
   ProtectionRequest,
@@ -42,6 +43,11 @@ export const combatApi = {
   // Stunning Strike on the monk's latest melee weapon hit this turn, spending 1 ki (PHB p.79, M17)
   stunningStrike(encounterId: string, request: StunningStrikeRequest) {
     return api.post<Encounter>(`/encounters/${encounterId}/combat/stunning-strike`, request);
+  },
+
+  // A held Bardic Inspiration die kept for the next failed save, kept back, or rolled now (PHB p.53, M17)
+  bardicInspiration(encounterId: string, request: BardicInspirationRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/bardic-inspiration`, request);
   },
 
   // The Protection fighting style's reaction, logged for the DM to apply (PHB p.72, M17)

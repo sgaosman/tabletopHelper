@@ -246,6 +246,47 @@ class RestServiceTest {
         }
 
         @Test
+        @DisplayName("Arcane Recovery brings back expended slots adding up to half the wizard level, rounded up "
+                + "(PHB p.115)")
+        void arcaneRecovery() {
+            PlayerCharacter pc = f.create(f.human, CON_14, f.wizard, 5);
+            spendEverySlot(pc);
+
+            ShortRestResponse rested = f.rests.shortRest(pc.getId(), new ShortRestRequest(List.of(), List.of(2, 1)),
+                    f.userId);
+
+            assertThat(rested.character().getSpellSlots()).containsEntry("1", new SpellSlot(4, 3))
+                    .containsEntry("2", new SpellSlot(3, 2)).containsEntry("3", new SpellSlot(2, 2));
+        }
+
+        @Test
+        @DisplayName("Arcane Recovery refuses too many levels, a 6th-level slot, a slot not expended and a non-wizard, "
+                + "changing nothing")
+        void arcaneRecoveryRefusals() {
+            PlayerCharacter wizard = hurt(f.create(f.human, CON_14, f.wizard, 5), 10);
+            assertThatThrownBy(() -> f.rests.shortRest(wizard.getId(),
+                    new ShortRestRequest(List.of(die("Wizard", 4)), List.of(1)), f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Only 0 level 1 spell slots are expended, not 1");
+            assertThat(f.stored(wizard.getId()).getHpCurrent()).isEqualTo(10);
+            spendEverySlot(wizard);
+            assertThatThrownBy(() -> f.rests.shortRest(wizard.getId(), new ShortRestRequest(List.of(), List.of(3, 1)),
+                    f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Arcane Recovery recovers slots whose levels add up to 3 at most (half of wizard "
+                            + "level 5, rounded up), not 4");
+            assertThatThrownBy(() -> f.rests.shortRest(wizard.getId(), new ShortRestRequest(List.of(), List.of(6)),
+                    f.userId))
+                    .isInstanceOf(ValidationException.class);
+
+            PlayerCharacter fighter = f.create(f.human, CON_14, f.fighter, 5);
+            assertThatThrownBy(() -> f.rests.shortRest(fighter.getId(), new ShortRestRequest(List.of(), List.of(1)),
+                    f.userId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Arcane Recovery is a wizard's feature");
+        }
+
+        @Test
         @DisplayName("15.16 The pools that reset on a short rest come back, and a feat's long-rest uses don't")
         void shortRestPoolsComeBack() {
             PlayerCharacter pc = luckyFighter();

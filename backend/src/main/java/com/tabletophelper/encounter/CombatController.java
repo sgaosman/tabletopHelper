@@ -2,6 +2,7 @@ package com.tabletophelper.encounter;
 
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.AttackService;
+import com.tabletophelper.encounter.internal.BardicInspirationService;
 import com.tabletophelper.encounter.internal.ConditionService;
 import com.tabletophelper.encounter.internal.HitFollowUpService;
 import com.tabletophelper.encounter.internal.HitPointService;
@@ -40,6 +41,7 @@ public class CombatController {
     private final ConditionService conditionService;
     private final HitPointService hitPointService;
     private final HitFollowUpService hitFollowUpService;
+    private final BardicInspirationService bardicInspirationService;
     private final UndoService undoService;
     private final EncounterService encounterService;
 
@@ -76,6 +78,18 @@ public class CombatController {
             Authentication authentication) {
         UUID userId = (UUID) authentication.getPrincipal();
         EncounterResponse response = hitFollowUpService.stunningStrike(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
+    // A held Bardic Inspiration die kept for the next failed save, kept for an attack, or rolled now for a check or save
+    // the DM resolves (PHB p.53, M17): the DM for anyone, a player for their own participant, on any turn
+    @PostMapping("/bardic-inspiration")
+    public ResponseEntity<EncounterResponse> bardicInspiration(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody BardicInspirationRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = bardicInspirationService.use(encounterId, request, userId);
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
