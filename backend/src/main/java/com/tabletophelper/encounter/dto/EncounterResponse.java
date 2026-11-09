@@ -9,7 +9,9 @@ import com.tabletophelper.encounter.HealthStatus;
 import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
@@ -132,8 +134,10 @@ public class EncounterResponse {
         // The spell and slot level of the Concentration Instance it holds, if any (D162)
         private String concentrationSpell;
         private Integer concentrationSlotLevel;
-        private String activeSpell;
-        private Integer activeSpellSlotLevel;
+
+        // The Spell Effects it cast that are still going, such as Spiritual Weapon or Moonbeam (M15)
+        @Schema(requiredMode = REQUIRED)
+        private List<SpellEffectResponse> activeEffects;
 
         // Keyed "1" to "9" by spell level, and "pact_N" for pact slots (D168)
         private Map<String, SpellSlot> spellSlotsCurrent;
@@ -182,6 +186,50 @@ public class EncounterResponse {
         // Its speeds in feet by kind ("walk", "fly", "swim", "climb", "burrow"), walking first; empty when unknown
         @Schema(requiredMode = REQUIRED)
         private Map<String, Integer> speed;
+    }
+
+    /**
+     * One of a participant's Spell Effects (M15): what it is, how long it has, and how it is used, from its spell's data.
+     */
+    @Data
+    @Builder(toBuilder = true)
+    public static class SpellEffectResponse {
+
+        @Schema(requiredMode = REQUIRED)
+        private UUID id;
+
+        @Schema(requiredMode = REQUIRED)
+        private String spell;
+
+        // The slot level it was cast with; null when unknown, and in the Player View for a monster's (D157)
+        private Integer slotLevel;
+
+        // Whether it ends with its caster's concentration
+        @Schema(requiredMode = REQUIRED)
+        private boolean concentration;
+
+        @Schema(requiredMode = REQUIRED)
+        private Integer startedRound;
+
+        // How many rounds it lasts; null when unknown
+        private Integer durationRounds;
+
+        // What it has left to spend, such as meteors; null when it has no count
+        private Integer usesLeft;
+
+        // What its caster's use of it costs from their turn; null when its caster has nothing to do with it
+        private RepeatCost directedCost;
+
+        // False when that use only moves it, as Moonbeam's action does
+        @Schema(requiredMode = REQUIRED)
+        private boolean directedResolves;
+
+        // The most of its uses one use may spend; null without uses
+        private Integer maxUsesEachTurn;
+
+        // The moments its area acts on a creature by itself, which the DM applies
+        @Schema(requiredMode = REQUIRED)
+        private List<SpellTrigger> triggers;
     }
 
     /** One turn in the order: a participant's, or the Lair's (D163). */

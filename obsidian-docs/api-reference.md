@@ -1476,6 +1476,12 @@ List what a participant can cast now, and what can pay for each spell, so the sp
 
 Repeat the damaging effect of a concentration spell without consuming a spell slot. Used for spells like Call Lightning, Flaming Sphere, Moonbeam, etc. that have recurring effects each turn.
 
+**Since M15 (D177):** the body also takes `effectId`, the caster's Spell Effect to use (needed when the caster has more than one usable effect; 409 names them otherwise), `trigger` (`ENTER`, `START_OF_TURN` or `END_OF_TURN`; DM only, no cost, applies the area to the chosen creatures) and `uses` (Melf's Minute Meteors, 1 or 2). Moonbeam's and Dust Devil's uses only move the effect. Participants carry `activeEffects` instead of `activeSpell` and `activeSpellSlotLevel`, each with how it is used and its cost.
+
+### POST /encounters/{id}/combat/spell-effect/end
+
+End a Spell Effect (M15, D177), by the DM or the caster's own player: `{casterId, effectId}`. Ending a concentration effect ends the concentration and its conditions. Logged as `SPELL_EFFECT_END`; undoable.
+
 **Query params:** `actorId` (UUID) — required, the caster participant ID. Must have active concentration.
 
 **Request:**

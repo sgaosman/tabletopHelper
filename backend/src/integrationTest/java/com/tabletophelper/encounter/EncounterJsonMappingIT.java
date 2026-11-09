@@ -10,6 +10,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.CommandSnapshot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.EncounterTurnState;
 import com.tabletophelper.encounter.state.LogPatch;
 import com.tabletophelper.encounter.state.ParticipantCombatState;
@@ -113,6 +114,31 @@ class EncounterJsonMappingIT extends IntegrationTest {
         assertThat(reloaded.getLifeState()).isEqualTo(LifeState.DEAD);
         assertThat(column("SELECT concentration ->> 'spell' FROM encounter_participants WHERE id = ?", id))
                 .isEqualTo("Haste");
+    }
+
+    @Test
+    @DisplayName("Spell Effects round-trip, linked to a Concentration Instance or not, a new participant has none, and the column refuses NULL (M15, V33)")
+    void spellEffectsRoundTrip() {
+        ConcentrationInstance meteors = ConcentrationInstance.start("Melf's Minute Meteors", 4, 2, 100);
+        List<SpellEffectEntry> effects = List.of(
+                SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 10, null),
+                SpellEffectEntry.start("Melf's Minute Meteors", 4, meteors.id(), 2, 100, 7),
+                SpellEffectEntry.start("Moonbeam", null, UUID.randomUUID(), 3, null, null));
+
+        UUID id = saveParticipant(EncounterParticipant.builder().concentration(meteors).activeEffects(effects), null);
+
+        assertThat(reload(id).getActiveEffects()).isEqualTo(effects);
+        assertThat(column("SELECT active_effects -> 1 ->> 'concentrationInstanceId' FROM encounter_participants "
+                + "WHERE id = ?", id)).isEqualTo(meteors.id().toString());
+        assertThat(column("SELECT active_effects -> 1 ->> 'usesLeft' FROM encounter_participants WHERE id = ?", id))
+                .isEqualTo("7");
+        UUID none = saveParticipant(EncounterParticipant.builder(), null);
+        assertThat(reload(none).getActiveEffects()).isEmpty();
+        assertThat(column("SELECT active_effects::text FROM encounter_participants WHERE id = ?", none))
+                .isEqualTo("[]");
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE encounter_participants SET active_effects = NULL WHERE id = ?", id))
+                .hasMessageContaining("active_effects");
     }
 
     @Test
@@ -303,7 +329,7 @@ class EncounterJsonMappingIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("A combat command's before-state round-trips: participants, the encounter's turn and log patches (M14)")
+    @DisplayName("A combat command's before-state round-trips: participants with their Spell Effects, the encounter's turn and log patches (M14, M15)")
     void commandSnapshotRoundTrips() {
         UUID encounterId = encounterRepository.save(Encounter.builder().campaign(campaign).name("Ambush").build()).getId();
         ConcentrationInstance web = ConcentrationInstance.start("Web", 2, 1, 600);
@@ -313,7 +339,7 @@ class EncounterJsonMappingIT extends IntegrationTest {
         ParticipantCombatState lich = new ParticipantCombatState(UUID.randomUUID(), 0, 5, LifeState.DYING, 1, 2, true,
                 List.of(ConditionEntry.fromEffect("restrained", null, 1, "Web", UUID.randomUUID(), web),
                         ConditionEntry.unconsciousAtZeroHp(1)),
-                web, "Web", 2, slots,
+                web, List.of(SpellEffectEntry.start("Flaming Sphere", 3, web.id(), 1, 10, null)), slots,
                 List.of(new ResourcePoolEntry("monster:legendary-resistance", "Legendary Resistance", "MONSTER", "Lich",
                         3, null, 2, "longRest", null, null, "FREE", "shield", Map.of())),
                 new TurnEconomy(1, 1, true, 0, true, false, true, false, true, false, true, true), "Tremor");

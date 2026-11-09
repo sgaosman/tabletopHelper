@@ -348,8 +348,6 @@
     "specialMechanics": "Persistent 5-foot cube zone. Creatures save when the spell is cast (if in the space), when moving into the space for the first time on a turn, or when ending their turn there. Ignites unattended flammable objects.",
     "requiresManualResolution": false,
     "manualResolutionReason": "Persistent zone requiring saves on entry and at end of turn for each creature. Requires positional tracking each round.",
-    "repeatActionType": "NONE",
-    "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
       "Artificer",
@@ -358,7 +356,15 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: Classes filled from D&D 5e knowledge (XGE). Raw data classesFromMap was empty."
+    "notes": "REVIEW: Classes filled from D&D 5e knowledge (XGE). Raw data classesFromMap was empty.",
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER",
+          "END_OF_TURN"
+        ]
+      }
+    ]
   },
   {
     "spellName": "Dancing Lights",
@@ -4289,13 +4295,22 @@
     "specialMechanics": "Applied on next weapon hit. If restrained, target takes piercing damage at start of each turn. Large+ creatures have advantage on save. STR check (action) to free.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Smite-style spell: triggers on next weapon hit, then requires STR save. Ongoing damage at start of restrained target's turns.",
-    "repeatActionType": "NONE",
-    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "piercing", "usesUpcastScaling": false},
     "patternCategory": "SAVE_DAMAGE_AND_CONDITION",
     "classes": [
       "Ranger"
     ],
-    "notes": "Bonus action. Concentration. Smite-style delivery. Large+ creatures have advantage on save."
+    "notes": "Bonus action. Concentration. Smite-style delivery. Large+ creatures have advantage on save.",
+    "effectTriggers": [
+      {
+        "when": [
+          "START_OF_TURN"
+        ],
+        "deliveryMethod": "AUTO_HIT",
+        "damageDice": "1d6",
+        "damageType": "piercing",
+        "usesUpcastScaling": true
+      }
+    ]
   },
   {
     "spellName": "Entangle",
@@ -6101,13 +6116,24 @@
     "specialMechanics": "Smite-style: bonus action, triggers on next melee weapon hit. Sets target on fire (1d6 fire per turn, CON save to end). Only initial damage scales with upcasting.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Smite-style delivery on next weapon hit. Ongoing fire damage with per-turn CON saves. Can be manually extinguished.",
-    "repeatActionType": "NONE",
-    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "fire", "usesUpcastScaling": false},
     "patternCategory": "SAVE_DAMAGE",
     "classes": [
       "Paladin"
     ],
-    "notes": "Bonus action. Concentration. Smite-style. Ongoing 1d6 fire/turn (CON save to end). Only initial damage upscales."
+    "notes": "Bonus action. Concentration. Smite-style. Ongoing 1d6 fire/turn (CON save to end). Only initial damage upscales.",
+    "effectTriggers": [
+      {
+        "when": [
+          "START_OF_TURN"
+        ],
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "CON",
+        "halfOnSave": false,
+        "damageDice": "1d6",
+        "damageType": "fire",
+        "usesUpcastScaling": false
+      }
+    ]
   },
   {
     "spellName": "Shield",
@@ -6553,15 +6579,24 @@
     "specialMechanics": "On failed save, creature covered in acid. Takes 2d4 acid at start of each of its turns. An action can scrape/wash acid off. Concentration.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Ongoing damage at start of each affected creature's turn. Can be removed by action (self or ally). Concentration.",
-    "repeatActionType": "NONE",
-    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "2d4", "damageType": "acid", "usesUpcastScaling": true},
     "patternCategory": "SAVE_DAMAGE",
     "classes": [
       "Artificer",
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "30-foot line, 5 feet wide. Concentration. Ongoing acid damage per turn. Can be washed off with action. No initial damage on cast - only ongoing."
+    "notes": "30-foot line, 5 feet wide. Concentration. Ongoing acid damage per turn. Can be washed off with action. No initial damage on cast - only ongoing.",
+    "effectTriggers": [
+      {
+        "when": [
+          "START_OF_TURN"
+        ],
+        "deliveryMethod": "AUTO_HIT",
+        "damageDice": "2d4",
+        "damageType": "acid",
+        "usesUpcastScaling": true
+      }
+    ]
   },
   {
     "spellName": "Tasha's Hideous Laughter",
@@ -7852,8 +7887,6 @@
     "specialMechanics": null,
     "requiresManualResolution": false,
     "manualResolutionReason": "Persistent area damage with no save; triggers on entering or starting turn in area",
-    "repeatActionType": "NONE",
-    "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -7861,7 +7894,15 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "No saving throw. Damage is automatic when entering or starting turn in the 5ft cube. Concentration."
+    "notes": "No saving throw. Damage is automatic when entering or starting turn in the 5ft cube. Concentration.",
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER",
+          "START_OF_TURN"
+        ]
+      }
+    ]
   },
   {
     "spellName": "Continual Flame",
@@ -8291,7 +8332,15 @@
     ],
     "notes": "Creatures ending turn within 5ft must save. Half damage on save but no push. Can move 30ft as bonus action. Can create obscuring cloud over loose terrain.",
     "repeatActionType": "BONUS_ACTION",
-    "repeatEffect": true
+    "repeatEffect": true,
+    "directedResolves": false,
+    "effectTriggers": [
+      {
+        "when": [
+          "END_OF_TURN"
+        ]
+      }
+    ]
   },
   {
     "spellName": "Earthbind",
@@ -8717,7 +8766,14 @@
     ],
     "notes": "5ft diameter sphere. Creatures ending turn within 5ft must DEX save. Bonus action: move 30ft + ram (forces save). Ignites flammable objects. Sheds bright light 20ft, dim 20ft.",
     "repeatActionType": "BONUS_ACTION",
-    "repeatEffect": true
+    "repeatEffect": true,
+    "effectTriggers": [
+      {
+        "when": [
+          "END_OF_TURN"
+        ]
+      }
+    ]
   },
   {
     "spellName": "Flock of Familiars",
@@ -9787,7 +9843,14 @@
     ],
     "notes": "Initial: STR save or 2d6 bludgeoning + restrained. Crush action: STR save, 2d6 on fail / half on success. Target can break free with STR check (action). Can retarget or move hand as action.",
     "repeatActionType": "ACTION",
-    "repeatEffect": true
+    "repeatEffect": {
+      "deliveryMethod": "SAVING_THROW",
+      "saveAbility": "STR",
+      "halfOnSave": true,
+      "damageDice": "2d6",
+      "damageType": "bludgeoning",
+      "usesUpcastScaling": false
+    }
   },
   {
     "spellName": "Melf's Acid Arrow",
@@ -10066,7 +10129,16 @@
     ],
     "notes": "5ft radius, 40ft high cylinder. Shapechangers save with disadvantage; on fail, revert to original form. Dim light in area. Action to move beam 60ft. Concentration.",
     "repeatActionType": "ACTION",
-    "repeatEffect": true
+    "repeatEffect": true,
+    "directedResolves": false,
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER",
+          "START_OF_TURN"
+        ]
+      }
+    ]
   },
   {
     "spellName": "Nathair's Mischief",
@@ -10280,7 +10352,12 @@
     "requiresManualResolution": true,
     "manualResolutionReason": "Creates an illusion perceived only by the target. DM adjudicates what the illusion is and how the target interacts with it. 1d6 psychic damage per round if illusion can logically deal damage.",
     "repeatActionType": "NONE",
-    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "damageDice": "1d6", "damageType": "psychic", "usesUpcastScaling": false},
+    "repeatEffect": {
+      "deliveryMethod": "AUTO_HIT",
+      "damageDice": "1d6",
+      "damageType": "psychic",
+      "usesUpcastScaling": false
+    },
     "patternCategory": "COMPLEX",
     "classes": [
       "Bard",
@@ -12061,7 +12138,11 @@
     "requiresManualResolution": true,
     "manualResolutionReason": "Requires bonus action each turn to select a creature in the aura and heal it",
     "repeatActionType": "BONUS_ACTION",
-    "repeatEffect": {"deliveryMethod": "AUTO_HIT", "healingDice": "2d6", "usesUpcastScaling": false},
+    "repeatEffect": {
+      "deliveryMethod": "AUTO_HIT",
+      "healingDice": "2d6",
+      "usesUpcastScaling": false
+    },
     "patternCategory": "COMPLEX",
     "classes": [
       "Paladin"
@@ -12114,7 +12195,7 @@
     "classes": [
       "Cleric"
     ],
-    "notes": "REVIEW: targetCount is null because spell says 'any number of creatures within range' \u2014 no fixed count."
+    "notes": "REVIEW: targetCount is null because spell says 'any number of creatures within range' — no fixed count."
   },
   {
     "spellName": "Bestow Curse",
@@ -12345,7 +12426,7 @@
     "conditionsInflicted": [],
     "healing": null,
     "upcastDescription": "Damage increases by 1d10 for each slot level above 3rd",
-    "specialMechanics": "Creates storm cloud (60ft radius, 10ft tall cylinder). Each turn, use action to call bolt on a point under cloud \u2014 creatures within 5ft of point save. Outdoors in stormy conditions: +1d10 damage.",
+    "specialMechanics": "Creates storm cloud (60ft radius, 10ft tall cylinder). Each turn, use action to call bolt on a point under cloud — creatures within 5ft of point save. Outdoors in stormy conditions: +1d10 damage.",
     "requiresManualResolution": false,
     "manualResolutionReason": "Persistent effect requiring action each turn to target a new point; storm cloud has spatial constraints; bonus damage in stormy conditions",
     "patternCategory": "COMPLEX",
@@ -12568,7 +12649,7 @@
     "classes": [
       "Ranger"
     ],
-    "notes": "REVIEW: Damage type depends on weapon used \u2014 typically slashing, piercing, or bludgeoning. No upcast scaling listed in source."
+    "notes": "REVIEW: Damage type depends on weapon used — typically slashing, piercing, or bludgeoning. No upcast scaling listed in source."
   },
   {
     "spellName": "Counterspell",
@@ -12772,7 +12853,7 @@
       "Ranger",
       "Sorcerer"
     ],
-    "notes": "Not concentration. Despite the name, this is not sunlight \u2014 does not trigger sunlight sensitivity."
+    "notes": "Not concentration. Despite the name, this is not sunlight — does not trigger sunlight sensitivity."
   },
   {
     "spellName": "Dispel Magic",
@@ -12883,7 +12964,7 @@
       "Artificer",
       "Paladin"
     ],
-    "notes": "REVIEW: Non-standard upcast scaling \u2014 not per-level linear. damageType is 'varies' because caster chooses from 5 options."
+    "notes": "REVIEW: Non-standard upcast scaling — not per-level linear. damageType is 'varies' because caster chooses from 5 options."
   },
   {
     "spellName": "Enemies Abound",
@@ -13194,7 +13275,7 @@
       "Druid",
       "Wizard"
     ],
-    "notes": "Ritual castable. Not concentration. Willing target appears dead \u2014 indistinguishable from death."
+    "notes": "Ritual castable. Not concentration. Willing target appears dead — indistinguishable from death."
   },
   {
     "spellName": "Fireball",
@@ -13642,13 +13723,33 @@
     "specialMechanics": "Creature starting turn in area takes 2d6 cold damage (no save). Creature ending turn in area must DEX save or take 2d6 acid damage. Creatures fully within area are blinded (no save). Area is difficult terrain. No light can illuminate the area.",
     "requiresManualResolution": true,
     "manualResolutionReason": "Persistent AOE with two separate damage triggers (start of turn cold, end of turn acid DEX save), automatic blinding in area, difficult terrain, and no-light zone",
-    "repeatActionType": "NONE",
-    "repeatEffect": {"deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "halfOnSave": false, "damageDice": "2d6", "damageType": "acid", "usesUpcastScaling": false},
     "patternCategory": "COMPLEX",
     "classes": [
       "Warlock"
     ],
-    "notes": "Cold damage on start of turn has NO save. Acid damage on end of turn requires DEX save (no half on save - it's save or nothing for acid). Blinded is automatic while fully within the area."
+    "notes": "Cold damage on start of turn has NO save. Acid damage on end of turn requires DEX save (no half on save - it's save or nothing for acid). Blinded is automatic while fully within the area.",
+    "effectTriggers": [
+      {
+        "when": [
+          "START_OF_TURN"
+        ],
+        "deliveryMethod": "AUTO_HIT",
+        "damageDice": "2d6",
+        "damageType": "cold",
+        "usesUpcastScaling": false
+      },
+      {
+        "when": [
+          "END_OF_TURN"
+        ],
+        "deliveryMethod": "SAVING_THROW",
+        "saveAbility": "DEX",
+        "halfOnSave": false,
+        "damageDice": "2d6",
+        "damageType": "acid",
+        "usesUpcastScaling": false
+      }
+    ]
   },
   {
     "spellName": "Hypnotic Pattern",
@@ -14421,7 +14522,12 @@
     ],
     "notes": "Source: XGE. classesFromMap was empty; classes from general 5e knowledge. Each meteor is a separate 5-foot radius AOE. Upcast adds more meteors, not more damage.",
     "repeatActionType": "BONUS_ACTION",
-    "repeatEffect": true
+    "repeatEffect": true,
+    "effectUses": {
+      "count": 6,
+      "perSlotLevel": 2,
+      "maxPerUse": 2
+    }
   },
   {
     "spellName": "Motivational Speech",
@@ -14958,7 +15064,7 @@
       "Sorcerer",
       "Wizard"
     ],
-    "notes": "REVIEW: Two different saves \u2014 DEX for prone and CON for concentration. Cylinder is 20ft tall with 40ft radius."
+    "notes": "REVIEW: Two different saves — DEX for prone and CON for concentration. Cylinder is 20ft tall with 40ft radius."
   },
   {
     "spellName": "Slow",
@@ -15162,13 +15268,19 @@
     "specialMechanics": "Persistent 15-foot emanation centered on caster that moves with caster. Damage occurs when creature enters area for first time on a turn or starts its turn there. Caster can designate creatures to be unaffected. Damage type is radiant (good/neutral caster) or necrotic (evil caster).",
     "requiresManualResolution": false,
     "manualResolutionReason": "Persistent AOE that moves with caster, triggers on creature entry or turn start, requires tracking designated unaffected creatures, damage type depends on caster alignment",
-    "repeatActionType": "NONE",
-    "repeatEffect": true,
     "patternCategory": "COMPLEX",
     "classes": [
       "Cleric"
     ],
-    "notes": "REVIEW: Damage type is radiant or necrotic depending on caster alignment. Both damageInflict types listed in source data."
+    "notes": "REVIEW: Damage type is radiant or necrotic depending on caster alignment. Both damageInflict types listed in source data.",
+    "effectTriggers": [
+      {
+        "when": [
+          "ENTER",
+          "START_OF_TURN"
+        ]
+      }
+    ]
   },
   {
     "spellName": "Spirit Shroud",
@@ -15233,7 +15345,7 @@
       "Warlock",
       "Wizard"
     ],
-    "notes": "REVIEW: Upcast scaling is non-standard \u2014 1d8 per 2 slot levels above 3rd. Damage type chosen from radiant/necrotic/cold at cast time."
+    "notes": "REVIEW: Upcast scaling is non-standard — 1d8 per 2 slot levels above 3rd. Damage type chosen from radiant/necrotic/cold at cast time."
   },
   {
     "spellName": "Stinking Cloud",

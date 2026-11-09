@@ -39,5 +39,7 @@ public enum CombatActionType {
     // A monster's reaction from its stat block, with what it did or what the DM applies by hand (D174)
     REACTION_TAKEN,
     // The DM's undo of a combat command, naming the command it undid (M14)
-    UNDO
+    UNDO,
+    // A Spell Effect ending: dismissed, its duration over, or its concentration lost (M15)
+    SPELL_EFFECT_END
 }

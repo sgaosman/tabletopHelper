@@ -5,7 +5,7 @@ import { useEncounter } from '../../hooks/useEncounter';
 import { apiErrorMessage } from '../../api/errors';
 import { useCombatLog, useEncounterAction } from '../../queries/encounters';
 import type { CombatLogEntry } from '../../types/combat';
-import type { EncounterParticipant } from '../../types/encounter';
+import type { EncounterParticipant, SpellEffect, SpellTrigger } from '../../types/encounter';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import VisibilityToggle from '../../components/encounter/VisibilityToggle';
@@ -18,6 +18,7 @@ import ParticipantRow from '../../components/encounter/ParticipantRow';
 import LifeStateBadge from '../../components/encounter/LifeStateBadge';
 import ConditionChips from '../../components/encounter/ConditionChips';
 import ActiveSpells from '../../components/encounter/ActiveSpells';
+import TriggerReminder from '../../components/encounter/TriggerReminder';
 import DeathSaves from '../../components/encounter/DeathSaves';
 import SpellSlotPips from '../../components/encounter/SpellSlotPips';
 import TurnEconomyBar from '../../components/encounter/TurnEconomyBar';
@@ -44,8 +45,16 @@ import {
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
-type ActionMode = 'attack' | 'damage' | 'heal' | 'set-hp' | 'condition' | 'concentration' | 'spell' | 'repeat-effect'
+type ActionMode = 'attack' | 'damage' | 'heal' | 'set-hp' | 'condition' | 'concentration' | 'spell'
   | 'standard' | 'reaction' | null;
+
+/** A Spell Effect the DM is using: its caster's use, or what its area does at a moment of a turn (M15). */
+interface EffectInUse {
+  casterId: string;
+  effectId: string;
+  trigger?: SpellTrigger;
+  targetId?: string;
+}
 
 /** Damage, healing and Set HP: an amount, with a damage type or temporary HP. */
 function HpChangeForm({ target, mode }: { target: EncounterParticipant; mode: 'damage' | 'heal' | 'set-hp' }) {
@@ -178,6 +187,8 @@ function DmSessionView() {
   const [ending, setEnding] = useState(false);
   // How many of the newest combat commands the Undo dialog offers to take back, while it is open (M14)
   const [undoSteps, setUndoSteps] = useState<number | null>(null);
+  // The Spell Effect the DM is using, while its pop-up is open (M15)
+  const [effectUse, setEffectUse] = useState<EffectInUse | null>(null);
 
   // Opening another monster's actions, or closing them, starts them afresh: no targets and no result
   function toggleMonsterActions(participantId: string) {
@@ -273,6 +284,16 @@ function DmSessionView() {
     setActionMode(mode);
   }
 
+  // The caster's use of a Spell Effect (M15): one that only moves, as Moonbeam's action does, is sent at once, and
+  // one that resolves against creatures opens its pop-up
+  function directEffect(caster: EncounterParticipant, effect: SpellEffect) {
+    if (effect.directedResolves) {
+      setEffectUse({ casterId: caster.id, effectId: effect.id });
+    } else {
+      void attemptTurnChange(() => actions.repeatSpellEffect({ targetIds: [], effectId: effect.id }, caster.id));
+    }
+  }
+
   // The server computes the turn order, the Lair's turn included, and each participant's sortOrder is its
   // turn's place in it (D163)
   const sorted = [...encounter.participants].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -281,6 +302,9 @@ function DmSessionView() {
   const isLairTurn = encounter.currentTurnIndex != null && (turns[encounter.currentTurnIndex]?.lair ?? false);
   const lairMonsters = encounter.monstersInLair.flatMap(id => participantsById.get(id)?.displayName ?? []);
   const selectedTarget = sorted.find(p => p.id === selectedTargetId) ?? null;
+  const effectCaster = effectUse ? participantsById.get(effectUse.casterId) : undefined;
+  const effectInUse = effectCaster?.activeEffects.find(e => e.id === effectUse?.effectId);
+  const currentCreature = encounter.participants.find(p => p.isCurrentTurn);
   // Combat controls show only while the encounter is Active: a Paused one can only resume or end, and a
   // Completed one is final (D166)
   const isActive = encounter.status === 'ACTIVE';
@@ -424,6 +448,12 @@ function DmSessionView() {
 
         {turnError && <p role="alert" className="text-debuff font-body text-[15px] font-semibold mb-4">{turnError}</p>}
 
+        {/* What a Spell Effect's area may do to the creature whose turn it is (M15) */}
+        {isActive && (
+          <TriggerReminder participants={encounter.participants} current={currentCreature}
+            onApply={(caster, effect, trigger, targetId) => setEffectUse({ casterId: caster.id, effectId: effect.id, trigger, targetId })} />
+        )}
+
         {/* Spell cast modal */}
         {isActive && actionMode === 'spell' && selectedTarget && (
           <SpellCastModal
@@ -446,13 +476,15 @@ function DmSessionView() {
             onOpenMonsterReactions={() => { setMonsterTab('reactions'); setExpandedMonsterId(selectedTarget.id); }} />
         )}
 
-        {/* Repeat spell effect modal */}
-        {isActive && actionMode === 'repeat-effect' && selectedTarget && (selectedTarget.concentrationSpell || selectedTarget.activeSpell) && (
+        {/* A Spell Effect's use, or what its area does to a creature, which the DM applies (M15) */}
+        {isActive && effectUse && effectCaster && effectInUse && (
           <RepeatEffectModal
-            caster={selectedTarget}
+            caster={effectCaster}
+            effect={effectInUse}
             participants={encounter.participants}
-            spellName={(selectedTarget.concentrationSpell || selectedTarget.activeSpell)!}
-            onClose={() => { setActionMode(null); setSelectedTargetId(null); }}
+            trigger={effectUse.trigger}
+            initialTargets={effectUse.targetId ? [effectUse.targetId] : undefined}
+            onClose={() => setEffectUse(null)}
             allowManualModifiers
             asDm
           />
@@ -657,7 +689,12 @@ function DmSessionView() {
                     onRemove={isActive ? c => { void actions.removeCondition(p.id, c.name); } : undefined}
                     showRepeatSave={isActive}
                   />
-                  <ActiveSpells participant={p} onRepeat={isActive ? () => selectTarget(p.id, 'repeat-effect') : undefined} />
+                  <ActiveSpells
+                    participant={p}
+                    roundNumber={encounter.roundNumber}
+                    onUse={isActive ? effect => directEffect(p, effect) : undefined}
+                    onEnd={isActive ? effect => { void attemptTurnChange(() => actions.endSpellEffect({ participantId: p.id, effectId: effect.id })); } : undefined}
+                  />
 
                   {/* Death saves only while Dying: a Stable PC makes none, and the dead are past them (D161) */}
                   {p.lifeState === 'DYING' && (

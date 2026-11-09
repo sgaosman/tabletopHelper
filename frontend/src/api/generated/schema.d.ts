@@ -852,6 +852,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/encounters/{encounterId}/combat/spell-effect/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["endSpellEffect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/encounters/{encounterId}/combat/spell-options": {
         parameters: {
             query?: never;
@@ -2258,7 +2274,7 @@ export interface components {
         };
         CombatLogResponse: {
             /** @enum {string} */
-            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE" | "STANDARD_ACTION" | "OBJECT_INTERACTION" | "TURN_ECONOMY_SET" | "REACTION_TAKEN" | "UNDO";
+            actionType: "ATTACK" | "DAMAGE" | "HEAL" | "CONDITION_ADD" | "CONDITION_REMOVE" | "DEATH_SAVE" | "CONCENTRATION_CHECK" | "CONCENTRATION_LOST" | "TURN_ADVANCE" | "TURN_BACK" | "STABILIZE" | "KILL" | "REVIVE" | "SPELL_SLOT_USE" | "SPELL_SLOT_RESTORE" | "SPELL_CAST" | "SPELL_EFFECT_REPEAT" | "MONSTER_ACTION" | "LEGENDARY_ACTION" | "LAIR_ACTION" | "LEGENDARY_RESISTANCE_USED" | "RECHARGE_SUCCESS" | "RECHARGE_FAILURE" | "HP_SET" | "REPEAT_SAVE" | "POOL_USE" | "STANDARD_ACTION" | "OBJECT_INTERACTION" | "TURN_ECONOMY_SET" | "REACTION_TAKEN" | "UNDO" | "SPELL_EFFECT_END";
             /** Format: uuid */
             actorId?: string | null;
             actorName?: string | null;
@@ -2468,6 +2484,12 @@ export interface components {
             participantId?: string | null;
             /** @enum {string} */
             type: "AFTER_ROUNDS" | "START_OF_TURN" | "END_OF_TURN" | "CONCENTRATION" | "REPEAT_SAVE" | "HP_REGAINED" | "MANUAL";
+        };
+        EndSpellEffectRequest: {
+            /** Format: uuid */
+            effectId: string;
+            /** Format: uuid */
+            participantId: string;
         };
         Feat: {
             /** @description The feat's ability score increases, each fixed or a choice */
@@ -2985,9 +3007,7 @@ export interface components {
         };
         ParticipantResponse: {
             activeConditions?: components["schemas"]["ConditionEntry"][] | null;
-            activeSpell?: string | null;
-            /** Format: int32 */
-            activeSpellSlotLevel?: number | null;
+            activeEffects: components["schemas"]["SpellEffectResponse"][];
             /** Format: int32 */
             armourClass: number;
             /** Format: int32 */
@@ -3164,11 +3184,17 @@ export interface components {
         };
         RepeatSpellEffectRequest: {
             advantage?: boolean | null;
+            /** Format: uuid */
+            effectId?: string | null;
             /** Format: int32 */
             overrideSpellAttackBonus?: number | null;
             /** Format: int32 */
             overrideSpellSaveDC?: number | null;
             targetIds: string[];
+            /** @enum {string|null} */
+            trigger?: "ENTER" | "START_OF_TURN" | "END_OF_TURN" | null;
+            /** Format: int32 */
+            uses?: number | null;
         };
         ResourcePoolEntry: {
             /** Format: int32 */
@@ -3259,6 +3285,26 @@ export interface components {
             source?: string | null;
             /** Format: date-time */
             updatedAt?: string | null;
+        };
+        SpellEffectResponse: {
+            concentration: boolean;
+            /** @enum {string|null} */
+            directedCost?: "ACTION" | "BONUS_ACTION" | "NONE" | null;
+            directedResolves: boolean;
+            /** Format: int32 */
+            durationRounds?: number | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            maxUsesEachTurn?: number | null;
+            /** Format: int32 */
+            slotLevel?: number | null;
+            spell: string;
+            /** Format: int32 */
+            startedRound: number;
+            triggers: ("ENTER" | "START_OF_TURN" | "END_OF_TURN")[];
+            /** Format: int32 */
+            usesLeft?: number | null;
         };
         SpellOption: {
             /** @enum {string} */
@@ -4880,6 +4926,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CastSpellResponse"];
+                };
+            };
+        };
+    };
+    endSpellEffect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                encounterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EndSpellEffectRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncounterResponse"];
                 };
             };
         };

@@ -204,6 +204,18 @@ public class CombatController {
         return ResponseEntity.ok(EncounterViews.forUser(response, userId));
     }
 
+    // Ends one of a participant's Spell Effects by hand, and the concentration it belongs to (M15): the DM's for
+    // anyone, a player's for their own character
+    @PostMapping("/spell-effect/end")
+    public ResponseEntity<EncounterResponse> endSpellEffect(
+            @PathVariable UUID encounterId,
+            @Valid @RequestBody EndSpellEffectRequest request,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        EncounterResponse response = spellcastingService.endSpellEffect(encounterId, request, userId);
+        return ResponseEntity.ok(EncounterViews.forUser(response, userId));
+    }
+
     @PostMapping("/turn/next")
     public ResponseEntity<EncounterResponse> advanceTurn(
             @PathVariable UUID encounterId,

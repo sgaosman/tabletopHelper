@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.RepeatSave;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.resourcepool.ResourcePoolService;
 import com.tabletophelper.rules.Ability;
@@ -49,7 +50,9 @@ import java.util.stream.Collectors;
  *       it stays prone.</li>
  *   <li>Each damage application to a concentrating creature that stays up makes one CON save, DC 10 or half
  *       the damage. Concentration ends on a failed save, at 0 HP or death, and on an incapacitating
- *       condition; ending it removes exactly the conditions its Concentration Instance created (D162).</li>
+ *       condition; ending it removes exactly the conditions its Concentration Instance created (D162), and the
+ *       Spell Effects that belong to it (M15). A Spell Effect kept up without concentration, such as Spiritual
+ *       Weapon, lasts its duration whatever happens to its caster (PHB p.278).</li>
  *   <li>A failed save by a creature with Legendary Resistance left is offered for undoing: its entry records
  *       the damage a success would have left and the conditions the save applied (D163). That includes the save
  *       an attack's hit calls for against some of its conditions, which leaves the hit's damage as it is.</li>
@@ -492,6 +495,11 @@ public class EffectApplier {
         caster.setConcentration(null);
         combatLog.write(encounter, CombatActionType.CONCENTRATION_LOST, caster.getDisplayName()
                 + " loses concentration on " + instance.spell() + (why != null ? " (" + why + ")" : ""), null, caster);
+        for (SpellEffectEntry effect : effects(caster)) {
+            if (instance.id().equals(effect.concentrationInstanceId())) {
+                endEffect(encounter, caster, effect.id(), "concentration lost");
+            }
+        }
 
         for (EncounterParticipant participant : encounter.getParticipants()) {
             List<ConditionEntry> conditions = conditions(participant);
@@ -509,6 +517,71 @@ public class EffectApplier {
                         participant);
             }
         }
+    }
+
+    // ── Spell Effects (M15) ──────────────────────────────────────
+
+    /**
+     * Leaves a Spell Effect on its caster: a lasting spell's beam, weapon or area, linked to the Concentration
+     * Instance the casting started, or to none for a spell that needs no concentration. A spell that needs none ends
+     * the effect its caster's earlier casting left, as Spiritual Weapon's does "until you cast this spell again"
+     * (PHB p.278); a concentration spell's earlier effect has already ended with its concentration.
+     */
+    public SpellEffectEntry startEffect(Encounter encounter, EncounterParticipant caster, String spell,
+                                        Integer slotLevel, ConcentrationInstance instance, Integer durationRounds,
+                                        Integer uses) {
+        if (instance == null) {
+            for (SpellEffectEntry earlier : effects(caster)) {
+                if (earlier.concentrationInstanceId() == null && earlier.spell().equalsIgnoreCase(spell)) {
+                    endEffect(encounter, caster, earlier.id(), "cast again");
+                }
+            }
+        }
+        SpellEffectEntry effect = SpellEffectEntry.start(spell, slotLevel, instance != null ? instance.id() : null,
+                encounter.getRoundNumber(), durationRounds, uses);
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        effects.add(effect);
+        caster.setActiveEffects(effects);
+        return effect;
+    }
+
+    /**
+     * Ends one of the caster's Spell Effects, logging why; nothing when it has already ended. It ends only the effect:
+     * a caller ending a concentration spell's effect by hand ends the concentration, which ends the effect.
+     *
+     * @param why what ended it, for the log, such as "its duration ends"
+     */
+    public void endEffect(Encounter encounter, EncounterParticipant caster, UUID effectId, String why) {
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        Optional<SpellEffectEntry> ended = effects.stream().filter(effect -> effect.id().equals(effectId)).findFirst();
+        if (ended.isEmpty()) {
+            return;
+        }
+        effects.remove(ended.get());
+        caster.setActiveEffects(effects);
+        combatLog.write(encounter, CombatActionType.SPELL_EFFECT_END, caster.getDisplayName() + "'s "
+                + ended.get().spell() + " ends (" + why + ")", null, caster);
+    }
+
+    /** Spends uses of a Spell Effect that has a count, such as meteors, leaving the effect in place. */
+    public SpellEffectEntry spendEffectUses(EncounterParticipant caster, UUID effectId, int uses) {
+        List<SpellEffectEntry> effects = new ArrayList<>(effects(caster));
+        for (int i = 0; i < effects.size(); i++) {
+            SpellEffectEntry effect = effects.get(i);
+            if (effect.id().equals(effectId) && effect.usesLeft() != null) {
+                SpellEffectEntry spent = effect.withUsesLeft(Math.max(0, effect.usesLeft() - uses));
+                effects.set(i, spent);
+                caster.setActiveEffects(effects);
+                return spent;
+            }
+        }
+        return effects.stream().filter(effect -> effect.id().equals(effectId)).findFirst().orElse(null);
+    }
+
+    /** The participant's Spell Effects, never null. */
+    public static List<SpellEffectEntry> effects(EncounterParticipant participant) {
+        return participant.getActiveEffects() == null ? List.of()
+                : participant.getActiveEffects().stream().filter(Objects::nonNull).toList();
     }
 
     // ── Legendary Resistance ─────────────────────────────────────
@@ -669,11 +742,10 @@ public class EffectApplier {
         }
     }
 
-    // Dropping to 0 or dying ends concentration, and any spell kept up without it
+    // Dropping to 0 or dying ends concentration (PHB p.203). A Spell Effect kept up without it, such as Spiritual
+    // Weapon, lasts its duration all the same (PHB p.278): its caster just can't use it while unconscious (M15)
     private void endConcentrationAtZero(Encounter encounter, EncounterParticipant target) {
         endConcentration(encounter, target, target.getLifeState() == LifeState.DEAD ? "dead" : "unconscious");
-        target.setActiveSpell(null);
-        target.setActiveSpellSlotLevel(null);
     }
 
     private void addUnconsciousAndProne(Encounter encounter, EncounterParticipant target) {

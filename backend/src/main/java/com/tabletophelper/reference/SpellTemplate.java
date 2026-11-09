@@ -9,6 +9,7 @@ import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.tabletophelper.rules.combat.ActionCost;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.JacksonDefaults;
 import org.slf4j.Logger;
@@ -52,6 +53,12 @@ import java.util.Optional;
  *                                     happens when a creature starts its turn in the area; null when the data
  *                                     doesn't say. Any other value makes the template unreadable.
  * @param conditionsInflicted          the conditions it gives, by name or with how they end
+ * @param effectTriggers               what its area does by itself to a creature that enters it, or starts or ends its
+ *                                     turn there (M15), which the DM applies; empty when nothing
+ * @param directedResolves             false when using the effect again only moves it, as Moonbeam's action does, so it
+ *                                     resolves nothing against creatures (PHB p.261); null counts as true
+ * @param effectUses                   what the lasting effect has to spend, such as Melf's Minute Meteors' meteors; null
+ *                                     when it has no count
  * @param json                         the column's JSON as stored; null only for a template built without one
  * @param unreadable                   why the JSON doesn't fit the records, or null; the records are then empty, and
  *                                     {@link #readable} stops a command that needs them with a 409 (D155)
@@ -63,7 +70,8 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                             Boolean selfOnly, Boolean canTargetSelf, Boolean canTargetAllies,
                             Boolean canTargetEnemies, List<Part> effects, Healing healing,
                             RepeatEffect repeatEffect, ActionCost repeatActionType,
-                            List<ConditionInflicted> conditionsInflicted, JsonNode json, String unreadable) {
+                            List<ConditionInflicted> conditionsInflicted, List<EffectTrigger> effectTriggers,
+                            Boolean directedResolves, EffectUses effectUses, JsonNode json, String unreadable) {
 
     private static final Logger log = LoggerFactory.getLogger(SpellTemplate.class);
 
@@ -80,6 +88,7 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     public SpellTemplate {
         effects = listOf(effects);
         conditionsInflicted = listOf(conditionsInflicted);
+        effectTriggers = listOf(effectTriggers);
     }
 
     /**
@@ -104,7 +113,9 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
                     read(json, "canTargetSelf", Boolean.class), read(json, "canTargetAllies", Boolean.class),
                     read(json, "canTargetEnemies", Boolean.class), READER.convertValue(json.get("effects"), PARTS),
                     read(json, "healing", Healing.class), RepeatEffect.of(json.get("repeatEffect")),
-                    repeatActionType(json.get("repeatActionType")), READER.convertValue(json.get("conditionsInflicted"), CONDITIONS), json, null);
+                    repeatActionType(json.get("repeatActionType")), READER.convertValue(json.get("conditionsInflicted"), CONDITIONS),
+                    effectTriggers(json.get("effectTriggers")), read(json, "directedResolves", Boolean.class),
+                    read(json, "effectUses", EffectUses.class), json, null);
         } catch (IllegalArgumentException | JacksonException e) {
             return empty(json, e.getMessage() != null ? e.getMessage() : e.toString());
         }
@@ -151,6 +162,24 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
     /** Whether it has a verbal component. */
     public boolean verbal() {
         return components != null && Boolean.TRUE.equals(components.verbal());
+    }
+
+    /**
+     * Whether casting it leaves a Spell Effect on its caster (M15): it has an effect its caster can use again on later
+     * turns, or one its area applies by itself.
+     */
+    public boolean lasting() {
+        return repeatEffect != null || !effectTriggers.isEmpty();
+    }
+
+    /** Whether using the effect again resolves against creatures, rather than only moving it. */
+    public boolean resolvesWhenDirected() {
+        return !Boolean.FALSE.equals(directedResolves);
+    }
+
+    /** The trigger that happens at this moment, if the spell has one. */
+    public Optional<EffectTrigger> trigger(SpellTrigger when) {
+        return effectTriggers.stream().filter(trigger -> trigger.when().contains(when)).findFirst();
     }
 
     /** The first effect with damage dice, if any. */
@@ -287,9 +316,79 @@ public record SpellTemplate(Integer spellLevel, Boolean concentration, Integer d
         }
     }
 
+    /**
+     * What a lasting spell's area does by itself at the moments it names (M15): the spell's own effect, such as
+     * Moonbeam's save against its damage, or one of its own given as a repeat effect object, such as Hunger of Hadar's
+     * cold damage at the start of a turn (PHB p.251).
+     *
+     * @param when   the moments it happens: ENTER, START_OF_TURN or END_OF_TURN
+     * @param effect what it does: the spell's own effect when it doesn't replace it
+     */
+    public record EffectTrigger(List<SpellTrigger> when, RepeatEffect effect) {
+
+        public EffectTrigger {
+            when = listOf(when);
+        }
+    }
+
+    /**
+     * What a lasting effect has to spend (M15), such as Melf's Minute Meteors' six meteors, two more for each slot
+     * level above 3rd, one or two of them each time (XGE p.161).
+     *
+     * @param count      how many it has at the spell's own level
+     * @param perSlotLevel how many more for each slot level above it
+     * @param maxPerUse  the most one use may spend
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record EffectUses(Integer count, Integer perSlotLevel, Integer maxPerUse) {
+
+        /** How many it has when cast with a slot of slotLevel for a spell of spellLevel. */
+        public int at(int spellLevel, int slotLevel) {
+            int base = count != null ? count : 0;
+            int per = perSlotLevel != null ? perSlotLevel : 0;
+            return base + per * Math.max(0, slotLevel - spellLevel);
+        }
+
+        /** The most one use may spend, at least one. */
+        public int maxEachUse() {
+            return maxPerUse != null && maxPerUse > 0 ? maxPerUse : 1;
+        }
+    }
+
+    // The triggers the data lists: each an object naming its moments, which replaces the spell's own effect when it
+    // gives a delivery, damage or healing of its own. A moment other than the three makes the template unreadable
+    private static List<EffectTrigger> effectTriggers(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (!node.isArray()) {
+            throw new IllegalArgumentException("effectTriggers is not a list");
+        }
+        List<EffectTrigger> triggers = new java.util.ArrayList<>();
+        for (JsonNode trigger : node) {
+            if (!trigger.isObject() || !trigger.path("when").isArray() || trigger.path("when").isEmpty()) {
+                throw new IllegalArgumentException("An effect trigger needs a list of moments (when)");
+            }
+            List<SpellTrigger> when = new java.util.ArrayList<>();
+            for (JsonNode moment : trigger.path("when")) {
+                try {
+                    when.add(SpellTrigger.valueOf(moment.asString("")));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("An unknown effect trigger: " + moment
+                            + " (ENTER, START_OF_TURN or END_OF_TURN)");
+                }
+            }
+            boolean replaces = trigger.has("deliveryMethod") || trigger.has("damageDice") || trigger.has("healingDice");
+            RepeatEffect effect = replaces ? RepeatEffect.of(trigger)
+                    : new RepeatEffect(false, null, null, null, null, null, null, null, false, null);
+            triggers.add(new EffectTrigger(when, effect));
+        }
+        return triggers;
+    }
+
     private static SpellTemplate empty(JsonNode json, String unreadable) {
         return new SpellTemplate(null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, json, unreadable);
+                null, null, null, null, null, null, null, null, null, null, null, null, json, unreadable);
     }
 
     // What using the repeat effect again costs: ACTION, BONUS_ACTION or NONE, and null when the data doesn't say

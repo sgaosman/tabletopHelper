@@ -508,8 +508,7 @@ What each content loader last loaded (V25, D169). One row per loader.
 | armour_class | INTEGER | NOT NULL | |
 | active_conditions | JSONB | | Array of condition entries `{id, name, duration, appliedRound, sourceSpellName, sourceParticipantId, sourceRequiresConcentration, concentrationInstanceId, endRule, repeatSave}` (V15, V16, D162). `endRule` is `{type, participantId}`, with type AFTER_ROUNDS, START_OF_TURN, END_OF_TURN, CONCENTRATION, REPEAT_SAVE, HP_REGAINED or MANUAL; `participantId` names whose turn a turn-based rule counts. `repeatSave` is `{ability, dc, awaitingRoll}`. |
 | concentration | JSONB | | The Concentration Instance `{id, spell, slotLevel, startedRound, durationRounds}`, or NULL (V16, D162). Replaced `concentration_spell` and `concentration_slot_level`. Conditions it created carry its `id`. |
-| active_spell | VARCHAR(200) | | Non-concentration persistent spell |
-| active_spell_slot_level | INTEGER | | Slot level used to cast the active spell |
+| active_effects | JSONB | NOT NULL, DEFAULT `'[]'` | The caster's lasting Spell Effects (V33, M15, D177), a list of `SpellEffectEntry` `{id, spell, slotLevel, concentrationId, startedRound, durationRounds, usesLeft}`. Replaces `active_spell` and `active_spell_slot_level`, which V33 converts and drops |
 | spell_slots_current | JSONB | | Copied from character on encounter join as `{"1": {max, used}, …}`, with pact slots keyed `pact_N` (V15, D168). V15 removed the innate object that monsters with innate spellcasting held; innate uses are resource pools (D165). |
 | spell_attack_bonus | INTEGER | | Copied from character on encounter join |
 | spell_save_dc | INTEGER | | Copied from character on encounter join |

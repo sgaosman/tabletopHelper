@@ -59,6 +59,17 @@ export default function useSpellFlow<S extends string = never>(
     setStep(takesNoTargets(info) ? 'confirm' : 'target');
   }, [fetchTargeting]);
 
+  /**
+   * Skips the targeting lookup, leaving every creature still standing a choice, with these targets already chosen:
+   * for what a Spell Effect's area does to whoever is in it, which the spell's own targeting doesn't limit (M15).
+   */
+  const chooseFreely = useCallback((targets: string[]) => {
+    setTargetingInfo(null);
+    setTargetingLoaded(true);
+    setSelectedTargets(targets);
+    setStep('target');
+  }, []);
+
   // A target is added only while the spell's limit allows
   const toggleTarget = useCallback((id: string) => {
     setSelectedTargets(prev => {
@@ -91,6 +102,7 @@ export default function useSpellFlow<S extends string = never>(
   return {
     step, setStep,
     targetingInfo, targetingLoading: !targetingLoaded, takesNoTargets: takesNoTargets(targetingInfo), lookUpTargeting,
+    chooseFreely,
     selectedTargets, toggleTarget,
     advantage, setAdvantage,
     overrideAttackBonus, setOverrideAttackBonus, overrideSaveDC, setOverrideSaveDC, overrides,

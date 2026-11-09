@@ -7,6 +7,7 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.character.state.SpellSlot;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.rules.combat.LifeState;
@@ -18,6 +19,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -87,11 +89,11 @@ public class EncounterParticipant {
     @Column(name = "concentration", columnDefinition = "jsonb")
     private ConcentrationInstance concentration;
 
-    @Column(name = "active_spell", length = 200)
-    private String activeSpell;
-
-    @Column(name = "active_spell_slot_level")
-    private Integer activeSpellSlotLevel;
+    // The Spell Effects it cast that are still going, such as Spiritual Weapon or Moonbeam (M15, V33)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "active_effects", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<SpellEffectEntry> activeEffects = new ArrayList<>();
 
     // Keyed "1" to "9" by spell level, and "pact_N" for pact slots (D168)
     @JdbcTypeCode(SqlTypes.JSON)

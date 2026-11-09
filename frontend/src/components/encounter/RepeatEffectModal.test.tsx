@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import type { ComponentProps } from 'react';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
-import { makeMockCastSpellResponse, makeMockEncounter, makeMockParticipant } from '../../test/mocks/handlers';
+import { makeMockCastSpellResponse, makeMockEncounter, makeMockParticipant, makeMockSpellEffect } from '../../test/mocks/handlers';
 import type { SpellTargetingInfo } from '../../types/reference';
 import { EncounterProvider } from '../../context/EncounterContext';
 import { queryKeys } from '../../queries/keys';
@@ -17,6 +17,7 @@ const orc = makeMockParticipant('part-orc', 'Orc', 'MONSTER', { hpMax: 15, hpCur
 const kobold = makeMockParticipant('part-kobold', 'Fallen Kobold', 'MONSTER', { hpCurrent: 0, lifeState: 'DEAD' });
 const legolas = makeMockParticipant('part-legolas', 'Legolas', 'PLAYER', { hpMax: 25, hpCurrent: 25 });
 const participants = [cleric, goblin, orc, kobold, legolas];
+const holdPerson = makeMockSpellEffect('Hold Person', { slotLevel: 2, concentration: true, directedCost: 'ACTION' });
 
 /** Serves the targeting lookup and records the spell name and slot level it was asked about. */
 function targeting(info: Partial<SpellTargetingInfo> = {}) {
@@ -41,7 +42,7 @@ async function renderModal(props: Partial<ComponentProps<typeof RepeatEffectModa
   const onClose = vi.fn();
   const { queryClient } = render(
     <EncounterProvider encounterId="enc-001">
-      <RepeatEffectModal caster={cleric} participants={participants} spellName="Hold Person" onClose={onClose} {...props} />
+      <RepeatEffectModal caster={cleric} participants={participants} effect={holdPerson} onClose={onClose} {...props} />
     </EncounterProvider>,
   );
   await waitFor(() => expect(queryClient.getQueryData(ENCOUNTER_KEY)).toBeDefined());
@@ -64,7 +65,7 @@ describe('RepeatEffectModal', () => {
 
     expect(screen.getByRole('dialog', { name: 'Hold Person — Repeat Effect' })).toBeInTheDocument();
     expect(screen.getByText('(slot level 2)')).toBeInTheDocument();
-    expect(screen.getByText('No spell slot consumed — repeating existing concentration effect')).toBeInTheDocument();
+    expect(screen.getByText('No spell slot consumed — using the spell\'s lasting effect')).toBeInTheDocument();
     expect(await targetNames()).toEqual(['Test Goblin', 'Orc']);
     expect(lookups).toEqual([{ name: 'Hold Person', slotLevel: '2' }]);
   });
@@ -94,15 +95,17 @@ describe('RepeatEffectModal', () => {
     expect(await screen.findByText('Test Goblin fails its save.')).toBeInTheDocument();
     expect(screen.getByText('Save: 9')).toBeInTheDocument();
     expect(screen.getByText('paralyzed')).toBeInTheDocument();
-    expect(repeatRequest).toEqual({ body: { targetIds: ['part-goblin'], advantage: false }, actorId: 'part-cleric' });
+    expect(repeatRequest).toEqual({
+      body: { targetIds: ['part-goblin'], advantage: false, effectId: 'effect-hold-person' }, actorId: 'part-cleric',
+    });
     // The encounter state in the result replaces the cached one
     expect(cachedEncounter()).toEqual(encounterState);
   });
 
-  it('uses the active spell slot level when the caster is not concentrating', async () => {
+  it('looks up targeting at the slot level the effect was cast with', async () => {
     const lookups = targeting();
-    const caster = makeMockParticipant('part-cleric', 'Brother Tuck', 'PLAYER', { activeSpell: 'Spiritual Weapon', activeSpellSlotLevel: 3 });
-    await renderModal({ caster, participants: [caster, goblin], spellName: 'Spiritual Weapon' });
+    const caster = makeMockParticipant('part-cleric', 'Brother Tuck', 'PLAYER');
+    await renderModal({ caster, participants: [caster, goblin], effect: makeMockSpellEffect('Spiritual Weapon', { slotLevel: 3 }) });
 
     expect(await targetNames()).toEqual(['Test Goblin']);
     expect(lookups).toEqual([{ name: 'Spiritual Weapon', slotLevel: '3' }]);
@@ -161,7 +164,7 @@ describe('RepeatEffectModal', () => {
     await user.click(screen.getByRole('button', { name: 'Repeat Effect' }));
 
     expect(await screen.findByText('Legolas resists.')).toBeInTheDocument();
-    expect(repeatBody).toEqual({ targetIds: ['part-legolas'], advantage: null, overrideSpellSaveDC: 16 });
+    expect(repeatBody).toEqual({ targetIds: ['part-legolas'], advantage: null, effectId: 'effect-hold-person', overrideSpellSaveDC: 16 });
   });
 
   it('offers no Manual Modifiers when they are not allowed', async () => {
@@ -244,9 +247,9 @@ describe('RepeatEffectModal and the turn economy (D174)', () => {
   const onTurn = (economy: Partial<NonNullable<typeof cleric.turnEconomy>> = {}) =>
     ({ ...cleric, isCurrentTurn: true, turnEconomy: { ...cleric.turnEconomy!, ...economy } });
 
-  it('says what repeating the effect costs, as the spell\'s data has it', async () => {
-    targeting({ repeatActionType: 'BONUS_ACTION' });
-    const { user } = await renderModal({ caster: onTurn(), spellName: 'Spiritual Weapon' });
+  it('says what repeating the effect costs, as the server reports it', async () => {
+    targeting();
+    const { user } = await renderModal({ caster: onTurn(), effect: makeMockSpellEffect('Spiritual Weapon') });
 
     expect(await screen.findByText('Repeating it costs a bonus action')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
@@ -256,14 +259,14 @@ describe('RepeatEffectModal and the turn economy (D174)', () => {
 
   it('costs an action when the data names no cost, as on the server', async () => {
     targeting();
-    await renderModal({ caster: onTurn() });
+    await renderModal({ caster: onTurn(), effect: { ...holdPerson, directedCost: null } });
 
     expect(await screen.findByText('Repeating it costs an action')).toBeInTheDocument();
   });
 
   it('warns at confirm when the turn can\'t pay for the repeat', async () => {
-    targeting({ repeatActionType: 'BONUS_ACTION' });
-    const { user } = await renderModal({ caster: onTurn({ bonusActionUsed: true }), spellName: 'Spiritual Weapon' });
+    targeting();
+    const { user } = await renderModal({ caster: onTurn({ bonusActionUsed: true }), effect: makeMockSpellEffect('Spiritual Weapon') });
 
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
@@ -272,12 +275,67 @@ describe('RepeatEffectModal and the turn economy (D174)', () => {
   });
 
   it('notes that an effect costing nothing still needs the player\'s own turn', async () => {
-    targeting({ repeatActionType: 'NONE' });
-    const { user } = await renderModal({ spellName: 'Spirit Guardians' });
+    targeting();
+    const { user } = await renderModal({ effect: makeMockSpellEffect('Phantasmal Force', { directedCost: 'NONE' }) });
 
     expect(await screen.findByText('Repeating it costs nothing from the turn')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    expect(screen.getByText("Only on your turn; on another creature's turn the DM applies it")).toBeInTheDocument();
+    expect(screen.getByText('Only on your turn')).toBeInTheDocument();
+  });
+
+  it('asks how many of an effect\'s uses to spend, up to its most at a time, and sends the count', async () => {
+    targeting();
+    let body: unknown;
+    server.use(
+      http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(makeMockCastSpellResponse({ spellName: 'Melf\'s Minute Meteors', resultSummary: 'Boom.' }));
+      }),
+    );
+    const meteors = makeMockSpellEffect('Melf\'s Minute Meteors', { slotLevel: 3, usesLeft: 5, maxUsesEachTurn: 2 });
+    const { user } = await renderModal({ caster: onTurn(), effect: meteors });
+
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['1', '2']);
+    await user.selectOptions(screen.getByLabelText('How many to spend (5 left)'), '2');
+    await user.click(await screen.findByRole('button', { name: /Test Goblin/ }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(screen.getByRole('button', { name: 'Repeat Effect' }));
+
+    expect(await screen.findByText('Boom.')).toBeInTheDocument();
+    expect(body).toEqual({ targetIds: ['part-goblin'], advantage: null, effectId: 'effect-melf-s-minute-meteors', uses: 2 });
+  });
+});
+
+describe('RepeatEffectModal applying a trigger (M15)', () => {
+  beforeEach(() => {
+    setupAuthToken();
+  });
+
+  it('starts with the creature whose turn it is, lets any creature be chosen, costs nothing and sends the moment', async () => {
+    const lookups = targeting();
+    let body: unknown;
+    server.use(
+      http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(makeMockCastSpellResponse({ spellName: 'Moonbeam', resultSummary: 'The orc burns.' }));
+      }),
+    );
+    const moonbeam = makeMockSpellEffect('Moonbeam', {
+      concentration: true, directedCost: 'ACTION', directedResolves: false, triggers: ['ENTER', 'START_OF_TURN'],
+    });
+    const { user } = await renderModal({ effect: moonbeam, trigger: 'START_OF_TURN', initialTargets: ['part-orc'], asDm: true });
+
+    expect(screen.getByRole('dialog', { name: 'Moonbeam — Apply Effect' })).toBeInTheDocument();
+    expect(screen.getByText('Applies to each creature that starts its turn in it; it costs Brother Tuck nothing')).toBeInTheDocument();
+    expect(screen.queryByText(/Repeating it costs/)).not.toBeInTheDocument();
+    expect(await targetNames()).toEqual(['Brother Tuck', 'Test Goblin', 'Orc', 'Legolas']);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Targeting: Orc')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Apply Effect' }));
+
+    expect(await screen.findByText('The orc burns.')).toBeInTheDocument();
+    expect(lookups).toEqual([]);
+    expect(body).toEqual({ targetIds: ['part-orc'], advantage: null, effectId: 'effect-moonbeam', trigger: 'START_OF_TURN' });
   });
 });

@@ -6,7 +6,8 @@ import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import {
-  makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant, makeMockResourcePool,
+  makeMockCastSpellResponse, makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant,
+  makeMockResourcePool, makeMockSpellEffect,
 } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
 import type { MonsterActionResponse, MonsterActionTemplate, MultiattackOption } from '../../types/combat';
@@ -422,6 +423,7 @@ describe('DM EncounterSessionPage', () => {
         goblin({
           activeConditions: [makeMockCondition('prone')],
           concentrationSpell: 'Bless',
+          activeEffects: [makeMockSpellEffect('Spiritual Weapon')],
         }),
         bugbear({ spellSlotsCurrent: { 1: { max: 3, used: 1 } } }),
       ],
@@ -430,7 +432,7 @@ describe('DM EncounterSessionPage', () => {
     // Removing a participant goes too: the server allows it only while the encounter is prepared or fought
     const COMBAT_CONTROLS: (string | RegExp)[] = [
       'Previous turn', /Next Turn/, 'Attack roll', 'Deal damage', 'Heal', 'Set HP / revive', 'Add condition',
-      'Set concentration', 'Cast spell', 'Monster actions', 'Repeat spell effect', 'Roll', /level 1 slot/, /prone/,
+      'Set concentration', 'Cast spell', 'Monster actions', 'Use (bonus action)', 'End Spiritual Weapon', 'Roll', /level 1 slot/, /prone/,
       /^Remove /,
     ];
 
@@ -1123,6 +1125,41 @@ describe('DM EncounterSessionPage', () => {
       expect(screen.queryByRole('button', { name: 'Use Rage' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Reactions for/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Spell Effects (M15)', () => {
+    it('reminds the DM of Moonbeam on the goblin\'s turn and applies its start-of-turn damage to the goblin', async () => {
+      let body: unknown;
+      let actorId: string | null = null;
+      const moonbeam = makeMockSpellEffect('Moonbeam', {
+        concentration: true, directedCost: 'ACTION', directedResolves: false, triggers: ['ENTER', 'START_OF_TURN'],
+      });
+      const table = makeMockEncounter({
+        status: 'ACTIVE',
+        participants: [gimli({ concentrationSpell: 'Moonbeam', activeEffects: [moonbeam] }), goblin({ isCurrentTurn: true })],
+      });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(table)),
+        http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request }) => {
+          body = await request.json();
+          actorId = new URL(request.url).searchParams.get('actorId');
+          return HttpResponse.json(makeMockCastSpellResponse({ encounterState: table, spellName: 'Moonbeam', resultSummary: 'The goblin burns.' }));
+        }),
+      );
+      const user = userEvent.setup();
+      await renderLoaded();
+
+      const reminders = screen.getByRole('region', { name: 'Spell effect reminders' });
+      expect(within(reminders).getByText('Is Test Goblin in a spell\'s area?')).toBeInTheDocument();
+      await user.click(within(reminders).getByRole('button', { name: 'Moonbeam: Test Goblin starts turn' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Moonbeam — Apply Effect' });
+      await user.click(within(dialog).getByRole('button', { name: 'Continue' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Apply Effect' }));
+
+      expect(await screen.findByText('The goblin burns.')).toBeInTheDocument();
+      expect(body).toEqual({ targetIds: ['part-goblin'], advantage: null, effectId: 'effect-moonbeam', trigger: 'START_OF_TURN' });
+      expect(actorId).toBe('part-gimli');
     });
   });
 });

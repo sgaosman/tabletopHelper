@@ -13,6 +13,7 @@ export function logTextColour(actionType: string): string {
     case 'STABILIZE': return 'text-buff';
     case 'CONCENTRATION_CHECK': return 'text-cls-warlock';
     case 'CONCENTRATION_LOST': return 'text-cls-warlock';
+    case 'SPELL_EFFECT_REPEAT': case 'SPELL_EFFECT_END': return 'text-cls-warlock';
     case 'SPELL_CAST': return 'text-ink';
     case 'SPELL_SLOT_USE': return 'text-ink';
     case 'SPELL_SLOT_RESTORE': return 'text-ink';

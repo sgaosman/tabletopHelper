@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.dto.EncounterResponse.TurnResponse;
 import com.tabletophelper.encounter.dto.EncounterResponse;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
+import com.tabletophelper.reference.dto.RepeatCost;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,9 @@ class EncounterViewsTest {
                 .turnEconomy(SPENT)
                 .attacksPerAction(1)
                 .speed(Map.of("walk", 30))
+                .activeEffects(List.of(EncounterResponse.SpellEffectResponse.builder().id(UUID.randomUUID())
+                        .spell("Spiritual Weapon").slotLevel(4).startedRound(1).durationRounds(10)
+                        .directedCost(RepeatCost.BONUS_ACTION).directedResolves(true).triggers(List.of()).build()))
                 .build();
     }
 
@@ -133,7 +137,7 @@ class EncounterViewsTest {
         }
 
         @Test
-        @DisplayName("Removes a monster's notes, spells, spell slots, spellcasting numbers, resource pools, turn economy, attacks per action and bestiary entry")
+        @DisplayName("Removes a monster's notes, spells, spell slots, spellcasting numbers, resource pools, turn economy, attacks per action, its Spell Effects' slot levels and bestiary entry")
         void removesMonsterDetails() {
             var goblin = find(EncounterViews.playerView(encounter(true, goblin(7))), goblinId);
 
@@ -153,6 +157,10 @@ class EncounterViewsTest {
             assertEquals(Map.of("walk", 30), goblin.getSpeed());
             assertEquals(15, goblin.getArmourClass());
             assertEquals(PRONE, goblin.getActiveConditions());
+            // Its Spell Effects show, without the slot level that says what it spent (M15)
+            assertEquals("Spiritual Weapon", goblin.getActiveEffects().getFirst().getSpell());
+            assertNull(goblin.getActiveEffects().getFirst().getSlotLevel());
+            assertEquals(10, goblin.getActiveEffects().getFirst().getDurationRounds());
         }
 
         @Test

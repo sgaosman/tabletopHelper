@@ -33,6 +33,20 @@ export type EncounterParticipant = Schemas['ParticipantResponse'];
 export type Encounter = Schemas['EncounterResponse'];
 
 /**
+ * One of a participant's Spell Effects (M15): a lasting spell's weapon, beam or area, such as Spiritual Weapon or
+ * Moonbeam, with how long it has left and how it is used. Its caster directs it on their turn at directedCost; its area
+ * acts on creatures by itself at the moments in triggers, which the DM applies. A monster's slot level is hidden from
+ * players (D157).
+ */
+export type SpellEffect = Schemas['SpellEffectResponse'];
+
+/** A moment of a turn at which a Spell Effect's area acts on a creature by itself (M15). */
+export type SpellTrigger = SpellEffect['triggers'][number];
+
+/** Ends one of a participant's Spell Effects by hand, and the concentration it belongs to (M15). */
+export type EndSpellEffectRequest = Schemas['EndSpellEffectRequest'];
+
+/**
  * One turn in an encounter's computed order (D163): a participant's, or the Lair's on initiative 20. The
  * encounter's currentTurnIndex points into its turnOrder, and each participant's sortOrder is its turn's
  * place there. The Player View leaves out turns players can't see and numbers the rest again (D157).

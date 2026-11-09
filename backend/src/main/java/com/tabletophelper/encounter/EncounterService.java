@@ -14,8 +14,10 @@ import com.tabletophelper.character.state.ResourcePoolEntry;
 import com.tabletophelper.encounter.EncounterLifecycle.Transition;
 import com.tabletophelper.encounter.dto.*;
 import com.tabletophelper.encounter.internal.CommandRecorder;
+import com.tabletophelper.encounter.internal.EffectApplier;
 import com.tabletophelper.encounter.internal.EncounterTurns;
 import com.tabletophelper.encounter.internal.MonsterPools;
+import com.tabletophelper.encounter.internal.SpellEffects;
 import com.tabletophelper.encounter.internal.TurnEconomies;
 import com.tabletophelper.encounter.internal.TurnProcessor;
 import com.tabletophelper.encounter.state.ConditionEntry;
@@ -25,6 +27,7 @@ import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.rules.Ability;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.TurnOrder;
+import com.tabletophelper.reference.dto.RepeatCost;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -56,6 +59,7 @@ public class EncounterService {
     private final TurnProcessor turnProcessor;
     private final EncounterResults encounterResults;
     private final CommandRecorder commandRecorder;
+    private final SpellEffects spellEffects;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -543,8 +547,7 @@ public class EncounterService {
                         .activeConditions(p.getActiveConditions())
                         .concentrationSpell(p.getConcentration() != null ? p.getConcentration().spell() : null)
                         .concentrationSlotLevel(p.getConcentration() != null ? p.getConcentration().slotLevel() : null)
-                        .activeSpell(p.getActiveSpell())
-                        .activeSpellSlotLevel(p.getActiveSpellSlotLevel())
+                        .activeEffects(effectResponses(p))
                         .spellSlotsCurrent(p.getSpellSlotsCurrent())
                         .isVisibleToPlayers(p.getIsVisibleToPlayers())
                         .lifeState(p.getLifeState().name())
@@ -586,6 +589,32 @@ public class EncounterService {
                 .allowPlayerManualModifiers(!Boolean.FALSE.equals(campaign.getAllowPlayerManualModifiers()))
                 .undo(commandRecorder.undoInfo(encounter).orElse(null))
                 .build();
+    }
+
+    // The participant's Spell Effects, each with how it is used from its spell's data; an effect whose template can't
+    // be read is shown with nothing to do with it, so the state still loads (M15)
+    private List<EncounterResponse.SpellEffectResponse> effectResponses(EncounterParticipant participant) {
+        return EffectApplier.effects(participant).stream().map(effect -> {
+            SpellEffects.EffectUse how;
+            try {
+                how = spellEffects.effectUse(effect.spell());
+            } catch (ConflictException e) {
+                how = SpellEffects.EffectUse.NONE;
+            }
+            return EncounterResponse.SpellEffectResponse.builder()
+                    .id(effect.id())
+                    .spell(effect.spell())
+                    .slotLevel(effect.slotLevel())
+                    .concentration(effect.concentrationInstanceId() != null)
+                    .startedRound(effect.startedRound())
+                    .durationRounds(effect.durationRounds())
+                    .usesLeft(effect.usesLeft())
+                    .directedCost(RepeatCost.of(how.directedCost()))
+                    .directedResolves(how.directedResolves())
+                    .maxUsesEachTurn(how.maxUsesEachTurn())
+                    .triggers(how.triggers())
+                    .build();
+        }).toList();
     }
 
     // Each turn in order, with the number of the group it ties with, if any: its first turn's place

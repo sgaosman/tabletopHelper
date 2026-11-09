@@ -10,17 +10,23 @@ import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.ConcentrationRequest;
+import com.tabletophelper.encounter.dto.EndSpellEffectRequest;
 import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SpellSource;
+import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.ForbiddenException;
+import com.tabletophelper.shared.NotFoundException;
+import com.tabletophelper.rules.combat.LifeState;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -368,6 +374,7 @@ class SpellcastingServiceTest {
                      "effects": [{"effectType": "DAMAGE", "damageDice": "2d10", "damageType": "radiant"}]}""");
             ConcentrationInstance moonbeam = ConcentrationInstance.start("Moonbeam", 2, 1, 10);
             wizard.setConcentration(moonbeam);
+            wizard.setActiveEffects(List.of(SpellEffectEntry.start("Moonbeam", 2, moonbeam.id(), 1, 10, null)));
             RepeatSpellEffectRequest request = new RepeatSpellEffectRequest();
             request.setTargetIds(List.of(goblin.getId()));
 
@@ -383,8 +390,9 @@ class SpellcastingServiceTest {
         }
 
         @Test
-        @DisplayName("Using an effect again with no concentration or lasting spell is a 409")
+        @DisplayName("Using an effect again with no Spell Effect is a 409, concentration alone included")
         void repeatWithoutASpell() {
+            wizard.setConcentration(ConcentrationInstance.start("Bless", 1, 1, 10));
             RepeatSpellEffectRequest request = new RepeatSpellEffectRequest();
             request.setTargetIds(List.of(goblin.getId()));
 
@@ -1055,8 +1063,8 @@ class SpellcastingServiceTest {
                     {"spellLevel": 2, "deliveryMethod": "SPELL_ATTACK", "spellAttackType": "MELEE",
                      "repeatEffect": true, "repeatActionType": "BONUS_ACTION", "persistsWithoutConcentration": true,
                      "effects": [{"effectType": "DAMAGE", "damageDice": "1d8", "damageType": "force"}]}""");
-            wizard.setActiveSpell("Spiritual Weapon");
-            wizard.setActiveSpellSlotLevel(2);
+            wizard.setActiveEffects(new ArrayList<>(List.of(
+                    SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 10, null))));
             RepeatSpellEffectRequest request = new RepeatSpellEffectRequest();
             request.setTargetIds(List.of(goblin.getId()));
 
@@ -1074,7 +1082,13 @@ class SpellcastingServiceTest {
                     {"spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "WIS", "halfOnSave": true,
                      "concentration": true, "repeatEffect": true, "repeatActionType": "NONE",
                      "effects": [{"effectType": "DAMAGE", "damageDice": "3d8", "damageType": "radiant"}]}""");
-            wizard.setConcentration(ConcentrationInstance.start("Spirit Guardians", 3, 1, 100));
+            ConcentrationInstance guardians = ConcentrationInstance.start("Spirit Guardians", 3, 1, 100);
+            wizard.setConcentration(guardians);
+            SpellEffectEntry guardianEffect = SpellEffectEntry.start("Spirit Guardians", 3, guardians.id(), 1, 100, null);
+            List<SpellEffectEntry> both = new ArrayList<>(wizard.getActiveEffects());
+            both.add(guardianEffect);
+            wizard.setActiveEffects(both);
+            request.setEffectId(guardianEffect.id());
             for (int i = 0; i < 2; i++) {
                 f.dice.script(1, 1, 1, 1);
                 f.spellcasting.repeatSpellEffect(f.encounterId(), request, wizard.getId(), playerUserId);
@@ -1130,6 +1144,245 @@ class SpellcastingServiceTest {
             assertEquals("failed_save", response.getTargets().getFirst().getOutcome());
             assertEquals(4, response.getTargets().getFirst().getSaveRoll());
             assertEquals(6, fighter.getHpCurrent());
+        }
+    }
+
+    @Nested
+    @DisplayName("Spell Effects (M15)")
+    class SpellEffectCases {
+
+        private static final String SPIRITUAL_WEAPON = """
+                {"spellLevel": 2, "deliveryMethod": "SPELL_ATTACK", "spellAttackType": "MELEE", "concentration": false,
+                 "durationRounds": 10, "repeatEffect": true, "repeatActionType": "BONUS_ACTION",
+                 "persistsWithoutConcentration": true,
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "1d8", "damageType": "force"}]}""";
+
+        private static final String SPIRIT_GUARDIANS = """
+                {"spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "WIS", "halfOnSave": true,
+                 "concentration": true, "durationRounds": 100, "effectTriggers": [{"when": ["ENTER", "START_OF_TURN"]}],
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "3d8", "damageType": "radiant"}]}""";
+
+        private static final String MOONBEAM = """
+                {"spellLevel": 2, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "halfOnSave": true,
+                 "concentration": true, "durationRounds": 10, "repeatEffect": true, "repeatActionType": "ACTION",
+                 "directedResolves": false, "effectTriggers": [{"when": ["ENTER", "START_OF_TURN"]}],
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "2d10", "damageType": "radiant",
+                   "upcastScaling": {"additionalDicePerLevel": "1d10"}}]}""";
+
+        private static final String MELFS_METEORS = """
+                {"spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "halfOnSave": true,
+                 "concentration": true, "durationRounds": 100, "repeatEffect": true, "repeatActionType": "BONUS_ACTION",
+                 "effectUses": {"count": 6, "perSlotLevel": 2, "maxPerUse": 2},
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "2d6", "damageType": "fire"}]}""";
+
+        private UUID playerUserId;
+
+        @BeforeEach
+        void spells() {
+            playerUserId = f.playerControlling(wizard);
+            f.spell("Spiritual Weapon", 2, SPIRITUAL_WEAPON);
+            f.spell("Spirit Guardians", 3, SPIRIT_GUARDIANS);
+            f.spell("Moonbeam", 2, MOONBEAM);
+            f.spell("Melf's Minute Meteors", 3, MELFS_METEORS);
+        }
+
+        private SpellEffectEntry effect(String spell) {
+            return wizard.getActiveEffects().stream().filter(e -> e.spell().equals(spell)).findFirst().orElseThrow();
+        }
+
+        private RepeatSpellEffectRequest use(List<EncounterParticipant> targets) {
+            RepeatSpellEffectRequest request = new RepeatSpellEffectRequest();
+            request.setTargetIds(targets.stream().map(EncounterParticipant::getId).toList());
+            return request;
+        }
+
+        @Test
+        @DisplayName("A cleric keeping up Spirit Guardians still attacks with Spiritual Weapon: the use picks the only effect with a directed use")
+        void clericCombo() {
+            // The area's damage is rolled once, though no creature is in it yet
+            cast("Spirit Guardians", 3, List.of(), 1, 1, 1);
+            cast("Spiritual Weapon", 2, List.of(goblin), 15, 4);
+            assertEquals(16, goblin.getHpCurrent());
+            assertEquals(2, wizard.getActiveEffects().size());
+            assertEquals(wizard.getConcentration().id(), effect("Spirit Guardians").concentrationInstanceId());
+            assertNull(effect("Spiritual Weapon").concentrationInstanceId());
+            assertEquals(10, effect("Spiritual Weapon").durationRounds());
+            CombatFixture.newTurn(wizard);
+
+            f.dice.script(15, 3);
+            CastSpellResponse response = f.spellcasting.repeatSpellEffect(f.encounterId(), use(List.of(goblin)),
+                    wizard.getId(), playerUserId);
+
+            assertEquals("Spiritual Weapon", response.getSpellName());
+            assertEquals(13, goblin.getHpCurrent());
+            assertEquals("Spirit Guardians", wizard.getConcentration().spell());
+            assertTrue(wizard.getTurnEconomy().bonusActionUsed());
+            assertTrue(f.descriptions().contains("Wizard uses Spiritual Weapon's effect (bonus action)."));
+        }
+
+        @Test
+        @DisplayName("With two effects the caster can direct, leaving out which one is a 409 naming both")
+        void chooseWhich() {
+            wizard.setActiveEffects(new ArrayList<>(List.of(
+                    SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 10, null),
+                    SpellEffectEntry.start("Moonbeam", 2, null, 1, 10, null))));
+
+            ConflictException ex = assertThrows(ConflictException.class, () -> f.spellcasting.repeatSpellEffect(
+                    f.encounterId(), use(List.of()), wizard.getId(), playerUserId));
+
+            assertEquals("Wizard has more than one Spell Effect (Spiritual Weapon, Moonbeam); choose which to use",
+                    ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Casting Spiritual Weapon again ends the first weapon (PHB p.278)")
+        void castAgain() {
+            cast("Spiritual Weapon", 2, List.of());
+            UUID first = effect("Spiritual Weapon").id();
+            cast("Spiritual Weapon", 3, List.of());
+
+            assertEquals(1, wizard.getActiveEffects().size());
+            assertNotEquals(first, effect("Spiritual Weapon").id());
+            assertEquals(3, effect("Spiritual Weapon").slotLevel());
+            assertTrue(f.descriptions().contains("Wizard's Spiritual Weapon ends (cast again)"));
+        }
+
+        @Test
+        @DisplayName("Moonbeam's action moves the beam and deals no damage (PHB p.261); naming targets is a 400")
+        void moonbeamMoves() {
+            cast("Moonbeam", 2, List.of(), 1, 1);
+            CombatFixture.newTurn(wizard);
+
+            f.spellcasting.repeatSpellEffect(f.encounterId(), use(List.of()), wizard.getId(), playerUserId);
+
+            assertEquals(20, goblin.getHpCurrent());
+            assertEquals(1, wizard.getTurnEconomy().actionsUsed());
+            assertTrue(f.descriptions().contains("Wizard moves Moonbeam."));
+            CombatFixture.newTurn(wizard);
+            assertThrows(ValidationException.class, () -> f.spellcasting.repeatSpellEffect(f.encounterId(),
+                    use(List.of(goblin)), wizard.getId(), playerUserId));
+        }
+
+        @Test
+        @DisplayName("The DM applies Moonbeam to a creature starting its turn in it, on that creature's turn and at no cost; a player can't")
+        void trigger() {
+            cast("Moonbeam", 3, List.of(), 1, 1, 1);
+            f.turnOf(goblin);
+            TurnEconomy before = wizard.getTurnEconomy();
+            RepeatSpellEffectRequest request = use(List.of(goblin));
+            request.setTrigger(SpellTrigger.START_OF_TURN);
+
+            assertThrows(ForbiddenException.class, () -> f.spellcasting.repeatSpellEffect(f.encounterId(), request,
+                    wizard.getId(), playerUserId));
+            // Cast with a 3rd-level slot: 3d10, then the CON save
+            f.dice.script(4, 4, 4, 2);
+            f.spellcasting.repeatSpellEffect(f.encounterId(), request, wizard.getId(), f.dmUserId);
+
+            assertEquals(8, goblin.getHpCurrent());
+            assertEquals(before, wizard.getTurnEconomy());
+            assertTrue(f.descriptions().contains("Wizard's Moonbeam acts on a creature starting a turn in it."));
+
+            RepeatSpellEffectRequest atEnd = use(List.of(goblin));
+            atEnd.setTrigger(SpellTrigger.END_OF_TURN);
+            assertThrows(ConflictException.class, () -> f.spellcasting.repeatSpellEffect(f.encounterId(), atEnd,
+                    wizard.getId(), f.dmUserId));
+        }
+
+        @Test
+        @DisplayName("Losing concentration ends its Spell Effect; Spiritual Weapon, kept up without it, stays")
+        void concentrationCascade() {
+            cast("Spiritual Weapon", 2, List.of());
+            cast("Moonbeam", 2, List.of(), 1, 1);
+            ConcentrationRequest clear = new ConcentrationRequest();
+            clear.setParticipantId(wizard.getId());
+
+            f.spellcasting.setConcentration(f.encounterId(), clear, f.dmUserId);
+
+            assertEquals(List.of("Spiritual Weapon"), wizard.getActiveEffects().stream().map(SpellEffectEntry::spell)
+                    .toList());
+            assertTrue(f.descriptions().contains("Wizard's Moonbeam ends (concentration lost)"));
+        }
+
+        @Test
+        @DisplayName("Dropping to 0 HP ends concentration and its effect, but Spiritual Weapon lasts (PHB p.203, p.278)")
+        void zeroHp() {
+            cast("Spiritual Weapon", 2, List.of());
+            cast("Moonbeam", 2, List.of(), 1, 1);
+
+            f.effectApplier.damage(f.encounter, goblin, "Goblin", wizard, 30, "slashing");
+
+            assertEquals(LifeState.DYING, wizard.getLifeState());
+            assertNull(wizard.getConcentration());
+            assertEquals(List.of("Spiritual Weapon"), wizard.getActiveEffects().stream().map(SpellEffectEntry::spell)
+                    .toList());
+        }
+
+        @Test
+        @DisplayName("A player ends their Spiritual Weapon by hand; ending Moonbeam ends the concentration too")
+        void endByHand() {
+            cast("Spiritual Weapon", 2, List.of());
+            cast("Moonbeam", 2, List.of(), 1, 1);
+            EndSpellEffectRequest end = new EndSpellEffectRequest();
+            end.setParticipantId(wizard.getId());
+            end.setEffectId(effect("Spiritual Weapon").id());
+
+            f.spellcasting.endSpellEffect(f.encounterId(), end, playerUserId);
+            assertEquals("Moonbeam", wizard.getConcentration().spell());
+            end.setEffectId(effect("Moonbeam").id());
+            f.spellcasting.endSpellEffect(f.encounterId(), end, f.dmUserId);
+
+            assertTrue(wizard.getActiveEffects().isEmpty());
+            assertNull(wizard.getConcentration());
+            assertTrue(f.descriptions().contains("Wizard's Spiritual Weapon ends (ended by hand)"));
+            assertTrue(f.descriptions().contains("Wizard loses concentration on Moonbeam (Moonbeam ended by hand)"));
+            end.setEffectId(UUID.randomUUID());
+            assertThrows(NotFoundException.class, () -> f.spellcasting.endSpellEffect(f.encounterId(), end,
+                    f.dmUserId));
+        }
+
+        @Test
+        @DisplayName("Melf's Minute Meteors has six meteors and two more a level above 3rd, spends one or two at a time, and refuses three (XGE p.161)")
+        void meteors() {
+            // Cast with a 4th-level slot at the goblin: 2d6, then its DEX save; the cast spends the first meteor
+            cast("Melf's Minute Meteors", 4, List.of(goblin), 3, 3, 1);
+            assertEquals(14, goblin.getHpCurrent());
+            assertEquals(7, effect("Melf's Minute Meteors").usesLeft());
+            CombatFixture.newTurn(wizard);
+            RepeatSpellEffectRequest two = use(List.of(goblin));
+            two.setUses(2);
+
+            f.dice.script(1, 1, 1, 1, 1, 1);
+            f.spellcasting.repeatSpellEffect(f.encounterId(), two, wizard.getId(), playerUserId);
+
+            assertEquals(10, goblin.getHpCurrent());
+            assertEquals(5, effect("Melf's Minute Meteors").usesLeft());
+            assertTrue(wizard.getTurnEconomy().bonusActionUsed());
+            CombatFixture.newTurn(wizard);
+            two.setUses(3);
+            assertThrows(ValidationException.class, () -> f.spellcasting.repeatSpellEffect(f.encounterId(), two,
+                    wizard.getId(), playerUserId));
+        }
+
+        @Test
+        @DisplayName("Spiritual Weapon ends at the start of its caster's turn once its 10 rounds have passed (D162)")
+        void expires() {
+            wizard.setInitiative(18);
+            goblin.setInitiative(12);
+            cast("Spiritual Weapon", 2, List.of());
+            f.turnOf(wizard);
+            for (int round = 1; round < 10; round++) {
+                f.turns.advanceTurn(f.encounterId(), f.dmUserId);
+                f.turns.advanceTurn(f.encounterId(), f.dmUserId);
+            }
+            assertEquals(10, f.encounter.getRoundNumber());
+            assertEquals(1, wizard.getActiveEffects().size());
+
+            f.turns.advanceTurn(f.encounterId(), f.dmUserId);
+            f.turns.advanceTurn(f.encounterId(), f.dmUserId);
+
+            assertEquals(11, f.encounter.getRoundNumber());
+            assertTrue(wizard.getActiveEffects().isEmpty());
+            assertTrue(f.descriptions().contains("Wizard's Spiritual Weapon ends (its duration ends)"));
         }
     }
 }

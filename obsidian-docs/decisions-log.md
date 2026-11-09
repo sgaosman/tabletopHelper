@@ -403,6 +403,8 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** Adds complexity to the participant model and initiative order. The `COMPANION` type needs special handling: no death saves, auto-removed on concentration loss, actions may be bonus actions rather than full actions. Accepted because the alternative (tracking these effects as ad-hoc state) would be harder to manage and display.
 
+**Update (2026-11-09, M15):** implemented differently: lasting spells are Spell Effects stored on the caster's row and shown as cards under the caster, not COMPANION participants; those stay the plan for summoned creatures in M26 ([[#D177]]).
+
 ## D037: Undo via Before-State Snapshots
 
 **Date:** 2026-07-18
@@ -1299,6 +1301,8 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 
 **Trade-offs:** `repeatEffect: true` reuses the spell's main damage/save/delivery. For special cases (Witch Bolt: AUTO_HIT, no upcast), `repeatEffect` accepts an override object. The modal always appears when concentration is active — if the spell doesn't have `repeatEffect`, the backend returns an error message rather than filtering the button client-side (avoids per-participant API calls in the DM view).
 
+**Update (2026-11-09, M15):** the repeat now names the effect it uses, so a caster with several lasting spells can use each; Moonbeam's and Dust Devil's uses only move them, with damage from DM-applied triggers ([[#D177]]).
+
 ## D114: Active Spell Tracking for Non-Concentration Persistent Spells
 
 **Date:** 2026-07-21
@@ -1309,6 +1313,8 @@ A record of key technical decisions, their rationale, and trade-offs accepted.
 **Rationale:** Spiritual Weapon is the most commonly used non-concentration persistent spell. It requires a bonus action each turn to attack, which fits the repeat button pattern. Tying repeat effects only to concentration would miss this important spell.
 
 **Trade-offs:** Currently only Spiritual Weapon uses this mechanism at levels 0–3. Crown of Stars (L7) and Animate Objects (L5) would use it when higher-level definitions are added. Active spells are cleared on death (0 HP) but not on concentration checks or new concentration spells — they are independent tracking.
+
+**Update (2026-11-09, M15):** superseded by `active_effects`, a list on the caster that V33 converts `active_spell` into; Spiritual Weapon now expires and no longer ends at 0 HP ([[#D177]]).
 
 ## D115: Manual Resolution Concentration Fix
 
@@ -3106,3 +3112,30 @@ The plan's twelve questions were answered with its recommended answers when the 
 **Related:** D037, D145, D157, D163, D166, D174, [[Undo]], [[Live Encounter]]
 
 **Rehearsal on a copy of the local data (2026-11-09):** V32 applied after V31. In a test encounter, 3 slashing damage to a Goblin (7 → 4) was undone back to 7; a player's undo got 403 and a stale `expectedCommandId` got 409; a Next Turn was undone back to the first creature. The DM's log kept both entries marked undone with an `UNDO` entry each, and the player's log showed only the two `UNDO` entries. In the browser the DM's Undo button opened the dialog naming the command and the fresh-dice warning, and confirming it struck the entry through. Tests: 2,189 backend unit, 255 integration and 880 frontend.
+
+## D177: Lasting Spell Effects on the Caster
+
+**Date:** 2026-11-09
+**Status:** Accepted — implemented (M15); the local database takes V33 at its next start
+
+**Decision:** a spell that lasts and is used again on later turns, such as Spiritual Weapon, Flaming Sphere, Moonbeam or Spirit Guardians, is a Spell Effect stored on its caster's participant row, shown as a card indented under the caster. It amends [[#D036]], which planned COMPANION participants: those would need placeholder HP and AC, would have to be kept out of the turn order and Write-back, would break the rule that participants are only added while Preparing ([[#D166]]), and undo would have to recreate deleted rows. COMPANION participants stay the plan for summoned creatures (M26). It replaces [[#D114]]'s single `active_spell`.
+- **State.** V33 adds `encounter_participants.active_effects` (JSONB list of `SpellEffectEntry`: id, spell, slot level, the concentration it depends on, the round it started, its duration and any uses left, such as Melf's Minute Meteors' meteors), converts any `active_spell` to an effect lasting 10 rounds and any live concentration on one of the 20 lasting spells to a linked effect, and drops `active_spell` and `active_spell_slot_level`. The log gains `SPELL_EFFECT_END`.
+- **Lifetime.** Casting a lasting spell creates its effect; recasting Spiritual Weapon ends the first (PHB p.278). Losing concentration ends the effects linked to it, and an effect ends at the start of its caster's turn once its duration has passed, which fixes Spiritual Weapon never expiring. Dropping to 0 HP no longer ends Spiritual Weapon: nothing in its text ends it, and an unconscious caster simply has no bonus action to use it (PHB p.278, p.203). The DM, or the caster's player, can end an effect with `POST /combat/spell-effect/end`; ending a concentration effect ends the concentration.
+- **Using an effect.** `POST /combat/repeat-spell-effect` takes an optional `effectId`; without one it uses the caster's only usable effect and answers 409 naming the choices when there are several. This fixes [[#D113]]'s gap where a cleric concentrating on Spirit Guardians couldn't attack with Spiritual Weapon. The use charges the turn economy as before ([[#D174]]).
+- **Triggers.** Area damage on another creature's turn (entering, starting or ending a turn in the area) is applied by the DM: with `trigger` set, the effect acts on the chosen creatures at no cost. The DM's page shows a reminder strip on each creature's turn with a button per effect and moment, since there is no map to know who is in the area.
+- **Rules corrections from the spell text:** Moonbeam's action (PHB p.261) and Dust Devil's bonus action (XGE p.154) now only move the effect, with damage from the triggers; Flaming Sphere's bonus-action ram still deals damage (p.242) and gains an end-of-turn trigger; Hunger of Hadar deals 2d6 cold at the start of a turn with no save and 2d6 acid on a failed DEX save at the end (p.251); Searing Smite asks for a CON save (p.274); Ensnaring Strike upcasts (p.237); Earthen Grasp's crush is halved on a save and no longer re-restrains (XGE p.161); Spirit Guardians, Cloud of Daggers, Create Bonfire and Caustic Brew are trigger-only.
+- **Undo.** `ParticipantCombatState` includes the effects, so undo restores them ([[#D176]]).
+- **Player View.** A monster's effect slot level is hidden from players ([[#D157]]).
+
+**Rationale:** the roadmap's goal is the sub-card under the caster, resolved through the same engine; a list on the caster gives that without a second kind of participant.
+
+**Trade-offs:** undo snapshots taken before V33 hold no effects, so undoing such a command leaves current effects alone. Casting Moonbeam or Spirit Guardians still resolves damage against any targets picked at cast time, as before; a DM following the reading that creating an area on a creature isn't "entering" it picks no targets. Searing Smite's "a successful save ends the spell" is left to the DM. A dead monster's effects never expire, because its turns are skipped. The "already hit this turn" warning for area effects is left for later.
+
+**Alternatives considered:**
+- **COMPANION participants ([[#D036]])** — rejected for the reasons above, kept for M26.
+
+**Key files:** `encounter/state/SpellEffectEntry.java`, `encounter/internal/SpellcastingService.java`, `encounter/internal/EffectApplier.java`, `encounter/internal/TurnProcessor.java`, `SpellEffectCard.tsx`, `TriggerReminder.tsx`, `RepeatEffectModal.tsx`, `V33__spell_effects.sql`
+
+**Related:** D036, D113, D114, D157, D166, D174, D176, [[Spell Effect]]
+
+**Rehearsal on a copy of the local data (2026-11-09):** V33 applied after V31 and V32; no participant had an `active_spell` or a concentration, so nothing was converted. `json-roundtrip` kept its baseline of 11 null-only changes with 0 unreadable, and the test encounter loaded with empty effect lists. Tests: 2,203 backend unit, 261 integration and 891 frontend; `PreviewMigrationJobIT` seeds rows at V32 and checks V33's conversion.

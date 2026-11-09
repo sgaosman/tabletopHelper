@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { makeMockCondition, makeMockLogEntry, makeMockParticipant } from '../../test/mocks/handlers';
+import { makeMockCondition, makeMockLogEntry, makeMockParticipant, makeMockSpellEffect } from '../../test/mocks/handlers';
 import ParticipantRow from './ParticipantRow';
 import ConditionChips from './ConditionChips';
 import ActiveSpells from './ActiveSpells';
@@ -60,13 +60,14 @@ describe('ParticipantRow', () => {
     const dying = legolas({
       lifeState: 'DYING', hpCurrent: 0, deathSaveDue: true, concentrationSpell: 'Hunter\'s Mark',
       spellSlotsCurrent: { '1': { max: 2, used: 1 } },
+      activeEffects: [makeMockSpellEffect()],
       activeConditions: [makeMockCondition('prone'), makeMockCondition('paralyzed', { repeatSave: { ability: 'CON', dc: 10, awaitingRoll: true } })],
     });
     render(
       <>
         <ParticipantRow participant={dying} current trailing={<HpReadout participant={dying} />}>
           <ConditionChips participant={dying} roundNumber={1} />
-          <ActiveSpells participant={dying} />
+          <ActiveSpells participant={dying} roundNumber={1} />
           <DeathSaves participant={dying} />
           <SpellSlotPips slots={dying.spellSlotsCurrent} variant="row" />
         </ParticipantRow>

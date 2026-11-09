@@ -3,7 +3,9 @@ import { EncounterProvider } from '../../context/EncounterContext';
 import { useEncounter } from '../../hooks/useEncounter';
 import { useAuth } from '../../hooks/useAuth';
 import { useCombatLog, useEncounterAction } from '../../queries/encounters';
-import type { EncounterParticipant } from '../../types/encounter';
+import type { EncounterParticipant, SpellEffect } from '../../types/encounter';
+import { apiErrorMessage } from '../../api/errors';
+import { chargeBlock } from '../../utils/turnEconomy';
 import SpellCastModal from '../../components/encounter/SpellCastModal';
 import RepeatEffectModal from '../../components/encounter/RepeatEffectModal';
 import RepeatSavePrompt from '../../components/encounter/RepeatSavePrompt';
@@ -26,10 +28,10 @@ import ReactionMenu from '../../components/encounter/ReactionMenu';
 import ResourcePoolDisplay from '../../components/common/ResourcePoolDisplay';
 import IconButton from '../../components/ui/IconButton';
 import { healthLabel } from '../../utils/healthStatus';
-import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, RotateCw, Footprints, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Sparkles, Crosshair, Zap, Swords, X, Footprints, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 
-type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'repeat-effect' | 'standard' | 'reaction' | null;
+type PlayerAction = 'attack' | 'condition' | 'concentration' | 'spell' | 'standard' | 'reaction' | null;
 
 function PlayerActionPanel({ myCharacter, encounter, targetId, actionMode, onClose }: {
   myCharacter: EncounterParticipant;
@@ -84,6 +86,9 @@ function PlayerSessionView() {
   const navigate = useNavigate();
   const [actionMode, setActionMode] = useState<PlayerAction>(null);
   const [attackTargetId, setAttackTargetId] = useState<string | null>(null);
+  // The player's Spell Effect in use, while its pop-up is open, and why a use or an end failed (M15)
+  const [effectInUseId, setEffectInUseId] = useState<string | null>(null);
+  const [effectError, setEffectError] = useState('');
 
   if (!encounter) {
     return (
@@ -111,6 +116,34 @@ function PlayerSessionView() {
   // Completed (D166)
   const isActive = encounter.status === 'ACTIVE';
   const closeAction = () => { setActionMode(null); setAttackTargetId(null); };
+  const effectInUse = myCharacter?.activeEffects.find(e => e.id === effectInUseId);
+
+  // A Spell Effect command the server may refuse, such as a use over the turn's budget, says why (M15)
+  async function effectCommand(command: () => Promise<unknown>) {
+    try {
+      await command();
+      setEffectError('');
+    } catch (err: unknown) {
+      setEffectError(apiErrorMessage(err));
+    }
+  }
+
+  // The player's use of their Spell Effect: a move, as Moonbeam's, is sent at once; anything else opens its pop-up
+  function directEffect(effect: SpellEffect) {
+    if (!myCharacter) return;
+    if (effect.directedResolves) {
+      setEffectInUseId(effect.id);
+    } else {
+      void effectCommand(() => actions.repeatSpellEffect({ targetIds: [], effectId: effect.id }, myCharacter.id));
+    }
+  }
+
+  // Why the player's turn can't pay for using the effect, as the server would answer (D174)
+  function effectBlock(participant: EncounterParticipant, effect: SpellEffect): string | null {
+    if (!effect.directedCost) return null;
+    if (!participant.isCurrentTurn) return 'Only on your turn';
+    return effect.directedCost === 'NONE' ? null : chargeBlock(participant, { cost: effect.directedCost });
+  }
 
   function selectAttackTarget(targetId: string) {
     setAttackTargetId(targetId);
@@ -233,12 +266,6 @@ function PlayerSessionView() {
                 <Sparkles className="w-3.5 h-3.5" /> Cast Spell
               </button>
             )}
-            {(myCharacter.concentrationSpell || myCharacter.activeSpell) && (
-              <button onClick={() => selectSelfAction('repeat-effect')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock font-heading text-[11px] font-semibold tracking-[0.02em] border border-cls-warlock/30">
-                <RotateCw className="w-3.5 h-3.5" /> Repeat Effect
-              </button>
-            )}
           </div>
         )}
 
@@ -252,16 +279,17 @@ function PlayerSessionView() {
           />
         )}
 
-        {/* Repeat spell effect modal */}
-        {isActive && actionMode === 'repeat-effect' && myCharacter && (myCharacter.concentrationSpell || myCharacter.activeSpell) && (
+        {/* The player's use of one of their Spell Effects (M15) */}
+        {isActive && myCharacter && effectInUse && (
           <RepeatEffectModal
             caster={myCharacter}
+            effect={effectInUse}
             participants={encounter.participants}
-            spellName={(myCharacter.concentrationSpell || myCharacter.activeSpell)!}
-            onClose={closeAction}
+            onClose={() => setEffectInUseId(null)}
             allowManualModifiers={encounter.allowPlayerManualModifiers}
           />
         )}
+        {effectError && <p role="alert" className="text-debuff font-body text-[15px] font-semibold mb-4">{effectError}</p>}
 
         {/* The player's own Actions and Reactions menus; players never see another creature's (D157, D174) */}
         {isActive && actionMode === 'standard' && isMyTurn && myCharacter && (
@@ -330,7 +358,14 @@ function PlayerSessionView() {
                   roundNumber={encounter.roundNumber}
                   onRemove={isOwn && isActive ? c => { void actions.removeCondition(p.id, c.name); } : undefined}
                 />
-                <ActiveSpells participant={p} />
+                {/* The player directs their own Spell Effects on their turn, and may end them on any (M15) */}
+                <ActiveSpells
+                  participant={p}
+                  roundNumber={encounter.roundNumber}
+                  onUse={isOwn && isActive && p.lifeState === 'ALIVE' ? effect => directEffect(effect) : undefined}
+                  blockedBy={effect => effectBlock(p, effect)}
+                  onEnd={isOwn && isActive ? effect => { void effectCommand(() => actions.endSpellEffect({ participantId: p.id, effectId: effect.id })); } : undefined}
+                />
               </ParticipantRow>
             );
           })}

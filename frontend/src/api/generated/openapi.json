@@ -2158,6 +2158,47 @@
         ]
       }
     },
+    "/api/encounters/{encounterId}/combat/spell-effect/end": {
+      "post": {
+        "operationId": "endSpellEffect",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "encounterId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndSpellEffectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncounterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "combat-controller"
+        ]
+      }
+    },
     "/api/encounters/{encounterId}/combat/spell-options": {
       "get": {
         "operationId": "getSpellOptions",
@@ -6074,7 +6115,8 @@
               "OBJECT_INTERACTION",
               "TURN_ECONOMY_SET",
               "REACTION_TAKEN",
-              "UNDO"
+              "UNDO",
+              "SPELL_EFFECT_END"
             ]
           },
           "actorId": {
@@ -6778,6 +6820,23 @@
               "HP_REGAINED",
               "MANUAL"
             ]
+          }
+        }
+      },
+      "EndSpellEffectRequest": {
+        "required": [
+          "effectId",
+          "participantId"
+        ],
+        "type": "object",
+        "properties": {
+          "effectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "participantId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -8656,6 +8715,7 @@
       },
       "ParticipantResponse": {
         "required": [
+          "activeEffects",
           "armourClass",
           "deathSaveDue",
           "deathSaveFailures",
@@ -8677,14 +8737,11 @@
               "$ref": "#/components/schemas/ConditionEntry"
             }
           },
-          "activeSpell": {
-            "type": "string",
-            "nullable": true
-          },
-          "activeSpellSlotLevel": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+          "activeEffects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpellEffectResponse"
+            }
           },
           "armourClass": {
             "type": "integer",
@@ -9320,6 +9377,11 @@
             "type": "boolean",
             "nullable": true
           },
+          "effectId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "overrideSpellAttackBonus": {
             "type": "integer",
             "format": "int32",
@@ -9336,6 +9398,22 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "trigger": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ENTER",
+              "START_OF_TURN",
+              "END_OF_TURN"
+            ]
+          },
+          "uses": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },
@@ -9636,6 +9714,76 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "SpellEffectResponse": {
+        "required": [
+          "concentration",
+          "directedResolves",
+          "id",
+          "spell",
+          "startedRound",
+          "triggers"
+        ],
+        "type": "object",
+        "properties": {
+          "concentration": {
+            "type": "boolean"
+          },
+          "directedCost": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ACTION",
+              "BONUS_ACTION",
+              "NONE"
+            ]
+          },
+          "directedResolves": {
+            "type": "boolean"
+          },
+          "durationRounds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "maxUsesEachTurn": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "slotLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "spell": {
+            "type": "string"
+          },
+          "startedRound": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ENTER",
+                "START_OF_TURN",
+                "END_OF_TURN"
+              ]
+            }
+          },
+          "usesLeft": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           }
         }

@@ -5,9 +5,13 @@ import com.tabletophelper.encounter.CombatCommand;
 import com.tabletophelper.encounter.CombatLog;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.EncounterStatus;
+import com.tabletophelper.character.state.SpellSlot;
+import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.ConditionRequest;
 import com.tabletophelper.encounter.dto.DamageRequest;
 import com.tabletophelper.encounter.dto.UndoRequest;
+import com.tabletophelper.encounter.state.ParticipantCombatState;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.shared.ConflictException;
@@ -17,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -113,6 +118,53 @@ class UndoServiceTest {
         assertEquals(goblin.getId(), f.encounter.getCurrentTurnParticipantId());
         assertEquals(1, f.encounter.getRoundNumber());
         assertEquals(spent, fighter.getTurnEconomy());
+    }
+
+    @Test
+    @DisplayName("Undo restores Spell Effects (M15): undoing the concentration loss brings Moonbeam's effect back, "
+            + "undoing the cast takes it away")
+    void undoesSpellEffects() {
+        f.spell("Moonbeam", 2, """
+                {"spellLevel": 2, "deliveryMethod": "SAVING_THROW", "saveAbility": "CON", "halfOnSave": true,
+                 "concentration": true, "durationRounds": 10, "repeatEffect": true, "repeatActionType": "ACTION",
+                 "directedResolves": false, "effectTriggers": [{"when": ["ENTER", "START_OF_TURN"]}],
+                 "effects": [{"effectType": "DAMAGE", "damageDice": "2d10", "damageType": "radiant"}]}""");
+        f.knows(fighter, "Moonbeam");
+        fighter.setSpellSlotsCurrent(Map.of("2", new SpellSlot(2, 0)));
+        CastSpellRequest cast = new CastSpellRequest();
+        cast.setSpellName("Moonbeam");
+        cast.setSlotLevel(2);
+        cast.setTargetIds(List.of());
+        f.dice.script(1, 1);
+        f.inTransaction(() -> f.spellcasting.castSpell(f.encounterId(), cast, fighter.getId(), f.dmUserId));
+        SpellEffectEntry moonbeam = fighter.getActiveEffects().getFirst();
+        damage(fighter, 30);
+        assertTrue(fighter.getActiveEffects().isEmpty());
+        assertNull(fighter.getConcentration());
+
+        undo(1);
+
+        assertEquals(List.of(moonbeam), fighter.getActiveEffects());
+        assertEquals(moonbeam.concentrationInstanceId(), fighter.getConcentration().id());
+
+        undo(f.commands.get(f.commands.size() - 2).getId(), 1);
+
+        assertTrue(fighter.getActiveEffects().isEmpty());
+        assertNull(fighter.getConcentration());
+        assertEquals(2, fighter.getSpellSlotsCurrent().get("2").remaining());
+    }
+
+    @Test
+    @DisplayName("A snapshot taken before V33, with no activeEffects, leaves the participant's effects as they are")
+    void snapshotBeforeSpellEffects() {
+        List<SpellEffectEntry> effects = List.of(SpellEffectEntry.start("Spiritual Weapon", 2, null, 1, 10, null));
+        fighter.setActiveEffects(effects);
+        ParticipantCombatState old = new ParticipantCombatState(fighter.getId(), 30, 0, LifeState.ALIVE, 0, 0, false,
+                null, null, null, null, null, TurnEconomy.fresh(), null);
+
+        old.restore(fighter);
+
+        assertEquals(effects, fighter.getActiveEffects());
     }
 
     @Test

@@ -336,6 +336,8 @@ export function useEncounterAction() {
       undo: change(combatApi.undo),
       castSpell: resolve(combatApi.castSpell),
       repeatSpellEffect: resolve(combatApi.repeatSpellEffect),
+      // Ends a Spell Effect by hand (M15)
+      endSpellEffect: change(combatApi.endSpellEffect),
       monsterAction: resolve(combatApi.monsterAction),
       // The DM's replacement of a participant's whole turn economy (D174)
       setTurnEconomy: change(combatApi.setTurnEconomy),

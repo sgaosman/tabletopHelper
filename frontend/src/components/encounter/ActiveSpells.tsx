@@ -1,39 +1,33 @@
-import { RotateCw } from 'lucide-react';
-import type { EncounterParticipant } from '../../types/encounter';
-import IconButton from '../ui/IconButton';
+import type { EncounterParticipant, SpellEffect } from '../../types/encounter';
+import SpellEffectCard from './SpellEffectCard';
 
 /**
- * The spell a participant is concentrating on, and its active spell that needs no concentration. `onRepeat` adds
- * the DM's button to repeat the spell's effect beside each.
+ * The spell a participant is concentrating on, and a card for each of its Spell Effects, such as Spiritual Weapon or
+ * Moonbeam, indented beneath it (M15). `onUse` adds the caster's button to direct an effect, greyed with
+ * `blockedBy`'s reason where the turn can't pay for it; `onEnd` adds the button that ends one by hand.
  */
-export default function ActiveSpells({ participant: p, onRepeat }: {
+export default function ActiveSpells({ participant: p, roundNumber, onUse, blockedBy, onEnd }: {
   participant: EncounterParticipant;
-  onRepeat?: () => void;
+  roundNumber: number;
+  onUse?: (effect: SpellEffect) => void;
+  blockedBy?: (effect: SpellEffect) => string | null;
+  onEnd?: (effect: SpellEffect) => void;
 }) {
   return (
     <>
       {p.concentrationSpell && (
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <p className="text-cls-warlock font-body text-[15px] font-semibold">Concentrating: {p.concentrationSpell}</p>
-          {onRepeat && (
-            <IconButton label="Repeat spell effect" onClick={e => { e.stopPropagation(); onRepeat(); }}
-              className="p-0.5 bg-cls-warlock/10 hover:bg-cls-warlock/20 text-cls-warlock">
-              <RotateCw className="w-3 h-3" />
-            </IconButton>
-          )}
-        </div>
+        <p className="text-cls-warlock font-body text-[15px] font-semibold mt-0.5">Concentrating: {p.concentrationSpell}</p>
       )}
-      {p.activeSpell && (
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <p className="text-cls-monk font-body text-[15px] font-semibold">Active: {p.activeSpell}</p>
-          {onRepeat && (
-            <IconButton label="Repeat spell effect" onClick={e => { e.stopPropagation(); onRepeat(); }}
-              className="p-0.5 bg-cls-monk/10 hover:bg-cls-monk/20 text-cls-monk">
-              <RotateCw className="w-3 h-3" />
-            </IconButton>
-          )}
-        </div>
-      )}
+      {p.activeEffects.map(effect => (
+        <SpellEffectCard
+          key={effect.id}
+          effect={effect}
+          roundNumber={roundNumber}
+          onUse={onUse ? () => onUse(effect) : undefined}
+          blockedReason={blockedBy?.(effect) ?? null}
+          onEnd={onEnd ? () => onEnd(effect) : undefined}
+        />
+      ))}
     </>
   );
 }

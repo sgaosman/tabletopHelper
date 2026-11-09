@@ -25,8 +25,8 @@ import java.util.UUID;
  * @param deathSaveDue         a Dying PC's death save is due (D163)
  * @param activeConditions     its conditions
  * @param concentration        the casting it concentrates on
- * @param activeSpell          its active spell
- * @param activeSpellSlotLevel that spell's slot level
+ * @param activeEffects        the Spell Effects it cast that are still going (M15); null in a snapshot taken before
+ *                             V33, which leaves the participant's effects as they are
  * @param spellSlotsCurrent    its spell slots
  * @param resourcePoolsCurrent its resource pools: legendary actions, Legendary Resistance and recharges among them
  * @param turnEconomy          what it has spent of its turn (D174)
@@ -42,8 +42,7 @@ public record ParticipantCombatState(
         Boolean deathSaveDue,
         List<ConditionEntry> activeConditions,
         ConcentrationInstance concentration,
-        String activeSpell,
-        Integer activeSpellSlotLevel,
+        List<SpellEffectEntry> activeEffects,
         Map<String, SpellSlot> spellSlotsCurrent,
         List<ResourcePoolEntry> resourcePoolsCurrent,
         TurnEconomy turnEconomy,
@@ -61,8 +60,7 @@ public record ParticipantCombatState(
                 participant.getDeathSaveDue(),
                 copy(participant.getActiveConditions()),
                 participant.getConcentration(),
-                participant.getActiveSpell(),
-                participant.getActiveSpellSlotLevel(),
+                copy(participant.getActiveEffects()),
                 participant.getSpellSlotsCurrent() != null ? new LinkedHashMap<>(participant.getSpellSlotsCurrent()) : null,
                 copy(participant.getResourcePoolsCurrent()),
                 participant.getTurnEconomy(),
@@ -79,8 +77,9 @@ public record ParticipantCombatState(
         participant.setDeathSaveDue(Boolean.TRUE.equals(deathSaveDue));
         participant.setActiveConditions(copy(activeConditions));
         participant.setConcentration(concentration);
-        participant.setActiveSpell(activeSpell);
-        participant.setActiveSpellSlotLevel(activeSpellSlotLevel);
+        if (activeEffects != null) {
+            participant.setActiveEffects(copy(activeEffects));
+        }
         participant.setSpellSlotsCurrent(spellSlotsCurrent != null ? new LinkedHashMap<>(spellSlotsCurrent) : null);
         participant.setResourcePoolsCurrent(copy(resourcePoolsCurrent));
         participant.setTurnEconomy(turnEconomy != null ? turnEconomy : TurnEconomy.fresh());

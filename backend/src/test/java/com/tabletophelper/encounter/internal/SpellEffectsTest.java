@@ -7,6 +7,7 @@ import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -361,37 +364,100 @@ class SpellEffectsTest {
         }
 
         @Test
-        @DisplayName("The bundled data's 20 repeat effects each say what using them again costs, as the spells' text "
-                + "does")
-        void bundledRepeatCosts() throws IOException {
+        @DisplayName("The bundled data's 20 lasting spells each leave a Spell Effect its caster directs at the cost "
+                + "the spell's text gives, or whose area acts by itself at the moments it gives, or both (M15)")
+        void bundledLastingSpells() throws IOException {
             Map<String, ActionCost> costs = new LinkedHashMap<>();
+            Map<String, List<SpellTrigger>> triggers = new LinkedHashMap<>();
+            Map<String, Boolean> moves = new LinkedHashMap<>();
             try (InputStream in = getClass().getResourceAsStream(
                     "/data/spell-effects/spell-effect-definitions.json")) {
                 assertNotNull(in, "the spell effect templates are on the classpath");
                 for (JsonNode definition : JsonMapper.builder().build().readTree(in)) {
                     SpellTemplate template = SpellTemplate.of(definition);
-                    assertNull(template.unreadable(), definition.path("spellName").asString());
-                    if (template.repeatEffect() != null) {
-                        costs.put(definition.path("spellName").asString(), template.repeatActionType());
+                    String name = definition.path("spellName").asString();
+                    assertNull(template.unreadable(), name);
+                    if (!template.lasting()) {
+                        continue;
                     }
+                    if (template.repeatEffect() != null) {
+                        costs.put(name, template.repeatActionType());
+                        moves.put(name, !template.resolvesWhenDirected());
+                    }
+                    triggers.put(name, template.effectTriggers().stream()
+                            .flatMap(trigger -> trigger.when().stream()).toList());
                 }
             }
 
             Map<String, ActionCost> expected = new LinkedHashMap<>();
+            // PHB p.289, p.220, p.261, p.285, p.242; XGE p.161
             for (String spell : List.of("Witch Bolt", "Call Lightning", "Moonbeam", "Vampiric Touch", "Flame Blade",
                     "Maximilian's Earthen Grasp")) {
                 expected.put(spell, ActionCost.ACTION);
             }
+            // PHB p.278, p.242, p.250, p.216; XGE p.161, p.154
             for (String spell : List.of("Spiritual Weapon", "Flaming Sphere", "Heat Metal", "Melf's Minute Meteors",
                     "Dust Devil", "Aura of Vitality")) {
                 expected.put(spell, ActionCost.BONUS_ACTION);
             }
-            for (String spell : List.of("Searing Smite", "Ensnaring Strike", "Tasha's Caustic Brew",
-                    "Cloud of Daggers", "Spirit Guardians", "Hunger of Hadar", "Create Bonfire", "Phantasmal Force")) {
-                expected.put(spell, ActionCost.NONE);
-            }
-            assertEquals(20, costs.size());
+            // The phantasm deals its damage on the caster's turn, needing no action (PHB p.264)
+            expected.put("Phantasmal Force", ActionCost.NONE);
+            assertEquals(20, triggers.size());
             assertEquals(expected, Map.copyOf(costs));
+            // Only Moonbeam's and Dust Devil's uses move them without resolving anything (PHB p.261, XGE p.154)
+            assertEquals(Set.of("Moonbeam", "Dust Devil"), moves.entrySet().stream()
+                    .filter(Map.Entry::getValue).map(Map.Entry::getKey).collect(Collectors.toSet()));
+
+            List<SpellTrigger> enterOrStart = List.of(SpellTrigger.ENTER, SpellTrigger.START_OF_TURN);
+            assertEquals(enterOrStart, triggers.get("Moonbeam"));
+            assertEquals(enterOrStart, triggers.get("Spirit Guardians"));
+            assertEquals(enterOrStart, triggers.get("Cloud of Daggers"));
+            assertEquals(List.of(SpellTrigger.ENTER, SpellTrigger.END_OF_TURN), triggers.get("Create Bonfire"));
+            assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Flaming Sphere"));
+            assertEquals(List.of(SpellTrigger.END_OF_TURN), triggers.get("Dust Devil"));
+            assertEquals(List.of(SpellTrigger.START_OF_TURN, SpellTrigger.END_OF_TURN), triggers.get("Hunger of Hadar"));
+            for (String spell : List.of("Searing Smite", "Ensnaring Strike", "Tasha's Caustic Brew")) {
+                assertEquals(List.of(SpellTrigger.START_OF_TURN), triggers.get(spell), spell);
+            }
+            // Each lasting spell can be used somehow
+            triggers.forEach((spell, moments) -> assertTrue(costs.containsKey(spell) || !moments.isEmpty(), spell));
+        }
+
+        @Test
+        @DisplayName("Hunger of Hadar's two triggers: 2d6 cold at the start of a turn, no save, and a DEX save "
+                + "against 2d6 acid at its end (PHB p.251)")
+        void hungerOfHadar() {
+            f.spell("Hunger of Hadar", 3, """
+                    {"spellLevel": 3, "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX", "concentration": true,
+                     "effectTriggers": [
+                       {"when": ["START_OF_TURN"], "deliveryMethod": "AUTO_HIT", "damageDice": "2d6", "damageType": "cold"},
+                       {"when": ["END_OF_TURN"], "deliveryMethod": "SAVING_THROW", "saveAbility": "DEX",
+                        "halfOnSave": false, "damageDice": "2d6", "damageType": "acid"}],
+                     "effects": [{"effectType": "DAMAGE", "damageDice": "2d6", "damageType": "cold"}]}""");
+
+            Effect start = f.spellEffects.forTrigger("Hunger of Hadar", SpellTrigger.START_OF_TURN, 5, wizard,
+                    null, 5, 13).effect();
+            Effect end = f.spellEffects.forTrigger("Hunger of Hadar", SpellTrigger.END_OF_TURN, 5, wizard,
+                    null, 5, 13).effect();
+
+            assertInstanceOf(Effect.Automatic.class, start.delivery());
+            assertEquals("cold", start.damage().getFirst().type());
+            assertEquals(new Effect.Save(Ability.DEX, 13, false), end.delivery());
+            assertEquals("acid", end.damage().getFirst().type());
+            assertTrue(end.conditions().isEmpty());
+            assertFalse(f.spellEffects.forTrigger("Hunger of Hadar", SpellTrigger.ENTER, 5, wizard, null, 5, 13)
+                    .automated());
+        }
+
+        @Test
+        @DisplayName("A trigger moment other than ENTER, START_OF_TURN or END_OF_TURN makes the template unreadable")
+        void unknownTrigger() {
+            assertNotNull(SpellTemplate.parse("""
+                    {"effectTriggers": [{"when": ["LEAVE"]}]}""").unreadable());
+            assertNotNull(SpellTemplate.parse("""
+                    {"effectTriggers": [{"damageDice": "1d6"}]}""").unreadable());
+            assertNull(SpellTemplate.parse("""
+                    {"effectTriggers": [{"when": ["ENTER"]}]}""").unreadable());
         }
 
         @Test

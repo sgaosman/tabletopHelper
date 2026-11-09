@@ -44,13 +44,13 @@ class FlywayMigrationIT extends IntegrationTest {
     private EntityManagerFactory entityManagerFactory;
 
     @Test
-    @DisplayName("Flyway applied V0–V6 and V8–V32 to the empty database; V7 was never used")
+    @DisplayName("Flyway applied V0–V6 and V8–V33 to the empty database; V7 was never used")
     void appliedVersionsMatchMigrationFiles() {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
 
         assertThat(versions).containsExactly("0", "1", "2", "3", "4", "5", "6", "8", "9", "10", "11", "12", "13", "14", "15",
-                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32");
+                "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33");
     }
 
     @Test
@@ -137,6 +137,23 @@ class FlywayMigrationIT extends IntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
                 + "WHERE conname = 'combat_logs_action_type_check'", String.class))
                 .contains("'REACTION_TAKEN'", "'UNDO'");
+    }
+
+    @Test
+    @DisplayName("V33 replaces active_spell and active_spell_slot_level with encounter_participants.active_effects, NOT NULL and an empty list by default, and the combat log takes SPELL_EFFECT_END")
+    void spellEffectsColumn() {
+        assertThat(jdbcTemplate.queryForMap("SELECT data_type, is_nullable FROM information_schema.columns "
+                + "WHERE table_name = 'encounter_participants' AND column_name = 'active_effects'"))
+                .isEqualTo(Map.of("data_type", "jsonb", "is_nullable", "NO"));
+        assertThat(jdbcTemplate.queryForObject("SELECT column_default::text FROM information_schema.columns "
+                + "WHERE table_name = 'encounter_participants' AND column_name = 'active_effects'", String.class))
+                .isEqualTo("'[]'::jsonb");
+        assertThat(jdbcTemplate.queryForList("SELECT column_name::text FROM information_schema.columns "
+                + "WHERE table_schema = 'public' AND table_name = 'encounter_participants' AND column_name IN "
+                + "('active_spell', 'active_spell_slot_level')", String.class)).isEmpty();
+        assertThat(jdbcTemplate.queryForObject("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                + "WHERE conname = 'combat_logs_action_type_check'", String.class))
+                .contains("'SPELL_EFFECT_REPEAT'", "'SPELL_EFFECT_END'", "'UNDO'");
     }
 
     @Test

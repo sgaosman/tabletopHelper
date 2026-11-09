@@ -14,14 +14,17 @@ import com.tabletophelper.encounter.dto.CastSpellRequest;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.dto.ConcentrationRequest;
 import com.tabletophelper.encounter.dto.EncounterResponse;
+import com.tabletophelper.encounter.dto.EndSpellEffectRequest;
 import com.tabletophelper.encounter.dto.RepeatSpellEffectRequest;
 import com.tabletophelper.encounter.dto.SpellOption;
 import com.tabletophelper.encounter.dto.SpellSlotRequest;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.encounter.state.SpellSource;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.CastingTime;
 import com.tabletophelper.rules.combat.Charge;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
 import com.tabletophelper.shared.NotFoundException;
 import com.tabletophelper.shared.ValidationException;
@@ -35,6 +38,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * A participant's spellcasting in combat: casting a spell paid for from a Spell Source, the same way for player
@@ -45,8 +49,9 @@ import java.util.UUID;
  * which a player may enter only while the campaign allows it.
  *
  * <p>A cast costs its casting time from the caster's turn, and a reaction spell may be cast on another creature's
- * turn; a spell that takes longer than a turn is refused to a player in combat and logged for the DM. Using an
- * effect again costs what its template says (D174).
+ * turn; a spell that takes longer than a turn is refused to a player in combat and logged for the DM. A lasting
+ * spell leaves a Spell Effect on its caster (M15), which its caster uses on their turn at what its template says that
+ * costs (D174), and whose area the DM applies to creatures on their turns.
  */
 @Service
 @RequiredArgsConstructor
@@ -107,11 +112,6 @@ public class SpellcastingService {
         SpellCaster.CastResult result = spellCaster.cast(encounter, caster, payment.spellName(), payment.castLevel(),
                 targets, own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
                 saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote);
-
-        if (!result.concentration() && spellEffects.persistsWithoutConcentration(payment.spellName())) {
-            caster.setActiveSpell(payment.spellName());
-            caster.setActiveSpellSlotLevel(payment.castLevel());
-        }
         return response(encounter, result, payment.castLevel(), payment.source());
     }
 
@@ -149,37 +149,46 @@ public class SpellcastingService {
     }
 
     /**
-     * Uses the caster's concentration spell's effect again, or else its lasting spell's, on the caster's turn:
-     * charged as its template says, an action, a bonus action or nothing (D174).
+     * Uses one of the caster's Spell Effects (M15). Without a trigger it is the caster's own use, on their turn and
+     * charged as the template says (D174): an attack, a ram or a heal resolved against the targets, or with none a
+     * move, and a move only for an effect whose use just moves it, such as Moonbeam's beam (PHB p.261). An effect with
+     * uses, such as Melf's Minute Meteors, spends one for each time it is rolled (XGE p.161). With a trigger it is
+     * {@link #triggerSpellEffect}. With no effectId it uses the caster's only effect that can be used that way, and is
+     * a 409 when there are several, so a cleric keeping up Spirit Guardians still attacks with Spiritual Weapon.
      */
     @Transactional
     public CastSpellResponse repeatSpellEffect(UUID encounterId, RepeatSpellEffectRequest request,
                                                UUID actorParticipantId, UUID userId) {
-        // Every repeat cost, nothing included, is taken on the caster's turn
+        if (request.getTrigger() != null) {
+            return triggerSpellEffect(encounterId, request, actorParticipantId, userId);
+        }
+        // Every directed cost, nothing included, is taken on the caster's turn
         Encounter encounter = access.beginOnTurnFor(encounterId, actorParticipantId, userId,
                 CombatAccess.OFF_TURN_SPELL_EFFECT);
         EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
         manualModifiers.require(encounter, userId, ManualModifiers.forSpell(caster,
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC()));
 
-        String spellName;
-        int slotLevel;
-        ConcentrationInstance concentration = caster.getConcentration();
-        if (concentration != null) {
-            spellName = concentration.spell();
-            slotLevel = concentration.slotLevel() != null ? concentration.slotLevel() : 0;
-        } else if (caster.getActiveSpell() != null) {
-            spellName = caster.getActiveSpell();
-            slotLevel = caster.getActiveSpellSlotLevel() != null ? caster.getActiveSpellSlotLevel() : 0;
-        } else {
-            throw new ConflictException("Caster has no active concentration or persistent spell");
+        SpellEffectEntry effect = effectToUse(caster, request.getEffectId(),
+                candidate -> spellEffects.effectUse(candidate.spell()).directedCost() != null,
+                "no Spell Effect it can use");
+        String spellName = effect.spell();
+        SpellEffects.EffectUse how = spellEffects.effectUse(spellName);
+        if (how.directedCost() == null) {
+            throw new ConflictException(spellName + " needs nothing from its caster; the DM applies what it does to "
+                    + "creatures on their turns");
         }
+        if (!how.directedResolves() && !request.getTargetIds().isEmpty()) {
+            throw new ValidationException("Using " + spellName + " only moves it; what it does to a creature is "
+                    + "applied when the creature enters it or starts its turn there");
+        }
+        int times = timesToUse(effect, how, request.getUses(), request.getTargetIds().isEmpty());
         List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
         SpellNumbers own = numbers(caster, casterSpells.origin(caster, spellName));
         List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
                 request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
 
-        ActionCost cost = spellEffects.repeatCost(spellName);
+        ActionCost cost = how.directedCost();
         String costNote = cost == ActionCost.BONUS_ACTION ? " (bonus action)" : "";
         economy.charge(encounter, caster, Charge.of(cost, EncounterTurns.isCurrentTurn(encounter, caster.getId())),
                 userId, new ActionEconomyKeeper.Command(CombatActionType.SPELL_EFFECT_REPEAT,
@@ -187,10 +196,110 @@ public class SpellcastingService {
 
         manualModifiers.log(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster,
                 caster.getDisplayName() + "'s " + spellName, userId, modifiers);
-        SpellCaster.CastResult result = spellCaster.repeat(encounter, caster, spellName, slotLevel, targets,
-                own.ability(), attackBonus(own, request.getOverrideSpellAttackBonus()),
-                saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote);
-        return response(encounter, result, slotLevel, SpellSource.NONE);
+        SpellCaster.CastResult result = how.directedResolves()
+                ? spellCaster.repeat(encounter, caster, effect, targets, own.ability(),
+                        attackBonus(own, request.getOverrideSpellAttackBonus()),
+                        saveDc(own, request.getOverrideSpellSaveDC()), request.getAdvantage(), costNote, times)
+                : spellCaster.move(encounter, caster, effect, costNote);
+        if (effect.usesLeft() != null && how.directedResolves() && !targets.isEmpty()) {
+            effectApplier.spendEffectUses(caster, effect.id(), times);
+        }
+        return response(encounter, result, effect.castLevel(), SpellSource.NONE);
+    }
+
+    /**
+     * What a Spell Effect's area does by itself to the targets at a moment of a turn (M15): Moonbeam's damage to a
+     * creature that enters the beam or starts its turn there (PHB p.261), Flaming Sphere's to one that ends its turn
+     * beside it (PHB p.242). There is no map, so the DM applies it, on any creature's turn, and it costs the caster
+     * nothing; the caster's player uses the effect only on their own turn.
+     */
+    private CastSpellResponse triggerSpellEffect(UUID encounterId, RepeatSpellEffectRequest request,
+                                                 UUID actorParticipantId, UUID userId) {
+        Encounter encounter = access.beginAsDm(encounterId, userId);
+        EncounterParticipant caster = CombatAccess.participant(encounter, actorParticipantId);
+        SpellTrigger when = request.getTrigger();
+        SpellEffectEntry effect = effectToUse(caster, request.getEffectId(),
+                candidate -> spellEffects.effectUse(candidate.spell()).triggers().contains(when),
+                "no Spell Effect that acts at that moment");
+        String spellName = effect.spell();
+        if (!spellEffects.effectUse(spellName).triggers().contains(when)) {
+            throw new ConflictException(spellName + " does nothing by itself at that moment");
+        }
+        if (request.getTargetIds().isEmpty()) {
+            throw new ValidationException("Choose the creatures " + spellName + " acts on");
+        }
+        List<EncounterParticipant> targets = CombatAccess.targets(encounter, request.getTargetIds(), userId);
+        SpellNumbers own = numbers(caster, casterSpells.origin(caster, spellName));
+        List<ManualModifiers.Use> modifiers = ManualModifiers.forSpell(own.attackBonus(), own.saveDc(),
+                request.getOverrideSpellAttackBonus(), request.getOverrideSpellSaveDC());
+        manualModifiers.log(encounter, CombatActionType.SPELL_EFFECT_REPEAT, caster,
+                caster.getDisplayName() + "'s " + spellName, userId, modifiers);
+        SpellCaster.CastResult result = spellCaster.trigger(encounter, caster, effect, when, targets, own.ability(),
+                attackBonus(own, request.getOverrideSpellAttackBonus()), saveDc(own, request.getOverrideSpellSaveDC()));
+        return response(encounter, result, effect.castLevel(), SpellSource.NONE);
+    }
+
+    /**
+     * Ends one of a participant's Spell Effects by hand (M15): the DM for anyone, a player for their own character, on
+     * any turn. An effect that belongs to the participant's concentration ends it too, taking its conditions with it
+     * (D162); one kept up without concentration, such as Spiritual Weapon, just ends.
+     */
+    @Transactional
+    public EncounterResponse endSpellEffect(UUID encounterId, EndSpellEffectRequest request, UUID userId) {
+        Encounter encounter = access.beginFor(encounterId, request.getParticipantId(), userId);
+        EncounterParticipant caster = CombatAccess.participant(encounter, request.getParticipantId());
+        SpellEffectEntry effect = EffectApplier.effects(caster).stream()
+                .filter(candidate -> candidate.id().equals(request.getEffectId()))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Spell Effect not found"));
+        effectApplier.endEffect(encounter, caster, effect.id(), "ended by hand");
+        ConcentrationInstance held = caster.getConcentration();
+        if (held != null && held.id().equals(effect.concentrationInstanceId())) {
+            effectApplier.endConcentration(encounter, caster, effect.spell() + " ended by hand");
+        }
+        return encounterService.toResponse(encounterRepository.save(encounter));
+    }
+
+    // The effect the request names, or the caster's only one that fits; a 409 for none, or several to choose from
+    private static SpellEffectEntry effectToUse(EncounterParticipant caster, UUID effectId,
+                                                Predicate<SpellEffectEntry> fits, String none) {
+        List<SpellEffectEntry> effects = EffectApplier.effects(caster);
+        if (effectId != null) {
+            return effects.stream()
+                    .filter(effect -> effect.id().equals(effectId))
+                    .findFirst()
+                    .orElseThrow(() -> new NotFoundException("Spell Effect not found"));
+        }
+        List<SpellEffectEntry> fitting = effects.stream().filter(fits).toList();
+        if (fitting.isEmpty()) {
+            throw new ConflictException(caster.getDisplayName() + " has " + none);
+        }
+        if (fitting.size() > 1) {
+            throw new ConflictException(caster.getDisplayName() + " has more than one Spell Effect ("
+                    + String.join(", ", fitting.stream().map(SpellEffectEntry::spell).toList())
+                    + "); choose which to use");
+        }
+        return fitting.getFirst();
+    }
+
+    // How many times the use rolls: one, or the uses asked for where the effect has a count, which it must still have
+    private static int timesToUse(SpellEffectEntry effect, SpellEffects.EffectUse how, Integer asked,
+                                  boolean noTargets) {
+        int times = asked != null ? asked : 1;
+        if (effect.usesLeft() == null) {
+            if (times > 1) {
+                throw new ValidationException(effect.spell() + " is used once at a time");
+            }
+            return 1;
+        }
+        int most = how.maxUsesEachTurn() != null ? how.maxUsesEachTurn() : 1;
+        if (times > most) {
+            throw new ValidationException(effect.spell() + " can spend at most " + most + " at a time");
+        }
+        if (!noTargets && effect.usesLeft() < times) {
+            throw new ConflictException(effect.spell() + " has " + effect.usesLeft() + " left");
+        }
+        return times;
     }
 
     @Transactional
@@ -237,7 +346,7 @@ public class SpellcastingService {
 
     /**
      * Concentration set by hand (D028): naming a spell starts a Concentration Instance for it, ending the one
-     * held first; naming none ends it. Either way, the conditions the ended instance created end too (D162).
+     * held first, with the spell's Spell Effect when it has a lasting one (M15); naming none ends it. Either way, the conditions the ended instance created end too (D162).
      */
     @Transactional
     public EncounterResponse setConcentration(UUID encounterId, ConcentrationRequest request, UUID userId) {
@@ -246,7 +355,11 @@ public class SpellcastingService {
         String spellName = request.getSpellName() != null && !request.getSpellName().isBlank()
                 ? request.getSpellName().trim() : null;
         if (spellName != null) {
-            effectApplier.startConcentration(encounter, participant, spellName, null, null);
+            ConcentrationInstance instance = effectApplier.startConcentration(encounter, participant, spellName, null,
+                    null);
+            // A lasting spell's effect comes with it, at an unknown slot level, so its caster can use it (M15)
+            spellEffects.lasting(spellName, 0).ifPresent(lasting -> effectApplier.startEffect(encounter, participant,
+                    spellName, null, instance, lasting.durationRounds(), lasting.uses()));
         } else {
             effectApplier.endConcentration(encounter, participant, "ended by hand");
         }

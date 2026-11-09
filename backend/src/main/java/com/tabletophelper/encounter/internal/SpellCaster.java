@@ -5,12 +5,16 @@ import com.tabletophelper.encounter.Encounter;
 import com.tabletophelper.encounter.EncounterParticipant;
 import com.tabletophelper.encounter.dto.CastSpellResponse;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.rules.combat.Effect;
+import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.Resolver;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import com.tabletophelper.shared.ConflictException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -65,6 +69,7 @@ public class SpellCaster {
                     : null;
             String summary = lead + " — " + plan.manualReason();
             effectApplier.summary(encounter, use(caster, spellName, costNote, instance), summary);
+            leaveEffect(encounter, caster, spellName, slotLevel, instance, false);
             return new CastResult(spellName, plan.spellLevel(), plan.concentration(), plan.manualReason(), summary,
                     List.of());
         }
@@ -83,24 +88,101 @@ public class SpellCaster {
         effectApplier.summary(encounter, use, lead + ".");
         List<EffectApplier.Applied> applied = effectApplier.apply(encounter, use, effect,
                 resolver.resolve(effect, stats.targets(reached, effect)));
+        leaveEffect(encounter, caster, spellName, slotLevel, instance, !reached.isEmpty());
         return new CastResult(spellName, plan.spellLevel(), plan.concentration(), null, summary(lead, applied),
                 outcomes(effect, applied));
     }
 
     /**
-     * Uses a concentration or lasting spell's effect again on a later turn (D162), linking any conditions to
-     * the caster's Concentration Instance for that spell. costNote is as for {@link #cast}.
+     * The Spell Effect a lasting spell leaves on its caster (M15), linked to the Concentration Instance the cast
+     * started. A cast that sent something at creatures has spent one of the effect's uses, such as the first of Melf's
+     * Minute Meteors (XGE p.161).
      */
-    public CastResult repeat(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+    private void leaveEffect(Encounter encounter, EncounterParticipant caster, String spellName, int slotLevel,
+                             ConcentrationInstance instance, boolean spentOne) {
+        spellEffects.lasting(spellName, slotLevel).ifPresent(lasting -> {
+            Integer uses = lasting.uses();
+            if (uses != null && spentOne) {
+                uses = Math.max(0, uses - 1);
+            }
+            effectApplier.startEffect(encounter, caster, spellName, slotLevel > 0 ? slotLevel : null, instance,
+                    lasting.durationRounds(), uses);
+        });
+    }
+
+    /**
+     * The caster's use of one of their Spell Effects on a later turn (M15), such as Spiritual Weapon's attack or
+     * Flaming Sphere's ram, rolled `times` times against the same targets, once for each of the uses it spends, such
+     * as each of two meteors; any conditions it gives belong to the effect's Concentration Instance (D162). With no
+     * targets it resolves nothing, as when the weapon or the sphere only moves. costNote is as for {@link #cast}.
+     */
+    public CastResult repeat(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
                              List<EncounterParticipant> targets, String castingAbility, int attackBonus, int saveDc,
-                             Boolean advantage, String costNote) {
-        SpellEffects.SpellPlan plan = spellEffects.forRepeat(spellName, slotLevel, caster, castingAbility, attackBonus,
-                saveDc, advantage);
-        ConcentrationInstance instance = caster.getConcentration() != null
-                && caster.getConcentration().spell().equalsIgnoreCase(spellName) ? caster.getConcentration() : null;
+                             Boolean advantage, String costNote, int times) {
+        if (targets.isEmpty()) {
+            return move(encounter, caster, spellEffect, costNote);
+        }
+        String spellName = spellEffect.spell();
+        SpellEffects.SpellPlan plan = spellEffects.forRepeat(spellName, spellEffect.castLevel(), caster,
+                castingAbility, attackBonus, saveDc, advantage);
         EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(),
-                CombatActionType.SPELL_EFFECT_REPEAT, "uses " + spellName + costNote, "on", spellName, instance);
-        String lead = caster.getDisplayName() + " uses " + spellName + "'s effect" + costNote;
+                CombatActionType.SPELL_EFFECT_REPEAT, "uses " + spellName + costNote, "on", spellName,
+                instanceOf(caster, spellEffect));
+        String lead = caster.getDisplayName() + " uses " + spellName + "'s effect" + costNote
+                + (times > 1 ? " " + times + " times" : "");
+
+        if (!plan.automated()) {
+            String summary = lead + " — " + plan.manualReason();
+            effectApplier.summary(encounter, use, summary);
+            return new CastResult(spellName, plan.spellLevel(), false, plan.manualReason(), summary, List.of());
+        }
+        CombatAccess.requireNotDead(targets);
+        effectApplier.summary(encounter, use, lead + ".");
+        List<EffectApplier.Applied> applied = new ArrayList<>();
+        for (int i = 0; i < times; i++) {
+            List<EncounterParticipant> standing = targets.stream()
+                    .filter(target -> target.getLifeState() != LifeState.DEAD)
+                    .toList();
+            applied.addAll(effectApplier.apply(encounter, use, plan.effect(),
+                    resolver.resolve(plan.effect(), stats.targets(standing, plan.effect()))));
+        }
+        return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
+                outcomes(plan.effect(), applied));
+    }
+
+    /**
+     * The caster's use of a Spell Effect that only moves it (M15), as Moonbeam's action moves the beam and deals no
+     * damage of its own (PHB p.261): logged, and nothing rolled.
+     */
+    public CastResult move(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
+                           String costNote) {
+        String summary = caster.getDisplayName() + " moves " + spellEffect.spell() + costNote + ".";
+        effectApplier.summary(encounter, new EffectApplier.Use(caster, caster.getDisplayName(),
+                CombatActionType.SPELL_EFFECT_REPEAT, "moves " + spellEffect.spell() + costNote, "on",
+                spellEffect.spell(), instanceOf(caster, spellEffect)), summary);
+        return new CastResult(spellEffect.spell(), 0, false, null, summary, List.of());
+    }
+
+    /**
+     * What a Spell Effect's area does by itself to creatures at a moment of a turn (M15), such as Moonbeam's damage
+     * to a creature that starts its turn in the beam (PHB p.261), which the DM applies: it costs its caster nothing
+     * and gives no conditions.
+     */
+    public CastResult trigger(Encounter encounter, EncounterParticipant caster, SpellEffectEntry spellEffect,
+                              SpellTrigger when, List<EncounterParticipant> targets, String castingAbility,
+                              int attackBonus, int saveDc) {
+        String spellName = spellEffect.spell();
+        SpellEffects.SpellPlan plan = spellEffects.forTrigger(spellName, when, spellEffect.castLevel(), caster,
+                castingAbility, attackBonus, saveDc);
+        String moment = switch (when) {
+            case ENTER -> "entering it";
+            case START_OF_TURN -> "starting a turn in it";
+            case END_OF_TURN -> "ending a turn in it";
+        };
+        EffectApplier.Use use = new EffectApplier.Use(caster, caster.getDisplayName(),
+                CombatActionType.SPELL_EFFECT_REPEAT, spellName + " (" + moment + ")", "on", spellName,
+                instanceOf(caster, spellEffect));
+        String lead = caster.getDisplayName() + "'s " + spellName + " acts on a creature " + moment;
 
         if (!plan.automated()) {
             String summary = lead + " — " + plan.manualReason();
@@ -113,6 +195,12 @@ public class SpellCaster {
                 resolver.resolve(plan.effect(), stats.targets(targets, plan.effect())));
         return new CastResult(spellName, plan.spellLevel(), false, null, summary(lead, applied),
                 outcomes(plan.effect(), applied));
+    }
+
+    // The Concentration Instance the effect belongs to, while its caster still holds it
+    private static ConcentrationInstance instanceOf(EncounterParticipant caster, SpellEffectEntry spellEffect) {
+        ConcentrationInstance held = caster.getConcentration();
+        return held != null && held.id().equals(spellEffect.concentrationInstanceId()) ? held : null;
     }
 
     /**

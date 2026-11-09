@@ -27,7 +27,7 @@
 | 13 | Enhanced Action Economy | Implemented (2026-11-06) | Reactions, bonus actions, free object interactions, Dodge/Help/Hide/Dash, bonus-action-spell rule, pools in encounters (D174); 2,096 backend unit, 235 integration and 851 frontend tests. Item use moved out; V30 applied to the local database on 2026-11-07 |
 | 13.5 | Armour and Armour Class | Implemented (2026-11-09) | AC worked out from equipped armour and shield, Unarmoured Defence and similar features, heavy armour's Strength speed penalty, Stealth disadvantage, the penalties for armour without proficiency; changes D158 |
 | 14 | Undo System | Implemented (2026-11-09) | Before-state snapshots on every combat action, DM-only rollback with cascade support |
-| 15 | Persistent Spell Effects as Companion Participants | Not started | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
+| 15 | Persistent Spell Effects as Companion Participants | Implemented (2026-11-09) | Spiritual Weapon, Flaming Sphere etc. as sub-cards beneath the caster |
 | 16 | Short/Long Rest System | Complete (in M9) | Implemented as part of M9 character sheet — hit dice spending, HP recovery, spell slot reset on long rest |
 | 17 | Class Feature Automation | Not started | Second Wind, Channel Divinity, Action Surge, Bardic Inspiration, Wild Shape, Ki Points, Rage, etc. |
 | 18 | Sorcerer Metamagic | Not started | Twinned, Quickened, Subtle, Heightened Spell, Sorcery Point tracking |
@@ -572,6 +572,8 @@ Phase 3 — Multiclass at creation:
 - [ ] Combat log entry removal on undo (with visual feedback)
 
 ## Milestone 15: Persistent Spell Effects as Companion Participants
+
+**Status (2026-11-09):** implemented as Spell Effects on the caster's row rather than COMPANION participants ([[decisions-log#D177]]): cards under the caster, uses through the same engine, removal when concentration ends or the duration passes, and DM-applied area triggers. COMPANION participants move to M26 summoning. The local database takes V33 at its next start.
 
 **Goal:** Persistent AoE zone effects (Hunger of Hadar, Cloud of Daggers, Spirit Guardians, Moonbeam, etc.) and non-concentration persistent effects (Spiritual Weapon) appear as sub-cards beneath the caster in the initiative order. **Note:** Summoning creatures (Conjure Animals, Find Familiar) are handled in M26 — this milestone covers persistent *effects* that do not make independent decisions.
 

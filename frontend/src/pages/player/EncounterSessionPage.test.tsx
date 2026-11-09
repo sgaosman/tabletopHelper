@@ -6,7 +6,8 @@ import { Route, Routes } from 'react-router-dom';
 import { render, setupAuthToken } from '../../test/test-utils';
 import { server } from '../../test/mocks/server';
 import {
-  makeMockAttackOption, makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant, makeMockResourcePool,
+  makeMockAttackOption, makeMockCastSpellResponse, makeMockCondition, makeMockEncounter, makeMockLogEntry, makeMockParticipant,
+  makeMockResourcePool, makeMockSpellEffect,
 } from '../../test/mocks/handlers';
 import { MockStompClient } from '../../test/mocks/stomp';
 import type { Encounter, EncounterParticipant } from '../../types/encounter';
@@ -601,6 +602,61 @@ describe('Player EncounterSessionPage', () => {
       await user.click(within(pools).getByRole('button', { name: 'Use Second Wind' }));
 
       await waitFor(() => expect(body).toEqual({ participantId: 'part-gimli', poolId: 'class:fighter-second-wind' }));
+    });
+  });
+
+  describe('Spell Effects (M15)', () => {
+    const weapon = makeMockSpellEffect('Spiritual Weapon');
+    const moonbeam = makeMockSpellEffect('Moonbeam', {
+      concentration: true, directedCost: 'ACTION', directedResolves: false, triggers: ['ENTER', 'START_OF_TURN'],
+    });
+
+    it('moves the player\'s Moonbeam for an action at once, and opens Spiritual Weapon\'s attack, on their turn', async () => {
+      let body: unknown;
+      const table = makeMockEncounter({
+        participants: [legolas(), gimli({ isCurrentTurn: true, concentrationSpell: 'Moonbeam', activeEffects: [moonbeam, weapon] }), goblin()],
+      });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(table)),
+        http.get('/api/reference/spells/targeting', () => new HttpResponse(null, { status: 404 })),
+        http.post('/api/encounters/:id/combat/repeat-spell-effect', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(makeMockCastSpellResponse({ encounterState: table, spellName: 'Moonbeam' }));
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole('button', { name: 'Move (action)' }));
+      await waitFor(() => expect(body).toEqual({ targetIds: [], effectId: 'effect-moonbeam' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Use (bonus action)' }));
+      expect(await screen.findByRole('dialog', { name: 'Spiritual Weapon — Repeat Effect' })).toBeInTheDocument();
+    });
+
+    it('greys the use off the player\'s turn but still lets them end it; another character\'s effects have no buttons', async () => {
+      let body: unknown;
+      const table = makeMockEncounter({
+        participants: [legolas({ activeEffects: [makeMockSpellEffect('Flaming Sphere')] }), gimli({ activeEffects: [weapon] }), goblin()],
+      });
+      server.use(
+        http.get('/api/encounters/:id', () => HttpResponse.json(table)),
+        http.post('/api/encounters/:id/combat/spell-effect/end', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json(table);
+        }),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      const use = await screen.findByRole('button', { name: 'Use (bonus action)' });
+      expect(use).toBeDisabled();
+      expect(use).toHaveAttribute('title', 'Only on your turn');
+      expect(within(screen.getByRole('group', { name: 'Flaming Sphere effect' })).queryByRole('button')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'End Spiritual Weapon' }));
+
+      await waitFor(() => expect(body).toEqual({ participantId: 'part-gimli', effectId: 'effect-spiritual-weapon' }));
     });
   });
 });

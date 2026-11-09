@@ -9,6 +9,7 @@ import com.tabletophelper.rules.Dice;
 import com.tabletophelper.rules.combat.ActionCost;
 import com.tabletophelper.rules.combat.Effect;
 import com.tabletophelper.rules.combat.RollMode;
+import com.tabletophelper.rules.combat.SpellTrigger;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -106,9 +107,10 @@ public class SpellEffects {
     }
 
     /**
-     * A concentration or lasting spell's effect used again on a later turn, such as Moonbeam's damage or
-     * Spiritual Weapon's attack, as the template's repeatEffect describes it: true for the spell's own effect
-     * again, or an object that replaces its delivery, dice and save. It starts no concentration.
+     * A lasting spell's effect used again by its caster on a later turn, such as Spiritual Weapon's attack or Flaming
+     * Sphere's ram, as the template's repeatEffect describes it: true for the spell's own effect again, conditions
+     * included, or an object that replaces its delivery, dice and save and gives no conditions. It starts no
+     * concentration.
      */
     public SpellPlan forRepeat(String spellName, int slotLevel, EncounterParticipant caster, String castingAbility,
                                int attackBonus, int saveDc, Boolean advantage) {
@@ -117,11 +119,39 @@ public class SpellEffects {
             return manual(spellName, 0, NO_TEMPLATE, false, null, false);
         }
         SpellTemplate template = found.get();
-        int spellLevel = template.level();
-        SpellTemplate.RepeatEffect repeat = template.repeatEffect();
-        if (repeat == null) {
-            return manual(spellName, spellLevel, "Spell has no repeatable effect", false, null, false);
+        if (template.repeatEffect() == null) {
+            return manual(spellName, template.level(), "Spell has no repeatable effect", false, null, false);
         }
+        return planFor(template, spellName, template.repeatEffect(), true, slotLevel, caster, castingAbility,
+                attackBonus, saveDc, advantage);
+    }
+
+    /**
+     * What a lasting spell's area does by itself at a moment of a creature's turn (M15), such as Moonbeam's save
+     * against its damage when a creature starts its turn in the beam (PHB p.261): the trigger's own effect, or the
+     * spell's. It gives no conditions and starts no concentration.
+     */
+    public SpellPlan forTrigger(String spellName, SpellTrigger when, int slotLevel, EncounterParticipant caster,
+                                String castingAbility, int attackBonus, int saveDc) {
+        Optional<SpellTemplate> found = template(spellName);
+        if (found.isEmpty()) {
+            return manual(spellName, 0, NO_TEMPLATE, false, null, false);
+        }
+        SpellTemplate template = found.get();
+        Optional<SpellTemplate.EffectTrigger> trigger = template.trigger(when);
+        if (trigger.isEmpty()) {
+            return manual(spellName, template.level(), spellName + " does nothing by itself at that moment",
+                    false, null, false);
+        }
+        return planFor(template, spellName, trigger.get().effect(), false, slotLevel, caster, castingAbility,
+                attackBonus, saveDc, null);
+    }
+
+    // A repeat effect or a trigger as an Effect: the spell's own effect unless it replaces it
+    private SpellPlan planFor(SpellTemplate template, String spellName, SpellTemplate.RepeatEffect repeat,
+                              boolean ownConditions, int slotLevel, EncounterParticipant caster, String castingAbility,
+                              int attackBonus, int saveDc, Boolean advantage) {
+        int spellLevel = template.level();
         int modifier = stats.spellcastingModifier(caster, castingAbility, attackBonus);
 
         // The repeat effect's delivery and save, where it gives them, in place of the spell's
@@ -167,9 +197,57 @@ public class SpellEffects {
                         "Repeat delivery method '" + deliveryMethod + "' requires DM adjudication", false, null, false);
             }
         }
-        Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(), conditions(template),
-                false, null, conditionEnds(template, saveDc));
+        boolean spellsOwn = ownConditions && !repeat.replaces();
+        Effect effect = new Effect(spellName, delivery, damage.get(), healing.get().dice(),
+                spellsOwn ? conditions(template) : List.of(), false, null,
+                spellsOwn ? conditionEnds(template, saveDc) : Map.of());
         return new SpellPlan(spellName, spellLevel, effect, null, false, null, false);
+    }
+
+    /**
+     * What a spell's casting leaves behind (M15).
+     *
+     * @param durationRounds how many rounds it lasts; null when unknown
+     * @param uses           what it has to spend, such as Melf's Minute Meteors' meteors; null when it has no count
+     */
+    public record Lasting(Integer durationRounds, Integer uses) {
+    }
+
+    /** What casting the spell with a slot of slotLevel leaves behind, if it leaves a Spell Effect. */
+    public Optional<Lasting> lasting(String spellName, int slotLevel) {
+        return template(spellName).filter(SpellTemplate::lasting).map(template -> new Lasting(
+                template.durationRounds(),
+                template.effectUses() != null ? template.effectUses().at(template.level(), slotLevel) : null));
+    }
+
+    /**
+     * How a Spell Effect is used (M15).
+     *
+     * @param directedCost     what its caster's use of it costs from their turn: ACTION, BONUS_ACTION or NONE; null when
+     *                         its caster has nothing to do with it, as for Spirit Guardians
+     * @param directedResolves false when that use only moves it, as Moonbeam's action does
+     * @param maxUsesEachTurn  the most of its uses one directed use may spend, such as two meteors; null without uses
+     * @param triggers         the moments its area acts on a creature by itself, which the DM applies
+     */
+    public record EffectUse(ActionCost directedCost, boolean directedResolves, Integer maxUsesEachTurn,
+                            List<SpellTrigger> triggers) {
+
+        public static final EffectUse NONE = new EffectUse(null, false, null, List.of());
+    }
+
+    /** How the spell's Spell Effect is used; nothing to do with it when the spell has no template. */
+    public EffectUse effectUse(String spellName) {
+        return template(spellName).map(SpellEffects::effectUse).orElse(EffectUse.NONE);
+    }
+
+    private static EffectUse effectUse(SpellTemplate template) {
+        ActionCost cost = null;
+        if (template.repeatEffect() != null) {
+            cost = template.repeatActionType() != null ? template.repeatActionType() : ActionCost.ACTION;
+        }
+        return new EffectUse(cost, template.repeatEffect() != null && template.resolvesWhenDirected(),
+                template.effectUses() != null ? template.effectUses().maxEachUse() : null,
+                template.effectTriggers().stream().flatMap(trigger -> trigger.when().stream()).distinct().toList());
     }
 
     /**
@@ -197,12 +275,6 @@ public class SpellEffects {
      */
     public ActionCost repeatCost(String spellName) {
         return template(spellName).map(SpellTemplate::repeatActionType).orElse(ActionCost.ACTION);
-    }
-
-    /** Whether the spell keeps going without concentration, so its caster can use its effect again. */
-    public boolean persistsWithoutConcentration(String spellName) {
-        return template(spellName).map(template -> Boolean.TRUE.equals(template.persistsWithoutConcentration()))
-                .orElse(false);
     }
 
     static RollMode rollMode(Boolean advantage) {

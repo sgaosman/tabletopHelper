@@ -1,5 +1,5 @@
 import api from './axiosConfig';
-import type { Encounter } from '../types/encounter';
+import type { Encounter, EndSpellEffectRequest } from '../types/encounter';
 import type {
   AttackOption,
   AttackRollRequest,
@@ -105,6 +105,11 @@ export const combatApi = {
     return api.post<CastSpellResponse>(`/encounters/${encounterId}/combat/repeat-spell-effect`, request, {
       params: actorId ? { actorId } : undefined,
     });
+  },
+
+  // Ends a Spell Effect by hand, and the concentration it belongs to (M15): the DM's for anyone, a player's for their own
+  endSpellEffect(encounterId: string, request: EndSpellEffectRequest) {
+    return api.post<Encounter>(`/encounters/${encounterId}/combat/spell-effect/end`, request);
   },
 
   // The DM's alone (M14): undoes the newest `steps` commands (one when left out), refused with 409 when

@@ -7,6 +7,7 @@ import com.tabletophelper.encounter.ParticipantType;
 import com.tabletophelper.encounter.state.ConcentrationInstance;
 import com.tabletophelper.encounter.state.ConditionEntry;
 import com.tabletophelper.encounter.state.EndRule;
+import com.tabletophelper.encounter.state.SpellEffectEntry;
 import com.tabletophelper.rules.combat.LifeState;
 import com.tabletophelper.rules.combat.TurnOrder;
 import com.tabletophelper.rules.combat.TurnOrder.Turn;
@@ -31,7 +32,8 @@ import java.util.UUID;
  * creature is a PC and the campaign prompts players, when the condition waits for the player's roll.
  *
  * <p>The turn that starts: the creature's Concentration Instance ends if its duration has run out, taking
- * its conditions with it; conditions that end at the start of its turn end, as do conditions with a duration
+ * its conditions and Spell Effects with it, and so does any other Spell Effect of its whose duration has run out,
+ * such as Spiritual Weapon's (M15); conditions that end at the start of its turn end, as do conditions with a duration
  * whose rounds have passed when it is their caster (D162: a spell's duration ends at the start of its
  * caster's turn); it gets its action, bonus action and reaction back, its per-turn pools such as legendary
  * actions refill, and each spent Recharge ability rolls its d6; and a Dying PC is due a death save.
@@ -164,6 +166,12 @@ public class TurnProcessor {
         if (instance != null && instance.durationRounds() != null
                 && round - instance.startedRound() >= instance.durationRounds()) {
             effectApplier.endConcentration(encounter, creature, "its duration ends");
+        }
+        // Its Spell Effects whose duration has run out, those kept up without concentration included (M15, D162)
+        for (SpellEffectEntry effect : EffectApplier.effects(creature)) {
+            if (effect.expiredBy(round)) {
+                effectApplier.endEffect(encounter, creature, effect.id(), "its duration ends");
+            }
         }
 
         for (EncounterParticipant participant : List.copyOf(encounter.getParticipants())) {
