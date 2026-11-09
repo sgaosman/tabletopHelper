@@ -3278,10 +3278,12 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Rationale:** M6's trigger (a full session at 5th level against CR 15 with little manual adjudication) is met by M13–M19; these were the remaining non-hosting tasks.
 
-**Trade-offs:** the resource pool buttons don't wait for their answer yet; deleting an encounter has no confirmation; checked by component tests and layout reading only, not on a real phone.
+**Trade-offs:** deleting an encounter has no confirmation; checked by component tests and layout reading only, not on a real phone.
 
 **Key files:** `context/toast.ts`, `context/ToastContext.tsx`, `hooks/useToast.ts`, `hooks/usePending.ts`, `hooks/useWebSocket.ts`, `components/ui/Spinner.tsx`, `components/encounter/ConnectionStatus.tsx`, both `EncounterSessionPage.tsx`
 
 **Related:** D154, D171, D173
 
 **Tests:** new `ToastContext.test.tsx`, `EncounterConnection.test.tsx` and `PendingControls.test.tsx`, with cases on the DM session page, wizard and Button; 1,041 frontend tests after merging with the rules gaps. No backend change.
+
+**Update (2026-11-09):** the character sheet's resource pool − and + buttons now wait for their answer too (`ResourcePoolDisplay` through `usePending`), so a double click spends one use.

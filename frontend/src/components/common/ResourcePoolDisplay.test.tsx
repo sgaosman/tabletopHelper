@@ -85,6 +85,20 @@ describe('ResourcePoolDisplay', () => {
     expect(onRecover).toHaveBeenCalledWith('class:barbarian:rage');
   });
 
+  it('sends one spend for a double click while the first is still running', async () => {
+    let finish: () => void = () => {};
+    const onSpend = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+    const user = userEvent.setup();
+    render(<ResourcePoolDisplay pools={pools(rage)} editable onSpend={onSpend} onRecover={vi.fn()} />);
+
+    await user.dblClick(screen.getByTitle('Spend one Rage use'));
+    expect(onSpend).toHaveBeenCalledTimes(1);
+    expect(screen.getByTitle('Spend one Rage use')).toBeDisabled();
+
+    finish();
+    await waitFor(() => expect(screen.getByTitle('Spend one Rage use')).toBeEnabled());
+  });
+
   it('disables spending an empty pool and recovering a full one', () => {
     render(<ResourcePoolDisplay pools={pools(luck, breath)} editable onSpend={vi.fn()} onRecover={vi.fn()} />);
 

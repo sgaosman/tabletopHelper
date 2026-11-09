@@ -432,8 +432,8 @@ export default function CharacterSheetPage() {
           <ResourcePoolDisplay
             pools={resourcePools}
             editable
-            onSpend={poolId => void runCommand(spendPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
-            onRecover={poolId => void runCommand(recoverPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
+            onSpend={poolId => runCommand(spendPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
+            onRecover={poolId => runCommand(recoverPool.mutateAsync({ characterId: char.id, use: { poolId } }))}
             spellSlots={char.spellSlots}
             onFlexibleCasting={(direction, slotLevel) =>
               fontOfMagic.mutateAsync({ characterId: char.id, exchange: { direction, slotLevel } })}

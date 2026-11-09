@@ -9,6 +9,7 @@ import {
 } from '../../utils/classFeatures';
 import { useAttackOptions, useWildShapeOptions } from '../../queries/encounters';
 import IconButton from '../ui/IconButton';
+import { usePending } from '../../hooks/usePending';
 import FlexibleCastingControls from './FlexibleCastingControls';
 import { SORCERY_POINTS } from '../../utils/metamagic';
 
@@ -18,8 +19,9 @@ interface ResourcePoolDisplayProps {
   filterSourceType?: string[];
   /** Enable increment/decrement buttons for out-of-encounter management */
   editable?: boolean;
-  onSpend?: (poolId: string) => void;
-  onRecover?: (poolId: string) => void;
+  /** May return a promise; the buttons stay disabled until it settles, so a double click sends one request. */
+  onSpend?: (poolId: string) => void | Promise<unknown>;
+  onRecover?: (poolId: string) => void | Promise<unknown>;
   /**
    * Encounter mode (D174): the participant whose pools these are, whose turn pays for each use. Given with onUse, each
    * pool shows what a use costs from the turn and a Use button.
@@ -62,6 +64,7 @@ export default function ResourcePoolDisplay({
   spellSlots,
   onWildShapeHeal,
 }: ResourcePoolDisplayProps) {
+  const { pending, run } = usePending();
   const entries = pools ?? [];
   const filtered = filterSourceType
     ? entries.filter((e) => filterSourceType.includes(e.sourceType))
@@ -111,8 +114,8 @@ export default function ResourcePoolDisplay({
                 <IconButton
                   label={`Spend one ${entry.displayName} use`}
                   className="ml-1 rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
-                  disabled={empty}
-                  onClick={() => onSpend?.(entry.poolId)}
+                  disabled={empty || pending}
+                  onClick={() => { if (onSpend) void run(async () => onSpend(entry.poolId)); }}
                 >
                   −
                 </IconButton>
@@ -120,8 +123,8 @@ export default function ResourcePoolDisplay({
                   <IconButton
                     label={`Recover one ${entry.displayName} use`}
                     className="rounded-sm px-1 text-xs hover:bg-rule disabled:opacity-30"
-                    disabled={entry.currentUses >= entry.maxUses}
-                    onClick={() => onRecover?.(entry.poolId)}
+                    disabled={entry.currentUses >= entry.maxUses || pending}
+                    onClick={() => { if (onRecover) void run(async () => onRecover(entry.poolId)); }}
                   >
                     +
                   </IconButton>
