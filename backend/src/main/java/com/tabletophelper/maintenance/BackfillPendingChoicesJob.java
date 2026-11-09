@@ -17,9 +17,11 @@ import java.util.List;
  * gives one and records none, a subclass for a class at or past its subclass level without one, and Expertise at a
  * level that gives it and records none, less the Expertise the sheet has that no level records, and a sorcerer's
  * Metamagic options at Sorcerer 3rd, 10th and 17th level when the level records none (M18), less the Metamagic
- * features the sheet has that no level records. Fighting Styles and known spells aren't backfilled. Each character that would gain choices is reported with each choice, and one whose
- * classes can't be found is skipped with a warning. A second run adds nothing, since the choices it added are
- * pending. Dry run by default; {@code --maintenance.apply=true} writes.
+ * features the sheet has that no level records, and the bonus proficiencies a subclass lets the player choose, such
+ * as the College of Lore's three skills (PHB p.54), when the level that records the subclass records none chosen.
+ * Fighting Styles and known spells aren't backfilled. Each character that would gain choices is reported with each
+ * choice, and one whose classes or subclasses can't be found is skipped with a warning. A second run adds nothing,
+ * since the choices it added are pending. Dry run by default; {@code --maintenance.apply=true} writes.
  */
 @Component
 @RequiredArgsConstructor
@@ -65,7 +67,7 @@ public class BackfillPendingChoicesJob implements MaintenanceJob {
                 + (Boolean.FALSE.equals(pc.getIsActive()) ? ", deleted" : "") + ")";
     }
 
-    // Such as "ASI at Fighter 6 (level 6)" or "EXPERTISE ×2 at Bard 3 (level 3)"
+    // Such as "ASI at Fighter 6 (level 6)", "EXPERTISE ×2 at Bard 3 (level 3)" or "PROFICIENCY ×3 at Bard 3 (level 3)"
     private static String describe(PendingChoice choice) {
         return choice.type() + (choice.count() > 1 ? " ×" + choice.count() : "") + " at " + choice.className() + " "
                 + choice.classLevel() + " (level " + choice.characterLevel() + ")";

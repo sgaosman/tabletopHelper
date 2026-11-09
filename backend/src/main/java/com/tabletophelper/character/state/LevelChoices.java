@@ -25,6 +25,9 @@ import java.util.List;
  *                      down past the level works the ability out again. Null otherwise
  * @param metamagic     the Metamagic options a sorcerer learned at this level (PHB p.101–102, M18), whose features,
  *                      named "Metamagic: X", are among the level's {@code featuresGained}
+ * @param proficiencies the bonus proficiencies chosen at this level, the subclass's level, from its PROFICIENCY choices,
+ *                      such as a College of Lore's three skills (PHB p.54); those the sheet lacked are among the level's
+ *                      {@code proficienciesGained}, and a Knowledge Domain's skills are among its {@code expertise} too
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -37,11 +40,20 @@ public record LevelChoices(
         SpellsLearned spells,
         List<FeatTaken> feats,
         Boolean setsSpellcastingAbility,
-        List<String> metamagic
+        List<String> metamagic,
+        List<String> proficiencies
 ) {
 
     /** No choices, as each level starts. */
-    public static final LevelChoices NONE = new LevelChoices(null, null, null, null, null, null, null, null, null);
+    public static final LevelChoices NONE = new LevelChoices(null, null, null, null, null, null, null, null, null,
+            null);
+
+    /** Choices with no bonus proficiencies chosen. */
+    public LevelChoices(AbilityScoreImprovement asi, List<String> expertise, SubclassChosen subclass,
+                        String fightingStyle, List<String> cantrips, SpellsLearned spells, List<FeatTaken> feats,
+                        Boolean setsSpellcastingAbility, List<String> metamagic) {
+        this(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, setsSpellcastingAbility, metamagic, null);
+    }
 
     /** Choices with no Metamagic. */
     public LevelChoices(AbilityScoreImprovement asi, List<String> expertise, SubclassChosen subclass,
@@ -58,45 +70,51 @@ public record LevelChoices(
 
     public LevelChoices withAsi(AbilityScoreImprovement newAsi) {
         return new LevelChoices(newAsi, expertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic);
+                setsSpellcastingAbility, metamagic, proficiencies);
     }
 
     public LevelChoices withExpertise(List<String> newExpertise) {
         return new LevelChoices(asi, newExpertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic);
+                setsSpellcastingAbility, metamagic, proficiencies);
     }
 
     public LevelChoices withSubclass(SubclassChosen newSubclass) {
         return new LevelChoices(asi, expertise, newSubclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic);
+                setsSpellcastingAbility, metamagic, proficiencies);
     }
 
     public LevelChoices withFightingStyle(String newFightingStyle) {
         return new LevelChoices(asi, expertise, subclass, newFightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, metamagic);
+                setsSpellcastingAbility, metamagic, proficiencies);
     }
 
     public LevelChoices withCantrips(List<String> newCantrips) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, newCantrips, spells, feats,
-                setsSpellcastingAbility, metamagic);
+                setsSpellcastingAbility, metamagic, proficiencies);
     }
 
     public LevelChoices withSpells(SpellsLearned newSpells) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, newSpells, feats,
-                setsSpellcastingAbility, metamagic);
+                setsSpellcastingAbility, metamagic, proficiencies);
     }
 
     public LevelChoices withFeats(List<FeatTaken> newFeats) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, newFeats,
-                setsSpellcastingAbility, metamagic);
+                setsSpellcastingAbility, metamagic, proficiencies);
     }
 
     public LevelChoices withSetsSpellcastingAbility(Boolean sets) {
-        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, sets, metamagic);
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats, sets, metamagic,
+                proficiencies);
     }
 
     public LevelChoices withMetamagic(List<String> newMetamagic) {
         return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
-                setsSpellcastingAbility, newMetamagic);
+                setsSpellcastingAbility, newMetamagic, proficiencies);
+    }
+
+    public LevelChoices withProficiencies(List<String> newProficiencies) {
+        return new LevelChoices(asi, expertise, subclass, fightingStyle, cantrips, spells, feats,
+                setsSpellcastingAbility, metamagic, newProficiencies);
     }
 }

@@ -145,19 +145,22 @@ class CharacterClassLoaderIT extends IntegrationTest {
     }
 
     @Test
-    @DisplayName("After loading, subclasses carry the fixed bonus proficiencies of subclass-proficiencies.json: a Life "
-            + "Domain's heavy armour, a War Domain's heavy armour and martial weapons, and none for a Light Domain")
+    @DisplayName("After loading, subclasses carry the bonus proficiencies of subclass-proficiencies.json: a Life "
+            + "Domain's heavy armour, a War Domain's heavy armour and martial weapons, a Nature Domain's heavy armour "
+            + "and its choice of skill, a Knowledge Domain's choices, and none for a Light Domain")
     void subclassProficienciesComeFromTheOverlay() {
         load();
 
         assertThat(subclassRepository.findAll()).filteredOn(subclass -> subclass.getAdditionalProficiencies() != null)
-                .hasSize(23);
+                .hasSize(34);
         assertThat(proficienciesOf("Life Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
         assertThat(proficienciesOf("War Domain")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
         assertThat(proficienciesOf("Tempest Domain")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"heavy\"], \"weapons\": [\"martial\"]}"));
-        assertThat(proficienciesOf("Nature Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"]}"));
+        assertThat(proficienciesOf("Nature Domain")).isEqualTo(objectMapper.readTree("{\"armor\": [\"heavy\"], "
+                + "\"choices\": [{\"count\": 1, \"skills\": [\"Animal Handling\", \"Nature\", \"Survival\"]}]}"));
+        assertThat(proficienciesOf("Knowledge Domain").path("choices").get(0).path("languages")).hasSize(16);
         assertThat(proficienciesOf("College of Valor")).isEqualTo(objectMapper.readTree(
                 "{\"armor\": [\"medium\", \"shields\"], \"weapons\": [\"martial\"]}"));
         assertThat(cleric("Light Domain").getAdditionalProficiencies()).isNull();

@@ -1054,6 +1054,212 @@ class PendingChoiceServiceTest {
     }
 
     @Nested
+    @DisplayName("A subclass's bonus proficiencies of the player's choice")
+    class ChosenBonusProficiencies {
+
+        // As the content loader stores them, the lists written out (shortened here)
+        private final Subclass knowledgeDomain = Subclass.builder().id(UUID.randomUUID()).name("Knowledge Domain")
+                .characterClass(f.cleric)
+                .features("[{\"level\":1,\"name\":\"Blessings of Knowledge\",\"description\":\"Languages and skills\"}]")
+                .additionalProficiencies("{\"choices\":[{\"count\":2,\"languages\":[\"Common\",\"Dwarvish\",\"Elvish\","
+                        + "\"Giant\"]},{\"count\":2,\"skills\":[\"Arcana\",\"History\",\"Nature\",\"Religion\"],"
+                        + "\"expertise\":true}]}")
+                .build();
+        private final Subclass cavalier = Subclass.builder().id(UUID.randomUUID()).name("Cavalier")
+                .characterClass(f.fighter)
+                .features("[{\"level\":3,\"name\":\"Bonus Proficiency\",\"description\":\"A skill or a language\"}]")
+                .additionalProficiencies("{\"choices\":[{\"count\":1,\"skills\":[\"Animal Handling\",\"History\","
+                        + "\"Insight\",\"Performance\",\"Persuasion\"],\"languages\":[\"Common\",\"Draconic\"]}]}")
+                .build();
+        private final Subclass bladesinging = Subclass.builder().id(UUID.randomUUID()).name("Bladesinging")
+                .characterClass(f.wizard)
+                .features("[{\"level\":2,\"name\":\"Training in War and Song\",\"description\":\"Light armour\"}]")
+                .additionalProficiencies("{\"armor\":[\"light\"],\"skills\":[\"Performance\"],\"choices\":[{\"count\":1,"
+                        + "\"weapons\":[\"Dagger\",\"Longsword\",\"Rapier\"]}]}")
+                .build();
+
+        @BeforeEach
+        void knowTheSubclasses() {
+            for (Subclass subclass : List.of(knowledgeDomain, cavalier, bladesinging)) {
+                lenient().when(f.subclassRepository.findById(subclass.getId())).thenReturn(Optional.of(subclass));
+            }
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.cleric.getId()))
+                    .thenReturn(List.of(knowledgeDomain));
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.fighter.getId()))
+                    .thenReturn(List.of(f.champion, cavalier));
+            lenient().when(f.subclassRepository.findByCharacterClassIdOrderByNameAsc(f.wizard.getId()))
+                    .thenReturn(List.of(bladesinging));
+        }
+
+        private PlayerCharacter knowledgeCleric() {
+            return create(f.cleric, 1, request -> {
+                request.setSubclassId(knowledgeDomain.getId());
+                request.setSkillProficiencies(List.of("History", "Insight"));
+                request.setLanguageProficiencies(List.of("Common"));
+            });
+        }
+
+        private PendingChoice proficiencyChoice(PlayerCharacter pc, boolean expertise) {
+            return f.stored(pc.getId()).getPendingChoices().stream()
+                    .filter(c -> c.type() == Type.PROFICIENCY && Boolean.TRUE.equals(c.expertise()) == expertise)
+                    .findFirst()
+                    .orElseThrow();
+        }
+
+        private void choose(PlayerCharacter pc, PendingChoice choice, String... names) {
+            f.choose(pc, choice, request -> request.setProficiencies(List.of(names)));
+        }
+
+        @Test
+        @DisplayName("A Knowledge Domain cleric created with its subclass owes two languages and two of Arcana, "
+                + "History, Nature or Religion with Expertise, on Cleric 1 (PHB p.59)")
+        void knowledgeOwedAtCreation() {
+            PlayerCharacter pc = knowledgeCleric();
+
+            assertThat(pc.getPendingChoices()).filteredOn(c -> c.type() == Type.PROFICIENCY)
+                    .extracting(PendingChoice::characterLevel, PendingChoice::classLevel, PendingChoice::count,
+                            PendingChoice::expertise, PendingChoice::source)
+                    .containsExactlyInAnyOrder(tuple(1, 1, 2, null, Source.CREATION),
+                            tuple(1, 1, 2, true, Source.CREATION));
+            assertThat(proficiencyChoice(pc, true).proficiencyOptions().skills())
+                    .containsExactly("Arcana", "History", "Nature", "Religion");
+            assertThat(proficiencyChoice(pc, false).proficiencyOptions().languages())
+                    .containsExactly("Common", "Dwarvish", "Elvish", "Giant");
+        }
+
+        @Test
+        @DisplayName("Its skills gain proficiency and Expertise; one the cleric is proficient in already gains only "
+                + "Expertise; both are recorded on Cleric 1")
+        void knowledgeSkills() {
+            PlayerCharacter pc = knowledgeCleric();
+
+            choose(pc, proficiencyChoice(pc, true), "history", "Arcana");
+
+            assertThat(pc.getSkillProficiencies()).containsExactly("History", "Insight", "Arcana");
+            assertThat(pc.getSkillExpertises()).containsExactly("History", "Arcana");
+            LevelHistoryEntry first = pc.getLevelHistory().getFirst();
+            assertThat(first.proficienciesGained()).isEqualTo(new ProficienciesGained(null, null, null,
+                    List.of("Arcana"), null));
+            assertThat(first.choices().expertise()).containsExactly("History", "Arcana");
+            assertThat(first.choices().proficiencies()).containsExactly("History", "Arcana");
+            assertThat(pc.getPendingChoices()).filteredOn(c -> c.type() == Type.PROFICIENCY).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("Its languages are learned, recorded on Cleric 1; one known already, one not offered, too few "
+                + "and another type's answer are 400s")
+        void knowledgeLanguages() {
+            PlayerCharacter pc = knowledgeCleric();
+            PendingChoice languages = proficiencyChoice(pc, false);
+
+            assertThatThrownBy(() -> choose(pc, languages, "Common", "Elvish"))
+                    .isInstanceOf(ValidationException.class).hasMessage("Aria already has Common");
+            assertThatThrownBy(() -> choose(pc, languages, "Orc", "Elvish"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Choose from Common, Dwarvish, Elvish, Giant, not Orc");
+            assertThatThrownBy(() -> choose(pc, languages, "Elvish"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("Choose 2 of the proficiencies offered, not 1");
+            assertThatThrownBy(() -> f.choose(pc, languages, request -> request.setMetamagic(List.of("Elvish"))))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessage("This PROFICIENCY choice takes proficiencies, not metamagic");
+
+            choose(pc, languages, "Elvish", "giant");
+
+            assertThat(pc.getLanguageProficiencies()).containsExactly("Common", "Elvish", "Giant");
+            assertThat(pc.getLevelHistory().getFirst().proficienciesGained().languages())
+                    .containsExactly("Elvish", "Giant");
+            assertThat(pc.getSkillExpertises()).isNullOrEmpty();
+        }
+
+        @Test
+        @DisplayName("A Knowledge Domain taken on the sheet brings its choices to the level that records it, and "
+                + "levelling down past that level takes the skills, Expertise and pending languages away with it")
+        void knowledgeLaterAndReversed() {
+            PlayerCharacter pc = create(f.fighter, 1, request -> {
+                request.setWisdom(14);
+                request.setSkillProficiencies(List.of("Athletics"));
+            });
+            f.levelUp(pc, f.cleric);
+            f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(knowledgeDomain.getId()));
+
+            assertThat(pc.getPendingChoices()).filteredOn(c -> c.type() == Type.PROFICIENCY)
+                    .extracting(PendingChoice::characterLevel, PendingChoice::className, PendingChoice::classLevel)
+                    .containsOnly(tuple(2, "Cleric", 1));
+            choose(pc, proficiencyChoice(pc, true), "Arcana", "Religion");
+            assertThat(pc.getSkillExpertises()).containsExactly("Arcana", "Religion");
+
+            f.levelDown(pc);
+
+            assertThat(pc.getSkillProficiencies()).containsExactly("Athletics");
+            assertThat(pc.getSkillExpertises()).isEmpty();
+            assertThat(pc.getPendingChoices()).extracting(PendingChoice::type).doesNotContain(Type.PROFICIENCY);
+        }
+
+        @Test
+        @DisplayName("A Cavalier chooses a skill or a language (XGE p.30), brought by the subclass after it")
+        void cavalierLanguage() {
+            PlayerCharacter pc = create(f.fighter, 3, request -> request.setLanguageProficiencies(List.of("Common")));
+
+            f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(cavalier.getId()));
+            PendingChoice choice = f.pending(pc, Type.PROFICIENCY);
+            assertThat(choice.characterLevel()).isEqualTo(3);
+            assertThat(choice.proficiencyOptions().skills()).hasSize(5);
+
+            choose(pc, choice, "Draconic");
+
+            assertThat(pc.getLanguageProficiencies()).containsExactly("Common", "Draconic");
+            assertThat(pc.getLevelHistory().get(2).proficienciesGained())
+                    .isEqualTo(new ProficienciesGained(null, null, null, null, List.of("Draconic")));
+        }
+
+        @Test
+        @DisplayName("A Bladesinger's weapon can't be one it's proficient with already, by name, in the plural or by "
+                + "category (TCE p.76), and with every option held the choice takes none")
+        void bladesingingWeapon() {
+            PlayerCharacter pc = create(f.wizard, 2, request -> request.setWeaponProficiencies(List.of("Daggers")));
+            f.choose(pc, f.pending(pc, Type.SUBCLASS), request -> request.setSubclassId(bladesinging.getId()));
+            PendingChoice choice = f.pending(pc, Type.PROFICIENCY);
+
+            assertThatThrownBy(() -> choose(pc, choice, "Dagger"))
+                    .isInstanceOf(ValidationException.class).hasMessage("Aria already has Dagger");
+            choose(pc, choice, "Rapier");
+            assertThat(pc.getWeaponProficiencies()).containsExactly("Daggers", "Rapier");
+            assertThat(pc.getArmorProficiencies()).contains("light");
+
+            PlayerCharacter martial = create(f.wizard, 2, request -> request.setWeaponProficiencies(
+                    List.of("simple", "Martial Weapons")));
+            f.choose(martial, f.pending(martial, Type.SUBCLASS), request -> request.setSubclassId(
+                    bladesinging.getId()));
+            choose(martial, f.pending(martial, Type.PROFICIENCY));
+            assertThat(martial.getWeaponProficiencies()).containsExactly("simple", "Martial Weapons");
+            assertThat(martial.getLevelHistory().get(1).choices().proficiencies()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("The backfill finds the choices a subclass taken before they were owed misses, on the level that "
+                + "records it, or else the class's subclass level, and finds nothing once they are pending or made")
+        void backfill() {
+            PlayerCharacter pc = knowledgeCleric();
+            pc.setPendingChoices(List.of());
+
+            List<PendingChoice> missed = f.choices.missedChoices(pc);
+            assertThat(described(missed)).containsExactly("1 PROFICIENCY×2", "1 PROFICIENCY×2");
+            assertThat(missed).extracting(PendingChoice::source).containsOnly(Source.LEVEL_UP);
+
+            pc.setLevelHistory(List.of(pc.getLevelHistory().getFirst().withChoices(LevelChoices.NONE)));
+            assertThat(described(f.choices.missedChoices(pc))).containsExactly("1 PROFICIENCY×2", "1 PROFICIENCY×2");
+
+            f.choices.addPending(pc, missed);
+            assertThat(f.choices.missedChoices(pc)).isEmpty();
+
+            choose(pc, proficiencyChoice(pc, true), "Arcana", "Nature");
+            pc.setPendingChoices(List.of());
+            assertThat(f.choices.missedChoices(pc)).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("The backfill")
     class Backfill {
 
@@ -1083,7 +1289,9 @@ class PendingChoiceServiceTest {
             assertThat(f.choices.missedChoices(fighter)).extracting(PendingChoice::source).containsOnly(Source.LEVEL_UP);
 
             PlayerCharacter rogue = legacy(f.rogue, 6);
-            rogue.setMulticlassEntries(List.of(rogue.getMulticlassEntries().getFirst().withSubclass(UUID.randomUUID(),
+            Subclass thief = Subclass.builder().id(UUID.randomUUID()).name("Thief").characterClass(f.rogue).build();
+            when(f.subclassRepository.findById(thief.getId())).thenReturn(Optional.of(thief));
+            rogue.setMulticlassEntries(List.of(rogue.getMulticlassEntries().getFirst().withSubclass(thief.getId(),
                     "Thief")));
             recordAsi(rogue, 4);
             assertThat(described(f.choices.missedChoices(rogue))).containsExactly("1 EXPERTISE×2", "6 EXPERTISE×2");

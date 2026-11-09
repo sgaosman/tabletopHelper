@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { makeMockPendingChoice } from '../test/mocks/handlers';
-import { choiceLabel, choicesPending, choicesToMake, choiceTitle, isSpellbookChoice } from './pendingChoices';
+import { makeMockCharacter, makeMockPendingChoice } from '../test/mocks/handlers';
+import {
+  choiceLabel, choicesPending, choicesToMake, choiceTitle, hasProficiency, isSpellbookChoice, proficiencyOptions,
+  proficiencyTaken,
+} from './pendingChoices';
 
 describe('pendingChoices', () => {
   it('names a choice with the class level that owes it (D159)', () => {
@@ -27,5 +30,31 @@ describe('pendingChoices', () => {
     expect(choicesToMake(3)).toBe('3 choices to make');
     expect(choicesPending(1)).toBe('1 choice pending');
     expect(choicesPending(2)).toBe('2 choices pending');
+  });
+  it("names a subclass's proficiency choice by what it offers (PHB p.59, XGE p.30)", () => {
+    const languages = makeMockPendingChoice({ type: 'PROFICIENCY', className: 'Cleric', classLevel: 1, count: 2,
+      proficiencyOptions: { languages: ['Elvish', 'Giant'] } });
+    expect(choiceLabel(languages)).toBe('Languages (Cleric 1)');
+    expect(choiceTitle({ ...languages, proficiencyOptions: { skills: ['Arcana'] }, expertise: true }))
+      .toBe('Skills with Expertise');
+    expect(choiceTitle({ ...languages, proficiencyOptions: { skills: ['History'], languages: ['Draconic'] } }))
+      .toBe('Skills or languages');
+    expect(proficiencyOptions({ ...languages, proficiencyOptions: { languages: ['Draconic'], skills: ['History'] } }))
+      .toEqual([{ kind: 'skills', name: 'History' }, { kind: 'languages', name: 'Draconic' }]);
+  });
+
+  it('judges a proficiency held as the server does: in any case, and a weapon by its plural or category', () => {
+    const character = {
+      ...makeMockCharacter('char-003', 'Elra', 'Wizard', 2),
+      skillProficiencies: ['history'], skillExpertises: ['Arcana'], weaponProficiencies: ['Daggers', 'Martial Weapons'],
+    };
+    expect(hasProficiency(character, { kind: 'skills', name: 'History' })).toBe(true);
+    expect(hasProficiency(character, { kind: 'weapons', name: 'Dagger' })).toBe(true);
+    expect(hasProficiency(character, { kind: 'weapons', name: 'Rapier' })).toBe(true);
+    expect(hasProficiency(character, { kind: 'weapons', name: 'Club' })).toBe(false);
+    const expertise = makeMockPendingChoice({ type: 'PROFICIENCY', expertise: true });
+    // A Knowledge Domain's skill may already be a proficiency, but not already have Expertise
+    expect(proficiencyTaken(character, expertise, { kind: 'skills', name: 'History' })).toBe(false);
+    expect(proficiencyTaken(character, expertise, { kind: 'skills', name: 'Arcana' })).toBe(true);
   });
 });

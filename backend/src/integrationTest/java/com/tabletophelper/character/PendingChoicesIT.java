@@ -397,4 +397,42 @@ class PendingChoicesIT extends IntegrationTest {
         assertThat(asDm.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(get(aria).get("pendingChoices")).hasSize(3);
     }
+    @Test
+    @DisplayName("A Battle Master's artisan's tools (PHB p.73) are a Pending Choice the subclass brings, stored with "
+            + "its options, made by name, recorded on Fighter 3 and taken away by levelling down; a tool not offered "
+            + "is a 400")
+    void subclassBonusProficiencyChoice() {
+        CharacterClass fighter = characterClassRepository.findById(fighterId).orElseThrow();
+        UUID battleMasterId = subclassRepository.save(Subclass.builder().name("Battle Master").source("PHB")
+                .characterClass(fighter)
+                .features("[{\"level\":3,\"name\":\"Student of War\",\"description\":\"Artisan's tools\"}]")
+                .additionalProficiencies("{\"choices\":[{\"count\":1,\"tools\":[\"Smith's Tools\","
+                        + "\"Tinker's Tools\"]}]}")
+                .build()).getId();
+        JsonNode created = create(Map.of("level", 3, "toolProficiencies", List.of("Dice Set")));
+        String aria = created.get("id").asString();
+
+        JsonNode chosen = applied(aria, Map.of("choiceId", id(created, "SUBCLASS", 3), "subclassId", battleMasterId));
+        JsonNode tools = choice(chosen, "PROFICIENCY", 3);
+        assertThat(tools.get("classLevel").asInt()).isEqualTo(3);
+        assertThat(tools.get("proficiencyOptions").toString())
+                .isEqualTo("{\"tools\":[\"Smith's Tools\",\"Tinker's Tools\"]}");
+        assertThat(get(aria).get("pendingChoices").toString()).contains("\"proficiencyOptions\"");
+
+        assertThat(error(apply(aria, Map.of("choiceId", tools.get("id").asString(), "proficiencies",
+                List.of("Cook's Utensils"))), HttpStatus.BAD_REQUEST))
+                .isEqualTo("Choose from Smith's Tools, Tinker's Tools, not Cook's Utensils");
+        JsonNode made = applied(aria, Map.of("choiceId", tools.get("id").asString(), "proficiencies",
+                List.of("smith's tools")));
+
+        assertThat(made.get("toolProficiencies").toString()).isEqualTo("[\"Dice Set\",\"Smith's Tools\"]");
+        JsonNode third = made.get("levelHistory").get(2);
+        assertThat(third.get("proficienciesGained").toString()).isEqualTo("{\"tools\":[\"Smith's Tools\"]}");
+        assertThat(third.get("choices").get("proficiencies").toString()).isEqualTo("[\"Smith's Tools\"]");
+        assertThat(described(made)).doesNotContain("3 PROFICIENCY");
+
+        JsonNode second = levelDown(aria);
+        assertThat(second.get("toolProficiencies").toString()).isEqualTo("[\"Dice Set\"]");
+        assertThat(second.path("subclass").isMissingNode() || second.path("subclass").isNull()).isTrue();
+    }
 }

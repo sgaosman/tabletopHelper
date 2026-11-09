@@ -2008,6 +2008,7 @@ export interface components {
             feat?: components["schemas"]["AsiChoice"] | null;
             fightingStyle?: string | null;
             metamagic?: string[] | null;
+            proficiencies?: string[] | null;
             spells?: string[] | null;
             /** Format: uuid */
             subclassId?: string | null;
@@ -3040,6 +3041,7 @@ export interface components {
             feats?: components["schemas"]["FeatTaken"][] | null;
             fightingStyle?: string | null;
             metamagic?: string[] | null;
+            proficiencies?: string[] | null;
             setsSpellcastingAbility?: boolean | null;
             spells?: components["schemas"]["SpellsLearned"] | null;
             subclass?: components["schemas"]["SubclassChosen"] | null;
@@ -3359,17 +3361,19 @@ export interface components {
             className?: string | null;
             /** Format: int32 */
             count: number;
+            expertise?: boolean | null;
             /** Format: uuid */
             id: string;
             /** Format: int32 */
             maxSpellLevel?: number | null;
             options?: string[] | null;
+            proficiencyOptions?: components["schemas"]["ProficienciesGained"] | null;
             /** @enum {string} */
             source: "LEVEL_UP" | "CREATION" | "RACE" | "BACKGROUND";
             spellList?: string | null;
             swap?: boolean | null;
             /** @enum {string} */
-            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
+            type: "SUBCLASS" | "FIGHTING_STYLE" | "METAMAGIC" | "PROFICIENCY" | "ASI" | "FEAT" | "EXPERTISE" | "CANTRIPS" | "SPELLS";
         };
         PoolChange: {
             /** Format: int32 */

@@ -15,8 +15,9 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * Makes one of the character's Pending Choices (D159), named by its ID, with the answer its type takes and nothing
  * else: {@code asi} for an Ability Score Improvement, {@code feat} for a race's or background's feat,
  * {@code subclassId} for a subclass, {@code expertiseSkills} for Expertise, {@code fightingStyle} for a Fighting
- * Style, {@code metamagic} for a sorcerer's Metamagic options, and {@code spells} for cantrips or spells, with
- * {@code swap} for a known caster's optional swap.
+ * Style, {@code metamagic} for a sorcerer's Metamagic options, {@code proficiencies} for a subclass's bonus
+ * proficiencies, by name, and {@code spells} for cantrips or spells, with {@code swap} for a known caster's optional
+ * swap.
  */
 @Data
 public class ApplyChoicesRequest {
@@ -31,6 +32,7 @@ public class ApplyChoicesRequest {
     private List<String> expertiseSkills;
     private String fightingStyle;
     private List<String> metamagic;
+    private List<String> proficiencies;
     private List<String> spells;
 
     @Valid

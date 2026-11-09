@@ -4825,6 +4825,13 @@
               "type": "string"
             }
           },
+          "proficiencies": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "spells": {
             "type": "array",
             "nullable": true,
@@ -8666,6 +8673,13 @@
               "type": "string"
             }
           },
+          "proficiencies": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            }
+          },
           "setsSpellcastingAbility": {
             "type": "boolean",
             "nullable": true
@@ -9821,6 +9835,10 @@
             "type": "integer",
             "format": "int32"
           },
+          "expertise": {
+            "type": "boolean",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -9836,6 +9854,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "proficiencyOptions": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProficienciesGained"
+              }
+            ]
           },
           "source": {
             "type": "string",
@@ -9860,6 +9886,7 @@
               "SUBCLASS",
               "FIGHTING_STYLE",
               "METAMAGIC",
+              "PROFICIENCY",
               "ASI",
               "FEAT",
               "EXPERTISE",

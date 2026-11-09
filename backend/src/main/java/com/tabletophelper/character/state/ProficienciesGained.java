@@ -9,7 +9,8 @@ import java.util.List;
  * The proficiencies a level added to the sheet, as its level history entry records them so that levelling down
  * removes exactly those (D167): the armour, weapon and tool proficiencies multiclassing into a class grants (PHB
  * p.164), and the bonus proficiencies a subclass gives at its subclass level, such as a Life Domain's heavy armour
- * (PHB p.60), each less any the character already had. A kind with none added is left out.
+ * (PHB p.60), or that the player chose from a subclass's PROFICIENCY choice, each less any the character already
+ * had. A kind with none added is left out. A PROFICIENCY {@link PendingChoice} holds its options in the same shape.
  *
  * @param armor     armour and shield proficiencies, such as "heavy"
  * @param weapons   weapon proficiencies, such as "martial"

@@ -21,8 +21,8 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param classId        the class whose level owes it; null for a race's or background's feat
  * @param className      the class, as its class entry names it
  * @param classLevel     the class level that owes it
- * @param count          how many to choose: skills for Expertise, Metamagic options, cantrips, or spells; 1 for the
- *                       others
+ * @param count          how many to choose: skills for Expertise, Metamagic options, proficiencies, cantrips, or
+ *                       spells; 1 for the others
  * @param options        the fixed list it is chosen from, where it has one: the subclasses, the Fighting Styles, the
  *                       Metamagic options, or the feats a background offers; null for any, as an Ability Score Improvement's feat is
  * @param maxSpellLevel  for CANTRIPS 0, and for SPELLS the highest level of spell the class could learn at that class
@@ -33,6 +33,10 @@ import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
  * @param spellList      for CANTRIPS and SPELLS, the spell list the class learns from, as the spells table names it:
  *                       the class's own, or "Wizard" for an Eldritch Knight or Arcane Trickster; null on a choice
  *                       made before R8, where it is the class's own unless the class is one of those two
+ * @param proficiencyOptions for PROFICIENCY, what may be chosen, by kind: the College of Lore's 18 skills (PHB p.54),
+ *                       or the Cavalier's five skills and the languages (XGE p.30)
+ * @param expertise      for PROFICIENCY, true when the skills chosen gain Expertise too, as the Knowledge Domain's do
+ *                       (PHB p.59); null otherwise
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -48,8 +52,18 @@ public record PendingChoice(
         List<String> options,
         Integer maxSpellLevel,
         Boolean swap,
-        String spellList
+        String spellList,
+        ProficienciesGained proficiencyOptions,
+        Boolean expertise
 ) {
+
+    /** A choice that offers no proficiencies, as every type but PROFICIENCY is. */
+    public PendingChoice(UUID id, Type type, Source source, int characterLevel, UUID classId, String className,
+                         Integer classLevel, int count, List<String> options, Integer maxSpellLevel, Boolean swap,
+                         String spellList) {
+        this(id, type, source, characterLevel, classId, className, classLevel, count, options, maxSpellLevel, swap,
+                spellList, null, null);
+    }
 
     /** What is chosen, in the order a level's choices are shown and made: a subclass can bring more. */
     public enum Type {
@@ -59,6 +73,11 @@ public record PendingChoice(
         FIGHTING_STYLE,
         /** Metamagic options a sorcerer learns, from the class's list (PHB p.101–102, M18) */
         METAMAGIC,
+        /**
+         * Bonus proficiencies a subclass lets the player choose when it is taken, such as the College of Lore's three
+         * skills (PHB p.54) or the Battle Master's artisan's tools (PHB p.73), from its {@code proficiencyOptions}
+         */
+        PROFICIENCY,
         /** An Ability Score Improvement: +2 to one score or +1 to two, or a feat in its place */
         ASI,
         /** A feat a race or background gives at creation, such as a Variant Human's */
@@ -89,6 +108,6 @@ public record PendingChoice(
     /** The same choice with a new count, as when creation made part of it. */
     public PendingChoice withCount(int newCount) {
         return new PendingChoice(id, type, source, characterLevel, classId, className, classLevel, newCount, options,
-                maxSpellLevel, swap, spellList);
+                maxSpellLevel, swap, spellList, proficiencyOptions, expertise);
     }
 }

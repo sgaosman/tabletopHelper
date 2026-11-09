@@ -9,6 +9,7 @@ import com.tabletophelper.reference.CharacterClassRepository;
 import com.tabletophelper.reference.Subclass;
 import com.tabletophelper.reference.SubclassRepository;
 import com.tabletophelper.rules.character.ClassTables;
+import com.tabletophelper.rules.character.ProficiencyLists;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -32,10 +33,13 @@ public class CharacterClassLoader implements ContentLoader {
             "unarmouredAcCon", "unarmouredAcWithArmour");
 
     // The bonus proficiencies a subclass gives at its subclass level, such as a Life Domain's heavy armour (PHB p.60),
-    // by the subclass's natural key: the 5etools data has them only in the features' text. Only fixed grants are listed;
-    // a proficiency the player chooses isn't
+    // by the subclass's natural key: the 5etools data has them only in the features' text. Fixed grants are listed by
+    // kind; those the player chooses, such as the College of Lore's three skills (PHB p.54), under "choices", each with
+    // how many to choose and the options by kind, a name starting with * standing for a list of ProficiencyLists, and
+    // for a choice of skills whether they gain Expertise too
     static final String SUBCLASS_PROFICIENCIES_FILE = "data/content/subclass-proficiencies.json";
     static final Set<String> PROFICIENCY_KINDS = Set.of("armor", "weapons", "tools", "skills", "languages");
+    static final String CHOICES = "choices";
 
     // Class files we don't load: Mystic is unofficial playtest material, and sidekicks aren't player classes
     private static final Set<String> SKIP_FILES = Set.of("class-mystic.json", "class-sidekick.json");
@@ -56,10 +60,11 @@ public class CharacterClassLoader implements ContentLoader {
 
     // The slot progressions and subclass levels come from the class tables, which files() lists; version 2 writes
     // the subclass effects overlay, version 3 the subclasses' bonus proficiencies, and version 4 the text of the
-    // features nested inside another, such as the Life Domain's Disciple of Life
+    // features nested inside another, such as the Life Domain's Disciple of Life, and version 5 the bonus
+    // proficiencies a subclass lets the player choose
     @Override
     public int version() {
-        return 4;
+        return 5;
     }
 
     // The 5etools entries that place another feature's text inside a feature, such as the Life Domain's Bonus
@@ -157,7 +162,9 @@ public class CharacterClassLoader implements ContentLoader {
 
     /**
      * The bonus proficiencies file, as JSON text by subclass natural key: each row an object of the kinds in
-     * {@link #PROFICIENCY_KINDS}, each a list of names.
+     * {@link #PROFICIENCY_KINDS}, each a list of names, and {@value #CHOICES}, a list of the choices the subclass
+     * gives, each with its {@code count} (at least 1), at least one kind of options, and {@code expertise} only for a
+     * choice of skills alone. A choice's list names, such as {@code *languages}, are written out as their lists.
      *
      * @throws IllegalStateException for a row that isn't one
      */
@@ -173,24 +180,83 @@ public class CharacterClassLoader implements ContentLoader {
                 throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + row.getKey()
                         + " has no proficiencies object");
             }
+            ObjectNode stored = objectMapper.createObjectNode();
             for (Map.Entry<String, JsonNode> kind : value.properties()) {
-                if (!PROFICIENCY_KINDS.contains(kind.getKey())) {
-                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + row.getKey() + " has "
-                            + kind.getKey() + ", which isn't one of " + PROFICIENCY_KINDS);
+                if (CHOICES.equals(kind.getKey())) {
+                    stored.set(CHOICES, choices(row.getKey(), kind.getValue()));
+                    continue;
                 }
-                JsonNode items = kind.getValue();
-                boolean names = items.isArray() && !items.isEmpty();
-                for (JsonNode item : items) {
-                    names &= item.isString() && !item.asString("").isBlank();
-                }
-                if (!names) {
-                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + row.getKey() + "'s "
-                            + kind.getKey() + " is not a list of names");
-                }
+                requireKind(row.getKey(), kind.getKey());
+                requireNames(row.getKey() + "'s " + kind.getKey(), kind.getValue());
+                stored.set(kind.getKey(), kind.getValue());
             }
-            rows.put(row.getKey(), objectMapper.writeValueAsString(value));
+            rows.put(row.getKey(), objectMapper.writeValueAsString(stored));
         }
         return rows;
+    }
+
+    // A row's choices, each checked, with its list names written out
+    ArrayNode choices(String key, JsonNode choices) {
+        if (!choices.isArray() || choices.isEmpty()) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + key + "'s choices are not a list");
+        }
+        ArrayNode stored = objectMapper.createArrayNode();
+        for (JsonNode choice : choices) {
+            String what = key + "'s choice " + (stored.size() + 1);
+            if (!choice.isObject() || !choice.path("count").isInt() || choice.path("count").asInt() < 1) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                        + " has no count of 1 or more");
+            }
+            ObjectNode written = objectMapper.createObjectNode();
+            written.put("count", choice.path("count").asInt());
+            List<String> kinds = new ArrayList<>();
+            for (Map.Entry<String, JsonNode> field : choice.properties()) {
+                if (field.getKey().equals("count") || field.getKey().equals("expertise")) continue;
+                requireKind(what, field.getKey());
+                requireNames(what + "'s " + field.getKey(), field.getValue());
+                List<String> names = new ArrayList<>();
+                field.getValue().forEach(name -> names.add(name.asString("")));
+                List<String> options;
+                try {
+                    options = ProficiencyLists.expand(names);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + ": " + e.getMessage());
+                }
+                ArrayNode list = written.putArray(field.getKey());
+                options.forEach(list::add);
+                kinds.add(field.getKey());
+            }
+            if (kinds.isEmpty()) {
+                throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " offers no options");
+            }
+            JsonNode expertise = choice.path("expertise");
+            if (!expertise.isMissingNode()) {
+                if (!expertise.isBoolean() || !kinds.equals(List.of("skills"))) {
+                    throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what
+                            + "'s expertise is true or false, and only for a choice of skills");
+                }
+                if (expertise.asBoolean()) written.put("expertise", true);
+            }
+            stored.add(written);
+        }
+        return stored;
+    }
+
+    private static void requireKind(String what, String kind) {
+        if (!PROFICIENCY_KINDS.contains(kind)) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " has " + kind
+                    + ", which isn't one of " + PROFICIENCY_KINDS);
+        }
+    }
+
+    private static void requireNames(String what, JsonNode items) {
+        boolean names = items.isArray() && !items.isEmpty();
+        for (JsonNode item : items) {
+            names &= item.isString() && !item.asString("").isBlank();
+        }
+        if (!names) {
+            throw new IllegalStateException(SUBCLASS_PROFICIENCIES_FILE + ": " + what + " is not a list of names");
+        }
     }
 
     /** A subclass's natural key: its class's name and source, then its own. */
