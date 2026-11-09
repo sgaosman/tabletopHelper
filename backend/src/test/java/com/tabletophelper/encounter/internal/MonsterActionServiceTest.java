@@ -604,16 +604,61 @@ class MonsterActionServiceTest {
     }
 
     @Test
-    @DisplayName("A bonus action whose uses come back after a rest isn't counted, as no monster action's are (D174)")
-    void restRechargeIsNotCounted() {
+    @DisplayName("A bonus action whose use comes back after a rest spends a pool, started full for a monster that "
+            + "joined without it, and is a 409 once spent, as nothing refills it mid-encounter (MM p.11)")
+    void restLimitedBonusAction() {
         f.turnOf(dragon);
 
         act("Second Wind", "BONUS", List.of());
-        act("Second Wind", "BONUS", List.of());
 
-        assertEquals(2, f.descriptions().stream().filter(entry -> entry.contains("uses Second Wind")).count());
-        assertTrue(dragon.getResourcePoolsCurrent().stream()
-                .noneMatch(pool -> pool.poolId().contains("second-wind")));
+        ResourcePoolEntry started = dragon.getResourcePoolsCurrent().stream()
+                .filter(pool -> pool.poolId().equals("monster:limited:second-wind")).findFirst().orElseThrow();
+        assertEquals(1, started.maxUses());
+        assertEquals(0, started.currentUses());
+        assertEquals("shortRest", started.resetOn());
+        assertEquals("BONUS_ACTION", started.spendActionType());
+        ConflictException ex = assertThrows(ConflictException.class, () -> act("Second Wind", "BONUS", List.of()));
+        assertEquals("Young Dragon has no uses of Second Wind left: its use comes back after a short or long rest, "
+                + "and rests don't happen during an encounter", ex.getMessage());
+        assertEquals(1, f.descriptions().stream().filter(entry -> entry.contains("uses Second Wind")).count());
+    }
+
+    @Test
+    @DisplayName("An action, reaction or legendary action used so many times a day spends one use each time and is a "
+            + "409 once they are gone; a legendary one also spends its legendary actions")
+    void dailyLimits() {
+        dragon.getMonster().setActionTemplates(MonsterTemplates.parse("""
+                {"actions": [
+                   {"name": "Frightful Roar (2/Day)", "automatable": false, "description": "The dragon roars."}],
+                 "reactions": [
+                   {"name": "Negate Spell", "usesPerDay": 1, "automatable": false,
+                    "description": "The dragon negates a spell."}],
+                 "legendaryActions": [
+                   {"name": "Drain Life (1/Day)", "cost": 1, "automatable": false,
+                    "description": "The dragon drains life."}]}"""));
+        f.turnOf(dragon);
+
+        act("Frightful Roar (2/Day)", "ACTION", List.of());
+        assertEquals(1, pool(dragon, "monster:limited:frightful-roar-2-day"));
+        act("Frightful Roar (2/Day)", "ACTION", List.of());
+        assertEquals(0, pool(dragon, "monster:limited:frightful-roar-2-day"));
+        ConflictException roar = assertThrows(ConflictException.class,
+                () -> act("Frightful Roar (2/Day)", "ACTION", List.of()));
+        assertEquals("Young Dragon has no uses of Frightful Roar (2/Day) left: its 2 uses come back after a long rest, "
+                + "and rests don't happen during an encounter", roar.getMessage());
+
+        act("Negate Spell", "REACTION", List.of());
+        assertEquals(0, pool(dragon, "monster:limited:negate-spell"));
+        assertThrows(ConflictException.class, () -> act("Negate Spell", "REACTION", List.of()));
+
+        f.turnOf(fighter);
+        act("Drain Life (1/Day)", "LEGENDARY", List.of());
+        assertEquals(0, pool(dragon, "monster:limited:drain-life-1-day"));
+        assertEquals(2, pool(dragon, "monster:legendary-actions"));
+        assertEquals("FREE", dragon.getResourcePoolsCurrent().stream()
+                .filter(pool -> pool.poolId().equals("monster:limited:drain-life-1-day")).findFirst().orElseThrow()
+                .spendActionType());
+        assertThrows(ConflictException.class, () -> act("Drain Life (1/Day)", "LEGENDARY", List.of()));
     }
 
     @Test

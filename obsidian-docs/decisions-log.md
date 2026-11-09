@@ -3048,6 +3048,8 @@ The plan's twelve questions were answered with its recommended answers when the 
 
 **Update (2026-11-09, M13.5):** Hide now rolls with disadvantage in armour that imposes it, or in armour worn without proficiency ([[#D175]]). That closes the last of D174's open items apart from monsters' per-day limits.
 
+**Update (2026-11-09, monsters' limited uses):** the per-day and per-rest limits are now enforced (MM p.11). The new `LimitedUsage` reads a limit from an action's name ("(2/Day)", "(3/Day each)", "(1/Short Rest)", "(Recharges after a Short or Long Rest)") or its data fields (`usesPerDay`, a `recharge` of 1/DAY or 3/DAY, `uses` with a rest), and each limited action gets a pool `monster:limited:<name>` on the participant, set up at full when the monster joins or, for a monster already in an encounter, on its first use. A use spends it as well as the action, bonus action or reaction it costs; an empty pool answers 409 for the DM too, as an uncharged recharge does, and undo gives the use back. Rests don't happen in encounters, so these pools never refill there. 320 actions are enforced (227 actions, 39 bonus actions, 52 reactions, 2 legendary actions); left as they were: five event recharges (such as Instinctive Charm), a 1/Turn limit, three limits written only in the description, and 34 stat-block bonus actions with no template. The DM's monster panel shows "[left/max left]" and greys an exhausted action; players never see the numbers ([[#D157]]). Tests: 2,503 backend unit, 282 integration and 978 frontend.
+
 **Update (2026-11-09, M14):** undoing a command restores the turn economy it spent, and undoing a Next Turn restores the previous creature's budget, as planned for M14 ([[#D176]]).
 
 ## D175: Armour and Armour Class

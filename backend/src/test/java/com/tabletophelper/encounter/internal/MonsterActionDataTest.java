@@ -64,6 +64,30 @@ class MonsterActionDataTest {
     }
 
     @Test
+    @DisplayName("320 actions, bonus actions, reactions and legendary actions have limited uses the pools count (MM "
+            + "p.11): 227 actions, 39 bonus actions, 52 reactions and 2 legendary actions; none also has a d6 recharge")
+    void limitedUses() {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        List<String> alsoRecharge = new ArrayList<>();
+        for (JsonNode definition : definitions) {
+            MonsterTemplates templates = MonsterTemplates.of(definition);
+            for (String source : List.of("ACTION", "BONUS", "REACTION", "LEGENDARY")) {
+                for (MonsterTemplates.Action action : templates.list(source)) {
+                    if (LimitedUsage.of(action).isEmpty()) {
+                        continue;
+                    }
+                    counts.merge(source, 1, Integer::sum);
+                    if (MonsterPools.rechargePool(action, "", "ACTION") != null) {
+                        alsoRecharge.add(name(definition) + " " + action.name());
+                    }
+                }
+            }
+        }
+        assertEquals(Map.of("ACTION", 227, "BONUS", 39, "REACTION", 52, "LEGENDARY", 2), counts);
+        assertEquals(List.of(), alsoRecharge);
+    }
+
+    @Test
     @DisplayName("Every bonus action and reaction is found under its source and plans: 60 of the 235 bonus actions "
             + "and 82 of the 339 reactions resolve automatically, and the rest are logged for the DM (D137, D138)")
     void bonusActionsAndReactions() {

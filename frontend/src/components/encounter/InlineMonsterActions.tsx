@@ -15,8 +15,8 @@ type ActionTargets = Pick<MonsterActionRequest, 'targetParticipantIds' | 'compon
 type InlineResult = { response: MonsterActionResponse } | { error: string };
 
 /**
- * What the templates endpoint answers: the template, with the monster's resource pools (legendary action uses and
- * recharges), or an error for a monster without templates. The generated template type leaves the last two out.
+ * What the templates endpoint answers: the template, with the monster's resource pools (legendary action uses,
+ * recharges and limited uses), or an error for a monster without templates. The generated template type leaves the last two out.
  */
 type TemplatesAnswer = MonsterActionTemplate & {
   resourcePools?: Record<string, { currentUses: number }>;
@@ -149,6 +149,13 @@ export default function InlineMonsterActions({ participant, participants, isLair
     return !pool || pool.currentUses > 0;
   };
 
+  // The uses left of an action limited to so many a day or to one until a rest; a monster that hasn't used it yet
+  // has no pool for it, so it has them all (MM p.11)
+  const usesLeft = (action: MonsterAction) => {
+    if (!action.limitedUses) return undefined;
+    return pools[action.limitedUses.poolId]?.currentUses ?? action.limitedUses.maxUses;
+  };
+
   // A multiattack's attack, labelled with the numbers of the action it makes
   const describeAction = (name: string) => {
     const action = actions.find(a => a.name?.toLowerCase() === name.toLowerCase());
@@ -236,7 +243,9 @@ export default function InlineMonsterActions({ participant, participants, isLair
       ) : (
         <div className="flex flex-wrap gap-1 mb-2">
           {currentActions.filter(a => !a.isMultiattack).map(a => {
-            const recharged = isRecharged(a);
+            const left = usesLeft(a);
+            const spent = left === 0;
+            const recharged = isRecharged(a) && !spent;
             const manual = !isAutomatable(a);
             const isLegendary = tab === 'legendary';
             const actionCost = a.cost || 1;
@@ -261,13 +270,17 @@ export default function InlineMonsterActions({ participant, participants, isLair
                     selectedAction?.name === a.name ? 'border-ink bg-ink text-card' :
                     'border-monster bg-monster-bg text-monster hover:bg-monster/20'}`}
                 title={legendaryOnOwnTurn ? `Not on ${participant.displayName}'s own turn`
+                  : spent ? `No uses left: ${participant.displayName} has used all ${a.limitedUses?.maxUses}, and rests don't happen during an encounter`
                   : legendaryDepleted ? `Not enough legendary actions (need ${actionCost}, have ${legendaryRemaining})`
                   : [a.description || formatActionLabel(a), a.dmNote && `DM: ${a.dmNote}`].filter(Boolean).join(' — ')}
               >
                 {a.name}
                 {(a.cost ?? 0) > 0 && <span className="ml-1 text-[11px] opacity-70">({a.cost})</span>}
-                {a.recharge && !recharged && <span className="ml-1 text-[11px]">↻</span>}
-                {a.recharge && recharged && <span className="ml-1 text-[11px] text-buff">✓</span>}
+                {a.recharge && !a.limitedUses && !recharged && <span className="ml-1 text-[11px]">↻</span>}
+                {a.recharge && !a.limitedUses && recharged && <span className="ml-1 text-[11px] text-buff">✓</span>}
+                {a.limitedUses && (
+                  <span className="ml-1 text-[11px] opacity-70">[{left}/{a.limitedUses.maxUses} left]</span>
+                )}
                 {legendaryDepleted && <span className="ml-1 text-[11px]">✗</span>}
               </button>
             );

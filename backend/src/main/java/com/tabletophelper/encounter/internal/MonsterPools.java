@@ -33,7 +33,9 @@ import java.util.regex.Pattern;
  * Builds every resource pool a monster starts an encounter with, and its spellcasting (D165). The pools are the
  * ones its stat block triggers in {@code monster_pool_triggers} (legendary actions; Legendary Resistance, for a
  * monster with that trait), with the counts its action templates give; one per recharge action, which rolls to
- * recharge at the start of its turn; and one per innate spell, holding its daily uses. The spellcasting is its
+ * recharge at the start of its turn; one per action, bonus action, reaction or legendary action with limited uses,
+ * such as "(1/Day)" or "(Recharges after a Short or Long Rest)" ({@link LimitedUsage}), which never refills during
+ * an encounter; and one per innate spell, holding its daily uses. The spellcasting is its
  * spell slots, its spells and its spell attack bonus, save DC and ability.
  *
  * <p>Every pool keeps the {@link ResourcePoolEntry} shape: legendary actions reset each turn ({@code resetOn}
@@ -125,6 +127,21 @@ public class MonsterPools {
 
     // ── Pools ────────────────────────────────────────────────────
 
+    /**
+     * An action's limited uses, as the DM's action buttons show them: the pool it spends and how many uses that holds
+     * when full, which a monster that hasn't used it yet may not hold.
+     */
+    public record Limit(String poolId, int maxUses) {
+    }
+
+    /** The limited uses of an action, bonus action, reaction or legendary action, or empty for one without. */
+    public static Optional<Limit> limitOf(MonsterTemplates.Action action) {
+        if (action.name() == null || action.name().isBlank()) {
+            return Optional.empty();
+        }
+        return LimitedUsage.of(action).map(limit -> new Limit(LimitedUsage.poolId(action.name().trim()), limit.uses()));
+    }
+
     /** Every pool the monster starts with, full. */
     List<ResourcePoolEntry> pools(Monster monster) {
         MonsterTemplates templates = templates(monster);
@@ -159,6 +176,9 @@ public class MonsterPools {
                 pools.putIfAbsent(pool.poolId(), pool);
             }
         });
+        limitable(templates).forEach((action, spendActionType) -> LimitedUsage
+                .pool(action, monster.getName(), spendActionType)
+                .ifPresent(pool -> pools.putIfAbsent(pool.poolId(), pool)));
 
         for (Resolved spell : spells) {
             Integer uses = uses(spell.entry());
@@ -176,6 +196,14 @@ public class MonsterPools {
         templates.actions().forEach(action -> actions.putIfAbsent(action, "ACTION"));
         templates.bonusActions().forEach(action -> actions.putIfAbsent(action, "BONUS_ACTION"));
         templates.reactions().forEach(action -> actions.putIfAbsent(action, "REACTION"));
+        return actions;
+    }
+
+    // The entries whose uses can be limited, the recharge ones and the legendary actions, which cost nothing from the
+    // turn (D163), each with what it costs
+    private static Map<MonsterTemplates.Action, String> limitable(MonsterTemplates templates) {
+        Map<MonsterTemplates.Action, String> actions = rechargeable(templates);
+        templates.legendaryActions().forEach(action -> actions.putIfAbsent(action, "FREE"));
         return actions;
     }
 

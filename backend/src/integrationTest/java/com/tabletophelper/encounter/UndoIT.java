@@ -10,6 +10,7 @@ import com.tabletophelper.encounter.state.EndRule;
 import com.tabletophelper.encounter.state.TurnEconomy;
 import com.tabletophelper.monster.Monster;
 import com.tabletophelper.monster.MonsterRepository;
+import com.tabletophelper.monster.MonsterTemplates;
 import com.tabletophelper.reference.Spell;
 import com.tabletophelper.reference.SpellRepository;
 import com.tabletophelper.reference.SpellTemplate;
@@ -330,7 +331,56 @@ class UndoIT extends IntegrationTest {
         assertThat(participant(dmState(), dragonId).get("hpCurrent").asInt()).isEqualTo(200);
     }
 
+    @Test
+    @DisplayName("A limited-use action spends a pool started full on first use and is a 409 once spent; undoing a use "
+            + "gives it back, and players never see the pool (MM p.11)")
+    void limitedUseUndone() {
+        Monster dragon = monsterRepository.findAll().stream()
+                .filter(monster -> monster.getName().equals("Dragon")).findFirst().orElseThrow();
+        dragon.setActionTemplates(MonsterTemplates.parse("""
+                {"actions": [{"name": "Frightful Presence (2/Day)", "automatable": false,
+                              "description": "Each creature of the dragon's choice must make a save."}]}"""));
+        monsterRepository.save(dragon);
+        JsonNode templates = expect(HttpStatus.OK, exchange(HttpMethod.GET,
+                "/api/encounters/" + encounterId + "/participants/" + dragonId + "/actions", null, dm.accessToken()));
+        assertThat(templates.get("actions").get(0).get("limitedUses").get("poolId").asString())
+                .isEqualTo("monster:limited:frightful-presence-2-day");
+        assertThat(templates.get("actions").get(0).get("limitedUses").get("maxUses").asInt()).isEqualTo(2);
+
+        expect(HttpStatus.OK, frightfulPresence());
+        assertThat(frightfulUses(dmState())).isEqualTo(1);
+        expect(HttpStatus.OK, frightfulPresence());
+        assertThat(frightfulUses(dmState())).isZero();
+        ResponseEntity<String> refused = frightfulPresence();
+        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(json(refused).get("error").asString())
+                .isEqualTo("Dragon has no uses of Frightful Presence (2/Day) left: its 2 uses come back after a long "
+                        + "rest, and rests don't happen during an encounter");
+        JsonNode playerView = expect(HttpStatus.OK, exchange(HttpMethod.GET, "/api/encounters/" + encounterId, null,
+                player.accessToken()));
+        assertThat(participant(playerView, dragonId).get("resourcePoolsCurrent").isNull()).isTrue();
+
+        assertThat(frightfulUses(undoNewest())).isEqualTo(1);
+        // Undoing the first use goes back to before the pool was started, which counts as full
+        JsonNode beforeAnyUse = undoNewest();
+        assertThat(participant(beforeAnyUse, dragonId).get("resourcePoolsCurrent").toString())
+                .doesNotContain("monster:limited:frightful-presence-2-day");
+        expect(HttpStatus.OK, frightfulPresence());
+        assertThat(frightfulUses(dmState())).isEqualTo(1);
+    }
+
+    private int frightfulUses(JsonNode encounter) {
+        return pool(participant(encounter, dragonId), "monster:limited:frightful-presence-2-day").get("currentUses")
+                .asInt();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    private ResponseEntity<String> frightfulPresence() {
+        return exchange(HttpMethod.POST, "/api/encounters/" + encounterId + "/combat/monster-action",
+                Map.of("monsterParticipantId", dragonId, "actionName", "Frightful Presence (2/Day)",
+                        "actionSource", "ACTION", "targetParticipantIds", List.of()), dm.accessToken());
+    }
 
     private String addMonster(String name, int hitPoints) {
         Monster monster = monsterRepository.save(Monster.builder()

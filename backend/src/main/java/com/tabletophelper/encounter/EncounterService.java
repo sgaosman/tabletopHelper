@@ -224,6 +224,7 @@ public class EncounterService {
         }
         Map<String, Object> templates = objectMapper.convertValue(templatesNode,
                 new TypeReference<LinkedHashMap<String, Object>>() {});
+        markLimitedUses(templates, participant.getMonster().getActionTemplates());
 
         // Attach current resource pool states
         List<ResourcePoolEntry> pools = participant.getResourcePoolsCurrent() != null
@@ -239,6 +240,26 @@ public class EncounterService {
         templates.put("resourcePools", poolStates);
 
         return templates;
+    }
+
+    // Each action, bonus action, reaction and legendary action with limited uses, such as "(1/Day)", gains
+    // limitedUses: the pool it spends and that pool's full count, for a monster that hasn't used it yet
+    private static void markLimitedUses(Map<String, Object> templates, MonsterTemplates typed) {
+        Map<String, String> sources = Map.of("actions", "ACTION", "bonusActions", "BONUS", "reactions", "REACTION",
+                "legendaryActions", "LEGENDARY");
+        sources.forEach((key, source) -> {
+            if (!(templates.get(key) instanceof List<?> list)) {
+                return;
+            }
+            for (Object entry : list) {
+                if (entry instanceof Map<?, ?> raw && raw.get("name") instanceof String name) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> action = (Map<String, Object>) raw;
+                    typed.find(source, name).flatMap(MonsterPools::limitOf).ifPresent(limit ->
+                            action.put("limitedUses", Map.of("poolId", limit.poolId(), "maxUses", limit.maxUses())));
+                }
+            }
+        });
     }
 
     @Transactional

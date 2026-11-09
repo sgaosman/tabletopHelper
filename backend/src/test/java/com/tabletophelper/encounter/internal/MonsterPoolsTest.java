@@ -139,7 +139,9 @@ class MonsterPoolsTest {
 
             List<ResourcePoolEntry> pools = monsterPools.pools(dragon);
 
-            assertEquals(List.of("monster:recharge:fire-breath", "monster:recharge:lightning-burst"), poolIds(pools));
+            // Healing Touch's use comes back after a rest, so its pool is a limited one, not a d6 recharge
+            assertEquals(List.of("monster:recharge:fire-breath", "monster:recharge:lightning-burst",
+                    "monster:limited:healing-touch"), poolIds(pools));
             ResourcePoolEntry breath = pool(pools, "monster:recharge:fire-breath");
             assertNull(breath.resetOn());
             assertEquals("1d6>=5", breath.resetCheck());
@@ -149,7 +151,7 @@ class MonsterPoolsTest {
 
         @Test
         @DisplayName("A bonus action or reaction with a d6 recharge gets a pool costing what it costs, and one that "
-                + "comes back after a rest gets none (D174)")
+                + "comes back after a rest gets a limited pool instead (D174)")
         void bonusActionAndReactionRechargePools() {
             Monster drake = monster("Storm Drake", null, null, """
                     {"actions": [{"name": "Bite"}],
@@ -159,7 +161,8 @@ class MonsterPoolsTest {
 
             List<ResourcePoolEntry> pools = monsterPools.pools(drake);
 
-            assertEquals(List.of("monster:recharge:static-leap", "monster:recharge:shock-ward"), poolIds(pools));
+            assertEquals(List.of("monster:recharge:static-leap", "monster:recharge:shock-ward",
+                    "monster:limited:second-wind"), poolIds(pools));
             ResourcePoolEntry leap = pool(pools, "monster:recharge:static-leap");
             assertEquals("1d6>=4", leap.resetCheck());
             assertEquals(1, leap.currentUses());
@@ -167,6 +170,42 @@ class MonsterPoolsTest {
             ResourcePoolEntry ward = pool(pools, "monster:recharge:shock-ward");
             assertEquals("1d6>=5", ward.resetCheck());
             assertEquals("REACTION", ward.spendActionType());
+        }
+
+        @Test
+        @DisplayName("Each action, bonus action, reaction and legendary action with limited uses gets a full pool "
+                + "costing what it costs, which no turn refills (MM p.11)")
+        void limitedUsePools() {
+            Monster mage = monster("Storm Mage", null, null, """
+                    {"actions": [{"name": "Bite"}, {"name": "Thunder Wave (2/Day)"},
+                                 {"name": "Enslave", "usesPerDay": 3},
+                                 {"name": "Wail", "uses": 1, "recharge": "LONG_REST"}],
+                     "bonusActions": [{"name": "Second Wind (Recharges after a Short or Long Rest)"}],
+                     "reactions": [{"name": "Negate Spell", "uses": 2, "usesRecharge": "LONG_REST"},
+                                   {"name": "Grim Harvest (1/Turn)"}],
+                     "legendaryActions": [{"name": "Drain Life (1/Day)", "cost": 2}]}""");
+
+            List<ResourcePoolEntry> pools = monsterPools.pools(mage);
+
+            assertEquals(List.of("monster:limited:thunder-wave-2-day", "monster:limited:enslave",
+                    "monster:limited:wail", "monster:limited:second-wind-recharges-after-a-short-or-long-rest",
+                    "monster:limited:negate-spell", "monster:limited:drain-life-1-day"), poolIds(pools));
+            ResourcePoolEntry thunder = pool(pools, "monster:limited:thunder-wave-2-day");
+            assertEquals(2, thunder.maxUses());
+            assertEquals(2, thunder.currentUses());
+            assertEquals("longRest", thunder.resetOn());
+            assertNull(thunder.resetCheck());
+            assertEquals("ACTION", thunder.spendActionType());
+            assertEquals("Storm Mage", thunder.sourceName());
+            assertEquals(3, pool(pools, "monster:limited:enslave").maxUses());
+            assertEquals(1, pool(pools, "monster:limited:wail").maxUses());
+            ResourcePoolEntry secondWind = pool(pools,
+                    "monster:limited:second-wind-recharges-after-a-short-or-long-rest");
+            assertEquals("shortRest", secondWind.resetOn());
+            assertEquals("BONUS_ACTION", secondWind.spendActionType());
+            assertEquals("REACTION", pool(pools, "monster:limited:negate-spell").spendActionType());
+            assertEquals(2, pool(pools, "monster:limited:negate-spell").maxUses());
+            assertEquals("FREE", pool(pools, "monster:limited:drain-life-1-day").spendActionType());
         }
 
         @Test

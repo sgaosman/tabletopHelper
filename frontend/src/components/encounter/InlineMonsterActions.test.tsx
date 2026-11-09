@@ -74,6 +74,33 @@ describe('InlineMonsterActions', () => {
   });
 });
 
+describe('InlineMonsterActions: limited uses (MM p.11)', () => {
+  beforeEach(() => {
+    setupAuthToken();
+    server.use(http.get('/api/encounters/:id/participants/:participantId/actions', () => HttpResponse.json({
+      actions: [
+        { name: 'Smoke Bomb (1/Day)', description: 'The goblin throws a smoke bomb.', automatable: false,
+          limitedUses: { poolId: 'monster:limited:smoke-bomb-1-day', maxUses: 1 } },
+        { name: 'Shriek (3/Day)', description: 'The goblin shrieks.', automatable: false,
+          limitedUses: { poolId: 'monster:limited:shriek-3-day', maxUses: 3 } },
+      ],
+      resourcePools: { 'monster:limited:smoke-bomb-1-day': { currentUses: 0 } },
+    } satisfies MonsterActionTemplate & { resourcePools: Record<string, { currentUses: number }> })));
+  });
+
+  it('shows the uses left, full for an action not used yet, and disables one with none left', async () => {
+    await renderActions();
+
+    const smokeBomb = await screen.findByRole('button', { name: /Smoke Bomb/ });
+    expect(smokeBomb).toBeDisabled();
+    expect(smokeBomb).toHaveTextContent('[0/1 left]');
+    expect(smokeBomb).toHaveAttribute('title', expect.stringContaining('No uses left'));
+    const shriek = screen.getByRole('button', { name: /Shriek/ });
+    expect(shriek).toBeEnabled();
+    expect(shriek).toHaveTextContent('[3/3 left]');
+  });
+});
+
 describe('InlineMonsterActions: bonus actions and reactions (D138, D174)', () => {
   beforeEach(() => {
     setupAuthToken();

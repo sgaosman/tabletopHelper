@@ -201,7 +201,12 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
      * @param secondarySaveDc         the DC of the save an attack's hit calls for, where the data records it apart
      *                                from saveDC, as the Mind Flayer's tentacles do (MM)
      * @param secondarySaveAbility    that save's ability
-     * @param recharge                the d6 rolls that recharge it, such as "5-6"
+     * @param recharge                the d6 rolls that recharge it, such as "5-6"; for some actions instead a limit,
+     *                                such as "SHORT_REST", "LONG_REST" or "3/DAY"
+     * @param uses                    how many times it can be used before its recharge, when the data says
+     * @param usesPerDay              how many times a day it can be used, when the data says
+     * @param usesRecharge            what brings back its uses, such as "LONG_REST"
+     * @param rechargeType            the same, as some entries write it
      * @param cost                    a legendary action's cost: a number, or a range such as "1-3" for a spell that
      *                                costs one per spell level
      * @param multiattackComponents   the actions a multiattack makes, by name, in order
@@ -217,7 +222,8 @@ public record MonsterTemplates(List<Action> actions, List<Action> legendaryActio
                          String attackType, Integer attackBonus, @JsonProperty("saveDC") Integer saveDc,
                          String saveAbility, boolean halfOnSave, Integer targetCount,
                          @JsonProperty("secondarySaveDC") Integer secondarySaveDc, String secondarySaveAbility,
-                         List<Part> effects, String recharge, String cost,
+                         List<Part> effects, String recharge, Integer uses, Integer usesPerDay,
+                         String usesRecharge, String rechargeType, String cost,
                          @JsonProperty("isMultiattack") boolean multiattack, List<String> multiattackComponents,
                          String multiattackDescription, @JsonProperty("_multiattackNote") String multiattackNote,
                          @JsonProperty("isEyeRays") boolean eyeRays, Integer rayCount, List<Ray> rays,

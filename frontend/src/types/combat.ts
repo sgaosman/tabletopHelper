@@ -156,6 +156,11 @@ export interface MonsterAction {
   referencesAction?: string;
   /** What the DM applies by hand when it is used, such as a Parry's AC against a hit already rolled (D174). */
   dmNote?: string;
+  /**
+   * Limited uses, such as "(1/Day)" or "(Recharges after a Short or Long Rest)" (MM p.11), as the server reads them: the
+   * pool each use spends and its full count, which a monster that hasn't used the action yet doesn't hold.
+   */
+  limitedUses?: { poolId: string; maxUses: number };
 }
 
 export interface MonsterEffect {

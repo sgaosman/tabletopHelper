@@ -46,7 +46,10 @@ import java.util.stream.Collectors;
  * reaction, which may be taken on any creature's turn, the Lair's included (D138, D174). Legendary and lair actions
  * are outside the action economy. The DM is never refused for the economy, and a monster going over it isn't logged.
  * A reaction's entries are logged as REACTION_TAKEN. A d6 recharge applies to bonus actions and reactions as it does
- * to actions; uses that come back only after a rest or each day aren't counted for any of them.
+ * to actions. Uses limited to so many a day or to one until a rest (MM p.11) are counted for actions, bonus actions,
+ * reactions and legendary actions alike ({@link LimitedUsage}): each use spends the action's pool, and one with no
+ * uses left is a 409, as a recharge action not yet recharged is. Rests don't happen during an encounter, so those
+ * pools never refill in one.
  * <p>
  * Bonus actions and reactions resolve as actions do: those with effects the server can read automatically, the rest
  * logged for the DM (D137). Nothing prompts for a reaction, so one that changes a result already resolved, such as
@@ -115,6 +118,17 @@ public class MonsterActionService {
                 throw new ConflictException("Recharge action '" + actionName + "' is not yet recharged");
             }
         }
+        ResourcePoolEntry limitedPool = LimitedUsage.pool(action, monsterEntity.getName(),
+                cost != null ? cost.name() : ActionCost.FREE.name()).orElse(null);
+        if (limitedPool != null) {
+            startPoolIfMissing(monster, limitedPool);
+            if (poolUses(monster, limitedPool.poolId()) <= 0) {
+                LimitedUsage limit = LimitedUsage.of(action).orElseThrow();
+                throw new ConflictException(monster.getDisplayName() + " has no uses of " + actionName + " left: "
+                        + (limit.uses() == 1 ? "its use comes" : "its " + limit.uses() + " uses come") + " back "
+                        + limit.comesBack() + ", and rests don't happen during an encounter");
+            }
+        }
         CombatActionType logType = switch (request.actionSource()) {
             case "LEGENDARY" -> CombatActionType.LEGENDARY_ACTION;
             case "LAIR" -> CombatActionType.LAIR_ACTION;
@@ -170,6 +184,9 @@ public class MonsterActionService {
 
         if (rechargePool != null) {
             resourcePoolService.spendPool(monster, rechargePool.poolId(), 1);
+        }
+        if (limitedPool != null) {
+            resourcePoolService.spendPool(monster, limitedPool.poolId(), 1);
         }
 
         List<MonsterActionResponse.TargetResult> results = applied.stream().map(MonsterActionService::result).toList();
@@ -342,8 +359,8 @@ public class MonsterActionService {
                 applied.legendaryResistanceRemaining());
     }
 
-    // A monster that joined before its recharge pools covered bonus actions and reactions starts the pool charged,
-    // as a recharge ability is at the start of an encounter
+    // A monster that joined before its recharge pools covered bonus actions and reactions, or before limited uses were
+    // counted, starts the pool full, as the ability is at the start of an encounter
     private static void startPoolIfMissing(EncounterParticipant monster, ResourcePoolEntry pool) {
         List<ResourcePoolEntry> pools = monster.getResourcePoolsCurrent() != null
                 ? monster.getResourcePoolsCurrent() : List.of();
